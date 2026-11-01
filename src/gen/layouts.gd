@@ -7,6 +7,9 @@ extends RefCounted
 ##   bsp      — recursive binary space partition; the top splits become corridors.
 ##   treemap  — squarified treemap (Marson & Musse 2010, "Automatic Real-Time Generation of Floor
 ##              Plans Based on Squarified Treemaps"): zones sized by area, then rooms inside each zone.
+##   corridor_units — apartment blocks: a 2-wide spine corridor along the long axis with units on
+##              both sides, some units split into living room + bedroom.
+##   train    — a long hull cut into cars across its length; some cars split into compartments.
 ##   growth   — constrained growth (Lopes et al. 2010, "A Constrained Growth Method for Procedural
 ##              Floor Plan Generation"): room seeds grow as rectangles, then L-shapes, then fill gaps.
 
@@ -19,6 +22,8 @@ static func run(algorithm: String, dice: Dice, w: int, region: Rect2i, labels: P
 		"bsp": return bsp(dice, w, region, labels, p)
 		"treemap": return treemap(dice, w, region, labels, p)
 		"growth": return growth(dice, w, region, labels, p)
+		"corridor_units": return corridor_units(dice, w, region, labels, p)
+		"train": return train(dice, w, region, labels, p)
 	push_error("unknown layout " + algorithm)
 	return []
 
@@ -290,3 +295,65 @@ static func _strip_free(w: int, region: Rect2i, labels: PackedInt32Array, s: Rec
 			if labels[y * w + x] != -1:
 				return false
 	return true
+
+
+# --- Apartment block: spine corridor + units ---------------------------------
+
+static func corridor_units(dice: Dice, w: int, region: Rect2i, labels: PackedInt32Array, p: Dictionary) -> Array:
+	var hints := []
+	var horiz := region.size.x >= region.size.y
+	var long := region.size.x if horiz else region.size.y
+	var short := region.size.y if horiz else region.size.x
+	var cw := 2
+	var side := (short - cw) / 2
+	var mk := func(a0: int, a1: int, b0: int, b1: int) -> Rect2i:
+		# a = along the long axis, b = across it
+		return Rect2i(region.position.x + a0, region.position.y + b0, a1 - a0, b1 - b0) if horiz \
+			else Rect2i(region.position.x + b0, region.position.y + a0, b1 - b0, a1 - a0)
+	_fill(w, labels, mk.call(0, long, side, side + cw), hints.size())
+	hints.append({"zone_hint": TacMap.Zone.PUBLIC, "kind": "corridor"})
+	for band in [[0, side], [side + cw, short]]:
+		var a := 0
+		while a < long:
+			var unit_len: int = mini(dice.rng.randi_range(5, 8), long - a)
+			if long - a - unit_len < 4:
+				unit_len = long - a
+			var b0: int = band[0]
+			var b1: int = band[1]
+			if b1 - b0 >= 6 and dice.rng.randf() < 0.6:
+				# living room on the corridor side, bedroom behind
+				var mid := b0 + (b1 - b0) / 2
+				var near_corr := b1 == side
+				_fill(w, labels, mk.call(a, a + unit_len, b0, mid), hints.size())
+				hints.append({"zone_hint": -1, "kind": "living" if near_corr else "bedroom"})
+				_fill(w, labels, mk.call(a, a + unit_len, mid, b1), hints.size())
+				hints.append({"zone_hint": -1, "kind": "bedroom" if near_corr else "living"})
+			else:
+				_fill(w, labels, mk.call(a, a + unit_len, b0, b1), hints.size())
+				hints.append({"zone_hint": -1, "kind": "living"})
+			a += unit_len
+	return hints
+
+
+# --- Train: cars along the long axis -----------------------------------------
+
+static func train(dice: Dice, w: int, region: Rect2i, labels: PackedInt32Array, p: Dictionary) -> Array:
+	var hints := []
+	var horiz := region.size.x >= region.size.y
+	var long := region.size.x if horiz else region.size.y
+	var a := 0
+	while a < long:
+		var car: int = mini(int(p.get("car_length", 14)), long - a)
+		if long - a - car < 6:
+			car = long - a
+		var parts := 2 if car >= 10 and dice.rng.randf() < 0.5 else 1
+		var seg := car / parts
+		for i in parts:
+			var a0 := a + i * seg
+			var a1 := a + car if i == parts - 1 else a0 + seg
+			var r := Rect2i(region.position.x + a0, region.position.y, a1 - a0, region.size.y) if horiz \
+				else Rect2i(region.position.x, region.position.y + a0, region.size.x, a1 - a0)
+			_fill(w, labels, r, hints.size())
+			hints.append({"zone_hint": -1, "kind": ""})
+		a += car
+	return hints

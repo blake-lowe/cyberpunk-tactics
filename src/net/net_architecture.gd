@@ -5,11 +5,13 @@ extends RefCounted
 ## around a hub. Firewalls (Passwords) join a subnet to the shallower zone. Node types and DVs,
 ## Interface abilities and Black ICE stats are the book's.
 ##
-## node:   {id, type: "hub"|"firewall"|"file"|"control", zone, subnet, dv, net_only,
+## node:   {id, type: "hub"|"firewall"|"file"|"control"|"port", zone, subnet, dv, net_only,
 ##          devices, group (control), device, value (file)}
 ## ice:    {id, kind, node, patrol}
 ## access: {device, entry_node}
 
+var structure := -1
+var scale := "normal"   ## "intro" = tutorial-size NET
 var difficulty := 1
 var complexity := 0.0   ## 0 = simple subnets … 1 = full graph (loops, multiple routes, patrols)
 var budget := 0         ## Black ICE points available
@@ -86,5 +88,5 @@ func to_dict() -> Dictionary:
 	var e := []
 	for v in edges:
 		e.append([v.x, v.y])
-	return {"difficulty": difficulty, "complexity": complexity, "budget": budget, "spent": spent,
+	return {"structure": structure, "scale": scale, "difficulty": difficulty, "complexity": complexity, "budget": budget, "spent": spent,
 		"nodes": nodes, "edges": e, "subnets": subnets, "ice": ice, "access_points": access_points}

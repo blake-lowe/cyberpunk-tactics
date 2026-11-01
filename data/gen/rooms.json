@@ -1,32 +1,1197 @@
 {
-  "_doc": "Per room kind: furniture = [piece, placement, cells per piece] (placement: wall | row | center | scatter; fewer cells per piece = denser). devices = [{t, group, wall, p, per_cells, ap, file}] where group 'cameras'/'turrets'/'locks' get a zone/floor suffix and 'site:<name>' is one group for the whole site (first matching room only). Cover materials and HP come from the book's cover table via Furnish.PIECES.",
-  "corridor":        {"furniture": [["vending", "wall", 70], ["planter", "wall", 80]], "devices": [{"t": "camera", "group": "cameras", "wall": true, "per_cells": 60}]},
-  "lobby":           {"furniture": [["reception", "center", 200], ["planter", "scatter", 40], ["sofa", "wall", 50], ["pillar", "center", 80]], "devices": [{"t": "camera", "group": "cameras", "wall": true, "per_cells": 60}]},
-  "atrium":          {"furniture": [["planter", "scatter", 35], ["pillar", "center", 50], ["sofa", "wall", 60]], "devices": [{"t": "camera", "group": "cameras", "wall": true, "per_cells": 60}]},
-  "waiting":         {"furniture": [["sofa", "wall", 25], ["table", "center", 40], ["planter", "scatter", 50]]},
-  "restroom":        {"furniture": []},
-  "office":          {"furniture": [["desk", "row", 9], ["cabinet", "wall", 30]], "devices": [{"t": "terminal", "p": 0.6, "ap": true}]},
-  "meeting":         {"furniture": [["table", "center", 12]], "devices": [{"t": "sprinkler_valve", "group": "site:sprinklers", "wall": true}]},
-  "break_room":      {"furniture": [["table", "scatter", 18], ["fridge", "wall", 60], ["vending", "wall", 70]], "devices": [{"t": "sprinkler_valve", "group": "site:sprinklers", "wall": true}]},
-  "storage":         {"furniture": [["crate", "scatter", 8]]},
-  "security_office": {"furniture": [["desk", "row", 14], ["locker", "wall", 18]], "devices": [{"t": "terminal", "ap": true, "file": 2}, {"t": "alarm_panel", "group": "site:alarm", "wall": true}, {"t": "camera", "group": "cameras", "wall": true}]},
-  "server_room":     {"furniture": [["rack", "row", 5]], "devices": [{"t": "terminal", "ap": true, "file": 3}, {"t": "camera", "group": "cameras", "wall": true}]},
-  "lab":             {"furniture": [["bench", "row", 9], ["cabinet", "wall", 30]], "devices": [{"t": "terminal", "p": 0.5, "ap": true, "file": 3}]},
-  "data_vault":      {"furniture": [["rack", "row", 8], ["safe", "wall", 50], ["pillar", "center", 60]], "devices": [{"t": "data_core", "file": 5}, {"t": "camera", "group": "cameras", "wall": true}]},
-  "exec_office":     {"furniture": [["desk", "center", 60], ["sofa", "wall", 35], ["safe", "wall", 70]], "devices": [{"t": "terminal", "ap": true, "file": 4}]},
-
-  "loading_dock":    {"furniture": [["crate", "scatter", 14], ["pillar", "center", 60]], "devices": [{"t": "camera", "group": "cameras", "wall": true, "per_cells": 80}, {"t": "shutter_control", "group": "site:shutters", "wall": true}]},
-  "dispatch_office": {"furniture": [["desk", "row", 10], ["cabinet", "wall", 25]], "devices": [{"t": "terminal", "ap": true, "file": 1}]},
-  "warehouse_floor": {"furniture": [["shelf", "row", 7], ["crate", "scatter", 30], ["pillar", "center", 90]], "devices": [{"t": "camera", "group": "cameras", "wall": true, "per_cells": 90}]},
-  "workshop":        {"furniture": [["bench", "row", 10], ["locker", "wall", 25]]},
-  "cage":            {"furniture": [["crate", "scatter", 9]], "devices": [{"t": "camera", "group": "cameras", "wall": true}]},
-  "vault":           {"furniture": [["safe", "wall", 25], ["crate", "scatter", 16]], "devices": [{"t": "data_core", "file": 5}]},
-
-  "bar":             {"furniture": [["reception", "center", 200], ["table", "scatter", 20], ["sofa", "wall", 35]], "devices": [{"t": "camera", "group": "cameras", "wall": true, "p": 0.5}]},
-  "hangout":         {"furniture": [["sofa", "wall", 20], ["table", "scatter", 28], ["crate", "scatter", 45]]},
-  "crash_room":      {"furniture": [["table", "scatter", 30], ["locker", "wall", 40]]},
-  "kitchen":         {"furniture": [["fridge", "wall", 25], ["table", "center", 25]]},
-  "armory":          {"furniture": [["locker", "wall", 10], ["crate", "scatter", 16]], "devices": [{"t": "camera", "group": "cameras", "wall": true}]},
-  "boss_room":       {"furniture": [["desk", "center", 60], ["sofa", "wall", 25], ["safe", "wall", 50]], "devices": [{"t": "terminal", "ap": true, "file": 4}]},
-  "stash":           {"furniture": [["crate", "scatter", 8], ["safe", "wall", 30]], "devices": [{"t": "terminal", "ap": false, "file": 5}]}
+ "_doc": "Per room kind: furniture = [piece, placement, cells per piece] (placement: wall | row | center | scatter; fewer cells per piece = denser). devices = [{t, group, wall, p, per_cells, ap, file}] where group 'cameras'/'turrets'/'locks' get a zone/floor suffix and 'site:<name>' is one group for the whole site (first matching room only). Cover materials and HP come from the book's cover table via Furnish.PIECES.",
+ "corridor": {
+  "furniture": [
+   [
+    "vending",
+    "wall",
+    70
+   ],
+   [
+    "planter",
+    "wall",
+    80
+   ]
+  ],
+  "devices": [
+   {
+    "t": "camera",
+    "group": "cameras",
+    "wall": true,
+    "per_cells": 60
+   }
+  ]
+ },
+ "lobby": {
+  "furniture": [
+   [
+    "reception",
+    "center",
+    200
+   ],
+   [
+    "planter",
+    "scatter",
+    40
+   ],
+   [
+    "sofa",
+    "wall",
+    50
+   ],
+   [
+    "pillar",
+    "center",
+    80
+   ]
+  ],
+  "devices": [
+   {
+    "t": "camera",
+    "group": "cameras",
+    "wall": true,
+    "per_cells": 60
+   }
+  ]
+ },
+ "atrium": {
+  "furniture": [
+   [
+    "planter",
+    "scatter",
+    35
+   ],
+   [
+    "pillar",
+    "center",
+    50
+   ],
+   [
+    "sofa",
+    "wall",
+    60
+   ]
+  ],
+  "devices": [
+   {
+    "t": "camera",
+    "group": "cameras",
+    "wall": true,
+    "per_cells": 60
+   }
+  ]
+ },
+ "waiting": {
+  "furniture": [
+   [
+    "sofa",
+    "wall",
+    25
+   ],
+   [
+    "table",
+    "center",
+    40
+   ],
+   [
+    "planter",
+    "scatter",
+    50
+   ]
+  ]
+ },
+ "restroom": {
+  "furniture": []
+ },
+ "office": {
+  "furniture": [
+   [
+    "desk",
+    "row",
+    9
+   ],
+   [
+    "cabinet",
+    "wall",
+    30
+   ]
+  ],
+  "devices": [
+   {
+    "t": "terminal",
+    "p": 0.6,
+    "ap": true
+   }
+  ]
+ },
+ "meeting": {
+  "furniture": [
+   [
+    "table",
+    "center",
+    12
+   ]
+  ],
+  "devices": [
+   {
+    "t": "sprinkler_valve",
+    "group": "site:sprinklers",
+    "wall": true
+   }
+  ]
+ },
+ "break_room": {
+  "furniture": [
+   [
+    "table",
+    "scatter",
+    18
+   ],
+   [
+    "fridge",
+    "wall",
+    60
+   ],
+   [
+    "vending",
+    "wall",
+    70
+   ]
+  ],
+  "devices": [
+   {
+    "t": "sprinkler_valve",
+    "group": "site:sprinklers",
+    "wall": true
+   }
+  ]
+ },
+ "storage": {
+  "furniture": [
+   [
+    "crate",
+    "scatter",
+    8
+   ]
+  ]
+ },
+ "security_office": {
+  "furniture": [
+   [
+    "desk",
+    "row",
+    14
+   ],
+   [
+    "locker",
+    "wall",
+    18
+   ]
+  ],
+  "devices": [
+   {
+    "t": "terminal",
+    "ap": true,
+    "file": 2
+   },
+   {
+    "t": "alarm_panel",
+    "group": "site:alarm",
+    "wall": true
+   },
+   {
+    "t": "camera",
+    "group": "cameras",
+    "wall": true
+   }
+  ]
+ },
+ "server_room": {
+  "furniture": [
+   [
+    "rack",
+    "row",
+    5
+   ]
+  ],
+  "devices": [
+   {
+    "t": "terminal",
+    "ap": true,
+    "file": 3
+   },
+   {
+    "t": "camera",
+    "group": "cameras",
+    "wall": true
+   }
+  ]
+ },
+ "lab": {
+  "furniture": [
+   [
+    "bench",
+    "row",
+    9
+   ],
+   [
+    "cabinet",
+    "wall",
+    30
+   ]
+  ],
+  "devices": [
+   {
+    "t": "terminal",
+    "p": 0.5,
+    "ap": true,
+    "file": 3
+   }
+  ]
+ },
+ "data_vault": {
+  "furniture": [
+   [
+    "rack",
+    "row",
+    8
+   ],
+   [
+    "safe",
+    "wall",
+    50
+   ],
+   [
+    "pillar",
+    "center",
+    60
+   ]
+  ],
+  "devices": [
+   {
+    "t": "data_core",
+    "file": 5
+   },
+   {
+    "t": "camera",
+    "group": "cameras",
+    "wall": true
+   }
+  ]
+ },
+ "exec_office": {
+  "furniture": [
+   [
+    "desk",
+    "center",
+    60
+   ],
+   [
+    "sofa",
+    "wall",
+    35
+   ],
+   [
+    "safe",
+    "wall",
+    70
+   ]
+  ],
+  "devices": [
+   {
+    "t": "terminal",
+    "ap": true,
+    "file": 4
+   }
+  ]
+ },
+ "loading_dock": {
+  "furniture": [
+   [
+    "crate",
+    "scatter",
+    14
+   ],
+   [
+    "pillar",
+    "center",
+    60
+   ]
+  ],
+  "devices": [
+   {
+    "t": "camera",
+    "group": "cameras",
+    "wall": true,
+    "per_cells": 80
+   },
+   {
+    "t": "shutter_control",
+    "group": "site:shutters",
+    "wall": true
+   }
+  ]
+ },
+ "dispatch_office": {
+  "furniture": [
+   [
+    "desk",
+    "row",
+    10
+   ],
+   [
+    "cabinet",
+    "wall",
+    25
+   ]
+  ],
+  "devices": [
+   {
+    "t": "terminal",
+    "ap": true,
+    "file": 1
+   }
+  ]
+ },
+ "warehouse_floor": {
+  "furniture": [
+   [
+    "shelf",
+    "row",
+    7
+   ],
+   [
+    "crate",
+    "scatter",
+    30
+   ],
+   [
+    "pillar",
+    "center",
+    90
+   ]
+  ],
+  "devices": [
+   {
+    "t": "camera",
+    "group": "cameras",
+    "wall": true,
+    "per_cells": 90
+   }
+  ]
+ },
+ "workshop": {
+  "furniture": [
+   [
+    "bench",
+    "row",
+    10
+   ],
+   [
+    "locker",
+    "wall",
+    25
+   ]
+  ]
+ },
+ "cage": {
+  "furniture": [
+   [
+    "crate",
+    "scatter",
+    9
+   ]
+  ],
+  "devices": [
+   {
+    "t": "camera",
+    "group": "cameras",
+    "wall": true
+   }
+  ]
+ },
+ "vault": {
+  "furniture": [
+   [
+    "safe",
+    "wall",
+    25
+   ],
+   [
+    "crate",
+    "scatter",
+    16
+   ]
+  ],
+  "devices": [
+   {
+    "t": "data_core",
+    "file": 5
+   }
+  ]
+ },
+ "bar": {
+  "furniture": [
+   [
+    "reception",
+    "center",
+    200
+   ],
+   [
+    "table",
+    "scatter",
+    20
+   ],
+   [
+    "sofa",
+    "wall",
+    35
+   ]
+  ],
+  "devices": [
+   {
+    "t": "camera",
+    "group": "cameras",
+    "wall": true,
+    "p": 0.5
+   }
+  ]
+ },
+ "hangout": {
+  "furniture": [
+   [
+    "sofa",
+    "wall",
+    20
+   ],
+   [
+    "table",
+    "scatter",
+    28
+   ],
+   [
+    "crate",
+    "scatter",
+    45
+   ]
+  ]
+ },
+ "crash_room": {
+  "furniture": [
+   [
+    "table",
+    "scatter",
+    30
+   ],
+   [
+    "locker",
+    "wall",
+    40
+   ]
+  ]
+ },
+ "kitchen": {
+  "furniture": [
+   [
+    "fridge",
+    "wall",
+    25
+   ],
+   [
+    "table",
+    "center",
+    25
+   ]
+  ]
+ },
+ "armory": {
+  "furniture": [
+   [
+    "locker",
+    "wall",
+    10
+   ],
+   [
+    "crate",
+    "scatter",
+    16
+   ]
+  ],
+  "devices": [
+   {
+    "t": "camera",
+    "group": "cameras",
+    "wall": true
+   }
+  ]
+ },
+ "boss_room": {
+  "furniture": [
+   [
+    "desk",
+    "center",
+    60
+   ],
+   [
+    "sofa",
+    "wall",
+    25
+   ],
+   [
+    "safe",
+    "wall",
+    50
+   ]
+  ],
+  "devices": [
+   {
+    "t": "terminal",
+    "ap": true,
+    "file": 4
+   }
+  ]
+ },
+ "stash": {
+  "furniture": [
+   [
+    "crate",
+    "scatter",
+    8
+   ],
+   [
+    "safe",
+    "wall",
+    30
+   ]
+  ],
+  "devices": [
+   {
+    "t": "terminal",
+    "ap": false,
+    "file": 5
+   }
+  ]
+ },
+ "apartment": {
+  "furniture": [
+   [
+    "sofa",
+    "wall",
+    18
+   ],
+   [
+    "table",
+    "center",
+    25
+   ],
+   [
+    "cabinet",
+    "wall",
+    30
+   ]
+  ],
+  "devices": [
+   {
+    "t": "terminal",
+    "p": 0.3,
+    "ap": true
+   }
+  ]
+ },
+ "bedroom": {
+  "furniture": [
+   [
+    "bed",
+    "wall",
+    14
+   ],
+   [
+    "cabinet",
+    "wall",
+    30
+   ]
+  ]
+ },
+ "laundry": {
+  "furniture": [
+   [
+    "vending",
+    "wall",
+    10
+   ]
+  ]
+ },
+ "manager_office": {
+  "furniture": [
+   [
+    "desk",
+    "center",
+    40
+   ],
+   [
+    "cabinet",
+    "wall",
+    20
+   ]
+  ],
+  "devices": [
+   {
+    "t": "terminal",
+    "ap": true,
+    "file": 2
+   },
+   {
+    "t": "camera",
+    "group": "cameras",
+    "wall": true
+   }
+  ]
+ },
+ "dance_floor": {
+  "furniture": [
+   [
+    "pillar",
+    "center",
+    60
+   ],
+   [
+    "seat",
+    "wall",
+    30
+   ]
+  ],
+  "devices": [
+   {
+    "t": "camera",
+    "group": "cameras",
+    "wall": true,
+    "per_cells": 80
+   },
+   {
+    "t": "light_rig",
+    "group": "site:lights",
+    "wall": true
+   }
+  ]
+ },
+ "lounge": {
+  "furniture": [
+   [
+    "sofa",
+    "wall",
+    15
+   ],
+   [
+    "table",
+    "scatter",
+    20
+   ]
+  ]
+ },
+ "backstage": {
+  "furniture": [
+   [
+    "crate",
+    "scatter",
+    14
+   ],
+   [
+    "locker",
+    "wall",
+    25
+   ]
+  ]
+ },
+ "vip_lounge": {
+  "furniture": [
+   [
+    "sofa",
+    "wall",
+    15
+   ],
+   [
+    "table",
+    "center",
+    25
+   ]
+  ],
+  "devices": [
+   {
+    "t": "camera",
+    "group": "cameras",
+    "wall": true
+   }
+  ]
+ },
+ "shop_floor": {
+  "furniture": [
+   [
+    "shelf",
+    "row",
+    8
+   ],
+   [
+    "reception",
+    "center",
+    200
+   ]
+  ],
+  "devices": [
+   {
+    "t": "camera",
+    "group": "cameras",
+    "wall": true,
+    "per_cells": 60
+   },
+   {
+    "t": "terminal",
+    "ap": true,
+    "file": 1
+   }
+  ]
+ },
+ "gangway_hall": {
+  "furniture": [
+   [
+    "crate",
+    "scatter",
+    30
+   ]
+  ],
+  "devices": [
+   {
+    "t": "camera",
+    "group": "cameras",
+    "wall": true
+   }
+  ]
+ },
+ "mess": {
+  "furniture": [
+   [
+    "table",
+    "row",
+    8
+   ],
+   [
+    "seat",
+    "wall",
+    25
+   ]
+  ]
+ },
+ "crew_quarters": {
+  "furniture": [
+   [
+    "bed",
+    "wall",
+    10
+   ],
+   [
+    "locker",
+    "wall",
+    20
+   ]
+  ]
+ },
+ "galley": {
+  "furniture": [
+   [
+    "fridge",
+    "wall",
+    15
+   ],
+   [
+    "table",
+    "center",
+    25
+   ]
+  ]
+ },
+ "bridge": {
+  "furniture": [
+   [
+    "console",
+    "row",
+    8
+   ]
+  ],
+  "devices": [
+   {
+    "t": "terminal",
+    "ap": true,
+    "file": 3
+   },
+   {
+    "t": "ship_controls",
+    "group": "site:ship_systems",
+    "wall": true
+   }
+  ]
+ },
+ "engine_room": {
+  "furniture": [
+   [
+    "pillar",
+    "center",
+    30
+   ],
+   [
+    "rack",
+    "row",
+    10
+   ]
+  ],
+  "devices": [
+   {
+    "t": "engine_controls",
+    "group": "site:ship_systems",
+    "wall": true
+   }
+  ]
+ },
+ "cargo_hold": {
+  "furniture": [
+   [
+    "container",
+    "scatter",
+    18
+   ],
+   [
+    "crate",
+    "scatter",
+    20
+   ]
+  ],
+  "devices": [
+   {
+    "t": "camera",
+    "group": "cameras",
+    "wall": true,
+    "per_cells": 80
+   }
+  ]
+ },
+ "passenger_car": {
+  "furniture": [
+   [
+    "seat",
+    "row",
+    4
+   ]
+  ],
+  "devices": [
+   {
+    "t": "camera",
+    "group": "cameras",
+    "wall": true,
+    "p": 0.5
+   }
+  ]
+ },
+ "dining_car": {
+  "furniture": [
+   [
+    "table",
+    "row",
+    6
+   ]
+  ]
+ },
+ "crew_car": {
+  "furniture": [
+   [
+    "bed",
+    "wall",
+    10
+   ],
+   [
+    "locker",
+    "wall",
+    15
+   ]
+  ],
+  "devices": [
+   {
+    "t": "terminal",
+    "ap": true,
+    "file": 2
+   }
+  ]
+ },
+ "cargo_car": {
+  "furniture": [
+   [
+    "crate",
+    "scatter",
+    7
+   ]
+  ],
+  "devices": [
+   {
+    "t": "camera",
+    "group": "cameras",
+    "wall": true
+   }
+  ]
+ },
+ "armored_car": {
+  "furniture": [
+   [
+    "safe",
+    "wall",
+    12
+   ]
+  ],
+  "devices": [
+   {
+    "t": "data_core",
+    "file": 5
+   },
+   {
+    "t": "camera",
+    "group": "cameras",
+    "wall": true
+   }
+  ]
+ },
+ "concourse": {
+  "furniture": [
+   [
+    "seat",
+    "row",
+    10
+   ],
+   [
+    "pillar",
+    "center",
+    50
+   ],
+   [
+    "kiosk",
+    "scatter",
+    80
+   ]
+  ],
+  "devices": [
+   {
+    "t": "camera",
+    "group": "cameras",
+    "wall": true,
+    "per_cells": 70
+   }
+  ]
+ },
+ "ticket_office": {
+  "furniture": [
+   [
+    "desk",
+    "row",
+    10
+   ]
+  ],
+  "devices": [
+   {
+    "t": "terminal",
+    "ap": true,
+    "file": 1
+   }
+  ]
+ },
+ "shack": {
+  "furniture": [
+   [
+    "crate",
+    "scatter",
+    12
+   ],
+   [
+    "bed",
+    "wall",
+    20
+   ]
+  ]
+ },
+ "guard_booth": {
+  "furniture": [
+   [
+    "console",
+    "center",
+    200
+   ]
+  ],
+  "devices": [
+   {
+    "t": "terminal",
+    "ap": true,
+    "file": 1
+   },
+   {
+    "t": "gate_controls",
+    "group": "site:gates",
+    "wall": true
+   },
+   {
+    "t": "camera",
+    "group": "cameras",
+    "wall": true
+   }
+  ]
+ },
+ "parking_lot": {
+  "furniture": [
+   [
+    "car",
+    "scatter",
+    18
+   ],
+   [
+    "barrier",
+    "wall",
+    80
+   ]
+  ],
+  "devices": [
+   {
+    "t": "camera",
+    "group": "cameras",
+    "per_cells": 300
+   }
+  ]
+ },
+ "container_yard": {
+  "furniture": [
+   [
+    "barrel",
+    "scatter",
+    90
+   ],
+   [
+    "pallet",
+    "scatter",
+    90
+   ]
+  ],
+  "devices": [
+   {
+    "t": "camera",
+    "group": "cameras",
+    "per_cells": 250
+   },
+   {
+    "t": "floodlight",
+    "group": "site:floodlights",
+    "per_cells": 300
+   }
+  ]
+ },
+ "quay": {
+  "furniture": [
+   [
+    "barrel",
+    "scatter",
+    60
+   ],
+   [
+    "crate",
+    "scatter",
+    60
+   ]
+  ],
+  "devices": [
+   {
+    "t": "crane_controls",
+    "group": "site:cranes"
+   }
+  ]
+ },
+ "compound_yard": {
+  "furniture": [
+   [
+    "wreck",
+    "scatter",
+    90
+   ],
+   [
+    "barrel",
+    "scatter",
+    50
+   ],
+   [
+    "sandbags",
+    "scatter",
+    70
+   ]
+  ],
+  "devices": [
+   {
+    "t": "floodlight",
+    "group": "site:floodlights",
+    "p": 0.6
+   }
+  ]
+ },
+ "courtyard": {
+  "furniture": [
+   [
+    "planter",
+    "scatter",
+    25
+   ],
+   [
+    "seat",
+    "scatter",
+    35
+   ]
+  ],
+  "devices": [
+   {
+    "t": "camera",
+    "group": "cameras",
+    "per_cells": 200
+   }
+  ]
+ },
+ "platform": {
+  "furniture": [
+   [
+    "seat",
+    "row",
+    14
+   ],
+   [
+    "pillar",
+    "center",
+    40
+   ]
+  ],
+  "devices": [
+   {
+    "t": "camera",
+    "group": "cameras",
+    "per_cells": 120
+   }
+  ]
+ },
+ "plaza": {
+  "furniture": [
+   [
+    "planter",
+    "scatter",
+    30
+   ],
+   [
+    "barrier",
+    "scatter",
+    70
+   ]
+  ],
+  "devices": [
+   {
+    "t": "camera",
+    "group": "cameras",
+    "per_cells": 200
+   }
+  ]
+ }
 }

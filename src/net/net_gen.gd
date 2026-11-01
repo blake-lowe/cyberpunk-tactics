@@ -7,25 +7,35 @@ extends RefCounted
 ## - Control Nodes come from device groups, Files from data devices (max FILES_PER_SUBNET each).
 ## - Net-only content: master overrides and offsite data with no physical counterpart, and data
 ##   cores, which have no jack-in point. Only netrunning reaches them.
-## - Jack-in points enter their own zone's subnet only some of the time, otherwise one zone
-##   shallower, and never the vault: physical access helps but doesn't map 1:1 onto the NET.
+## - Each jack-in terminal is wired to its own fixed "port" node (review verdict: deterministic,
+##   one access point → one node). Which subnet the port sits in is set at generation: its own
+##   zone half the time, otherwise one zone shallower, never the vault — physical access helps
+##   but doesn't map 1:1 onto the NET.
+## - net_scale "intro": one small subnet, no firewalls, at most a token ICE, for tutorial gigs.
 ## - Black ICE comes from a points budget (security × gig threat), spent per zone, deeper zones
 ##   getting more; book stats and costs (data/rules/black_ice.json).
 
 const FILES_PER_SUBNET := 2
 const COMPLEXITY := [0.0, 0.2, 0.6, 1.0]     # by security level
 const BUDGET := [3, 10, 24, 44]              # ICE points by security level
-const OWN_ZONE_ENTRY := 0.5                  # chance a jack-in point enters its own zone
+const OWN_ZONE_ENTRY := 0.5                  # chance a port is wired into its own zone
+const INTRO_BUDGET := 1                      # intro gigs: at most one Wisp/Raven
 
 
-static func generate(m: TacMap, dice: Dice) -> NetArchitecture:
+## Build the NET for structure `sid` from its devices.
+static func generate(m: TacMap, dice: Dice, sid: int) -> NetArchitecture:
 	var a := NetArchitecture.new()
-	var sec := clampi(int(m.params.get("security", 1)), 0, 3)
+	var st: Dictionary = m.structures[sid]
+	var sec := clampi(int(st.security), 0, 3)
+	var intro: bool = st.params.get("net_scale", "") == "intro"
+	a.structure = sid
+	a.scale = "intro" if intro else "normal"
 	a.difficulty = sec
-	a.complexity = COMPLEXITY[sec]
+	a.complexity = 0.0 if intro else COMPLEXITY[sec]
 	var dv: int = RulesDB.load_json("net.json")["difficulty"][sec]["dv"]
 	var per_floor := a.complexity >= 0.5
-	var mz := MapGen.max_zone(sec)
+	var mz := TacMap.Zone.PUBLIC if intro else MapGen.max_zone(sec)
+	var devices := m.devices.filter(func(d): return d.get("structure", -1) == sid)
 
 	# 1. Content buckets keyed by subnet: Vector2i(zone, building floor or 0).
 	var buckets := {}
@@ -33,7 +43,7 @@ static func generate(m: TacMap, dice: Dice) -> NetArchitecture:
 		return Vector2i(zone, bfloor if per_floor and zone > TacMap.Zone.PUBLIC else 0)
 	var groups := {}
 	var files := {}
-	for d in m.devices:
+	for d in devices:
 		var z := mini(maxi(int(d.zone), TacMap.Zone.PUBLIC), mz)
 		if d.group != "":
 			if not groups.has(d.group):
@@ -58,13 +68,13 @@ static func generate(m: TacMap, dice: Dice) -> NetArchitecture:
 		if k.x == mz:
 			deepest = k
 			break
-	if sec >= 1:
+	if sec >= 1 and not intro:
 		var cams := []
-		for d in m.devices:
+		for d in devices:
 			if d.type == "camera":
 				cams.append(d.id)
 		buckets.get_or_add(deepest, []).append({"type": "control", "dv": dv + 2, "group": "master_cameras", "devices": cams, "zone": mz, "net_only": true})
-	if sec >= 2:
+	if sec >= 2 and not intro:
 		buckets.get_or_add(deepest, []).append({"type": "file", "dv": dv + 2, "device": -1, "value": 4, "zone": mz, "net_only": true, "label": "offsite backup"})
 	for z in range(TacMap.Zone.PUBLIC, mz + 1):  # every zone gets a subnet, even if empty
 		if not buckets.keys().any(func(k): return k.x == z):
@@ -75,14 +85,14 @@ static func generate(m: TacMap, dice: Dice) -> NetArchitecture:
 	keys.sort_custom(func(x, y): return x.x < y.x or (x.x == y.x and x.y < y.y))
 	var hub_of := {}
 	for k in keys:
-		var sid := a.subnets.size()
-		var hub := a.add_node({"type": "hub", "zone": k.x, "subnet": sid, "net_only": k.x >= TacMap.Zone.VAULT})
-		a.subnets.append({"id": sid, "zone": k.x, "bfloor": k.y, "hub": hub})
+		var snid := a.subnets.size()
+		var hub := a.add_node({"type": "hub", "zone": k.x, "subnet": snid, "net_only": k.x >= TacMap.Zone.VAULT})
+		a.subnets.append({"id": snid, "zone": k.x, "bfloor": k.y, "hub": hub})
 		hub_of[k] = hub
 		var members: Array[int] = []
 		for item in _shuffled(dice, buckets[k]):
 			item.erase("bfloor")
-			item["subnet"] = sid
+			item["subnet"] = snid
 			var id := a.add_node(item)
 			var attach := hub
 			if not members.is_empty() and dice.rng.randf() < 0.25 + 0.35 * a.complexity:
@@ -107,8 +117,8 @@ static func generate(m: TacMap, dice: Dice) -> NetArchitecture:
 			if k2.x == k.x and k2.y == k.y + 1 and dice.rng.randf() < 0.5 * a.complexity:
 				a.link(hub_of[k], hub_of[k2])
 
-	# 4. Jack-in points.
-	for d in m.devices:
+	# 4. Jack-in points: one port node per terminal, wired into a fixed subnet.
+	for d in devices:
 		if not d.get("access_point", false):
 			continue
 		var z := mini(maxi(int(d.zone), TacMap.Zone.PUBLIC), mini(mz, TacMap.Zone.SECURE))
@@ -116,10 +126,12 @@ static func generate(m: TacMap, dice: Dice) -> NetArchitecture:
 			z -= 1
 		var k: Vector2i = key_of.call(z, d.floor)
 		var hub: int = hub_of.get(k, hub_of[Vector2i(TacMap.Zone.PUBLIC, 0)])
-		a.access_points.append({"device": d.id, "entry_node": hub})
+		var port := a.add_node({"type": "port", "zone": a.nodes[hub].zone, "subnet": a.nodes[hub].subnet, "device": d.id})
+		a.link(hub, port)
+		a.access_points.append({"device": d.id, "entry_node": port})
 
 	# 5. Black ICE from the budget.
-	_spend_ice(a, dice, keys, hub_of, float(m.params.get("net_threat", 1.0)))
+	_spend_ice(a, dice, keys, hub_of, float(st.params.get("net_threat", 1.0)), intro)
 	return a
 
 
@@ -138,9 +150,9 @@ static func _firewall(a: NetArchitecture, outer_hub: int, inner_hub: int, zone: 
 
 ## Spend the whole-site budget: each pick prefers the strongest affordable ICE, then lands in a
 ## subnet chosen with weight = zone depth (deeper zones get more), guarding a node or patrolling.
-static func _spend_ice(a: NetArchitecture, dice: Dice, keys: Array, hub_of: Dictionary, threat: float) -> void:
+static func _spend_ice(a: NetArchitecture, dice: Dice, keys: Array, hub_of: Dictionary, threat: float, intro: bool) -> void:
 	var table: Dictionary = RulesDB.load_json("black_ice.json")["ice"]
-	a.budget = roundi(BUDGET[a.difficulty] * threat)
+	a.budget = INTRO_BUDGET if intro else roundi(BUDGET[a.difficulty] * threat)
 	var zone_w := PackedFloat32Array()
 	for k in keys:
 		zone_w.append(float(k.x) * float(k.x))  # public 1, staff 4, secure 9, vault 16
