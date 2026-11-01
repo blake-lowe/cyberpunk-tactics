@@ -133,7 +133,9 @@ func test_net_links_join_existing_nets() -> void:
 			var sock: Dictionary = m.architectures[l.a].nodes[l.a_node]
 			assert_eq(sock.type, "socket")
 			assert_eq(int(sock.target_structure), int(l.b))
-			assert_eq(m.architectures[l.b].nodes[l.b_node].type, "hub")
+			var back: Dictionary = m.architectures[l.b].nodes[l.b_node]
+			assert_eq(back.type, "socket", "bidirectional: a socket on the far side too")
+			assert_eq(int(back.target_node), int(l.a_node))
 
 
 func test_socket_crossing() -> void:

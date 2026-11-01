@@ -16,6 +16,7 @@ extends RefCounted
 ##   getting more; book stats and costs (data/rules/black_ice.json).
 
 const FILES_PER_SUBNET := 1
+const BRANCH_SIZE := 3                       # content nodes per junction (readability)
 const COMPLEXITY := [0.0, 0.12, 0.35, 0.6]   # by security level (M2c review: ~1.6x leaner)
 const BUDGET := [3, 10, 24, 44]              # ICE points by security level
 const OWN_ZONE_ENTRY := 0.5                  # chance a port is wired into its own zone
@@ -80,7 +81,9 @@ static func generate(m: TacMap, dice: Dice, sid: int) -> NetArchitecture:
 		if not buckets.keys().any(func(k): return k.x == z):
 			buckets[Vector2i(z, 0)] = []
 
-	# 2. Subnets: a hub plus its content, star with short chains; loops at higher complexity.
+	# 2. Subnets (M2e review: graphs, not lines or trees, but readable): a hub, and the subnet's
+	#    content split into small branches of up to BRANCH_SIZE behind "junction" nodes. Two or
+	#    more junctions form a ring that touches the hub twice, so every branch has two routes in.
 	var keys := buckets.keys()
 	keys.sort_custom(func(x, y): return x.x < y.x or (x.x == y.x and x.y < y.y))
 	var hub_of := {}
@@ -89,19 +92,26 @@ static func generate(m: TacMap, dice: Dice, sid: int) -> NetArchitecture:
 		var hub := a.add_node({"type": "hub", "zone": k.x, "subnet": snid, "net_only": k.x >= TacMap.Zone.VAULT})
 		a.subnets.append({"id": snid, "zone": k.x, "bfloor": k.y, "hub": hub})
 		hub_of[k] = hub
-		var members: Array[int] = []
-		for item in _shuffled(dice, buckets[k]):
+		var items := _shuffled(dice, buckets[k])
+		var nj := 0 if items.size() <= BRANCH_SIZE else ceili(items.size() / float(BRANCH_SIZE))
+		var junctions: Array[int] = []
+		for j in nj:
+			junctions.append(a.add_node({"type": "junction", "zone": k.x, "subnet": snid}))
+		if nj == 2:
+			a.link(hub, junctions[0])
+			a.link(hub, junctions[1])
+			a.link(junctions[0], junctions[1])
+		elif nj >= 3:
+			for j in nj:
+				a.link(junctions[j], junctions[(j + 1) % nj])
+			a.link(hub, junctions[0])
+			a.link(hub, junctions[nj / 2])
+		for i in items.size():
+			var item: Dictionary = items[i]
 			item.erase("bfloor")
 			item["subnet"] = snid
 			var id := a.add_node(item)
-			var attach := hub
-			if not members.is_empty() and dice.rng.randf() < 0.25 + 0.35 * a.complexity:
-				attach = members[dice.rng.randi_range(0, members.size() - 1)]
-			a.link(attach, id)
-			members.append(id)
-		for i in roundi(members.size() * 0.4 * a.complexity):
-			if members.size() >= 3:
-				a.link(members[dice.rng.randi_range(0, members.size() - 1)], members[dice.rng.randi_range(0, members.size() - 1)])
+			a.link(junctions[i % nj] if nj > 0 else hub, id)
 
 	# 3. Firewalls into each deeper subnet; second routes and lateral links at high complexity.
 	for k in keys:

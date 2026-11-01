@@ -5,7 +5,7 @@ extends RefCounted
 ## around a hub. Firewalls (Passwords) join a subnet to the shallower zone. Node types and DVs,
 ## Interface abilities and Black ICE stats are the book's.
 ##
-## node:   {id, type: "hub"|"firewall"|"file"|"control"|"port", zone, subnet, dv, net_only,
+## node:   {id, type: "hub"|"junction"|"firewall"|"file"|"control"|"port"|"socket", zone, subnet, dv, net_only,
 ##          devices, group (control), device, value (file)}
 ## ice:    {id, kind, node, patrol}
 ## access: {device, entry_node}
