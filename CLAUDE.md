@@ -1,0 +1,30 @@
+# Cyberpunk Tactics — working notes for Claude
+
+Turn-based tactical game on Cyberpunk RED rules, XCOM-style crew/gig loop. Godot 4.7.2, GDScript.
+Design source of truth: `docs/design-spec.md`. Milestones and status: `docs/roadmap.md`.
+
+## Setup & tests
+- `tools/install_godot.sh` — installs pinned Godot to /opt/godot (cloud containers start without it).
+- `tools/test.sh [filter]` — headless unit tests. Must pass before every commit.
+- Tests live in `tests/unit/**/test_*.gd`, extend `TestCase`, methods named `test_*`.
+- No GPU in the cloud container: verify logic with tests, not screenshots. Visual work is reviewed by the user locally.
+
+## Layout
+- `src/core/` — pure rules (dice, checks, damage, armor, initiative). `RefCounted` only, no Nodes, no scene access.
+- `src/data/` — `Resource` definitions (characters, weapons, cyberware, roles).
+- `data/` — content files (weapon tables etc.) loaded into those resources.
+- `src/gen/` maps, `src/net/` net architectures, `src/tactical/` grid/turns/scenes, `src/ui/`, `src/meta/` base/economy.
+- Keep rules code independent of presentation so it stays testable headless.
+
+## Conventions
+- Static typing everywhere. Tabs for indentation (Godot default).
+- All randomness through a seeded `Dice` instance passed in — never global `randi()` in rules code.
+- Rules values: cite the source next to the value (`# CPR core p.XXX` or `# Demiplane: <page>`).
+  Anything not yet checked against the rulebook is tagged `# RULES-UNVERIFIED`; grep for it before milestone sign-off.
+- Deliberate departures from rules-as-written are tagged `# HOUSE-RULE:` with a one-line reason.
+- Rules reference: Demiplane Nexus (free official) or the user's own PDF on request. Don't paste rulebook text into the repo; store numbers and short paraphrases only.
+
+## Workflow
+- One milestone per session where possible; commit at green-test checkpoints.
+- Stop for the user only at the check-ins in `docs/roadmap.md` or on genuine design/aesthetic questions.
+  Routine implementation choices: decide, then note them in the commit message.

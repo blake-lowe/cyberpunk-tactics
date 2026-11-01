@@ -1,0 +1,7 @@
+.godot/
+*.translation
+export_presets.cfg
+/build/
+/android/
+*.tmp
+.DS_Store
