@@ -54,6 +54,7 @@ static func build(m: TacMap, dice: Dice, hints: Array, ctx: Dictionary) -> Dicti
 	_service_door(m, dice, shell, door.side, sid, int(st.base_zone))
 	_wall_materials(m, shell, floors, int(sdef.get("exterior", 1)))
 	_room_kinds(m, String(ctx.site), first_id, root)
+	_roof(m, dice, hints, shell, floors, sid, int(st.base_zone))
 	Furnish.run_structure(m, dice, sid)
 	if sdef.get("networked", true) and m.devices.any(func(d): return d.structure == sid):
 		m.architectures[sid] = NetGen.generate(m, dice, sid)
@@ -253,11 +254,15 @@ static func _service_door(m: TacMap, dice: Dice, shell: Rect2i, main_side: Strin
 
 
 ## Door candidates between two of this building's rooms (ids ≥ first).
-static func _door_candidates(m: TacMap, first: int) -> Dictionary:
+static func _shell_of(m: TacMap, first: int) -> Rect2i:
+	return m.structures[m.rooms[first].structure].rect
+
+
+static func _door_candidates(m: TacMap, first: int, shell: Rect2i) -> Dictionary:
 	var out := {}
 	for f in m.floors:
-		for y in m.h:
-			for x in m.w:
+		for y in range(shell.position.y, shell.end.y):
+			for x in range(shell.position.x, shell.end.x):
 				if m.t(f, x, y) != TacMap.T.WALL:
 					continue
 				for axis in [[Vector2i.LEFT, Vector2i.RIGHT], [Vector2i.UP, Vector2i.DOWN]]:
@@ -271,7 +276,7 @@ static func _door_candidates(m: TacMap, first: int) -> Dictionary:
 
 
 static func _connect(m: TacMap, dice: Dice, hints: Array, p: Dictionary, first: int, root: int, base_zone: int) -> void:
-	var cands := _door_candidates(m, first)
+	var cands := _door_candidates(m, first, _shell_of(m, first))
 	var adj := {}
 	for key in cands:
 		adj.get_or_add(key.x, []).append(key.y)
@@ -445,3 +450,48 @@ static func _room_kinds(m: TacMap, site: String, first: int, entrance_room: int)
 			else:
 				r.kind = rot[0] if i == 0 or rot.size() == 1 else rot[1 + (i - 1) % (rot.size() - 1)]
 				i += 1
+
+
+## Roof level above the top floor: walkable ROOF over the whole footprint, reached by extending
+## the stair shaft (roof hatch) and/or an external ladder / fire escape from the street. A roof
+## with no way up is left as plain structure (no room, no furniture).
+static func _roof(m: TacMap, dice: Dice, hints: Array, shell: Rect2i, floors: int, sid: int, base_zone: int) -> void:
+	var rf := floors
+	if rf >= m.floors:
+		return
+	for y in range(shell.position.y, shell.end.y):
+		for x in range(shell.position.x, shell.end.x):
+			m.set_t(rf, x, y, TacMap.T.ROOF)
+	var access := false
+	for v in m.verticals:
+		if v.get("structure", -1) == sid and v.type == "stairs" and dice.rng.randf() < 0.6:
+			v.to_floor = rf
+			m.set_t(rf, v.pos.x, v.pos.y, TacMap.T.STAIRS)
+			access = true
+	var by_side := _facade_candidates(m, shell)
+	var ladder_spots := []
+	for side in by_side:
+		var out_dir: Vector2i = {"N": Vector2i.UP, "S": Vector2i.DOWN, "E": Vector2i.RIGHT, "W": Vector2i.LEFT}[side]
+		for cnd in by_side[side]:
+			var base: Vector2i = cnd.pos + out_dir
+			var near_door := false
+			for d in MapGen.DIRS + DIAG:
+				if m.t(0, base.x + d.x, base.y + d.y) == TacMap.T.DOOR:
+					near_door = true
+			if not near_door and m.t(0, cnd.pos.x, cnd.pos.y) == TacMap.T.WALL:
+				ladder_spots.append([base, cnd.pos])
+	if not ladder_spots.is_empty() and (not access or dice.rng.randf() < 0.7):
+		var spot: Array = ladder_spots[dice.rng.randi_range(0, ladder_spots.size() - 1)]
+		m.connectors.append({"type": "ladder", "a": Vector3i(spot[0].x, spot[0].y, 0), "b": Vector3i(spot[1].x, spot[1].y, rf), "structure": sid})
+		access = true
+	if not access:
+		return
+	var id := hints.size()
+	hints.append({"zone_hint": TacMap.Zone.STAFF, "kind": "roof", "floor": rf})
+	while m.rooms.size() < id:
+		m.rooms.append({"id": m.rooms.size(), "floor": -1, "zone": -1, "kind": "void", "cells": 0, "bounds": Rect2i(), "structure": -1})
+	m.rooms.append({"id": id, "floor": rf, "zone": maxi(base_zone, TacMap.Zone.STAFF), "kind": "roof", "cells": shell.get_area(),
+		"bounds": shell, "structure": sid, "outdoor": true})
+	for y in range(shell.position.y, shell.end.y):
+		for x in range(shell.position.x, shell.end.x):
+			m.labels[rf][y * m.w + x] = id

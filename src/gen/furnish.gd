@@ -20,6 +20,7 @@ const PIECES := {
 	"container": ["steel", false], "boulder": ["stone", true], "wreck": ["steel", false],
 	"barrel": ["steel", false], "pallet": ["wood", false], "sandbags": ["stone", false],
 	"crane_leg": ["steel", true], "freight_car": ["steel", false], "kiosk": ["wood", true],
+	"ac_unit": ["steel", false], "vent": ["steel", false],
 }
 
 ## Multi-cell props: piece → [w, h] footprint in squares (rotated at random).
@@ -56,7 +57,7 @@ static func room_cells(m: TacMap, r: Dictionary) -> Array[Vector2i]:
 
 
 static func open_tile(v: int) -> bool:
-	return v == TacMap.T.FLOOR or v == TacMap.T.OUTSIDE
+	return v == TacMap.T.FLOOR or v == TacMap.T.OUTSIDE or v == TacMap.T.ROOF
 
 
 static func cover_entry(piece: String, f: int, pos: Vector2i, room: int, prop: int = -1) -> Dictionary:
@@ -133,7 +134,7 @@ static func try_prop(m: TacMap, f: int, rect: Rect2i, piece: String, room: int, 
 			if inside:
 				if not m.inb(x, y) or not open_tile(m.t(f, x, y)) or reserved.has(c) or (not allowed.is_empty() and not allowed.has(c)):
 					return false
-			if m.has_cover_at(f, c) or m.t(f, x, y) in [TacMap.T.DOOR, TacMap.T.STAIRS, TacMap.T.ELEVATOR]:
+			if m.has_cover_at(f, c) or m.t(f, x, y) in [TacMap.T.DOOR, TacMap.T.STAIRS, TacMap.T.ELEVATOR] or m.is_connector_end(f, c):
 				return false
 	var prop := m.cover.size()
 	for y in range(rect.position.y, rect.end.y):
@@ -155,7 +156,7 @@ static func _wall_distance(m: TacMap, f: int, c: Vector2i) -> int:
 static func _near_entry(m: TacMap, f: int, c: Vector2i) -> bool:
 	for dy in range(-1, 2):
 		for dx in range(-1, 2):
-			if m.t(f, c.x + dx, c.y + dy) in [TacMap.T.DOOR, TacMap.T.STAIRS, TacMap.T.ELEVATOR]:
+			if m.t(f, c.x + dx, c.y + dy) in [TacMap.T.DOOR, TacMap.T.STAIRS, TacMap.T.ELEVATOR] or m.is_connector_end(f, c + Vector2i(dx, dy)):
 				return true
 	return false
 

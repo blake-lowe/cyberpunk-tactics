@@ -119,7 +119,7 @@
   "devices": [
    {
     "t": "terminal",
-    "p": 0.6,
+    "p": 0.35,
     "ap": true
    }
   ]
@@ -593,7 +593,7 @@
   "devices": [
    {
     "t": "terminal",
-    "p": 0.3,
+    "p": 0.12,
     "ap": true
    }
   ]
@@ -1191,6 +1191,27 @@
     "t": "camera",
     "group": "cameras",
     "per_cells": 200
+   }
+  ]
+ },
+ "roof": {
+  "furniture": [
+   [
+    "ac_unit",
+    "scatter",
+    26
+   ],
+   [
+    "vent",
+    "scatter",
+    45
+   ]
+  ],
+  "devices": [
+   {
+    "t": "camera",
+    "group": "cameras",
+    "p": 0.4
    }
   ]
  }

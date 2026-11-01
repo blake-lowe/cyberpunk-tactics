@@ -81,3 +81,53 @@ func test_intro_net_is_tiny() -> void:
 	assert_eq(a.subnets.size(), 1)
 	assert_eq(a.nodes_of_type("firewall").size(), 0)
 	assert_true(a.spent <= NetGen.INTRO_BUDGET)
+
+
+func test_walls_doors_and_fences_as_cover() -> void:
+	var found := {}
+	for m in _scenes():
+		for f in m.floors:
+			for y in m.h:
+				for x in m.w:
+					if m.t(f, x, y) != TacMap.T.WALL:
+						continue
+					var wc := m.wall_cover(f, x, y)
+					found[wc.material] = wc
+		for d in m.doors:
+			var dc := m.wall_cover(d.floor, d.pos.x, d.pos.y)
+			if d.get("gate", false):
+				assert_false(dc.cover, "fence gates are no cover")
+			else:
+				assert_eq(dc.hp, TacMap.SECURITY_DOOR_HP if d.security else TacMap.DOOR_HP)
+	assert_eq(found["plaster"].hp, 15, "office wall: thick plaster (p183)")
+	assert_eq(found["concrete"].hp, 25)
+	assert_eq(found["stone"].hp, 40, "rock outcrop ≈ boulder")
+	assert_false(found["fence"].cover, "fences stop movement, not bullets")
+	assert_false(found["fence"].blocks_los)
+	assert_true(found["fence"].blocks_move)
+
+
+func test_roofs_have_access_and_connectors_land_on_walkable_ground() -> void:
+	for m in _scenes():
+		for r in m.rooms:
+			if r.cells > 0 and r.kind == "roof":
+				var sid: int = r.structure
+				var hatch := m.verticals.any(func(v): return v.get("structure", -1) == sid and v.to_floor == r.floor)
+				var ladder := m.connectors.any(func(c): return c.get("structure", -1) == sid)
+				assert_true(hatch or ladder, "%s: roof of structure %d has a way up" % [m.params.scene, sid])
+		for c in m.connectors:
+			assert_true(m.walkable_tile(m.t(c.a.z, c.a.x, c.a.y)) and m.walkable_tile(m.t(c.b.z, c.b.x, c.b.y)), "connector ends walkable")
+
+
+func test_city_district_has_bridges() -> void:
+	var m: TacMap = _scenes().filter(func(x): return x.params.scene == "city_district")[0]
+	assert_true(m.doors.any(func(d): return d.get("skybridge", false)), "skybridges")
+	assert_true(m.verticals.any(func(v): return v.get("structure", 0) == -1), "footbridges")
+	assert_true(m.structures.size() > 20, "dozens of structures")
+
+
+func test_net_links_join_existing_nets() -> void:
+	for m in _scenes():
+		for l in m.net_links:
+			assert_true(m.architectures.has(l.a) and m.architectures.has(l.b), "link ends have NETs")
+			assert_eq(m.architectures[l.a].nodes[l.a_node].type, "hub")

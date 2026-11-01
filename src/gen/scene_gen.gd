@@ -20,21 +20,23 @@ static func generate(seed_value: int, scene: String, overrides: Dictionary = {})
 	if int(p.get("verticality", 1)) == 0:
 		p.floors = 1
 	var dice := Dice.new(seed_value)
-	var m := TacMap.new(int(p.w), int(p.h), int(p.floors))
+	var m := TacMap.new(int(p.w), int(p.h), int(p.floors) + 1)  # + roof level
 	m.seed_value = seed_value
 	m.algorithm = scene
 	m.params = p
 	p["scene"] = scene
-	var c := {"m": m, "dice": dice, "hints": [], "p": p, "reserved": {}, "overrides": overrides}
+	var c := {"m": m, "dice": dice, "hints": [], "p": p, "reserved": {}, "overrides": overrides, "related": []}
 	match scene:
 		"lone_building": _lone_building(c)
-		"street_block": _street_block(c)
+		"street_block": _city(c, 2, 1)
+		"city_district": _city(c, 4, 3)
 		"megablock": _megablock(c)
 		"shipyard": _shipyard(c)
 		"badlands": _badlands(c)
 		"rail_yard": _rail_yard(c)
 		"corp_campus": _corp_campus(c)
 		_: push_error("unknown scene " + scene)
+	_link_nets(c)
 	for st in m.structures:
 		if st.target and m.architectures.has(st.id):
 			m.architecture = m.architectures[st.id]
@@ -134,7 +136,7 @@ static func fence(c: Dictionary, r: Rect2i, gates: Array, inside_room: Dictionar
 	for g in gates:
 		m.set_t(0, g.x, g.y, TacMap.T.DOOR)
 		var sec: bool = inside_room.zone >= TacMap.Zone.SECURE
-		m.doors.append({"floor": 0, "pos": g, "a": -1, "b": inside_room.id, "security": sec, "structure": inside_room.structure})
+		m.doors.append({"floor": 0, "pos": g, "a": -1, "b": inside_room.id, "security": sec, "structure": inside_room.structure, "gate": true})
 		m.entrances.append({"floor": 0, "pos": g, "main": false, "kind": "gate", "structure": inside_room.structure})
 		c.reserved[g] = true
 
@@ -213,6 +215,123 @@ static func _reconnect(c: Dictionary, anchor: Vector2i) -> void:
 				break
 
 
+## Skybridge between two buildings across a gap, on a shared upper floor, joining rooms that are
+## at most staff zone (a bridge never bypasses secure areas). Returns true if one was built.
+static func skybridge(c: Dictionary, a: Dictionary, b: Dictionary) -> bool:
+	var m: TacMap = c.m
+	var top := mini(int(a.floors), int(b.floors)) - 1
+	if top < 1:
+		return false
+	var ra: Rect2i = a.rect
+	var rb: Rect2i = b.rect
+	if rb.end.x <= ra.position.x or rb.end.y <= ra.position.y:
+		var t := ra; ra = rb; rb = t
+		var ts := a; a = b; b = ts
+	var horiz := ra.end.x <= rb.position.x
+	if not horiz and not ra.end.y <= rb.position.y:
+		return false
+	var gap := (rb.position.x - ra.end.x) if horiz else (rb.position.y - ra.end.y)
+	if gap < 1 or gap > 6:
+		return false
+	var lo := (maxi(ra.position.y, rb.position.y) if horiz else maxi(ra.position.x, rb.position.x)) + 1
+	var hi := (mini(ra.end.y, rb.end.y) if horiz else mini(ra.end.x, rb.end.x)) - 2
+	var floor_order := range(1, top + 1)
+	Layouts._shuffle(c.dice, floor_order)
+	var cands := []
+	var f := 1
+	for ff in floor_order:
+		f = ff
+		cands = _skybridge_cands(m, f, ra, rb, horiz, lo, hi)
+		if not cands.is_empty():
+			break
+	if cands.is_empty():
+		return false
+	var pick: Array = cands[cands.size() / 2]
+	var v2: Vector2i = pick[0] + pick[4]
+	while v2 != pick[1]:
+		m.set_t(f, v2.x, v2.y, TacMap.T.BRIDGE)
+		v2 += pick[4]
+	for k in 2:
+		var w: Vector2i = pick[k]
+		m.set_t(f, w.x, w.y, TacMap.T.DOOR)
+		var st: Dictionary = a if k == 0 else b
+		m.doors.append({"floor": f, "pos": w, "a": -1, "b": pick[2 + k], "security": false, "structure": st.id, "skybridge": true})
+	return true
+
+
+static func _skybridge_cands(m: TacMap, f: int, ra: Rect2i, rb: Rect2i, horiz: bool, lo: int, hi: int) -> Array:
+	var cands := []
+	for t in range(lo, hi + 1):
+		var wa := Vector2i(ra.end.x - 1, t) if horiz else Vector2i(t, ra.end.y - 1)
+		var wb := Vector2i(rb.position.x, t) if horiz else Vector2i(t, rb.position.y)
+		var step := Vector2i(1, 0) if horiz else Vector2i(0, 1)
+		var ia := wa - step
+		var ib := wb + step
+		if m.t(f, wa.x, wa.y) != TacMap.T.WALL or m.t(f, wb.x, wb.y) != TacMap.T.WALL:
+			continue
+		if m.t(f, ia.x, ia.y) != TacMap.T.FLOOR or m.t(f, ib.x, ib.y) != TacMap.T.FLOOR:
+			continue
+		var la := m.label(f, ia.x, ia.y)
+		var lb := m.label(f, ib.x, ib.y)
+		if la < 0 or lb < 0 or m.rooms[la].zone > TacMap.Zone.STAFF or m.rooms[lb].zone > TacMap.Zone.STAFF:
+			continue
+		var clear := true
+		var v := wa + step
+		while v != wb:
+			if m.t(f, v.x, v.y) != TacMap.T.VOID:
+				clear = false
+			v += step
+		if clear:
+			cands.append([wa, wb, la, lb, step])
+	return cands
+
+
+## Footbridge over a road or tracks on floor `f`, with stairs at both ends. Straight line p0 → p1.
+static func footbridge(c: Dictionary, p0: Vector2i, p1: Vector2i, f := 1) -> bool:
+	var m: TacMap = c.m
+	var step := Vector2i(signi(p1.x - p0.x), signi(p1.y - p0.y))
+	var cells: Array[Vector2i] = []
+	var v := p0
+	while true:
+		cells.append(v)
+		if v == p1:
+			break
+		v += step
+	for cell in cells:
+		if f >= m.floors or m.t(f, cell.x, cell.y) != TacMap.T.VOID:
+			return false
+	for e in [p0, p1]:
+		if m.t(0, e.x, e.y) != TacMap.T.OUTSIDE or m.has_cover_at(0, e):
+			return false
+	for cell in cells:
+		m.set_t(f, cell.x, cell.y, TacMap.T.BRIDGE)
+	for e in [p0, p1]:
+		m.set_t(0, e.x, e.y, TacMap.T.STAIRS)
+		m.set_t(f, e.x, e.y, TacMap.T.STAIRS)
+		m.verticals.append({"type": "stairs", "pos": e, "from_floor": 0, "to_floor": f, "structure": -1})
+		reserve(c, Rect2i(e - Vector2i.ONE, Vector2i(3, 3)))
+	return true
+
+
+## Mark two structures as related: after generation their NETs are linked with chance `p`
+## (M2c review: NETs are mostly separate, sometimes linked).
+static func related(c: Dictionary, sa: int, sb: int, p: float) -> void:
+	c.related.append([sa, sb, p])
+
+
+static func _link_nets(c: Dictionary) -> void:
+	var m: TacMap = c.m
+	for r in c.related:
+		var sa: int = r[0]
+		var sb: int = r[1]
+		if not (m.architectures.has(sa) and m.architectures.has(sb)) or c.dice.rng.randf() >= float(r[2]):
+			continue
+		var aa: NetArchitecture = m.architectures[sa]
+		var ab: NetArchitecture = m.architectures[sb]
+		var dv: int = RulesDB.load_json("net.json")["difficulty"][maxi(aa.difficulty, ab.difficulty)]["dv"]
+		m.net_links.append({"a": sa, "a_node": aa.subnets[0].hub, "b": sb, "b_node": ab.subnets[0].hub, "dv": dv})
+
+
 static func _rand_size(c: Dictionary, lo: int, hi: int) -> int:
 	return c.dice.rng.randi_range(lo, hi)
 
@@ -224,60 +343,115 @@ static func _lone_building(c: Dictionary) -> void:
 	var m: TacMap = c.m
 	ground(c, Rect2i(0, m.h - 3, m.w, 3), G.ASPHALT)
 	ground(c, Rect2i(m.w - 3, 0, 3, m.h), G.GRAVEL)
-	building(c, Rect2i(0, 0, m.w - 3, m.h - 3), String(c.p.get("site", "corp_office")), m.floors, int(c.p.security), true, TacMap.Zone.PUBLIC, "S")
+	building(c, Rect2i(0, 0, m.w - 3, m.h - 3), String(c.p.get("site", "corp_office")), int(c.p.floors), int(c.p.security), true, TacMap.Zone.PUBLIC, "S")
 	spawn(c, Vector2i(0, m.h - 2))
 	spawn(c, Vector2i(m.w - 2, 0))
 
 
-## City block: two roads, two blocks split into lots by alleys, mixed buildings of different
-## heights, one lot left as a parking lot. The target is the biggest lot.
-static func _street_block(c: Dictionary) -> void:
+## City blocks on a road grid (bx × by blocks; a road always runs along the south edge). Each
+## block is split by an alley into lots holding buildings of mixed type and height; a few lots
+## stay parking lots. The biggest lot is the target. Skybridges join neighbouring buildings
+## above street level and footbridges cross the roads. street_block = 2×1, city_district = 4×3.
+static func _city(c: Dictionary, bx: int, by: int) -> void:
 	var m: TacMap = c.m
-	var road_h := Rect2i(0, m.h - 8, m.w, 8)
-	var vx := m.w / 2 - 4 + _rand_size(c, -6, 6)
-	road(c, road_h, true)
-	road(c, Rect2i(vx, 0, 8, m.h - 8), false)
+	var fl := int(c.p.floors)
+	var rw := 8
+	var xs := _splits(c, m.w, bx, rw)
+	var ys := _splits(c, m.h - rw, by, rw)
+	var roads_h: Array[Rect2i] = [Rect2i(0, m.h - rw, m.w, rw)]
+	var roads_v: Array[Rect2i] = []
+	for i in range(1, xs.size()):
+		roads_v.append(Rect2i(xs[i - 1].y, 0, xs[i].x - xs[i - 1].y, m.h - rw))
+	for j in range(1, ys.size()):
+		roads_h.append(Rect2i(0, ys[j - 1].y, m.w, ys[j].x - ys[j - 1].y))
+	for r in roads_v:
+		road(c, r, false)
+	for r in roads_h:
+		road(c, r, true)
 	var lots: Array[Rect2i] = []
-	for block in [Rect2i(0, 0, vx, m.h - 8), Rect2i(vx + 8, 0, m.w - vx - 8, m.h - 8)]:
-		ground(c, block, G.SIDEWALK)
-		# Alley across the block, then split each half into 1-2 lots.
-		var ay: int = block.position.y + block.size.y / 2 + _rand_size(c, -4, 4)
-		ground(c, Rect2i(block.position.x, ay, block.size.x, 2), G.GRAVEL)
-		for half in [Rect2i(block.position.x, block.position.y, block.size.x, ay - block.position.y), Rect2i(block.position.x, ay + 2, block.size.x, block.end.y - ay - 2)]:
-			if half.size.x >= 30 and c.dice.d(3) > 1:
-				var cut: int = half.position.x + half.size.x / 2 + _rand_size(c, -5, 5)
-				lots.append(Rect2i(half.position.x, half.position.y, cut - half.position.x, half.size.y))
-				lots.append(Rect2i(cut, half.position.y, half.end.x - cut, half.size.y))
-			else:
-				lots.append(half)
+	for xr in xs:
+		for yr in ys:
+			var block := Rect2i(xr.x, yr.x, xr.y - xr.x, yr.y - yr.x)
+			ground(c, block, G.SIDEWALK)
+			var ay: int = block.position.y + block.size.y / 2 + _rand_size(c, -4, 4)
+			ground(c, Rect2i(block.position.x, ay, block.size.x, 2), G.GRAVEL)
+			for half in [Rect2i(block.position.x, block.position.y, block.size.x, ay - block.position.y), Rect2i(block.position.x, ay + 2, block.size.x, block.end.y - ay - 2)]:
+				if half.size.x >= 30 and c.dice.d(3) > 1:
+					var cut: int = half.position.x + half.size.x / 2 + _rand_size(c, -5, 5)
+					lots.append(Rect2i(half.position.x, half.position.y, cut - half.position.x, half.size.y))
+					lots.append(Rect2i(cut, half.position.y, half.end.x - cut, half.size.y))
+				else:
+					lots.append(half)
 	lots.sort_custom(func(a, b): return a.get_area() > b.get_area())
-	var others := ["apartments", "club", "shop", "gang_hideout", "warehouse", "apartments", "shop"]
-	Layouts._shuffle(c.dice, others)
-	var lot_sid := -1
+	var others := ["apartments", "club", "shop", "gang_hideout", "warehouse", "apartments", "shop", "corp_office"]
+	var parking := {}
+	if lots.size() >= 4:
+		parking[lots.size() - 1] = true
+	for i in range(1, lots.size() - 1):
+		if lots.size() > 12 and c.dice.rng.randf() < 0.1:
+			parking[i] = true
+	var blds: Array[Dictionary] = []
 	for i in lots.size():
 		var shell := lots[i].grow(-1)
 		if shell.size.x < 7 or shell.size.y < 7:
 			continue
-		if i == lots.size() - 1 and lots.size() >= 4:
-			lot_sid = outdoor_structure(c, "lot", 0, lots[i])
-			var lot := yard(c, lots[i], "parking_lot", TacMap.Zone.PUBLIC, lot_sid)
+		if parking.has(i):
+			var lot_sid := outdoor_structure(c, "lot", 0, lots[i])
+			yard(c, lots[i], "parking_lot", TacMap.Zone.PUBLIC, lot_sid)
 			Furnish.run_structure(m, c.dice, lot_sid)
 			continue
 		var target := i == 0
-		var site: String = String(c.p.get("site", "corp_office")) if target else others[i % others.size()]
-		var floors: int = m.floors if target else c.dice.rng.randi_range(1, m.floors)
-		building(c, shell, site, floors, int(c.p.security) if target else c.dice.rng.randi_range(0, 1), target)
-	# Street life: parked cars along the curbs, dumpsters in the alleys.
-	props(c, Rect2i(0, road_h.position.y + 1, m.w, 2), "car", m.w / 10)
-	props(c, Rect2i(0, road_h.end.y - 3, m.w, 2), "car", m.w / 12)
-	props(c, Rect2i(vx + 1, 0, 2, m.h - 8), "car", m.h / 14)
+		var site: String = String(c.p.get("site", "corp_office")) if target else others[c.dice.rng.randi_range(0, others.size() - 1)]
+		var floors: int = fl if target else c.dice.rng.randi_range(1, fl)
+		blds.append(building(c, shell, site, floors, int(c.p.security) if target else c.dice.rng.randi_range(0, 1), target))
+	# Skybridges between neighbouring buildings (two storeys or more), roughly one per four.
+	var pairs := []
+	for i in blds.size():
+		for j in range(i + 1, blds.size()):
+			pairs.append([blds[i], blds[j]])
+	Layouts._shuffle(c.dice, pairs)
+	var bridges := 0
+	for pr in pairs:
+		if bridges >= maxi(1, blds.size() / 4):
+			break
+		if c.dice.rng.randf() < 0.7 and skybridge(c, pr[0], pr[1]):
+			bridges += 1
+	# Footbridges over the roads, then street life: parked cars, dumpsters in the alleys.
+	for r in roads_h:
+		for tries in 20:
+			var x: int = c.dice.rng.randi_range(4, m.w - 5)
+			if roads_v.any(func(v): return x >= v.position.x - 1 and x < v.end.x + 1):
+				continue
+			if footbridge(c, Vector2i(x, r.position.y), Vector2i(x, r.end.y - 1)):
+				break
+	for r in roads_h:
+		props(c, Rect2i(0, r.position.y + 1, m.w, 2), "car", m.w / 10)
+		props(c, Rect2i(0, r.end.y - 3, m.w, 2), "car", m.w / 12)
+	for r in roads_v:
+		props(c, Rect2i(r.position.x + 1, 0, 2, r.size.y), "car", r.size.y / 14)
 	for y in m.h:
 		for x in m.w:
 			if m.ground[y * m.w + x] == G.GRAVEL and c.dice.rng.randf() < 0.012:
 				Furnish.try_prop(m, 0, Rect2i(x, y, 1, 1), "dumpster", -1, {}, c.reserved)
-	spawn(c, Vector2i(0, m.h - 4))
-	spawn(c, Vector2i(m.w - 1, m.h - 4))
-	spawn(c, Vector2i(vx + 4, 0))
+	for r in roads_h:
+		spawn(c, Vector2i(0, r.position.y + 3))
+		spawn(c, Vector2i(m.w - 1, r.position.y + 3))
+	for r in roads_v:
+		spawn(c, Vector2i(r.position.x + 3, 0))
+
+
+## Split `total` into n spans separated by `gap`, inner boundaries jittered. Returns [start, end) pairs.
+static func _splits(c: Dictionary, total: int, n: int, gap: int) -> Array[Vector2i]:
+	var size := (total - (n - 1) * gap) / n
+	var out: Array[Vector2i] = []
+	var x := 0
+	for i in n:
+		var w: int = size if i < n - 1 else total - x
+		if i < n - 1:
+			w += _rand_size(c, -4, 4)
+		out.append(Vector2i(x, x + w))
+		x += w + gap
+	return out
 
 
 ## Megablock: a long apartment tower over a courtyard, with a parking lot and a corner shop.
@@ -287,7 +461,7 @@ static func _megablock(c: Dictionary) -> void:
 	road(c, Rect2i(m.w - 7, 0, 7, m.h - 7), false)
 	ground(c, Rect2i(0, 0, m.w - 7, m.h - 7), G.CONCRETE)
 	var tower := Rect2i(2, 2, m.w - 13, m.h / 2 - 2)
-	building(c, tower, "apartments", m.floors, int(c.p.security), true, TacMap.Zone.PUBLIC, "S")
+	var tower_st := building(c, tower, "apartments", int(c.p.floors), int(c.p.security), true, TacMap.Zone.PUBLIC, "S")
 	var shop := Rect2i(2, m.h - 7 - 12, 14, 11)
 	building(c, shop, "shop", 1, 0)
 	var sid := outdoor_structure(c, "courtyard", 0, Rect2i(0, tower.end.y, m.w - 7, m.h - 7 - tower.end.y))
@@ -295,6 +469,9 @@ static func _megablock(c: Dictionary) -> void:
 	yard(c, Rect2i(18, tower.end.y + 1, m.w - 7 - 18 - 20, m.h - 7 - tower.end.y - 2), "courtyard", TacMap.Zone.PUBLIC, sid)
 	yard(c, Rect2i(m.w - 27, tower.end.y + 1, 19, m.h - 7 - tower.end.y - 2), "parking_lot", TacMap.Zone.PUBLIC, sid)
 	Furnish.run_structure(m, c.dice, sid)
+	if m.devices.any(func(d): return d.structure == sid):
+		m.architectures[sid] = NetGen.generate(m, c.dice, sid)
+	related(c, tower_st.id, sid, 0.3)
 	props(c, Rect2i(0, m.h - 6, m.w - 7, 2), "car", m.w / 12)
 	spawn(c, Vector2i(0, m.h - 3))
 	spawn(c, Vector2i(m.w - 4, 0))
@@ -316,16 +493,19 @@ static func _shipyard(c: Dictionary) -> void:
 	var gx := ship.position.x + ship.size.x / 3
 	ground(c, Rect2i(gx, ship.end.y, 2, sea_h - ship.end.y), G.DOCK)
 	reserve(c, Rect2i(gx - 1, ship.end.y, 4, sea_h - ship.end.y + 2))
-	building(c, ship, "ship", m.floors, sec, true, TacMap.Zone.STAFF, "S")
+	var ship_st := building(c, ship, "ship", int(c.p.floors), sec, true, TacMap.Zone.STAFF, "S")
 	# Compound: everything between quay and road, fenced with one gate.
 	var comp := Rect2i(0, sea_h, m.w, road_y - sea_h)
 	var sid := outdoor_structure(c, "compound", maxi(sec - 1, 0), comp)
 	var gate := Vector2i(m.w / 2, road_y - 1)
 	reserve(c, Rect2i(gate.x - 1, gate.y - 3, 3, 4))
 	var wh := Rect2i(m.w - 30, sea_h + 9, 26, road_y - sea_h - 13)
-	building(c, wh, "warehouse", 1, maxi(sec - 1, 0), false, TacMap.Zone.STAFF)
+	var wh_st := building(c, wh, "warehouse", 1, maxi(sec - 1, 0), false, TacMap.Zone.STAFF)
 	var booth := Rect2i(gate.x + 3, road_y - 7, 6, 5)
-	building(c, booth, "guard_booth", 1, maxi(sec - 1, 0), false, TacMap.Zone.STAFF)
+	var booth_st := building(c, booth, "guard_booth", 1, maxi(sec - 1, 0), false, TacMap.Zone.STAFF)
+	related(c, ship_st.id, sid, 0.4)
+	related(c, wh_st.id, sid, 0.3)
+	related(c, booth_st.id, sid, 0.5)
 	# Cranes on the quay: pairs of steel legs.
 	for k in 3:
 		var cx := 8 + k * (m.w - 20) / 3
@@ -382,7 +562,8 @@ static func _badlands(c: Dictionary) -> void:
 			ground(c, Rect2i(xx, yy, 1, 1), G.DIRT)
 			reserve(c, Rect2i(xx, yy, 1, 1))
 	var inner := camp.grow(-2)
-	building(c, Rect2i(inner.position.x + inner.size.x / 2 - 9, inner.position.y, 18, 12), "gang_hideout", 1, sec, true, TacMap.Zone.STAFF)
+	var hide_st := building(c, Rect2i(inner.position.x + inner.size.x / 2 - 9, inner.position.y, 18, 12), "gang_hideout", 1, sec, true, TacMap.Zone.STAFF)
+	related(c, hide_st.id, sid, 0.5)
 	var placed: Array[Rect2i] = [Rect2i(inner.position.x + inner.size.x / 2 - 9, inner.position.y, 18, 12)]
 	for k in 60:
 		if placed.size() >= 6:
@@ -426,7 +607,14 @@ static func _rail_yard(c: Dictionary) -> void:
 	for ty in tracks:
 		ground(c, Rect2i(0, ty, m.w, 2), G.RAIL)
 	var train := Rect2i(6, tracks[2] - 2, m.w - 12, 5)
-	building(c, train, "train", 1, sec, true, TacMap.Zone.PUBLIC, "S")
+	var train_st := building(c, train, "train", 1, sec, true, TacMap.Zone.PUBLIC, "S")
+	# Footbridge from the platform over all tracks, stairs at both ends.
+	var plat0: int = tracks[3] + 4
+	for tries in 20:
+		var bx: int = c.dice.rng.randi_range(10, m.w - 11)
+		# One level above the train's roof (you can climb onto the train, too).
+		if footbridge(c, Vector2i(bx, plat0), Vector2i(bx, 1), 2):
+			break
 	# Freight cars on the other tracks, with gaps to slip between.
 	for ty in [tracks[0], tracks[1], tracks[3]]:
 		var x: int = c.dice.rng.randi_range(0, 6)
@@ -439,7 +627,8 @@ static func _rail_yard(c: Dictionary) -> void:
 	ground(c, Rect2i(0, plat_y, m.w, 6), G.CONCRETE)
 	var station := Rect2i(m.w / 2 - 22, plat_y + 8, 44, m.h - plat_y - 10)
 	ground(c, Rect2i(0, plat_y + 6, m.w, m.h - plat_y - 6), G.SIDEWALK)
-	building(c, station, "station", m.floors, maxi(sec - 1, 0), false, TacMap.Zone.PUBLIC, "N")
+	var station_st := building(c, station, "station", int(c.p.floors), maxi(sec - 1, 0), false, TacMap.Zone.PUBLIC, "N")
+	related(c, train_st.id, station_st.id, 0.35)
 	yard(c, Rect2i(0, plat_y, m.w, 6), "platform", TacMap.Zone.PUBLIC, sid)
 	Furnish.run_structure(m, c.dice, sid)
 	spawn(c, Vector2i(0, plat_y + 7))
@@ -463,11 +652,14 @@ static func _corp_campus(c: Dictionary) -> void:
 		reserve(c, Rect2i(gate.x - 1, yy, 3, 1))
 	reserve(c, Rect2i(gate.x - 1, gate.y - 4, 3, 5))
 	var hq := Rect2i(grounds.position.x + 10, grounds.position.y + 3, grounds.size.x - 20, grounds.size.y / 2 - 2)
-	building(c, hq, "corp_hq", m.floors, sec, true, TacMap.Zone.PUBLIC, "S")
-	var svc := Rect2i(grounds.end.x - 16, hq.end.y + 4, 13, 12)
-	building(c, svc, "warehouse", 1, maxi(sec - 1, 0), false, TacMap.Zone.PUBLIC)
+	var hq_st := building(c, hq, "corp_hq", int(c.p.floors), sec, true, TacMap.Zone.PUBLIC, "S")
+	var svc := Rect2i(hq.end.x - 14, hq.end.y + 4, grounds.end.x - 3 - (hq.end.x - 14), 12)
+	var svc_st := building(c, svc, "warehouse", 2, maxi(sec - 1, 0), false, TacMap.Zone.PUBLIC)
+	skybridge(c, hq_st, svc_st)
 	var booth := Rect2i(gate.x + 3, grounds.end.y - 7, 6, 5)
-	building(c, booth, "guard_booth", 1, maxi(sec - 1, 0), false, TacMap.Zone.PUBLIC)
+	var booth_st := building(c, booth, "guard_booth", 1, maxi(sec - 1, 0), false, TacMap.Zone.PUBLIC)
+	related(c, hq_st.id, booth_st.id, 0.4)
+	related(c, hq_st.id, sid, 0.3)
 	var plaza := yard(c, Rect2i(hq.position.x, hq.end.y, hq.size.x, 6), "plaza", TacMap.Zone.PUBLIC, sid)
 	var park := yard(c, Rect2i(grounds.position.x + 1, hq.end.y + 6, svc.position.x - grounds.position.x - 3, grounds.end.y - hq.end.y - 7), "parking_lot", TacMap.Zone.PUBLIC, sid)
 	yard(c, grounds.grow(-1), "courtyard", TacMap.Zone.PUBLIC, sid)

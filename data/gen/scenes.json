@@ -1,10 +1,75 @@
 {
-  "_doc": "Scene types for SceneGen. params override MapGen.DEFAULTS (w/h in squares of 2 m; floors = tallest structure). The planner code lives in src/gen/scene_gen.gd.",
-  "lone_building": {"name": "Lone building", "params": {"w": 40, "h": 32, "floors": 2}},
-  "street_block":  {"name": "Street block", "desc": "Two roads, alleys, a mix of buildings of different heights and a parking lot.", "params": {"w": 88, "h": 64, "floors": 3}},
-  "megablock":     {"name": "Megablock", "desc": "Apartment tower over a courtyard, parking and a corner shop.", "params": {"w": 84, "h": 60, "floors": 3}},
-  "shipyard":      {"name": "Shipyard", "desc": "Moored cargo ship, quay cranes, fenced container yard, warehouse and gate booth.", "params": {"w": 104, "h": 72, "floors": 2}},
-  "badlands":      {"name": "Badlands raider camp", "desc": "Open desert with rock outcrops, a riverbed, wrecks and a fenced raider camp.", "params": {"w": 112, "h": 80, "floors": 1}},
-  "rail_yard":     {"name": "Rail yard", "desc": "Stopped train you can board, freight cars on parallel tracks, platform and station.", "params": {"w": 104, "h": 60, "floors": 2}},
-  "corp_campus":   {"name": "Corporate campus", "desc": "Fenced grounds, gate booth, parking, plaza, HQ tower and service building.", "params": {"w": 96, "h": 72, "floors": 3}}
+ "_doc": "Scene types for SceneGen. params override MapGen.DEFAULTS (w/h in squares of 2 m; floors = tallest structure). The planner code lives in src/gen/scene_gen.gd.",
+ "lone_building": {
+  "name": "Lone building",
+  "params": {
+   "w": 40,
+   "h": 32,
+   "floors": 2
+  }
+ },
+ "street_block": {
+  "name": "Street block",
+  "desc": "Two roads, alleys, a mix of buildings of different heights and a parking lot.",
+  "params": {
+   "w": 88,
+   "h": 64,
+   "floors": 3
+  }
+ },
+ "megablock": {
+  "name": "Megablock",
+  "desc": "Apartment tower over a courtyard, parking and a corner shop.",
+  "params": {
+   "w": 84,
+   "h": 60,
+   "floors": 3
+  }
+ },
+ "shipyard": {
+  "name": "Shipyard",
+  "desc": "Moored cargo ship, quay cranes, fenced container yard, warehouse and gate booth.",
+  "params": {
+   "w": 104,
+   "h": 72,
+   "floors": 2
+  }
+ },
+ "badlands": {
+  "name": "Badlands raider camp",
+  "desc": "Open desert with rock outcrops, a riverbed, wrecks and a fenced raider camp.",
+  "params": {
+   "w": 112,
+   "h": 80,
+   "floors": 1
+  }
+ },
+ "rail_yard": {
+  "name": "Rail yard",
+  "desc": "Stopped train you can board, freight cars on parallel tracks, platform and station.",
+  "params": {
+   "w": 104,
+   "h": 60,
+   "floors": 2
+  }
+ },
+ "corp_campus": {
+  "name": "Corporate campus",
+  "desc": "Fenced grounds, gate booth, parking, plaza, HQ tower and service building.",
+  "params": {
+   "w": 96,
+   "h": 72,
+   "floors": 3
+  }
+ },
+ "city_district": {
+  "name": "City district",
+  "desc": "Tech demo: a 4 \u00d7 3 grid of city blocks, dozens of buildings, skybridges and footbridges.",
+  "demo": true,
+  "params": {
+   "w": 220,
+   "h": 170,
+   "floors": 3
+  }
+ }
 }

@@ -3,7 +3,7 @@ extends RefCounted
 ## Generated tactical map: a stack of floors on a square grid (1 square = 2 m, p126).
 ## Pure data — the 3D scene is built from this in M3, the debug viewer reads to_dict().
 
-enum T { VOID, FLOOR, WALL, DOOR, STAIRS, ELEVATOR, OUTSIDE, WATER }
+enum T { VOID, FLOOR, WALL, DOOR, STAIRS, ELEVATOR, OUTSIDE, WATER, ROOF, BRIDGE }
 
 ## Outdoor ground (floor 0 only), for movement flavour and the viewer.
 enum G { NONE, ASPHALT, SIDEWALK, GRAVEL, DIRT, CONCRETE, RAIL, DOCK, GRASS, SAND }
@@ -29,12 +29,22 @@ var doors: Array[Dictionary] = []           ## {floor, pos, a, b, security: bool
 var cover: Array[Dictionary] = []           ## {floor, pos, kind, material, thick, hp}
 var devices: Array[Dictionary] = []         ## {id, type, floor, pos, room, zone, group}
 var entrances: Array[Dictionary] = []       ## {floor, pos, main: bool}
-var verticals: Array[Dictionary] = []       ## {type, pos, from_floor, to_floor}
+var verticals: Array[Dictionary] = []       ## {type, pos, from_floor, to_floor}: shafts at one x,y
+var connectors: Array[Dictionary] = []      ## {type, a: Vector3i, b: Vector3i}: ladders, fire escapes
+var net_links: Array[Dictionary] = []       ## {a, a_node, b, b_node, dv}: gateways between structure NETs
 var architecture: NetArchitecture = null    ## the target structure's NET (convenience)
 
 ## Wall materials. fence: see-through, flimsy. rock: natural outcrop. Cover HP per material is
 ## resolved in M3 from the book's cover table (fence ≈ thin wood, rock ≈ thick stone).
 const WALL_MATERIALS := ["plaster", "concrete", "steel", "fence", "rock"]
+
+## Walls and doors as cover, per the book's cover table (p182) and its examples (p183):
+## office wall = thick plaster 15, exterior = thick concrete 25, vault = thick steel 50,
+## rock outcrop ≈ boulder (thick stone 40), wooden door = thin wood 5, metal (security) door 20.
+## Fences stop movement but not bullets: no cover, line of sight passes (like the book's cubicle).
+const WALL_COVER := {0: ["plaster", true], 1: ["concrete", true], 2: ["steel", true], 3: [], 4: ["stone", true]}
+const DOOR_HP := 5
+const SECURITY_DOOR_HP := 20  # p183 "metal door" example
 
 
 func _init(p_w: int = 0, p_h: int = 0, p_floors: int = 1) -> void:
@@ -77,7 +87,7 @@ func label(f: int, x: int, y: int) -> int:
 
 
 func walkable_tile(v: int) -> bool:
-	return v in [T.FLOOR, T.DOOR, T.STAIRS, T.ELEVATOR, T.OUTSIDE]
+	return v in [T.FLOOR, T.DOOR, T.STAIRS, T.ELEVATOR, T.OUTSIDE, T.ROOF, T.BRIDGE]
 
 
 var _cover_index := {}  ## Vector3i(x, y, floor) → index in `cover`
@@ -109,6 +119,10 @@ func room(id: int) -> Dictionary:
 ## Cover blocks movement. Returns a Dictionary keyed by Vector3i(x, y, floor).
 func reachable(start: Vector3i) -> Dictionary:
 	var blocked := _cover_index
+	var links := {}
+	for c in connectors:
+		links.get_or_add(c.a, []).append(c.b)
+		links.get_or_add(c.b, []).append(c.a)
 	var seen := {start: true}
 	var q: Array[Vector3i] = [start]
 	while not q.is_empty():
@@ -121,12 +135,40 @@ func reachable(start: Vector3i) -> Dictionary:
 				if v.pos == Vector2i(p.x, p.y) and p.z >= v.from_floor and p.z <= v.to_floor:
 					for f in range(v.from_floor, v.to_floor + 1):
 						nexts.append(Vector3i(p.x, p.y, f))
+		nexts.append_array(links.get(p, []))
 		for n in nexts:
 			if seen.has(n) or blocked.has(n) or not walkable_tile(t(n.z, n.x, n.y)):
 				continue
 			seen[n] = true
 			q.append(n)
 	return seen
+
+
+## Cells where a connector (ladder, fire escape) lands; furniture and props keep clear.
+func is_connector_end(f: int, p: Vector2i) -> bool:
+	var v := Vector3i(p.x, p.y, f)
+	return connectors.any(func(c): return c.a == v or c.b == v)
+
+
+## Cover properties of a wall or door cell: {cover, hp, material, blocks_los, blocks_move}.
+## Open cells return {} (furniture/props are in `cover`).
+func wall_cover(f: int, x: int, y: int) -> Dictionary:
+	var v := t(f, x, y)
+	if v == T.WALL:
+		var spec: Array = WALL_COVER.get(int(wall_mat[f][y * w + x]), [])
+		if spec.is_empty():
+			return {"cover": false, "hp": 0, "material": "fence", "blocks_los": false, "blocks_move": true}
+		var hp := int(RulesDB.load_json("armor.json")["cover_hp"][spec[0]][0 if spec[1] else 1])
+		return {"cover": true, "hp": hp, "material": spec[0], "blocks_los": true, "blocks_move": true}
+	if v == T.DOOR:
+		for d in doors:
+			if d.floor == f and d.pos == Vector2i(x, y):
+				var gate: bool = int(wall_mat[f][y * w + x]) == 3 or d.get("gate", false)
+				if gate:
+					return {"cover": false, "hp": 0, "material": "fence", "blocks_los": false, "blocks_move": false}
+				return {"cover": true, "hp": SECURITY_DOOR_HP if d.security else DOOR_HP, "material": "steel" if d.security else "wood",
+					"blocks_los": true, "blocks_move": false}
+	return {}
 
 
 func main_entrance() -> Dictionary:
@@ -160,5 +202,6 @@ func to_dict() -> Dictionary:
 		"floor_data": fl, "rooms": conv.call(rooms), "doors": conv.call(doors), "cover": conv.call(cover),
 		"devices": conv.call(devices), "entrances": conv.call(entrances), "verticals": conv.call(verticals),
 		"architecture": architecture.to_dict() if architecture else {},
-		"architectures": archs, "ground": Array(ground), "structures": conv.call(structures),
+		"architectures": archs, "ground": Array(ground), "structures": conv.call(structures), "net_links": net_links,
+		"connectors": connectors.map(func(c): return {"type": c.type, "a": [c.a.x, c.a.y, c.a.z], "b": [c.b.x, c.b.y, c.b.z]}),
 	}

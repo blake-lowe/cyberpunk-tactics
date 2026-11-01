@@ -15,8 +15,8 @@ extends RefCounted
 ## - Black ICE comes from a points budget (security × gig threat), spent per zone, deeper zones
 ##   getting more; book stats and costs (data/rules/black_ice.json).
 
-const FILES_PER_SUBNET := 2
-const COMPLEXITY := [0.0, 0.2, 0.6, 1.0]     # by security level
+const FILES_PER_SUBNET := 1
+const COMPLEXITY := [0.0, 0.12, 0.35, 0.6]   # by security level (M2c review: ~1.6x leaner)
 const BUDGET := [3, 10, 24, 44]              # ICE points by security level
 const OWN_ZONE_ENTRY := 0.5                  # chance a port is wired into its own zone
 const INTRO_BUDGET := 1                      # intro gigs: at most one Wisp/Raven
@@ -33,14 +33,14 @@ static func generate(m: TacMap, dice: Dice, sid: int) -> NetArchitecture:
 	a.difficulty = sec
 	a.complexity = 0.0 if intro else COMPLEXITY[sec]
 	var dv: int = RulesDB.load_json("net.json")["difficulty"][sec]["dv"]
-	var per_floor := a.complexity >= 0.5
+	var per_floor := a.complexity >= 0.55  # per-floor subnets only at the top security level
 	var mz := TacMap.Zone.PUBLIC if intro else MapGen.max_zone(sec)
 	var devices := m.devices.filter(func(d): return d.get("structure", -1) == sid)
 
 	# 1. Content buckets keyed by subnet: Vector2i(zone, building floor or 0).
 	var buckets := {}
 	var key_of := func(zone: int, bfloor: int) -> Vector2i:
-		return Vector2i(zone, bfloor if per_floor and zone > TacMap.Zone.PUBLIC else 0)
+		return Vector2i(zone, bfloor / 2 if per_floor and zone > TacMap.Zone.PUBLIC else 0)  # one subnet per two floors
 	var groups := {}
 	var files := {}
 	for d in devices:
@@ -117,10 +117,17 @@ static func generate(m: TacMap, dice: Dice, sid: int) -> NetArchitecture:
 			if k2.x == k.x and k2.y == k.y + 1 and dice.rng.randf() < 0.5 * a.complexity:
 				a.link(hub_of[k], hub_of[k2])
 
-	# 4. Jack-in points: one port node per terminal, wired into a fixed subnet.
+	# 4. Jack-in points: at most one per subnet (M2c review: keep NETs lean); the other terminals
+	#    stay on the map as plain terminals. Each kept one gets its own fixed port node.
+	var ap_taken := {}
 	for d in devices:
 		if not d.get("access_point", false):
 			continue
+		var dk: Vector2i = key_of.call(mini(maxi(int(d.zone), TacMap.Zone.PUBLIC), mz), d.floor)
+		if ap_taken.has(dk):
+			d["access_point"] = false
+			continue
+		ap_taken[dk] = true
 		var z := mini(maxi(int(d.zone), TacMap.Zone.PUBLIC), mini(mz, TacMap.Zone.SECURE))
 		if z > TacMap.Zone.PUBLIC and dice.rng.randf() >= OWN_ZONE_ENTRY:
 			z -= 1
