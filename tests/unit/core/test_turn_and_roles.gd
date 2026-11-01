@@ -214,3 +214,20 @@ func test_recruit_starting_humanity_loss() -> void:
 	var c := Recruit.generate(Dice.new(5), "netrunner", "streetrat")
 	assert_eq(c.humanity, int(c.stats["EMP"]) * 10 - 14)  # p117: Netrunner HL 14
 	assert_true(c.has_cyberware("interface_plugs"))
+
+
+func test_psychosis_episode_rates() -> void:
+	var dice := Dice.new(31)
+	var c := Fixtures.unarmored("A", {"EMP": 5})
+	c.init_humanity()
+	c.humanity = 15  # EMP 1 → 15%
+	var starts := 0
+	for i in 4000:
+		c.psychosis_turns = 0
+		if c.check_episode(dice):
+			starts += 1
+	assert_near(starts / 4000.0, 0.15, 0.02)
+	c.humanity = 35
+	assert_false(c.check_episode(dice), "EMP 3: never")
+	c.humanity = -2
+	assert_true(c.check_episode(dice), "negative Humanity: always")

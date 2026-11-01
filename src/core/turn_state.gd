@@ -18,6 +18,7 @@ var moved_this_turn := false
 var attacks_left := 0       ## Remaining attack checks from the current attack Action.
 var attack_weapon: Weapon = null
 var survived := true        ## False if the opening Death Save failed.
+var psychotic := false      ## Cyberpsychosis episode: the AI controls this turn.
 
 
 ## Start a turn. Rolls the Death Save if Mortally Wounded (p222).
@@ -30,6 +31,7 @@ static func begin(dice: Dice, combatant: Combatant) -> TurnState:
 		t.move_actions = 0
 		t.action_available = false
 		return t
+	t.psychotic = combatant.check_episode(dice)
 	if combatant.skip_next_action:  # Spinal Injury (p221)
 		combatant.skip_next_action = false
 		t.action_available = false

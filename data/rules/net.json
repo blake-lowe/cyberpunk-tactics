@@ -1,0 +1,33 @@
+{
+  "_source": "CPR core p197 (NET Actions), p210-211 (architecture difficulty, lobby and floor tables). See docs/rules/cyber-net.md.",
+  "net_actions_by_rank": [[1, 2], [4, 3], [7, 4], [10, 5]],
+  "difficulty": [
+    {"name": "Basic",    "dv": 6},
+    {"name": "Standard", "dv": 8},
+    {"name": "Uncommon", "dv": 10},
+    {"name": "Advanced", "dv": 12}
+  ],
+  "lobby": {
+    "1": {"type": "file", "dv": 6},
+    "2": {"type": "password", "dv": 6},
+    "3": {"type": "password", "dv": 8},
+    "4": {"type": "ice", "ice": ["skunk"]},
+    "5": {"type": "ice", "ice": ["wisp"]},
+    "6": {"type": "ice", "ice": ["killer"]}
+  },
+  "floor_ice": {
+    "3":  [["hellhound"], ["hellhound", "hellhound"], ["kraken"], ["hellhound", "hellhound", "hellhound"]],
+    "4":  [["sabertooth"], ["hellhound", "killer"], ["hellhound", "scorpion"], ["asp", "asp"]],
+    "5":  [["raven", "raven"], ["skunk", "skunk"], ["hellhound", "killer"], ["hellhound", "liche"]],
+    "6":  [["hellhound"], ["sabertooth"], ["raven", "raven"], ["wisp", "wisp", "wisp"]],
+    "7":  [["wisp"], ["scorpion"], ["sabertooth"], ["hellhound", "sabertooth"]],
+    "8":  [["raven"], ["hellhound"], ["hellhound"], ["kraken"]],
+    "13": [["skunk"], ["asp"], ["killer"], ["giant"]],
+    "14": [["asp"], ["killer"], ["liche"], ["dragon"]],
+    "15": [["scorpion"], ["liche"], ["dragon"], ["killer", "scorpion"]],
+    "16": [["killer", "skunk"], ["asp"], ["asp", "raven"], ["kraken"]],
+    "17": [["wisp", "wisp", "wisp"], ["raven", "raven", "raven"], ["dragon", "wisp"], ["raven", "wisp", "hellhound"]],
+    "18": [["liche"], ["liche", "raven"], ["giant"], ["dragon", "dragon"]]
+  },
+  "_floor_ice_note": "3d6 results 9-12 are Password/File/Control Node/Password at the difficulty DV; NetGen places those from the physical map instead of rolling them."
+}

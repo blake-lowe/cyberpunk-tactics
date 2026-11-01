@@ -62,7 +62,7 @@ static func preview(attacker: Combatant, weapon: Weapon, defender: Combatant, mo
 static func resolve(dice: Dice, attacker: Combatant, weapon: Weapon, defender: Combatant, mode: Mode, distance_m: float) -> Dictionary:
 	var p := preview(attacker, weapon, defender, mode, distance_m)
 	var r := {"ok": p.ok, "reason": p.reason, "hit": false, "check": null, "damage": 0, "faces": PackedInt32Array(),
-		"location": "head" if mode == Mode.AIMED_HEAD else "body", "through": 0, "crits": [], "dropped_item": false}
+		"location": "head" if mode == Mode.AIMED_HEAD else "body", "through": 0, "crits": [], "dropped_item": false, "dodged": false}
 	if not p.ok:
 		return r
 	if weapon.uses_ammo():
@@ -76,6 +76,7 @@ static func resolve(dice: Dice, attacker: Combatant, weapon: Weapon, defender: C
 		check = Check.vs_dv(dice, p.base, p.dv, nf)
 	r.check = check
 	r.hit = check.success
+	r.dodged = p.defense_base >= 0 and not weapon.is_melee() and not r.hit  # for the "DODGE" callout
 	if not r.hit:
 		return r
 

@@ -7,6 +7,7 @@ Design source of truth: `docs/design-spec.md`. Milestones and status: `docs/road
 - `tools/install_godot.sh` — installs pinned Godot to /opt/godot (cloud containers start without it).
 - `tools/test.sh [filter]` — headless unit tests. Must pass before every commit.
 - Tests live in `tests/unit/**/test_*.gd`, extend `TestCase`, methods named `test_*`.
+- Gotcha: a parse error in any script a `-s` main script depends on makes Godot hang in the debugger instead of exiting. Always wrap ad-hoc `godot -s` runs in `timeout`, and run code through `tools/test.sh` first to surface parse errors.
 - No GPU in the cloud container: verify logic with tests, not screenshots. Visual work is reviewed by the user locally.
 
 ## Layout

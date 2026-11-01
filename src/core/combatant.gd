@@ -35,6 +35,7 @@ var subdermal: Dictionary = {}  ## location → ArmorPiece from Subdermal Armor 
 ## Per-Round trackers for "first X this Round" abilities. Reset by new_round().
 var skip_next_action := false  ## Spinal Injury (p221).
 var skip_next_move := false    ## Damaged/Lost Ear after moving > 4 m (p222).
+var psychosis_turns := 0      ## Remaining turns of a cyberpsychosis episode (HOUSE-RULE).
 var deflection_used := false
 var spot_weakness_used := false
 
@@ -262,6 +263,30 @@ func psychosis_tier() -> int:
 	if humanity < 0:
 		return 4
 	return clampi(3 - raw_stat("EMP"), 0, 3)
+
+
+## HOUSE-RULE (approved): chance per combat turn that a cyberpsychosis episode starts.
+const EPISODE_CHANCE := {1: 0.05, 2: 0.15, 3: 0.30}  # psychosis tier → chance
+
+
+func episode_chance() -> float:
+	var tier := psychosis_tier()
+	return 1.0 if tier >= 4 else float(EPISODE_CHANCE.get(tier, 0.0))
+
+
+## Start-of-turn episode check. Returns true if this turn is under AI control.
+## Episodes last 1-2 turns; Humanity below 0 means permanent loss of control.
+func check_episode(dice: Dice) -> bool:
+	if psychosis_turns > 0:
+		psychosis_turns -= 1
+		return true
+	var chance := episode_chance()
+	if chance >= 1.0:
+		return true
+	if chance > 0.0 and dice.rng.randf() < chance:
+		psychosis_turns = dice.d(2) - 1  # this turn plus 0-1 more
+		return true
+	return false
 
 
 static func roll_hl(dice: Dice, expr: String) -> int:
