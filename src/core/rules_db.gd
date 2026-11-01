@@ -28,6 +28,10 @@ static func armor(id: String) -> Dictionary:
 	return a
 
 
+static func cyberware(id: String) -> Dictionary:
+	return load_json("cyberware.json")["cyberware"][id]
+
+
 static func skill(id: String) -> Dictionary:
 	return load_json("skills.json")["skills"][id]
 

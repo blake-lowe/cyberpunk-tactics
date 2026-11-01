@@ -17,7 +17,7 @@ func _init(dice: Dice) -> void:
 func add(c: Combatant) -> Dictionary:
 	# Ties: "roll again until the higher number wins" (p168). An independent random tiebreak key
 	# gives the same uniform ordering among tied combatants.
-	var e := {"c": c, "roll": c.stat("REF") + _dice.d(10), "tb": _dice.rng.randi()}
+	var e := {"c": c, "roll": c.stat("REF") + c.initiative_bonus() + _dice.d(10), "tb": _dice.rng.randi()}
 	var pos := entries.size()
 	for i in entries.size():
 		if _before(e, entries[i]):
@@ -45,11 +45,13 @@ func next_turn() -> Combatant:
 	if round_num == 0:
 		round_num = 1
 		index = -1
+		_start_round()
 	for _i in entries.size():
 		index += 1
 		if index >= entries.size():
 			index = 0
 			round_num += 1
+			_start_round()
 		var c: Combatant = entries[index].c
 		if not c.dead:
 			return c
@@ -65,6 +67,11 @@ func order() -> Array[Combatant]:
 	for e in entries:
 		out.append(e.c)
 	return out
+
+
+func _start_round() -> void:
+	for e in entries:
+		(e.c as Combatant).new_round()
 
 
 static func _before(a: Dictionary, b: Dictionary) -> bool:

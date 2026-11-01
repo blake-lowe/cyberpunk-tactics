@@ -1,0 +1,124 @@
+class_name TurnState
+extends RefCounted
+## One combatant's turn budget (p168-169): 1 Move Action + 1 Action.
+## - Movement is a pool of squares (MOVE per Move Action). It can be split around the Action.
+## - Run spends the Action for a second Move Action, only after a Move Action was taken.
+## - An attack Action grants up to ROF attack checks (max 2) which can be split around movement.
+## Also applies start/end-of-turn rules: Death Saves, Spinal Injury, Damaged Ear, Broken Ribs.
+
+const SQUARE_M := 2.0  # 1 square = 2 m/yds (p126)
+const STRAIN_DISTANCE_M := 4.0  # Broken Ribs / Foreign Object / Damaged Ear threshold (p221-222)
+
+var c: Combatant
+var move_actions := 1
+var action_available := true
+var move_left := 0          ## Squares remaining from Move Actions already started.
+var squares_moved := 0
+var moved_this_turn := false
+var attacks_left := 0       ## Remaining attack checks from the current attack Action.
+var attack_weapon: Weapon = null
+var survived := true        ## False if the opening Death Save failed.
+
+
+## Start a turn. Rolls the Death Save if Mortally Wounded (p222).
+static func begin(dice: Dice, combatant: Combatant) -> TurnState:
+	var t := TurnState.new()
+	t.c = combatant
+	if combatant.wound_state() == Combatant.Wound.MORTAL and not combatant.dead:
+		t.survived = combatant.death_save(dice)
+	if not t.survived or not combatant.can_act():
+		t.move_actions = 0
+		t.action_available = false
+		return t
+	if combatant.skip_next_action:  # Spinal Injury (p221)
+		combatant.skip_next_action = false
+		t.action_available = false
+	if combatant.skip_next_move:  # Damaged / Lost Ear (p222)
+		combatant.skip_next_move = false
+		t.move_actions = 0
+	if combatant.prone:
+		t.move_actions = 0  # must Get Up first (p168)
+	return t
+
+
+func can_move() -> bool:
+	return move_left > 0 or move_actions > 0
+
+
+## Spend `squares` of movement, starting the Move Action if needed. Returns false if not enough.
+func move(squares: int) -> bool:
+	if squares <= 0:
+		return true
+	if squares > move_left and move_actions > 0:
+		move_actions -= 1
+		move_left += c.stat("MOVE")
+		moved_this_turn = true
+	if squares > move_left:
+		return false
+	move_left -= squares
+	squares_moved += squares
+	return true
+
+
+## Max squares available right now without spending the Action on Run.
+func squares_available() -> int:
+	return move_left + (c.stat("MOVE") if move_actions > 0 else 0)
+
+
+## Run (p169): spend the Action for another Move Action. Requires having taken a Move Action.
+func run() -> bool:
+	if not action_available or not moved_this_turn or move_actions > 0:
+		return false
+	action_available = false
+	move_actions += 1
+	return true
+
+
+## Begin an attack Action with `weapon`: grants up to ROF attack checks (p169).
+## Autofire, aimed shots and other full-Action modes grant one.
+func start_attack(weapon: Weapon, single_check: bool = false) -> bool:
+	if not action_available:
+		return false
+	action_available = false
+	attack_weapon = weapon
+	attacks_left = 1 if single_check else mini(2, weapon.rof())
+	return true
+
+
+## Consume one attack check. Returns false if none remain.
+func use_attack() -> bool:
+	if attacks_left <= 0:
+		return false
+	attacks_left -= 1
+	return true
+
+
+## Spend the Action on anything else (reload, use object, skill, stand up, ...).
+func use_action() -> bool:
+	if not action_available:
+		return false
+	action_available = false
+	return true
+
+
+## Get Up from Prone costs the Action and restores the Move Action (p168).
+func get_up() -> bool:
+	if not c.prone or not use_action():
+		return false
+	c.prone = false
+	move_actions = 1
+	return true
+
+
+## End of turn: strain injuries trigger after moving more than 4 m/yds on foot (p221-222).
+## Returns HP damage taken from Broken Ribs / Foreign Object.
+func end() -> int:
+	var dmg := 0
+	if squares_moved * SQUARE_M > STRAIN_DISTANCE_M:
+		for inj in c.injuries:
+			if inj["fx"].get("move_bleed", false):
+				dmg += int(RulesDB.load_json("critical_injuries.json")["bonus_damage"])
+			if inj["fx"].get("move_stagger", false):
+				c.skip_next_move = true
+	c.hp -= dmg
+	return dmg

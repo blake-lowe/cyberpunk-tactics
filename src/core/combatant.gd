@@ -23,6 +23,31 @@ var unconscious := false
 var prone := false
 var weapons: Array[Weapon] = []
 
+var role: String = ""         ## "solo", "netrunner", "medtech", "tech", ...
+var role_rank: int = 0
+## Solo Combat Awareness allocation (p146): ability id → points spent. See COMBAT_AWARENESS.
+var awareness: Dictionary = {}
+var tracks_humanity := false  ## Mooks skip Humanity entirely.
+var humanity: int = 0
+var max_humanity: int = 0
+var cyberware: Array[String] = []
+var subdermal: Dictionary = {}  ## location → ArmorPiece from Subdermal Armor / Skin Weave.
+## Per-Round trackers for "first X this Round" abilities. Reset by new_round().
+var skip_next_action := false  ## Spinal Injury (p221).
+var skip_next_move := false    ## Damaged/Lost Ear after moving > 4 m (p222).
+var deflection_used := false
+var spot_weakness_used := false
+
+## Combat Awareness costs (p146). Stepped abilities list the cost of each level.
+const COMBAT_AWARENESS := {
+	"damage_deflection": [2, 4, 6, 8, 10],
+	"fumble_recovery": [4],
+	"initiative_reaction": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+	"precision_attack": [3, 6, 9],
+	"spot_weakness": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+	"threat_detection": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+}
+
 
 func _init(p_name: String = "", p_stats: Dictionary = {}, p_skills: Dictionary = {}) -> void:
 	display_name = p_name
@@ -34,8 +59,15 @@ func _init(p_name: String = "", p_stats: Dictionary = {}, p_skills: Dictionary =
 
 # --- Derived stats -------------------------------------------------------
 
+## STAT including permanent modifiers (cyberware, Humanity → EMP) but not armor or wounds.
 func raw_stat(s: String) -> int:
-	return int(stats.get(s, 0))
+	var v := int(stats.get(s, 0))
+	if s == "EMP" and tracks_humanity:
+		return maxi(0, humanity) / 10  # tens digit of current Humanity (p80)
+	for fx in _cyber_fx():
+		if fx.has("stat") and fx["stat"].has(s):
+			v = mini(v + int(fx["stat"][s]), maxi(v, int(fx.get("stat_cap", 99))))
+	return v
 
 
 ## STAT after armor penalty (REF/DEX/MOVE, p184) and wound/crit MOVE penalties.
@@ -73,7 +105,11 @@ func armor_penalty() -> int:
 
 
 func skill_level(skill_id: String) -> int:
-	return int(skills.get(skill_id, 0))
+	var v := int(skills.get(skill_id, 0))
+	for fx in _cyber_fx():
+		if fx.has("skill"):
+			v += int(fx["skill"].get(skill_id, 0))
+	return v
 
 
 ## STAT + Skill (p130), before situational modifiers.
@@ -95,7 +131,10 @@ func wound_state() -> Wound:
 
 ## Penalty applied to every Action check (wound state + crits like Concussion).
 func action_penalty() -> int:
-	return int(WOUND_ACTION_PENALTY.get(wound_state(), 0)) + _fx_sum("all")
+	var w := wound_state()
+	if w == Wound.SERIOUS and _cyber_fx().any(func(fx): return fx.get("ignore_seriously_wounded", false)):
+		w = Wound.LIGHT  # Pain Editor (p112)
+	return int(WOUND_ACTION_PENALTY.get(w, 0)) + _fx_sum("all")
 
 
 ## Penalty for an attack of the given kind ("ranged" or "melee").
@@ -111,9 +150,143 @@ func can_act() -> bool:
 	return not dead and not unconscious
 
 
+## SP in a location: SP doesn't stack, only the highest counts (p184), incl. subdermal armor.
 func sp(location: String) -> int:
-	var a: ArmorPiece = armor.get(location)
-	return 0 if a == null else a.sp
+	var best := 0
+	for a in [armor.get(location), subdermal.get(location)]:
+		if a != null:
+			best = maxi(best, (a as ArmorPiece).sp)
+	return best
+
+
+## All armor in a location ablates together when damage gets through (p184, p186).
+func ablate(location: String) -> void:
+	for a in [armor.get(location), subdermal.get(location)]:
+		if a != null:
+			(a as ArmorPiece).ablate()
+
+
+func initiative_bonus() -> int:
+	var b := awareness_level("initiative_reaction")
+	for fx in _cyber_fx():
+		b += int(fx.get("initiative", 0))
+	return b
+
+
+## Called at the start of each Round.
+func new_round() -> void:
+	deflection_used = false
+	spot_weakness_used = false
+
+
+# --- Solo: Combat Awareness (p146) --------------------------------------
+
+## Level bought in an ability (e.g. precision_attack 2 = +2), from points allocated.
+func awareness_level(ability: String) -> int:
+	if role != "solo":
+		return 0
+	var pts := int(awareness.get(ability, 0))
+	var level := 0
+	for cost in COMBAT_AWARENESS[ability]:
+		if pts >= cost:
+			level += 1
+	return level
+
+
+## Set an allocation. Returns false (and changes nothing) if it exceeds Role Rank.
+func set_awareness(alloc: Dictionary) -> bool:
+	var total := 0
+	for k in alloc:
+		if not COMBAT_AWARENESS.has(k):
+			return false
+		total += int(alloc[k])
+	if role != "solo" or total > role_rank:
+		return false
+	awareness = alloc.duplicate()
+	return true
+
+
+# --- Humanity & cyberware (p80, p110-116, p230) --------------------------
+
+func init_humanity() -> void:
+	tracks_humanity = true
+	humanity = int(stats.get("EMP", 0)) * 10
+	max_humanity = humanity
+
+
+## Install cyberware. At character creation Humanity Loss uses the flat value; afterwards it's
+## rolled (p111). Each piece with HL lowers max Humanity by 2, Borgware by 4 (p230).
+## Returns the Humanity lost.
+func install_cyberware(cyber_id: String, dice: Dice = null, at_creation: bool = false) -> int:
+	var d: Dictionary = RulesDB.cyberware(cyber_id)
+	cyberware.append(cyber_id)
+	var fx: Dictionary = d.get("fx", {})
+	if fx.has("armor_sp"):
+		for loc in ["body", "head"]:
+			var a := ArmorPiece.new()
+			a.id = cyber_id
+			a.name = d["name"]
+			a.max_sp = int(fx["armor_sp"])
+			a.sp = a.max_sp
+			subdermal[loc] = a
+	var loss := 0
+	if tracks_humanity and int(d["hl_flat"]) > 0:
+		loss = int(d["hl_flat"]) if at_creation or dice == null else roll_hl(dice, d["hl_dice"])
+		humanity -= loss
+		max_humanity -= 4 if d["borgware"] else 2
+		humanity = mini(humanity, max_humanity)
+	return loss
+
+
+func has_cyberware(cyber_id: String) -> bool:
+	return cyber_id in cyberware
+
+
+func lose_humanity(amount: int) -> void:
+	if tracks_humanity:
+		humanity -= amount
+
+
+## Therapy etc. Capped by max Humanity (p230).
+func regain_humanity(amount: int) -> void:
+	if tracks_humanity:
+		humanity = mini(max_humanity, humanity + amount)
+
+
+## Cyberpsychosis tier from current EMP (p232): 0 none, 1 borderline (EMP 2), 2 dissociative
+## (EMP 1), 3 cyberpsychosis (EMP 0), 4 extreme (Humanity below 0).
+## The book gives no mechanics for these; what each tier does in play is a game design decision.
+func psychosis_tier() -> int:
+	if not tracks_humanity:
+		return 0
+	if humanity < 0:
+		return 4
+	return clampi(3 - raw_stat("EMP"), 0, 3)
+
+
+static func roll_hl(dice: Dice, expr: String) -> int:
+	match expr:
+		"1d6/2": return ceili(dice.d(6) / 2.0)
+		"1d6": return dice.roll(1, 6)
+		"2d6": return dice.roll(2, 6)
+		"4d6": return dice.roll(4, 6)
+	return 0
+
+
+func cyber_fx_sum(key: String) -> int:
+	var t := 0
+	for fx in _cyber_fx():
+		t += int(fx.get(key, 0))
+	return t
+
+
+func _cyber_fx() -> Array:
+	var out := []
+	for cid in cyberware:
+		var fx: Dictionary = RulesDB.cyberware(cid).get("fx", {})
+		if not fx.is_empty():
+			out.append(fx)
+	return out
 
 
 # --- Injuries ------------------------------------------------------------
@@ -148,6 +321,8 @@ func add_injury(entry: Dictionary, location: String) -> Dictionary:
 	var inj := entry.duplicate(true)
 	inj["location"] = location
 	injuries.append(inj)
+	if inj["fx"].get("no_action_next_turn", false):
+		skip_next_action = true
 	var dsp_up := int(inj["fx"].get("dsp", 0))
 	base_dsp += dsp_up
 	dsp += dsp_up

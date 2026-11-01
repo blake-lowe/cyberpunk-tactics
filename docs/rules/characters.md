@@ -257,7 +257,7 @@ Starting cyberware: Streetrat/Edgerunner get a fixed Role list (p117); Humanity 
 | Role | Cyberware | HL total |
 |---|---|---|
 | Rockerboy | Audio Recorder, Chemskin, Cyberaudio Suite, Techhair | 9 (EMP -1) |
-| Solo | Biomonitor, Neural Link, Sandevistan, "Speedware or Wolvers" | 14 (EMP -2) |
+| Solo | Biomonitor, Neural Link, Sandevistan or Wolvers | 14 (EMP -2) |
 | Netrunner | Interface Plugs, Neural Link, Shift Tacts, Skinwatch | 14 (EMP -2) |
 | Tech | Cybereye, MicroOptics, Skinwatch, Tool Hand | 12 (EMP -2) |
 | Medtech | Biomonitor, Cybereye, Nasal Filters or Toxin Binders, TeleOptics | 12 (EMP -2) |
@@ -267,7 +267,7 @@ Starting cyberware: Streetrat/Edgerunner get a fixed Role list (p117); Humanity 
 | Fixer | Cyberaudio Suite, Internal Agent, Subdermal Pocket, Voice Stress Analyzer or Amplified Hearing | 16 (EMP -2) |
 | Nomad | Interface Plugs or Wolvers, Neural Link | 14 (EMP -2) |
 
-AMBIGUITY (p117): Solo list reads Biomonitor, Neural Link, Sandevistan, "Speedware or Wolvers", yet HL 14 = Neural Link 7 + one 7-HL item. Treat as Neural Link + one of Sandevistan/Wolvers (Speedware = Sandevistan/Kerenzikov line). Other rows were verified by summing HL (e.g. Tech 7+2+0+3 = 12).
+Resolved (p117): the Solo list is "Sandevistan Speedware or Wolvers"; Biomonitor is 0 HL, so 0 + 7 + 7 = 14.
 
 ### Edgerunner skill lists (non-Basic part; 7 per Role + 13 Basic = 20 skills) (p88-89)
 

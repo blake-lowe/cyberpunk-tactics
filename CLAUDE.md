@@ -10,9 +10,11 @@ Design source of truth: `docs/design-spec.md`. Milestones and status: `docs/road
 - No GPU in the cloud container: verify logic with tests, not screenshots. Visual work is reviewed by the user locally.
 
 ## Layout
-- `src/core/` — pure rules (dice, checks, damage, armor, initiative). `RefCounted` only, no Nodes, no scene access.
+- `src/core/` — pure rules: Dice, Check (exact probabilities), Combatant, Attack (preview + resolve), TurnState, Initiative, Cover. `RefCounted` only, no Nodes.
+- `src/meta/` — between-gig systems (Recruit generator, later base/economy).
 - `src/data/` — `Resource` definitions (characters, weapons, cyberware, roles).
-- `data/` — content files (weapon tables etc.) loaded into those resources.
+- `data/rules/` — rules content JSON. skills/cyberware/roles are GENERATED: edit `docs/rules/*.md` or `tools/gen_rules_data.py`, then run `python3 tools/gen_rules_data.py`. weapons/armor/critical_injuries are hand-edited.
+- `docs/rules/` — page-cited rules reference distilled from the core book. Read these instead of the PDF.
 - `src/gen/` maps, `src/net/` net architectures, `src/tactical/` grid/turns/scenes, `src/ui/`, `src/meta/` base/economy.
 - Keep rules code independent of presentation so it stays testable headless.
 
