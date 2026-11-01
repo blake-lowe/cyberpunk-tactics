@@ -6,7 +6,7 @@ Check-ins (🔶) are where work pauses for a user decision or review.
 |---|---|---|---|
 | M0 | Skeleton: project, test runner, conventions | ✅ done | — |
 | M1 | Rules core (headless): checks, skills, initiative, weapons/ROF/autofire, SP + ablation, aimed shots, damage, Critical Injuries, death saves, Humanity, cyberware, Solo Combat Awareness, recruits | ✅ done (reviewed) | ✅ |
-| M2 | Procedural generation: multi-floor maps, cover, hackables, coupled Net Architectures (+ Netrunner Interface rules); debug renders | 🔁 revising per review (M2b) | 🔶 M2b review page with saved verdicts |
+| M2 | Procedural generation: multi-floor maps, cover, hackables, coupled Net Architectures (+ Netrunner Interface rules); debug renders | 🔁 revising per review (M2c: scenes) | 🔶 M2c review page (keys m2c_*) |
 | M3 | Playable greybox: Solo vs Netrunner on a generated map, move-only grid, % UI, destructible cover | — | 🔶 user plays locally |
 | M4 | Visual pass: pixel post-process, neon lighting/bloom, VFX, tuning controls | — | 🔶 aesthetic review on user's GPU |
 | M5+ | Gigs/fixers, base & downtime, progression, Medtech, Tech, reinforcements, cyberpsychosis | — | per feature |
@@ -35,3 +35,9 @@ Check-ins (🔶) are where work pauses for a user decision or review.
 - Cover: lighter by default, density varies by area/room type.
 - Process: review artifacts must let the user record and save verdicts on the page itself.
 - M2b review page: same URL as M2 (https://claude.ai/artifact/USi3z8E9Nzg5U8D4oiJpo3). Verdicts save to the page's db collection `verdicts` (one doc per decision key: choice, note, updated) — read them with ArtifactData list before acting on the review.
+
+### M2b review verdicts (user)
+- Cover density right (walls count as cover → M3: walls get HP by material, fences see-through).
+- ICE budget right; tune later. NET complexity right; intro gigs even simpler → net_scale "intro".
+- Jack-in: deterministic — each access point wired to one specific node → per-terminal port nodes.
+- Site layouts: buildings fine, but need outdoor areas, multiple buildings, purpose-built scenes, larger maps → SceneGen (street block, megablock, shipyard, badlands, rail yard, corp campus).

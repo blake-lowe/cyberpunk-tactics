@@ -37,15 +37,19 @@ def pack(m):
                 "nodes": nodes, "edges": a["edges"], "subnets": a["subnets"], "ice": a["ice"], "aps": a["access_points"]}
 
     return {
-        "site": m["params"]["site"], "algo": m["algorithm"], "seed": m["seed"], "sec": m["params"]["security"], "w": w, "h": h,
+        "site": m["params"].get("site", ""), "algo": m["algorithm"], "seed": m["seed"], "sec": m["params"]["security"], "w": w, "h": h,
         "nf": m["floors"], "floors": floors, "rooms": rooms,
         "doors": [{"f": d["floor"], "p": d["pos"], "s": d["security"]} for d in m["doors"]],
-        "cover": [{"f": c["floor"], "p": c["pos"], "k": c["kind"], "hp": c["hp"]} for c in m["cover"]],
+        "cover": [{"f": c["floor"], "p": c["pos"], "k": c["kind"], "hp": c["hp"], "pr": c.get("prop", -1)} for c in m["cover"]],
         "dev": [{"id": d["id"], "f": d["floor"], "p": d["pos"], "t": d["type"], "g": d["group"], "z": d["zone"],
-                 "ap": d.get("access_point", False), "fv": d.get("file_value", 0)} for d in m["devices"]],
+                 "ap": d.get("access_point", False), "fv": d.get("file_value", 0), "s": d.get("structure", -1)} for d in m["devices"]],
         "ent": [{"f": e["floor"], "p": e["pos"], "main": e["main"], "k": e["kind"]} for e in m["entrances"]],
         "vert": [{"t": v["type"], "p": v["pos"]} for v in m["verticals"]],
-        "net": slim_net(m["architecture"]),
+        "nets": {k: slim_net(v) for k, v in m["architectures"].items()},
+        "ground": "".join(chr(48 + g) for g in m["ground"]),
+        "structures": [{"id": st["id"], "kind": st["kind"], "site": st["site"], "rect": st["rect"], "floors": st["floors"],
+                        "sec": st["security"], "target": st["target"]} for st in m["structures"]],
+        "scene": m["params"].get("scene", ""),
     }
 
 

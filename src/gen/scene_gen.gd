@@ -383,13 +383,13 @@ static func _badlands(c: Dictionary) -> void:
 			reserve(c, Rect2i(xx, yy, 1, 1))
 	var inner := camp.grow(-2)
 	building(c, Rect2i(inner.position.x + inner.size.x / 2 - 9, inner.position.y, 18, 12), "gang_hideout", 1, sec, true, TacMap.Zone.STAFF)
-	var placed: Array[Rect2i] = [Rect2i(inner.position.x + inner.size.x / 2 - 11, inner.position.y, 22, 14)]
+	var placed: Array[Rect2i] = [Rect2i(inner.position.x + inner.size.x / 2 - 9, inner.position.y, 18, 12)]
 	for k in 60:
 		if placed.size() >= 6:
 			break
 		var s := Rect2i(c.dice.rng.randi_range(inner.position.x, inner.end.x - 8), c.dice.rng.randi_range(inner.position.y, inner.end.y - 9),
 			_rand_size(c, 6, 8), _rand_size(c, 5, 7))
-		if placed.all(func(o): return not o.grow(2).intersects(s)) and inner.encloses(s) and s.position.y + s.size.y < gate.y - 3:
+		if placed.all(func(o): return not o.grow(1).intersects(s.grow(1))) and inner.encloses(s) and s.position.y + s.size.y < gate.y - 3:
 			building(c, s, "shack", 1, sec, false, TacMap.Zone.STAFF)
 			placed.append(s)
 	var yard_room := yard(c, camp.grow(-1), "compound_yard", TacMap.Zone.STAFF, sid)

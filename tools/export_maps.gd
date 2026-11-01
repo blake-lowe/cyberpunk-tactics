@@ -1,10 +1,9 @@
 extends SceneTree
 ## Generates maps and writes them as JSON for the debug viewer.
 ## godot --headless --path . -s tools/export_maps.gd -- OUT.json [stats]
-## Set (algorithm × seed × security) is defined below; edit to taste.
+## Exports every scene type × SEEDS × security 1 and 3.
 
-const SITES := ["corp_office", "warehouse", "gang_hideout"]
-const SEEDS := [11, 23, 42]
+const SEEDS := [11, 42]
 
 
 func _initialize() -> void:
@@ -12,16 +11,17 @@ func _initialize() -> void:
 	var out_path := args[0] if args.size() > 0 else "user://maps.json"
 	var stats_only := args.size() > 1 and args[1] == "stats"
 	var maps := []
-	for site in SITES:
+	for scene in SceneGen.scene_types():
+		if scene == "lone_building":
+			continue
 		for s in SEEDS:
 			for sec in [1, 3]:
 				var t0 := Time.get_ticks_msec()
-				var m := MapGen.generate(s, site, {"security": sec, "floors": 2, "verticality": 2})
+				var m := SceneGen.generate(s, scene, {"security": sec})
 				var ms := Time.get_ticks_msec() - t0
-				var a := m.architecture
-				print("%-13s seed %-3d sec %d  %4d ms  rooms %2d  cover %3d  devices %2d  net nodes %2d edges %2d subnets %d ice %d (%d pts)" % [
-					site, s, sec, ms, m.rooms.filter(func(r): return r.cells > 0).size(), m.cover.size(), m.devices.size(),
-					a.nodes.size(), a.edges.size(), a.subnets.size(), a.ice.size(), a.spent])
+				print("%-13s seed %-3d sec %d  %4d ms  %dx%d  structures %d  rooms %3d  cover %3d  devices %3d  nets %d" % [
+					scene, s, sec, ms, m.w, m.h, m.structures.size(), m.rooms.filter(func(r): return r.cells > 0).size(),
+					m.cover.size(), m.devices.size(), m.architectures.size()])
 				if not stats_only:
 					maps.append(m.to_dict())
 	if not stats_only:
