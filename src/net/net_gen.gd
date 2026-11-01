@@ -68,7 +68,9 @@ static func generate(m: TacMap, dice: Dice) -> NetArchitecture:
 		for f in m.floors:
 			var parent := last
 			for z in range(TacMap.Zone.STAFF, mz + 1):
-				var seg := _segment(dice, net, a.difficulty, dv, z, _shuffled(dice, content.get(f, {}).get(z, [])), extra_ice / maxi(1, m.floors * (mz - 1)))
+				var zitems := _shuffled(dice, content.get(f, {}).get(z, []))
+				var nice := maxi(extra_ice / maxi(1, m.floors * (mz - 1)), min_ice(a.difficulty, z) if not zitems.is_empty() else 0)
+				var seg := _segment(dice, net, a.difficulty, dv, z, zitems, nice)
 				var first := a.floors.size()
 				parent = _chain(a, parent, branch, seg)
 				entry[Vector2i(f, z)] = mini(first + 1, a.floors.size() - 1)
@@ -80,7 +82,7 @@ static func generate(m: TacMap, dice: Dice) -> NetArchitecture:
 			var items := []
 			for f in content:
 				items += content[f].get(z, [])
-			var ice_here := roundi(extra_ice * float(z) / (1 + 2 + 3 + 4)) if z > TacMap.Zone.PUBLIC else 0
+			var ice_here := maxi(roundi(extra_ice * float(z) / (1 + 2 + 3 + 4)), min_ice(a.difficulty, z)) if z > TacMap.Zone.PUBLIC else 0
 			gate_index[z] = main.size()
 			main += _segment(dice, net, a.difficulty, dv, z, _shuffled(dice, items), ice_here)
 		# Rules-as-written branching (p210): d10 ≥ 7 adds a branch, repeat. A branch takes the tail
@@ -116,6 +118,18 @@ static func generate(m: TacMap, dice: Dice) -> NetArchitecture:
 	return a
 
 
+## Minimum Black ICE per zone segment by difficulty. Map content usually exceeds the 3d6 floor
+## budget, which would leave no room for ICE at all; every zone past public still gets defenders.
+## Index: difficulty (0-3) → [staff, secure, vault].
+const MIN_ICE := [[0, 1, 1], [1, 1, 1], [1, 1, 2], [1, 2, 2]]
+
+
+static func min_ice(diff: int, z: int) -> int:
+	if z <= TacMap.Zone.PUBLIC:
+		return 0
+	return MIN_ICE[diff][mini(z, TacMap.Zone.VAULT) - TacMap.Zone.STAFF]
+
+
 static func _bucket(content: Dictionary, f: int, z: int) -> Array:
 	return content.get_or_add(f, {}).get_or_add(z, [])
 
@@ -128,20 +142,23 @@ static func _shuffled(dice: Dice, arr: Array) -> Array:
 
 ## Zone segment: Password gate (above public), then the zone's content with ICE mixed in.
 static func _segment(dice: Dice, net: Dictionary, diff: int, dv: int, z: int, items: Array, ice_count: int) -> Array:
+	var forced := min_ice(diff, z)
 	var seg := []
 	if z > TacMap.Zone.PUBLIC:
 		seg.append({"type": "password", "dv": dv, "zone": z, "gate": true})
 	var body := items.duplicate()
 	for i in ice_count:
-		body.insert(dice.rng.randi_range(0, body.size()), _roll_floor(dice, net, diff, dv, z))
+		body.insert(dice.rng.randi_range(0, body.size()), _roll_floor(dice, net, diff, dv, z, i < forced))
 	for b in body:
 		b["zone"] = z
 	return seg + body
 
 
 ## A non-content floor from the 3d6 table: ICE, or an extra Password on 9/12, or a decoy File on 10/11.
-static func _roll_floor(dice: Dice, net: Dictionary, diff: int, dv: int, z: int) -> Dictionary:
+static func _roll_floor(dice: Dice, net: Dictionary, diff: int, dv: int, z: int, must_be_ice: bool = false) -> Dictionary:
 	var r := dice.roll(3, 6)
+	while must_be_ice and r >= 9 and r <= 12:
+		r = dice.roll(3, 6)
 	if r == 9 or r == 12:
 		return {"type": "password", "dv": dv, "zone": z}
 	if r == 10 or r == 11:

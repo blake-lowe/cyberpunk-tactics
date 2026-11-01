@@ -124,3 +124,13 @@ func test_netrun_passwords_block_descent() -> void:
 		assert_true(run.move_to(below[0]))
 	assert_true(run.move_to(0), "moving up is free")
 	assert_near(run.chance(8), Check.chance_vs_dv(6, 8))
+
+
+func test_every_deep_zone_has_black_ice() -> void:
+	for m in _maps():
+		if m.architecture.style != "stack":
+			continue
+		var mz := MapGen.max_zone(int(m.params.security))
+		for z in range(TacMap.Zone.STAFF, mz + 1):
+			var n := m.architecture.floors.filter(func(f): return f.type == "ice" and f.zone == z).size()
+			assert_true(n >= NetGen.min_ice(m.architecture.difficulty, z), "%s sec %d zone %d ICE %d" % [m.algorithm, m.params.security, z, n])

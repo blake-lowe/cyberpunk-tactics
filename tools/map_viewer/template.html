@@ -1,0 +1,451 @@
+<title>Gig Site Generator Review</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: a planning table. Controls bar, three-up algorithm comparison, then one linked
+   map + NET view, then the decisions to make. Single dark look, chosen on purpose: the maps
+   are read like a night-time site survey, and the zone colours are tuned for a dark ground. */
+:root {
+  color-scheme: dark;
+  --bg: #0f1317;
+  --panel: #151b20;
+  --raise: #1b2329;
+  --line: #29333b;
+  --fg: #dce1e5;
+  --muted: #8d98a1;
+  --accent: #e3a843;      /* sodium streetlight: selection, recommendations */
+  --net: #63c7d6;         /* everything that lives in the NET */
+  --danger: #e2675f;
+  --z-street: #0a0d10;
+  --z-public: #1c2a35;
+  --z-staff: #1e2723;
+  --z-secure: #31291a;
+  --z-vault: #3a1e22;
+  --display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --body: "IBM Plex Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 14px; line-height: 1.5; }
+.wrap { max-width: 1320px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 64px; display: grid; gap: 36px; }
+h1, h2, h3 { font-family: var(--display); font-weight: 600; letter-spacing: 0.01em; text-wrap: balance; margin: 0; }
+h1 { font-size: 34px; line-height: 1.05; }
+h2 { font-size: 24px; }
+h3 { font-size: 19px; }
+p { margin: 0; max-width: 68ch; }
+.muted { color: var(--muted); }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+header { display: grid; gap: 10px; }
+.controls { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); border-bottom: 1px solid var(--line); padding-block: 10px; display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: center; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+.ctl { display: flex; align-items: center; gap: 8px; }
+.ctl > span { font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.seg button { font: 500 13px var(--body); color: var(--muted); background: transparent; border: 0; padding: 5px 11px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--raise); color: var(--accent); }
+.seg button:focus-visible, .chk input:focus-visible, canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.chk { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--fg); cursor: pointer; }
+.chk input { accent-color: var(--accent); }
+
+.compare { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.algo { display: grid; gap: 10px; align-content: start; min-width: 0; }
+.algo .head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.algo canvas { width: 100%; height: auto; display: block; border: 1px solid var(--line); border-radius: 3px; cursor: pointer; background: var(--z-street); }
+.algo.focus canvas { border-color: var(--accent); }
+.stats { display: flex; flex-wrap: wrap; gap: 4px 14px; font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.stats b { color: var(--fg); font-weight: 500; }
+.algo ul { margin: 0; padding-left: 18px; display: grid; gap: 3px; font-size: 13px; }
+.algo li.pro::marker { content: "+  "; color: #8fc79a; }
+.algo li.con::marker { content: "–  "; color: var(--danger); }
+.cite { font-size: 12px; color: var(--muted); }
+.pick { font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--bg); background: var(--accent); padding: 1px 6px; border-radius: 2px; }
+
+.linked { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.linked canvas { width: 100%; height: auto; display: block; border: 1px solid var(--line); border-radius: 3px; background: var(--z-street); }
+.netbox { border: 1px solid var(--line); border-radius: 3px; background: var(--panel); padding: 12px; display: grid; gap: 8px; min-width: 0; }
+.netscroll { overflow: auto; max-height: 760px; }
+#net text { font-family: var(--mono); font-size: 11px; fill: var(--fg); }
+#net .node rect { stroke-width: 1; }
+#net .node.hl rect { stroke: var(--accent); stroke-width: 2; }
+#net .edge { stroke: var(--line); fill: none; stroke-width: 1.5; }
+.readout { min-height: 3em; font-size: 13px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--muted); }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -2px; margin-right: 5px; border: 1px solid var(--line); }
+
+.decisions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 16px 18px; display: grid; gap: 10px; align-content: start; }
+.opt { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 10px; }
+.opt .k { font-family: var(--mono); font-size: 12px; color: var(--muted); padding-top: 2px; }
+.opt.rec .k { color: var(--accent); }
+.opt p { font-size: 13px; }
+.rec-line { font-size: 13px; border-top: 1px solid var(--line); padding-top: 10px; }
+.rec-line b { color: var(--accent); font-weight: 600; }
+
+@media (max-width: 980px) {
+  .compare, .linked, .decisions { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">M2 review · procedural gig sites</span>
+    <h1>Gig Site Generator Review</h1>
+    <p class="muted">Every map below is real output from the game's generator: a two-floor corporate building on a street corner, with cover, hackable devices and the NET Architecture built from them. Pick a seed, security level and floor, then compare the three room-layout methods. One square is 2 m.</p>
+  </header>
+
+  <div class="controls" role="toolbar" aria-label="Map settings">
+    <div class="ctl"><span>Seed</span><div class="seg" id="seed"></div></div>
+    <div class="ctl"><span>Security</span><div class="seg" id="sec"></div></div>
+    <div class="ctl"><span>Floor</span><div class="seg" id="floor"></div></div>
+    <div class="ctl"><span>NET shape</span><div class="seg" id="style"></div></div>
+    <label class="chk"><input type="checkbox" id="lz" checked> Zones</label>
+    <label class="chk"><input type="checkbox" id="lc" checked> Cover</label>
+    <label class="chk"><input type="checkbox" id="ld" checked> Devices</label>
+  </div>
+
+  <section style="display:grid;gap:14px">
+    <div style="display:grid;gap:6px">
+      <h2>Room layout methods</h2>
+      <p class="muted">Same building shell, same settings, different method for carving rooms. Walls, doors, security zones, cover and devices are placed by shared code, so differences come from room shapes alone. Click a map to inspect it below.</p>
+    </div>
+    <div class="compare" id="compare"></div>
+    <div class="legend" id="legend"></div>
+  </section>
+
+  <section style="display:grid;gap:14px">
+    <div style="display:grid;gap:6px">
+      <h2>Map and NET, linked</h2>
+      <p class="muted">Each Control Node in the NET is a group of real devices; each File is a real terminal or data core. Hover a NET floor to light up its devices, or hover a device on the map to find its floor. Amber gates are the Passwords between security zones.</p>
+    </div>
+    <div class="linked">
+      <div style="display:grid;gap:8px;min-width:0">
+        <canvas id="big" tabindex="0" aria-label="Selected map"></canvas>
+        <div class="readout muted" id="readout">Hover a device or a NET floor.</div>
+      </div>
+      <div class="netbox">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap">
+          <h3>NET Architecture</h3><span class="mono muted" id="netmeta"></span>
+        </div>
+        <div class="netscroll"><svg id="net" role="img" aria-label="NET Architecture floors"></svg></div>
+      </div>
+    </div>
+  </section>
+
+  <section style="display:grid;gap:14px">
+    <h2>Decisions for you</h2>
+    <div class="decisions" id="decisions"></div>
+  </section>
+</div>
+
+<script>
+const MAPS = /*__DATA__*/null;
+
+const NOTES = {
+  bsp: {
+    name: "A · BSP subdivision",
+    cite: "Classic recursive binary space partition; the first splits become corridors.",
+    pros: ["Clean, gridded office feel", "Strong long corridors: good firing lanes and flanking loops"],
+    cons: ["Many small corridor fragments", "Rooms look samey; little sense of a building plan"],
+  },
+  treemap: {
+    name: "B · Squarified treemap",
+    cite: "Marson & Musse 2010, floor plans from squarified treemaps.",
+    pros: ["Zones read clearly as bands: lobby, offices, secure core", "Room sizes follow a plan; easy to theme per building type"],
+    cons: ["Most regular of the three; can feel planned rather than lived-in", "One spine corridor; fewer alternate routes"],
+  },
+  growth: {
+    name: "C · Constrained growth",
+    cite: "Lopes et al. 2010, constrained growth floor plans.",
+    pros: ["Most organic shapes: L-rooms, odd nooks, good for squats and clubs", "Rooms of very different sizes in one site"],
+    cons: ["Zone boundaries are fuzzier", "Occasional awkward thin rooms"],
+  },
+};
+
+const DECISIONS = [
+  {
+    title: "Which room layout method?",
+    options: [
+      ["A", "BSP for everything. Predictable, corridor-heavy."],
+      ["B", "Treemap for everything. Clearest security zones."],
+      ["C", "Growth for everything. Most organic."],
+      ["Mix", "Pick per site type: treemap for corporate sites, growth for clubs, squats and gang hideouts, BSP for warehouses and industrial."],
+    ],
+    rec: "Mix",
+    why: "Each method has a site type it suits, and the shared pipeline makes switching free. Variety between gigs comes cheaply this way.",
+  },
+  {
+    title: "Which NET shape?",
+    options: [
+      ["Stack", "One main branch in zone order, as in the rulebook, with the d10 branches carrying deep-zone content."],
+      ["Mirrored", "Lobby and public trunk, then one branch per building floor. More branches; the NET mirrors the building's floors."],
+    ],
+    rec: "Stack",
+    why: "Familiar to anyone who knows the tabletop rules, and quicker to read during a fight. Mirrored can come back as a variant for big multi-floor sites.",
+  },
+  {
+    title: "Physical access skips NET layers?",
+    options: [
+      ["Keep", "A terminal inside a zone jacks you in past that zone's Password gate. Breaking in physically shortens the run; rewards Solo + Netrunner teamwork."],
+      ["Drop", "Every access point starts at the top, as written in the rules."],
+    ],
+    rec: "Keep",
+    why: "This is the strongest link between the map and the NET, and the spec asks for exactly that coupling.",
+  },
+  {
+    title: "Guaranteed Black ICE per zone?",
+    options: [
+      ["Keep", "Every zone past public gets at least 1–2 Black ICE floors, scaled by security level. Without this, sites with many devices filled the rulebook's 3d6 floor budget and left no ICE at all."],
+      ["Rules only", "ICE only from leftover 3d6 floors. Big sites end up undefended in the NET."],
+    ],
+    rec: "Keep",
+    why: "Deep zones need digital defenders for the Netrunner's half of the fight to matter.",
+  },
+  {
+    title: "Cover density",
+    options: [
+      ["Current", "About 130–180 cover pieces per two-floor site; offices are dense, corridors sparse."],
+      ["Lighter", "Fewer pieces, more open rooms, so positioning matters more."],
+      ["Heavier", "Cover everywhere; slower, more cautious fights."],
+    ],
+    rec: "Current",
+    why: "It's a dial, not a rewrite. Judge it properly once you can walk the greybox in M3.",
+  },
+];
+
+// ---------- data access ----------
+const seeds = [...new Set(MAPS.map(m => m.seed))];
+const secs = [...new Set(MAPS.map(m => m.sec))];
+const ALGOS = ["bsp", "treemap", "growth"];
+const SEC_NAMES = ["Basic", "Standard", "Uncommon", "Advanced"];
+const state = { seed: seeds[0], sec: secs[secs.length - 1], floor: 0, style: "stack", zones: true, cover: true, devices: true, focus: "treemap", hlDevices: new Set(), hlNode: -1 };
+const getMap = (algo) => MAPS.find(m => m.algo === algo && m.seed === state.seed && m.sec === state.sec);
+
+// ---------- palette (read from CSS tokens so the page has one source of colour) ----------
+const css = getComputedStyle(document.documentElement);
+const tok = (n) => css.getPropertyValue(n).trim();
+const ZONE = [tok("--z-street"), tok("--z-public"), tok("--z-staff"), tok("--z-secure"), tok("--z-vault")];
+const ZONE_LABEL = ["Street", "Public", "Staff", "Secure", "Vault"];
+const WALL = ["#59636b", "#87919a", "#a7bccf"]; // plaster, concrete, steel
+const DEV = { camera: "#e2675f", door_lock: "#e3a843", turret: "#d77fd0", terminal: "#63c7d6", data_core: "#63c7d6", alarm_panel: "#f08b4b", sprinkler_valve: "#6f9ee8", elevator: "#c6ced4" };
+const NODE = { password: "#e3a843", file: "#63c7d6", control: "#8fc79a", ice: "#e2675f" };
+
+function coverColor(hp) { return hp >= 40 ? "#e1d3a6" : hp >= 20 ? "#b49b6c" : hp >= 10 ? "#8a7552" : "#5f513b"; }
+
+// ---------- map drawing ----------
+function draw(canvas, m, cellPx, opts) {
+  const f = state.floor < m.nf ? state.floor : 0;
+  const W = m.w * cellPx, H = m.h * cellPx, dpr = window.devicePixelRatio || 1;
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  canvas.style.aspectRatio = `${m.w} / ${m.h}`;
+  const g = canvas.getContext("2d");
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const fl = m.floors[f], c = cellPx;
+  g.fillStyle = ZONE[0]; g.fillRect(0, 0, W, H);
+  for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) {
+    const i = y * m.w + x, t = +fl.t[i], X = x * c, Y = y * c;
+    if (t === 0) continue;
+    if (t === 6) { g.fillStyle = "#14191d"; g.fillRect(X, Y, c, c); continue; }
+    if (t === 2) { g.fillStyle = WALL[+fl.m[i]]; g.fillRect(X, Y, c, c); continue; }
+    const z = fl.z[i] === "." ? 1 : +fl.z[i];
+    g.fillStyle = state.zones ? ZONE[z] : "#1a2126"; g.fillRect(X, Y, c, c);
+    if (t === 3) { g.fillStyle = "#0f1317"; g.fillRect(X + c * 0.2, Y + c * 0.2, c * 0.6, c * 0.6); }
+    if (t === 4 || t === 5) {
+      g.strokeStyle = "#c6ced4"; g.lineWidth = Math.max(1, c / 10);
+      for (let k = 1; k < 4; k++) { g.beginPath(); g.moveTo(X + 2, Y + k * c / 4); g.lineTo(X + c - 2, Y + k * c / 4); g.stroke(); }
+      if (t === 5) { g.strokeRect(X + 1.5, Y + 1.5, c - 3, c - 3); }
+    }
+  }
+  // grid hint
+  if (c >= 10) { g.strokeStyle = "rgba(255,255,255,0.035)"; g.lineWidth = 1; for (let x = 0; x <= m.w; x++) { g.beginPath(); g.moveTo(x * c + .5, 0); g.lineTo(x * c + .5, H); g.stroke(); } for (let y = 0; y <= m.h; y++) { g.beginPath(); g.moveTo(0, y * c + .5); g.lineTo(W, y * c + .5); g.stroke(); } }
+  // security doors
+  for (const d of m.doors) if (d.f === f && d.s) { g.strokeStyle = tok("--accent"); g.lineWidth = Math.max(1.5, c / 7); g.strokeRect(d.p[0] * c + 1, d.p[1] * c + 1, c - 2, c - 2); }
+  if (state.cover) for (const cv of m.cover) if (cv.f === f) {
+    const pad = c * 0.16; g.fillStyle = coverColor(cv.hp);
+    g.fillRect(cv.p[0] * c + pad, cv.p[1] * c + pad, c - 2 * pad, c - 2 * pad);
+  }
+  if (state.devices) for (const d of m.dev) if (d.f === f) drawDevice(g, d, c, opts && opts.hl && opts.hl.has(d.id));
+  for (const e of m.ent) if (e.f === f) {
+    const X = e.p[0] * c + c / 2, Y = e.p[1] * c + c / 2;
+    g.fillStyle = e.k === "spawn" ? tok("--danger") : tok("--accent");
+    g.beginPath(); g.arc(X, Y, c * (e.main ? 0.42 : 0.3), 0, Math.PI * 2); g.fill();
+  }
+  if (opts && opts.labels) {
+    g.font = `500 ${Math.max(9, c * 0.62)}px ${tok("--mono").split(",")[0]}`; g.textAlign = "center"; g.textBaseline = "middle";
+    for (const r of m.rooms) if (r.f === f && r.b[2] >= 5 && r.b[3] >= 3 && r.k !== "corridor") {
+      g.fillStyle = "rgba(220,225,229,0.55)";
+      g.fillText(r.k.replace("_", " "), (r.b[0] + r.b[2] / 2) * c, (r.b[1] + r.b[3] / 2) * c);
+    }
+  }
+}
+
+function drawDevice(g, d, c, hl) {
+  const X = d.p[0] * c + c / 2, Y = d.p[1] * c + c / 2, r = c * 0.3;
+  if (hl) { g.fillStyle = "rgba(227,168,67,0.35)"; g.beginPath(); g.arc(X, Y, c * 0.95, 0, Math.PI * 2); g.fill(); }
+  g.fillStyle = DEV[d.t] || "#fff"; g.strokeStyle = DEV[d.t] || "#fff"; g.lineWidth = Math.max(1, c / 9);
+  g.beginPath();
+  switch (d.t) {
+    case "camera": g.arc(X, Y, r, 0, Math.PI * 2); g.fill(); break;
+    case "door_lock": g.rect(X - r, Y - r, 2 * r, 2 * r); g.fill(); break;
+    case "turret": for (let k = 0; k < 6; k++) { const a = k * Math.PI / 3; g.moveTo(X, Y); g.lineTo(X + Math.cos(a) * r * 1.4, Y + Math.sin(a) * r * 1.4); } g.stroke(); break;
+    case "data_core": g.moveTo(X, Y - r * 1.3); g.lineTo(X + r * 1.3, Y); g.lineTo(X, Y + r * 1.3); g.lineTo(X - r * 1.3, Y); g.closePath(); g.fill(); break;
+    case "terminal": g.rect(X - r, Y - r * .7, 2 * r, 1.4 * r); g.fill(); if (d.ap) { g.beginPath(); g.arc(X, Y, r * 1.6, 0, Math.PI * 2); g.stroke(); } break;
+    default: g.arc(X, Y, r * 0.8, 0, Math.PI * 2); g.stroke();
+  }
+}
+
+// ---------- controls ----------
+function seg(id, items, key, label) {
+  const el = document.getElementById(id); el.innerHTML = "";
+  for (const v of items) {
+    const b = document.createElement("button"); b.type = "button"; b.textContent = label ? label(v) : v;
+    b.setAttribute("aria-pressed", String(state[key] === v));
+    b.onclick = () => { state[key] = v; renderAll(); };
+    el.appendChild(b);
+  }
+}
+for (const [id, key] of [["lz", "zones"], ["lc", "cover"], ["ld", "devices"]]) {
+  document.getElementById(id).onchange = (e) => { state[key] = e.target.checked; renderAll(); };
+}
+
+// ---------- compare ----------
+function stats(m) {
+  const f = state.floor;
+  const rooms = m.rooms.filter(r => r.f === f).length;
+  const cover = m.cover.filter(c => c.f === f).length;
+  const dev = m.dev.filter(d => d.f === f).length;
+  const net = m.net[state.style].floors.length;
+  return `<span>rooms <b>${rooms}</b></span><span>cover <b>${cover}</b></span><span>devices <b>${dev}</b></span><span>NET floors <b>${net}</b></span>`;
+}
+function renderCompare() {
+  const host = document.getElementById("compare"); host.innerHTML = "";
+  for (const a of ALGOS) {
+    const m = getMap(a), n = NOTES[a];
+    const box = document.createElement("article"); box.className = "algo" + (state.focus === a ? " focus" : "");
+    box.innerHTML = `<div class="head"><h3>${n.name}</h3>${state.focus === a ? '<span class="pick">inspecting</span>' : ""}</div>
+      <canvas tabindex="0" aria-label="${n.name} map"></canvas>
+      <div class="stats">${stats(m)}</div>
+      <ul>${n.pros.map(p => `<li class="pro">${p}</li>`).join("")}${n.cons.map(p => `<li class="con">${p}</li>`).join("")}</ul>
+      <p class="cite">${n.cite}</p>`;
+    host.appendChild(box);
+    const cv = box.querySelector("canvas");
+    const px = Math.max(5, Math.floor((box.clientWidth || 380) / m.w));
+    draw(cv, m, px, {});
+    const pick = () => { state.focus = a; state.hlDevices = new Set(); state.hlNode = -1; renderAll(); document.getElementById("big").scrollIntoView({ behavior: "smooth", block: "start" }); };
+    cv.onclick = pick; cv.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } };
+  }
+}
+
+function renderLegend() {
+  const z = ZONE_LABEL.slice(1).map((l, i) => `<span><i style="background:${ZONE[i + 1]}"></i>${l}</span>`).join("");
+  const w = ["Plaster wall", "Concrete wall", "Steel wall"].map((l, i) => `<span><i style="background:${WALL[i]}"></i>${l}</span>`).join("");
+  const cv = [["weak (5)", 5], ["medium (15–20)", 20], ["strong (25)", 25], ["very strong (50)", 50]].map(([l, hp]) => `<span><i style="background:${coverColor(hp)}"></i>Cover ${l}</span>`).join("");
+  const dv = [["camera", "Camera"], ["door_lock", "Door lock"], ["turret", "Turret"], ["terminal", "Terminal (ring = jack-in point)"], ["data_core", "Data core"], ["alarm_panel", "Alarm / sprinklers"]].map(([k, l]) => `<span><i style="background:${DEV[k]}"></i>${l}</span>`).join("");
+  document.getElementById("legend").innerHTML = z + w + cv + dv + `<span><i style="background:${tok("--accent")};border-radius:50%"></i>Entrance (amber outline = security door)</span><span><i style="background:${tok("--danger")};border-radius:50%"></i>Reinforcement spawn</span>`;
+}
+
+// ---------- linked view ----------
+let bigCell = 16;
+function renderBig() {
+  const m = getMap(state.focus), cv = document.getElementById("big");
+  const host = cv.parentElement;
+  bigCell = Math.max(8, Math.floor((host.clientWidth || 800) / m.w));
+  draw(cv, m, bigCell, { hl: state.hlDevices, labels: true });
+  cv.onmousemove = (e) => {
+    const r = cv.getBoundingClientRect();
+    const x = Math.floor((e.clientX - r.left) / r.width * m.w), y = Math.floor((e.clientY - r.top) / r.height * m.h);
+    const d = m.dev.find(d => d.f === state.floor && d.p[0] === x && d.p[1] === y);
+    const arch = m.net[state.style];
+    if (d) {
+      const node = arch.floors.find(n => (n.devices && n.devices.includes(d.id)) || n.device === d.id);
+      const ap = arch.aps.find(a => a.device === d.id);
+      state.hlDevices = new Set([d.id]); state.hlNode = node ? node.id : (ap ? ap.entry_floor : -1);
+      say(`<b>${d.t.replace("_", " ")}</b> · ${ZONE_LABEL[d.z]} zone` + (node ? ` · NET floor ${node.id} (${node.type})` : "") + (ap ? ` · jack-in point, enters at NET floor ${ap.entry_floor}` : ""));
+    } else if (state.hlNode !== -1 || state.hlDevices.size) {
+      state.hlDevices = new Set(); state.hlNode = -1; say("Hover a device or a NET floor.");
+    } else return;
+    draw(cv, m, bigCell, { hl: state.hlDevices, labels: true }); renderNet();
+  };
+}
+function say(html) { document.getElementById("readout").innerHTML = html; }
+
+function nodeLabel(n) {
+  switch (n.type) {
+    case "password": return `${n.gate ? "GATE " : ""}PASSWORD DV${n.dv}`;
+    case "file": return n.device >= 0 ? `FILE DV${n.dv} · value ${n.value}` : `FILE DV${n.dv} · decoy`;
+    case "control": return `CONTROL DV${n.dv} · ${n.group.replace(/_/g, " ")}`;
+    case "ice": return `BLACK ICE · ${n.ice.join(", ")}`;
+  }
+  return n.type;
+}
+function renderNet() {
+  const m = getMap(state.focus), arch = m.net[state.style], svg = document.getElementById("net");
+  const RH = 26, CW = 26, LW = 270;
+  const branches = [...new Set(arch.floors.map(f => f.branch))].sort((a, b) => a - b);
+  const col = Object.fromEntries(branches.map((b, i) => [b, i]));
+  const pos = {}; let maxY = 0;
+  // rows: depth; branches indent by column
+  for (const n of arch.floors) { pos[n.id] = { x: 40 + col[n.branch] * CW, y: 10 + n.depth * RH }; maxY = Math.max(maxY, pos[n.id].y); }
+  // avoid overlapping rows from different branches at the same depth: stack by order
+  const rows = {}; for (const n of arch.floors) { const k = n.depth; rows[k] = (rows[k] || 0) + 1; if (rows[k] > 1) { pos[n.id].y += 0; } }
+  let order = 0; const ypos = {};
+  const walk = (id) => { ypos[id] = 10 + (order++) * RH; for (const c of arch.floors.filter(f => f.parent === id)) walk(c.id); };
+  for (const r of arch.floors.filter(f => f.parent < 0)) walk(r.id);
+  for (const id in ypos) pos[id].y = ypos[id];
+  maxY = Math.max(...Object.values(ypos));
+  const W = 40 + branches.length * CW + LW, H = maxY + RH + 6;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("width", W); svg.setAttribute("height", H);
+  const apsAt = {}; for (const a of arch.aps) apsAt[a.entry_floor] = (apsAt[a.entry_floor] || 0) + 1;
+  let s = "";
+  for (const n of arch.floors) if (n.parent >= 0) {
+    const a = pos[n.parent], b = pos[n.id];
+    s += `<path class="edge" d="M${a.x + 6} ${a.y + 9} V${b.y + 9} H${b.x}"/>`;
+  }
+  for (const n of arch.floors) {
+    const p = pos[n.id], hl = state.hlNode === n.id;
+    const fill = NODE[n.type], zone = ZONE_LABEL[n.zone] || "";
+    s += `<g class="node${hl ? " hl" : ""}" data-id="${n.id}" style="cursor:pointer">
+      <rect x="${p.x}" y="${p.y + 2}" width="14" height="14" rx="${n.type === "ice" ? 7 : 2}" fill="${fill}" stroke="${n.gate ? "#fff" : fill}"/>
+      <text x="${p.x + 22}" y="${p.y + 13}">${n.id.toString().padStart(2, " ")} ${nodeLabel(n)}</text>
+      <text x="${W - 6}" y="${p.y + 13}" text-anchor="end" style="fill:${tok("--muted")}">${n.lobby ? "lobby" : zone.toLowerCase()}</text>
+      ${apsAt[n.id] ? `<text x="4" y="${p.y + 13}" style="fill:${tok("--net")}">⇢${apsAt[n.id]}</text>` : ""}
+    </g>`;
+  }
+  svg.innerHTML = s;
+  document.getElementById("netmeta").textContent = `${SEC_NAMES[arch.difficulty]} · ${arch.floors.length} floors · ${branches.length} branch${branches.length > 1 ? "es" : ""} · ⇢ = jack-in entries`;
+  svg.querySelectorAll(".node").forEach(el => {
+    el.onmouseenter = () => {
+      const n = arch.floors[+el.dataset.id];
+      state.hlNode = n.id;
+      const ids = new Set(n.devices || (n.device >= 0 ? [n.device] : []));
+      for (const a of arch.aps) if (a.entry_floor === n.id) ids.add(a.device);
+      state.hlDevices = ids;
+      const floorsWith = [...new Set(m.dev.filter(d => ids.has(d.id)).map(d => d.f))];
+      say(`<b>NET floor ${n.id}</b> · ${nodeLabel(n)}` + (ids.size ? ` · ${ids.size} device${ids.size > 1 ? "s" : ""} on building floor ${floorsWith.join(", ") || "–"}` : ""));
+      renderBig(); renderNetHL();
+    };
+  });
+}
+function renderNetHL() { document.querySelectorAll("#net .node").forEach(el => el.classList.toggle("hl", +el.dataset.id === state.hlNode)); }
+
+function renderDecisions() {
+  document.getElementById("decisions").innerHTML = DECISIONS.map(d => `
+    <article class="card"><h3>${d.title}</h3>
+      ${d.options.map(([k, t]) => `<div class="opt${k === d.rec ? " rec" : ""}"><span class="k">${k}</span><p>${t}</p></div>`).join("")}
+      <p class="rec-line"><b>Recommended: ${d.rec}.</b> ${d.why}</p>
+    </article>`).join("");
+}
+
+function renderAll() {
+  seg("seed", seeds, "seed");
+  seg("sec", secs, "sec", v => SEC_NAMES[v]);
+  seg("floor", [0, 1], "floor", v => v === 0 ? "Ground" : "Upper");
+  seg("style", ["stack", "mirrored"], "style", v => v[0].toUpperCase() + v.slice(1));
+  renderCompare(); renderBig(); renderNet();
+}
+renderLegend(); renderDecisions(); renderAll();
+let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(renderAll, 150); });
+</script>
