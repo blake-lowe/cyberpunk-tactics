@@ -178,13 +178,14 @@ const DECISIONS = [
     why: "Each method has a site type it suits, and the shared pipeline makes switching free. Variety between gigs comes cheaply this way.",
   },
   {
-    title: "Which NET shape?",
+    title: "Which NET structure? (not bound by the tabletop shape)",
     options: [
-      ["Stack", "One main branch in zone order, as in the rulebook, with the d10 branches carrying deep-zone content."],
-      ["Mirrored", "Lobby and public trunk, then one branch per building floor. More branches; the NET mirrors the building's floors."],
+      ["Tree", "What's generated now: floors in a strict top-down order (Stack or Mirrored above). Familiar from the book, but linear, so a run is mostly one long corridor."],
+      ["Subnets", "Each security zone becomes a small cluster of nodes you can take in any order, with a firewall node between zones. Jack-in points drop you into their own zone's cluster. The book's node types, DVs and Black ICE stats stay; the forced floor order goes."],
+      ["Graph", "The NET is a full map that mirrors the building's room graph: nodes per room group, loops, several routes to the data, and Black ICE that patrols between nodes each turn. It plays as a second tactical board."],
     ],
-    rec: "Stack",
-    why: "Familiar to anyone who knows the tabletop rules, and quicker to read during a fight. Mirrored can come back as a variant for big multi-floor sites.",
+    rec: "Subnets",
+    why: "Real choices for the Netrunner while staying quick to resolve in the middle of a firefight. Graph is the richest option but nearly doubles the tactical load per turn, so it can come later as a variant for netrunning-focused gigs.",
   },
   {
     title: "Physical access skips NET layers?",
@@ -199,10 +200,10 @@ const DECISIONS = [
     title: "Guaranteed Black ICE per zone?",
     options: [
       ["Keep", "Every zone past public gets at least 1–2 Black ICE floors, scaled by security level. Without this, sites with many devices filled the rulebook's 3d6 floor budget and left no ICE at all."],
-      ["Rules only", "ICE only from leftover 3d6 floors. Big sites end up undefended in the NET."],
+      ["Budget", "Drop the 3d6 size entirely: ICE comes from a per-site budget set by security level and gig parameters, like enemy squads in meatspace."],
     ],
-    rec: "Keep",
-    why: "Deep zones need digital defenders for the Netrunner's half of the fight to matter.",
+    rec: "Budget",
+    why: "The 3d6 size only exists to make tabletop prep quick. A budget gives the game direct control over NET difficulty, and it fits Subnets or Graph naturally.",
   },
   {
     title: "Cover density",

@@ -25,3 +25,4 @@ Check-ins (🔶) are where work pauses for a user decision or review.
 - Deferred within the rules core: Martial Arts special moves, grapple/choke/throw, weapon quality/attachments/special ammo, vehicles, Medtech/Tech Role Abilities (roadmap priority 2-3), non-core Roles.
 - M2 review page: `tools/map_viewer/` (build.py + template.html) turns an `export_maps.gd` dump into a comparison page. Reuse it for future generator reviews.
 - HOUSE-RULE (pending review): guaranteed minimum Black ICE per zone (NetGen.MIN_ICE), because map content usually fills the 3d6 floor budget.
+- Principle (user): the NET is not bound by the tabletop architecture rules. Keep the book's node types, DVs, Interface abilities and Black ICE stats for familiarity, but structure (floor order, 3d6 size, d10 branching, lobby table) is ours to redesign for video-game play. Current tree generator is a baseline, pending the Subnets/Graph decision.
