@@ -1,0 +1,22 @@
+{
+  "_source": "CPR core p97/p185. Penalty applies to REF, DEX and MOVE; only the worst worn penalty applies (p184).",
+  "armor": {
+    "leathers":         {"name": "Leathers",         "sp": 4,  "penalty": 0, "cost": 20},
+    "kevlar":           {"name": "Kevlar",           "sp": 7,  "penalty": 0, "cost": 50},
+    "light_armorjack":  {"name": "Light Armorjack",  "sp": 11, "penalty": 0, "cost": 100},
+    "bodyweight_suit":  {"name": "Bodyweight Suit",  "sp": 11, "penalty": 0, "cost": 1000},
+    "medium_armorjack": {"name": "Medium Armorjack", "sp": 12, "penalty": 2, "cost": 100},
+    "heavy_armorjack":  {"name": "Heavy Armorjack",  "sp": 13, "penalty": 2, "cost": 500},
+    "flak":             {"name": "Flak",             "sp": 15, "penalty": 4, "cost": 500},
+    "metalgear":        {"name": "Metalgear",        "sp": 18, "penalty": 4, "cost": 5000}
+  },
+  "cover_hp": {
+    "_source": "CPR core p182: [thick, thin]. Thin plaster/foam/plastic is not cover.",
+    "steel": [50, 25],
+    "stone": [40, 20],
+    "bulletproof_glass": [30, 15],
+    "concrete": [25, 10],
+    "wood": [20, 5],
+    "plaster": [15, 0]
+  }
+}

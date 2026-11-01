@@ -1,0 +1,474 @@
+{
+ "_source": "Generated from docs/rules/characters.md master skill list (CPR core p82-85, p130-142).",
+ "skills": {
+  "concentration": {
+   "name": "Concentration",
+   "stat": "WILL",
+   "category": "Awareness",
+   "x2": false,
+   "basic": true
+  },
+  "conceal_reveal_object": {
+   "name": "Conceal/Reveal Object",
+   "stat": "INT",
+   "category": "Awareness",
+   "x2": false,
+   "basic": false
+  },
+  "lip_reading": {
+   "name": "Lip Reading",
+   "stat": "INT",
+   "category": "Awareness",
+   "x2": false,
+   "basic": false
+  },
+  "perception": {
+   "name": "Perception",
+   "stat": "INT",
+   "category": "Awareness",
+   "x2": false,
+   "basic": true
+  },
+  "tracking": {
+   "name": "Tracking",
+   "stat": "INT",
+   "category": "Awareness",
+   "x2": false,
+   "basic": false
+  },
+  "athletics": {
+   "name": "Athletics",
+   "stat": "DEX",
+   "category": "Body",
+   "x2": false,
+   "basic": true
+  },
+  "contortionist": {
+   "name": "Contortionist",
+   "stat": "DEX",
+   "category": "Body",
+   "x2": false,
+   "basic": false
+  },
+  "dance": {
+   "name": "Dance",
+   "stat": "DEX",
+   "category": "Body",
+   "x2": false,
+   "basic": false
+  },
+  "endurance": {
+   "name": "Endurance",
+   "stat": "WILL",
+   "category": "Body",
+   "x2": false,
+   "basic": false
+  },
+  "resist_torture_drugs": {
+   "name": "Resist Torture/Drugs",
+   "stat": "WILL",
+   "category": "Body",
+   "x2": false,
+   "basic": false
+  },
+  "stealth": {
+   "name": "Stealth",
+   "stat": "DEX",
+   "category": "Body",
+   "x2": false,
+   "basic": true
+  },
+  "drive_land_vehicle": {
+   "name": "Drive Land Vehicle",
+   "stat": "REF",
+   "category": "Control",
+   "x2": false,
+   "basic": false
+  },
+  "pilot_air_vehicle": {
+   "name": "Pilot Air Vehicle",
+   "stat": "REF",
+   "category": "Control",
+   "x2": true,
+   "basic": false
+  },
+  "pilot_sea_vehicle": {
+   "name": "Pilot Sea Vehicle",
+   "stat": "REF",
+   "category": "Control",
+   "x2": false,
+   "basic": false
+  },
+  "riding": {
+   "name": "Riding",
+   "stat": "REF",
+   "category": "Control",
+   "x2": false,
+   "basic": false
+  },
+  "accounting": {
+   "name": "Accounting",
+   "stat": "INT",
+   "category": "Education",
+   "x2": false,
+   "basic": false
+  },
+  "animal_handling": {
+   "name": "Animal Handling",
+   "stat": "INT",
+   "category": "Education",
+   "x2": false,
+   "basic": false
+  },
+  "bureaucracy": {
+   "name": "Bureaucracy",
+   "stat": "INT",
+   "category": "Education",
+   "x2": false,
+   "basic": false
+  },
+  "business": {
+   "name": "Business",
+   "stat": "INT",
+   "category": "Education",
+   "x2": false,
+   "basic": false
+  },
+  "composition": {
+   "name": "Composition",
+   "stat": "INT",
+   "category": "Education",
+   "x2": false,
+   "basic": false
+  },
+  "criminology": {
+   "name": "Criminology",
+   "stat": "INT",
+   "category": "Education",
+   "x2": false,
+   "basic": false
+  },
+  "cryptography": {
+   "name": "Cryptography",
+   "stat": "INT",
+   "category": "Education",
+   "x2": false,
+   "basic": false
+  },
+  "deduction": {
+   "name": "Deduction",
+   "stat": "INT",
+   "category": "Education",
+   "x2": false,
+   "basic": false
+  },
+  "education": {
+   "name": "Education",
+   "stat": "INT",
+   "category": "Education",
+   "x2": false,
+   "basic": true
+  },
+  "gamble": {
+   "name": "Gamble",
+   "stat": "INT",
+   "category": "Education",
+   "x2": false,
+   "basic": false
+  },
+  "language": {
+   "name": "Language",
+   "stat": "INT",
+   "category": "Education",
+   "x2": false,
+   "basic": true
+  },
+  "library_search": {
+   "name": "Library Search",
+   "stat": "INT",
+   "category": "Education",
+   "x2": false,
+   "basic": false
+  },
+  "local_expert": {
+   "name": "Local Expert",
+   "stat": "INT",
+   "category": "Education",
+   "x2": false,
+   "basic": true
+  },
+  "science": {
+   "name": "Science",
+   "stat": "INT",
+   "category": "Education",
+   "x2": false,
+   "basic": false
+  },
+  "tactics": {
+   "name": "Tactics",
+   "stat": "INT",
+   "category": "Education",
+   "x2": false,
+   "basic": false
+  },
+  "wilderness_survival": {
+   "name": "Wilderness Survival",
+   "stat": "INT",
+   "category": "Education",
+   "x2": false,
+   "basic": false
+  },
+  "brawling": {
+   "name": "Brawling",
+   "stat": "DEX",
+   "category": "Fighting",
+   "x2": false,
+   "basic": true
+  },
+  "evasion": {
+   "name": "Evasion",
+   "stat": "DEX",
+   "category": "Fighting",
+   "x2": false,
+   "basic": true
+  },
+  "martial_arts": {
+   "name": "Martial Arts",
+   "stat": "DEX",
+   "category": "Fighting",
+   "x2": true,
+   "basic": false
+  },
+  "melee_weapon": {
+   "name": "Melee Weapon",
+   "stat": "DEX",
+   "category": "Fighting",
+   "x2": false,
+   "basic": false
+  },
+  "acting": {
+   "name": "Acting",
+   "stat": "COOL",
+   "category": "Performance",
+   "x2": false,
+   "basic": false
+  },
+  "play_instrument": {
+   "name": "Play Instrument",
+   "stat": "TECH",
+   "category": "Performance",
+   "x2": false,
+   "basic": false
+  },
+  "archery": {
+   "name": "Archery",
+   "stat": "REF",
+   "category": "Ranged Weapon",
+   "x2": false,
+   "basic": false
+  },
+  "autofire": {
+   "name": "Autofire",
+   "stat": "REF",
+   "category": "Ranged Weapon",
+   "x2": true,
+   "basic": false
+  },
+  "handgun": {
+   "name": "Handgun",
+   "stat": "REF",
+   "category": "Ranged Weapon",
+   "x2": false,
+   "basic": false
+  },
+  "heavy_weapons": {
+   "name": "Heavy Weapons",
+   "stat": "REF",
+   "category": "Ranged Weapon",
+   "x2": true,
+   "basic": false
+  },
+  "shoulder_arms": {
+   "name": "Shoulder Arms",
+   "stat": "REF",
+   "category": "Ranged Weapon",
+   "x2": false,
+   "basic": false
+  },
+  "bribery": {
+   "name": "Bribery",
+   "stat": "COOL",
+   "category": "Social",
+   "x2": false,
+   "basic": false
+  },
+  "conversation": {
+   "name": "Conversation",
+   "stat": "EMP",
+   "category": "Social",
+   "x2": false,
+   "basic": true
+  },
+  "human_perception": {
+   "name": "Human Perception",
+   "stat": "EMP",
+   "category": "Social",
+   "x2": false,
+   "basic": true
+  },
+  "interrogation": {
+   "name": "Interrogation",
+   "stat": "COOL",
+   "category": "Social",
+   "x2": false,
+   "basic": false
+  },
+  "persuasion": {
+   "name": "Persuasion",
+   "stat": "COOL",
+   "category": "Social",
+   "x2": false,
+   "basic": true
+  },
+  "personal_grooming": {
+   "name": "Personal Grooming",
+   "stat": "COOL",
+   "category": "Social",
+   "x2": false,
+   "basic": false
+  },
+  "streetwise": {
+   "name": "Streetwise",
+   "stat": "COOL",
+   "category": "Social",
+   "x2": false,
+   "basic": false
+  },
+  "trading": {
+   "name": "Trading",
+   "stat": "COOL",
+   "category": "Social",
+   "x2": false,
+   "basic": false
+  },
+  "wardrobe_style": {
+   "name": "Wardrobe & Style",
+   "stat": "COOL",
+   "category": "Social",
+   "x2": false,
+   "basic": false
+  },
+  "air_vehicle_tech": {
+   "name": "Air Vehicle Tech",
+   "stat": "TECH",
+   "category": "Technique",
+   "x2": false,
+   "basic": false
+  },
+  "basic_tech": {
+   "name": "Basic Tech",
+   "stat": "TECH",
+   "category": "Technique",
+   "x2": false,
+   "basic": false
+  },
+  "cybertech": {
+   "name": "Cybertech",
+   "stat": "TECH",
+   "category": "Technique",
+   "x2": false,
+   "basic": false
+  },
+  "demolitions": {
+   "name": "Demolitions",
+   "stat": "TECH",
+   "category": "Technique",
+   "x2": true,
+   "basic": false
+  },
+  "electronics_security_tech": {
+   "name": "Electronics/Security Tech",
+   "stat": "TECH",
+   "category": "Technique",
+   "x2": true,
+   "basic": false
+  },
+  "first_aid": {
+   "name": "First Aid",
+   "stat": "TECH",
+   "category": "Technique",
+   "x2": false,
+   "basic": true
+  },
+  "forgery": {
+   "name": "Forgery",
+   "stat": "TECH",
+   "category": "Technique",
+   "x2": false,
+   "basic": false
+  },
+  "land_vehicle_tech": {
+   "name": "Land Vehicle Tech",
+   "stat": "TECH",
+   "category": "Technique",
+   "x2": false,
+   "basic": false
+  },
+  "paint_draw_sculpt": {
+   "name": "Paint/Draw/Sculpt",
+   "stat": "TECH",
+   "category": "Technique",
+   "x2": false,
+   "basic": false
+  },
+  "paramedic": {
+   "name": "Paramedic",
+   "stat": "TECH",
+   "category": "Technique",
+   "x2": true,
+   "basic": false
+  },
+  "photography_film": {
+   "name": "Photography/Film",
+   "stat": "TECH",
+   "category": "Technique",
+   "x2": false,
+   "basic": false
+  },
+  "pick_lock": {
+   "name": "Pick Lock",
+   "stat": "TECH",
+   "category": "Technique",
+   "x2": false,
+   "basic": false
+  },
+  "pick_pocket": {
+   "name": "Pick Pocket",
+   "stat": "TECH",
+   "category": "Technique",
+   "x2": false,
+   "basic": false
+  },
+  "sea_vehicle_tech": {
+   "name": "Sea Vehicle Tech",
+   "stat": "TECH",
+   "category": "Technique",
+   "x2": false,
+   "basic": false
+  },
+  "weaponstech": {
+   "name": "Weaponstech",
+   "stat": "TECH",
+   "category": "Technique",
+   "x2": false,
+   "basic": false
+  },
+  "surgery": {
+   "name": "Surgery",
+   "stat": "TECH",
+   "category": "Role",
+   "x2": false,
+   "basic": false
+  }
+ }
+}

@@ -1,0 +1,36 @@
+{
+  "_source": "CPR core p92 (melee), p94/p171 (ranged), p173 (range DVs), p176 (melee rules). Verified against printed pages.",
+  "range_bands_m": [6, 12, 25, 50, 100, 200, 400, 800],
+  "range_dv": {
+    "pistol":           [13, 15, 20, 25, 30, 30, null, null],
+    "smg":              [15, 13, 15, 20, 25, 25, 30, null],
+    "shotgun_slug":     [13, 15, 20, 25, 30, 35, null, null],
+    "assault_rifle":    [17, 16, 15, 13, 15, 20, 25, 30],
+    "sniper_rifle":     [30, 25, 25, 20, 15, 16, 17, 20],
+    "bow":              [15, 13, 15, 17, 20, 22, null, null],
+    "grenade_launcher": [16, 15, 15, 17, 20, 22, 25, null],
+    "rocket_launcher":  [17, 16, 15, 15, 20, 20, 25, 30]
+  },
+  "autofire_dv": {
+    "smg":           [20, 17, 20, 25, 30],
+    "assault_rifle": [22, 20, 17, 20, 25]
+  },
+  "weapons": {
+    "medium_pistol":     {"name": "Medium Pistol",     "skill": "handgun",       "dice": 2, "mag": 12, "rof": 2, "hands": 1, "conceal": true,  "cost": 50,  "range": "pistol"},
+    "heavy_pistol":      {"name": "Heavy Pistol",      "skill": "handgun",       "dice": 3, "mag": 8,  "rof": 2, "hands": 1, "conceal": true,  "cost": 100, "range": "pistol"},
+    "very_heavy_pistol": {"name": "Very Heavy Pistol", "skill": "handgun",       "dice": 4, "mag": 8,  "rof": 1, "hands": 1, "conceal": false, "cost": 100, "range": "pistol"},
+    "smg":               {"name": "SMG",               "skill": "handgun",       "dice": 2, "mag": 30, "rof": 1, "hands": 1, "conceal": true,  "cost": 100, "range": "smg", "autofire": 3, "autofire_range": "smg", "suppressive": true},
+    "heavy_smg":         {"name": "Heavy SMG",         "skill": "handgun",       "dice": 3, "mag": 40, "rof": 1, "hands": 1, "conceal": false, "cost": 100, "range": "smg", "autofire": 3, "autofire_range": "smg", "suppressive": true},
+    "shotgun":           {"name": "Shotgun",           "skill": "shoulder_arms", "dice": 5, "mag": 4,  "rof": 1, "hands": 2, "conceal": false, "cost": 500, "range": "shotgun_slug", "shotgun_shell": true},
+    "assault_rifle":     {"name": "Assault Rifle",     "skill": "shoulder_arms", "dice": 5, "mag": 25, "rof": 1, "hands": 2, "conceal": false, "cost": 500, "range": "assault_rifle", "autofire": 4, "autofire_range": "assault_rifle", "suppressive": true},
+    "sniper_rifle":      {"name": "Sniper Rifle",      "skill": "shoulder_arms", "dice": 5, "mag": 4,  "rof": 1, "hands": 2, "conceal": false, "cost": 500, "range": "sniper_rifle"},
+    "bow":               {"name": "Bow",               "skill": "archery",       "dice": 4, "mag": 0,  "rof": 1, "hands": 2, "conceal": false, "cost": 100, "range": "bow"},
+    "grenade_launcher":  {"name": "Grenade Launcher",  "skill": "heavy_weapons", "dice": 6, "mag": 2,  "rof": 1, "hands": 2, "conceal": false, "cost": 500, "range": "grenade_launcher", "explosive": true},
+    "rocket_launcher":   {"name": "Rocket Launcher",   "skill": "heavy_weapons", "dice": 8, "mag": 1,  "rof": 1, "hands": 2, "conceal": false, "cost": 500, "range": "rocket_launcher", "explosive": true},
+
+    "light_melee":       {"name": "Combat Knife",      "skill": "melee_weapon",  "dice": 1, "rof": 2, "hands": 1, "conceal": true,  "cost": 50,  "melee": true},
+    "medium_melee":      {"name": "Baseball Bat",      "skill": "melee_weapon",  "dice": 2, "rof": 2, "hands": 2, "conceal": false, "cost": 50,  "melee": true},
+    "heavy_melee":       {"name": "Sword",             "skill": "melee_weapon",  "dice": 3, "rof": 2, "hands": 2, "conceal": false, "cost": 100, "melee": true},
+    "very_heavy_melee":  {"name": "Sledgehammer",      "skill": "melee_weapon",  "dice": 4, "rof": 1, "hands": 2, "conceal": false, "cost": 500, "melee": true}
+  }
+}

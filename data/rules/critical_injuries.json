@@ -1,0 +1,31 @@
+{
+  "_source": "CPR core p221-222 (verified against printed pages). Effect keys are interpreted by CritInjury in src/core/crit_injury.gd.",
+  "_effect_keys": "all: penalty to all Actions | ranged / melee: attack penalty | move: MOVE penalty (min 1) | dsp: Base Death Save Penalty increase | no_dodge | lose_hand: drop held item | arm_unusable | no_action_next_turn | move_bleed: re-suffer bonus damage after moving >4 m on foot | move_stagger: after moving >4 m, no Move Action next turn | head_mult: aimed head multiplier | speech / hand / perception: situational penalties",
+  "bonus_damage": 5,
+  "body": {
+    "2":  {"id": "dismembered_arm",  "name": "Dismembered Arm",  "fx": {"dsp": 1, "lose_hand": true, "arm_unusable": true}, "quick_fix": null, "treatment": {"skill": "surgery", "dv": 17}},
+    "3":  {"id": "dismembered_hand", "name": "Dismembered Hand", "fx": {"dsp": 1, "lose_hand": true, "arm_unusable": true}, "quick_fix": null, "treatment": {"skill": "surgery", "dv": 17}},
+    "4":  {"id": "collapsed_lung",   "name": "Collapsed Lung",   "fx": {"move": 2, "dsp": 1}, "quick_fix": {"skill": "paramedic", "dv": 15}, "treatment": {"skill": "surgery", "dv": 15}},
+    "5":  {"id": "broken_ribs",      "name": "Broken Ribs",      "fx": {"move_bleed": true}, "quick_fix": {"skill": "paramedic", "dv": 13}, "treatment": {"skill": "paramedic", "dv": 15, "alt": {"skill": "surgery", "dv": 13}}},
+    "6":  {"id": "broken_arm",       "name": "Broken Arm",       "fx": {"lose_hand": true, "arm_unusable": true}, "quick_fix": {"skill": "paramedic", "dv": 13}, "treatment": {"skill": "paramedic", "dv": 15, "alt": {"skill": "surgery", "dv": 13}}},
+    "7":  {"id": "foreign_object",   "name": "Foreign Object",   "fx": {"move_bleed": true}, "quick_fix": {"skill": "first_aid", "dv": 13, "permanent": true}, "treatment": null},
+    "8":  {"id": "broken_leg",       "name": "Broken Leg",       "fx": {"move": 4}, "quick_fix": {"skill": "paramedic", "dv": 13}, "treatment": {"skill": "paramedic", "dv": 15, "alt": {"skill": "surgery", "dv": 13}}},
+    "9":  {"id": "torn_muscle",      "name": "Torn Muscle",      "fx": {"melee": 2}, "quick_fix": {"skill": "first_aid", "dv": 13, "permanent": true}, "treatment": null},
+    "10": {"id": "spinal_injury",    "name": "Spinal Injury",    "fx": {"no_action_next_turn": true, "dsp": 1}, "quick_fix": {"skill": "paramedic", "dv": 15}, "treatment": {"skill": "surgery", "dv": 15}},
+    "11": {"id": "crushed_fingers",  "name": "Crushed Fingers",  "fx": {"hand": 4}, "quick_fix": {"skill": "paramedic", "dv": 13}, "treatment": {"skill": "surgery", "dv": 15}},
+    "12": {"id": "dismembered_leg",  "name": "Dismembered Leg",  "fx": {"move": 6, "no_dodge": true, "dsp": 1}, "quick_fix": null, "treatment": {"skill": "surgery", "dv": 17}}
+  },
+  "head": {
+    "2":  {"id": "lost_eye",          "name": "Lost Eye",          "fx": {"ranged": 4, "perception": 4, "dsp": 1}, "quick_fix": null, "treatment": {"skill": "surgery", "dv": 17}},
+    "3":  {"id": "brain_injury",      "name": "Brain Injury",      "fx": {"all": 2, "dsp": 1}, "quick_fix": null, "treatment": {"skill": "surgery", "dv": 17}},
+    "4":  {"id": "damaged_eye",       "name": "Damaged Eye",       "fx": {"ranged": 2, "perception": 2}, "quick_fix": {"skill": "paramedic", "dv": 15}, "treatment": {"skill": "surgery", "dv": 13}},
+    "5":  {"id": "concussion",        "name": "Concussion",        "fx": {"all": 2}, "quick_fix": {"skill": "first_aid", "dv": 13, "permanent": true}, "treatment": null},
+    "6":  {"id": "broken_jaw",        "name": "Broken Jaw",        "fx": {"speech": 4}, "quick_fix": {"skill": "paramedic", "dv": 13}, "treatment": {"skill": "paramedic", "dv": 13, "alt": {"skill": "surgery", "dv": 13}}},
+    "7":  {"id": "foreign_object_head","name": "Foreign Object",   "fx": {"move_bleed": true}, "quick_fix": {"skill": "first_aid", "dv": 13, "permanent": true}, "treatment": null},
+    "8":  {"id": "whiplash",          "name": "Whiplash",          "fx": {"dsp": 1}, "quick_fix": {"skill": "paramedic", "dv": 13}, "treatment": {"skill": "paramedic", "dv": 13, "alt": {"skill": "surgery", "dv": 13}}},
+    "9":  {"id": "cracked_skull",     "name": "Cracked Skull",     "fx": {"head_mult": 3, "dsp": 1}, "quick_fix": {"skill": "paramedic", "dv": 15}, "treatment": {"skill": "paramedic", "dv": 15, "alt": {"skill": "surgery", "dv": 15}}},
+    "10": {"id": "damaged_ear",       "name": "Damaged Ear",       "fx": {"move_stagger": true, "perception": 2}, "quick_fix": {"skill": "paramedic", "dv": 13}, "treatment": {"skill": "surgery", "dv": 13}},
+    "11": {"id": "crushed_windpipe",  "name": "Crushed Windpipe",  "fx": {"speech": 99, "dsp": 1}, "quick_fix": null, "treatment": {"skill": "surgery", "dv": 15}},
+    "12": {"id": "lost_ear",          "name": "Lost Ear",          "fx": {"move_stagger": true, "perception": 4, "dsp": 1}, "quick_fix": null, "treatment": {"skill": "surgery", "dv": 17}}
+  }
+}
