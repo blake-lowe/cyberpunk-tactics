@@ -21,15 +21,18 @@ static func build(m: TacMap, dice: Dice, hints: Array, ctx: Dictionary) -> Dicti
 	p.merge(sdef["layout"], true)
 	p.merge(ctx.get("params", {}), true)
 	p["security"] = int(ctx.get("security", 1))
+	p["levels"] = int(sdef.get("levels", 4))
 	if float(p.get("density", -1.0)) < 0.0:
 		p.density = float(sdef["density"])
 	var floors := mini(int(ctx.get("floors", 1)), m.floors)
 	var shell: Rect2i = ctx.shell
 	var inner := shell.grow(-1)
+	var fp := Footprint.make(shell, ctx.get("mask", {}))
 	var sid := m.structures.size()
 	var st := {"id": sid, "kind": "building", "site": ctx.site, "rect": shell, "floors": floors,
 		"security": p.security, "target": ctx.get("target", false), "base_zone": int(ctx.get("base_zone", TacMap.Zone.PUBLIC)),
-		"params": p, "algorithm": p.algorithm}
+		"params": p, "algorithm": p.algorithm,
+		"max_zone": maxi(mini(MapGen.max_zone(int(p.security)), int(ctx.get("base_zone", TacMap.Zone.PUBLIC)) + int(p.levels) - 1), int(ctx.get("base_zone", TacMap.Zone.PUBLIC)))}
 	m.structures.append(st)
 
 	var first_id := hints.size()
@@ -38,25 +41,32 @@ static func build(m: TacMap, dice: Dice, hints: Array, ctx: Dictionary) -> Dicti
 		local.resize(m.w * m.h)
 		local.fill(-1)
 		var room_hints := Layouts.run(p.algorithm, dice, m.w, inner, local, p)
+		for y in range(inner.position.y, inner.end.y):
+			for x in range(inner.position.x, inner.end.x):
+				if not fp.interior(Vector2i(x, y)):
+					local[y * m.w + x] = -1
 		_split_components(m, f, local, inner, room_hints, hints)
-		_walls(m, f, shell, inner)
+		_walls(m, f, fp)
 	_index_rooms(m, shell, floors, first_id, hints.size(), sid)
 	for i in range(first_id, hints.size()):
 		m.rooms[i]["layout_kind"] = hints[i].get("kind", "")
 	_verticals(m, dice, shell, floors, int(p.verticality), sid)
-	var door := _main_door(m, dice, shell, String(ctx.get("entry_side", "")), sdef.get("enter_corridor", false))
+	var door := _main_door(m, dice, fp, String(ctx.get("entry_side", "")), sdef.get("enter_corridor", false))
 	if door.is_empty():
 		push_warning("BuildingGen: no facade faces open ground for %s at %s" % [ctx.site, shell])
 		return st
 	var root: int = door.room
 	_connect(m, dice, hints, p, first_id, root, int(st.base_zone))
 	_place_main_door(m, door, sid, bool(st.target))
-	_service_door(m, dice, shell, door.side, sid, int(st.base_zone))
-	_wall_materials(m, shell, floors, int(sdef.get("exterior", 1)))
+	_service_door(m, dice, fp, door.side, sid, int(st.base_zone))
+	_wall_materials(m, fp, floors, int(sdef.get("exterior", 1)))
 	_room_kinds(m, String(ctx.site), first_id, root)
-	_roof(m, dice, hints, shell, floors, sid, int(st.base_zone))
+	_roof(m, dice, hints, fp, floors, sid, int(st.base_zone))
+	_windows(m, dice, fp, floors, float(sdef.get("windows", 0.5)))
 	Furnish.run_structure(m, dice, sid)
-	if sdef.get("networked", true) and m.devices.any(func(d): return d.structure == sid):
+	# M2d review: NETs only where they matter — always for the target, otherwise by site type.
+	var wants_net: bool = sdef.get("networked", true) and (st.target or dice.rng.randf() < float(sdef.get("net_chance", 1.0)))
+	if wants_net and m.devices.any(func(d): return d.structure == sid):
 		m.architectures[sid] = NetGen.generate(m, dice, sid)
 	return st
 
@@ -115,25 +125,29 @@ static func _split_components(m: TacMap, f: int, local: PackedInt32Array, inner:
 					break
 
 
-## A cell becomes wall if its east or south neighbour belongs to a different room; the shell
-## boundary is the exterior wall.
-static func _walls(m: TacMap, f: int, shell: Rect2i, inner: Rect2i) -> void:
+## Exterior ring of the footprint is wall; inside, a cell becomes wall if its east or south
+## neighbour belongs to a different room (1-cell walls without eating both sides).
+static func _walls(m: TacMap, f: int, fp: Footprint) -> void:
+	var shell := fp.shell
 	for y in range(shell.position.y, shell.end.y):
 		for x in range(shell.position.x, shell.end.x):
-			if not inner.has_point(Vector2i(x, y)):
+			var v := Vector2i(x, y)
+			if not fp.has(v):
+				continue
+			if not fp.interior(v):
 				m.set_t(f, x, y, TacMap.T.WALL)
 				m.labels[f][y * m.w + x] = -1
 				continue
 			var l := m.label(f, x, y)
 			var wall := false
 			for d in [Vector2i.RIGHT, Vector2i.DOWN]:
-				var n: Vector2i = Vector2i(x, y) + d
-				if inner.has_point(n) and m.label(f, n.x, n.y) != l:
+				var n: Vector2i = v + d
+				if fp.interior(n) and m.label(f, n.x, n.y) != l:
 					wall = true
 			m.set_t(f, x, y, TacMap.T.WALL if wall else TacMap.T.FLOOR)
 	for y in range(shell.position.y, shell.end.y):
 		for x in range(shell.position.x, shell.end.x):
-			if m.t(f, x, y) == TacMap.T.WALL:
+			if fp.has(Vector2i(x, y)) and m.t(f, x, y) == TacMap.T.WALL:
 				m.labels[f][y * m.w + x] = -1
 
 
@@ -189,8 +203,8 @@ static func _verticals(m: TacMap, dice: Dice, shell: Rect2i, floors: int, vertic
 
 ## Facade door candidates: exterior wall cells (not corners) with a room inside and open ground
 ## outside. Returns {side, pos, room} for the best one, preferring `side` when given.
-static func _main_door(m: TacMap, dice: Dice, shell: Rect2i, side: String, prefer_corridor: bool) -> Dictionary:
-	var by_side := _facade_candidates(m, shell)
+static func _main_door(m: TacMap, dice: Dice, fp: Footprint, side: String, prefer_corridor: bool) -> Dictionary:
+	var by_side := _facade_candidates(m, fp)
 	var order := ["S", "E", "W", "N"]
 	order.sort_custom(func(a, b): return by_side[a].size() > by_side[b].size())
 	if side != "" and not by_side[side].is_empty():
@@ -210,24 +224,31 @@ static func _main_door(m: TacMap, dice: Dice, shell: Rect2i, side: String, prefe
 	return {}
 
 
-static func _facade_candidates(m: TacMap, shell: Rect2i) -> Dictionary:
+const SIDES := {"N": Vector2i.UP, "S": Vector2i.DOWN, "E": Vector2i.RIGHT, "W": Vector2i.LEFT}
+
+
+## Facade spots: straight stretches of exterior wall with a room inside and open ground outside,
+## grouped by the side they face.
+static func _facade_candidates(m: TacMap, fp: Footprint) -> Dictionary:
 	var out := {"N": [], "S": [], "E": [], "W": []}
-	for x in range(shell.position.x + 1, shell.end.x - 1):
-		_cand(m, out.N, Vector2i(x, shell.position.y), Vector2i.UP)
-		_cand(m, out.S, Vector2i(x, shell.end.y - 1), Vector2i.DOWN)
-	for y in range(shell.position.y + 1, shell.end.y - 1):
-		_cand(m, out.W, Vector2i(shell.position.x, y), Vector2i.LEFT)
-		_cand(m, out.E, Vector2i(shell.end.x - 1, y), Vector2i.RIGHT)
+	var shell := fp.shell
+	for y in range(shell.position.y, shell.end.y):
+		for x in range(shell.position.x, shell.end.x):
+			var v := Vector2i(x, y)
+			if not fp.exterior(v) or m.t(0, x, y) != TacMap.T.WALL:
+				continue
+			for side in SIDES:
+				var d: Vector2i = SIDES[side]
+				var outside := v + d
+				var inside := v - d
+				var perp := Vector2i(d.y, d.x)
+				if fp.has(outside) or not fp.interior(inside) or not fp.exterior(v + perp) or not fp.exterior(v - perp):
+					continue
+				var l := m.label(0, inside.x, inside.y)
+				if l >= 0 and m.t(0, inside.x, inside.y) == TacMap.T.FLOOR and m.t(0, outside.x, outside.y) == TacMap.T.OUTSIDE \
+						and not m.has_cover_at(0, outside):
+					out[side].append({"pos": v, "room": l})
 	return out
-
-
-static func _cand(m: TacMap, list: Array, pos: Vector2i, outward: Vector2i) -> void:
-	var inside := pos - outward
-	var outside := pos + outward
-	var l := m.label(0, inside.x, inside.y)
-	if l >= 0 and m.t(0, inside.x, inside.y) == TacMap.T.FLOOR and m.t(0, pos.x, pos.y) == TacMap.T.WALL \
-			and m.t(0, outside.x, outside.y) in [TacMap.T.OUTSIDE] and not m.has_cover_at(0, outside):
-		list.append({"pos": pos, "room": l})
 
 
 static func _place_main_door(m: TacMap, door: Dictionary, sid: int, target: bool) -> void:
@@ -236,8 +257,8 @@ static func _place_main_door(m: TacMap, door: Dictionary, sid: int, target: bool
 	m.entrances.append({"floor": 0, "pos": door.pos, "main": target, "kind": "door", "structure": sid})
 
 
-static func _service_door(m: TacMap, dice: Dice, shell: Rect2i, main_side: String, sid: int, base_zone: int) -> void:
-	var by_side := _facade_candidates(m, shell)
+static func _service_door(m: TacMap, dice: Dice, fp: Footprint, main_side: String, sid: int, base_zone: int) -> void:
+	var by_side := _facade_candidates(m, fp)
 	var best: Dictionary = {}
 	for s in by_side:
 		if s == main_side:
@@ -281,7 +302,7 @@ static func _connect(m: TacMap, dice: Dice, hints: Array, p: Dictionary, first: 
 	for key in cands:
 		adj.get_or_add(key.x, []).append(key.y)
 		adj.get_or_add(key.y, []).append(key.x)
-	var mz := maxi(MapGen.max_zone(int(p.security)), base_zone)
+	var mz := maxi(mini(MapGen.max_zone(int(p.security)), base_zone + int(p.get("levels", 4)) - 1), base_zone)
 	var shafts := _shaft_rooms(m, first)
 
 	# Depth-derived hints for rooms whose layout gave none: rank by BFS depth from the entrance and
@@ -402,19 +423,19 @@ static func _shaft_rooms(m: TacMap, first: int) -> Array:
 
 ## Exterior walls use the site's material (concrete by default, steel for hulls and train cars);
 ## interior walls are plaster, hardened to concrete around secure rooms and steel around vaults.
-static func _wall_materials(m: TacMap, shell: Rect2i, floors: int, exterior_mat: int) -> void:
+static func _wall_materials(m: TacMap, fp: Footprint, floors: int, exterior_mat: int) -> void:
+	var shell := fp.shell
 	for f in floors:
 		for y in range(shell.position.y, shell.end.y):
 			for x in range(shell.position.x, shell.end.x):
-				if m.t(f, x, y) != TacMap.T.WALL:
+				if not fp.has(Vector2i(x, y)) or m.t(f, x, y) != TacMap.T.WALL:
 					continue
-				var exterior := x == shell.position.x or y == shell.position.y or x == shell.end.x - 1 or y == shell.end.y - 1
 				var z := 0
 				for d in MapGen.DIRS + DIAG:
 					var l := m.label(f, x + d.x, y + d.y)
 					if l >= 0:
 						z = maxi(z, m.rooms[l].zone)
-				var mat := exterior_mat if exterior else 0
+				var mat := exterior_mat if fp.exterior(Vector2i(x, y)) else 0
 				if z >= TacMap.Zone.VAULT:
 					mat = 2
 				elif z >= TacMap.Zone.SECURE:
@@ -422,7 +443,6 @@ static func _wall_materials(m: TacMap, shell: Rect2i, floors: int, exterior_mat:
 				m.wall_mat[f][y * m.w + x] = mat
 
 
-## Room kinds from the site type's per-zone rules (data/gen/sites.json).
 static func _room_kinds(m: TacMap, site: String, first: int, entrance_room: int) -> void:
 	var zones: Dictionary = RulesDB.gen("sites.json")[site]["zones"]
 	var by_zone := {}
@@ -455,23 +475,25 @@ static func _room_kinds(m: TacMap, site: String, first: int, entrance_room: int)
 ## Roof level above the top floor: walkable ROOF over the whole footprint, reached by extending
 ## the stair shaft (roof hatch) and/or an external ladder / fire escape from the street. A roof
 ## with no way up is left as plain structure (no room, no furniture).
-static func _roof(m: TacMap, dice: Dice, hints: Array, shell: Rect2i, floors: int, sid: int, base_zone: int) -> void:
+static func _roof(m: TacMap, dice: Dice, hints: Array, fp: Footprint, floors: int, sid: int, base_zone: int) -> void:
+	var shell := fp.shell
 	var rf := floors
 	if rf >= m.floors:
 		return
 	for y in range(shell.position.y, shell.end.y):
 		for x in range(shell.position.x, shell.end.x):
-			m.set_t(rf, x, y, TacMap.T.ROOF)
+			if fp.has(Vector2i(x, y)):
+				m.set_t(rf, x, y, TacMap.T.ROOF)
 	var access := false
 	for v in m.verticals:
 		if v.get("structure", -1) == sid and v.type == "stairs" and dice.rng.randf() < 0.6:
 			v.to_floor = rf
 			m.set_t(rf, v.pos.x, v.pos.y, TacMap.T.STAIRS)
 			access = true
-	var by_side := _facade_candidates(m, shell)
+	var by_side := _facade_candidates(m, fp)
 	var ladder_spots := []
 	for side in by_side:
-		var out_dir: Vector2i = {"N": Vector2i.UP, "S": Vector2i.DOWN, "E": Vector2i.RIGHT, "W": Vector2i.LEFT}[side]
+		var out_dir: Vector2i = SIDES[side]
 		for cnd in by_side[side]:
 			var base: Vector2i = cnd.pos + out_dir
 			var near_door := false
@@ -490,8 +512,41 @@ static func _roof(m: TacMap, dice: Dice, hints: Array, shell: Rect2i, floors: in
 	hints.append({"zone_hint": TacMap.Zone.STAFF, "kind": "roof", "floor": rf})
 	while m.rooms.size() < id:
 		m.rooms.append({"id": m.rooms.size(), "floor": -1, "zone": -1, "kind": "void", "cells": 0, "bounds": Rect2i(), "structure": -1})
-	m.rooms.append({"id": id, "floor": rf, "zone": maxi(base_zone, TacMap.Zone.STAFF), "kind": "roof", "cells": shell.get_area(),
+	m.rooms.append({"id": id, "floor": rf, "zone": maxi(base_zone, TacMap.Zone.STAFF), "kind": "roof", "cells": fp.count,
 		"bounds": shell, "structure": sid, "outdoor": true})
 	for y in range(shell.position.y, shell.end.y):
 		for x in range(shell.position.x, shell.end.x):
-			m.labels[rf][y * m.w + x] = id
+			if fp.has(Vector2i(x, y)):
+				m.labels[rf][y * m.w + x] = id
+
+
+## Windows on straight exterior walls (not next to doors or ladders), every few squares by the
+## site's window rate. Ordinary glass stops movement but not bullets or sight; rooms at secure
+## level or deeper get bulletproof glass (thin, 15 HP, see-through — p182).
+static func _windows(m: TacMap, dice: Dice, fp: Footprint, floors: int, rate: float) -> void:
+	if rate <= 0.0:
+		return
+	var shell := fp.shell
+	for f in floors:
+		for y in range(shell.position.y, shell.end.y):
+			for x in range(shell.position.x, shell.end.x):
+				var v := Vector2i(x, y)
+				if not fp.exterior(v) or m.t(f, x, y) != TacMap.T.WALL or (x + y) % 3 == 0 or dice.rng.randf() >= rate:
+					continue
+				var room := -1
+				for side in SIDES:
+					var d: Vector2i = SIDES[side]
+					var perp := Vector2i(d.y, d.x)
+					if not fp.has(v + d) and fp.interior(v - d) and m.t(f, v.x - d.x, v.y - d.y) == TacMap.T.FLOOR \
+							and m.t(f, v.x + perp.x, v.y + perp.y) == TacMap.T.WALL and m.t(f, v.x - perp.x, v.y - perp.y) == TacMap.T.WALL:
+						room = m.label(f, v.x - d.x, v.y - d.y)
+				if room < 0:
+					continue
+				var near := false
+				for d2 in MapGen.DIRS + DIAG:
+					var n: Vector2i = v + d2
+					if m.t(f, n.x, n.y) == TacMap.T.DOOR or m.is_connector_end(0, n) or m.is_connector_end(f, n):
+						near = true
+				if near or m.is_connector_end(f + 1, v):
+					continue
+				m.wall_mat[f][y * m.w + x] = 6 if m.rooms[room].zone >= TacMap.Zone.SECURE else 5

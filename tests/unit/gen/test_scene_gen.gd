@@ -15,7 +15,7 @@ func _scenes() -> Array[TacMap]:
 
 func _spawn0(m: TacMap) -> Vector3i:
 	for e in m.entrances:
-		if e.kind == "spawn":
+		if e.kind in ["spawn", "deploy"]:
 			return Vector3i(e.pos.x, e.pos.y, e.floor)
 	return Vector3i(-1, -1, -1)
 
@@ -39,7 +39,7 @@ func test_everything_reachable_from_the_street() -> void:
 		assert_true(m.walkable(s0.z, Vector2i(s0.x, s0.y)), "%s spawn is open ground" % m.params.scene)
 		var reach := m.reachable(s0)
 		for e in m.entrances:
-			if e.kind == "spawn":
+			if e.kind in ["spawn", "deploy"]:
 				assert_true(reach.has(Vector3i(e.pos.x, e.pos.y, e.floor)), "%s: spawn %s connected" % [m.params.scene, e.pos])
 		for r in m.rooms:
 			if r.cells == 0:
@@ -130,4 +130,68 @@ func test_net_links_join_existing_nets() -> void:
 	for m in _scenes():
 		for l in m.net_links:
 			assert_true(m.architectures.has(l.a) and m.architectures.has(l.b), "link ends have NETs")
-			assert_eq(m.architectures[l.a].nodes[l.a_node].type, "hub")
+			var sock: Dictionary = m.architectures[l.a].nodes[l.a_node]
+			assert_eq(sock.type, "socket")
+			assert_eq(int(sock.target_structure), int(l.b))
+			assert_eq(m.architectures[l.b].nodes[l.b_node].type, "hub")
+
+
+func test_socket_crossing() -> void:
+	var crossed := false
+	for m in _scenes():
+		if m.net_links.is_empty():
+			continue
+		var l: Dictionary = m.net_links[0]
+		var runner := Fixtures.unarmored("Net")
+		runner.role = "netrunner"
+		runner.role_rank = 4
+		var run := NetRun.new(m.architectures[l.a], runner)
+		run.nets = m.architectures
+		run.current = l.a_node
+		assert_true(run.cross(), "stepping onto a socket crosses")
+		assert_eq(run.arch.structure, int(l.b))
+		assert_eq(run.current, int(l.b_node))
+		crossed = true
+		break
+	assert_true(crossed, "at least one scene has a linked NET")
+
+
+func test_deploy_zone_and_posts() -> void:
+	for m in _scenes():
+		var deploys := m.entrances.filter(func(e): return e.kind == "deploy")
+		assert_eq(deploys.size(), 1, "%s has one deploy zone" % m.params.scene)
+		if deploys.is_empty():
+			continue
+		var reach := m.reachable(_spawn0(m) if _spawn0(m).x >= 0 else Vector3i(deploys[0].pos.x, deploys[0].pos.y, 0))
+		for c in deploys[0].cells:
+			assert_true(m.walkable(0, c), "deploy cell open")
+		for p in m.posts:
+			assert_true(m.walkable(p.floor, p.pos), "%s: post on open ground" % m.params.scene)
+
+
+func test_window_glass_rules() -> void:
+	var seen := {}
+	for m in _scenes():
+		for f in m.floors:
+			for i in m.wall_mat[f].size():
+				if m.tiles[f][i] == TacMap.T.WALL and m.wall_mat[f][i] in [5, 6]:
+					seen[m.wall_mat[f][i]] = m.wall_cover(f, i % m.w, i / m.w)
+	assert_true(seen.has(5) and seen.has(6), "both window kinds appear")
+	assert_false(seen[5].cover, "ordinary glass is no cover")
+	assert_false(seen[5].blocks_los)
+	assert_true(seen[6].cover and seen[6].hp == 15, "bulletproof glass: thin, 15 (p182)")
+	assert_false(seen[6].blocks_los, "and see-through")
+
+
+func test_diagonal_avenue_keeps_everything_reachable() -> void:
+	var m := SceneGen.generate(5, "street_block", {"diagonal_chance": 1.0})
+	var spawn := Vector3i(-1, -1, 0)
+	for e in m.entrances:
+		if e.kind in ["spawn", "deploy"]:
+			spawn = Vector3i(e.pos.x, e.pos.y, 0)
+			break
+	var reach := m.reachable(spawn)
+	for r in m.rooms:
+		if r.cells == 0:
+			continue
+		assert_true(Furnish.room_cells(m, r).any(func(c): return reach.has(Vector3i(c.x, c.y, r.floor))), "%s reachable" % r.kind)

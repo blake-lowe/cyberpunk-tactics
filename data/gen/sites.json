@@ -1,140 +1,511 @@
 {
-  "_doc": "Building site types for BuildingGen. layout: room-partition algorithm + params. zones: room kinds per security zone — entrance (room at the main door), small (≤16 cells), large (≥60 cells), rotation (by size rank), and layout-kind mappings (e.g. living/bedroom from corridor_units). density: default cover density. exterior: wall material index (0 plaster, 1 concrete, 2 steel). enter_corridor: put the main door on a corridor. networked: false = no NET even with devices. no_corridors: never relabel long thin rooms as corridors.",
-  "corp_office": {
-    "name": "Corporate office",
-    "layout": {"algorithm": "treemap"},
-    "density": 0.35,
-    "zones": {
-      "public": {"entrance": "lobby", "small": "restroom", "large": "atrium", "rotation": ["waiting"]},
-      "staff":  {"small": "storage", "rotation": ["office", "office", "meeting", "break_room", "office"]},
-      "secure": {"small": "storage", "rotation": ["server_room", "security_office", "lab"]},
-      "vault":  {"rotation": ["data_vault", "exec_office"]}
-    }
+ "_doc": "Building site types for BuildingGen. layout: room-partition algorithm + params. zones: room kinds per security zone \u2014 entrance (room at the main door), small (\u226416 cells), large (\u226560 cells), rotation (by size rank), and layout-kind mappings (e.g. living/bedroom from corridor_units). density: default cover density. exterior: wall material index (0 plaster, 1 concrete, 2 steel). enter_corridor: put the main door on a corridor. networked: false = no NET even with devices. no_corridors: never relabel long thin rooms as corridors. levels: how many security levels (L1..L4) the building uses, counted from its base level. net_chance: chance a non-target building of this type has a NET (targets always do). windows: chance per eligible exterior wall square of a window.",
+ "corp_office": {
+  "name": "Corporate office",
+  "layout": {
+   "algorithm": "treemap"
   },
-  "warehouse": {
-    "name": "Warehouse",
-    "layout": {"algorithm": "bsp", "min_room": 5, "max_room": 16, "corridor_depth": 1},
-    "density": 0.3,
-    "zones": {
-      "public": {"entrance": "loading_dock", "small": "restroom", "large": "loading_dock", "rotation": ["dispatch_office"]},
-      "staff":  {"small": "storage", "large": "warehouse_floor", "rotation": ["warehouse_floor", "workshop", "break_room"]},
-      "secure": {"small": "cage", "rotation": ["security_office", "cage", "server_room"]},
-      "vault":  {"rotation": ["vault"]}
-    }
+  "density": 0.35,
+  "zones": {
+   "public": {
+    "entrance": "lobby",
+    "small": "restroom",
+    "large": "atrium",
+    "rotation": [
+     "waiting"
+    ]
+   },
+   "staff": {
+    "small": "storage",
+    "rotation": [
+     "office",
+     "office",
+     "meeting",
+     "break_room",
+     "office"
+    ]
+   },
+   "secure": {
+    "small": "storage",
+    "rotation": [
+     "server_room",
+     "security_office",
+     "lab"
+    ]
+   },
+   "vault": {
+    "rotation": [
+     "data_vault",
+     "exec_office"
+    ]
+   }
   },
-  "gang_hideout": {
-    "name": "Gang hideout",
-    "layout": {"algorithm": "growth"},
-    "density": 0.4,
-    "zones": {
-      "public": {"entrance": "bar", "small": "restroom", "large": "hangout", "rotation": ["hangout", "bar"]},
-      "staff":  {"small": "storage", "rotation": ["crash_room", "kitchen", "crash_room", "storage"]},
-      "secure": {"small": "stash", "rotation": ["armory", "boss_room", "workshop"]},
-      "vault":  {"rotation": ["stash"]}
-    }
+  "levels": 4,
+  "net_chance": 0.7,
+  "windows": 0.6
+ },
+ "warehouse": {
+  "name": "Warehouse",
+  "layout": {
+   "algorithm": "bsp",
+   "min_room": 5,
+   "max_room": 16,
+   "corridor_depth": 1
   },
-  "apartments": {
-    "name": "Apartment block",
-    "layout": {"algorithm": "corridor_units", "verticality": 2},
-    "density": 0.3,
-    "enter_corridor": true,
-    "zones": {
-      "public": {"entrance": "lobby", "living": "apartment", "bedroom": "bedroom", "rotation": ["apartment"]},
-      "staff":  {"living": "apartment", "bedroom": "bedroom", "rotation": ["apartment", "laundry", "apartment", "storage"]},
-      "secure": {"living": "apartment", "bedroom": "bedroom", "rotation": ["manager_office", "server_room", "apartment"]},
-      "vault":  {"living": "exec_office", "bedroom": "bedroom", "rotation": ["exec_office"]}
-    }
+  "density": 0.3,
+  "zones": {
+   "public": {
+    "entrance": "loading_dock",
+    "small": "restroom",
+    "large": "loading_dock",
+    "rotation": [
+     "dispatch_office"
+    ]
+   },
+   "staff": {
+    "small": "storage",
+    "large": "warehouse_floor",
+    "rotation": [
+     "warehouse_floor",
+     "workshop",
+     "break_room"
+    ]
+   },
+   "secure": {
+    "small": "cage",
+    "rotation": [
+     "security_office",
+     "cage",
+     "server_room"
+    ]
+   },
+   "vault": {
+    "rotation": [
+     "vault"
+    ]
+   }
   },
-  "club": {
-    "name": "Club",
-    "layout": {"algorithm": "growth"},
-    "density": 0.35,
-    "zones": {
-      "public": {"entrance": "bar", "small": "restroom", "large": "dance_floor", "rotation": ["dance_floor", "lounge", "bar"]},
-      "staff":  {"small": "storage", "rotation": ["backstage", "kitchen", "storage"]},
-      "secure": {"small": "stash", "rotation": ["vip_lounge", "security_office"]},
-      "vault":  {"rotation": ["boss_room"]}
-    }
+  "levels": 3,
+  "net_chance": 0.4,
+  "windows": 0.2
+ },
+ "gang_hideout": {
+  "name": "Gang hideout",
+  "layout": {
+   "algorithm": "growth"
   },
-  "shop": {
-    "name": "Shop",
-    "layout": {"algorithm": "bsp", "min_room": 4, "max_room": 9, "corridor_depth": 0},
-    "density": 0.35,
-    "zones": {
-      "public": {"entrance": "shop_floor", "small": "restroom", "rotation": ["shop_floor"]},
-      "staff":  {"small": "storage", "rotation": ["storage", "dispatch_office"]},
-      "secure": {"rotation": ["security_office"]},
-      "vault":  {"rotation": ["stash"]}
-    }
+  "density": 0.4,
+  "zones": {
+   "public": {
+    "entrance": "bar",
+    "small": "restroom",
+    "large": "hangout",
+    "rotation": [
+     "hangout",
+     "bar"
+    ]
+   },
+   "staff": {
+    "small": "storage",
+    "rotation": [
+     "crash_room",
+     "kitchen",
+     "crash_room",
+     "storage"
+    ]
+   },
+   "secure": {
+    "small": "stash",
+    "rotation": [
+     "armory",
+     "boss_room",
+     "workshop"
+    ]
+   },
+   "vault": {
+    "rotation": [
+     "stash"
+    ]
+   }
   },
-  "ship": {
-    "name": "Cargo ship",
-    "layout": {"algorithm": "bsp", "min_room": 4, "max_room": 10, "corridor_depth": 1},
-    "density": 0.3,
-    "exterior": 2,
-    "zones": {
-      "public": {"entrance": "gangway_hall", "small": "storage", "rotation": ["mess"]},
-      "staff":  {"small": "storage", "large": "cargo_hold", "rotation": ["crew_quarters", "galley", "crew_quarters", "cargo_hold"]},
-      "secure": {"large": "cargo_hold", "rotation": ["bridge", "engine_room", "cargo_hold"]},
-      "vault":  {"rotation": ["cargo_hold"]}
-    }
+  "levels": 3,
+  "net_chance": 0.3,
+  "windows": 0.3
+ },
+ "apartments": {
+  "name": "Apartment block",
+  "layout": {
+   "algorithm": "corridor_units",
+   "verticality": 2
   },
-  "train": {
-    "name": "Train",
-    "layout": {"algorithm": "train", "car_length": 14, "loops": 0.0},
-    "density": 0.3,
-    "exterior": 2,
-    "zones": {
-      "public": {"no_corridors": true, "rotation": ["passenger_car"]},
-      "staff":  {"no_corridors": true, "rotation": ["dining_car", "crew_car", "passenger_car"]},
-      "secure": {"no_corridors": true, "rotation": ["cargo_car", "crew_car"]},
-      "vault":  {"no_corridors": true, "rotation": ["armored_car"]}
-    }
+  "density": 0.3,
+  "enter_corridor": true,
+  "zones": {
+   "public": {
+    "entrance": "lobby",
+    "living": "apartment",
+    "bedroom": "bedroom",
+    "rotation": [
+     "apartment"
+    ]
+   },
+   "staff": {
+    "living": "apartment",
+    "bedroom": "bedroom",
+    "rotation": [
+     "apartment",
+     "laundry",
+     "apartment",
+     "storage"
+    ]
+   },
+   "secure": {
+    "living": "apartment",
+    "bedroom": "bedroom",
+    "rotation": [
+     "manager_office",
+     "server_room",
+     "apartment"
+    ]
+   },
+   "vault": {
+    "living": "exec_office",
+    "bedroom": "bedroom",
+    "rotation": [
+     "exec_office"
+    ]
+   }
   },
-  "station": {
-    "name": "Station",
-    "layout": {"algorithm": "treemap"},
-    "density": 0.3,
-    "zones": {
-      "public": {"entrance": "concourse", "small": "restroom", "large": "concourse", "rotation": ["waiting", "ticket_office"]},
-      "staff":  {"small": "storage", "rotation": ["office", "break_room"]},
-      "secure": {"rotation": ["security_office", "server_room"]},
-      "vault":  {"rotation": ["data_vault"]}
-    }
+  "levels": 3,
+  "net_chance": 0.2,
+  "windows": 0.6
+ },
+ "club": {
+  "name": "Club",
+  "layout": {
+   "algorithm": "growth"
   },
-  "shack": {
-    "name": "Shack",
-    "layout": {"algorithm": "bsp", "min_room": 3, "max_room": 8, "corridor_depth": 0},
-    "density": 0.4,
-    "exterior": 0,
-    "networked": false,
-    "zones": {
-      "public": {"rotation": ["shack"]},
-      "staff":  {"rotation": ["shack", "crash_room"]},
-      "secure": {"rotation": ["armory", "stash"]},
-      "vault":  {"rotation": ["stash"]}
-    }
+  "density": 0.35,
+  "zones": {
+   "public": {
+    "entrance": "bar",
+    "small": "restroom",
+    "large": "dance_floor",
+    "rotation": [
+     "dance_floor",
+     "lounge",
+     "bar"
+    ]
+   },
+   "staff": {
+    "small": "storage",
+    "rotation": [
+     "backstage",
+     "kitchen",
+     "storage"
+    ]
+   },
+   "secure": {
+    "small": "stash",
+    "rotation": [
+     "vip_lounge",
+     "security_office"
+    ]
+   },
+   "vault": {
+    "rotation": [
+     "boss_room"
+    ]
+   }
   },
-  "guard_booth": {
-    "name": "Guard booth",
-    "layout": {"algorithm": "bsp", "min_room": 3, "max_room": 8, "corridor_depth": 0},
-    "density": 0.3,
-    "zones": {
-      "public": {"rotation": ["guard_booth"]},
-      "staff":  {"rotation": ["guard_booth"]},
-      "secure": {"rotation": ["guard_booth"]},
-      "vault":  {"rotation": ["guard_booth"]}
-    }
+  "levels": 3,
+  "net_chance": 0.3,
+  "windows": 0.2
+ },
+ "shop": {
+  "name": "Shop",
+  "layout": {
+   "algorithm": "bsp",
+   "min_room": 4,
+   "max_room": 9,
+   "corridor_depth": 0
   },
-  "corp_hq": {
-    "name": "Corporate HQ",
-    "layout": {"algorithm": "treemap", "verticality": 2},
-    "density": 0.3,
-    "zones": {
-      "public": {"entrance": "lobby", "small": "restroom", "large": "atrium", "rotation": ["atrium", "waiting"]},
-      "staff":  {"small": "storage", "rotation": ["office", "meeting", "office", "break_room"]},
-      "secure": {"small": "storage", "rotation": ["server_room", "security_office", "lab", "lab"]},
-      "vault":  {"rotation": ["data_vault", "exec_office"]}
-    }
-  }
+  "density": 0.35,
+  "zones": {
+   "public": {
+    "entrance": "shop_floor",
+    "small": "restroom",
+    "rotation": [
+     "shop_floor"
+    ]
+   },
+   "staff": {
+    "small": "storage",
+    "rotation": [
+     "storage",
+     "dispatch_office"
+    ]
+   },
+   "secure": {
+    "rotation": [
+     "security_office"
+    ]
+   },
+   "vault": {
+    "rotation": [
+     "stash"
+    ]
+   }
+  },
+  "levels": 2,
+  "net_chance": 0.15,
+  "windows": 0.6
+ },
+ "ship": {
+  "name": "Cargo ship",
+  "layout": {
+   "algorithm": "bsp",
+   "min_room": 4,
+   "max_room": 10,
+   "corridor_depth": 1
+  },
+  "density": 0.3,
+  "exterior": 2,
+  "zones": {
+   "public": {
+    "entrance": "gangway_hall",
+    "small": "storage",
+    "rotation": [
+     "mess"
+    ]
+   },
+   "staff": {
+    "small": "storage",
+    "large": "cargo_hold",
+    "rotation": [
+     "crew_quarters",
+     "galley",
+     "crew_quarters",
+     "cargo_hold"
+    ]
+   },
+   "secure": {
+    "large": "cargo_hold",
+    "rotation": [
+     "bridge",
+     "engine_room",
+     "cargo_hold"
+    ]
+   },
+   "vault": {
+    "rotation": [
+     "cargo_hold"
+    ]
+   }
+  },
+  "levels": 4,
+  "net_chance": 1.0,
+  "windows": 0.25
+ },
+ "train": {
+  "name": "Train",
+  "layout": {
+   "algorithm": "train",
+   "car_length": 14,
+   "loops": 0.0
+  },
+  "density": 0.3,
+  "exterior": 2,
+  "zones": {
+   "public": {
+    "no_corridors": true,
+    "rotation": [
+     "passenger_car"
+    ]
+   },
+   "staff": {
+    "no_corridors": true,
+    "rotation": [
+     "dining_car",
+     "crew_car",
+     "passenger_car"
+    ]
+   },
+   "secure": {
+    "no_corridors": true,
+    "rotation": [
+     "cargo_car",
+     "crew_car"
+    ]
+   },
+   "vault": {
+    "no_corridors": true,
+    "rotation": [
+     "armored_car"
+    ]
+   }
+  },
+  "levels": 4,
+  "net_chance": 1.0,
+  "windows": 0.8
+ },
+ "station": {
+  "name": "Station",
+  "layout": {
+   "algorithm": "treemap"
+  },
+  "density": 0.3,
+  "zones": {
+   "public": {
+    "entrance": "concourse",
+    "small": "restroom",
+    "large": "concourse",
+    "rotation": [
+     "waiting",
+     "ticket_office"
+    ]
+   },
+   "staff": {
+    "small": "storage",
+    "rotation": [
+     "office",
+     "break_room"
+    ]
+   },
+   "secure": {
+    "rotation": [
+     "security_office",
+     "server_room"
+    ]
+   },
+   "vault": {
+    "rotation": [
+     "data_vault"
+    ]
+   }
+  },
+  "levels": 3,
+  "net_chance": 0.6,
+  "windows": 0.6
+ },
+ "shack": {
+  "name": "Shack",
+  "layout": {
+   "algorithm": "bsp",
+   "min_room": 3,
+   "max_room": 8,
+   "corridor_depth": 0
+  },
+  "density": 0.4,
+  "exterior": 0,
+  "networked": false,
+  "zones": {
+   "public": {
+    "rotation": [
+     "shack"
+    ]
+   },
+   "staff": {
+    "rotation": [
+     "shack",
+     "crash_room"
+    ]
+   },
+   "secure": {
+    "rotation": [
+     "armory",
+     "stash"
+    ]
+   },
+   "vault": {
+    "rotation": [
+     "stash"
+    ]
+   }
+  },
+  "levels": 1,
+  "net_chance": 0.0,
+  "windows": 0.35
+ },
+ "guard_booth": {
+  "name": "Guard booth",
+  "layout": {
+   "algorithm": "bsp",
+   "min_room": 3,
+   "max_room": 8,
+   "corridor_depth": 0
+  },
+  "density": 0.3,
+  "zones": {
+   "public": {
+    "rotation": [
+     "guard_booth"
+    ]
+   },
+   "staff": {
+    "rotation": [
+     "guard_booth"
+    ]
+   },
+   "secure": {
+    "rotation": [
+     "guard_booth"
+    ]
+   },
+   "vault": {
+    "rotation": [
+     "guard_booth"
+    ]
+   }
+  },
+  "levels": 1,
+  "net_chance": 0.8,
+  "windows": 0.9
+ },
+ "corp_hq": {
+  "name": "Corporate HQ",
+  "layout": {
+   "algorithm": "treemap",
+   "verticality": 2
+  },
+  "density": 0.3,
+  "zones": {
+   "public": {
+    "entrance": "lobby",
+    "small": "restroom",
+    "large": "atrium",
+    "rotation": [
+     "atrium",
+     "waiting"
+    ]
+   },
+   "staff": {
+    "small": "storage",
+    "rotation": [
+     "office",
+     "meeting",
+     "office",
+     "break_room"
+    ]
+   },
+   "secure": {
+    "small": "storage",
+    "rotation": [
+     "server_room",
+     "security_office",
+     "lab",
+     "lab"
+    ]
+   },
+   "vault": {
+    "rotation": [
+     "data_vault",
+     "exec_office"
+    ]
+   }
+  },
+  "levels": 4,
+  "net_chance": 1.0,
+  "windows": 0.7
+ }
 }

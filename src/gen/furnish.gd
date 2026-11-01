@@ -21,7 +21,11 @@ const PIECES := {
 	"barrel": ["steel", false], "pallet": ["wood", false], "sandbags": ["stone", false],
 	"crane_leg": ["steel", true], "freight_car": ["steel", false], "kiosk": ["wood", true],
 	"ac_unit": ["steel", false], "vent": ["steel", false],
+	"fuel_barrel": ["steel", false],
 }
+
+## Pieces that are also hazards (explosive: blows up when destroyed; resolved in M3).
+const HAZARDS := {"fuel_barrel": "explosive"}
 
 ## Multi-cell props: piece → [w, h] footprint in squares (rotated at random).
 const PROP_SIZES := {"car": [1, 2], "wreck": [2, 2], "container": [1, 3], "freight_car": [2, 7], "dumpster": [1, 1]}
@@ -63,7 +67,8 @@ static func open_tile(v: int) -> bool:
 static func cover_entry(piece: String, f: int, pos: Vector2i, room: int, prop: int = -1) -> Dictionary:
 	var mat: Array = PIECES[piece]
 	var hp := int(RulesDB.load_json("armor.json")["cover_hp"][mat[0]][0 if mat[1] else 1])
-	return {"floor": f, "pos": pos, "kind": piece, "material": mat[0], "thick": mat[1], "hp": hp, "room": room, "prop": prop}
+	return {"floor": f, "pos": pos, "kind": piece, "material": mat[0], "thick": mat[1], "hp": hp, "room": room, "prop": prop,
+		"hazard": HAZARDS.get(piece, "")}
 
 
 static func _place(m: TacMap, dice: Dice, r: Dictionary, piece: String, placement: String, n: int) -> void:

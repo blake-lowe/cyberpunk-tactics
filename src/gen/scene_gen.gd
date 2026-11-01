@@ -37,6 +37,8 @@ static func generate(seed_value: int, scene: String, overrides: Dictionary = {})
 		"corp_campus": _corp_campus(c)
 		_: push_error("unknown scene " + scene)
 	_link_nets(c)
+	_deploy_zone(c)
+	_guard_posts(m)
 	for st in m.structures:
 		if st.target and m.architectures.has(st.id):
 			m.architecture = m.architectures[st.id]
@@ -81,7 +83,7 @@ static func road(c: Dictionary, r: Rect2i, horizontal: bool) -> void:
 		reserve(c, Rect2i(r.position.x + r.size.x / 2 - 1, r.position.y, 2, r.size.y))
 
 
-static func building(c: Dictionary, shell: Rect2i, site: String, floors: int, security: int, target := false, base_zone := TacMap.Zone.PUBLIC, entry_side := "") -> Dictionary:
+static func building(c: Dictionary, shell: Rect2i, site: String, floors: int, security: int, target := false, base_zone := TacMap.Zone.PUBLIC, entry_side := "", mask := {}) -> Dictionary:
 	# Only what the caller set explicitly; otherwise each site keeps its own defaults.
 	var params: Dictionary = {}
 	for k in ["density", "loops", "net_threat", "net_scale"]:
@@ -91,7 +93,7 @@ static func building(c: Dictionary, shell: Rect2i, site: String, floors: int, se
 		if target and c.overrides.has(k):
 			params[k] = c.overrides[k]
 	return BuildingGen.build(c.m, c.dice, c.hints, {"shell": shell, "site": site, "floors": floors, "security": security,
-		"base_zone": base_zone, "target": target, "entry_side": entry_side, "params": params})
+		"base_zone": base_zone, "target": target, "entry_side": entry_side, "params": params, "mask": mask})
 
 
 ## An outdoor structure (open lot, compound) to own yards, fences and their devices/NET.
@@ -319,6 +321,9 @@ static func related(c: Dictionary, sa: int, sb: int, p: float) -> void:
 	c.related.append([sa, sb, p])
 
 
+## Linked NETs (M2d review): a "socket" node in one structure's NET, hanging off one of its
+## hubs below the vault, points at a hub in the related structure's NET. A runner who steps onto
+## the socket crosses into the other NET (NetRun.cross).
 static func _link_nets(c: Dictionary) -> void:
 	var m: TacMap = c.m
 	for r in c.related:
@@ -328,8 +333,178 @@ static func _link_nets(c: Dictionary) -> void:
 			continue
 		var aa: NetArchitecture = m.architectures[sa]
 		var ab: NetArchitecture = m.architectures[sb]
-		var dv: int = RulesDB.load_json("net.json")["difficulty"][maxi(aa.difficulty, ab.difficulty)]["dv"]
-		m.net_links.append({"a": sa, "a_node": aa.subnets[0].hub, "b": sb, "b_node": ab.subnets[0].hub, "dv": dv})
+		var hubs_a := aa.subnets.filter(func(s): return s.zone < TacMap.Zone.VAULT)
+		var from_hub: int = hubs_a[c.dice.rng.randi_range(0, hubs_a.size() - 1)].hub
+		var to_hub: int = ab.subnets[0].hub
+		var sock := aa.add_node({"type": "socket", "zone": aa.nodes[from_hub].zone, "subnet": aa.nodes[from_hub].subnet,
+			"target_structure": sb, "target_node": to_hub})
+		aa.link(from_hub, sock)
+		m.net_links.append({"a": sa, "a_node": sock, "b": sb, "b_node": to_hub})
+
+
+## Parked cars parallel to the curb, in the outer lane next to each sidewalk only (M2d review:
+## no cover in the middle of the road). Sparse: cars are rare in the Time of the Red.
+static func curb_cars(c: Dictionary, r: Rect2i, horizontal: bool) -> void:
+	var m: TacMap = c.m
+	var lanes := [r.position.y + 1, r.end.y - 2] if horizontal else [r.position.x + 1, r.end.x - 2]
+	for lane in lanes:
+		var t: int = c.dice.rng.randi_range(0, 6)
+		var span := r.size.x if horizontal else r.size.y
+		while t < span - 2:
+			# Cars are rare in the Time of the Red (user note): a few working ones, and the odd
+			# stripped wreck left where it died.
+			var roll: float = c.dice.rng.randf()
+			if roll < 0.15:
+				var rect := Rect2i(r.position.x + t, lane, 2, 1) if horizontal else Rect2i(lane, r.position.y + t, 1, 2)
+				Furnish.try_prop(m, 0, rect, "car" if roll < 0.11 else "wreck", -1, {}, c.reserved)
+			t += c.dice.rng.randi_range(4, 9)
+
+
+## Paint a diagonal avenue (8 wide, sidewalks on both sides) across the map above the bottom road,
+## with chance `chance`. Returns the cells buildings must keep clear of (avenue + 1 margin).
+static func _diagonal_avenue(c: Dictionary, rw: int, chance: float) -> Dictionary:
+	var m: TacMap = c.m
+	var keep := {}
+	if c.dice.rng.randf() >= float(c.p.get("diagonal_chance", chance)):
+		return keep
+	var x0 := float(c.dice.rng.randi_range(m.w / 5, m.w * 4 / 5))
+	var ang: float = deg_to_rad(c.dice.rng.randf_range(25.0, 60.0)) * (1.0 if c.dice.d(2) == 1 else -1.0)
+	var dir := Vector2(sin(ang), cos(ang))
+	for y in m.h - rw:
+		for x in m.w:
+			var v := Vector2(x + 0.5 - x0, y + 0.5)
+			var dist := absf(v.x * dir.y - v.y * dir.x)
+			if dist <= 5.0:
+				keep[Vector2i(x, y)] = true
+			if dist <= 4.0:
+				ground(c, Rect2i(x, y, 1, 1), G.SIDEWALK if dist > 3.0 else G.ASPHALT)
+				if dist <= 1.0:
+					c.reserved[Vector2i(x, y)] = true
+	var bottom := x0 + (m.h - rw) * dir.x / dir.y
+	spawn(c, Vector2i(clampi(int(x0), 0, m.w - 1), 0))
+	if bottom >= 0 and bottom < m.w:
+		spawn(c, Vector2i(int(bottom), m.h - rw))
+	return keep
+
+
+static func _rect_hits(r: Rect2i, cells: Dictionary) -> bool:
+	for y in range(r.position.y, r.end.y):
+		for x in range(r.position.x, r.end.x):
+			if cells.has(Vector2i(x, y)):
+				return true
+	return false
+
+
+## Cells of `shell` outside `avoid`, keeping only the largest 4-connected piece.
+static func _largest_piece(shell: Rect2i, avoid: Dictionary) -> Dictionary:
+	var free := {}
+	for y in range(shell.position.y, shell.end.y):
+		for x in range(shell.position.x, shell.end.x):
+			if not avoid.has(Vector2i(x, y)):
+				free[Vector2i(x, y)] = true
+	var best := {}
+	var seen := {}
+	for start in free:
+		if seen.has(start):
+			continue
+		var comp := {start: true}
+		seen[start] = true
+		var q: Array = [start]
+		while not q.is_empty():
+			var v: Vector2i = q.pop_back()
+			for d in MapGen.DIRS:
+				var n: Vector2i = v + d
+				if free.has(n) and not seen.has(n):
+					seen[n] = true
+					comp[n] = true
+					q.append(n)
+		if comp.size() > best.size():
+			best = comp
+	return best
+
+
+## Shell with a triangle cut off one corner (a chamfered building).
+static func _cut_corner(c: Dictionary, shell: Rect2i) -> Dictionary:
+	var k := mini(shell.size.x, shell.size.y) / 3
+	var corner: int = c.dice.d(4)
+	var mask := {}
+	for y in range(shell.position.y, shell.end.y):
+		for x in range(shell.position.x, shell.end.x):
+			var dx := x - shell.position.x if corner in [1, 3] else shell.end.x - 1 - x
+			var dy := y - shell.position.y if corner in [1, 2] else shell.end.y - 1 - y
+			if dx + dy >= k:
+				mask[Vector2i(x, y)] = true
+	return mask
+
+
+static func _unlabel(m: TacMap, room: Dictionary, cells: Dictionary) -> void:
+	for v in cells:
+		if m.label(0, v.x, v.y) == room.id:
+			m.labels[0][v.y * m.w + v.x] = -1
+			room.cells -= 1
+
+
+## Crew deployment: the street spawn farthest from the target's main door becomes the player's
+## insertion zone (the 6 nearest open squares); the other spawns stay reinforcement entry points.
+static func _deploy_zone(c: Dictionary) -> void:
+	var m: TacMap = c.m
+	var door := Vector2i(m.w / 2, m.h / 2)
+	for e in m.entrances:
+		if e.main:
+			door = e.pos
+	var best := -1
+	var best_d := -1
+	for i in m.entrances.size():
+		var e: Dictionary = m.entrances[i]
+		if e.kind == "spawn" and m.walkable(0, e.pos):
+			var dd := absi(e.pos.x - door.x) + absi(e.pos.y - door.y)
+			if dd > best_d:
+				best_d = dd
+				best = i
+	if best < 0:
+		return
+	var origin: Vector2i = m.entrances[best].pos
+	m.entrances[best].kind = "deploy"
+	var cells: Array = [origin]
+	var seen := {origin: true}
+	var q: Array = [origin]
+	while not q.is_empty() and cells.size() < 6:
+		var v: Vector2i = q.pop_front()
+		for d in MapGen.DIRS:
+			var n: Vector2i = v + d
+			if not seen.has(n) and m.inb(n.x, n.y) and m.t(0, n.x, n.y) == TacMap.T.OUTSIDE and not m.has_cover_at(0, n):
+				seen[n] = true
+				q.append(n)
+				if cells.size() < 6:
+					cells.append(n)
+	m.entrances[best]["cells"] = cells
+
+
+## Guard posts for placing defenders in M3: the middle of guard rooms, and the secure side of
+## every security door and gate.
+const POST_ROOMS := ["security_office", "guard_booth", "armory", "vip_lounge", "bridge", "boss_room", "gangway_hall", "lobby", "compound_yard", "data_vault"]
+
+
+static func _guard_posts(m: TacMap) -> void:
+	for r in m.rooms:
+		if r.cells == 0 or not r.kind in POST_ROOMS:
+			continue
+		var best := Vector2i(-1, -1)
+		var mid: Vector2i = (r.bounds as Rect2i).get_center()
+		for v in Furnish.room_cells(m, r):
+			if m.walkable(r.floor, v) and (best.x < 0 or v.distance_squared_to(mid) < best.distance_squared_to(mid)):
+				best = v
+		if best.x >= 0:
+			m.posts.append({"floor": r.floor, "pos": best, "structure": r.structure, "zone": r.zone, "kind": r.kind})
+	for d in m.doors:
+		if not d.security:
+			continue
+		for n in MapGen.DIRS:
+			var v: Vector2i = d.pos + n
+			var l := m.label(d.floor, v.x, v.y)
+			if l == d.b and m.walkable(d.floor, v):
+				m.posts.append({"floor": d.floor, "pos": v, "structure": d.structure, "zone": m.rooms[l].zone, "kind": "door"})
+				break
 
 
 static func _rand_size(c: Dictionary, lo: int, hi: int) -> int:
@@ -390,20 +565,33 @@ static func _city(c: Dictionary, bx: int, by: int) -> void:
 	for i in range(1, lots.size() - 1):
 		if lots.size() > 12 and c.dice.rng.randf() < 0.1:
 			parking[i] = true
+	# M2d review: break the grid. Sometimes a diagonal avenue cuts across the blocks; lots it slices
+	# keep their largest piece as a clipped footprint (or become parking), and a few other
+	# buildings get a cut corner.
+	var margin := _diagonal_avenue(c, rw, 0.25 if bx * by <= 2 else 0.6)
 	var blds: Array[Dictionary] = []
 	for i in lots.size():
 		var shell := lots[i].grow(-1)
 		if shell.size.x < 7 or shell.size.y < 7:
 			continue
+		var mask := {}
+		var area := shell.get_area()
+		if not margin.is_empty() and _rect_hits(lots[i], margin):
+			mask = _largest_piece(shell, margin)
+			if mask.size() < area * 0.55 or mask.size() < 60:
+				parking[i] = true
+		elif c.dice.rng.randf() < 0.15 and mini(shell.size.x, shell.size.y) >= 12:
+			mask = _cut_corner(c, shell)
 		if parking.has(i):
 			var lot_sid := outdoor_structure(c, "lot", 0, lots[i])
-			yard(c, lots[i], "parking_lot", TacMap.Zone.PUBLIC, lot_sid)
+			var lot_room := yard(c, lots[i], "parking_lot", TacMap.Zone.PUBLIC, lot_sid)
+			_unlabel(m, lot_room, margin)
 			Furnish.run_structure(m, c.dice, lot_sid)
 			continue
 		var target := i == 0
 		var site: String = String(c.p.get("site", "corp_office")) if target else others[c.dice.rng.randi_range(0, others.size() - 1)]
 		var floors: int = fl if target else c.dice.rng.randi_range(1, fl)
-		blds.append(building(c, shell, site, floors, int(c.p.security) if target else c.dice.rng.randi_range(0, 1), target))
+		blds.append(building(c, shell, site, floors, int(c.p.security) if target else c.dice.rng.randi_range(0, 1), target, TacMap.Zone.PUBLIC, "", mask))
 	# Skybridges between neighbouring buildings (two storeys or more), roughly one per four.
 	var pairs := []
 	for i in blds.size():
@@ -425,10 +613,9 @@ static func _city(c: Dictionary, bx: int, by: int) -> void:
 			if footbridge(c, Vector2i(x, r.position.y), Vector2i(x, r.end.y - 1)):
 				break
 	for r in roads_h:
-		props(c, Rect2i(0, r.position.y + 1, m.w, 2), "car", m.w / 10)
-		props(c, Rect2i(0, r.end.y - 3, m.w, 2), "car", m.w / 12)
+		curb_cars(c, r, true)
 	for r in roads_v:
-		props(c, Rect2i(r.position.x + 1, 0, 2, r.size.y), "car", r.size.y / 14)
+		curb_cars(c, r, false)
 	for y in m.h:
 		for x in m.w:
 			if m.ground[y * m.w + x] == G.GRAVEL and c.dice.rng.randf() < 0.012:
@@ -471,8 +658,8 @@ static func _megablock(c: Dictionary) -> void:
 	Furnish.run_structure(m, c.dice, sid)
 	if m.devices.any(func(d): return d.structure == sid):
 		m.architectures[sid] = NetGen.generate(m, c.dice, sid)
-	related(c, tower_st.id, sid, 0.3)
-	props(c, Rect2i(0, m.h - 6, m.w - 7, 2), "car", m.w / 12)
+	related(c, tower_st.id, sid, 0.5)
+	curb_cars(c, Rect2i(0, m.h - 7, m.w - 7, 7), true)
 	spawn(c, Vector2i(0, m.h - 3))
 	spawn(c, Vector2i(m.w - 4, 0))
 
@@ -501,11 +688,11 @@ static func _shipyard(c: Dictionary) -> void:
 	reserve(c, Rect2i(gate.x - 1, gate.y - 3, 3, 4))
 	var wh := Rect2i(m.w - 30, sea_h + 9, 26, road_y - sea_h - 13)
 	var wh_st := building(c, wh, "warehouse", 1, maxi(sec - 1, 0), false, TacMap.Zone.STAFF)
-	var booth := Rect2i(gate.x + 3, road_y - 7, 6, 5)
+	var booth := Rect2i(gate.x + 3, road_y - 8, 6, 5)  # leave open ground between booth and fence
 	var booth_st := building(c, booth, "guard_booth", 1, maxi(sec - 1, 0), false, TacMap.Zone.STAFF)
-	related(c, ship_st.id, sid, 0.4)
-	related(c, wh_st.id, sid, 0.3)
-	related(c, booth_st.id, sid, 0.5)
+	related(c, ship_st.id, sid, 0.6)
+	related(c, wh_st.id, sid, 0.5)
+	related(c, booth_st.id, sid, 0.7)
 	# Cranes on the quay: pairs of steel legs.
 	for k in 3:
 		var cx := 8 + k * (m.w - 20) / 3
@@ -563,7 +750,7 @@ static func _badlands(c: Dictionary) -> void:
 			reserve(c, Rect2i(xx, yy, 1, 1))
 	var inner := camp.grow(-2)
 	var hide_st := building(c, Rect2i(inner.position.x + inner.size.x / 2 - 9, inner.position.y, 18, 12), "gang_hideout", 1, sec, true, TacMap.Zone.STAFF)
-	related(c, hide_st.id, sid, 0.5)
+	related(c, hide_st.id, sid, 0.7)
 	var placed: Array[Rect2i] = [Rect2i(inner.position.x + inner.size.x / 2 - 9, inner.position.y, 18, 12)]
 	for k in 60:
 		if placed.size() >= 6:
@@ -628,7 +815,7 @@ static func _rail_yard(c: Dictionary) -> void:
 	var station := Rect2i(m.w / 2 - 22, plat_y + 8, 44, m.h - plat_y - 10)
 	ground(c, Rect2i(0, plat_y + 6, m.w, m.h - plat_y - 6), G.SIDEWALK)
 	var station_st := building(c, station, "station", int(c.p.floors), maxi(sec - 1, 0), false, TacMap.Zone.PUBLIC, "N")
-	related(c, train_st.id, station_st.id, 0.35)
+	related(c, train_st.id, station_st.id, 0.5)
 	yard(c, Rect2i(0, plat_y, m.w, 6), "platform", TacMap.Zone.PUBLIC, sid)
 	Furnish.run_structure(m, c.dice, sid)
 	spawn(c, Vector2i(0, plat_y + 7))
@@ -658,8 +845,8 @@ static func _corp_campus(c: Dictionary) -> void:
 	skybridge(c, hq_st, svc_st)
 	var booth := Rect2i(gate.x + 3, grounds.end.y - 7, 6, 5)
 	var booth_st := building(c, booth, "guard_booth", 1, maxi(sec - 1, 0), false, TacMap.Zone.PUBLIC)
-	related(c, hq_st.id, booth_st.id, 0.4)
-	related(c, hq_st.id, sid, 0.3)
+	related(c, booth_st.id, hq_st.id, 0.7)
+	related(c, sid, hq_st.id, 0.5)
 	var plaza := yard(c, Rect2i(hq.position.x, hq.end.y, hq.size.x, 6), "plaza", TacMap.Zone.PUBLIC, sid)
 	var park := yard(c, Rect2i(grounds.position.x + 1, hq.end.y + 6, svc.position.x - grounds.position.x - 3, grounds.end.y - hq.end.y - 7), "parking_lot", TacMap.Zone.PUBLIC, sid)
 	yard(c, grounds.grow(-1), "courtyard", TacMap.Zone.PUBLIC, sid)
@@ -668,6 +855,6 @@ static func _corp_campus(c: Dictionary) -> void:
 	Furnish.run_structure(m, c.dice, sid)
 	if m.devices.any(func(d): return d.structure == sid):
 		m.architectures[sid] = NetGen.generate(m, c.dice, sid)
-	props(c, Rect2i(0, m.h - 6, m.w, 2), "car", m.w / 14)
+	curb_cars(c, Rect2i(0, m.h - 7, m.w, 7), true)
 	spawn(c, Vector2i(0, m.h - 3))
 	spawn(c, Vector2i(m.w - 1, m.h - 3))

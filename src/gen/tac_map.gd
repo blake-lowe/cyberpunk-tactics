@@ -31,18 +31,23 @@ var devices: Array[Dictionary] = []         ## {id, type, floor, pos, room, zone
 var entrances: Array[Dictionary] = []       ## {floor, pos, main: bool}
 var verticals: Array[Dictionary] = []       ## {type, pos, from_floor, to_floor}: shafts at one x,y
 var connectors: Array[Dictionary] = []      ## {type, a: Vector3i, b: Vector3i}: ladders, fire escapes
-var net_links: Array[Dictionary] = []       ## {a, a_node, b, b_node, dv}: gateways between structure NETs
+var net_links: Array[Dictionary] = []       ## {a, a_node (socket), b, b_node}: sockets between structure NETs
+var posts: Array[Dictionary] = []           ## {floor, pos, structure, zone, kind}: guard positions
 var architecture: NetArchitecture = null    ## the target structure's NET (convenience)
 
 ## Wall materials. fence: see-through, flimsy. rock: natural outcrop. Cover HP per material is
 ## resolved in M3 from the book's cover table (fence ≈ thin wood, rock ≈ thick stone).
-const WALL_MATERIALS := ["plaster", "concrete", "steel", "fence", "rock"]
+const WALL_MATERIALS := ["plaster", "concrete", "steel", "fence", "rock", "glass", "armor_glass"]
 
 ## Walls and doors as cover, per the book's cover table (p182) and its examples (p183):
 ## office wall = thick plaster 15, exterior = thick concrete 25, vault = thick steel 50,
 ## rock outcrop ≈ boulder (thick stone 40), wooden door = thin wood 5, metal (security) door 20.
 ## Fences stop movement but not bullets: no cover, line of sight passes (like the book's cubicle).
-const WALL_COVER := {0: ["plaster", true], 1: ["concrete", true], 2: ["steel", true], 3: [], 4: ["stone", true]}
+## Windows: ordinary glass is no cover and see-through (book: windshield 0); bulletproof glass is
+## thin bulletproof glass (15) and see-through.
+const WALL_COVER := {0: ["plaster", true], 1: ["concrete", true], 2: ["steel", true], 3: [], 4: ["stone", true],
+	5: [], 6: ["bulletproof_glass", false]}
+const SEE_THROUGH := [3, 5, 6]
 const DOOR_HP := 5
 const SECURITY_DOOR_HP := 20  # p183 "metal door" example
 
@@ -155,11 +160,13 @@ func is_connector_end(f: int, p: Vector2i) -> bool:
 func wall_cover(f: int, x: int, y: int) -> Dictionary:
 	var v := t(f, x, y)
 	if v == T.WALL:
-		var spec: Array = WALL_COVER.get(int(wall_mat[f][y * w + x]), [])
+		var mi := int(wall_mat[f][y * w + x])
+		var spec: Array = WALL_COVER.get(mi, [])
+		var los: bool = not mi in SEE_THROUGH
 		if spec.is_empty():
-			return {"cover": false, "hp": 0, "material": "fence", "blocks_los": false, "blocks_move": true}
+			return {"cover": false, "hp": 0, "material": WALL_MATERIALS[mi], "blocks_los": los, "blocks_move": true}
 		var hp := int(RulesDB.load_json("armor.json")["cover_hp"][spec[0]][0 if spec[1] else 1])
-		return {"cover": true, "hp": hp, "material": spec[0], "blocks_los": true, "blocks_move": true}
+		return {"cover": true, "hp": hp, "material": spec[0], "blocks_los": los, "blocks_move": true}
 	if v == T.DOOR:
 		for d in doors:
 			if d.floor == f and d.pos == Vector2i(x, y):
@@ -193,6 +200,8 @@ func to_dict() -> Dictionary:
 			for k in e:
 				if e[k] is Vector2i:
 					e[k] = [e[k].x, e[k].y]
+				elif e[k] is Array and not e[k].is_empty() and e[k][0] is Vector2i:
+					e[k] = e[k].map(func(v): return [v.x, v.y])
 				elif e[k] is Rect2i:
 					e[k] = [e[k].position.x, e[k].position.y, e[k].size.x, e[k].size.y]
 			out.append(e)
@@ -202,6 +211,6 @@ func to_dict() -> Dictionary:
 		"floor_data": fl, "rooms": conv.call(rooms), "doors": conv.call(doors), "cover": conv.call(cover),
 		"devices": conv.call(devices), "entrances": conv.call(entrances), "verticals": conv.call(verticals),
 		"architecture": architecture.to_dict() if architecture else {},
-		"architectures": archs, "ground": Array(ground), "structures": conv.call(structures), "net_links": net_links,
+		"architectures": archs, "ground": Array(ground), "structures": conv.call(structures), "net_links": net_links, "posts": conv.call(posts),
 		"connectors": connectors.map(func(c): return {"type": c.type, "a": [c.a.x, c.a.y, c.a.z], "b": [c.b.x, c.b.y, c.b.z]}),
 	}

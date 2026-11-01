@@ -7,6 +7,9 @@ extends RefCounted
 
 var arch: NetArchitecture
 var runner: Combatant
+## Other NETs reachable through sockets (structure id → NetArchitecture), and per-NET progress.
+var nets: Dictionary = {}
+var _progress: Dictionary = {}
 var current := -1
 var revealed := {}   ## node id → true
 var broken := {}     ## firewalls Backdoored
@@ -139,6 +142,25 @@ func pathfinder(dice: Dice) -> Array[int]:
 			if not (node.type == "firewall" and int(node.dv) > c.total):
 				q.append(nb)
 	return out
+
+
+## Step through a socket into the linked NET (M2d review). Progress in each NET is kept.
+func cross() -> bool:
+	if current < 0:
+		return false
+	var n := cur_node()
+	if n.type != "socket" or not nets.has(n.target_structure):
+		return false
+	_progress[arch.structure] = [revealed, broken, held, identified]
+	arch = nets[n.target_structure]
+	var saved: Array = _progress.get(arch.structure, [{}, {}, {}, {}])
+	revealed = saved[0]
+	broken = saved[1]
+	held = saved[2]
+	identified = saved[3]
+	current = int(n.target_node)
+	revealed[current] = true
+	return true
 
 
 func controlled_devices() -> Array:

@@ -316,6 +316,11 @@
     "pillar",
     "center",
     60
+   ],
+   [
+    "fuel_barrel",
+    "scatter",
+    100
    ]
   ],
   "devices": [
@@ -369,6 +374,11 @@
     "pillar",
     "center",
     90
+   ],
+   [
+    "fuel_barrel",
+    "scatter",
+    110
    ]
   ],
   "devices": [
@@ -391,6 +401,11 @@
     "locker",
     "wall",
     25
+   ],
+   [
+    "fuel_barrel",
+    "scatter",
+    60
    ]
   ]
  },
@@ -840,6 +855,11 @@
     "rack",
     "row",
     10
+   ],
+   [
+    "fuel_barrel",
+    "scatter",
+    50
    ]
   ],
   "devices": [
@@ -1043,12 +1063,17 @@
    [
     "car",
     "scatter",
-    18
+    55
+   ],
+   [
+    "wreck",
+    "scatter",
+    90
    ],
    [
     "barrier",
     "wall",
-    80
+    240
    ]
   ],
   "devices": [
@@ -1070,6 +1095,11 @@
     "pallet",
     "scatter",
     90
+   ],
+   [
+    "fuel_barrel",
+    "scatter",
+    120
    ]
   ],
   "devices": [
@@ -1096,6 +1126,11 @@
     "crate",
     "scatter",
     60
+   ],
+   [
+    "fuel_barrel",
+    "scatter",
+    90
    ]
   ],
   "devices": [
@@ -1121,6 +1156,11 @@
     "sandbags",
     "scatter",
     70
+   ],
+   [
+    "fuel_barrel",
+    "scatter",
+    80
    ]
   ],
   "devices": [
@@ -1183,7 +1223,7 @@
    [
     "barrier",
     "scatter",
-    70
+    200
    ]
   ],
   "devices": [

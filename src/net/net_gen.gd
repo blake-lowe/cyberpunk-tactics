@@ -33,8 +33,8 @@ static func generate(m: TacMap, dice: Dice, sid: int) -> NetArchitecture:
 	a.difficulty = sec
 	a.complexity = 0.0 if intro else COMPLEXITY[sec]
 	var dv: int = RulesDB.load_json("net.json")["difficulty"][sec]["dv"]
-	var per_floor := a.complexity >= 0.55  # per-floor subnets only at the top security level
-	var mz := TacMap.Zone.PUBLIC if intro else MapGen.max_zone(sec)
+	var per_floor := false  # M2d review: one subnet per security level; complexity lives in routes, not volume
+	var mz: int = TacMap.Zone.PUBLIC if intro else int(st.get("max_zone", MapGen.max_zone(sec)))
 	var devices := m.devices.filter(func(d): return d.get("structure", -1) == sid)
 
 	# 1. Content buckets keyed by subnet: Vector2i(zone, building floor or 0).
