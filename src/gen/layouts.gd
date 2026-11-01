@@ -32,24 +32,26 @@ static func _fill(w: int, labels: PackedInt32Array, r: Rect2i, id: int) -> void:
 # --- BSP --------------------------------------------------------------------
 
 static func bsp(dice: Dice, w: int, region: Rect2i, labels: PackedInt32Array, p: Dictionary) -> Array:
+	var mn := int(p.get("min_room", MIN_ROOM))
+	var mx := int(p.get("max_room", MAX_ROOM))
 	var hints := []
 	var stack: Array = [[region, 0]]
 	while not stack.is_empty():
 		var item: Array = stack.pop_back()
 		var r: Rect2i = item[0]
 		var depth: int = item[1]
-		var can_v := r.size.x >= MIN_ROOM * 2 + 1
-		var can_h := r.size.y >= MIN_ROOM * 2 + 1
-		var small := r.size.x <= MAX_ROOM and r.size.y <= MAX_ROOM
+		var can_v := r.size.x >= mn * 2 + 1
+		var can_h := r.size.y >= mn * 2 + 1
+		var small := r.size.x <= mx and r.size.y <= mx
 		if (not can_v and not can_h) or (small and dice.d(3) == 1):
 			_fill(w, labels, r, hints.size())
 			hints.append({"zone_hint": -1, "kind": ""})
 			continue
 		var vertical := can_v and (not can_h or r.size.x > r.size.y or (r.size.x == r.size.y and dice.d(2) == 1))
 		var span := r.size.x if vertical else r.size.y
-		var corridor := depth < int(p.get("corridor_depth", 2)) and span >= MIN_ROOM * 2 + 3
+		var corridor := depth < int(p.get("corridor_depth", 2)) and span >= mn * 2 + 3
 		var cw := 2 if corridor else 0
-		var cut := dice.rng.randi_range(MIN_ROOM, span - MIN_ROOM - cw)
+		var cut := dice.rng.randi_range(mn, span - mn - cw)
 		var a: Rect2i
 		var b: Rect2i
 		var c: Rect2i

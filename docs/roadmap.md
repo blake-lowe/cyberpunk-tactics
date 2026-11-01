@@ -6,7 +6,7 @@ Check-ins (🔶) are where work pauses for a user decision or review.
 |---|---|---|---|
 | M0 | Skeleton: project, test runner, conventions | ✅ done | — |
 | M1 | Rules core (headless): checks, skills, initiative, weapons/ROF/autofire, SP + ablation, aimed shots, damage, Critical Injuries, death saves, Humanity, cyberware, Solo Combat Awareness, recruits | ✅ done (reviewed) | ✅ |
-| M2 | Procedural generation: multi-floor maps, cover, hackables, coupled Net Architectures (+ Netrunner Interface rules); debug renders | ✅ awaiting review | 🔶 review page: layout method, NET shape, AP shortcut, ICE minimum, cover density |
+| M2 | Procedural generation: multi-floor maps, cover, hackables, coupled Net Architectures (+ Netrunner Interface rules); debug renders | 🔁 revising per review (M2b) | 🔶 M2b review page with saved verdicts |
 | M3 | Playable greybox: Solo vs Netrunner on a generated map, move-only grid, % UI, destructible cover | — | 🔶 user plays locally |
 | M4 | Visual pass: pixel post-process, neon lighting/bloom, VFX, tuning controls | — | 🔶 aesthetic review on user's GPU |
 | M5+ | Gigs/fixers, base & downtime, progression, Medtech, Tech, reinforcements, cyberpsychosis | — | per feature |
@@ -26,3 +26,11 @@ Check-ins (🔶) are where work pauses for a user decision or review.
 - M2 review page: `tools/map_viewer/` (build.py + template.html) turns an `export_maps.gd` dump into a comparison page. Reuse it for future generator reviews.
 - HOUSE-RULE (pending review): guaranteed minimum Black ICE per zone (NetGen.MIN_ICE), because map content usually fills the 3d6 floor budget.
 - Principle (user): the NET is not bound by the tabletop architecture rules. Keep the book's node types, DVs, Interface abilities and Black ICE stats for familiarity, but structure (floor order, 3d6 size, d10 branching, lobby table) is ours to redesign for video-game play. Current tree generator is a baseline, pending the Subnets/Graph decision.
+
+### M2 review verdicts (user)
+- Layouts: hybrid by site type — treemap for corporate, growth for clubs/squats/gang hideouts, BSP for warehouses/industrial.
+- NET structure: a graph. Low security = simple subnets (zone clusters joined by firewalls); high security = complex graph (more subnets, loops, multiple routes, patrolling ICE). One generator, complexity scales with security.
+- Physical access may skip some layers, but not 1:1: entry points are probabilistic, and some nodes/data are net-only (no physical shortcut reaches them).
+- Black ICE from a per-site budget (security × gig threat) instead of the book's floor tables. Replaces the MIN_ICE stopgap.
+- Cover: lighter by default, density varies by area/room type.
+- Process: review artifacts must let the user record and save verdicts on the page itself.

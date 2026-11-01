@@ -12,35 +12,18 @@ const PIECES := {
 	"sofa": ["plaster", true], "planter": ["stone", false], "pillar": ["concrete", true],
 	"cabinet": ["steel", false], "vending": ["steel", false], "fridge": ["steel", false],
 	"locker": ["steel", false], "rack": ["steel", false], "bench": ["steel", false],
-	"crate": ["wood", true], "safe": ["steel", true],
+	"crate": ["wood", true], "safe": ["steel", true], "shelf": ["steel", false],
 }
-
-## kind → [[piece, placement, cells per piece (lower = denser)]]. Placement: wall | row | center | scatter.
-const ROOM_FURNITURE := {
-	"lobby": [["reception", "center", 200], ["planter", "scatter", 30], ["sofa", "wall", 40], ["pillar", "center", 60]],
-	"atrium": [["planter", "scatter", 25], ["pillar", "center", 40], ["sofa", "wall", 50]],
-	"waiting": [["sofa", "wall", 20], ["table", "center", 30], ["planter", "scatter", 40]],
-	"restroom": [],
-	"corridor": [["vending", "wall", 60], ["planter", "wall", 70]],
-	"office": [["desk", "row", 7], ["cabinet", "wall", 25]],
-	"meeting": [["table", "center", 10]],
-	"break_room": [["table", "scatter", 14], ["fridge", "wall", 60], ["vending", "wall", 60]],
-	"storage": [["crate", "scatter", 6]],
-	"security_office": [["desk", "row", 12], ["locker", "wall", 15]],
-	"server_room": [["rack", "row", 4]],
-	"lab": [["bench", "row", 7], ["cabinet", "wall", 25]],
-	"data_vault": [["rack", "row", 6], ["safe", "wall", 40], ["pillar", "center", 50]],
-	"exec_office": [["desk", "center", 60], ["sofa", "wall", 30], ["safe", "wall", 60]],
-}
-
 
 static func run(m: TacMap, dice: Dice) -> void:
-	var density: float = float(m.params.get("density", 0.5))
+	var density: float = float(m.params.get("density", 0.35))
+	var rooms_def := RulesDB.gen("rooms.json")
 	for r in m.rooms:
 		if r.cells == 0:
 			continue
-		for spec in ROOM_FURNITURE.get(r.kind, []):
-			var n := roundi(r.cells / float(spec[2]) * (0.4 + 1.2 * density))
+		for spec in rooms_def.get(r.kind, {}).get("furniture", []):
+			# Per-kind density lives in the table (cells per piece); the site density scales it.
+			var n := roundi(r.cells / float(spec[2]) * (0.25 + density))
 			if spec[1] == "center" and spec[0] in ["reception", "desk"]:
 				n = mini(n, 1) if r.cells >= 20 else 0
 			_place(m, dice, r, spec[0], spec[1], n)
@@ -140,37 +123,32 @@ static func _room_connected(m: TacMap, r: Dictionary, cells: Array[Vector2i]) ->
 
 static func _devices(m: TacMap, dice: Dice) -> void:
 	var sec := int(m.params.get("security", 1))
+	var rooms_def := RulesDB.gen("rooms.json")
+	var site_groups := {}
 	for r in m.rooms:
 		if r.cells == 0:
 			continue
 		var z: int = r.zone
 		var zn: String = TacMap.ZONE_NAMES[z]
-		var tag := "%s_f%d" % [zn, r.floor]
-		match r.kind:
-			"lobby", "atrium", "corridor":
-				for i in maxi(1, r.cells / 60):
-					_device(m, dice, r, "camera", "cameras_" + tag, true)
-			"office":
-				if dice.rng.randf() < 0.6:
-					_device(m, dice, r, "terminal", "", false, {"access_point": true})
-			"security_office":
-				_device(m, dice, r, "terminal", "", false, {"access_point": true, "file_value": 2})
-				_device(m, dice, r, "alarm_panel", "alarm", true)
-				_device(m, dice, r, "camera", "cameras_" + tag, true)
-			"server_room":
-				_device(m, dice, r, "terminal", "", false, {"access_point": true, "file_value": 3})
-				_device(m, dice, r, "camera", "cameras_" + tag, true)
-			"lab":
-				_device(m, dice, r, "terminal", "", false, {"access_point": dice.rng.randf() < 0.5, "file_value": 3})
-			"data_vault":
-				_device(m, dice, r, "data_core", "", false, {"file_value": 5})
-				_device(m, dice, r, "camera", "cameras_" + tag, true)
-			"exec_office":
-				_device(m, dice, r, "terminal", "", false, {"access_point": true, "file_value": 4})
-			"break_room", "meeting":
-				if z == TacMap.Zone.STAFF and r.floor == 0 and not m.devices.any(func(d): return d.group == "sprinklers"):
-					_device(m, dice, r, "sprinkler_valve", "sprinklers", true)
-		if sec >= 2 and (r.kind == "data_vault" or (z >= TacMap.Zone.SECURE and dice.rng.randf() < 0.4)):
+		for spec in rooms_def.get(r.kind, {}).get("devices", []):
+			if dice.rng.randf() >= float(spec.get("p", 1.0)):
+				continue
+			var group: String = spec.get("group", "")
+			if group.begins_with("site:"):
+				group = group.substr(5)
+				if site_groups.has(group):
+					continue
+				site_groups[group] = true
+			elif group != "":
+				group = "%s_%s_f%d" % [group, zn, r.floor]
+			var extra := {}
+			if spec.get("ap", false):
+				extra["access_point"] = true
+			if spec.has("file"):
+				extra["file_value"] = int(spec["file"])
+			for i in maxi(1, r.cells / int(spec.get("per_cells", 100000))):
+				_device(m, dice, r, spec["t"], group, spec.get("wall", false), extra)
+		if sec >= 2 and (r.kind in ["data_vault", "vault"] or (z >= TacMap.Zone.SECURE and dice.rng.randf() < 0.4)):
 			_device(m, dice, r, "turret", "turrets_" + zn, true)
 	for d in m.doors:
 		if d.security:

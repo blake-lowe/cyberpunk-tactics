@@ -28,6 +28,7 @@ Design source of truth: `docs/design-spec.md`. Milestones and status: `docs/road
 - Rules reference: Demiplane Nexus (free official) or the user's own PDF on request. Don't paste rulebook text into the repo; store numbers and short paraphrases only.
 
 ## Workflow
+- Review artifacts (🔶 check-ins) must let the user record and save verdicts on the page (load the `artifact-capabilities` skill for persistence), and offer alternatives with a recommendation.
 - One milestone per session where possible; commit at green-test checkpoints.
 - Stop for the user only at the check-ins in `docs/roadmap.md` or on genuine design/aesthetic questions.
   Routine implementation choices: decide, then note them in the commit message.

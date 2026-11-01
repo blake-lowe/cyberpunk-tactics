@@ -1,191 +1,174 @@
 class_name NetGen
 extends RefCounted
-## Builds the NET Architecture from the physical map, so the digital layout mirrors the building.
-## Rules-as-written core (p209-211): difficulty sets Password/File/Control DVs, the first two floors
-## roll on the Lobby table, total size is 3d6 floors, branches on d10 ≥ 7, other floors roll the
-## 3d6 Black ICE table. Enhancements (design spec: "enhanced but familiar"):
-## - Control Nodes and Files come from real devices: one Control Node per device group
-##   (e.g. "cameras on the staff floor"), one File per data terminal. Floors grow past 3d6 if the
-##   building needs more.
-## - Each security zone above public sits behind a Password "gate", in zone order, so deeper
-##   physical security means deeper digital security.
-## - HOUSE-RULE: an access point inside zone Z enters the architecture just past Z's gate —
-##   getting in physically lets you skip digital layers.
-##
-## Styles: "stack" = one main branch in zone order, rules-as-written branches carry deep-zone
-## content; "mirrored" = a shared lobby/public trunk, then one branch per building floor.
+## Builds the site's NET graph from the physical map (M2 review decisions, docs/roadmap.md):
+## - Complexity scales with security: low security = one subnet per zone in a simple chain;
+##   high security = subnets per zone *and* building floor, loops inside subnets, lateral links
+##   between floors and second firewall routes into deeper zones, plus patrolling ICE.
+## - Control Nodes come from device groups, Files from data devices (max FILES_PER_SUBNET each).
+## - Net-only content: master overrides and offsite data with no physical counterpart, and data
+##   cores, which have no jack-in point. Only netrunning reaches them.
+## - Jack-in points enter their own zone's subnet only some of the time, otherwise one zone
+##   shallower, and never the vault: physical access helps but doesn't map 1:1 onto the NET.
+## - Black ICE comes from a points budget (security × gig threat), spent per zone, deeper zones
+##   getting more; book stats and costs (data/rules/black_ice.json).
 
-
-const FILES_PER_ZONE := 2
+const FILES_PER_SUBNET := 2
+const COMPLEXITY := [0.0, 0.2, 0.6, 1.0]     # by security level
+const BUDGET := [3, 10, 24, 44]              # ICE points by security level
+const OWN_ZONE_ENTRY := 0.5                  # chance a jack-in point enters its own zone
 
 
 static func generate(m: TacMap, dice: Dice) -> NetArchitecture:
-	var net := RulesDB.load_json("net.json")
 	var a := NetArchitecture.new()
-	a.difficulty = clampi(int(m.params.get("security", 1)), 0, 3)
-	a.style = String(m.params.get("net_style", "stack"))
-	var dv: int = net["difficulty"][a.difficulty]["dv"]
+	var sec := clampi(int(m.params.get("security", 1)), 0, 3)
+	a.difficulty = sec
+	a.complexity = COMPLEXITY[sec]
+	var dv: int = RulesDB.load_json("net.json")["difficulty"][sec]["dv"]
+	var per_floor := a.complexity >= 0.5
+	var mz := MapGen.max_zone(sec)
 
-	# Content from the map, keyed by [building floor][zone].
-	var content := {}
+	# 1. Content buckets keyed by subnet: Vector2i(zone, building floor or 0).
+	var buckets := {}
+	var key_of := func(zone: int, bfloor: int) -> Vector2i:
+		return Vector2i(zone, bfloor if per_floor and zone > TacMap.Zone.PUBLIC else 0)
 	var groups := {}
+	var files := {}
 	for d in m.devices:
+		var z := mini(maxi(int(d.zone), TacMap.Zone.PUBLIC), mz)
 		if d.group != "":
 			if not groups.has(d.group):
-				groups[d.group] = {"type": "control", "dv": dv, "group": d.group, "devices": [], "zone": d.zone, "bfloor": d.floor}
+				groups[d.group] = {"type": "control", "dv": dv, "group": d.group, "devices": [], "zone": z, "bfloor": d.floor}
 			groups[d.group].devices.append(d.id)
-			groups[d.group].zone = maxi(groups[d.group].zone, d.zone)
+			groups[d.group].zone = maxi(groups[d.group].zone, z)
 		if d.has("file_value"):
-			_bucket(content, d.floor, d.zone).append({"type": "file", "dv": dv, "device": d.id, "value": d.file_value, "zone": d.zone})
-	# Keep architectures quick to resolve: at most FILES_PER_ZONE Files per floor and zone, most
-	# valuable first (the rest of the terminals are still access points).
-	for f in content:
-		for z in content[f]:
-			var files: Array = content[f][z]
-			files.sort_custom(func(x, y): return x.value > y.value)
-			content[f][z] = files.slice(0, FILES_PER_ZONE)
+			files.get_or_add(key_of.call(z, d.floor), []).append({"type": "file", "dv": dv, "device": d.id,
+				"value": d.file_value, "zone": z, "net_only": d.type == "data_core"})
+	for k in files:
+		var fl: Array = files[k]
+		# Data cores always get a File; ordinary terminals are capped, most valuable first.
+		var cores := fl.filter(func(f): return f.net_only)
+		var rest := fl.filter(func(f): return not f.net_only)
+		rest.sort_custom(func(x, y): return x.value > y.value)
+		buckets.get_or_add(k, []).append_array(cores + rest.slice(0, FILES_PER_SUBNET))
 	for g in groups.values():
-		_bucket(content, g.bfloor, g.zone).append(g)
+		buckets.get_or_add(key_of.call(g.zone, g.bfloor), []).append(g)
+	# Net-only content (no device): master camera override and offsite backups, in the deepest zone.
+	var deepest := Vector2i(mz, 0)
+	for k in buckets:
+		if k.x == mz:
+			deepest = k
+			break
+	if sec >= 1:
+		var cams := []
+		for d in m.devices:
+			if d.type == "camera":
+				cams.append(d.id)
+		buckets.get_or_add(deepest, []).append({"type": "control", "dv": dv + 2, "group": "master_cameras", "devices": cams, "zone": mz, "net_only": true})
+	if sec >= 2:
+		buckets.get_or_add(deepest, []).append({"type": "file", "dv": dv + 2, "device": -1, "value": 4, "zone": mz, "net_only": true, "label": "offsite backup"})
+	for z in range(TacMap.Zone.PUBLIC, mz + 1):  # every zone gets a subnet, even if empty
+		if not buckets.keys().any(func(k): return k.x == z):
+			buckets[Vector2i(z, 0)] = []
 
-	var mz := MapGen.max_zone(a.difficulty)
-	var required := 2  # lobby
-	for f in content:
-		for z in content[f]:
-			required += content[f][z].size()
-	required += mz - TacMap.Zone.PUBLIC  # gates (stack); mirrored adds per-floor gates below
-	var extra_ice := maxi(0, dice.roll(3, 6) - required)
+	# 2. Subnets: a hub plus its content, star with short chains; loops at higher complexity.
+	var keys := buckets.keys()
+	keys.sort_custom(func(x, y): return x.x < y.x or (x.x == y.x and x.y < y.y))
+	var hub_of := {}
+	for k in keys:
+		var sid := a.subnets.size()
+		var hub := a.add_node({"type": "hub", "zone": k.x, "subnet": sid, "net_only": k.x >= TacMap.Zone.VAULT})
+		a.subnets.append({"id": sid, "zone": k.x, "bfloor": k.y, "hub": hub})
+		hub_of[k] = hub
+		var members: Array[int] = []
+		for item in _shuffled(dice, buckets[k]):
+			item.erase("bfloor")
+			item["subnet"] = sid
+			var id := a.add_node(item)
+			var attach := hub
+			if not members.is_empty() and dice.rng.randf() < 0.25 + 0.35 * a.complexity:
+				attach = members[dice.rng.randi_range(0, members.size() - 1)]
+			a.link(attach, id)
+			members.append(id)
+		for i in roundi(members.size() * 0.4 * a.complexity):
+			if members.size() >= 3:
+				a.link(members[dice.rng.randi_range(0, members.size() - 1)], members[dice.rng.randi_range(0, members.size() - 1)])
 
-	var lobby := _lobby(dice, net)
-	var entry := {}  # Vector2i(building floor, zone) → floor id
-	if a.style == "mirrored":
-		var trunk: Array = lobby
-		for f in content:
-			trunk += _shuffled(dice, content[f].get(TacMap.Zone.PUBLIC, []))
-		var last := _chain(a, -1, 0, trunk)
-		for f in m.floors:
-			entry[Vector2i(f, TacMap.Zone.PUBLIC)] = 0
-		var branch := 1
-		for f in m.floors:
-			var parent := last
-			for z in range(TacMap.Zone.STAFF, mz + 1):
-				var zitems := _shuffled(dice, content.get(f, {}).get(z, []))
-				var nice := maxi(extra_ice / maxi(1, m.floors * (mz - 1)), min_ice(a.difficulty, z) if not zitems.is_empty() else 0)
-				var seg := _segment(dice, net, a.difficulty, dv, z, zitems, nice)
-				var first := a.floors.size()
-				parent = _chain(a, parent, branch, seg)
-				entry[Vector2i(f, z)] = mini(first + 1, a.floors.size() - 1)
-			branch += 1
-	else:
-		var main: Array = lobby.duplicate()
-		var gate_index := {}
-		for z in range(TacMap.Zone.PUBLIC, mz + 1):
-			var items := []
-			for f in content:
-				items += content[f].get(z, [])
-			var ice_here := maxi(roundi(extra_ice * float(z) / (1 + 2 + 3 + 4)), min_ice(a.difficulty, z)) if z > TacMap.Zone.PUBLIC else 0
-			gate_index[z] = main.size()
-			main += _segment(dice, net, a.difficulty, dv, z, _shuffled(dice, items), ice_here)
-		# Rules-as-written branching (p210): d10 ≥ 7 adds a branch, repeat. A branch takes the tail
-		# of a deep zone's segment, hanging off that zone's gate.
-		var branches := 0
-		while dice.d(10) >= 7 and branches < 3:
-			branches += 1
-		var branch_specs := []
-		for bi in branches:
-			var z := mz - (bi % maxi(1, mz - TacMap.Zone.PUBLIC))
-			var start: int = gate_index.get(z, 2) + 1
-			var end_i: int = gate_index.get(z + 1, main.size())
-			if end_i - start >= 3:
-				var take := (end_i - start) / 2
-				branch_specs.append({"zone": z, "floors": main.slice(end_i - take, end_i)})
-				for k in take:
-					main.remove_at(end_i - take)
-				for zz in gate_index:
-					if gate_index[zz] > gate_index[z]:
-						gate_index[zz] -= take
-		_chain(a, -1, 0, main)
-		var bnum := 1
-		for spec in branch_specs:
-			_chain(a, int(gate_index[spec.zone]), bnum, spec.floors)
-			bnum += 1
-		for f in m.floors:
-			for z in range(TacMap.Zone.PUBLIC, mz + 1):
-				entry[Vector2i(f, z)] = 0 if z == TacMap.Zone.PUBLIC else mini(int(gate_index[z]) + 1, a.floors.size() - 1)
+	# 3. Firewalls into each deeper subnet; second routes and lateral links at high complexity.
+	for k in keys:
+		if k.x == TacMap.Zone.PUBLIC:
+			continue
+		var outer := _outer_subnets(keys, k)
+		_firewall(a, hub_of[outer[0]], hub_of[k], k.x, dv)
+		if outer.size() > 1 and dice.rng.randf() < 0.6 * a.complexity:
+			_firewall(a, hub_of[outer[1]], hub_of[k], k.x, dv)
+		elif dice.rng.randf() < 0.35 * a.complexity:
+			_firewall(a, hub_of[outer[0]], hub_of[k], k.x, dv + 2)  # back door with a harder lock
+		for k2 in keys:
+			if k2.x == k.x and k2.y == k.y + 1 and dice.rng.randf() < 0.5 * a.complexity:
+				a.link(hub_of[k], hub_of[k2])
 
+	# 4. Jack-in points.
 	for d in m.devices:
-		if d.get("access_point", false):
-			a.access_points.append({"device": d.id, "entry_floor": entry.get(Vector2i(d.floor, mini(d.zone, mz)), 0)})
+		if not d.get("access_point", false):
+			continue
+		var z := mini(maxi(int(d.zone), TacMap.Zone.PUBLIC), mini(mz, TacMap.Zone.SECURE))
+		if z > TacMap.Zone.PUBLIC and dice.rng.randf() >= OWN_ZONE_ENTRY:
+			z -= 1
+		var k: Vector2i = key_of.call(z, d.floor)
+		var hub: int = hub_of.get(k, hub_of[Vector2i(TacMap.Zone.PUBLIC, 0)])
+		a.access_points.append({"device": d.id, "entry_node": hub})
+
+	# 5. Black ICE from the budget.
+	_spend_ice(a, dice, keys, hub_of, float(m.params.get("net_threat", 1.0)))
 	return a
 
 
-## Minimum Black ICE per zone segment by difficulty. Map content usually exceeds the 3d6 floor
-## budget, which would leave no room for ICE at all; every zone past public still gets defenders.
-## Index: difficulty (0-3) → [staff, secure, vault].
-const MIN_ICE := [[0, 1, 1], [1, 1, 1], [1, 1, 2], [1, 2, 2]]
+## Subnets one zone shallower, same building floor first.
+static func _outer_subnets(keys: Array, k: Vector2i) -> Array:
+	var out := keys.filter(func(o): return o.x == k.x - 1)
+	out.sort_custom(func(x, y): return absi(x.y - k.y) < absi(y.y - k.y))
+	return out
 
 
-static func min_ice(diff: int, z: int) -> int:
-	if z <= TacMap.Zone.PUBLIC:
-		return 0
-	return MIN_ICE[diff][mini(z, TacMap.Zone.VAULT) - TacMap.Zone.STAFF]
+static func _firewall(a: NetArchitecture, outer_hub: int, inner_hub: int, zone: int, dv: int) -> void:
+	var fw := a.add_node({"type": "firewall", "zone": zone, "subnet": a.nodes[inner_hub].subnet, "dv": dv})
+	a.link(outer_hub, fw)
+	a.link(fw, inner_hub)
 
 
-static func _bucket(content: Dictionary, f: int, z: int) -> Array:
-	return content.get_or_add(f, {}).get_or_add(z, [])
+static func _spend_ice(a: NetArchitecture, dice: Dice, keys: Array, hub_of: Dictionary, threat: float) -> void:
+	var table: Dictionary = RulesDB.load_json("black_ice.json")["ice"]
+	a.budget = roundi(BUDGET[a.difficulty] * threat)
+	var wsum := 0.0
+	for k in keys:
+		wsum += float(k.x)  # public 1 … vault 4: deeper zones get more
+	var carry := 0.0
+	for i in keys.size():
+		var k: Vector2i = keys[i]
+		var share: float = a.budget * float(k.x) / wsum + carry
+		var pts := floori(share)
+		carry = share - pts
+		if i == keys.size() - 1:
+			pts = a.budget - a.spent
+		var sid: int = a.nodes[hub_of[k]].subnet
+		var guardable := a.nodes.filter(func(n): return n.subnet == sid and n.type in ["file", "control", "firewall"])
+		while pts > 0:
+			var options := []
+			for kind in table:
+				var e: Dictionary = table[kind]
+				if int(e.tier) <= a.difficulty and int(e.points) <= pts:
+					options.append(kind)
+			if options.is_empty():
+				break
+			var kind: String = options[dice.rng.randi_range(0, options.size() - 1)]
+			var patrol := dice.rng.randf() < 0.5 * a.complexity
+			var node: int = hub_of[k] if patrol or guardable.is_empty() else guardable[dice.rng.randi_range(0, guardable.size() - 1)].id
+			a.ice.append({"id": a.ice.size(), "kind": kind, "node": node, "patrol": patrol})
+			pts -= int(table[kind].points)
+			a.spent += int(table[kind].points)
 
 
 static func _shuffled(dice: Dice, arr: Array) -> Array:
 	var out := arr.duplicate()
 	Layouts._shuffle(dice, out)
 	return out
-
-
-## Zone segment: Password gate (above public), then the zone's content with ICE mixed in.
-static func _segment(dice: Dice, net: Dictionary, diff: int, dv: int, z: int, items: Array, ice_count: int) -> Array:
-	var forced := min_ice(diff, z)
-	var seg := []
-	if z > TacMap.Zone.PUBLIC:
-		seg.append({"type": "password", "dv": dv, "zone": z, "gate": true})
-	var body := items.duplicate()
-	for i in ice_count:
-		body.insert(dice.rng.randi_range(0, body.size()), _roll_floor(dice, net, diff, dv, z, i < forced))
-	for b in body:
-		b["zone"] = z
-	return seg + body
-
-
-## A non-content floor from the 3d6 table: ICE, or an extra Password on 9/12, or a decoy File on 10/11.
-static func _roll_floor(dice: Dice, net: Dictionary, diff: int, dv: int, z: int, must_be_ice: bool = false) -> Dictionary:
-	var r := dice.roll(3, 6)
-	while must_be_ice and r >= 9 and r <= 12:
-		r = dice.roll(3, 6)
-	if r == 9 or r == 12:
-		return {"type": "password", "dv": dv, "zone": z}
-	if r == 10 or r == 11:
-		return {"type": "file", "dv": dv, "value": 0, "device": -1, "zone": z}
-	return {"type": "ice", "ice": net["floor_ice"][str(r)][diff], "zone": z}
-
-
-static func _lobby(dice: Dice, net: Dictionary) -> Array:
-	var out := []
-	var last := ""
-	for i in 2:
-		var e: Dictionary
-		while true:
-			e = (net["lobby"][str(dice.d(6))] as Dictionary).duplicate(true)
-			var key := String(e.type) + str(e.get("ice", ""))
-			if key != last or e.type == "file":  # re-roll duplicate Passwords/Programs (p210)
-				last = key
-				break
-		e["zone"] = TacMap.Zone.STREET
-		e["lobby"] = true
-		out.append(e)
-	return out
-
-
-## Append floors as a chain under `parent`. Returns the id of the last floor added.
-static func _chain(a: NetArchitecture, parent: int, branch: int, seq: Array) -> int:
-	var p := parent
-	for f in seq:
-		p = a.add_floor(p, branch, f)
-	return p

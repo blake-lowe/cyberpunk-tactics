@@ -1,0 +1,36 @@
+{
+  "_doc": "Site types for MapGen. layout: room-partition algorithm + its params. zones: room kinds per security zone — entrance (the room at the main door), small (≤16 cells), large (≥60 cells), rotation (everything else, assigned by size rank). density: default cover density (0-1). Add clubs/squats here as data.",
+  "corp_office": {
+    "name": "Corporate office",
+    "layout": {"algorithm": "treemap"},
+    "density": 0.35,
+    "zones": {
+      "public": {"entrance": "lobby", "small": "restroom", "large": "atrium", "rotation": ["waiting"]},
+      "staff":  {"small": "storage", "rotation": ["office", "office", "meeting", "break_room", "office"]},
+      "secure": {"small": "storage", "rotation": ["server_room", "security_office", "lab"]},
+      "vault":  {"rotation": ["data_vault", "exec_office"]}
+    }
+  },
+  "warehouse": {
+    "name": "Warehouse",
+    "layout": {"algorithm": "bsp", "min_room": 5, "max_room": 16, "corridor_depth": 1},
+    "density": 0.45,
+    "zones": {
+      "public": {"entrance": "loading_dock", "small": "restroom", "large": "loading_dock", "rotation": ["dispatch_office"]},
+      "staff":  {"small": "storage", "large": "warehouse_floor", "rotation": ["warehouse_floor", "workshop", "break_room"]},
+      "secure": {"small": "cage", "rotation": ["security_office", "cage", "server_room"]},
+      "vault":  {"rotation": ["vault"]}
+    }
+  },
+  "gang_hideout": {
+    "name": "Gang hideout",
+    "layout": {"algorithm": "growth"},
+    "density": 0.4,
+    "zones": {
+      "public": {"entrance": "bar", "small": "restroom", "large": "hangout", "rotation": ["hangout", "bar"]},
+      "staff":  {"small": "storage", "rotation": ["crash_room", "kitchen", "crash_room", "storage"]},
+      "secure": {"small": "stash", "rotation": ["armory", "boss_room", "workshop"]},
+      "vault":  {"rotation": ["stash"]}
+    }
+  }
+}

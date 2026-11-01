@@ -16,6 +16,16 @@ static func load_json(file: String) -> Dictionary:
 	return _cache[file]
 
 
+## Generation content (not rules) lives in res://data/gen/.
+static func gen(file: String) -> Dictionary:
+	var key := "gen/" + file
+	if not _cache.has(key):
+		var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://data/gen/" + file))
+		assert(parsed is Dictionary, "Failed to parse " + file)
+		_cache[key] = parsed
+	return _cache[key]
+
+
 static func weapon(id: String) -> Dictionary:
 	var w: Dictionary = load_json("weapons.json")["weapons"][id].duplicate()
 	w["id"] = id

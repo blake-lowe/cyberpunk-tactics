@@ -1,26 +1,27 @@
 extends TestCase
 
-const ALGOS := ["bsp", "treemap", "growth"]
+const SITES := ["corp_office", "warehouse", "gang_hideout"]
+static var _cache: Array[TacMap] = []
 
 
 func _maps() -> Array[TacMap]:
-	var out: Array[TacMap] = []
-	for algo in ALGOS:
-		for sec in 4:
-			for s in 3:
-				out.append(MapGen.generate(1000 + s * 17 + sec, algo, {"security": sec, "floors": 1 + s % 3,
-					"verticality": 1 + s % 2, "net_style": "stack" if s % 2 == 0 else "mirrored"}))
-	return out
+	if _cache.is_empty():
+		for site in SITES:
+			for sec in 4:
+				for s in 2:
+					_cache.append(MapGen.generate(1000 + s * 17 + sec, site, {"security": sec, "floors": 1 + (s + sec) % 2 + 1,
+						"verticality": 1 + s % 2}))
+	return _cache
 
 
 func test_everything_reachable_from_main_entrance() -> void:
 	for m in _maps():
 		var e := m.main_entrance()
-		assert_false(e.is_empty(), "%s has a main entrance" % m.algorithm)
+		assert_false(e.is_empty(), "%s has a main entrance" % m.params.site)
 		if e.is_empty():
 			continue
 		var reach := m.reachable(Vector3i(e.pos.x, e.pos.y, e.floor))
-		var tag := "%s seed %d" % [m.algorithm, m.seed_value]
+		var tag := "%s seed %d" % [m.params.site, m.seed_value]
 		for r in m.rooms:
 			if r.cells == 0:
 				continue
@@ -43,23 +44,30 @@ func test_security_gradient() -> void:
 				continue
 			var za: int = m.rooms[d.a].zone
 			var zb: int = m.rooms[d.b].zone
-			assert_true(absi(za - zb) <= 1, "%s: door jumps zones %d→%d" % [m.algorithm, za, zb])
+			assert_true(absi(za - zb) <= 1, "%s: door jumps zones %d→%d" % [m.params.site, za, zb])
 		for r in m.rooms:
 			if r.cells > 0:
 				assert_between(r.zone, TacMap.Zone.PUBLIC, mz)
 
 
-func test_rooms_have_kinds_and_cover_has_hp() -> void:
+func test_room_kinds_have_data() -> void:
+	var rooms_def := RulesDB.gen("rooms.json")
 	for m in _maps():
 		for r in m.rooms:
 			if r.cells > 0:
-				assert_true(r.kind != "", "room %d has a kind" % r.id)
-		assert_true(m.cover.size() > 0, "%s has cover" % m.algorithm)
+				assert_true(rooms_def.has(r.kind), "%s: room kind '%s' missing from rooms.json" % [m.params.site, r.kind])
 		for c in m.cover:
 			assert_true(c.hp > 0)
 
 
-func test_architecture_mirrors_devices() -> void:
+func test_site_uses_its_layout() -> void:
+	assert_eq(MapGen.generate(1, "corp_office").algorithm, "treemap")
+	assert_eq(MapGen.generate(1, "warehouse").algorithm, "bsp")
+	assert_eq(MapGen.generate(1, "gang_hideout").algorithm, "growth")
+	assert_eq(MapGen.generate(1, "warehouse", {"algorithm": "growth"}).algorithm, "growth", "override for comparisons")
+
+
+func test_control_nodes_mirror_device_groups() -> void:
 	for m in _maps():
 		var a := m.architecture
 		var groups := {}
@@ -67,70 +75,98 @@ func test_architecture_mirrors_devices() -> void:
 			if d.group != "":
 				groups[d.group] = true
 		for g in groups:
-			var n := a.floors.filter(func(f): return f.type == "control" and f.group == g).size()
-			assert_eq(n, 1, "%s: group %s has one Control Node" % [m.algorithm, g])
-		# Files: at most FILES_PER_ZONE per (floor, zone), and the most valuable device always has one.
-		var buckets := {}
+			assert_eq(a.nodes.filter(func(n): return n.type == "control" and n.group == g).size(), 1, "%s: group %s" % [m.params.site, g])
 		for d in m.devices:
-			if d.has("file_value"):
-				buckets.get_or_add(Vector2i(d.floor, d.zone), []).append(d)
-		for k in buckets:
-			var devs: Array = buckets[k]
-			devs.sort_custom(func(x, y): return x.file_value > y.file_value)
-			var with_file := devs.filter(func(d): return a.floors.any(func(f): return f.type == "file" and f.get("device", -1) == d.id))
-			assert_eq(with_file.size(), mini(devs.size(), NetGen.FILES_PER_ZONE), "files in bucket %s" % k)
-			assert_true(with_file.has(devs[0]), "most valuable file kept")
-		for ap in a.access_points:
-			assert_between(ap.entry_floor, 0, a.floors.size() - 1)
-		assert_true(a.floors[0].get("lobby", false) and a.floors[1].get("lobby", false), "two lobby floors")
+			if d.type == "data_core":
+				var f := a.nodes.filter(func(n): return n.type == "file" and n.get("device", -1) == d.id)
+				assert_eq(f.size(), 1, "data core has a File")
+				if f.size() == 1:
+					assert_true(f[0].net_only, "data core is net-only")
 
 
-func test_deep_content_sits_behind_gates() -> void:
+func test_firewalls_gate_deeper_zones() -> void:
 	for m in _maps():
 		var a := m.architecture
-		for f in a.floors:
-			if f.type == "ice" or f.get("lobby", false) or f.get("gate", false):
-				continue
-			var gates := {}
-			for id in a.path_to(f.id):
-				if a.floors[id].get("gate", false):
-					gates[a.floors[id].zone] = true
-			for z in range(TacMap.Zone.STAFF, int(f.zone) + 1):
-				assert_true(gates.has(z), "%s/%s: floor %d (zone %d) missing gate %d" % [m.algorithm, a.style, f.id, f.zone, z])
+		var fw := {}
+		for n in a.nodes_of_type("firewall"):
+			fw[n.id] = true
+		var public_hub: int = a.subnets.filter(func(s): return s.zone == TacMap.Zone.PUBLIC)[0].hub
+		for id in a.reach(public_hub, fw):
+			var n: Dictionary = a.nodes[id]
+			if n.type != "firewall":
+				assert_eq(int(n.zone), TacMap.Zone.PUBLIC, "%s: node %d (%s) reachable without a firewall" % [m.params.site, id, n.type])
+
+
+func test_jack_in_points_partial_and_never_vault() -> void:
+	var own := 0
+	var shallower := 0
+	for m in _maps():
+		var a := m.architecture
+		for ap in a.access_points:
+			var dev: Dictionary = m.devices[ap.device]
+			var entry_zone := int(a.nodes[ap.entry_node].zone)
+			assert_true(entry_zone < TacMap.Zone.VAULT, "no physical shortcut into the vault")
+			assert_true(entry_zone <= maxi(int(dev.zone), TacMap.Zone.PUBLIC), "never deeper than the device")
+			if dev.zone > TacMap.Zone.PUBLIC and dev.zone < TacMap.Zone.VAULT:
+				if entry_zone == int(dev.zone):
+					own += 1
+				else:
+					shallower += 1
+	assert_true(own > 0 and shallower > 0, "entries vary: own %d, shallower %d" % [own, shallower])
+
+
+func test_ice_budget_spent_within_tier() -> void:
+	var table: Dictionary = RulesDB.load_json("black_ice.json")["ice"]
+	for m in _maps():
+		var a := m.architecture
+		assert_eq(a.spent, a.budget, "%s sec %d budget fully spent" % [m.params.site, a.difficulty])
+		var total := 0
+		for i in a.ice:
+			assert_true(int(table[i.kind].tier) <= a.difficulty, "%s allowed at difficulty %d" % [i.kind, a.difficulty])
+			total += int(table[i.kind].points)
+		assert_eq(total, a.spent)
+
+
+func test_complexity_scales_with_security() -> void:
+	var loops := {0: 0, 3: 0}
+	for m in _maps():
+		var a := m.architecture
+		var extra := a.edges.size() - (a.nodes.size() - 1)
+		if a.difficulty == 0:
+			assert_eq(extra, 0, "security 0 is a simple tree")
+		if a.difficulty in loops:
+			loops[a.difficulty] += extra
+	assert_true(loops[3] > 0, "high security has loops/extra routes")
 
 
 func test_same_seed_same_map() -> void:
-	for algo in ALGOS:
-		var a := JSON.stringify(MapGen.generate(77, algo, {"security": 2}).to_dict())
-		var b := JSON.stringify(MapGen.generate(77, algo, {"security": 2}).to_dict())
-		assert_true(a == b, algo + " deterministic")
+	for site in SITES:
+		var a := JSON.stringify(MapGen.generate(77, site, {"security": 2}).to_dict())
+		var b := JSON.stringify(MapGen.generate(77, site, {"security": 2}).to_dict())
+		assert_true(a == b, site + " deterministic")
 
 
-func test_netrun_passwords_block_descent() -> void:
-	var m := MapGen.generate(5, "treemap", {"security": 2})
+func test_netrun_firewall_and_ice() -> void:
+	var m := MapGen.generate(5, "corp_office", {"security": 2})
 	var a := m.architecture
+	for i in a.ice:
+		i["derezzed"] = true  # isolate the firewall rule first
 	var runner := Fixtures.unarmored("Net")
 	runner.role = "netrunner"
 	runner.role_rank = 6
 	var run := NetRun.new(a, runner)
+	var fw: Dictionary = a.nodes_of_type("firewall")[0]
+	var outer: int = a.neighbors(fw.id).filter(func(n): return int(a.nodes[n].zone) < int(fw.zone))[0]
+	var inner: int = a.neighbors(fw.id).filter(func(n): return int(a.nodes[n].zone) >= int(fw.zone))[0]
+	run.current = outer
+	assert_true(run.can_move_to(fw.id), "can reach the firewall")
+	assert_false(run.can_move_to(inner), "blocked inward")
+	run.current = inner
+	assert_true(run.can_move_to(outer), "can leave outward without breaking it")
+	run.current = outer
+	run.broken[fw.id] = true
+	assert_true(run.can_move_to(inner))
+	a.ice[0]["derezzed"] = false
+	run.current = a.ice[0].node
+	assert_eq(run.movable().size(), 1, "active Black ICE pins the runner")
 	assert_eq(NetRun.net_actions(6), 3)
-	run.current = 0
-	var gate := a.floors.filter(func(f): return f.get("gate", false))[0] as Dictionary
-	var below := a.children(gate.id)
-	assert_true(run.move_to(gate.id), "can reach the gate floor itself")
-	if not below.is_empty():
-		assert_false(run.can_move_to(below[0]), "locked below the password")
-		run.broken[gate.id] = true
-		assert_true(run.move_to(below[0]))
-	assert_true(run.move_to(0), "moving up is free")
-	assert_near(run.chance(8), Check.chance_vs_dv(6, 8))
-
-
-func test_every_deep_zone_has_black_ice() -> void:
-	for m in _maps():
-		if m.architecture.style != "stack":
-			continue
-		var mz := MapGen.max_zone(int(m.params.security))
-		for z in range(TacMap.Zone.STAFF, mz + 1):
-			var n := m.architecture.floors.filter(func(f): return f.type == "ice" and f.zone == z).size()
-			assert_true(n >= NetGen.min_ice(m.architecture.difficulty, z), "%s sec %d zone %d ICE %d" % [m.algorithm, m.params.security, z, n])

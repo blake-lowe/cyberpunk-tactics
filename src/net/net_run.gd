@@ -1,16 +1,17 @@
 class_name NetRun
 extends RefCounted
-## A Netrunner's session in an Architecture (p197-201). Ability checks are Interface Rank + 1d10
-## vs DV (p198). Moving within the Architecture is free, but you can't move past a Password you
-## haven't broken (p198). Black ICE combat and Programs arrive with the M3 greybox.
+## A Netrunner's session in a NET graph. Ability checks are Interface Rank + 1d10 vs DV (p198).
+## Moving is free (p198) except through blockers: an unbroken firewall can be entered but only
+## left outward (towards shallower zones), and a node with active Black ICE can be entered but
+## not passed until the ICE is dealt with. ICE combat and Programs arrive with M3.
 
 var arch: NetArchitecture
 var runner: Combatant
 var current := -1
-var revealed := {}   ## floor id → true (Pathfinder or visited)
-var broken := {}     ## Password floors Backdoored
-var held := {}       ## Control floors taken
-var identified := {} ## File floors Eye-Dee'd
+var revealed := {}   ## node id → true
+var broken := {}     ## firewalls Backdoored
+var held := {}       ## control nodes taken
+var identified := {} ## files Eye-Dee'd
 
 
 static func interface_rank(c: Combatant) -> int:
@@ -35,9 +36,9 @@ func rank() -> int:
 	return interface_rank(runner)
 
 
-## Jack in at an access point (must be within 6 m in meatspace — checked by the tactical layer).
+## Jack in at an access point (meatspace range is checked by the tactical layer).
 func jack_in(access_point: int) -> void:
-	current = int(arch.access_points[access_point].entry_floor)
+	current = int(arch.access_points[access_point].entry_node)
 	revealed[current] = true
 
 
@@ -45,24 +46,36 @@ func jack_out() -> void:
 	current = -1
 
 
-func cur_floor() -> Dictionary:
-	return arch.floors[current]
+func cur_node() -> Dictionary:
+	return arch.nodes[current]
 
 
-## Can the runner stand on floor `id`? Up the tree is always open; going down, every Password
-## strictly between here and the target must be broken (and the current floor, if a Password).
-func can_move_to(id: int) -> bool:
-	if current < 0:
+## Can this node be left towards `to`?
+func _passable(from: int, to: int) -> bool:
+	var n: Dictionary = arch.nodes[from]
+	if n.type == "firewall" and not broken.has(from) and int(arch.nodes[to].zone) >= int(n.zone):
 		return false
-	var path := arch.path_to(id)
-	var here := path.find(current)
-	if here < 0:
-		return arch.path_to(current).has(id)  # moving up
-	for i in range(here, path.size() - 1):
-		var f: Dictionary = arch.floors[path[i]]
-		if f.type == "password" and not broken.has(f.id):
-			return false
-	return true
+	# Active Black ICE pins you: fight it, Slide away (p200) or jack out.
+	return arch.ice_at(from).is_empty()
+
+
+## Nodes the runner can move to this turn.
+func movable() -> Dictionary:
+	if current < 0:
+		return {}
+	var seen := {current: true}
+	var q := [current]
+	while not q.is_empty():
+		var n: int = q.pop_back()
+		for nb in arch.neighbors(n):
+			if not seen.has(nb) and _passable(n, nb):
+				seen[nb] = true
+				q.append(nb)
+	return seen
+
+
+func can_move_to(id: int) -> bool:
+	return movable().has(id)
 
 
 func move_to(id: int) -> bool:
@@ -73,65 +86,63 @@ func move_to(id: int) -> bool:
 	return true
 
 
-## Exact chance for an ability against the current floor (or the given DV).
 func chance(dv: int) -> float:
 	return Check.chance_vs_dv(rank(), dv)
 
 
 func backdoor(dice: Dice) -> Check:
-	var f: Dictionary = cur_floor()
-	assert(f.type == "password")
-	var c := Check.vs_dv(dice, rank(), int(f.dv))
+	var n := cur_node()
+	assert(n.type == "firewall")
+	var c := Check.vs_dv(dice, rank(), int(n.dv))
 	if c.success:
-		broken[f.id] = true
+		broken[n.id] = true
 	return c
 
 
 func control(dice: Dice) -> Check:
-	var f: Dictionary = cur_floor()
-	assert(f.type == "control")
-	var c := Check.vs_dv(dice, rank(), int(f.dv))
+	var n := cur_node()
+	assert(n.type == "control")
+	var c := Check.vs_dv(dice, rank(), int(n.dv))
 	if c.success:
-		held[f.id] = true
+		held[n.id] = true
 	return c
 
 
 func eye_dee(dice: Dice) -> Check:
-	var f: Dictionary = cur_floor()
-	assert(f.type == "file")
-	var c := Check.vs_dv(dice, rank(), int(f.dv))
+	var n := cur_node()
+	assert(n.type == "file")
+	var c := Check.vs_dv(dice, rank(), int(n.dv))
 	if c.success:
-		identified[f.id] = true
+		identified[n.id] = true
 	return c
 
 
-## Pathfinder (p199): reveal as many floors below as the check total, stopping at (and showing)
-## the first Password whose DV beats the check. Returns the floors newly revealed.
+## Pathfinder (p199, adapted): reveal up to (check total) nodes outward from here, breadth-first,
+## stopping behind any firewall whose DV beats the check (the firewall itself is shown).
 func pathfinder(dice: Dice) -> Array[int]:
 	var c := Check.vs_dv(dice, rank(), 0)
 	var out: Array[int] = []
-	var frontier: Array[int] = [current]
+	var seen := {current: true}
+	var q := [current]
 	var budget := c.total
-	while not frontier.is_empty() and budget > 0:
-		var nxt: Array[int] = []
-		for id in frontier:
-			for ch in arch.children(id):
-				if budget <= 0:
-					break
-				budget -= 1
-				if not revealed.has(ch):
-					revealed[ch] = true
-					out.append(ch)
-				var f: Dictionary = arch.floors[ch]
-				if not (f.type == "password" and int(f.dv) > c.total):
-					nxt.append(ch)
-		frontier = nxt
+	while not q.is_empty() and budget > 0:
+		var n: int = q.pop_front()
+		for nb in arch.neighbors(n):
+			if seen.has(nb) or budget <= 0:
+				continue
+			seen[nb] = true
+			budget -= 1
+			if not revealed.has(nb):
+				revealed[nb] = true
+				out.append(nb)
+			var node: Dictionary = arch.nodes[nb]
+			if not (node.type == "firewall" and int(node.dv) > c.total):
+				q.append(nb)
 	return out
 
 
-## Devices the runner currently controls (cameras, locks, turrets...), for the tactical layer.
 func controlled_devices() -> Array:
 	var out := []
 	for id in held:
-		out.append_array(arch.floors[id].devices)
+		out.append_array(arch.nodes[id].devices)
 	return out

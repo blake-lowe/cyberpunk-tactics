@@ -1,0 +1,32 @@
+{
+  "_doc": "Per room kind: furniture = [piece, placement, cells per piece] (placement: wall | row | center | scatter; fewer cells per piece = denser). devices = [{t, group, wall, p, per_cells, ap, file}] where group 'cameras'/'turrets'/'locks' get a zone/floor suffix and 'site:<name>' is one group for the whole site (first matching room only). Cover materials and HP come from the book's cover table via Furnish.PIECES.",
+  "corridor":        {"furniture": [["vending", "wall", 70], ["planter", "wall", 80]], "devices": [{"t": "camera", "group": "cameras", "wall": true, "per_cells": 60}]},
+  "lobby":           {"furniture": [["reception", "center", 200], ["planter", "scatter", 40], ["sofa", "wall", 50], ["pillar", "center", 80]], "devices": [{"t": "camera", "group": "cameras", "wall": true, "per_cells": 60}]},
+  "atrium":          {"furniture": [["planter", "scatter", 35], ["pillar", "center", 50], ["sofa", "wall", 60]], "devices": [{"t": "camera", "group": "cameras", "wall": true, "per_cells": 60}]},
+  "waiting":         {"furniture": [["sofa", "wall", 25], ["table", "center", 40], ["planter", "scatter", 50]]},
+  "restroom":        {"furniture": []},
+  "office":          {"furniture": [["desk", "row", 9], ["cabinet", "wall", 30]], "devices": [{"t": "terminal", "p": 0.6, "ap": true}]},
+  "meeting":         {"furniture": [["table", "center", 12]], "devices": [{"t": "sprinkler_valve", "group": "site:sprinklers", "wall": true}]},
+  "break_room":      {"furniture": [["table", "scatter", 18], ["fridge", "wall", 60], ["vending", "wall", 70]], "devices": [{"t": "sprinkler_valve", "group": "site:sprinklers", "wall": true}]},
+  "storage":         {"furniture": [["crate", "scatter", 8]]},
+  "security_office": {"furniture": [["desk", "row", 14], ["locker", "wall", 18]], "devices": [{"t": "terminal", "ap": true, "file": 2}, {"t": "alarm_panel", "group": "site:alarm", "wall": true}, {"t": "camera", "group": "cameras", "wall": true}]},
+  "server_room":     {"furniture": [["rack", "row", 5]], "devices": [{"t": "terminal", "ap": true, "file": 3}, {"t": "camera", "group": "cameras", "wall": true}]},
+  "lab":             {"furniture": [["bench", "row", 9], ["cabinet", "wall", 30]], "devices": [{"t": "terminal", "p": 0.5, "ap": true, "file": 3}]},
+  "data_vault":      {"furniture": [["rack", "row", 8], ["safe", "wall", 50], ["pillar", "center", 60]], "devices": [{"t": "data_core", "file": 5}, {"t": "camera", "group": "cameras", "wall": true}]},
+  "exec_office":     {"furniture": [["desk", "center", 60], ["sofa", "wall", 35], ["safe", "wall", 70]], "devices": [{"t": "terminal", "ap": true, "file": 4}]},
+
+  "loading_dock":    {"furniture": [["crate", "scatter", 14], ["pillar", "center", 60]], "devices": [{"t": "camera", "group": "cameras", "wall": true, "per_cells": 80}, {"t": "shutter_control", "group": "site:shutters", "wall": true}]},
+  "dispatch_office": {"furniture": [["desk", "row", 10], ["cabinet", "wall", 25]], "devices": [{"t": "terminal", "ap": true, "file": 1}]},
+  "warehouse_floor": {"furniture": [["shelf", "row", 7], ["crate", "scatter", 30], ["pillar", "center", 90]], "devices": [{"t": "camera", "group": "cameras", "wall": true, "per_cells": 90}]},
+  "workshop":        {"furniture": [["bench", "row", 10], ["locker", "wall", 25]]},
+  "cage":            {"furniture": [["crate", "scatter", 9]], "devices": [{"t": "camera", "group": "cameras", "wall": true}]},
+  "vault":           {"furniture": [["safe", "wall", 25], ["crate", "scatter", 16]], "devices": [{"t": "data_core", "file": 5}]},
+
+  "bar":             {"furniture": [["reception", "center", 200], ["table", "scatter", 20], ["sofa", "wall", 35]], "devices": [{"t": "camera", "group": "cameras", "wall": true, "p": 0.5}]},
+  "hangout":         {"furniture": [["sofa", "wall", 20], ["table", "scatter", 28], ["crate", "scatter", 45]]},
+  "crash_room":      {"furniture": [["table", "scatter", 30], ["locker", "wall", 40]]},
+  "kitchen":         {"furniture": [["fridge", "wall", 25], ["table", "center", 25]]},
+  "armory":          {"furniture": [["locker", "wall", 10], ["crate", "scatter", 16]], "devices": [{"t": "camera", "group": "cameras", "wall": true}]},
+  "boss_room":       {"furniture": [["desk", "center", 60], ["sofa", "wall", 25], ["safe", "wall", 50]], "devices": [{"t": "terminal", "ap": true, "file": 4}]},
+  "stash":           {"furniture": [["crate", "scatter", 8], ["safe", "wall", 30]], "devices": [{"t": "terminal", "ap": false, "file": 5}]}
+}

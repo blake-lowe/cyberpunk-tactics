@@ -11,10 +11,10 @@ extends RefCounted
 const DEFAULTS := {
 	"w": 40, "h": 32, "floors": 2,
 	"security": 1,       # 0-3 → Basic/Standard/Uncommon/Advanced (p210)
-	"density": 0.5,      # cover density 0-1
+	"density": -1.0,     # cover density 0-1; -1 = site type default
 	"loops": 0.35,       # chance of extra doors between same/adjacent-zone rooms (flanking routes)
 	"verticality": 1,    # 0 = single floor, 1 = stairs, 2 = stairs + elevator
-	"net_style": "stack",  # "stack" (rules-as-written shape) or "mirrored" (branch per building floor)
+	"net_threat": 1.0,   # gig parameter: scales the Black ICE budget
 }
 const STREET := 3  # street rows (south) and alley columns (east)
 const MIN_ROOM_CELLS := 4
@@ -22,9 +22,16 @@ const MIN_ROOM_CELLS := 4
 static var DIRS: Array[Vector2i] = [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]
 
 
-static func generate(seed_value: int, algorithm: String, overrides: Dictionary = {}) -> TacMap:
+## `site`: a key of data/gen/sites.json. overrides may force "algorithm" (for comparisons).
+static func generate(seed_value: int, site: String, overrides: Dictionary = {}) -> TacMap:
+	var sdef: Dictionary = RulesDB.gen("sites.json")[site]
 	var p := DEFAULTS.duplicate()
+	p.merge(sdef["layout"], true)
 	p.merge(overrides, true)
+	p["site"] = site
+	if float(p.density) < 0.0:
+		p.density = float(sdef["density"])
+	var algorithm: String = p["algorithm"]
 	if int(p.verticality) == 0:
 		p.floors = 1
 	var dice := Dice.new(seed_value)
@@ -419,7 +426,9 @@ static func _wall_materials(m: TacMap, shell: Rect2i) -> void:
 				m.wall_mat[f][y * m.w + x] = mat
 
 
+## Room kinds from the site type's per-zone rules (data/gen/sites.json).
 static func _room_kinds(m: TacMap) -> void:
+	var zones: Dictionary = RulesDB.gen("sites.json")[m.params.site]["zones"]
 	var lobby := _entrance_room(m)
 	var by_zone := {}
 	for r in m.rooms:
@@ -427,23 +436,22 @@ static func _room_kinds(m: TacMap) -> void:
 			continue
 		by_zone.get_or_add(r.zone, []).append(r)
 	for z in by_zone:
+		var rule: Dictionary = zones.get(TacMap.ZONE_NAMES[z], {"rotation": ["storage"]})
+		var rot: Array = rule["rotation"]
 		var list: Array = by_zone[z]
 		list.sort_custom(func(a, b): return a.cells > b.cells)
 		var i := 0
 		for r in list:
 			var long_thin: bool = mini(r.bounds.size.x, r.bounds.size.y) <= 3 and r.cells >= 12
-			if r.id == lobby:
-				r.kind = "lobby"
+			if r.id == lobby and rule.has("entrance"):
+				r.kind = rule["entrance"]
 			elif long_thin or r.get("layout_kind", "") == "corridor":
 				r.kind = "corridor"
+			elif r.cells <= 16 and rule.has("small"):
+				r.kind = rule["small"]
+			elif r.cells >= 60 and rule.has("large") and i > 0:
+				r.kind = rule["large"]
 			else:
-				match z:
-					TacMap.Zone.PUBLIC:
-						r.kind = "restroom" if r.cells <= 16 else ("atrium" if r.cells >= 60 else "waiting")
-					TacMap.Zone.STAFF:
-						r.kind = "storage" if r.cells <= 16 else ["office", "office", "meeting", "break_room", "office"][i % 5]
-					TacMap.Zone.SECURE:
-						r.kind = ["server_room", "security_office", "lab"][mini(i, 2)] if i < 3 else "lab"
-					TacMap.Zone.VAULT:
-						r.kind = "data_vault" if i == 0 else "exec_office"
+				# First kind once (the zone's signature room), then cycle through the rest.
+				r.kind = rot[0] if i == 0 or rot.size() == 1 else rot[1 + (i - 1) % (rot.size() - 1)]
 				i += 1
