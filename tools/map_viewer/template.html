@@ -51,7 +51,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, canvas:focus-
 .chk { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--fg); cursor: pointer; }
 .chk input { accent-color: var(--accent); }
 
-.strip { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
+.strip { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 12px; }
 .thumb { display: grid; gap: 6px; background: transparent; border: 0; padding: 0; color: var(--fg); text-align: left; cursor: pointer; min-width: 0; }
 .thumb canvas { width: 100%; height: auto; display: block; border: 1px solid var(--line); border-radius: 3px; }
 .thumb[aria-pressed="true"] canvas { border-color: var(--accent); }
@@ -65,7 +65,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, canvas:focus-
 .stats b { color: var(--fg); font-weight: 500; }
 .side { display: grid; gap: 12px; min-width: 0; }
 .panel { border: 1px solid var(--line); border-radius: 3px; background: var(--panel); padding: 12px; display: grid; gap: 8px; min-width: 0; }
-.blist { display: grid; gap: 4px; }
+.blist { display: grid; gap: 4px; max-height: 340px; overflow-y: auto; }
 .brow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: baseline; text-align: left; background: transparent; border: 1px solid transparent; border-radius: 3px; color: var(--fg); padding: 4px 6px; font: 13px var(--body); cursor: pointer; }
 .brow[aria-pressed="true"] { border-color: var(--line); background: var(--raise); }
 .brow .k { font-family: var(--mono); font-size: 11px; color: var(--muted); }
@@ -110,9 +110,9 @@ textarea { width: 100%; min-height: 56px; resize: vertical; background: var(--bg
 
 <div class="wrap">
   <header>
-    <span class="eyebrow">M2c review · scenes, after your verdicts</span>
+    <span class="eyebrow">M2d review · verticality, leaner NETs, city demo</span>
     <h1>Gig Site Generator Review</h1>
-    <p class="muted">Whole scenes now: streets, docks, rail and desert, with several buildings of different heights, outdoor yards and fences. Each building has its own NET, and every jack-in terminal is wired to one fixed node. Pick a scene, then answer the questions at the bottom; your verdicts save to this page. One square is 2 m.</p>
+    <p class="muted">Every building now has a roof you can reach by stair hatch or ladder, neighbouring buildings get skybridges, and footbridges cross roads and rail. NETs are about 1.6× leaner and only sometimes linked between related buildings. Walls and doors use the book's cover values; fences stop movement but not bullets. The city district at the end is the large tech demo. Use the Floor control to see upper levels: each building's roof is one level above its top floor, so a two-storey shop's roof shows on Level 3. One square is 2 m.</p>
   </header>
 
   <div class="controls" role="toolbar" aria-label="Map settings">
@@ -122,6 +122,7 @@ textarea { width: 100%; min-height: 56px; resize: vertical; background: var(--bg
     <label class="chk"><input type="checkbox" id="lz" checked> Zones</label>
     <label class="chk"><input type="checkbox" id="lc" checked> Cover</label>
     <label class="chk"><input type="checkbox" id="ld" checked> Devices</label>
+    <label class="chk"><input type="checkbox" id="lp"> Jack-in ports</label>
   </div>
 
   <section style="display:grid;gap:12px">
@@ -151,7 +152,7 @@ textarea { width: 100%; min-height: 56px; resize: vertical; background: var(--bg
             <h3>NET</h3><span class="mono muted" id="netmeta"></span>
           </div>
           <svg id="net" role="img" aria-label="NET graph"></svg>
-          <p class="muted" style="font-size:12px">Columns are security zones. Amber diamonds: firewalls. Small cyan rings: jack-in ports, one per terminal. Dashed rings: net-only content. Red dots: Black ICE; red ring: patrolling ICE.</p>
+          <p class="muted" style="font-size:12px">Columns are security zones. Amber diamonds: firewalls. ⇢n: jack-in ports wired to that hub (turn on “Jack-in ports” to see each one). Dashed rings: net-only content. Red dots: Black ICE; red ring: patrolling ICE. ↔ in the list: this building's NET is linked to another.</p>
         </div>
       </div>
     </div>
@@ -173,27 +174,28 @@ const SCENES = {
   shipyard: { name: "Shipyard", desc: "Cargo ship moored at the quay and boarded by gangway, crane legs on the quay, a fenced container yard with lanes, a warehouse and a gate booth." },
   badlands: { name: "Badlands raider camp", desc: "Open desert with rock outcrops, a dry riverbed, a winding dirt road and wrecks; a fenced raider camp of shacks around the main hideout." },
   rail_yard: { name: "Rail yard", desc: "A stopped train you can board car by car, freight cars as long cover on the other tracks, a platform and a two-storey station." },
-  corp_campus: { name: "Corporate campus", desc: "Fenced grounds with a gate booth, parking, plaza, a three-storey HQ and a service building." },
+  corp_campus: { name: "Corporate campus", desc: "Fenced grounds with a gate booth, parking, plaza, a three-storey HQ and a two-storey service building, sometimes joined by a skybridge." },
+  city_district: { name: "City district", desc: "Tech demo: a 4 × 3 grid of city blocks, about 40 buildings with roofs, skybridges and footbridges over the roads. About 5 seconds to generate." },
 };
 const SITE_NAMES = { corp_office: "Corporate office", warehouse: "Warehouse", gang_hideout: "Gang hideout", apartments: "Apartment block", club: "Club", shop: "Shop", ship: "Cargo ship", train: "Train", station: "Station", shack: "Shack", guard_booth: "Guard booth", corp_hq: "Corporate HQ", lot: "Parking lot", courtyard: "Courtyard and parking", compound: "Fenced compound", station_grounds: "Platform", campus: "Campus grounds" };
 
 const DECISIONS = [
-  { key: "m2c_scenes", title: "Scene types",
-    ctx: "Six purpose-built scenes, each with its own layout logic: street block, megablock, shipyard, badlands raider camp, rail yard, corporate campus.",
-    options: [["Approve", "Good first set. Add more later as data and planners (night market, Combat Zone ruins, AV pad, nomad camp, sewers…)."], ["Adjust", "Something's off with one or more. Say which in the note."]], rec: "Approve" },
-  { key: "m2c_size", title: "Scene size",
-    ctx: "Now 84–112 by 60–80 squares, about 170–225 m across. A full-size scene generates in under a second.",
-    options: [["Right", "Good size for a gig."], ["Bigger", "Push further (e.g. whole city blocks), at the cost of longer fights."], ["Varies", "Let the gig choose: small for quick jobs, large for big ops."]], rec: "Varies" },
-  { key: "m2c_nets", title: "One NET per building",
-    ctx: "Each building with devices has its own NET, entered only from its own terminals. Outdoor compounds (shipyard, campus) have one too, for gates, floodlights and cranes.",
-    options: [["Separate", "Keep: one NET per building, like the rulebook."], ["Linked", "Link buildings that belong together (e.g. booth and HQ) through a shared site network, so a runner can cross between them."]], rec: "Linked" },
-  { key: "m2c_walls", title: "Walls and fences as cover",
-    ctx: "In M3, walls become cover with HP by material (plaster 15, concrete 25, steel 50, rock 40). Fences are flimsy and see-through: they stop movement but not line of sight.",
-    options: [["Yes", "As described."], ["Solid fences", "Fences also block line of sight."]], rec: "Yes" },
-  { key: "m2c_ports", title: "Jack-in ports",
-    ctx: "Every terminal is wired to its own port node, visible on the NET. Each port is fixed when the site is generated: in its own zone's subnet, or sometimes one zone shallower. Never the vault.",
-    options: [["Approve", "As described."], ["Own zone", "Always wire ports into their own zone."]], rec: "Approve" },
-  { key: "m2c_general", title: "Anything else", ctx: "Scenes you want next, things that feel wrong, ideas.", options: [], rec: "" },
+  { key: "m2d_vertical", title: "Verticality",
+    ctx: "Every building has a reachable roof (stair hatch and/or ladder; always at least one), skybridges join neighbouring buildings on shared upper floors (never into secure rooms), and footbridges cross roads and the rail yard. Check the Floor control and the city district.",
+    options: [["Approve", "Good first pass; keep adding (rooftop access hatches as entry points, fire escapes per floor, AV pads)."], ["Adjust", "Something's off. Say what in the note."]], rec: "Approve" },
+  { key: "m2d_net_size", title: "NET size after the trim",
+    ctx: "About 1.6× leaner: a three-storey target at Advanced is roughly 35–45 nodes (was 70–80), Standard 15–20. Only one jack-in point and one File per subnet; other terminals are plain terminals.",
+    options: [["Right", "Good."], ["Still big", "Trim further."], ["Too lean", "Bring some back."]], rec: "Right" },
+  { key: "m2d_links", title: "Linked NETs",
+    ctx: "Separate by default. Related structures (gate booth and HQ, ship and dock compound, train and station, raider camp and hideout) get a gateway link 30–50% of the time. City buildings are never linked (different owners).",
+    options: [["Right", "That frequency feels right."], ["More", "Link related structures more often."], ["Less", "Rarer still."]], rec: "Right" },
+  { key: "m2d_demo", title: "City district demo",
+    ctx: "220 × 170 squares (440 × 340 m), about 40 buildings, 900 devices and 40 NETs, generated in about 5 seconds on this container's CPU.",
+    options: [["Good", "Enough for a tech demo."], ["Bigger", "Push it further (and optimise generation)."]], rec: "Good" },
+  { key: "m2d_next", title: "Ready for M3?",
+    ctx: "M3 is the playable greybox: a Solo and a Netrunner on a generated scene, with move-only grid, hit percentages, destructible cover (walls included), line of sight, and jacking into the target's NET.",
+    options: [["Start M3", "Generation is good enough to build on; polish it later as needed."], ["One more pass", "Another generation round first. Say what in the note."]], rec: "Start M3" },
+  { key: "m2d_general", title: "Anything else", ctx: "Scenes you want next, things that feel wrong, ideas.", options: [], rec: "" },
 ];
 
 // ---------- data access ----------
@@ -201,8 +203,9 @@ const seeds = [...new Set(MAPS.map(m => m.seed))];
 const secs = [...new Set(MAPS.map(m => m.sec))];
 const SCENE_KEYS = Object.keys(SCENES).filter(k => MAPS.some(m => m.scene === k));
 const SEC_NAMES = ["Basic", "Standard", "Uncommon", "Advanced"];
-const state = { seed: seeds[0], sec: secs[secs.length - 1], floor: 0, zones: true, cover: true, devices: true, scene: SCENE_KEYS[0], struct: -1, hlDevices: new Set(), hlNode: -1 };
-const getMap = (scene) => MAPS.find(m => m.scene === scene && m.seed === state.seed && m.sec === state.sec);
+const state = { seed: seeds[0], sec: secs[secs.length - 1], floor: 0, zones: true, cover: true, devices: true, ports: false, scene: SCENE_KEYS[0], struct: -1, hlDevices: new Set(), hlNode: -1 };
+// Demo scenes exist at one seed/security only: fall back to whatever is there.
+const getMap = (scene) => MAPS.find(m => m.scene === scene && m.seed === state.seed && m.sec === state.sec) || MAPS.find(m => m.scene === scene);
 
 // ---------- palette ----------
 const css = getComputedStyle(document.documentElement);
@@ -233,6 +236,8 @@ function draw(canvas, m, c, opts = {}) {
     const i = y * m.w + x, t = +fl.t[i], X = x * c, Y = y * c;
     if (t === 0) { if (f > 0) { g.fillStyle = GROUND[m.ground.charCodeAt(i) - 48] || GROUND[0]; g.globalAlpha = 0.35; g.fillRect(X, Y, c, c); g.globalAlpha = 1; } continue; }
     if (t === 7) { g.fillStyle = WATER; g.fillRect(X, Y, c, c); continue; }
+    if (t === 8) { g.fillStyle = "#3e464e"; g.fillRect(X, Y, c, c); if (state.zones && fl.z[i] !== ".") { g.globalAlpha = 0.35; g.fillStyle = ZONE[+fl.z[i]]; g.fillRect(X, Y, c, c); g.globalAlpha = 1; } continue; }
+    if (t === 9) { g.fillStyle = "#59636c"; g.fillRect(X, Y, c, c); g.fillStyle = "#7d8891"; g.fillRect(X, Y, c, Math.max(1, c * .12)); g.fillRect(X, Y + c * .88, c, Math.max(1, c * .12)); continue; }
     if (t === 2) {
       const mat = +fl.m[i];
       if (mat === 3) { g.fillStyle = GROUND[m.ground.charCodeAt(i) - 48] || GROUND[0]; g.fillRect(X, Y, c, c); g.strokeStyle = WALL[3]; g.lineWidth = Math.max(1, c / 6); g.strokeRect(X + c * .3, Y + c * .3, c * .4, c * .4); }
@@ -258,6 +263,13 @@ function draw(canvas, m, c, opts = {}) {
     g.fillRect(cv.p[0] * c + pad, cv.p[1] * c + pad, c - 2 * pad, c - 2 * pad);
   }
   if (state.devices && c >= 4) for (const d of m.dev) if (d.f === f) drawDevice(g, d, c, opts.hl && opts.hl.has(d.id));
+  // Ladders / fire escapes: rails at the base (street) and the top (roof edge).
+  for (const cn of m.conn) for (const end of [cn.a, cn.b]) if (end[2] === f && c >= 3) {
+    const X = end[0] * c, Y = end[1] * c;
+    g.strokeStyle = "#e9d38c"; g.lineWidth = Math.max(1, c / 8);
+    g.beginPath(); g.moveTo(X + c * .3, Y + c * .1); g.lineTo(X + c * .3, Y + c * .9); g.moveTo(X + c * .7, Y + c * .1); g.lineTo(X + c * .7, Y + c * .9);
+    for (let k = 1; k < 4; k++) { g.moveTo(X + c * .3, Y + c * k / 4); g.lineTo(X + c * .7, Y + c * k / 4); } g.stroke();
+  }
   for (const e of m.ent) if (e.f === f && e.k === "spawn") { g.fillStyle = tok("--danger"); g.beginPath(); g.arc(e.p[0] * c + c / 2, e.p[1] * c + c / 2, Math.max(2, c * 0.5), 0, Math.PI * 2); g.fill(); }
   // Structure outlines; the selected one is brighter, the target gets a star.
   for (const st of m.structures) {
@@ -301,7 +313,7 @@ function seg(id, items, key, label, after) {
     el.appendChild(b);
   }
 }
-for (const [id, key] of [["lz", "zones"], ["lc", "cover"], ["ld", "devices"]]) {
+for (const [id, key] of [["lz", "zones"], ["lc", "cover"], ["ld", "devices"], ["lp", "ports"]]) {
   document.getElementById(id).onchange = (e) => { state[key] = e.target.checked; renderMaps(); };
 }
 function pickTarget() { const m = getMap(state.scene); const t = m.structures.find(s => s.target); state.struct = t ? t.id : -1; }
@@ -362,7 +374,8 @@ function renderStructs() {
   host.innerHTML = m.structures.map(st => {
     const net = m.nets[String(st.id)];
     const info = st.kind === "building" ? `${st.floors} floor${st.floors > 1 ? "s" : ""} · ${SEC_NAMES[st.sec]}` : "outdoor";
-    return `<button type="button" class="brow" data-id="${st.id}" aria-pressed="${st.id === state.struct}"><span class="k">${info}</span><span>${esc(structName(st))}${st.target ? ' <span class="t">★ target</span>' : ""}</span><span class="k">${net ? net.nodes.length + " nodes" : "no NET"}</span></button>`;
+    const links = m.links.filter(l => l.a === st.id || l.b === st.id).map(l => structName(m.structures[l.a === st.id ? l.b : l.a]));
+    return `<button type="button" class="brow" data-id="${st.id}" aria-pressed="${st.id === state.struct}"><span class="k">${info}</span><span>${esc(structName(st))}${st.target ? ' <span class="t">★ target</span>' : ""}${links.length ? ` <span class="k">↔ ${esc(links.join(", "))}</span>` : ""}</span><span class="k">${net ? net.nodes.length + " nodes" : "no NET"}</span></button>`;
   }).join("");
   host.querySelectorAll(".brow").forEach(b => b.onclick = () => { state.struct = +b.dataset.id; state.hlDevices = new Set(); state.hlNode = -1; renderStructs(); renderBig(); renderNet(); });
 }
@@ -377,7 +390,7 @@ function layoutNet(net) {
   const pos = {};
   for (const s of net.subnets) {
     pos[s.hub] = { ...cell[s.id] };
-    const members = net.nodes.filter(n => n.s === s.id && n.t !== "hub" && n.t !== "firewall");
+    const members = net.nodes.filter(n => n.s === s.id && n.t !== "hub" && n.t !== "firewall" && !n.hidden);
     members.forEach((n, i) => {
       const a = -Math.PI / 2 + (i / Math.max(1, members.length)) * Math.PI * 2;
       const rr = n.t === "port" ? R * 0.62 : R;
@@ -396,7 +409,11 @@ function layoutNet(net) {
   return { pos, W: X0 * 2 + zones * CW, H: Y0 + (maxRow + 1) * CH + 10, CW, X0, zones };
 }
 function renderNet() {
-  const m = getMap(state.scene), svg = document.getElementById("net"), net = m.nets[String(state.struct)];
+  const m = getMap(state.scene), svg = document.getElementById("net"), full = m.nets[String(state.struct)];
+  // Ports hidden by default (review: they make the graph busy): count them on their hub instead.
+  const net = !full || state.ports ? full : { ...full,
+    nodes: full.nodes.map(n => n.t === "port" ? { ...n, hidden: true } : n),
+    edges: full.edges.filter(([a, b]) => full.nodes[a].t !== "port" && full.nodes[b].t !== "port") };
   const meta = document.getElementById("netmeta");
   if (!net) { svg.innerHTML = ""; svg.setAttribute("viewBox", "0 0 10 1"); meta.textContent = "This structure has no NET."; return; }
   const { pos, W, H, CW, X0, zones } = layoutNet(net);
@@ -405,7 +422,10 @@ function renderNet() {
   for (let z = 1; z <= zones; z++) s += `<text x="${X0 + (z - 1) * CW + CW / 2}" y="16" text-anchor="middle" style="font-size:12px">${ZONE_LABEL[z].toUpperCase()}</text>`;
   for (const [a, b] of net.edges) s += `<line class="edge" x1="${pos[a].x}" y1="${pos[a].y}" x2="${pos[b].x}" y2="${pos[b].y}"/>`;
   const iceAt = {}; for (const i of net.ice) (iceAt[i.node] = iceAt[i.node] || []).push(i);
+  const portsAt = {};
+  if (!state.ports) for (const [a, b] of full.edges) { const pn = full.nodes[a].t === "port" ? a : full.nodes[b].t === "port" ? b : -1; if (pn >= 0) { const hub = pn === a ? b : a; portsAt[hub] = (portsAt[hub] || 0) + 1; } }
   for (const n of net.nodes) {
+    if (n.hidden) continue;
     const p = pos[n.id], hl = state.hlNode === n.id, col = NODE[n.t];
     let glyph;
     if (n.t === "hub") glyph = `<circle class="glyph" cx="${p.x}" cy="${p.y}" r="11" fill="${ZONE[n.z]}" stroke="${col}" stroke-width="2"/>`;
@@ -417,6 +437,7 @@ function renderNet() {
     const ices = iceAt[n.id] || [];
     ices.filter(i => !i.patrol).forEach((i, k) => { extra += `<circle cx="${p.x + 12 + k * 8}" cy="${p.y - 11}" r="3.6" fill="${tok("--danger")}"/>`; });
     if (ices.some(i => i.patrol)) extra += `<circle cx="${p.x}" cy="${p.y}" r="19" fill="none" stroke="${tok("--danger")}" stroke-width="2"/>`;
+    if (portsAt[n.id]) extra += `<text x="${p.x}" y="${p.y + 28}" text-anchor="middle" style="fill:${tok("--net")};font-size:11px">⇢${portsAt[n.id]}</text>`;
     s += `<g class="node${hl ? " hl" : ""}" data-id="${n.id}">${extra}${glyph}</g>`;
   }
   svg.innerHTML = s;
@@ -426,6 +447,7 @@ function renderNet() {
       const n = net.nodes[+el.dataset.id];
       state.hlNode = n.id;
       const ids = new Set(n.devices || (n.device >= 0 ? [n.device] : []));
+      if (n.t === "hub" && !state.ports) for (const p of full.nodes) if (p.t === "port" && full.edges.some(([a, b]) => (a === p.id && b === n.id) || (b === p.id && a === n.id))) ids.add(p.device);
       state.hlDevices = ids;
       const ices = (iceAt[n.id] || []).map(i => i.kind + (i.patrol ? " (patrol)" : ""));
       say(`<b>${esc(nodeLabel(n))}</b>` + (n.no ? " · net-only" : "") + (ices.length ? ` · Black ICE: ${esc(ices.join(", "))}` : "") + (ids.size ? ` · ${ids.size} device${ids.size > 1 ? "s" : ""}` : ""));
@@ -446,7 +468,7 @@ function renderLegend() {
 }
 
 const floorsOf = () => { const m = getMap(state.scene); return [...Array(m.nf).keys()]; };
-const floorLabel = (v) => v === 0 ? "Ground" : `Floor ${v + 1}`;
+const floorLabel = (v) => v === 0 ? "Ground" : `Level ${v + 1}`;
 function renderMaps() {
   const m = getMap(state.scene);
   if (state.floor >= m.nf) state.floor = 0;

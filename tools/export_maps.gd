@@ -14,8 +14,9 @@ func _initialize() -> void:
 	for scene in SceneGen.scene_types():
 		if scene == "lone_building":
 			continue
-		for s in SEEDS:
-			for sec in [1, 3]:
+		var demo: bool = RulesDB.gen("scenes.json")[scene].get("demo", false)
+		for s in ([SEEDS[0]] if demo else SEEDS):
+			for sec in ([3] if demo else [1, 3]):
 				var t0 := Time.get_ticks_msec()
 				var m := SceneGen.generate(s, scene, {"security": sec})
 				var ms := Time.get_ticks_msec() - t0

@@ -50,6 +50,8 @@ def pack(m):
         "structures": [{"id": st["id"], "kind": st["kind"], "site": st["site"], "rect": st["rect"], "floors": st["floors"],
                         "sec": st["security"], "target": st["target"]} for st in m["structures"]],
         "scene": m["params"].get("scene", ""),
+        "conn": m.get("connectors", []),
+        "links": m.get("net_links", []),
     }
 
 

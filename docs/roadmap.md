@@ -6,7 +6,7 @@ Check-ins (🔶) are where work pauses for a user decision or review.
 |---|---|---|---|
 | M0 | Skeleton: project, test runner, conventions | ✅ done | — |
 | M1 | Rules core (headless): checks, skills, initiative, weapons/ROF/autofire, SP + ablation, aimed shots, damage, Critical Injuries, death saves, Humanity, cyberware, Solo Combat Awareness, recruits | ✅ done (reviewed) | ✅ |
-| M2 | Procedural generation: multi-floor maps, cover, hackables, coupled Net Architectures (+ Netrunner Interface rules); debug renders | 🔁 revising per review (M2c: scenes) | 🔶 M2c review page (keys m2c_*) |
+| M2 | Procedural generation: multi-floor maps, cover, hackables, coupled Net Architectures (+ Netrunner Interface rules); debug renders | 🔁 revising per review (M2d: verticality) | 🔶 M2d review page (keys m2d_*) |
 | M3 | Playable greybox: Solo vs Netrunner on a generated map, move-only grid, % UI, destructible cover | — | 🔶 user plays locally |
 | M4 | Visual pass: pixel post-process, neon lighting/bloom, VFX, tuning controls | — | 🔶 aesthetic review on user's GPU |
 | M5+ | Gigs/fixers, base & downtime, progression, Medtech, Tech, reinforcements, cyberpsychosis | — | per feature |
@@ -41,3 +41,10 @@ Check-ins (🔶) are where work pauses for a user decision or review.
 - ICE budget right; tune later. NET complexity right; intro gigs even simpler → net_scale "intro".
 - Jack-in: deterministic — each access point wired to one specific node → per-terminal port nodes.
 - Site layouts: buildings fine, but need outdoor areas, multiple buildings, purpose-built scenes, larger maps → SceneGen (street block, megablock, shipyard, badlands, rail yard, corp campus).
+
+### M2c review verdicts (user)
+- Scene types approved; keep adding over time. Add verticality → roofs (hatch/ladder access), skybridges, footbridges over roads and rail.
+- Scene size right for gigs; bigger city as a tech demo → city_district (4x3 blocks).
+- NETs: mostly separate, sometimes linked; ~1.5-1.75x too complex → trimmed ~1.6x, related-structure links 30-50%.
+- Ports approved; too busy in the viewer → hidden by default with per-hub counts.
+- Walls/doors use the book's cover values (p182-183); fences stop movement, not bullets.
