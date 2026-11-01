@@ -16,7 +16,7 @@ Design source of truth: `docs/design-spec.md`. Milestones and status: `docs/road
 - `src/data/` — `Resource` definitions (characters, weapons, cyberware, roles).
 - `data/rules/` — rules content JSON. skills/cyberware/roles are GENERATED: edit `docs/rules/*.md` or `tools/gen_rules_data.py`, then run `python3 tools/gen_rules_data.py`. weapons/armor/critical_injuries are hand-edited.
 - `docs/rules/` — page-cited rules reference distilled from the core book. Read these instead of the PDF.
-- `src/gen/`: SceneGen (scene planners, outdoor yards/fences/props) → BuildingGen (one building plot) → Layouts/Furnish; data in `data/gen/` (scenes, sites, rooms). `src/gen/` maps, `src/net/` net architectures, `src/tactical/` grid/turns/scenes, `src/ui/`, `src/meta/` base/economy.
+- `src/gen/`: SceneGen (scene planners, outdoor yards/fences/props) and DistrictGen (city neighbourhoods from profiles) → BuildingGen (one building plot, any Footprint shape) → Layouts/Furnish; data in `data/gen/` (scenes, districts, sites, rooms). `src/gen/` maps, `src/net/` net architectures, `src/tactical/` grid/turns/scenes, `src/ui/`, `src/meta/` base/economy.
 - Keep rules code independent of presentation so it stays testable headless.
 
 ## Conventions

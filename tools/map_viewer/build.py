@@ -13,6 +13,11 @@ from pathlib import Path
 HERE = Path(__file__).parent
 
 
+_ROOT = HERE.parent.parent
+LABELS = {k: v.get("name", k) for k, v in json.load(open(_ROOT / "data/gen/scenes.json")).items() if not k.startswith("_")}
+LABELS.update({k: v.get("name", k) for k, v in json.load(open(_ROOT / "data/gen/districts.json")).items() if not k.startswith("_")})
+
+
 def pack(m):
     w, h = m["w"], m["h"]
     zone_of = {r["id"]: r["zone"] for r in m["rooms"]}
@@ -50,7 +55,8 @@ def pack(m):
         "ground": "".join(chr(48 + g) for g in m["ground"]),
         "structures": [{"id": st["id"], "kind": st["kind"], "site": st["site"], "rect": st["rect"], "floors": st["floors"],
                         "sec": st["security"], "target": st["target"]} for st in m["structures"]],
-        "scene": m["params"].get("scene", ""),
+        "scene": m["params"].get("scene", "") + (":" + m["params"]["profile"] if m["params"].get("scene") == "neighborhood" else ""),
+        "label": LABELS.get(m["params"].get("profile", "") if m["params"].get("scene") == "neighborhood" else m["params"].get("scene", ""), ""),
         "conn": m.get("connectors", []),
         "links": m.get("net_links", []),
     }

@@ -6,7 +6,7 @@ Check-ins (🔶) are where work pauses for a user decision or review.
 |---|---|---|---|
 | M0 | Skeleton: project, test runner, conventions | ✅ done | — |
 | M1 | Rules core (headless): checks, skills, initiative, weapons/ROF/autofire, SP + ablation, aimed shots, damage, Critical Injuries, death saves, Humanity, cyberware, Solo Combat Awareness, recruits | ✅ done (reviewed) | ✅ |
-| M2 | Procedural generation: multi-floor maps, cover, hackables, coupled Net Architectures (+ Netrunner Interface rules); debug renders | 🔁 revising per review (M2e) | 🔶 M2e review page (keys m2e_*) |
+| M2 | Procedural generation: multi-floor maps, cover, hackables, coupled Net Architectures (+ Netrunner Interface rules); debug renders | 🔁 revising per review (M2f) | 🔶 M2f review page (keys m2f_*) |
 | M3 | Playable greybox: Solo vs Netrunner on a generated map, move-only grid, % UI, destructible cover | — | 🔶 user plays locally |
 | M4 | Visual pass: pixel post-process, neon lighting/bloom, VFX, tuning controls | — | 🔶 aesthetic review on user's GPU |
 | M5+ | Gigs/fixers, base & downtime, progression, Medtech, Tech, reinforcements, cyberpsychosis | — | per feature |
@@ -56,3 +56,9 @@ Check-ins (🔶) are where work pauses for a user decision or review.
 - City district size fine but too grid-like → diagonal avenues, cut corners. Too much cover in roads → curb parking only; barriers rarer. Cars are rare in the Time of the Red.
 - Asked what's missing → added windows, deployment zone, guard posts, explosive barrels; proposed lighting/stealth, civilians, sewers, vehicles, hazards, weather for prioritisation.
 - One more generation pass before M3 (this M2e).
+
+### M2e review verdicts (user)
+- NETs right in size, but too many devices per hub → content in branches of ≤3 behind junction rings (graphs, readable).
+- Sockets: make them bidirectional; hard to find → paired sockets, links more frequent.
+- Break grids more, everywhere; think wider about Night City establishments; aim for parameters per neighbourhood → DistrictGen + 8 profiles (data/gen/districts.json), 13 new establishments + outdoor uses, footprint shapes, decay.
+- Windows/deploy/posts/barrels approved. One more pass before M3 (this M2f).

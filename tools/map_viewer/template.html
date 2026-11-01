@@ -51,7 +51,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, canvas:focus-
 .chk { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--fg); cursor: pointer; }
 .chk input { accent-color: var(--accent); }
 
-.strip { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 12px; }
+.strip { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
 .thumb { display: grid; gap: 6px; background: transparent; border: 0; padding: 0; color: var(--fg); text-align: left; cursor: pointer; min-width: 0; }
 .thumb canvas { width: 100%; height: auto; display: block; border: 1px solid var(--line); border-radius: 3px; }
 .thumb[aria-pressed="true"] canvas { border-color: var(--accent); }
@@ -110,11 +110,10 @@ textarea { width: 100%; min-height: 56px; resize: vertical; background: var(--bg
 
 <div class="wrap">
   <header>
-    <span class="eyebrow">M2e review · last generation pass before M3</span>
+    <span class="eyebrow">M2f review · neighbourhoods, establishments, branching NETs</span>
     <h1>Gig Site Generator Review</h1>
-    <p class="muted">Changes since your last review: security levels are now L1–L4 and each building type uses only as many as it needs (a shop has two). Fewer buildings carry a NET, and each NET is leaner. Linked NETs are sockets. Some city layouts get a diagonal avenue and cut-corner buildings. Cars are rare, and parked only at the curb. New for M3: windows (glass, plus bulletproof glass in secure rooms), the crew's deployment zone (green), guard posts (amber triangles) and explosive barrels (orange). Floors are Floor 1–4; each building's roof sits one floor above its top storey. One square is 2 m.</p>
+    <p class="muted">New this round: eight Night City neighbourhood profiles (end of the scene strip), each with its own street pattern (grid with T-junctions, organic arterials, radial plaza) and diagonal or curved roads on top. Thirteen new establishments, plus markets, parks and fenced substations. Buildings can be L, U, T, cut-corner or courtyard shaped, and ruined areas have breached walls and holes in roofs. NETs branch through small junction rings, and sockets now come in pairs so you can see where each lands. Floors are Floor 1–4; security levels L1–L4. One square is 2 m.</p>
   </header>
-
   <div class="controls" role="toolbar" aria-label="Map settings">
     <div class="ctl"><span>Seed</span><div class="seg" id="seed"></div></div>
     <div class="ctl"><span>Security</span><div class="seg" id="sec"></div></div>
@@ -177,34 +176,39 @@ const SCENES = {
   corp_campus: { name: "Corporate campus", desc: "Fenced grounds with a gate booth, parking, plaza, a three-storey HQ and a two-storey service building, sometimes joined by a skybridge." },
   city_district: { name: "City district", desc: "Tech demo: a 4 × 3 grid of city blocks, about 40 buildings with roofs, skybridges and footbridges over the roads. About 5 seconds to generate." },
 };
-const SITE_NAMES = { corp_office: "Corporate office", warehouse: "Warehouse", gang_hideout: "Gang hideout", apartments: "Apartment block", club: "Club", shop: "Shop", ship: "Cargo ship", train: "Train", station: "Station", shack: "Shack", guard_booth: "Guard booth", corp_hq: "Corporate HQ", lot: "Parking lot", courtyard: "Courtyard and parking", compound: "Fenced compound", station_grounds: "Platform", campus: "Campus grounds" };
+const SITE_NAMES = { clinic: "Ripperdoc clinic", bar: "Bar", bd_parlor: "Braindance parlour", capsule_hotel: "Capsule hotel", ncpd_precinct: "NCPD precinct", factory: "Factory", data_center: "Data centre", temple: "Temple", villa: "Villa", chop_shop: "Chop shop", gun_shop: "Gun shop", squat: "Squat", substation_booth: "Substation control", market: "Market", park: "Park", plaza: "Plaza", parking_lot: "Parking lot", rubble_field: "Rubble field", substation: "Power substation", corp_office: "Corporate office", warehouse: "Warehouse", gang_hideout: "Gang hideout", apartments: "Apartment block", club: "Club", shop: "Shop", ship: "Cargo ship", train: "Train", station: "Station", shack: "Shack", guard_booth: "Guard booth", corp_hq: "Corporate HQ", lot: "Parking lot", courtyard: "Courtyard and parking", compound: "Fenced compound", station_grounds: "Platform", campus: "Campus grounds" };
 
 const DECISIONS = [
-  { key: "m2e_nets", title: "NETs: fewer and leaner",
-    ctx: "One subnet per security level, levels per building type (shop L1–L2, booth or shack L1 only, corporate L1–L4). Advanced targets now 21–33 nodes. Non-target buildings get a NET only sometimes (shops 15%, apartments 20%, guard booths 80%, shacks never).",
-    options: [["Right", "Good."], ["Still big", "Trim further."], ["Too lean", "Bring some back."]], rec: "Right" },
-  { key: "m2e_sockets", title: "Linked NETs as sockets",
-    ctx: "A purple socket in one NET points at a hub of the related building's NET; stepping onto it puts the runner in that NET (progress in each is remembered). Look at the corporate campus or shipyard and pick the gate booth or compound.",
+  { key: "m2f_branching", title: "NET branching",
+    ctx: "Content now sits in small branches (up to 3) behind grey junction nodes; when a subnet has two or more junctions they form a ring that meets the hub twice, so it is a graph with alternate routes, but easy to read. Compare a few targets.",
+    options: [["Right", "Clearer."], ["Adjust", "Say what in the note."]], rec: "Right" },
+  { key: "m2f_sockets", title: "Two-way sockets",
+    ctx: "Each link is now a pair: a socket in each NET, each landing on the other, and the socket names the building it leads to. Links are more common (related buildings 70–90%, skybridged buildings 70%).",
     options: [["Approve", "As described."], ["Adjust", "Say what in the note."]], rec: "Approve" },
-  { key: "m2e_diagonal", title: "Breaking the grid",
-    ctx: "A diagonal avenue at 25–60° in about a quarter of street blocks and 60% of districts; sliced lots keep their largest piece (stepped facades) or become parking. 15% of other buildings get a cut corner. Try a few seeds of the street block and the district.",
-    options: [["Right", "Good amount."], ["More", "More diagonals and odd shapes."], ["Less", "Rarer."]], rec: "Right" },
-  { key: "m2e_new", title: "Windows, deployment, posts, barrels",
-    ctx: "Windows: glass (no cover, see-through) and bulletproof glass in L3+ rooms (15 HP, see-through). Crew deploys at the street entry farthest from the target. Guard posts in guard rooms and behind security doors. Explosive fuel barrels in warehouses, yards and engine rooms.",
-    options: [["Approve", "Good set for M3."], ["Adjust", "Say what in the note."]], rec: "Approve" },
-  { key: "m2e_missing", title: "What else is missing? (pick what matters)",
-    ctx: "Candidates I'd add later, in rough priority: (1) light and darkness for stealth (street lights, floodlights, power cut via the NET); (2) civilians and their panic; (3) sewers and manholes as an underground layer; (4) drivable or ramming vehicles; (5) hazards like electrified fences, steam vents, gas leaks; (6) weather (rain, fog) affecting sight. Note which you want and in what order.",
-    options: [["Noted", "I've listed my priorities in the note."]], rec: "" },
-  { key: "m2e_next", title: "Ready for M3?",
-    ctx: "M3 is the playable greybox: a Solo and a Netrunner on a generated scene, with move-only grid, hit percentages, destructible cover (walls and windows included), line of sight, guards at posts, and jacking into the target's NET.",
+  { key: "m2f_profiles", title: "Neighbourhood profiles",
+    ctx: "Eight profiles at the end of the strip: Corporate Center, Executive Zone, Market streets, Mixed residential, Combat Zone, Hot Zone ruins, Industrial, Pacifica. Each sets street pattern, block size, building mix, heights, security, decay and cars. All are data (data/gen/districts.json), so more neighbourhoods or tweaks are cheap.",
+    options: [["Approve", "Good base; we'll tune per neighbourhood over time."], ["Adjust", "Say which and how in the note."]], rec: "Approve" },
+  { key: "m2f_establishments", title: "Establishments",
+    ctx: "New: ripperdoc clinic, bar, braindance parlour, capsule hotel, NCPD precinct, factory, data centre, temple, villa, chop shop, gun shop, squat, substation; outdoor markets, parks, plazas, rubble fields, fenced substations with electrified transformers. Candidates for next time: Trauma Team station, night club with VIP floor, pachinko arcade, AV pad, church, school, hospital, megabuilding with internal mall, sewer access.",
+    options: [["Approve", "Good set; add from the candidates over time."], ["Adjust", "Say what's off or which candidates to prioritise."]], rec: "Approve" },
+  { key: "m2f_shapes", title: "Shapes and decay",
+    ctx: "Any building can be L, U, T, cut-corner or courtyard-shaped by its type's weights; diagonals and curves cut lots into irregular pieces. Ruined areas have breached walls, collapsed interior walls and roof holes.",
+    options: [["Right", "Good amount."], ["More", "More irregular shapes and ruin."], ["Less", "Tone it down."]], rec: "Right" },
+  { key: "m2f_missing", title: "Still missing? (priorities)",
+    ctx: "From last round, unranked: (1) light and darkness for stealth, (2) civilians, (3) sewers and manholes, (4) vehicles, (5) hazards (electrified fences, steam, gas), (6) weather. Rank the ones you want.",
+    options: [["Noted", "Priorities are in my note."]], rec: "" },
+  { key: "m2f_next", title: "Ready for M3?",
+    ctx: "M3: the playable greybox — Solo and Netrunner on a generated scene, move-only grid, hit percentages, destructible cover (walls and windows included), line of sight, guards at posts, jacking into the target's NET.",
     options: [["Start M3", "Generation is good enough to build on."], ["One more pass", "Say what in the note."]], rec: "Start M3" },
-  { key: "m2e_general", title: "Anything else", ctx: "Free notes.", options: [], rec: "" },
+  { key: "m2f_general", title: "Anything else", ctx: "Free notes.", options: [], rec: "" },
 ];
 
 // ---------- data access ----------
 const seeds = [...new Set(MAPS.map(m => m.seed))];
 const secs = [...new Set(MAPS.map(m => m.sec))];
-const SCENE_KEYS = Object.keys(SCENES).filter(k => MAPS.some(m => m.scene === k));
+const SCENE_KEYS = [...new Set(MAPS.map(m => m.scene))];
+const sceneName = (k) => (SCENES[k] && SCENES[k].name) || MAPS.find(m => m.scene === k).label || k;
+const sceneDesc = (k) => (SCENES[k] && SCENES[k].desc) || `Neighbourhood profile: ${sceneName(k)}. Street pattern, block size, building mix, heights, security and decay all come from the profile.`;
 const SEC_NAMES = ["Basic", "Standard", "Uncommon", "Advanced"];
 const state = { seed: seeds[0], sec: secs[secs.length - 1], floor: 0, zones: true, cover: true, devices: true, ports: false, scene: SCENE_KEYS[0], struct: -1, hlDevices: new Set(), hlNode: -1 };
 // Demo scenes exist at one seed/security only: fall back to whatever is there.
@@ -220,7 +224,7 @@ const GROUND = ["#0b0e11", "#23282c", "#33393e", "#353229", "#3e3226", "#2d3236"
 const GROUND_NAMES = ["", "Road", "Sidewalk", "Gravel", "Dirt", "Concrete", "Rail", "Dock", "Grass", "Sand"];
 const WATER = "#0f2836";
 const DEV = { camera: "#e2675f", door_lock: "#e3a843", turret: "#d77fd0", terminal: "#63c7d6", data_core: "#63c7d6", alarm_panel: "#f08b4b" };
-const NODE = { hub: "#46525c", firewall: tok("--accent"), file: tok("--net"), control: tok("--ok"), port: tok("--net"), socket: "#b48cf0" };
+const NODE = { junction: "#6a7782", hub: "#46525c", firewall: tok("--accent"), file: tok("--net"), control: tok("--ok"), port: tok("--net"), socket: "#b48cf0" };
 const coverColor = (hp) => hp >= 40 ? "#e1d3a6" : hp >= 20 ? "#b49b6c" : hp >= 10 ? "#8a7552" : "#5f513b";
 const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const structName = (st) => SITE_NAMES[st.site] || st.site;
@@ -330,7 +334,7 @@ function renderStrip() {
   for (const k of SCENE_KEYS) {
     const m = getMap(k);
     const b = document.createElement("button"); b.type = "button"; b.className = "thumb"; b.setAttribute("aria-pressed", String(state.scene === k));
-    b.innerHTML = `<canvas aria-hidden="true"></canvas><span>${SCENES[k].name}</span>`;
+    b.innerHTML = `<canvas aria-hidden="true"></canvas><span>${esc(sceneName(k))}</span>`;
     host.appendChild(b);
     draw(b.querySelector("canvas"), m, Math.max(1.5, (b.clientWidth || 180) / m.w), {});
     b.onclick = () => { state.scene = k; pickTarget(); state.hlDevices = new Set(); state.hlNode = -1; renderMaps(); };
@@ -346,6 +350,7 @@ function nodeLabel(n) {
     case "file": return n.label ? `File DV${n.dv} · ${n.label}` : `File DV${n.dv} · value ${n.value}`;
     case "control": return `Control DV${n.dv} · ${n.group.replace(/_/g, " ")}`;
     case "port": return `Jack-in port (${ZONE_LABEL[n.z]} subnet)`;
+    case "junction": return `Junction (${ZONE_LABEL[n.z]})`;
     case "socket": { const st = getMap(state.scene).structures[n.target_structure]; return `Socket → ${st ? structName(st) : "another NET"}`; }
   }
   return n.t;
@@ -354,8 +359,8 @@ function renderBig() {
   const m = getMap(state.scene), cv = document.getElementById("big");
   bigCell = Math.max(4, (cv.parentElement.clientWidth || 800) / m.w);
   draw(cv, m, bigCell, { hl: state.hlDevices, labels: true });
-  document.getElementById("scenetitle").textContent = SCENES[state.scene].name;
-  document.getElementById("scenedesc").textContent = SCENES[state.scene].desc;
+  document.getElementById("scenetitle").textContent = sceneName(state.scene);
+  document.getElementById("scenedesc").textContent = sceneDesc(state.scene);
   const f = state.floor;
   document.getElementById("stats").innerHTML = `<span><b>${m.w * 2}×${m.h * 2}</b> m</span><span>structures <b>${m.structures.length}</b></span><span>rooms <b>${m.rooms.filter(r => r.f === f).length}</b></span><span>cover <b>${m.cover.filter(c => c.f === f).length}</b></span><span>devices <b>${m.dev.filter(d => d.f === f).length}</b></span><span>NETs <b>${Object.keys(m.nets).length}</b></span>`;
   cv.onmousemove = (e) => {
@@ -396,14 +401,21 @@ function layoutNet(net) {
     cell[s.id] = { x: X0 + (s.zone - 1) * CW + CW / 2, y: Y0 + row * CH + CH / 2 };
   }
   const pos = {};
+  const adj0 = {}; for (const [a, b] of net.edges) { (adj0[a] = adj0[a] || []).push(b); (adj0[b] = adj0[b] || []).push(a); }
   for (const s of net.subnets) {
-    pos[s.hub] = { ...cell[s.id] };
-    const members = net.nodes.filter(n => n.s === s.id && n.t !== "hub" && n.t !== "firewall" && !n.hidden);
-    members.forEach((n, i) => {
-      const a = -Math.PI / 2 + (i / Math.max(1, members.length)) * Math.PI * 2;
-      const rr = n.t === "port" ? R * 0.62 : R;
-      pos[n.id] = { x: cell[s.id].x + Math.cos(a) * rr, y: cell[s.id].y + Math.sin(a) * rr };
-    });
+    const ctr = cell[s.id]; pos[s.hub] = { ...ctr };
+    const mine = net.nodes.filter(n => n.s === s.id && n.t !== "hub" && n.t !== "firewall" && !n.hidden);
+    const juncs = mine.filter(n => n.t === "junction");
+    const rest = mine.filter(n => n.t !== "junction");
+    juncs.forEach((n, i) => { const a = -Math.PI / 2 + i / juncs.length * Math.PI * 2; pos[n.id] = { x: ctr.x + Math.cos(a) * R * 0.75, y: ctr.y + Math.sin(a) * R * 0.75 }; });
+    const byParent = {};
+    for (const n of rest) { const pj = (adj0[n.id] || []).find(o => net.nodes[o].t === "junction" && net.nodes[o].s === s.id); const key = pj ?? "hub"; (byParent[key] = byParent[key] || []).push(n); }
+    for (const key in byParent) {
+      const list = byParent[key];
+      if (key === "hub") { list.forEach((n, i) => { const a = Math.PI / 2 + (i + 0.5) / list.length * Math.PI * 2; pos[n.id] = { x: ctr.x + Math.cos(a) * R * 0.45, y: ctr.y + Math.sin(a) * R * 0.45 }; }); continue; }
+      const jp = pos[key], out = Math.atan2(jp.y - ctr.y, jp.x - ctr.x);
+      list.forEach((n, i) => { const a = out + (i - (list.length - 1) / 2) * 0.8; pos[n.id] = { x: jp.x + Math.cos(a) * 26, y: jp.y + Math.sin(a) * 26 }; });
+    }
   }
   const adj = {}; for (const [a, b] of net.edges) { (adj[a] = adj[a] || []).push(b); (adj[b] = adj[b] || []).push(a); }
   const pairCount = {};
@@ -438,6 +450,7 @@ function renderNet() {
     let glyph;
     if (n.t === "hub") glyph = `<circle class="glyph" cx="${p.x}" cy="${p.y}" r="11" fill="${ZONE[n.z]}" stroke="${col}" stroke-width="2"/>`;
     else if (n.t === "firewall") glyph = `<path class="glyph" d="M${p.x} ${p.y - 9} L${p.x + 9} ${p.y} L${p.x} ${p.y + 9} L${p.x - 9} ${p.y} Z" fill="${col}" stroke="${col}"/>`;
+    else if (n.t === "junction") glyph = `<circle class="glyph" cx="${p.x}" cy="${p.y}" r="5" fill="${col}" stroke="${col}"/>`;
     else if (n.t === "port") glyph = `<circle class="glyph" cx="${p.x}" cy="${p.y}" r="5" fill="none" stroke="${col}" stroke-width="2"/>`;
     else if (n.t === "socket") glyph = `<path class="glyph" d="M${p.x - 8} ${p.y} L${p.x - 4} ${p.y - 7} L${p.x + 4} ${p.y - 7} L${p.x + 8} ${p.y} L${p.x + 4} ${p.y + 7} L${p.x - 4} ${p.y + 7} Z" fill="${col}" stroke="${col}"/><text x="${p.x}" y="${p.y + 20}" text-anchor="middle" style="fill:${col};font-size:10px">→ ${esc(structName(getMap(state.scene).structures[n.target_structure] || {site: "?"}))}</text>`;
     else glyph = `<rect class="glyph" x="${p.x - 7}" y="${p.y - 7}" width="14" height="14" rx="2" fill="${col}" stroke="${col}"/>`;
