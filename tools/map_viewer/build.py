@@ -25,18 +25,19 @@ def pack(m):
     rooms = [{"id": r["id"], "f": r["floor"], "k": r["kind"], "z": r["zone"], "b": r["bounds"]}
              for r in m["rooms"] if r["cells"] > 0]
 
-    def slim_arch(a):
-        fl = []
-        for f in a["floors"]:
-            e = {k: f[k] for k in ("id", "parent", "branch", "depth", "type", "zone") if k in f}
-            for k in ("dv", "ice", "devices", "group", "device", "value", "gate", "lobby"):
-                if k in f:
-                    e[k] = int(f[k]) if k == "dv" else f[k]
-            fl.append(e)
-        return {"difficulty": a["difficulty"], "style": a["style"], "floors": fl, "aps": a["access_points"]}
+    def slim_net(a):
+        nodes = []
+        for n in a["nodes"]:
+            e = {"id": n["id"], "t": n["type"], "z": n["zone"], "s": n["subnet"], "no": n.get("net_only", False)}
+            for k in ("dv", "devices", "group", "device", "value", "label"):
+                if k in n:
+                    e[k] = int(n[k]) if k in ("dv", "device", "value") else n[k]
+            nodes.append(e)
+        return {"difficulty": a["difficulty"], "complexity": a["complexity"], "budget": a["budget"], "spent": a["spent"],
+                "nodes": nodes, "edges": a["edges"], "subnets": a["subnets"], "ice": a["ice"], "aps": a["access_points"]}
 
     return {
-        "algo": m["algorithm"], "seed": m["seed"], "sec": m["params"]["security"], "w": w, "h": h,
+        "site": m["params"]["site"], "algo": m["algorithm"], "seed": m["seed"], "sec": m["params"]["security"], "w": w, "h": h,
         "nf": m["floors"], "floors": floors, "rooms": rooms,
         "doors": [{"f": d["floor"], "p": d["pos"], "s": d["security"]} for d in m["doors"]],
         "cover": [{"f": c["floor"], "p": c["pos"], "k": c["kind"], "hp": c["hp"]} for c in m["cover"]],
@@ -44,7 +45,7 @@ def pack(m):
                  "ap": d.get("access_point", False), "fv": d.get("file_value", 0)} for d in m["devices"]],
         "ent": [{"f": e["floor"], "p": e["pos"], "main": e["main"], "k": e["kind"]} for e in m["entrances"]],
         "vert": [{"t": v["type"], "p": v["pos"]} for v in m["verticals"]],
-        "net": {"stack": slim_arch(m["architecture"]), "mirrored": slim_arch(m["architecture_mirrored"])},
+        "net": slim_net(m["architecture"]),
     }
 
 

@@ -14,7 +14,7 @@
   "warehouse": {
     "name": "Warehouse",
     "layout": {"algorithm": "bsp", "min_room": 5, "max_room": 16, "corridor_depth": 1},
-    "density": 0.45,
+    "density": 0.3,
     "zones": {
       "public": {"entrance": "loading_dock", "small": "restroom", "large": "loading_dock", "rotation": ["dispatch_office"]},
       "staff":  {"small": "storage", "large": "warehouse_floor", "rotation": ["warehouse_floor", "workshop", "break_room"]},

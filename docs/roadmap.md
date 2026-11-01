@@ -34,3 +34,4 @@ Check-ins (🔶) are where work pauses for a user decision or review.
 - Black ICE from a per-site budget (security × gig threat) instead of the book's floor tables. Replaces the MIN_ICE stopgap.
 - Cover: lighter by default, density varies by area/room type.
 - Process: review artifacts must let the user record and save verdicts on the page itself.
+- M2b review page: same URL as M2 (https://claude.ai/artifact/USi3z8E9Nzg5U8D4oiJpo3). Verdicts save to the page's db collection `verdicts` (one doc per decision key: choice, note, updated) — read them with ArtifactData list before acting on the review.

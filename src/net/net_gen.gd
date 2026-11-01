@@ -136,36 +136,33 @@ static func _firewall(a: NetArchitecture, outer_hub: int, inner_hub: int, zone: 
 	a.link(fw, inner_hub)
 
 
+## Spend the whole-site budget: each pick prefers the strongest affordable ICE, then lands in a
+## subnet chosen with weight = zone depth (deeper zones get more), guarding a node or patrolling.
 static func _spend_ice(a: NetArchitecture, dice: Dice, keys: Array, hub_of: Dictionary, threat: float) -> void:
 	var table: Dictionary = RulesDB.load_json("black_ice.json")["ice"]
 	a.budget = roundi(BUDGET[a.difficulty] * threat)
-	var wsum := 0.0
+	var zone_w := PackedFloat32Array()
 	for k in keys:
-		wsum += float(k.x)  # public 1 … vault 4: deeper zones get more
-	var carry := 0.0
-	for i in keys.size():
-		var k: Vector2i = keys[i]
-		var share: float = a.budget * float(k.x) / wsum + carry
-		var pts := floori(share)
-		carry = share - pts
-		if i == keys.size() - 1:
-			pts = a.budget - a.spent
+		zone_w.append(float(k.x) * float(k.x))  # public 1, staff 4, secure 9, vault 16
+	while a.spent < a.budget:
+		var left := a.budget - a.spent
+		var options := []
+		var wts := PackedFloat32Array()
+		for kind in table:
+			var e: Dictionary = table[kind]
+			if int(e.tier) <= a.difficulty and int(e.points) <= left:
+				options.append(kind)
+				wts.append(pow(float(e.points), 1.5))
+		if options.is_empty():
+			break
+		var kind: String = options[dice.rng.rand_weighted(wts)]
+		var k: Vector2i = keys[dice.rng.rand_weighted(zone_w)]
 		var sid: int = a.nodes[hub_of[k]].subnet
 		var guardable := a.nodes.filter(func(n): return n.subnet == sid and n.type in ["file", "control", "firewall"])
-		while pts > 0:
-			var options := []
-			for kind in table:
-				var e: Dictionary = table[kind]
-				if int(e.tier) <= a.difficulty and int(e.points) <= pts:
-					options.append(kind)
-			if options.is_empty():
-				break
-			var kind: String = options[dice.rng.randi_range(0, options.size() - 1)]
-			var patrol := dice.rng.randf() < 0.5 * a.complexity
-			var node: int = hub_of[k] if patrol or guardable.is_empty() else guardable[dice.rng.randi_range(0, guardable.size() - 1)].id
-			a.ice.append({"id": a.ice.size(), "kind": kind, "node": node, "patrol": patrol})
-			pts -= int(table[kind].points)
-			a.spent += int(table[kind].points)
+		var patrol := dice.rng.randf() < 0.5 * a.complexity
+		var node: int = hub_of[k] if patrol or guardable.is_empty() else guardable[dice.rng.randi_range(0, guardable.size() - 1)].id
+		a.ice.append({"id": a.ice.size(), "kind": kind, "node": node, "patrol": patrol})
+		a.spent += int(table[kind].points)
 
 
 static func _shuffled(dice: Dice, arr: Array) -> Array:
