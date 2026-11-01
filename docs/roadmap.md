@@ -6,7 +6,7 @@ Check-ins (🔶) are where work pauses for a user decision or review.
 |---|---|---|---|
 | M0 | Skeleton: project, test runner, conventions | ✅ done | — |
 | M1 | Rules core (headless): checks, skills, initiative, weapons/ROF/autofire, SP + ablation, aimed shots, damage, Critical Injuries, death saves, Humanity, cyberware, Solo Combat Awareness, recruits | ✅ done (reviewed) | ✅ |
-| M2 | Procedural generation: multi-floor maps, cover, hackables, coupled Net Architectures (+ Netrunner Interface rules); debug renders | 🔁 revising per review (M2d: verticality) | 🔶 M2d review page (keys m2d_*) |
+| M2 | Procedural generation: multi-floor maps, cover, hackables, coupled Net Architectures (+ Netrunner Interface rules); debug renders | 🔁 revising per review (M2e) | 🔶 M2e review page (keys m2e_*) |
 | M3 | Playable greybox: Solo vs Netrunner on a generated map, move-only grid, % UI, destructible cover | — | 🔶 user plays locally |
 | M4 | Visual pass: pixel post-process, neon lighting/bloom, VFX, tuning controls | — | 🔶 aesthetic review on user's GPU |
 | M5+ | Gigs/fixers, base & downtime, progression, Medtech, Tech, reinforcements, cyberpsychosis | — | per feature |
@@ -48,3 +48,11 @@ Check-ins (🔶) are where work pauses for a user decision or review.
 - NETs: mostly separate, sometimes linked; ~1.5-1.75x too complex → trimmed ~1.6x, related-structure links 30-50%.
 - Ports approved; too busy in the viewer → hidden by default with per-hub counts.
 - Walls/doors use the book's cover values (p182-183); fences stop movement, not bullets.
+
+### M2d review verdicts (user)
+- Verticality approved.
+- NETs still big: not everything needs all security levels → per-site `levels`; rename levels L1, L2, L3… (display); not every building needs a NET → per-site `net_chance`; NETs should be impactful, not volume.
+- Linked NETs as "sockets": a node pointing into the other NET; taking it moves the runner there.
+- City district size fine but too grid-like → diagonal avenues, cut corners. Too much cover in roads → curb parking only; barriers rarer. Cars are rare in the Time of the Red.
+- Asked what's missing → added windows, deployment zone, guard posts, explosive barrels; proposed lighting/stealth, civilians, sewers, vehicles, hazards, weather for prioritisation.
+- One more generation pass before M3 (this M2e).

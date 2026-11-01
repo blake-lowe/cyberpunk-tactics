@@ -64,12 +64,13 @@
  },
  "city_district": {
   "name": "City district",
-  "desc": "Tech demo: a 4 \u00d7 3 grid of city blocks, dozens of buildings, skybridges and footbridges.",
+  "desc": "Tech demo: a 4 \u00d7 3 grid of city blocks cut by a diagonal avenue, about 40 buildings, skybridges and footbridges.",
   "demo": true,
   "params": {
    "w": 220,
    "h": 170,
-   "floors": 3
+   "floors": 3,
+   "diagonal_chance": 1.0
   }
  }
 }

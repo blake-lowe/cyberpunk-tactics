@@ -29,7 +29,7 @@ def pack(m):
         nodes = []
         for n in a["nodes"]:
             e = {"id": n["id"], "t": n["type"], "z": n["zone"], "s": n["subnet"], "no": n.get("net_only", False)}
-            for k in ("dv", "devices", "group", "device", "value", "label"):
+            for k in ("dv", "devices", "group", "device", "value", "label", "target_structure"):
                 if k in n:
                     e[k] = int(n[k]) if k in ("dv", "device", "value") else n[k]
             nodes.append(e)
@@ -40,10 +40,11 @@ def pack(m):
         "site": m["params"].get("site", ""), "algo": m["algorithm"], "seed": m["seed"], "sec": m["params"]["security"], "w": w, "h": h,
         "nf": m["floors"], "floors": floors, "rooms": rooms,
         "doors": [{"f": d["floor"], "p": d["pos"], "s": d["security"]} for d in m["doors"]],
-        "cover": [{"f": c["floor"], "p": c["pos"], "k": c["kind"], "hp": c["hp"], "pr": c.get("prop", -1)} for c in m["cover"]],
+        "cover": [{"f": c["floor"], "p": c["pos"], "k": c["kind"], "hp": c["hp"], "pr": c.get("prop", -1), "hz": c.get("hazard", "")} for c in m["cover"]],
         "dev": [{"id": d["id"], "f": d["floor"], "p": d["pos"], "t": d["type"], "g": d["group"], "z": d["zone"],
                  "ap": d.get("access_point", False), "fv": d.get("file_value", 0), "s": d.get("structure", -1)} for d in m["devices"]],
-        "ent": [{"f": e["floor"], "p": e["pos"], "main": e["main"], "k": e["kind"]} for e in m["entrances"]],
+        "ent": [{"f": e["floor"], "p": e["pos"], "main": e["main"], "k": e["kind"], "cells": e.get("cells", [])} for e in m["entrances"]],
+        "posts": [{"f": q["floor"], "p": q["pos"], "k": q["kind"]} for q in m.get("posts", [])],
         "vert": [{"t": v["type"], "p": v["pos"]} for v in m["verticals"]],
         "nets": {k: slim_net(v) for k, v in m["architectures"].items()},
         "ground": "".join(chr(48 + g) for g in m["ground"]),
