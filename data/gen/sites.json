@@ -1,5 +1,5 @@
 {
- "_doc": "Building site types for BuildingGen. layout: room-partition algorithm + params. zones: room kinds per security zone \u2014 entrance (room at the main door), small (\u226416 cells), large (\u226560 cells), rotation (by size rank), and layout-kind mappings (e.g. living/bedroom from corridor_units). density: default cover density. exterior: wall material index (0 plaster, 1 concrete, 2 steel). enter_corridor: put the main door on a corridor. networked: false = no NET even with devices. no_corridors: never relabel long thin rooms as corridors. levels: how many security levels (L1..L4) the building uses, counted from its base level. net_chance: chance a non-target building of this type has a NET (targets always do). windows: chance per eligible exterior wall square of a window.",
+ "_doc": "Building site types for BuildingGen. layout: room-partition algorithm + params. zones: room kinds per security zone \u2014 entrance (room at the main door), small (\u226416 cells), large (\u226560 cells), rotation (by size rank), and layout-kind mappings (e.g. living/bedroom from corridor_units). density: default cover density. exterior: wall material index (0 plaster, 1 concrete, 2 steel). enter_corridor: put the main door on a corridor. networked: false = no NET even with devices. no_corridors: never relabel long thin rooms as corridors. levels: how many security levels (L1..L4) the building uses, counted from its base level. net_chance: chance a non-target building of this type has a NET (targets always do). windows: chance per eligible exterior wall square of a window. shapes: weights for footprint shapes (rect, L, U, T, chamfer, courtyard). decay: default ruin level 0-1.",
  "corp_office": {
   "name": "Corporate office",
   "layout": {
@@ -42,7 +42,15 @@
   },
   "levels": 4,
   "net_chance": 0.7,
-  "windows": 0.6
+  "windows": 0.6,
+  "shapes": {
+   "rect": 7,
+   "L": 2,
+   "U": 1,
+   "T": 1,
+   "chamfer": 1,
+   "courtyard": 1
+  }
  },
  "warehouse": {
   "name": "Warehouse",
@@ -87,7 +95,15 @@
   },
   "levels": 3,
   "net_chance": 0.4,
-  "windows": 0.2
+  "windows": 0.2,
+  "shapes": {
+   "rect": 7,
+   "L": 2,
+   "U": 1,
+   "T": 1,
+   "chamfer": 1,
+   "courtyard": 1
+  }
  },
  "gang_hideout": {
   "name": "Gang hideout",
@@ -130,7 +146,15 @@
   },
   "levels": 3,
   "net_chance": 0.3,
-  "windows": 0.3
+  "windows": 0.3,
+  "shapes": {
+   "rect": 7,
+   "L": 2,
+   "U": 1,
+   "T": 1,
+   "chamfer": 1,
+   "courtyard": 1
+  }
  },
  "apartments": {
   "name": "Apartment block",
@@ -178,7 +202,15 @@
   },
   "levels": 3,
   "net_chance": 0.2,
-  "windows": 0.6
+  "windows": 0.6,
+  "shapes": {
+   "rect": 4,
+   "L": 2,
+   "U": 2,
+   "T": 1,
+   "chamfer": 1,
+   "courtyard": 2
+  }
  },
  "club": {
   "name": "Club",
@@ -220,7 +252,15 @@
   },
   "levels": 3,
   "net_chance": 0.3,
-  "windows": 0.2
+  "windows": 0.2,
+  "shapes": {
+   "rect": 7,
+   "L": 2,
+   "U": 1,
+   "T": 1,
+   "chamfer": 1,
+   "courtyard": 1
+  }
  },
  "shop": {
   "name": "Shop",
@@ -259,7 +299,15 @@
   },
   "levels": 2,
   "net_chance": 0.15,
-  "windows": 0.6
+  "windows": 0.6,
+  "shapes": {
+   "rect": 7,
+   "L": 2,
+   "U": 1,
+   "T": 1,
+   "chamfer": 1,
+   "courtyard": 1
+  }
  },
  "ship": {
   "name": "Cargo ship",
@@ -305,7 +353,10 @@
   },
   "levels": 4,
   "net_chance": 1.0,
-  "windows": 0.25
+  "windows": 0.25,
+  "shapes": {
+   "rect": 1
+  }
  },
  "train": {
   "name": "Train",
@@ -347,7 +398,10 @@
   },
   "levels": 4,
   "net_chance": 1.0,
-  "windows": 0.8
+  "windows": 0.8,
+  "shapes": {
+   "rect": 1
+  }
  },
  "station": {
   "name": "Station",
@@ -386,7 +440,15 @@
   },
   "levels": 3,
   "net_chance": 0.6,
-  "windows": 0.6
+  "windows": 0.6,
+  "shapes": {
+   "rect": 7,
+   "L": 2,
+   "U": 1,
+   "T": 1,
+   "chamfer": 1,
+   "courtyard": 1
+  }
  },
  "shack": {
   "name": "Shack",
@@ -425,7 +487,10 @@
   },
   "levels": 1,
   "net_chance": 0.0,
-  "windows": 0.35
+  "windows": 0.35,
+  "shapes": {
+   "rect": 1
+  }
  },
  "guard_booth": {
   "name": "Guard booth",
@@ -460,7 +525,10 @@
   },
   "levels": 1,
   "net_chance": 0.8,
-  "windows": 0.9
+  "windows": 0.9,
+  "shapes": {
+   "rect": 1
+  }
  },
  "corp_hq": {
   "name": "Corporate HQ",
@@ -506,6 +574,554 @@
   },
   "levels": 4,
   "net_chance": 1.0,
-  "windows": 0.7
+  "windows": 0.7,
+  "shapes": {
+   "rect": 4,
+   "L": 2,
+   "U": 2,
+   "T": 1,
+   "chamfer": 1,
+   "courtyard": 2
+  }
+ },
+ "clinic": {
+  "name": "Ripperdoc clinic",
+  "layout": {
+   "algorithm": "bsp",
+   "min_room": 4,
+   "max_room": 8,
+   "corridor_depth": 1
+  },
+  "levels": 3,
+  "net_chance": 0.5,
+  "windows": 0.3,
+  "density": 0.35,
+  "zones": {
+   "public": {
+    "entrance": "clinic_waiting",
+    "rotation": [
+     "clinic_waiting"
+    ]
+   },
+   "staff": {
+    "small": "storage",
+    "rotation": [
+     "surgery",
+     "recovery",
+     "storage"
+    ]
+   },
+   "secure": {
+    "rotation": [
+     "parts_vault"
+    ]
+   }
+  },
+  "shapes": {
+   "rect": 7,
+   "L": 2,
+   "U": 1,
+   "T": 1,
+   "chamfer": 1,
+   "courtyard": 1
+  }
+ },
+ "bar": {
+  "name": "Bar",
+  "layout": {
+   "algorithm": "growth"
+  },
+  "levels": 2,
+  "net_chance": 0.2,
+  "windows": 0.3,
+  "density": 0.4,
+  "zones": {
+   "public": {
+    "entrance": "bar",
+    "small": "restroom",
+    "large": "bar",
+    "rotation": [
+     "bar",
+     "lounge"
+    ]
+   },
+   "staff": {
+    "small": "storage",
+    "rotation": [
+     "kitchen",
+     "storage",
+     "backstage"
+    ]
+   }
+  },
+  "shapes": {
+   "rect": 7,
+   "L": 2,
+   "U": 1,
+   "T": 1,
+   "chamfer": 1,
+   "courtyard": 1
+  }
+ },
+ "bd_parlor": {
+  "name": "Braindance parlour",
+  "layout": {
+   "algorithm": "corridor_units",
+   "unit_min": 3,
+   "unit_max": 5
+  },
+  "levels": 3,
+  "net_chance": 0.4,
+  "windows": 0.1,
+  "density": 0.3,
+  "zones": {
+   "public": {
+    "entrance": "lobby",
+    "living": "bd_booth",
+    "bedroom": "bd_booth",
+    "rotation": [
+     "bd_booth"
+    ]
+   },
+   "staff": {
+    "living": "bd_booth",
+    "bedroom": "bd_booth",
+    "rotation": [
+     "bd_booth",
+     "storage"
+    ]
+   },
+   "secure": {
+    "living": "server_room",
+    "bedroom": "server_room",
+    "rotation": [
+     "server_room"
+    ]
+   }
+  },
+  "enter_corridor": true,
+  "shapes": {
+   "rect": 7,
+   "L": 2,
+   "U": 1,
+   "T": 1,
+   "chamfer": 1,
+   "courtyard": 1
+  }
+ },
+ "capsule_hotel": {
+  "name": "Capsule hotel",
+  "layout": {
+   "algorithm": "corridor_units",
+   "unit_min": 3,
+   "unit_max": 3,
+   "verticality": 2
+  },
+  "levels": 2,
+  "net_chance": 0.15,
+  "windows": 0.2,
+  "density": 0.2,
+  "zones": {
+   "public": {
+    "entrance": "lobby",
+    "living": "capsule",
+    "bedroom": "capsule",
+    "rotation": [
+     "capsule"
+    ]
+   },
+   "staff": {
+    "living": "capsule",
+    "bedroom": "capsule",
+    "rotation": [
+     "capsule",
+     "laundry"
+    ]
+   }
+  },
+  "enter_corridor": true,
+  "shapes": {
+   "rect": 7,
+   "L": 2,
+   "U": 1,
+   "T": 1,
+   "chamfer": 1,
+   "courtyard": 1
+  }
+ },
+ "ncpd_precinct": {
+  "name": "NCPD precinct",
+  "layout": {
+   "algorithm": "treemap"
+  },
+  "levels": 4,
+  "net_chance": 1.0,
+  "windows": 0.4,
+  "density": 0.35,
+  "zones": {
+   "public": {
+    "entrance": "front_desk",
+    "small": "restroom",
+    "rotation": [
+     "waiting"
+    ]
+   },
+   "staff": {
+    "small": "storage",
+    "rotation": [
+     "bullpen",
+     "interview",
+     "bullpen",
+     "break_room"
+    ]
+   },
+   "secure": {
+    "rotation": [
+     "armory",
+     "holding_cells",
+     "security_office"
+    ]
+   },
+   "vault": {
+    "rotation": [
+     "evidence_locker"
+    ]
+   }
+  },
+  "shapes": {
+   "rect": 7,
+   "L": 2,
+   "U": 1,
+   "T": 1,
+   "chamfer": 1,
+   "courtyard": 1
+  }
+ },
+ "factory": {
+  "name": "Factory",
+  "layout": {
+   "algorithm": "bsp",
+   "min_room": 6,
+   "max_room": 18,
+   "corridor_depth": 1
+  },
+  "levels": 3,
+  "net_chance": 0.6,
+  "windows": 0.2,
+  "density": 0.3,
+  "zones": {
+   "public": {
+    "entrance": "loading_dock",
+    "small": "restroom",
+    "rotation": [
+     "dispatch_office"
+    ]
+   },
+   "staff": {
+    "small": "storage",
+    "large": "factory_floor",
+    "rotation": [
+     "factory_floor",
+     "workshop",
+     "storage"
+    ]
+   },
+   "secure": {
+    "rotation": [
+     "control_room",
+     "server_room"
+    ]
+   }
+  },
+  "shapes": {
+   "rect": 7,
+   "L": 2,
+   "U": 1,
+   "T": 1,
+   "chamfer": 1,
+   "courtyard": 1
+  }
+ },
+ "data_center": {
+  "name": "Data centre",
+  "layout": {
+   "algorithm": "treemap"
+  },
+  "levels": 4,
+  "net_chance": 1.0,
+  "windows": 0.1,
+  "density": 0.3,
+  "zones": {
+   "public": {
+    "entrance": "lobby",
+    "small": "restroom",
+    "rotation": [
+     "waiting"
+    ]
+   },
+   "staff": {
+    "small": "storage",
+    "rotation": [
+     "office",
+     "security_office"
+    ]
+   },
+   "secure": {
+    "rotation": [
+     "server_room",
+     "cooling",
+     "server_room"
+    ]
+   },
+   "vault": {
+    "rotation": [
+     "data_vault"
+    ]
+   }
+  },
+  "shapes": {
+   "rect": 7,
+   "L": 2,
+   "U": 1,
+   "T": 1,
+   "chamfer": 1,
+   "courtyard": 1
+  }
+ },
+ "temple": {
+  "name": "Temple",
+  "layout": {
+   "algorithm": "growth"
+  },
+  "levels": 2,
+  "net_chance": 0.1,
+  "windows": 0.5,
+  "density": 0.3,
+  "zones": {
+   "public": {
+    "entrance": "temple_hall",
+    "large": "temple_hall",
+    "rotation": [
+     "shrine"
+    ]
+   },
+   "staff": {
+    "rotation": [
+     "quarters",
+     "storage",
+     "kitchen"
+    ]
+   }
+  },
+  "shapes": {
+   "rect": 4,
+   "L": 2,
+   "U": 2,
+   "T": 1,
+   "chamfer": 1,
+   "courtyard": 2
+  }
+ },
+ "villa": {
+  "name": "Villa",
+  "layout": {
+   "algorithm": "growth"
+  },
+  "levels": 3,
+  "net_chance": 0.5,
+  "windows": 0.7,
+  "density": 0.3,
+  "zones": {
+   "public": {
+    "entrance": "foyer",
+    "large": "living_room",
+    "rotation": [
+     "living_room"
+    ]
+   },
+   "staff": {
+    "rotation": [
+     "bedroom",
+     "kitchen",
+     "garage",
+     "bedroom"
+    ]
+   },
+   "secure": {
+    "rotation": [
+     "study",
+     "security_office"
+    ]
+   },
+   "vault": {
+    "rotation": [
+     "panic_room"
+    ]
+   }
+  },
+  "shapes": {
+   "rect": 4,
+   "L": 2,
+   "U": 2,
+   "T": 1,
+   "chamfer": 1,
+   "courtyard": 2
+  }
+ },
+ "chop_shop": {
+  "name": "Chop shop",
+  "layout": {
+   "algorithm": "bsp",
+   "min_room": 5,
+   "max_room": 14,
+   "corridor_depth": 0
+  },
+  "levels": 2,
+  "net_chance": 0.3,
+  "windows": 0.15,
+  "density": 0.35,
+  "zones": {
+   "public": {
+    "entrance": "garage",
+    "large": "garage",
+    "rotation": [
+     "garage"
+    ]
+   },
+   "staff": {
+    "small": "storage",
+    "rotation": [
+     "workshop",
+     "storage",
+     "dispatch_office"
+    ]
+   },
+   "secure": {
+    "rotation": [
+     "stash"
+    ]
+   }
+  },
+  "shapes": {
+   "rect": 7,
+   "L": 2,
+   "U": 1,
+   "T": 1,
+   "chamfer": 1,
+   "courtyard": 1
+  }
+ },
+ "gun_shop": {
+  "name": "Gun shop",
+  "layout": {
+   "algorithm": "bsp",
+   "min_room": 4,
+   "max_room": 9,
+   "corridor_depth": 0
+  },
+  "levels": 3,
+  "net_chance": 0.4,
+  "windows": 0.3,
+  "density": 0.35,
+  "zones": {
+   "public": {
+    "entrance": "shop_floor",
+    "small": "restroom",
+    "rotation": [
+     "shop_floor"
+    ]
+   },
+   "staff": {
+    "small": "storage",
+    "rotation": [
+     "workshop",
+     "storage"
+    ]
+   },
+   "secure": {
+    "rotation": [
+     "armory"
+    ]
+   }
+  },
+  "shapes": {
+   "rect": 7,
+   "L": 2,
+   "U": 1,
+   "T": 1,
+   "chamfer": 1,
+   "courtyard": 1
+  }
+ },
+ "squat": {
+  "name": "Squat",
+  "layout": {
+   "algorithm": "growth"
+  },
+  "levels": 2,
+  "net_chance": 0.0,
+  "windows": 0.4,
+  "density": 0.4,
+  "zones": {
+   "public": {
+    "rotation": [
+     "squat_room"
+    ]
+   },
+   "staff": {
+    "rotation": [
+     "squat_room",
+     "crash_room"
+    ]
+   }
+  },
+  "decay": 0.6,
+  "networked": false,
+  "shapes": {
+   "rect": 7,
+   "L": 2,
+   "U": 1,
+   "T": 1,
+   "chamfer": 1,
+   "courtyard": 1
+  }
+ },
+ "substation_booth": {
+  "name": "Substation control",
+  "layout": {
+   "algorithm": "bsp",
+   "min_room": 3,
+   "max_room": 8,
+   "corridor_depth": 0
+  },
+  "levels": 1,
+  "net_chance": 0.9,
+  "windows": 0.5,
+  "density": 0.3,
+  "zones": {
+   "public": {
+    "rotation": [
+     "control_room"
+    ]
+   },
+   "staff": {
+    "rotation": [
+     "control_room"
+    ]
+   },
+   "secure": {
+    "rotation": [
+     "control_room"
+    ]
+   },
+   "vault": {
+    "rotation": [
+     "control_room"
+    ]
+   }
+  },
+  "shapes": {
+   "rect": 1
+  }
  }
 }

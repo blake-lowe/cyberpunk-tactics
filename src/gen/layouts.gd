@@ -315,7 +315,7 @@ static func corridor_units(dice: Dice, w: int, region: Rect2i, labels: PackedInt
 	for band in [[0, side], [side + cw, short]]:
 		var a := 0
 		while a < long:
-			var unit_len: int = mini(dice.rng.randi_range(5, 8), long - a)
+			var unit_len: int = mini(dice.rng.randi_range(int(p.get("unit_min", 5)), int(p.get("unit_max", 8))), long - a)
 			if long - a - unit_len < 4:
 				unit_len = long - a
 			var b0: int = band[0]

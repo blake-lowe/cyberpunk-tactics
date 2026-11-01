@@ -1254,5 +1254,547 @@
     "p": 0.4
    }
   ]
+ },
+ "clinic_waiting": {
+  "furniture": [
+   [
+    "seat",
+    "wall",
+    10
+   ],
+   [
+    "reception",
+    "center",
+    200
+   ]
+  ],
+  "devices": [
+   {
+    "t": "camera",
+    "group": "cameras",
+    "wall": true,
+    "p": 0.7
+   },
+   {
+    "t": "terminal",
+    "ap": true
+   }
+  ]
+ },
+ "surgery": {
+  "furniture": [
+   [
+    "chair",
+    "center",
+    40
+   ],
+   [
+    "cabinet",
+    "wall",
+    12
+   ],
+   [
+    "rack",
+    "wall",
+    25
+   ]
+  ],
+  "devices": [
+   {
+    "t": "terminal",
+    "ap": true,
+    "file": 2
+   },
+   {
+    "t": "med_scanner",
+    "group": "site:medical",
+    "wall": true
+   }
+  ]
+ },
+ "recovery": {
+  "furniture": [
+   [
+    "bed",
+    "wall",
+    8
+   ]
+  ]
+ },
+ "parts_vault": {
+  "furniture": [
+   [
+    "safe",
+    "wall",
+    14
+   ],
+   [
+    "shelf",
+    "row",
+    8
+   ]
+  ],
+  "devices": [
+   {
+    "t": "data_core",
+    "file": 4
+   },
+   {
+    "t": "camera",
+    "group": "cameras",
+    "wall": true
+   }
+  ]
+ },
+ "bd_booth": {
+  "furniture": [
+   [
+    "chair",
+    "center",
+    30
+   ]
+  ],
+  "devices": [
+   {
+    "t": "bd_rig",
+    "group": "site:bd_rigs",
+    "p": 0.5
+   }
+  ]
+ },
+ "capsule": {
+  "furniture": [
+   [
+    "bed",
+    "wall",
+    6
+   ]
+  ]
+ },
+ "front_desk": {
+  "furniture": [
+   [
+    "reception",
+    "center",
+    200
+   ],
+   [
+    "seat",
+    "wall",
+    14
+   ],
+   [
+    "barrier",
+    "scatter",
+    60
+   ]
+  ],
+  "devices": [
+   {
+    "t": "camera",
+    "group": "cameras",
+    "wall": true
+   },
+   {
+    "t": "terminal",
+    "ap": true,
+    "file": 1
+   }
+  ]
+ },
+ "bullpen": {
+  "furniture": [
+   [
+    "desk",
+    "row",
+    7
+   ],
+   [
+    "cabinet",
+    "wall",
+    22
+   ]
+  ],
+  "devices": [
+   {
+    "t": "terminal",
+    "p": 0.5,
+    "ap": true
+   }
+  ]
+ },
+ "interview": {
+  "furniture": [
+   [
+    "table",
+    "center",
+    20
+   ]
+  ],
+  "devices": [
+   {
+    "t": "camera",
+    "group": "cameras",
+    "wall": true
+   }
+  ]
+ },
+ "holding_cells": {
+  "furniture": [
+   [
+    "bed",
+    "wall",
+    10
+   ]
+  ],
+  "devices": [
+   {
+    "t": "cell_locks",
+    "group": "site:cells",
+    "wall": true
+   },
+   {
+    "t": "camera",
+    "group": "cameras",
+    "wall": true
+   }
+  ]
+ },
+ "evidence_locker": {
+  "furniture": [
+   [
+    "shelf",
+    "row",
+    6
+   ],
+   [
+    "safe",
+    "wall",
+    20
+   ]
+  ],
+  "devices": [
+   {
+    "t": "data_core",
+    "file": 5
+   },
+   {
+    "t": "camera",
+    "group": "cameras",
+    "wall": true
+   }
+  ]
+ },
+ "factory_floor": {
+  "furniture": [
+   [
+    "machine",
+    "row",
+    8
+   ],
+   [
+    "crate",
+    "scatter",
+    40
+   ],
+   [
+    "fuel_barrel",
+    "scatter",
+    120
+   ]
+  ],
+  "devices": [
+   {
+    "t": "camera",
+    "group": "cameras",
+    "wall": true,
+    "per_cells": 90
+   },
+   {
+    "t": "assembly_line",
+    "group": "site:machinery",
+    "wall": true
+   }
+  ]
+ },
+ "control_room": {
+  "furniture": [
+   [
+    "console",
+    "row",
+    8
+   ]
+  ],
+  "devices": [
+   {
+    "t": "terminal",
+    "ap": true,
+    "file": 2
+   },
+   {
+    "t": "plant_controls",
+    "group": "site:plant",
+    "wall": true
+   }
+  ]
+ },
+ "cooling": {
+  "furniture": [
+   [
+    "machine",
+    "row",
+    8
+   ]
+  ],
+  "devices": [
+   {
+    "t": "cooling_controls",
+    "group": "site:cooling",
+    "wall": true
+   }
+  ]
+ },
+ "temple_hall": {
+  "furniture": [
+   [
+    "pew",
+    "row",
+    5
+   ],
+   [
+    "pillar",
+    "center",
+    50
+   ]
+  ]
+ },
+ "shrine": {
+  "furniture": [
+   [
+    "planter",
+    "wall",
+    20
+   ],
+   [
+    "table",
+    "center",
+    30
+   ]
+  ]
+ },
+ "quarters": {
+  "furniture": [
+   [
+    "bed",
+    "wall",
+    10
+   ],
+   [
+    "cabinet",
+    "wall",
+    25
+   ]
+  ]
+ },
+ "foyer": {
+  "furniture": [
+   [
+    "planter",
+    "wall",
+    25
+   ],
+   [
+    "sofa",
+    "wall",
+    40
+   ]
+  ],
+  "devices": [
+   {
+    "t": "camera",
+    "group": "cameras",
+    "wall": true
+   }
+  ]
+ },
+ "living_room": {
+  "furniture": [
+   [
+    "sofa",
+    "wall",
+    15
+   ],
+   [
+    "table",
+    "center",
+    25
+   ]
+  ]
+ },
+ "garage": {
+  "furniture": [
+   [
+    "wreck",
+    "scatter",
+    45
+   ],
+   [
+    "lift",
+    "scatter",
+    60
+   ],
+   [
+    "crate",
+    "scatter",
+    50
+   ]
+  ],
+  "devices": [
+   {
+    "t": "shutter_control",
+    "group": "site:shutters",
+    "wall": true
+   }
+  ]
+ },
+ "study": {
+  "furniture": [
+   [
+    "desk",
+    "center",
+    60
+   ],
+   [
+    "shelf",
+    "wall",
+    14
+   ]
+  ],
+  "devices": [
+   {
+    "t": "terminal",
+    "ap": true,
+    "file": 3
+   }
+  ]
+ },
+ "panic_room": {
+  "furniture": [
+   [
+    "safe",
+    "wall",
+    14
+   ]
+  ],
+  "devices": [
+   {
+    "t": "data_core",
+    "file": 5
+   },
+   {
+    "t": "camera",
+    "group": "cameras",
+    "wall": true
+   }
+  ]
+ },
+ "squat_room": {
+  "furniture": [
+   [
+    "bed",
+    "wall",
+    12
+   ],
+   [
+    "crate",
+    "scatter",
+    25
+   ],
+   [
+    "rubble",
+    "scatter",
+    20
+   ]
+  ]
+ },
+ "market": {
+  "furniture": [
+   [
+    "stall",
+    "row",
+    6
+   ],
+   [
+    "crate",
+    "scatter",
+    40
+   ],
+   [
+    "barrel",
+    "scatter",
+    80
+   ]
+  ],
+  "devices": [
+   {
+    "t": "camera",
+    "group": "cameras",
+    "p": 0.3
+   }
+  ]
+ },
+ "park": {
+  "furniture": [
+   [
+    "tree",
+    "scatter",
+    14
+   ],
+   [
+    "seat",
+    "scatter",
+    40
+   ],
+   [
+    "planter",
+    "scatter",
+    60
+   ]
+  ]
+ },
+ "rubble_field": {
+  "furniture": [
+   [
+    "rubble",
+    "scatter",
+    5
+   ],
+   [
+    "wreck",
+    "scatter",
+    60
+   ]
+  ]
+ },
+ "substation_yard": {
+  "furniture": [
+   [
+    "transformer",
+    "row",
+    6
+   ]
+  ],
+  "devices": [
+   {
+    "t": "floodlight",
+    "group": "site:floodlights",
+    "p": 0.7
+   },
+   {
+    "t": "camera",
+    "group": "cameras",
+    "per_cells": 200
+   }
+  ]
  }
 }

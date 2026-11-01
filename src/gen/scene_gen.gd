@@ -28,8 +28,7 @@ static func generate(seed_value: int, scene: String, overrides: Dictionary = {})
 	var c := {"m": m, "dice": dice, "hints": [], "p": p, "reserved": {}, "overrides": overrides, "related": []}
 	match scene:
 		"lone_building": _lone_building(c)
-		"street_block": _city(c, 2, 1)
-		"city_district": _city(c, 4, 3)
+		"street_block", "city_district", "neighborhood": DistrictGen.generate(c, String(p.get("profile", "mixed_residential")))
 		"megablock": _megablock(c)
 		"shipyard": _shipyard(c)
 		"badlands": _badlands(c)
@@ -92,8 +91,22 @@ static func building(c: Dictionary, shell: Rect2i, site: String, floors: int, se
 	for k in ["algorithm", "verticality"]:
 		if target and c.overrides.has(k):
 			params[k] = c.overrides[k]
+	if c.has("decay"):
+		params["decay"] = c.decay
+	# Footprint shape (M2e review: break up grids everywhere): by the site type's shape weights.
+	var courtyard := Rect2i()
+	if mask.is_empty() and mini(shell.size.x, shell.size.y) >= 12:
+		var shapes: Dictionary = RulesDB.gen("sites.json")[site].get("shapes", {"rect": 1})
+		var names := shapes.keys()
+		var wts := PackedFloat32Array()
+		for n in names:
+			wts.append(float(shapes[n]))
+		var shape: String = names[c.dice.rng.rand_weighted(wts)]
+		var shaped := _shape_mask(c, shell, shape)
+		mask = shaped.mask
+		courtyard = shaped.courtyard
 	return BuildingGen.build(c.m, c.dice, c.hints, {"shell": shell, "site": site, "floors": floors, "security": security,
-		"base_zone": base_zone, "target": target, "entry_side": entry_side, "params": params, "mask": mask})
+		"base_zone": base_zone, "target": target, "entry_side": entry_side, "params": params, "mask": mask, "courtyard": courtyard})
 
 
 ## An outdoor structure (open lot, compound) to own yards, fences and their devices/NET.
@@ -367,41 +380,6 @@ static func curb_cars(c: Dictionary, r: Rect2i, horizontal: bool) -> void:
 			t += c.dice.rng.randi_range(4, 9)
 
 
-## Paint a diagonal avenue (8 wide, sidewalks on both sides) across the map above the bottom road,
-## with chance `chance`. Returns the cells buildings must keep clear of (avenue + 1 margin).
-static func _diagonal_avenue(c: Dictionary, rw: int, chance: float) -> Dictionary:
-	var m: TacMap = c.m
-	var keep := {}
-	if c.dice.rng.randf() >= float(c.p.get("diagonal_chance", chance)):
-		return keep
-	var x0 := float(c.dice.rng.randi_range(m.w / 5, m.w * 4 / 5))
-	var ang: float = deg_to_rad(c.dice.rng.randf_range(25.0, 60.0)) * (1.0 if c.dice.d(2) == 1 else -1.0)
-	var dir := Vector2(sin(ang), cos(ang))
-	for y in m.h - rw:
-		for x in m.w:
-			var v := Vector2(x + 0.5 - x0, y + 0.5)
-			var dist := absf(v.x * dir.y - v.y * dir.x)
-			if dist <= 5.0:
-				keep[Vector2i(x, y)] = true
-			if dist <= 4.0:
-				ground(c, Rect2i(x, y, 1, 1), G.SIDEWALK if dist > 3.0 else G.ASPHALT)
-				if dist <= 1.0:
-					c.reserved[Vector2i(x, y)] = true
-	var bottom := x0 + (m.h - rw) * dir.x / dir.y
-	spawn(c, Vector2i(clampi(int(x0), 0, m.w - 1), 0))
-	if bottom >= 0 and bottom < m.w:
-		spawn(c, Vector2i(int(bottom), m.h - rw))
-	return keep
-
-
-static func _rect_hits(r: Rect2i, cells: Dictionary) -> bool:
-	for y in range(r.position.y, r.end.y):
-		for x in range(r.position.x, r.end.x):
-			if cells.has(Vector2i(x, y)):
-				return true
-	return false
-
-
 ## Cells of `shell` outside `avoid`, keeping only the largest 4-connected piece.
 static func _largest_piece(shell: Rect2i, avoid: Dictionary) -> Dictionary:
 	var free := {}
@@ -442,6 +420,54 @@ static func _cut_corner(c: Dictionary, shell: Rect2i) -> Dictionary:
 			if dx + dy >= k:
 				mask[Vector2i(x, y)] = true
 	return mask
+
+
+## Footprint mask for a shape: L (one corner cut out), U (notch in one side), T (two corners on
+## one side cut), chamfer (diagonal corner), courtyard (hollow ring). Returns {mask, courtyard}.
+static func _shape_mask(c: Dictionary, shell: Rect2i, shape: String) -> Dictionary:
+	var w := shell.size.x
+	var h := shell.size.y
+	var cut: Array[Rect2i] = []
+	var yard := Rect2i()
+	var side: int = c.dice.d(4)
+	match shape:
+		"L":
+			var cw := roundi(w * c.dice.rng.randf_range(0.35, 0.5))
+			var ch := roundi(h * c.dice.rng.randf_range(0.35, 0.5))
+			var cx := shell.position.x if side in [1, 3] else shell.end.x - cw
+			var cy := shell.position.y if side in [1, 2] else shell.end.y - ch
+			cut.append(Rect2i(cx, cy, cw, ch))
+		"U":
+			if side <= 2:
+				var nw := roundi(w * 0.35)
+				var nd := roundi(h * 0.4)
+				cut.append(Rect2i(shell.position.x + (w - nw) / 2, shell.position.y if side == 1 else shell.end.y - nd, nw, nd))
+			else:
+				var nh := roundi(h * 0.35)
+				var nd2 := roundi(w * 0.4)
+				cut.append(Rect2i(shell.position.x if side == 3 else shell.end.x - nd2, shell.position.y + (h - nh) / 2, nd2, nh))
+		"T":
+			var tw := roundi(w * 0.3)
+			var th := roundi(h * 0.45)
+			var ty := shell.position.y if side <= 2 else shell.end.y - th
+			cut.append(Rect2i(shell.position.x, ty, tw, th))
+			cut.append(Rect2i(shell.end.x - tw, ty, tw, th))
+		"chamfer":
+			return {"mask": _cut_corner(c, shell), "courtyard": Rect2i()}
+		"courtyard":
+			if mini(w, h) >= 18:
+				var k := maxi(6, mini(w, h) / 3)
+				yard = shell.grow(-k)
+				cut.append(yard)
+	if cut.is_empty():
+		return {"mask": {}, "courtyard": Rect2i()}
+	var mask := {}
+	for y in range(shell.position.y, shell.end.y):
+		for x in range(shell.position.x, shell.end.x):
+			var v := Vector2i(x, y)
+			if not cut.any(func(r): return r.has_point(v)):
+				mask[v] = true
+	return {"mask": mask, "courtyard": yard}
 
 
 static func _unlabel(m: TacMap, room: Dictionary, cells: Dictionary) -> void:
@@ -528,125 +554,6 @@ static func _lone_building(c: Dictionary) -> void:
 	building(c, Rect2i(0, 0, m.w - 3, m.h - 3), String(c.p.get("site", "corp_office")), int(c.p.floors), int(c.p.security), true, TacMap.Zone.PUBLIC, "S")
 	spawn(c, Vector2i(0, m.h - 2))
 	spawn(c, Vector2i(m.w - 2, 0))
-
-
-## City blocks on a road grid (bx × by blocks; a road always runs along the south edge). Each
-## block is split by an alley into lots holding buildings of mixed type and height; a few lots
-## stay parking lots. The biggest lot is the target. Skybridges join neighbouring buildings
-## above street level and footbridges cross the roads. street_block = 2×1, city_district = 4×3.
-static func _city(c: Dictionary, bx: int, by: int) -> void:
-	var m: TacMap = c.m
-	var fl := int(c.p.floors)
-	var rw := 8
-	var xs := _splits(c, m.w, bx, rw)
-	var ys := _splits(c, m.h - rw, by, rw)
-	var roads_h: Array[Rect2i] = [Rect2i(0, m.h - rw, m.w, rw)]
-	var roads_v: Array[Rect2i] = []
-	for i in range(1, xs.size()):
-		roads_v.append(Rect2i(xs[i - 1].y, 0, xs[i].x - xs[i - 1].y, m.h - rw))
-	for j in range(1, ys.size()):
-		roads_h.append(Rect2i(0, ys[j - 1].y, m.w, ys[j].x - ys[j - 1].y))
-	for r in roads_v:
-		road(c, r, false)
-	for r in roads_h:
-		road(c, r, true)
-	var lots: Array[Rect2i] = []
-	for xr in xs:
-		for yr in ys:
-			var block := Rect2i(xr.x, yr.x, xr.y - xr.x, yr.y - yr.x)
-			ground(c, block, G.SIDEWALK)
-			var ay: int = block.position.y + block.size.y / 2 + _rand_size(c, -4, 4)
-			ground(c, Rect2i(block.position.x, ay, block.size.x, 2), G.GRAVEL)
-			for half in [Rect2i(block.position.x, block.position.y, block.size.x, ay - block.position.y), Rect2i(block.position.x, ay + 2, block.size.x, block.end.y - ay - 2)]:
-				if half.size.x >= 30 and c.dice.d(3) > 1:
-					var cut: int = half.position.x + half.size.x / 2 + _rand_size(c, -5, 5)
-					lots.append(Rect2i(half.position.x, half.position.y, cut - half.position.x, half.size.y))
-					lots.append(Rect2i(cut, half.position.y, half.end.x - cut, half.size.y))
-				else:
-					lots.append(half)
-	lots.sort_custom(func(a, b): return a.get_area() > b.get_area())
-	var others := ["apartments", "club", "shop", "gang_hideout", "warehouse", "apartments", "shop", "corp_office"]
-	var parking := {}
-	if lots.size() >= 4:
-		parking[lots.size() - 1] = true
-	for i in range(1, lots.size() - 1):
-		if lots.size() > 12 and c.dice.rng.randf() < 0.1:
-			parking[i] = true
-	# M2d review: break the grid. Sometimes a diagonal avenue cuts across the blocks; lots it slices
-	# keep their largest piece as a clipped footprint (or become parking), and a few other
-	# buildings get a cut corner.
-	var margin := _diagonal_avenue(c, rw, 0.25 if bx * by <= 2 else 0.6)
-	var blds: Array[Dictionary] = []
-	for i in lots.size():
-		var shell := lots[i].grow(-1)
-		if shell.size.x < 7 or shell.size.y < 7:
-			continue
-		var mask := {}
-		var area := shell.get_area()
-		if not margin.is_empty() and _rect_hits(lots[i], margin):
-			mask = _largest_piece(shell, margin)
-			if mask.size() < area * 0.55 or mask.size() < 60:
-				parking[i] = true
-		elif c.dice.rng.randf() < 0.15 and mini(shell.size.x, shell.size.y) >= 12:
-			mask = _cut_corner(c, shell)
-		if parking.has(i):
-			var lot_sid := outdoor_structure(c, "lot", 0, lots[i])
-			var lot_room := yard(c, lots[i], "parking_lot", TacMap.Zone.PUBLIC, lot_sid)
-			_unlabel(m, lot_room, margin)
-			Furnish.run_structure(m, c.dice, lot_sid)
-			continue
-		var target := i == 0
-		var site: String = String(c.p.get("site", "corp_office")) if target else others[c.dice.rng.randi_range(0, others.size() - 1)]
-		var floors: int = fl if target else c.dice.rng.randi_range(1, fl)
-		blds.append(building(c, shell, site, floors, int(c.p.security) if target else c.dice.rng.randi_range(0, 1), target, TacMap.Zone.PUBLIC, "", mask))
-	# Skybridges between neighbouring buildings (two storeys or more), roughly one per four.
-	var pairs := []
-	for i in blds.size():
-		for j in range(i + 1, blds.size()):
-			pairs.append([blds[i], blds[j]])
-	Layouts._shuffle(c.dice, pairs)
-	var bridges := 0
-	for pr in pairs:
-		if bridges >= maxi(1, blds.size() / 4):
-			break
-		if c.dice.rng.randf() < 0.7 and skybridge(c, pr[0], pr[1]):
-			bridges += 1
-			related(c, pr[0].id, pr[1].id, 0.7)  # bridged buildings likely share an owner
-	# Footbridges over the roads, then street life: parked cars, dumpsters in the alleys.
-	for r in roads_h:
-		for tries in 20:
-			var x: int = c.dice.rng.randi_range(4, m.w - 5)
-			if roads_v.any(func(v): return x >= v.position.x - 1 and x < v.end.x + 1):
-				continue
-			if footbridge(c, Vector2i(x, r.position.y), Vector2i(x, r.end.y - 1)):
-				break
-	for r in roads_h:
-		curb_cars(c, r, true)
-	for r in roads_v:
-		curb_cars(c, r, false)
-	for y in m.h:
-		for x in m.w:
-			if m.ground[y * m.w + x] == G.GRAVEL and c.dice.rng.randf() < 0.012:
-				Furnish.try_prop(m, 0, Rect2i(x, y, 1, 1), "dumpster", -1, {}, c.reserved)
-	for r in roads_h:
-		spawn(c, Vector2i(0, r.position.y + 3))
-		spawn(c, Vector2i(m.w - 1, r.position.y + 3))
-	for r in roads_v:
-		spawn(c, Vector2i(r.position.x + 3, 0))
-
-
-## Split `total` into n spans separated by `gap`, inner boundaries jittered. Returns [start, end) pairs.
-static func _splits(c: Dictionary, total: int, n: int, gap: int) -> Array[Vector2i]:
-	var size := (total - (n - 1) * gap) / n
-	var out: Array[Vector2i] = []
-	var x := 0
-	for i in n:
-		var w: int = size if i < n - 1 else total - x
-		if i < n - 1:
-			w += _rand_size(c, -4, 4)
-		out.append(Vector2i(x, x + w))
-		x += w + gap
-	return out
 
 
 ## Megablock: a long apartment tower over a courtyard, with a parking lot and a corner shop.

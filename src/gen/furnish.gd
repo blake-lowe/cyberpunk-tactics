@@ -22,10 +22,12 @@ const PIECES := {
 	"crane_leg": ["steel", true], "freight_car": ["steel", false], "kiosk": ["wood", true],
 	"ac_unit": ["steel", false], "vent": ["steel", false],
 	"fuel_barrel": ["steel", false],
+	"machine": ["steel", true], "pew": ["wood", false], "stall": ["wood", true], "tree": ["wood", true],
+	"rubble": ["concrete", false], "transformer": ["steel", true], "chair": ["steel", false], "lift": ["steel", false],
 }
 
 ## Pieces that are also hazards (explosive: blows up when destroyed; resolved in M3).
-const HAZARDS := {"fuel_barrel": "explosive"}
+const HAZARDS := {"fuel_barrel": "explosive", "transformer": "electrified"}
 
 ## Multi-cell props: piece → [w, h] footprint in squares (rotated at random).
 const PROP_SIZES := {"car": [1, 2], "wreck": [2, 2], "container": [1, 3], "freight_car": [2, 7], "dumpster": [1, 1]}

@@ -8,6 +8,7 @@ var shell: Rect2i
 var cells: Dictionary = {}     ## Vector2i → true; empty = the whole rect
 var _interior: Dictionary = {}
 var count := 0
+var hole := Rect2i()           ## inner courtyard (enclosed outdoors); not a street-facing facade
 
 
 static func make(p_shell: Rect2i, mask: Dictionary = {}) -> Footprint:

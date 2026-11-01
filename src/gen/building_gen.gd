@@ -28,6 +28,7 @@ static func build(m: TacMap, dice: Dice, hints: Array, ctx: Dictionary) -> Dicti
 	var shell: Rect2i = ctx.shell
 	var inner := shell.grow(-1)
 	var fp := Footprint.make(shell, ctx.get("mask", {}))
+	fp.hole = ctx.get("courtyard", Rect2i())
 	var sid := m.structures.size()
 	var st := {"id": sid, "kind": "building", "site": ctx.site, "rect": shell, "floors": floors,
 		"security": p.security, "target": ctx.get("target", false), "base_zone": int(ctx.get("base_zone", TacMap.Zone.PUBLIC)),
@@ -47,6 +48,7 @@ static func build(m: TacMap, dice: Dice, hints: Array, ctx: Dictionary) -> Dicti
 					local[y * m.w + x] = -1
 		_split_components(m, f, local, inner, room_hints, hints)
 		_walls(m, f, fp)
+		_fix_fragments(m, f, fp, hints)
 	_index_rooms(m, shell, floors, first_id, hints.size(), sid)
 	for i in range(first_id, hints.size()):
 		m.rooms[i]["layout_kind"] = hints[i].get("kind", "")
@@ -63,6 +65,12 @@ static func build(m: TacMap, dice: Dice, hints: Array, ctx: Dictionary) -> Dicti
 	_room_kinds(m, String(ctx.site), first_id, root)
 	_roof(m, dice, hints, fp, floors, sid, int(st.base_zone))
 	_windows(m, dice, fp, floors, float(sdef.get("windows", 0.5)))
+	var cy: Rect2i = ctx.get("courtyard", Rect2i())
+	if cy.has_area():
+		_courtyard(m, dice, hints, fp, cy, sid)
+	var decay := float(p.get("decay", sdef.get("decay", 0.0)))
+	if decay > 0.0:
+		_decay(m, dice, fp, floors, decay)
 	Furnish.run_structure(m, dice, sid)
 	# M2d review: NETs only where they matter — always for the target, otherwise by site type.
 	var wants_net: bool = sdef.get("networked", true) and (st.target or dice.rng.randf() < float(sdef.get("net_chance", 1.0)))
@@ -229,7 +237,7 @@ const SIDES := {"N": Vector2i.UP, "S": Vector2i.DOWN, "E": Vector2i.RIGHT, "W": 
 
 ## Facade spots: straight stretches of exterior wall with a room inside and open ground outside,
 ## grouped by the side they face.
-static func _facade_candidates(m: TacMap, fp: Footprint) -> Dictionary:
+static func _facade_candidates(m: TacMap, fp: Footprint, into_hole := false) -> Dictionary:
 	var out := {"N": [], "S": [], "E": [], "W": []}
 	var shell := fp.shell
 	for y in range(shell.position.y, shell.end.y):
@@ -243,6 +251,8 @@ static func _facade_candidates(m: TacMap, fp: Footprint) -> Dictionary:
 				var inside := v - d
 				var perp := Vector2i(d.y, d.x)
 				if fp.has(outside) or not fp.interior(inside) or not fp.exterior(v + perp) or not fp.exterior(v - perp):
+					continue
+				if fp.hole.has_area() and fp.hole.has_point(outside) != into_hole:
 					continue
 				var l := m.label(0, inside.x, inside.y)
 				if l >= 0 and m.t(0, inside.x, inside.y) == TacMap.T.FLOOR and m.t(0, outside.x, outside.y) == TacMap.T.OUTSIDE \
@@ -550,3 +560,109 @@ static func _windows(m: TacMap, dice: Dice, fp: Footprint, floors: int, rate: fl
 				if near or m.is_connector_end(f + 1, v):
 					continue
 				m.wall_mat[f][y * m.w + x] = 6 if m.rooms[room].zone >= TacMap.Zone.SECURE else 5
+
+
+## A courtyard building: a door from the ground floor into the yard, which becomes an outdoor
+## room of this building at the zone of the room it opens from.
+static func _courtyard(m: TacMap, dice: Dice, hints: Array, fp: Footprint, yard: Rect2i, sid: int) -> void:
+	var cands := []
+	for side in _facade_candidates(m, fp, true).values():
+		for cnd in side:
+			cands.append(cnd)
+	if cands.is_empty():
+		return
+	var pick: Dictionary = cands[dice.rng.randi_range(0, cands.size() - 1)]
+	m.set_t(0, pick.pos.x, pick.pos.y, TacMap.T.DOOR)
+	m.doors.append({"floor": 0, "pos": pick.pos, "a": -1, "b": pick.room, "security": false, "structure": sid})
+	var id := hints.size()
+	hints.append({"zone_hint": m.rooms[pick.room].zone, "kind": "courtyard", "floor": 0})
+	while m.rooms.size() < id:
+		m.rooms.append({"id": m.rooms.size(), "floor": -1, "zone": -1, "kind": "void", "cells": 0, "bounds": Rect2i(), "structure": -1})
+	var room := {"id": id, "floor": 0, "zone": m.rooms[pick.room].zone, "kind": "courtyard", "cells": 0, "bounds": yard, "structure": sid, "outdoor": true}
+	m.rooms.append(room)
+	for y in range(yard.position.y, yard.end.y):
+		for x in range(yard.position.x, yard.end.x):
+			if m.t(0, x, y) == TacMap.T.OUTSIDE and m.label(0, x, y) < 0:
+				m.labels[0][y * m.w + x] = id
+				room.cells += 1
+
+
+## Ruin a building by `decay` (0-1): breached exterior walls (openings on the ground floor, gaps
+## on upper floors), collapsed interior walls, and holes in the roof. Only ever adds openings, so
+## nothing that was reachable stops being reachable.
+static func _decay(m: TacMap, dice: Dice, fp: Footprint, floors: int, decay: float) -> void:
+	var shell := fp.shell
+	for f in floors + 1:
+		if f >= m.floors:
+			break
+		for y in range(shell.position.y, shell.end.y):
+			for x in range(shell.position.x, shell.end.x):
+				var v := Vector2i(x, y)
+				if not fp.has(v):
+					continue
+				var t := m.t(f, x, y)
+				if t == TacMap.T.WALL and f < floors:
+					if fp.exterior(v) and dice.rng.randf() < decay * 0.12:
+						if f == 0:
+							m.set_t(0, x, y, TacMap.T.OUTSIDE)
+						else:
+							m.set_t(f, x, y, TacMap.T.VOID)
+						m.labels[f][y * m.w + x] = -1
+					elif fp.interior(v) and dice.rng.randf() < decay * 0.18:
+						for d in MapGen.DIRS:
+							var l := m.label(f, x + d.x, y + d.y)
+							if l >= 0 and m.t(f, x + d.x, y + d.y) == TacMap.T.FLOOR:
+								m.set_t(f, x, y, TacMap.T.FLOOR)
+								m.labels[f][y * m.w + x] = l
+								break
+				elif t == TacMap.T.ROOF and dice.rng.randf() < decay * 0.1 and not m.is_connector_end(f, v):
+					var near := false
+					for d in MapGen.DIRS + DIAG:
+						if m.t(f, x + d.x, y + d.y) == TacMap.T.STAIRS:
+							near = true
+					if not near:
+						m.set_t(f, x, y, TacMap.T.VOID)
+						m.labels[f][y * m.w + x] = -1
+
+
+## Wall carving can cut a clipped room into pieces that share one label. Keep each room's
+## largest piece; tiny leftovers (≤ 6 squares) become solid wall, bigger ones become rooms of
+## their own, before doors are planned.
+static func _fix_fragments(m: TacMap, f: int, fp: Footprint, hints: Array) -> void:
+	var shell := fp.shell
+	var seen := {}
+	var comps_by_label := {}
+	for y in range(shell.position.y, shell.end.y):
+		for x in range(shell.position.x, shell.end.x):
+			var v := Vector2i(x, y)
+			var l := m.label(f, x, y)
+			if l < 0 or seen.has(v) or m.t(f, x, y) != TacMap.T.FLOOR:
+				continue
+			var comp: Array[Vector2i] = [v]
+			seen[v] = true
+			var i := 0
+			while i < comp.size():
+				var u := comp[i]
+				i += 1
+				for d in MapGen.DIRS:
+					var n := u + d
+					if not seen.has(n) and shell.has_point(n) and m.label(f, n.x, n.y) == l and m.t(f, n.x, n.y) == TacMap.T.FLOOR:
+						seen[n] = true
+						comp.append(n)
+			comps_by_label.get_or_add(l, []).append(comp)
+	for l in comps_by_label:
+		var comps: Array = comps_by_label[l]
+		if comps.size() < 2:
+			continue
+		comps.sort_custom(func(a, b): return a.size() > b.size())
+		for k in range(1, comps.size()):
+			var comp: Array = comps[k]
+			if comp.size() <= 6:
+				for v in comp:
+					m.set_t(f, v.x, v.y, TacMap.T.WALL)
+					m.labels[f][v.y * m.w + v.x] = -1
+			else:
+				var gid := hints.size()
+				hints.append((hints[l] as Dictionary).duplicate())
+				for v in comp:
+					m.labels[f][v.y * m.w + v.x] = gid

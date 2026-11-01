@@ -10,11 +10,12 @@
  },
  "street_block": {
   "name": "Street block",
-  "desc": "Two roads, alleys, a mix of buildings of different heights and a parking lot.",
+  "desc": "A few city blocks from the mixed-residential profile: grid with the odd diagonal or curve, mixed buildings and lots.",
   "params": {
    "w": 88,
    "h": 64,
-   "floors": 3
+   "floors": 3,
+   "profile": "mixed_residential"
   }
  },
  "megablock": {
@@ -70,7 +71,18 @@
    "w": 220,
    "h": 170,
    "floors": 3,
-   "diagonal_chance": 1.0
+   "diagonal_chance": 1.0,
+   "profile": "mixed_residential"
+  }
+ },
+ "neighborhood": {
+  "name": "Neighbourhood",
+  "desc": "Any Night City neighbourhood profile from data/gen/districts.json (params.profile).",
+  "params": {
+   "w": 120,
+   "h": 90,
+   "floors": 3,
+   "profile": "market_streets"
   }
  }
 }

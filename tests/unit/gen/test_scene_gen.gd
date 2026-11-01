@@ -197,3 +197,32 @@ func test_diagonal_avenue_keeps_everything_reachable() -> void:
 		if r.cells == 0:
 			continue
 		assert_true(Furnish.room_cells(m, r).any(func(c): return reach.has(Vector3i(c.x, c.y, r.floor))), "%s reachable" % r.kind)
+
+
+func test_every_neighbourhood_profile() -> void:
+	var profiles := RulesDB.gen("districts.json").keys().filter(func(k): return not k.begins_with("_"))
+	var sites := {}
+	for prof in profiles:
+		var m := SceneGen.generate(77, "neighborhood", {"profile": prof, "w": 100, "h": 76, "security": 2})
+		var s0 := _spawn0(m)
+		assert_true(s0.x >= 0, prof + " has an entry")
+		assert_true(m.architecture != null, prof + " target has a NET")
+		var reach := m.reachable(s0)
+		var lost := 0
+		for r in m.rooms:
+			if r.cells > 0 and not Furnish.room_cells(m, r).any(func(c): return reach.has(Vector3i(c.x, c.y, r.floor))):
+				lost += 1
+		assert_eq(lost, 0, "%s: %d rooms unreachable" % [prof, lost])
+		for st in m.structures:
+			sites[st.site] = true
+		if prof in ["combat_zone", "hot_zone"]:
+			var breaches := 0
+			for st in m.structures:
+				if st.kind == "building":
+					var r: Rect2i = st.rect
+					for y in range(r.position.y, r.end.y):
+						for x in range(r.position.x, r.end.x):
+							if (x == r.position.x or x == r.end.x - 1) and m.t(0, x, y) == TacMap.T.OUTSIDE:
+								breaches += 1
+			assert_true(breaches > 0, prof + " is visibly ruined")
+	assert_true(sites.size() >= 15, "many establishment types appear (%d)" % sites.size())
