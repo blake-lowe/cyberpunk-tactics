@@ -35,8 +35,6 @@ const CLIPS := {
 	"hit_a": "mx:hit_1",
 	"hit_b": "mx:hit_2",
 	"hit_rifle": "mx:rifle_hit",
-	"dodge_l": "mx:dodge_l",   # rifle side-steps (owner cut the stepping "Dodging" clip)
-	"dodge_r": "mx:dodge_r",
 	"death_front": "mx:death_back",   # owner: Mixamo's two are named the other way round from how they read
 	"death_back": "mx:death_front",
 	"death_side": "mx:death_right",
@@ -60,8 +58,8 @@ const LOOP := ["rifle_idle", "rifle_aim", "rifle_crouch", "rifle_crouch_aim", "r
 ## Sub-ranges of clips, in seconds: the CPR clip loops on its chest compressions only (owner).
 const TRIM := {"medtech": [0.13, 1.47]}
 ## Playback rate baked in: the big stagger reads better faster (owner).
-const RATE := {"hit_b": 1.6, "dodge_l": 1.3, "dodge_r": 1.3}
-const IN_PLACE := ["dodge_l", "dodge_r", "rifle_walk", "rifle_run", "rifle_sprint", "pistol_walk", "pistol_run", "pistol_sprint", "injured_walk", "injured_run"]
+const RATE := {"hit_b": 1.6}
+const IN_PLACE := ["rifle_walk", "rifle_run", "rifle_sprint", "pistol_walk", "pistol_run", "pistol_sprint", "injured_walk", "injured_run"]
 const HIPS := "%GeneralSkeleton:Hips"
 
 static var _lib: AnimationLibrary
@@ -83,11 +81,11 @@ static func library() -> AnimationLibrary:
 			continue
 		a = a.duplicate(true)
 		a.loop_mode = Animation.LOOP_LINEAR if clip in LOOP else Animation.LOOP_NONE
-		if clip in IN_PLACE:
-			speed[clip] = _make_in_place(a)
-		if clip in TRIM or clip in RATE:
+		if clip in TRIM or clip in RATE:   # trim first, so in-place works on the part we keep
 			var w: Array = TRIM.get(clip, [0.0, a.length])
 			_retime(a, float(w[0]), float(w[1]), float(RATE.get(clip, 1.0)))
+		if clip in IN_PLACE:
+			speed[clip] = _make_in_place(a)
 		_lib.add_animation(clip, a)
 	return _lib
 

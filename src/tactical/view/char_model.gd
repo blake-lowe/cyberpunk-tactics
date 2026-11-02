@@ -29,6 +29,9 @@ const GUNS := {"medium_pistol": ["Pistol_1", 0.17, "pistol"], "heavy_pistol": ["
 	"shotgun": ["Shotgun_1", 0.76, "rifle"], "sniper_rifle": ["SniperRifle_1", 0.88, "rifle"]}
 ## Clips where the left hand does its own thing (reloading): the gun holds still in the right hand.
 const ANCHOR_CLIPS := ["rifle_reload", "pistol_reload"]
+## How much a held-still rifle follows the chest (the rest is the body root): a reload keeps it
+## steady; a dodge ducks with it.
+const ANCHOR_CHEST := {"rifle_reload": 0.3}
 ## Two-handed pistol clips: the left hand is pulled onto the grip by IK.
 const PISTOL_GRIP_CLIPS := ["pistol_idle", "pistol_aim", "pistol_walk", "pistol_run", "pistol_crouch"]
 ## Region ids painted into the body's vertex colour (see char.gdshader).
@@ -48,6 +51,7 @@ var _last_pos := Vector3.ZERO
 var _speed := 0.0
 var _last_hit := 9.0
 var index := 0
+var _duck_until := 0
 var hold_state := false   ## review tools: keep the clip they set (no state picking), everything else runs
 var gun: Node3D
 var gun_sign := 1.0
@@ -60,6 +64,8 @@ var _drop_w := Vector3.ZERO
 var _dropping := false
 var _anchored := ""            ## anchor clip the gun is currently held still for
 var _anchor_rel := Transform3D.IDENTITY
+var _ready_rel: Variant = null   ## last normal rifle hold relative to the chest (seeds reload/dodge holds)
+var _ready_chest: Variant = null ## and the chest pose it was taken at (the hold is replayed where it was)
 var _support: Marker3D         ## pistols: where the left wrist goes (IK target)
 var _ik: TwoBoneIK3D           ## left arm → pistol support
 var _ik_r: TwoBoneIK3D         ## right arm → rifle grip during reloads
@@ -418,6 +424,8 @@ func _pick(now: bool) -> void:
 	var clip := "%s_idle" % w
 	if float(get_meta("slump_goal", 0.0)) > 0.5:
 		clip = "dying"
+	elif Time.get_ticks_msec() < _duck_until:   # dodge: a snap down into the crouch, rifle still up
+		clip = w + "_crouch"
 	elif get_meta("walk", false):
 		clip = "injured_walk" if serious else w + ("_sprint" if get_meta("run", false) else "_run")
 	elif get_meta("jack", false):
@@ -431,8 +439,9 @@ func _pick(now: bool) -> void:
 	elif serious:
 		clip = "injured_idle"
 	if clip != state:
+		var quick: bool = clip.ends_with("_crouch") and Time.get_ticks_msec() < _duck_until or state.ends_with("_crouch") and _duck_until > 0
 		state = clip
-		anim.play(clip, 0.0 if now else 0.18)
+		anim.play(clip, 0.0 if now else (0.07 if quick else 0.18))
 		if now:   # desync idles between units
 			anim.seek(fmod(index * 0.73, anim.current_animation_length), true)
 	var native: float = CharAnims.speed.get(clip, 0.0)
@@ -470,6 +479,11 @@ func pose_still(clip: String, at: float) -> void:
 	anim.play(clip)
 	anim.seek(at, true)
 	anim.pause()
+
+
+## Dodge (owner: the dodging clips read as steps or runs): duck into the crouch for `secs`.
+func duck(secs := 0.5) -> void:
+	_duck_until = Time.get_ticks_msec() + int(secs * 1000.0)
 
 
 func play_once(clip: String, blend := 0.1) -> void:
@@ -527,7 +541,7 @@ func place_gun(s: Skeleton3D) -> void:
 	var chest := s.get_bone_global_pose(s.find_bone("UpperChest"))
 	# reloads: a rifle holds still against the chest (the right hand follows it by IK) while the
 	# left hand swaps the magazine; a pistol stays in the right hand
-	var anchor := Transform3D.IDENTITY.interpolate_with(chest, 0.3) if gun_kind == "rifle" else rh_pose   # mostly the body root: steady
+	var anchor := Transform3D.IDENTITY.interpolate_with(chest, float(ANCHOR_CHEST.get(state, 0.3))) if gun_kind == "rifle" else rh_pose
 	if state not in ANCHOR_CLIPS:
 		_anchored = ""
 	if _gun_rel != null:
@@ -575,9 +589,13 @@ func place_gun(s: Skeleton3D) -> void:
 	gun.transform = Transform3D(gb, grip - gb * gun_grip)
 	if state.begins_with("death"):   # first frame of a death: the gun stays as it is in the hand until it falls
 		_gun_rel = rh_pose.affine_inverse() * gun.transform
-	if state in ANCHOR_CLIPS:   # first frame of a reload: keep the gun where the hands have it now
+	if state in ANCHOR_CLIPS:   # first frame: keep the gun as it was last held normally (else where the hands have it)
 		_anchored = state
-		_anchor_rel = anchor.affine_inverse() * gun.transform
+		var held: Transform3D = (_ready_chest as Transform3D) * (_ready_rel as Transform3D) if _ready_rel != null and gun_kind == "rifle" else gun.transform
+		_anchor_rel = anchor.affine_inverse() * held
+	elif gun_kind == "rifle" and state.begins_with("rifle_") and not state.begins_with("rifle_reload"):
+		_ready_rel = chest.affine_inverse() * gun.transform   # the last ordinary two-handed hold, relative to the chest
+		_ready_chest = chest
 
 
 ## Put a dropped gun back in the hands (review tools play deaths and then other clips).

@@ -1839,8 +1839,7 @@ func _anim_attack(e: Dictionary) -> void:
 	var light := _flash_light(su.id)
 	if e.dodged:   # the dodge starts before the rounds arrive, so they pass through empty air
 		var side := Vector3(-d.y, 0, d.x).normalized() * 0.32
-		var to_left: bool = (tn.global_transform.basis.inverse() * side).x > 0.0   # +X is the body's left
-		(tn as CharModel).play_once("dodge_l" if to_left else "dodge_r", 0.06)
+		(tn as CharModel).duck(0.55)   # a snap down into cover stance while the body slips sideways
 		var tw := create_tween()
 		tw.tween_property(tn, "position", tn.position + side, 0.09).set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
 		tw.tween_interval(0.25)

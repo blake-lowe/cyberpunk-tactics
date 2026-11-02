@@ -17,6 +17,7 @@ var cur: CharModel
 var ci := -1
 var frame := 0
 var frames := 0
+var _clip := ""
 
 
 func _initialize() -> void:
@@ -97,15 +98,17 @@ func _next() -> void:
 	rifle.visible = cur == rifle
 	pistol.visible = cur == pistol
 	cur.reset_gun()
-	cur.state = clip
-	cur.anim.play(clip)
+	_clip = clip
+	var warm := "pistol_idle" if cur == pistol else "rifle_idle"   # the clip starts from an ordinary hold, as in play
+	cur.state = warm
+	cur.anim.play(warm)
 	cur.anim.seek(0.0, true)
 	var a := cur.anim.get_animation(clip)
 	var secs := clampf(a.length * (2.0 if a.length < 1.2 and a.loop_mode != Animation.LOOP_NONE else 1.0), 1.5, MAX_SECS)
 	if a.loop_mode == Animation.LOOP_NONE:
 		secs = minf(a.length + 0.6, MAX_SECS)
 	frames = int(secs * 24.0)
-	frame = -2   # two warm-up frames so the first saved frame shows this clip
+	frame = -8   # warm-up frames on an idle hold, then the clip (saved from frame 1)
 	DirAccess.make_dir_recursive_absolute(out.path_join(clip))
 
 
@@ -116,6 +119,10 @@ func _process(_d: float) -> bool:
 	if ci >= clips.size():
 		return true
 	frame += 1
+	if frame == 0:   # warm-up over: start the clip under review
+		cur.state = _clip
+		cur.anim.play(_clip)
+		cur.anim.seek(0.0, true)
 	if OS.has_environment("REEL_DEBUG") and frame % 20 == 0:
 		print(clips[ci], " ", cur.anim.current_animation, " ", cur.anim.current_animation_position, " playing ", cur.anim.is_playing())
 	if frame >= 1:
