@@ -2140,7 +2140,7 @@ func _play_events() -> void:
 	while not enc.events.is_empty():
 		var e: Dictionary = enc.events.pop_front()
 		var u: Dictionary = enc.units[e.unit]
-		if u.team == 1 and not hostile_shown and String(e.type) not in ["alert", "death"] and not e.get("patrol", false) and _event_visible(e):
+		if u.team == 1 and not hostile_shown and String(e.type) not in ["alert", "death", "camera"] and not e.get("patrol", false) and _event_visible(e):
 			hostile_shown = true
 			hud.enemy_phase(true)
 			hud.turn_banner("HOSTILE ACTIVITY", Hud.RED)
@@ -2183,6 +2183,10 @@ func _play_events() -> void:
 					_float(u, "CALLING IT IN", Hud.RED)
 				hud.toast("ALARM: BACKUP IN %d ROUNDS" % int(e.rounds))
 			"backup": await _anim_backup(e)
+			"camera":
+				var tu: Dictionary = enc.units[e.target]
+				_float(tu, "ON CAMERA", Hud.RED)
+				hud.toast("A CAMERA SPOTTED %s · TAKE THE CAMERAS IN THE NET" % tu.c.display_name.to_upper())
 			"death": await _anim_death(e)
 			"grab":
 				var gn: CharModel = unit_nodes[u.id]

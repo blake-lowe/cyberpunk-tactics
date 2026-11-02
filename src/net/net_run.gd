@@ -23,6 +23,7 @@ var kraken_until := -1    ## round: no going deeper or safe Jack Out until then 
 var wisp := 0        ## NET Actions lost next turn (p207)
 var skunks := {}     ## Skunk ice ids hitting this runner: -2 Slide each while Rezzed (p207)
 var no_deeper := false
+var inside := {}     ## firewalls the runner reached from their inner side: they can go back in (playtest trap)
 var scouted := {}    ## nodes seen only through Pathfinder: contents known, DVs not (p199-200)   ## set by the tactical layer while a Kraken holds the runner
 
 
@@ -68,7 +69,7 @@ func cur_node() -> Dictionary:
 ## Can this node be left towards `to`?
 func _passable(from: int, to: int) -> bool:
 	var n: Dictionary = arch.nodes[from]
-	if n.type == "firewall" and not broken.has(from) and int(arch.nodes[to].zone) >= int(n.zone):
+	if n.type == "firewall" and not broken.has(from) and not inside.has(from) and int(arch.nodes[to].zone) >= int(n.zone):
 		return false
 	if no_deeper and int(arch.nodes[to].zone) > int(n.zone):   # Kraken (p207)
 		return false
@@ -99,6 +100,21 @@ func can_move_to(id: int) -> bool:
 func move_to(id: int) -> bool:
 	if not can_move_to(id):
 		return false
+	# Firewalls passed outward from the inside stay open behind you (you came from there).
+	var parent := {current: -1}
+	var q := [current]
+	while not q.is_empty() and not parent.has(id):
+		var n: int = q.pop_front()
+		for nb in arch.neighbors(n):
+			if not parent.has(nb) and _passable(n, nb):
+				parent[nb] = n
+				q.append(nb)
+	var step := id
+	while parent.has(step) and int(parent[step]) >= 0:
+		var prev: int = parent[step]
+		if arch.nodes[step].type == "firewall" and int(arch.nodes[prev].zone) >= int(arch.nodes[step].zone):
+			inside[step] = true
+		step = prev
 	current = id
 	revealed[id] = true
 	scouted.erase(id)

@@ -577,3 +577,40 @@ func test_jack_in_needs_no_wall_between() -> void:
 	var e := _corridor_encounter(Vector2i(20, 1), 5)
 	assert_true(e._wall_between(Vector3i(3, 1, 0), Vector3i(7, 1, 0)))
 	assert_false(e._wall_between(Vector3i(6, 1, 0), Vector3i(9, 1, 0)))
+
+
+func test_cameras_spot_unless_the_netrunner_holds_them() -> void:
+	var e := _corridor_encounter(Vector2i(25, 1))
+	e.m.devices.append({"id": e.m.devices.size(), "type": "camera", "pos": Vector2i(4, 1), "floor": 0, "group": "cameras"})
+	var cam_id: int = e.m.devices[-1].id
+	var crew: Dictionary = e.units[0]
+	crew.pos = Vector3i(6, 1, 0)
+	crew.c.skills["stealth"] = 0
+	e.lit[crew.pos] = true
+	var spotted := false
+	for k in 30:
+		e._spot_rolls.clear()
+		if not e._camera_spots().is_empty():
+			spotted = true
+			break
+	assert_true(spotted, "a live camera catches a clumsy sneak")
+	e.disabled_devices[cam_id] = true
+	for k in 30:
+		e._spot_rolls.clear()
+		assert_true(e._camera_spots().is_empty(), "held cameras see nothing")
+
+
+func test_firewall_left_from_inside_lets_you_back_in() -> void:
+	var a := NetArchitecture.new()
+	var deep := a.add_node({"type": "hub", "zone": 2, "subnet": 0})
+	var fw := a.add_node({"type": "firewall", "zone": 2, "subnet": 0, "dv": 8})
+	var outer := a.add_node({"type": "hub", "zone": 1, "subnet": 1})
+	a.link(deep, fw)
+	a.link(fw, outer)
+	var run := NetRun.new(a, Recruit.generate(Dice.new(1), "netrunner", "edgerunner"))
+	run.current = deep
+	assert_true(run.move_to(outer), "outward through a firewall is free")
+	assert_true(run.can_move_to(deep), "and you can go back the way you came")
+	var run2 := NetRun.new(a, run.runner)
+	run2.current = outer
+	assert_false(run2.can_move_to(deep), "coming from outside still needs a Backdoor")

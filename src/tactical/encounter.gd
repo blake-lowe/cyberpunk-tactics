@@ -29,6 +29,7 @@ var state := "playing"              ## playing | won | lost
 var runs := {}                      ## unit id → NetRun
 var net_left := 0                   ## NET Actions left this turn (runner only)
 var _slid_this_turn := false
+var _ice_round := -1
 var _netting := false               ## this turn went to the NET (the meat Action is forgone, p197)
 var objective := {}                 ## {kind, done, + data: structure, node | snatch: cell, carrier}
 var twists: Array = []             ## gig complications: heavy, blackout, shift_change (data/gen/gigs.json)
@@ -181,6 +182,9 @@ func next_turn() -> void:
 			state = "lost"
 			return
 		cur = unit_of(c)
+		if init.round_num != _ice_round:
+			_ice_round = init.round_num
+			_patrol_ice()
 		if "shift_change" in twists and init.round_num >= SHIFT_CHANGE_ROUND and alarm < 2:
 			var gs := alive(1)
 			if not gs.is_empty():
@@ -357,8 +361,43 @@ func update_alerts() -> Array:
 				fresh.append(g)
 				say("%s spots %s!" % [g.c.display_name, u.c.display_name])
 				break
+	var cam_guard := _camera_spots()
+	if not cam_guard.is_empty() and cam_guard not in fresh:
+		fresh.append(cam_guard)
 	_rouse(fresh)
 	return fresh
+
+
+## Security cameras (HOUSE-RULE): a live camera watches its floor within CAMERA_RANGE squares, no
+## wall between; whoever minds the feed rolls CAMERA_PERCEPTION (-4 in the dark) vs Stealth, once
+## per camera, crew member and round. A hit rouses the nearest unalerted guard. Holding the
+## cameras' Control Node in the NET turns them off - the netrunner's job in a stealth gig.
+const CAMERA_RANGE := 8.0
+const CAMERA_PERCEPTION := 10
+func _camera_spots() -> Dictionary:
+	if alarm >= 2:
+		return {}
+	for d in m.devices:
+		if String(d.type) != "camera" or disabled_devices.has(d.id):
+			continue
+		var cp := Vector3i(d.pos.x, d.pos.y, d.floor)
+		for u in alive(0):
+			if u.pos.z != cp.z or Vector2(u.pos.x - cp.x, u.pos.y - cp.y).length() > CAMERA_RANGE or _wall_between(cp, u.pos):
+				continue
+			var key := ["cam", d.id, u.id, init.round_num if init else 0]
+			if not _spot_rolls.has(key):
+				var base := CAMERA_PERCEPTION - (0 if lit.has(u.pos) else DARK_PENALTY)
+				_spot_rolls[key] = Check.opposed(dice, base, u.c.skill_base("stealth") - u.c.action_penalty()).success
+			if _spot_rolls[key]:
+				var best: Dictionary = {}
+				for g in units:
+					if g.team == 1 and not g.alerted and not g.c.dead and (best.is_empty() or Vector3(g.pos - cp).length() < Vector3(best.pos - cp).length()):
+						best = g
+				if not best.is_empty():
+					say("A camera catches %s. %s is on the way." % [u.c.display_name, best.c.display_name])
+					events.append({"type": "camera", "unit": best.id, "device": d.id, "target": u.id})
+					return best
+	return {}
 
 
 # --- Stealth (M7): facing, light, Perception vs Stealth, patrols, alarm -------------------
@@ -1213,6 +1252,29 @@ func net_action(kind: String, arg: int = -1) -> Dictionary:
 			say("Pathfinder reveals %d nodes." % shown.size())
 			return {"ok": true, "success": not shown.is_empty(), "revealed": shown}
 	return {"ok": false, "reason": "unknown"}
+
+
+## Patrolling Black ICE (complex NETs) moves one node a round along its subnet's links, never
+## through a firewall or onto a port; landing on a runner means a meeting (p205). ICE already
+## engaged with a runner (on their node) stays.
+func _patrol_ice() -> void:
+	var occupied_by := {}   # arch, node → runner unit
+	for uid in runs:
+		var r: NetRun = runs[uid]
+		occupied_by[[r.arch.structure, r.current]] = uid
+	for sid in m.architectures:
+		var a: NetArchitecture = m.architectures[sid]
+		for ice in a.ice:
+			if not ice.get("patrol", false) or ice.get("derezzed", false) or occupied_by.has([sid, ice.node]):
+				continue
+			var subnet: int = a.nodes[ice.node].subnet
+			var opts := a.neighbors(ice.node).filter(func(nb): return a.nodes[nb].subnet == subnet and String(a.nodes[nb].type) not in ["firewall", "port", "socket"])
+			if opts.is_empty():
+				continue
+			ice.node = opts[dice.d(opts.size()) - 1]
+			if occupied_by.has([sid, ice.node]):
+				var uid: int = occupied_by[[sid, ice.node]]
+				_meet_ice(units[uid], runs[uid])
 
 
 ## Move inside the NET (free, p198); new Black ICE there gets its speed contest (p205).
