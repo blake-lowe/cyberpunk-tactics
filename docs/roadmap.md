@@ -206,3 +206,6 @@ Check-ins (🔶) are where work pauses for a user decision or review.
   so most gigs stalled until backup/NCPD wore it down; it's a weak proxy for a player.
 - Downtime assignments: Recover / Train (+6 IP/day, half healing) / Hustle (60 eb +10/rep per day, half
   healing, 1-in-10 days +1 heat).
+- Escalation retuned after measuring (balance_autoplay -- --escalate): backup = security Mooks after 5
+  rounds; NCPD only at security 2+, heavy twist, or heat 3+, 12 rounds after backup. With escalation on, an
+  AI crew of 3 vs equal Mooks now wins 10/12 (was 2/12), matching the no-escalation baseline.
