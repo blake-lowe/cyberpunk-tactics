@@ -136,3 +136,25 @@ func test_facilities_upgrade_and_apply() -> void:
 	var d := Campaign.from_dict(JSON.parse_string(JSON.stringify(c.to_dict())))
 	assert_eq(d.level("med_bay"), 2)
 	assert_eq(d.level("intel"), 1)
+
+
+func test_ripperdoc_foundations_humanity_and_therapy() -> void:
+	var c := Campaign.new_game(5)
+	c.eb = 10000
+	var solo: Combatant = c.crew[0]
+	solo.cyberware.clear()   # a clean slate (Role starting cyberware varies)
+	solo.weapons = solo.weapons.filter(func(w): return not w.is_melee())
+	assert_eq(c.install_block(solo, "kerenzikov"), "needs Neural Link", "speedware needs the foundation (p111)")
+	var hum0 := solo.humanity
+	assert_true(c.install(solo, "neural_link") > 0)
+	assert_true(solo.humanity < hum0, "Humanity Loss rolled (p110)")
+	assert_true(c.install(solo, "kerenzikov") > 0)
+	assert_eq(c.install_block(solo, "kerenzikov"), "installed")
+	c.install(solo, "cyberarm")
+	c.install(solo, "wolvers")
+	assert_eq(solo.weapons.filter(func(w): return w.is_melee()).map(func(w): return w.id()), ["heavy_melee"])
+	var day0 := c.day
+	var low := solo.humanity
+	assert_true(c.therapy(solo))
+	assert_true(solo.humanity > low and solo.humanity <= solo.max_humanity)
+	assert_eq(c.day, day0 + 7, "therapy takes a week (p230)")

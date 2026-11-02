@@ -47,13 +47,13 @@ static func generate(dice: Dice, role: String, method: String = "edgerunner", ha
 	c.role = role
 	c.role_rank = 4  # p142
 	c.init_humanity()
+	for w in LOADOUT.get(role, []):   # guns first: weapons[0] is the primary
+		c.weapons.append(Weapon.from_id(w))
 	for choice in rd["cyberware"]:
 		c.install_cyberware(choice[dice.d(choice.size()) - 1], dice, true)
 	c.hp = c.max_hp()
 	c.armor["body"] = ArmorPiece.from_id("light_armorjack")  # p98
 	c.armor["head"] = ArmorPiece.from_id("light_armorjack")
-	for w in LOADOUT.get(role, []):
-		c.weapons.append(Weapon.from_id(w))
 	# HOUSE-RULE: pared-down loadouts carry frag grenades (two for Solos, one otherwise) until the
 	# gear/inventory system lands (M6+).
 	c.grenades = 2 if role == "solo" else 1

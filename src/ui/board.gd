@@ -171,6 +171,7 @@ func _build() -> void:
 		hires.add_child(_recruit_card(i))
 	if not camp.crew.is_empty():
 		mid.add_child(_shop())
+		mid.add_child(_ripperdoc())
 	mid.add_child(_text("// LOG", Hud.F_PIXEL, 22, Hud.DIM))
 	for l in camp.log.slice(-6):
 		mid.add_child(_text("> " + l, Hud.F_TERM, 20, Color(Hud.TEXT, 0.7), true))
@@ -245,6 +246,34 @@ func _shop() -> VBoxContainer:
 	return box
 
 
+## Ripperdoc: chrome for the crew member the market is buying for. Price includes surgery (p110).
+func _ripperdoc() -> VBoxContainer:
+	var c: Combatant = camp.crew[_shop_for]
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 8)
+	box.add_child(_text("// RIPPERDOC  (for %s · HUM %d/%d · chrome costs Humanity)" % [c.display_name.to_upper(), c.humanity, c.max_humanity], Hud.F_PIXEL, 22, Hud.VIOLET))
+	var grid := GridContainer.new()
+	grid.columns = 3
+	grid.add_theme_constant_override("h_separation", 8)
+	grid.add_theme_constant_override("v_separation", 8)
+	box.add_child(grid)
+	for id in Campaign.RIPPERDOC:
+		var d := RulesDB.cyberware(id)
+		var p := _panel(Hud.VIOLET)
+		p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var col := VBoxContainer.new()
+		col.add_theme_constant_override("separation", 2)
+		p.add_child(col)
+		col.add_child(_text(String(d.name).to_upper(), Hud.F_DISPLAY, 20, Hud.TEXT))
+		col.add_child(_text(String(Campaign.RIPPERDOC[id][1]), Hud.F_TERM, 17, Color(Hud.TEXT, 0.8), true))
+		col.add_child(_text("%s eb · HL %s%s" % [_money(int(d.cost)), d.hl_dice, " · %s" % String(d.install).to_upper()], Hud.F_TERM, 17, Color(Hud.TEXT, 0.6)))
+		var why := camp.install_block(c, id)
+		var cid: String = id
+		col.add_child(_button("INSTALL" if why == "" else why.to_upper(), Hud.VIOLET, func(): camp.install(c, cid); _rebuild(), why == ""))
+		grid.add_child(p)
+	return box
+
+
 static func _money(v: int) -> String:
 	var s := str(absi(v))
 	var out := ""
@@ -281,6 +310,16 @@ func _crew_card(c: Combatant) -> PanelContainer:
 	col.add_child(_text("%s · RANK %d · %d IP" % [c.role.to_upper(), c.role_rank, c.ip], Hud.F_TERM, 20, Hud.CYAN))
 	var hpcol := Hud.GREEN if c.hp >= c.max_hp() else (Hud.GOLD if c.wound_state() < Combatant.Wound.SERIOUS else Hud.RED)
 	col.add_child(_text("HP %d/%d   SP %d/%d" % [c.hp, c.max_hp(), c.sp("head"), c.sp("body")], Hud.F_TERM, 20, hpcol))
+	if c.tracks_humanity:
+		var hum_col := Hud.GREEN if c.psychosis_tier() == 0 else (Hud.GOLD if c.psychosis_tier() == 1 else Hud.RED)
+		var hr := HBoxContainer.new()
+		hr.add_theme_constant_override("separation", 8)
+		hr.add_child(_text("HUM %d/%d  EMP %d" % [c.humanity, c.max_humanity, c.raw_stat("EMP")], Hud.F_TERM, 20, hum_col))
+		if c.humanity < c.max_humanity:
+			hr.add_child(_button("THERAPY %d eb · 1 WEEK" % int(Campaign.THERAPY.cost), Hud.GREEN, func(): camp.therapy(c); _rebuild(), camp.eb >= int(Campaign.THERAPY.cost)))
+		col.add_child(hr)
+	if not c.cyberware.is_empty():
+		col.add_child(_text("CHROME: " + ", ".join(c.cyberware.map(func(x): return String(RulesDB.cyberware(x).name))), Hud.F_TERM, 17, Color(Hud.VIOLET, 0.9), true))
 	if c.grenades > 0 or not c.weapons.is_empty():
 		col.add_child(_text(", ".join(c.weapons.map(func(w): return String(w.def.name))) + ("  · frag ×%d" % c.grenades if c.grenades > 0 else ""), Hud.F_TERM, 18, Color(Hud.TEXT, 0.7), true))
 	for i in c.injuries.size():

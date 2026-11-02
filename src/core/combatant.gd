@@ -318,6 +318,10 @@ func install_cyberware(cyber_id: String, dice: Dice = null, at_creation: bool = 
 			a.max_sp = int(fx["armor_sp"])
 			a.sp = a.max_sp
 			subdermal[loc] = a
+	if fx.has("weapon"):   # built-in melee weapons (Wolvers, Big Knucks...) replace the carried one
+		for old in weapons.filter(func(x): return x.is_melee()):
+			weapons.erase(old)
+		weapons.append(Weapon.from_id(String(fx["weapon"])))
 	var loss := 0
 	if tracks_humanity and int(d["hl_flat"]) > 0:
 		loss = int(d["hl_flat"]) if at_creation or dice == null else roll_hl(dice, d["hl_dice"])

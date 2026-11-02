@@ -313,6 +313,65 @@ func buy(c: Combatant, id: String, loc := "body") -> bool:
 	return true
 
 
+# --- Ripperdoc (cyberware) ----------------------------------------------------------------
+
+## What the ripperdoc installs: pieces whose effects the rules use, with the foundation each needs
+## (p111-116: neuralware needs a Neural Link, cyberoptics a Cybereye, chipware a Chipware Socket,
+## arm options a Cyberarm). Purchase price includes the surgery (p110). Short effect summaries are
+## our paraphrase.
+const RIPPERDOC := {
+	"neural_link": ["", "Foundation for neuralware."],
+	"kerenzikov": ["neural_link", "+2 Initiative."],
+	"chipware_socket": ["neural_link", "Holds chipware."],
+	"pain_editor": ["chipware_socket", "Ignore Seriously Wounded penalties."],
+	"cybereye": ["", "Foundation for cyberoptics."],
+	"targeting_scope": ["cybereye", "+1 to Aimed Shots."],
+	"skin_weave": ["", "SP 7 under the skin, head and body."],
+	"subdermal_armor": ["", "SP 11 under the skin, head and body."],
+	"grafted_muscle_and_bone_lace": ["", "+2 BODY (max 10): more HP."],
+	"cyberarm": ["", "Brawling hits for at least 2d6; holds arm options."],
+	"big_knucks": ["cyberarm", "Medium melee weapon in the knuckles."],
+	"wolvers": ["cyberarm", "Heavy melee claws."],
+}
+const THERAPY := {"cost": 600, "days": 7, "regain": "2d6"}   # p230 Standard Humanity Loss: 500eb + 100eb materials, a week
+
+
+## Why `c` can't get this piece now ("" if they can).
+func install_block(c: Combatant, id: String) -> String:
+	if c.has_cyberware(id):
+		return "installed"
+	var need: String = RIPPERDOC[id][0]
+	if need != "" and not c.has_cyberware(need):
+		return "needs " + String(RulesDB.cyberware(need).name)
+	if eb < int(RulesDB.cyberware(id).cost):
+		return "%d eb" % int(RulesDB.cyberware(id).cost)
+	return ""
+
+
+## Install a piece: pay, roll the Humanity Loss (p110), and arm any built-in melee weapon.
+func install(c: Combatant, id: String) -> int:
+	if install_block(c, id) != "":
+		return -1
+	var d := RulesDB.cyberware(id)
+	eb -= int(d.cost)
+	var loss := c.install_cyberware(id, dice)
+	say("%s gets %s installed (-%d Humanity)." % [c.display_name, d.name, loss])
+	return loss
+
+
+## A week of therapy (p230): pay, everyone else rests the week, the patient regains 2d6 Humanity
+## up to their cap.
+func therapy(c: Combatant) -> bool:
+	if not c.tracks_humanity or c.humanity >= c.max_humanity or eb < int(THERAPY.cost):
+		return false
+	eb -= int(THERAPY.cost)
+	var gain := Combatant.roll_hl(dice, THERAPY.regain)
+	c.regain_humanity(gain)
+	say("%s spends a week in therapy (+%d Humanity)." % [c.display_name, gain])
+	rest(int(THERAPY.days))
+	return true
+
+
 # --- Safehouse ------------------------------------------------------------------------
 
 func level(facility: String) -> int:
