@@ -29,6 +29,7 @@ var vision: Vision                  ## what the crew can see (drives fog and hid
 ## What happened, in order, for the view to animate: {type: move|attack|cover|alert, ...}.
 ## The view drains it; rules code never reads it.
 var events: Array[Dictionary] = []
+var jack_pos := {}                  ## runner unit id → the square of the device they jacked in at
 var disabled_devices := {}          ## device id → true (turrets/cameras under the runner's control)
 
 
@@ -167,17 +168,20 @@ func next_turn() -> void:
 
 func end_turn() -> void:
 	if turn != null:
+		var before: int = cur.c.wound_state()
 		var dmg := turn.end()
 		if dmg > 0:
 			say("%s takes %d from strained injuries." % [cur.c.display_name, dmg])
+			events.append({"type": "harm", "unit": cur.id, "damage": dmg, "source": "STRAIN", "wound_before": before, "wound_after": cur.c.wound_state()})
 	_check_end()
 
 
 func _check_end() -> void:
 	if state != "playing":
 		return
-	if alive(0).is_empty() and units.filter(func(u): return u.team == 0 and not u.c.dead).is_empty():
-		state = "lost"
+	if units.filter(func(u): return u.team == 0 and u.c.can_act()).is_empty() \
+			and units.filter(func(u): return u.team == 0 and not u.c.dead and u.c.wake_in > 0).is_empty():
+		state = "lost"   # nobody on the crew can act or will wake up (the loop would otherwise spin)
 	elif alive(1).is_empty():
 		state = "won"
 		say("All guards are down.")
@@ -606,6 +610,8 @@ func jack_in(point: Dictionary) -> bool:
 	run.nets = m.architectures
 	run.jack_in(point.index)
 	runs[cur.id] = run
+	var dev: Dictionary = m.devices[point.device]
+	jack_pos[cur.id] = Vector3i(dev.pos.x, dev.pos.y, dev.floor)
 	say("%s jacks in." % cur.c.display_name)
 	return true
 
@@ -616,6 +622,10 @@ func net_action(kind: String, arg: int = -1) -> Dictionary:
 	var run: NetRun = runs.get(cur.id)
 	if run == null or net_left <= 0:
 		return {"ok": false, "reason": "no NET Actions left"}
+	if kind == "zap" and run.arch.ice_at(run.current).is_empty():   # check before spending anything
+		return {"ok": false, "reason": "no ICE here"}
+	if kind == "cross" and (run.current < 0 or String(run.cur_node().type) != "socket" or not run.nets.has(run.cur_node().get("target_structure", -1))):
+		return {"ok": false, "reason": "no socket here"}
 	turn.action_available = false
 	net_left -= 1
 	var n := run.cur_node()
@@ -674,12 +684,15 @@ func _ice_turn(u: Dictionary) -> void:
 		if hit.success and String(stats.brain) != "":
 			var parts := String(stats.brain).split("d")
 			var dmg := dice.roll(int(parts[0]), int(parts[1]))
+			var before: int = u.c.wound_state()
 			u.c.hp -= dmg
 			say("%s hits %s for %d brain damage." % [ice.kind, u.c.display_name, dmg])
+			events.append({"type": "harm", "unit": u.id, "damage": dmg, "source": String(ice.kind).to_upper(), "wound_before": before, "wound_after": u.c.wound_state()})
 
 
+## Where the runner is physically jacked in (the device they used, not the NET's first port).
 func _ap_pos(run: NetRun) -> Vector3i:
-	for ap in run.arch.access_points:
-		var d: Dictionary = m.devices[ap.device]
-		return Vector3i(d.pos.x, d.pos.y, d.floor)
+	for uid in runs:
+		if runs[uid] == run and jack_pos.has(uid):
+			return jack_pos[uid]
 	return cur.pos

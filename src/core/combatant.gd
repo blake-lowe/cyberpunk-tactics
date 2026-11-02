@@ -20,6 +20,7 @@ var base_dsp: int = 0         ## Base Death Save Penalty (raised by some crits).
 var dsp: int = 0              ## Current Death Save Penalty (base + saves rolled since last stabilization).
 var dead := false
 var unconscious := false
+var wake_in := 0               ## rounds until a stabilized character comes round (1 minute = 20 rounds, p223)
 var prone := false
 var weapons: Array[Weapon] = []
 var grenades: int = 0          ## frag grenades carried (thrown: DEX + Athletics, 6d6 blast, p174/p177)
@@ -402,4 +403,5 @@ func stabilize() -> void:
 	if wound_state() == Wound.MORTAL:
 		hp = 1
 		unconscious = true
+		wake_in = 20   # "Unconscious for 1 minute" (p223): 20 rounds of 3 s
 	dsp = base_dsp

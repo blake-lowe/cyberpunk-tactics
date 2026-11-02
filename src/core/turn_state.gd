@@ -25,6 +25,10 @@ var psychotic := false      ## Cyberpsychosis episode: the AI controls this turn
 static func begin(dice: Dice, combatant: Combatant) -> TurnState:
 	var t := TurnState.new()
 	t.c = combatant
+	if combatant.unconscious and combatant.wake_in > 0:   # coming round after stabilization (p223)
+		combatant.wake_in -= 1
+		if combatant.wake_in == 0:
+			combatant.unconscious = false
 	if combatant.wound_state() == Combatant.Wound.MORTAL and not combatant.dead:
 		t.survived = combatant.death_save(dice)
 	if not t.survived or not combatant.can_act():

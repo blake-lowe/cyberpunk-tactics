@@ -1870,6 +1870,7 @@ func _play_events() -> void:
 			"suppress": await _anim_suppress(e)
 			"shell": await _anim_shell(e)
 			"blast": await _anim_blast(e)
+			"harm": _anim_harm(e)
 			"death": await _anim_death(e)
 	hud.enemy_phase(false)
 	_focus_unit = -1
@@ -2185,6 +2186,19 @@ func _anim_suppress(e: Dictionary) -> void:
 		_float(t, "PINNED" if t.id in e.suppressed else "HOLDS", Hud.GOLD if t.id in e.suppressed else Hud.DIM)
 	create_tween().tween_method(func(v: float): sn.set_meta("aim", v), 1.0, 0.0, 0.25).set_delay(0.3)
 	await get_tree().create_timer(0.6).timeout
+
+
+## Damage that isn't an attack (Black ICE brain damage, strained injuries): a number and a flash.
+func _anim_harm(e: Dictionary) -> void:
+	var u: Dictionary = enc.units[e.unit]
+	if not _seen(u.pos):
+		return
+	_float(u, "-%d %s" % [int(e.damage), String(e.source)], Hud.RED)
+	_hit_flash(unit_nodes[u.id])
+	hud.hit_unit(u.id)
+	_hud_refresh()
+	if int(e.wound_before) < Combatant.Wound.MORTAL and int(e.wound_after) >= Combatant.Wound.MORTAL:
+		_die(u, unit_nodes[u.id], Vector3.FORWARD, enc.units[e.unit].c.dead)
 
 
 ## A per-target attack-like dict from an area hit, for _outcome.

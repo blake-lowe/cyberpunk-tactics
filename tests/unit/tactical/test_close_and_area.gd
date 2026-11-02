@@ -143,3 +143,18 @@ func test_ai_throws_at_a_cluster_and_punches_when_empty() -> void:
 	e.events.clear()
 	AI.act(e, g)
 	assert_true(e.events.any(func(x): return x.type == "attack" and x.weapon == "brawling"), "empty gun, enemy in reach: fists, not a reload")
+
+
+func test_stabilized_ally_comes_round_and_an_all_down_crew_loses() -> void:
+	var e := _arena([])
+	var c: Combatant = e.cur.c
+	c.hp = 0
+	c.stabilize()
+	assert_true(c.unconscious)
+	for k in 20:
+		TurnState.begin(e.dice, c)
+	assert_false(c.unconscious, "awake after a minute (20 rounds, p223)")
+	c.unconscious = true
+	c.wake_in = 0
+	e._check_end()
+	assert_eq(e.state, "lost", "nobody on the crew can act or will wake: the gig is lost, not a stuck loop")
