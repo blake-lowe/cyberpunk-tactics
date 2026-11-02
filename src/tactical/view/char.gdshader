@@ -2,7 +2,7 @@ shader_type spatial;
 // Skinned characters (CharModel). Same lighting contract as unit.gdshader: real lights shade them,
 // and the baked light field (global lf_tex) adds local neon spill and a rim so bodies sit in the
 // scene. Clothing is painted by region: the base body's vertex COLOR.r carries a region id baked
-// from bone weights (0 skin, 1 jacket, 2 sleeve, 3 pants, 4 boots, 5 gloves, 6 belt, 7 collar),
+// from bone weights (0 skin, 1 torso, 2 upper arm, 3 pants, 4 boots, 5 gloves, 6 belt, 7 forearm),
 // and each region takes a flat cloth colour with the texture's shading kept faintly for folds.
 // mode: 0 body (regions), 1 tinted texture (hair, brows), 2 flat albedo (gear), 3 texture as-is (eyes).
 
@@ -12,11 +12,15 @@ uniform vec4 albedo : source_color = vec4(0.5, 0.5, 0.5, 1.0);
 uniform vec3 skin : source_color = vec3(0.75, 0.55, 0.42);
 uniform vec3 jacket : source_color = vec3(0.25, 0.4, 0.55);
 uniform vec3 sleeve : source_color = vec3(0.25, 0.4, 0.55);
+uniform vec3 forearm : source_color = vec3(0.25, 0.4, 0.55);
 uniform vec3 pants : source_color = vec3(0.2, 0.22, 0.28);
 uniform vec3 boots : source_color = vec3(0.12, 0.13, 0.15);
 uniform vec3 gloves : source_color = vec3(0.1, 0.1, 0.12);
-uniform vec3 trim : source_color = vec3(0.0, 0.85, 0.9);    // belt light and collar edge (accent)
-uniform float trim_glow = 1.0;
+uniform vec3 belt : source_color = vec3(0.11, 0.09, 0.07);  // leather
+uniform float belt_y = 1.0;          // rest height (m) of the belt centre
+uniform float belt_w = 0.03;
+uniform float coat_y = 0.98;         // the jacket reaches down to here (a coat goes below the belt)
+uniform float boots_y = 0.3;
 uniform vec3 emission : source_color = vec3(0.0);
 uniform float emission_energy = 0.0;
 uniform float roughness = 0.6;
@@ -28,11 +32,13 @@ global uniform vec3 lf_dims;
 varying vec3 wpos;
 varying vec3 wn;
 varying flat int region;
+varying float rest_y;
 
 void vertex() {
 	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	wn = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
 	region = int(COLOR.r * 8.0 + 0.5);
+	rest_y = COLOR.g * 2.0;
 }
 
 vec3 field(vec2 c, float fl) {
@@ -47,14 +53,17 @@ void fragment() {
 	if (mode == 0) {
 		vec3 t = texture(tex, UV).rgb;
 		float lum = dot(t, vec3(0.299, 0.587, 0.114));
-		if (region == 0) {
+		int rg = region;
+		if (rg == 1) {   // trunk and legs: split by rest height
+			rg = rest_y < boots_y ? 4 : rest_y < coat_y ? 3 : abs(rest_y - belt_y) < belt_w ? 6 : 1;
+		}
+		if (rg == 0) {
 			base = skin * (0.55 + 0.9 * lum);           // the texture's face and muscle shading, re-toned
 		} else {
-			vec3 c = region == 1 ? jacket : region == 2 ? sleeve : region == 3 ? pants : region == 4 ? boots
-				: region == 5 ? gloves : region == 6 ? trim * 0.3 : jacket * 0.7;
+			vec3 c = rg == 1 ? jacket : rg == 2 ? sleeve : rg == 3 ? pants : rg == 4 ? boots
+				: rg == 5 ? gloves : rg == 6 ? belt : forearm;
 			base = c * (0.85 + 0.3 * lum);             // faint folds, mostly flat cloth
-			rough = region == 4 || region == 5 ? 0.4 : 0.75;
-			if (region == 6) emit += trim * trim_glow * 0.9;
+			rough = rg == 4 || rg == 5 || rg == 6 ? 0.45 : 0.8;
 		}
 	} else if (mode == 1) {
 		vec3 t = texture(tex, UV).rgb;

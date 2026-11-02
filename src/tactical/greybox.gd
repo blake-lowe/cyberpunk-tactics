@@ -210,7 +210,6 @@ func _process(delta: float) -> void:
 		cam_yaw = yaw_goal if absf(cam_yaw - yaw_goal) < 0.3 else lerpf(cam_yaw, yaw_goal, minf(1.0, delta * 12.0))
 		_place_camera()
 	_update_shake(delta)
-	_animate_bodies(delta)
 	# hold Alt to inspect what's under the cursor (owner: a dwell timer would be annoying)
 	var alt := Input.is_key_pressed(KEY_ALT) or _inspect_demo
 	if enc and hover.x >= 0 and alt and (not _inspected or hover != _inspect_cell):
@@ -511,7 +510,7 @@ func _build_world() -> void:
 	target_ring = _decal(Color("ff3b4f"), 1.2, true, 0.0)
 	decals.clear()
 	for u in enc.units:
-		var n := UnitModel.build(u.team, u.id if u.team == 0 else 0, String(u.c.role))
+		var n := CharModel.build(u.team, u.id, String(u.c.role), u.c.weapons[0].id() if not u.c.weapons.is_empty() else "assault_rifle")
 		decals[u.id] = _decal(Color("05d9e8"), 0.95, false, 0.0)
 		decals[u.id].visible = false   # owner: no glows under units; they blend into the scene
 		var blob := _decal(Color.BLACK, 0.75, false, 0.0, true)   # contact shadow
@@ -650,11 +649,12 @@ func _refresh() -> void:
 		var dc: MeshInstance3D = decals[u.id]
 		dc.visible = false
 		n.set_meta("wound", u.c.wound_state())
+		n.set_meta("calm", u.team == 1 and not u.alerted)
+		n.set_meta("jack", enc.runs.has(u.id))
 		if u.c.dead:
 			if not n.get_meta("fallen", false):   # died out of sight: just lie there
-				n.position = Vector3(u.pos.x + 0.5, _gy(u.pos) + 0.08, u.pos.y + 0.5)
-				n.rotation = Vector3(deg_to_rad(-88), n.rotation.y, 0)
-				n.set_meta("fallen", true)
+				n.position = Vector3(u.pos.x + 0.5, _gy(u.pos), u.pos.y + 0.5)
+				(n as CharModel).die(Vector3.BACK.rotated(Vector3.UP, n.rotation.y), false, true)
 			continue
 		n.position = Vector3(u.pos.x + 0.5, _gy(u.pos), u.pos.y + 0.5)
 		n.scale = Vector3.ONE * 1.3   # a touch larger than life, still in scale with 1.15-high doors
@@ -1489,7 +1489,7 @@ func _anim_move(e: Dictionary) -> void:
 	if u.team == 1 and not _event_visible(e):
 		return
 	_focus_unit = u.id
-	var step := 0.075 if e.run else 0.105
+	var step := 0.22 if e.run else 0.33   # matches the sprint / run clips' stride at unit scale
 	n.set_meta("walk", true)
 	n.set_meta("run", e.run)
 	n.set_meta("crouch_goal", 0.0)
@@ -1521,8 +1521,8 @@ func _turn_to(n: Node3D, yaw: float, secs := 0.12) -> void:
 
 func _muzzle_of(n: Node3D) -> Vector3:
 	var j: Dictionary = n.get_meta("j", {})
-	var w: Node3D = j.get("weapon")
-	return w.global_transform * Vector3(0, 0.02, 0.42) if w else n.global_position + Vector3(0, 0.8, 0)
+	var mz: Node3D = j.get("muzzle")
+	return mz.global_position if mz and is_instance_valid(mz) else n.global_position + Vector3(0, 0.8, 0)
 
 
 func _flash_light(uid: int) -> OmniLight3D:
@@ -1661,7 +1661,7 @@ func _outcome(e: Dictionary, su: Dictionary, tu: Dictionary, tn: Node3D, at: Vec
 	if int(e.wound_before) < Combatant.Wound.SERIOUS and int(e.wound_after) == Combatant.Wound.SERIOUS:
 		_float(tu, "SERIOUSLY WOUNDED", Color("ffb000"))
 	if e.killed:
-		_die(tu, tn, dir, bool(e.get("dead", true)))
+		_die(tu, tn, dir, bool(e.get("dead", true)), String(e.get("location", "body")) == "head")
 
 
 func _hud_refresh() -> void:
@@ -1694,28 +1694,17 @@ func _hit_flash(n: Node3D) -> void:
 			(mt as ShaderMaterial).set_shader_parameter("flash", v), 1.0, 0.0, 0.25)
 
 
-## Death: knees go, then the body falls along the shot with one small bounce; the weapon drops.
+## Death: a death clip picked by where the shot came from (CharModel.die); the weapon drops.
 ## Mortally Wounded units slump to their knees instead (they can still be stabilised).
-func _die(u: Dictionary, n: Node3D, dir: Vector3, dead: bool) -> void:
+func _die(u: Dictionary, n: Node3D, dir: Vector3, dead: bool, head := false) -> void:
 	n.set_meta("slump_goal", 1.0)
 	if not dead:
 		_float(u, "DYING", Hud.RED)
 		return
 	_float(u, "DOWN", Hud.RED)
-	await get_tree().create_timer(0.15).timeout
 	var flat := Vector3(dir.x, 0, dir.z).normalized()
-	var axis := Vector3.UP.cross(flat).normalized()
-	if axis.length() < 0.5:
-		axis = Vector3.RIGHT
-	var b0 := n.transform.basis
-	var b1 := Basis(axis, deg_to_rad(86)) * b0
-	var q0 := b0.get_rotation_quaternion()
-	var q1 := b1.get_rotation_quaternion()
-	var scl := n.scale
-	var tw := create_tween()
-	tw.tween_method(func(t: float): n.basis = Basis(q0.slerp(q1, t)).scaled(scl), 0.0, 1.0, 0.35).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
-	tw.tween_method(func(t: float): n.basis = Basis(q1.slerp(q0, 0.06 * sin(t * PI))).scaled(scl), 0.0, 1.0, 0.18)
-	n.set_meta("fallen", true)
+	(n as CharModel).die(dir, head)
+	await get_tree().create_timer(0.35).timeout   # the weapon slips from the hands as the body goes
 	var j: Dictionary = n.get_meta("j", {})
 	if j.has("weapon"):
 		var w: Node3D = j.weapon
@@ -1796,76 +1785,6 @@ func _update_shake(delta: float) -> void:
 		_shake_px = Vector2.ZERO
 		_shake_vel = Vector2.ZERO
 	screen.position = _screen_base + _shake_px.round() * _px()
-
-
-# --- Bodies: walk cycle, aim, recoil, hit reactions, idle, crouch, slump -----------------
-
-func _animate_bodies(delta: float) -> void:
-	var t := Time.get_ticks_msec() / 1000.0
-	for id in unit_nodes:
-		var n: Node3D = unit_nodes[id]
-		if not n.visible or not n.has_meta("j") or n.get_meta("fallen", false):
-			continue
-		var j: Dictionary = n.get_meta("j")
-		var walking: bool = n.get_meta("walk", false)
-		var ph: float = n.get_meta("ph", 0.0)
-		if walking:
-			ph += delta * (19.0 if n.get_meta("run", false) else 14.0)
-			n.set_meta("ph", ph)
-		var sw := sin(ph) if walking else 0.0
-		var amp := 0.7 if n.get_meta("run", false) else 0.5
-		# crouch (beside cover) and slump (Mortally Wounded) ease toward their goals
-		var cr := move_toward(float(n.get_meta("crouch", 0.0)), float(n.get_meta("crouch_goal", 0.0)), delta * 5.0)
-		n.set_meta("crouch", cr)
-		var sl := move_toward(float(n.get_meta("slump", 0.0)), float(n.get_meta("slump_goal", 0.0)), delta * 4.0)
-		n.set_meta("slump", sl)
-		var low := maxf(cr, sl)
-		var limp: float = 1.0 if int(n.get_meta("wound", 0)) >= Combatant.Wound.SERIOUS else 0.0
-		_pose(j, "leg_l", sw * amp - low * 0.6)
-		_pose(j, "leg_r", -sw * amp * (1.0 - 0.4 * limp) - low * 0.6)
-		_pose(j, "knee_l", (maxf(0.0, -sw) * 0.8 if walking else 0.0) + low * 1.1)
-		_pose(j, "knee_r", (maxf(0.0, sw) * 0.8 * (1.0 - 0.5 * limp) if walking else 0.0) + low * 1.1)
-		if j.has("hips"):
-			var hp: Node3D = j.hips
-			var rest: Transform3D = hp.get_meta("rest")
-			hp.position = rest.origin + Vector3(0.015 * sin(t * 3.1 + id * 1.7), (absf(sw) * 0.025 if walking else 0.0) - low * 0.13, 0)
-		# aim, recoil and hit reaction on the chest; aim raises the arms and weapon
-		var aim: float = n.get_meta("aim", 0.0)
-		var rc: float = n.get_meta("recoil", 0.0)
-		var kick: float = n.get_meta("recoil_kick", 0.0)
-		n.set_meta("recoil", move_toward(rc, 0.0, delta * 0.9))
-		n.set_meta("recoil_kick", move_toward(kick, 0.0, delta * 14.0))
-		var ht: float = n.get_meta("hit_t", 9.0) + delta
-		n.set_meta("hit_t", ht)
-		var hit_env := exp(-ht * 9.0) * sin(minf(ht * 26.0, PI * 2.5)) * float(n.get_meta("hit_amp", 0.0)) if ht < 0.6 else 0.0
-		var hd: Vector3 = n.get_meta("hit_dir", Vector3.FORWARD)
-		var local_hd := n.global_transform.basis.inverse() * Vector3(hd.x, 0, hd.z).normalized() if hd.length() > 0.01 else Vector3.ZERO
-		if j.has("chest"):
-			var ch: Node3D = j.chest
-			var rest_c: Transform3D = ch.get_meta("rest")
-			var pitch := -rc - kick * 0.06 - sl * 0.5 + local_hd.z * 0.35 * hit_env + (0.0 if walking else 0.012 * sin(t * 2.3 + id))
-			var roll := -local_hd.x * 0.35 * hit_env
-			ch.transform = rest_c * Transform3D(Basis.from_euler(Vector3(pitch, 0, roll)), Vector3.ZERO)
-		if j.has("head"):
-			var hd_n: Node3D = j.head
-			var rest_h: Transform3D = hd_n.get_meta("rest")
-			var scan := 0.6 if (enc and id < enc.units.size() and enc.units[id].team == 1 and not enc.units[id].alerted) else 0.25
-			var yaw := scan * sin(t * 0.45 + id * 2.1) * (1.0 - aim)
-			hd_n.transform = rest_h * Transform3D(Basis.from_euler(Vector3(local_hd.z * 0.5 * hit_env, yaw, 0)), Vector3.ZERO)
-		for side in ["l", "r"]:
-			_pose(j, "shoulder_" + side, -0.25 * aim)
-		if j.has("weapon"):
-			var w: Node3D = j.weapon
-			var rest_w: Transform3D = w.get_meta("rest")
-			w.position = rest_w.origin + Vector3(0, 0.05 * aim + 0.006 * sin(t * 1.7 + id * 2.0) + (0.01 * sw if walking else 0.0), -0.03 * kick)
-
-
-func _pose(j: Dictionary, name: String, x: float) -> void:
-	if not j.has(name):
-		return
-	var nd: Node3D = j[name]
-	var rest: Transform3D = nd.get_meta("rest")
-	nd.transform = rest * Transform3D(Basis(Vector3.RIGHT, x), Vector3.ZERO)
 
 
 func _toast_new_log() -> void:

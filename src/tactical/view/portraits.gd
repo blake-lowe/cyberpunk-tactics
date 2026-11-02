@@ -5,7 +5,7 @@ extends Node
 ## small studio: a warm key light from the front left, a strong rim in the team accent from behind,
 ## a cool fill, and out-of-focus neon "bokeh" behind. The HUD draws the texture nearest-upscaled
 ## through the same palette post shader as the world (see `material()`), so portraits and the scene
-## share one pixel and colour language. Gear and looks come from UnitModel/UnitLook, so they match.
+## share one pixel and colour language. Gear and looks come from CharModel/UnitLook, so they match.
 ## Rendered once (UPDATE_ONCE); wound states are applied by the HUD as tints.
 
 const S := 32
@@ -27,18 +27,20 @@ func tex(u: Dictionary, _state := 0) -> Texture2D:
 	vp.msaa_3d = Viewport.MSAA_DISABLED
 	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 	add_child(vp)
-	var look := UnitLook.make(u.id if u.team == 0 else u.id, u.team, String(u.c.role))
-	var model := UnitModel.build(u.team, u.id if u.team == 0 else 0, String(u.c.role))
+	var model := CharModel.build(u.team, u.id, String(u.c.role), u.c.weapons[0].id() if not u.c.weapons.is_empty() else "assault_rifle")
+	var look: Dictionary = model.look
 	for mt in model.get_meta("mats", []):
 		(mt as ShaderMaterial).set_shader_parameter("use_field", false)
 	model.rotation.y = deg_to_rad(-18)
 	vp.add_child(model)
+	model.pose_still("idle" if u.team == 0 else "rifle_idle", 0.4)   # a calm frame for the bust
 	var accent: Color = look.accent
 	# backdrop: plain dark (owner: the bokeh was messy)
 	var cam := Camera3D.new()
 	cam.fov = 26
 	vp.add_child(cam)
-	cam.look_at_from_position(Vector3(0.02, 0.9, 0.72), Vector3(0, 0.83, 0))
+	var face := model.head_point()   # frame the posed head, whatever the clip and body
+	cam.look_at_from_position(face + Vector3(0.02, 0.07, 0.72), face + Vector3(0, -0.03, 0))
 	var key := DirectionalLight3D.new()
 	key.rotation_degrees = Vector3(-30, -40, 0)
 	key.light_energy = 0.8   # softer (owner: lighting too harsh)
