@@ -200,3 +200,9 @@ Check-ins (🔶) are where work pauses for a user decision or review.
   pays nothing and that fixer stops offering work.
 - Review reels added: dose, rig, grab, backup, watch. tools/campaign_autoplay.gd runs the whole loop
   headless (AI crew) as a smoke test.
+- Balance (pending owner review): site opposition lowered to crew × (0.5 + security) (was 1.5 + security);
+  heavy twist pays ×1.5; a call-in rouses guards within 20 squares only; gentler heat. Evidence: headless
+  campaign runs with an AI crew won 0 of 15 gigs. Caveat: the AI crew can't open locked doors or sneak,
+  so most gigs stalled until backup/NCPD wore it down; it's a weak proxy for a player.
+- Downtime assignments: Recover / Train (+6 IP/day, half healing) / Hustle (60 eb +10/rep per day, half
+  healing, 1-in-10 days +1 heat).
