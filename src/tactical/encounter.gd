@@ -504,10 +504,12 @@ func _tick_backup() -> void:
 		return
 	backup_in = -1
 	var roster: Array[String] = []
-	for i in 1 + int(m.params.get("security", 1)) + (1 if "heavy" in twists else 0):
+	for i in int(m.params.get("security", 1)) + (1 if "heavy" in twists else 0):
 		roster.append("mook")
 	_spawn_wave(roster, "Backup", "BACKUP")
-	if ncpd_in == -1:   # escalation: keep fighting and the city notices
+	# Escalation: keep fighting and the city notices, if the site matters or the crew is already wanted
+	# (HOUSE-RULE: a low-security scuffle doesn't bring NCPD unless heat >= 3).
+	if ncpd_in == -1 and (int(m.params.get("security", 1)) >= 2 or "heavy" in twists or heat >= 3):
 		ncpd_in = maxi(2, NCPD_ROUNDS - heat / 2)
 		_ncpd_round = init.round_num
 
