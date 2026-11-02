@@ -1473,6 +1473,7 @@ func _run_reel() -> void:
 				# 0 HP is Mortally Wounded (DYING); death comes from a failed Death Save at the start
 				# of the guard's own turn (p222). Make the save fail and play turns until it does.
 				g.c.dsp = 50
+				tail = 0.2   # the death event already holds on the body
 				for k in 6:
 					if g.c.dead:
 						break
