@@ -423,7 +423,7 @@ func _build_bar() -> void:
 		_buttons.add_child(b2)
 	# M5 actions: target-picking tools (toggle; right-click applies) and instant ones
 	for spec in [["melee", "MELEE", "F", "tool", "melee", CYAN], ["shell", "SHELL", "5", "tool", "shell", CYAN],
-			["grenade", "GRENADE", "G", "tool", "grenade", GOLD], ["suppress", "SUPPRESS", "4", "suppress", null, CYAN],
+			["grenade", "FRAG", "G", "tool", "grenade", GOLD], ["suppress", "SUPPRESS", "4", "suppress", null, CYAN],
 			["medic", "STABILIZE", "T", "tool", "stabilize", GREEN]]:
 		var b3 := ActBtn.new(spec[0], spec[1], spec[2], spec[5])
 		b3.toggle_mode = spec[3] == "tool"
@@ -565,7 +565,7 @@ func _refresh_tools(enc: Encounter, crew_turn: bool) -> void:
 		b.disabled = not crew_turn
 		b.set_pressed_no_signal(b.toggle_mode and tool == {"melee": "melee", "shell": "shell", "grenade": "grenade", "medic": "stabilize"}.get(k, "-"))
 		if k == "grenade":
-			b.title = "GRENADE ×%d" % c.grenades
+			b.title = "FRAG ×%d" % c.grenades   # fits the button
 		b.queue_redraw()
 
 
