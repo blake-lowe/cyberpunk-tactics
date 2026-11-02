@@ -1,0 +1,334 @@
+class_name Encounter
+extends RefCounted
+## A gig on a generated scene: crew vs guards, turn by turn, with the Netrunner's NET session.
+## Pure rules (no Nodes) so it runs headless; the M3b greybox drives it and draws the results.
+##
+## Objective (greybox): download the target building's most valuable File by Eye-Dee'ing it in the
+## NET, or put every guard down. The crew loses if everyone is dead.
+
+const JACK_IN_RANGE_M := 6.0      # p198
+const GUARDS_BASE := 3
+
+var m: TacMap
+var dice: Dice
+var nav: Nav
+var los: Los
+var init: Initiative
+var units: Array[Dictionary] = []   ## {id, c: Combatant, pos: Vector3i, team (0 crew, 1 guards)}
+var cur: Dictionary = {}
+var turn: TurnState
+var log: Array[String] = []
+var state := "playing"              ## playing | won | lost
+var runs := {}                      ## unit id → NetRun
+var net_left := 0                   ## NET Actions left this turn (runner only)
+var objective := {}                 ## {structure, node, done}
+var disabled_devices := {}          ## device id → true (turrets/cameras under the runner's control)
+
+
+static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant]) -> Encounter:
+	var e := Encounter.new()
+	e.m = p_map
+	e.dice = p_dice
+	e.nav = Nav.new(p_map)
+	e.los = Los.new(p_map)
+	e.init = Initiative.new(p_dice)
+	var deploy: Dictionary = p_map.entrances.filter(func(x): return x.kind == "deploy")[0]
+	var cells: Array = deploy.get("cells", [deploy.pos])
+	for i in crew.size():
+		var c: Vector2i = cells[i % cells.size()]
+		e._add(crew[i], Vector3i(c.x, c.y, 0), 0)
+	# Guards at posts, target building first.
+	var target_sid := -1
+	for st in p_map.structures:
+		if st.target:
+			target_sid = st.id
+	var posts := p_map.posts.duplicate()
+	posts.sort_custom(func(a, b): return int(a.structure == target_sid) > int(b.structure == target_sid))
+	var sec := int(p_map.params.get("security", 1))
+	var n := mini(posts.size(), GUARDS_BASE + sec * 2)
+	for i in n:
+		var g := Recruit.generate(p_dice, "solo" if p_dice.d(3) > 1 else "lawman", "streetrat", "Guard %d" % (i + 1))
+		g.team = 1
+		g.awareness = {}
+		g.tracks_humanity = false  # rank-and-file guards don't roll cyberpsychosis episodes
+		e._add(g, Vector3i(posts[i].pos.x, posts[i].pos.y, posts[i].floor), 1)
+	# Objective: the target NET's most valuable File.
+	if p_map.architectures.has(target_sid):
+		var a: NetArchitecture = p_map.architectures[target_sid]
+		var best := -1
+		for nd in a.nodes_of_type("file"):
+			if best < 0 or int(nd.value) > int(a.nodes[best].value):
+				best = nd.id
+		e.objective = {"structure": target_sid, "node": best, "done": false}
+	for u in e.units:
+		e.init.add(u.c)
+	return e
+
+
+func _add(c: Combatant, pos: Vector3i, team: int) -> void:
+	c.team = team
+	units.append({"id": units.size(), "c": c, "pos": pos, "team": team})
+
+
+func unit_of(c: Combatant) -> Dictionary:
+	for u in units:
+		if u.c == c:
+			return u
+	return {}
+
+
+func alive(team: int) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for u in units:
+		if u.team == team and not u.c.dead and u.c.wound_state() != Combatant.Wound.MORTAL:
+			out.append(u)
+	return out
+
+
+func occupied(except: Dictionary = {}) -> Dictionary:
+	var occ := {}
+	for u in units:
+		if u != except and not u.c.dead:
+			occ[u.pos] = true
+	return occ
+
+
+func say(s: String) -> void:
+	log.append(s)
+
+
+# --- Turn flow -------------------------------------------------------------------
+
+## Advance to the next combatant. Guards act automatically; returns when it's a crew turn or over.
+func next_turn() -> void:
+	while state == "playing":
+		var c := init.next_turn()
+		if c == null:
+			state = "lost"
+			return
+		cur = unit_of(c)
+		turn = TurnState.begin(dice, c)
+		net_left = 0
+		if not turn.survived:
+			say("%s fails a Death Save and dies." % c.display_name)
+		elif c.can_act():
+			_ice_turn(cur)
+			if cur.team == 1 or turn.psychotic:
+				AI.act(self, cur)
+				end_turn()
+				continue
+			if runs.has(cur.id):
+				net_left = NetRun.net_actions(NetRun.interface_rank(c))
+			return
+		_check_end()
+
+
+func end_turn() -> void:
+	if turn != null:
+		var dmg := turn.end()
+		if dmg > 0:
+			say("%s takes %d from strained injuries." % [cur.c.display_name, dmg])
+	_check_end()
+
+
+func _check_end() -> void:
+	if state != "playing":
+		return
+	if alive(0).is_empty() and units.filter(func(u): return u.team == 0 and not u.c.dead).is_empty():
+		state = "lost"
+	elif alive(1).is_empty():
+		state = "won"
+		say("All guards are down.")
+	elif objective.get("done", false):
+		state = "won"
+		say("The data is yours.")
+
+
+# --- Movement ----------------------------------------------------------------------
+
+## Guards carry the keys to their own security doors; the crew needs them hacked or shot open.
+func _with_locks(callable: Callable) -> Variant:
+	var saved := nav.locked
+	if cur.team == 1:
+		nav.locked = {}
+	var r: Variant = callable.call()
+	nav.locked = saved
+	return r
+
+
+func move_options() -> Dictionary:
+	return _with_locks(func(): return nav.reachable(cur.pos, turn.squares_available(), occupied(cur)))
+
+
+func move_to(dest: Vector3i) -> bool:
+	var p: Array[Vector3i] = _with_locks(func(): return nav.path(cur.pos, dest, occupied(cur)))
+	if p.is_empty():
+		return false
+	var cost := nav.cost_of(cur.pos, p)
+	if not turn.move(cost):
+		return false
+	cur.pos = dest
+	for v in p:
+		if m.t(v.z, v.x, v.y) == TacMap.T.DOOR:
+			los.open_doors[v] = true  # doors stay open once someone walks through
+	if runs.has(cur.id) and Los.distance_m(dest, _ap_pos(runs[cur.id])) > JACK_IN_RANGE_M:
+		say("%s moves out of range and is dumped from the NET." % cur.c.display_name)
+		runs.erase(cur.id)
+	return true
+
+
+# --- Combat ------------------------------------------------------------------------
+
+func preview(target: Dictionary, weapon: Weapon, mode: Attack.Mode) -> Dictionary:
+	var s := los.sight(cur.pos, target.pos)
+	if not s.visible:
+		return {"ok": false, "reason": "no line of sight", "chance": 0.0, "blocker": s.blocker}
+	var p := Attack.preview(cur.c, weapon, target.c, mode, Los.distance_m(s.from, target.pos))
+	p["from"] = s.from
+	p["blocker"] = s.blocker
+	return p
+
+
+func attack(target: Dictionary, weapon: Weapon, mode: Attack.Mode) -> Dictionary:
+	var p := preview(target, weapon, mode)
+	if not p.ok:
+		return {"ok": false, "reason": p.reason}
+	if turn.attacks_left <= 0 and not turn.start_attack(weapon, mode != Attack.Mode.SINGLE or weapon.rof() < 2):
+		return {"ok": false, "reason": "no action left"}
+	turn.use_attack()
+	var r := Attack.resolve(dice, cur.c, weapon, target.c, mode, Los.distance_m(p.from, target.pos))
+	var who := "%s → %s" % [cur.c.display_name, target.c.display_name]
+	if r.dodged:
+		say("%s: DODGE" % who)
+	elif not r.hit:
+		say("%s: miss (%d%%)" % [who, roundi(p.chance * 100)])
+	else:
+		say("%s: hit for %d, %d through%s" % [who, r.damage, r.through, (", " + ", ".join(r.crits.map(func(x): return x.name))) if not r.crits.is_empty() else ""])
+	_check_end()
+	return r
+
+
+## Shoot the cover (or wall, door, window) in the way: damage dice vs its HP; at 0 it's gone.
+func shoot_cover(cell: Vector3i, weapon: Weapon) -> Dictionary:
+	if turn.attacks_left <= 0 and not turn.start_attack(weapon, true):
+		return {"ok": false, "reason": "no action left"}
+	turn.use_attack()
+	var dmg := dice.roll(weapon.dice(), 6)
+	if los.cover_hp.has(cell) and los.cover_hp[cell] > 0:
+		los.cover_hp[cell] = maxi(0, los.cover_hp[cell] - dmg)
+		if los.cover_hp[cell] == 0:
+			m.destroy_cover_at(cell.z, Vector2i(cell.x, cell.y))
+			say("Cover destroyed.")
+		return {"ok": true, "damage": dmg, "left": los.cover_hp[cell]}
+	var wc := m.wall_cover(cell.z, cell.x, cell.y)
+	if wc.is_empty():
+		return {"ok": false, "reason": "nothing to shoot"}
+	var hp: int = los.wall_hp.get(cell, maxi(1, int(wc.hp)))
+	hp = maxi(0, hp - dmg)
+	los.wall_hp[cell] = hp
+	if hp == 0:
+		m.set_t(cell.z, cell.x, cell.y, TacMap.T.FLOOR if cell.z > 0 or m.label(cell.z, cell.x, cell.y) >= 0 else TacMap.T.OUTSIDE)
+		nav.locked.erase(cell)
+		say("The %s gives way." % wc.material)
+	return {"ok": true, "damage": dmg, "left": hp}
+
+
+# --- NET ---------------------------------------------------------------------------
+
+## Access points within jack-in range of `u` (6 m, p198): [{index, structure, device}].
+func jack_points(u: Dictionary) -> Array:
+	var out := []
+	for sid in m.architectures:
+		var a: NetArchitecture = m.architectures[sid]
+		for i in a.access_points.size():
+			var d: Dictionary = m.devices[a.access_points[i].device]
+			var dp := Vector3i(d.pos.x, d.pos.y, d.floor)
+			if dp.z == u.pos.z and Los.distance_m(u.pos, dp) <= JACK_IN_RANGE_M:
+				out.append({"index": i, "structure": sid, "device": d.id})
+	return out
+
+
+func jack_in(point: Dictionary) -> bool:
+	if NetRun.interface_rank(cur.c) <= 0 or not turn.use_action():
+		return false
+	var run := NetRun.new(m.architectures[point.structure], cur.c)
+	run.nets = m.architectures
+	run.jack_in(point.index)
+	runs[cur.id] = run
+	say("%s jacks in." % cur.c.display_name)
+	return true
+
+
+## NET Actions (p198). kind: backdoor | control | eye_dee | zap | cross | jack_out. Moving between
+## nodes is free (run.move_to). A turn spent in the NET forgoes the meat Action (p197).
+func net_action(kind: String, arg: int = -1) -> Dictionary:
+	var run: NetRun = runs.get(cur.id)
+	if run == null or net_left <= 0:
+		return {"ok": false, "reason": "no NET Actions left"}
+	turn.action_available = false
+	net_left -= 1
+	var n := run.cur_node()
+	match kind:
+		"backdoor":
+			var c := run.backdoor(dice)
+			say("Backdoor %s." % ("succeeds" if c.success else "fails"))
+			return {"ok": true, "success": c.success}
+		"control":
+			var c2 := run.control(dice)
+			if c2.success:
+				for did in n.get("devices", []):
+					disabled_devices[did] = true
+					var dev: Dictionary = m.devices[did]
+					if dev.type == "door_lock":
+						nav.locked.erase(Vector3i(dev.pos.x, dev.pos.y, dev.floor))
+				say("Control of %s." % String(n.group).replace("_", " "))
+			return {"ok": true, "success": c2.success}
+		"eye_dee":
+			var c3 := run.eye_dee(dice)
+			if c3.success and objective.get("node", -2) == n.id and run.arch.structure == objective.structure:
+				objective.done = true
+			_check_end()
+			return {"ok": true, "success": c3.success}
+		"zap":
+			var ice: Array = run.arch.ice_at(run.current)
+			if ice.is_empty():
+				return {"ok": false, "reason": "no ICE here"}
+			var tgt: Dictionary = ice[0]
+			var stats: Dictionary = RulesDB.load_json("black_ice.json")["ice"][tgt.kind]
+			var hit := Check.opposed(dice, run.rank(), int(stats.def))
+			if hit.success:
+				tgt["rez"] = int(tgt.get("rez", stats.rez)) - dice.roll(1, 6)
+				if tgt.rez <= 0:
+					tgt["derezzed"] = true
+					say("%s derezzed." % tgt.kind)
+			return {"ok": true, "success": hit.success}
+		"cross":
+			return {"ok": run.cross()}
+		"jack_out":
+			runs.erase(cur.id)
+			say("%s jacks out." % cur.c.display_name)
+			return {"ok": true}
+	return {"ok": false, "reason": "unknown"}
+
+
+## Black ICE on the runner's node attacks at the start of their turn: ATK + 1d10 vs Interface +
+## 1d10 (p205); anti-personnel hits deal their brain damage straight to HP (p206-207).
+func _ice_turn(u: Dictionary) -> void:
+	var run: NetRun = runs.get(u.id)
+	if run == null:
+		return
+	for ice in run.arch.ice_at(run.current):
+		var stats: Dictionary = RulesDB.load_json("black_ice.json")["ice"][ice.kind]
+		var hit := Check.opposed(dice, int(stats.atk), run.rank())
+		if hit.success and String(stats.brain) != "":
+			var parts := String(stats.brain).split("d")
+			var dmg := dice.roll(int(parts[0]), int(parts[1]))
+			u.c.hp -= dmg
+			say("%s hits %s for %d brain damage." % [ice.kind, u.c.display_name, dmg])
+
+
+func _ap_pos(run: NetRun) -> Vector3i:
+	for ap in run.arch.access_points:
+		var d: Dictionary = m.devices[ap.device]
+		return Vector3i(d.pos.x, d.pos.y, d.floor)
+	return cur.pos

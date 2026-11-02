@@ -51,21 +51,40 @@ func neighbours(v: Vector3i, occupied: Dictionary) -> Array:
 	return out
 
 
-## Every cell reachable within `budget` squares: {cell: cost}. Dijkstra (costs are small ints).
+## Every cell reachable within `budget` squares: {cell: cost}.
 func reachable(start: Vector3i, budget: int, occupied: Dictionary = {}) -> Dictionary:
-	var dist := {start: 0}
-	var frontier: Array = [[0, start]]
-	while not frontier.is_empty():
-		frontier.sort_custom(func(a, b): return a[0] < b[0])
-		var cur: Array = frontier.pop_front()
-		var v: Vector3i = cur[1]
-		if cur[0] > dist[v]:
-			continue
-		for nb in neighbours(v, occupied):
-			var nd: int = cur[0] + nb[1]
-			if nd <= budget and nd < dist.get(nb[0], 1 << 30):
-				dist[nb[0]] = nd
-				frontier.append([nd, nb[0]])
+	return _dial([start], occupied, budget)
+
+
+## Walking distance from the nearest of `sources` to every reachable cell, up to `limit`.
+func distance_field(sources: Array, occupied: Dictionary = {}, limit := 400) -> Dictionary:
+	return _dial(sources, occupied, limit)
+
+
+## Dijkstra with a bucket queue (step costs are small integers), so no sorting is needed.
+func _dial(sources: Array, occupied: Dictionary, limit: int) -> Dictionary:
+	var dist := {}
+	var buckets: Array = [[]]
+	for v in sources:
+		dist[v] = 0
+		buckets[0].append(v)
+	var d := 0
+	while d < buckets.size():
+		var bucket: Array = buckets[d]
+		var i := 0
+		while i < bucket.size():
+			var v: Vector3i = bucket[i]
+			i += 1
+			if dist[v] != d:
+				continue
+			for nb in neighbours(v, occupied):
+				var nd: int = d + nb[1]
+				if nd <= limit and nd < dist.get(nb[0], 1 << 30):
+					dist[nb[0]] = nd
+					while buckets.size() <= nd:
+						buckets.append([])
+					buckets[nd].append(nb[0])
+		d += 1
 	return dist
 
 

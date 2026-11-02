@@ -103,6 +103,14 @@ func add_cover(c: Dictionary) -> void:
 	cover.append(c)
 
 
+## Destroyed cover stops blocking movement (it stays in `cover` with hp 0 as debris for the viewer).
+func destroy_cover_at(f: int, p: Vector2i) -> void:
+	var key := Vector3i(p.x, p.y, f)
+	if _cover_index.has(key):
+		cover[_cover_index[key]].hp = 0
+		_cover_index.erase(key)
+
+
 func pop_cover() -> void:
 	var c: Dictionary = cover.pop_back()
 	_cover_index.erase(Vector3i(c.pos.x, c.pos.y, c.floor))
