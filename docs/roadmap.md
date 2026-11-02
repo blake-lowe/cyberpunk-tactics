@@ -12,8 +12,8 @@ Check-ins (🔶) are where work pauses for a user decision or review.
 | M4 | Visual pass: pixel post-process, neon lighting/bloom, VFX, tuning controls. M4a-c: off-grid world builder, cutaway, light field, OKLab palette, stylised HUD, juice, cyberspace styles. M4d: animated characters (Quaternius bodies + Mixamo clips, retargeted), gun handling with IK, deaths, blood, debris; sunset badlands (natural terrain, per-scene light and palette) | ✅ M4d reviewed twice; badlands new | 🔶 motion review round 3 + badlands |
 | M5 | Gameplay depth (owner's "c"): suppressive fire, shotgun shells, melee/brawling, grenades, stabilisation, reload in play; AI uses them; guards from the book's NPC tiers on the p399 budget | ✅ built overnight | 🔶 overnight review page |
 | M6 | Gig loop, first slice: fixer board, gig → encounter → results (pay, rep, IP, injuries, permadeath), rest/treat/train/hire, saves | ✅ first slice built overnight | 🔶 overnight review page |
-| M7 | Stealth phase (facing, vision cones, Perception vs Stealth with light, patrols, alarm, backup); gig objectives (data / eliminate / snatch-and-extract); twists; per-fixer rep; night market + salvage; safehouse facilities; ripperdoc + therapy; Role perk trees + Role Rank | ✅ built overnight (second night) | 🔶 overnight review page |
-| M8+ | Tech Role, Medtech Role Ability, civilians/hazards/weather, vehicles, equipment models (owner: keep painted clothes for now), economy tuning, story gigs | — | per feature |
+| M7 | Stealth phase (facing, vision cones, Perception vs Stealth with light, patrols, alarm, backup, NCPD escalation, withdrawal); Medtech Medicine and Tech Maker in play; heat; downtime episodes; gig objectives (data / eliminate / snatch-and-extract); twists; per-fixer rep; night market + salvage; safehouse facilities; ripperdoc + therapy; Role perk trees + Role Rank | ✅ built overnight (second night) | 🔶 overnight review page |
+| M8+ | Fabrication/Invention, story gigs and fixer betrayals, downtime assignments, civilians/hazards/weather, vehicles, equipment models (owner: keep painted clothes for now), economy tuning, story gigs | — | per feature |
 
 ## Decisions log
 - Godot 4.7.2, GDScript, Forward+ renderer.
@@ -187,3 +187,11 @@ Check-ins (🔶) are where work pauses for a user decision or review.
   Mooks. p399 baseline unchanged (10/12); with escalation a slow AI crew loses ~half → WITHDRAW from the
   deploy zone (gig fails, no rescue fee, anyone left behind is lost; HOUSE-RULE).
 - Review page (night 2) republished at the same URL, keys m7_*.
+- Tech Role (spec priority 3): Maker Rank 4 = 8 Specialty ranks, HOUSE-RULE split Field 3 / Upgrade 3 /
+  Fabrication 2; RIG (U) jury-rigs an ally's worn armour to full for the gig (Maker-table DV by price,
+  RULES-UNVERIFIED vs the p140 repair sidebar); workshop +1 SP armour upgrades between gigs (p148);
+  Tech perks; Tech recruits for hire.
+- Heat 0-10 (HOUSE-RULE): unseen gig -1, alarm +1, NCPD +2, +1 per 3 bodies, downtime episode +1; rest
+  cools 1 per 2 days; heat raises twist odds (+4%/heat) and speeds NCPD (-1 round per 2 heat).
+- Cyberpsychosis out of combat: after each gig, crew at risk roll the approved episode chance once; an
+  episode hurts a crewmate 2d6 (never below 1 HP).
