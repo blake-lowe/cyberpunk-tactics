@@ -486,6 +486,10 @@ func pose_still(clip: String, at: float) -> void:
 
 
 ## Hold a (looping) clip for `secs`, e.g. CPR while stabilizing; then back to the state picker.
+func stop_perform() -> void:
+	_perform_until = 0
+
+
 func perform(clip: String, secs: float) -> void:
 	if not anim.has_animation(clip):
 		return

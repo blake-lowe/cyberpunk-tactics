@@ -428,13 +428,53 @@ func _place_crew() -> void:
 		n.set_meta("calm", true)
 		n.set_meta("wound", c.wound_state())
 		world.add_child(n)
-		match room:
-			"training": n.perform("melee", 1e6)
-			"intel": n.perform("idle_phone", 1e6)
-			"workshop": n.perform("idle_shift", 1e6)
+		_activity(n, room)
 		crew_nodes[c] = n
 		if ui:
 			crew_labels[c] = _crew_label(c)
+
+
+## Walk someone out of their room, along the corridor, and into the new one.
+func _walk(c: Combatant, from: String, to: String) -> void:
+	var n: CharModel = crew_nodes[c]
+	n.stop_perform()
+	var rt: Rect2 = ROOMS[to][0]
+	var taken := crew_nodes.keys().filter(func(o): return o != c and _room_for(o) == to).size()
+	var spot: Vector2 = SPOTS[to][taken % 4]
+	var dest := Vector3(rt.position.x + spot.x, 0, rt.position.y + spot.y)
+	var pts: Array[Vector3] = []
+	if from != to:
+		var rf: Rect2 = ROOMS[from][0]
+		pts.append(Vector3(rf.get_center().x, 0, 7.5))   # out through the door to the corridor
+		pts.append(Vector3(rt.get_center().x, 0, 7.5))
+	pts.append(dest)
+	n.set_meta("walk", true)
+	n.set_meta("stroll", true)
+	var tw := create_tween()
+	var at := n.position
+	for p in pts:
+		var d := p - at
+		if d.length() < 0.05:
+			continue
+		var yaw_to := atan2(d.x, d.z)
+		tw.tween_callback(func(): n.rotation.y = yaw_to)
+		tw.tween_property(n, "position", p, d.length() / 1.6)
+		at = p
+	tw.tween_callback(_arrive.bind(n, to))
+
+
+func _arrive(n: CharModel, room: String) -> void:
+	n.set_meta("walk", false)
+	n.set_meta("stroll", false)
+	_activity(n, room)
+
+
+## What people do in each room.
+static func _activity(n: CharModel, room: String) -> void:
+	match room:
+		"training": n.perform("melee", 1e6)
+		"intel": n.perform("idle_phone", 1e6)
+		"workshop": n.perform("idle_shift", 1e6)
 
 
 func _crew_label(c: Combatant) -> Label:
@@ -590,9 +630,12 @@ func _unhandled_input(ev: InputEvent) -> void:
 		var c := _crew_at(ev.position)
 		if c:   # cycle their downtime job; they walk to the matching room
 			var keys: Array = Campaign.DOWNTIME.keys()
+			var from := _room_for(c)
 			c.downtime = keys[(keys.find(c.downtime) + 1) % keys.size()]
 			camp.save()
-			_rebuild()
+			(crew_labels[c] as Label).text = "%s\n%s" % [c.display_name.to_upper(), String(Campaign.DOWNTIME[c.downtime].name).to_upper()]
+			_walk(c, from, _room_for(c))
+			_refresh_ui()
 			return
 		var picked := _room_at(_pick_floor(ev.position))
 		if picked != selected:
