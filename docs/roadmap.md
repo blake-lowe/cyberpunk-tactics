@@ -209,3 +209,20 @@ Check-ins (🔶) are where work pauses for a user decision or review.
 - Escalation retuned after measuring (balance_autoplay -- --escalate): backup = security Mooks after 5
   rounds; NCPD only at security 2+, heavy twist, or heat 3+, 12 rounds after backup. With escalation on, an
   AI crew of 3 vs equal Mooks now wins 10/12 (was 2/12), matching the no-escalation baseline.
+
+### Owner notes (morning after night 2) → done
+- Badlands fog: out-of-sight terrain only dims (per-scene fog_sat/fog_cool/fog_dim; night scenes unchanged).
+- Safehouse as a place: scenes/base.tscn is the main scene (3D warehouse in the pixel pipeline; rooms per
+  facility, props by level, crew placed by downtime job and walking between rooms; click to upgrade).
+- Netrunning focus: a playtester agent ran ~130 data gigs headless, an auditor checked every NET rule
+  against docs/rules/cyber-net.md. Four batches of fixes (b34cfa7, 36ff9e6, 352f84d, ba0c5c0): NET/meat
+  Action exclusivity, Jack In as a NET Action, held nodes lost on jack-out, dumps hit with met ICE, Programs
+  (Sword, Armor), Slide, Pathfinder, the speed contest, every Black ICE effect, wound penalties on
+  Interface, DV cap 12, walls block jack-in, every NET has a File, cameras that spot (and can be held in the
+  NET or tampered with by hand, DV13 RULES-UNVERIFIED), patrolling ICE, firewall back-door, re-jack memory,
+  Kraken cap, plug pull, NET panel with odds and a revealed-only route list.
+  Completion (started at the terminal): sec1 12/24 → 24/24, sec2 21/24 → 19/24 (in 6 NET turns, was 16),
+  sec3 10/24 → 16/24 (11 turns, was 22).
+  HOUSE-RULES: ICE pins rather than chases; Kraken lock can't renew back to back; camera Perception 10,
+  range 8.
+- Cyberspace wireframe outline restored (4×4-averaged, brightness-relative edges).
