@@ -11,7 +11,8 @@ func test_setup_places_crew_and_guards() -> void:
 	var dice := Dice.new(1)
 	var e := Encounter.setup(m, dice, _crew(dice))
 	assert_eq(e.units.filter(func(u): return u.team == 0).size(), 2)
-	assert_eq(e.units.filter(func(u): return u.team == 1).size(), 7, "3 + 2 per security level")
+	assert_eq(e.units.filter(func(u): return u.team == 1).size(), Recruit.opposition(2, 2).size(), "the p399 budget for 2 crew at security 2")
+	assert_true(e.units.any(func(u): return u.team == 1 and u.c.role == "lieutenant"), "security 2 brings a Lieutenant")
 	for u in e.units:
 		assert_true(m.walkable(u.pos.z, Vector2i(u.pos.x, u.pos.y)), "%s placed on open ground" % u.c.display_name)
 	assert_true(e.objective.get("node", -1) >= 0, "the target NET has a File to steal")

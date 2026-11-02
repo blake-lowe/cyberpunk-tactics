@@ -1,0 +1,14 @@
+{
+  "_source": "CPR core p399 (encounter budget: 1 Mook = 1 Edgerunner, 1 Lieutenant = 2, 1 Mini Boss = 3) and p411-415 (Mooks and Grunts stat blocks). RULES-UNVERIFIED: the stat blocks were read from a garbled text extraction (columns interleaved); numbers are the pattern the blocks share (Mook skill bases ~10, HP 20-35, SP 7; Lieutenants ~13, HP 40) rather than one specific NPC. Check against the printed pages. Skill values are SKILL BASES (STAT + skill), as the book prints them.",
+  "tiers": {
+    "mook": {"weight": 1, "name": "Guard", "stats": {"INT": 4, "REF": 6, "DEX": 6, "TECH": 3, "COOL": 4, "WILL": 4, "LUCK": 0, "MOVE": 5, "BODY": 5, "EMP": 3},
+      "armor": "light_armorjack", "weapons": [["assault_rifle", "heavy_pistol"], ["smg", "heavy_pistol"], ["heavy_pistol"], ["shotgun", "heavy_pistol"]],
+      "skills": {"handgun": 10, "shoulder_arms": 10, "autofire": 10, "evasion": 6, "brawling": 6, "melee_weapon": 6, "athletics": 8, "concentration": 6, "perception": 6, "first_aid": 4, "stealth": 6}},
+    "lieutenant": {"weight": 2, "name": "Sergeant", "stats": {"INT": 5, "REF": 7, "DEX": 7, "TECH": 4, "COOL": 6, "WILL": 6, "LUCK": 0, "MOVE": 6, "BODY": 7, "EMP": 3},
+      "armor": "medium_armorjack", "weapons": [["assault_rifle", "very_heavy_pistol"], ["heavy_smg", "very_heavy_pistol"]], "grenades": 1,
+      "skills": {"handgun": 13, "shoulder_arms": 13, "autofire": 13, "evasion": 9, "brawling": 10, "melee_weapon": 10, "athletics": 10, "concentration": 9, "perception": 10, "first_aid": 7, "stealth": 8}},
+    "mini_boss": {"weight": 3, "name": "Enforcer", "stats": {"INT": 6, "REF": 8, "DEX": 8, "TECH": 4, "COOL": 7, "WILL": 7, "LUCK": 0, "MOVE": 6, "BODY": 9, "EMP": 3},
+      "armor": "heavy_armorjack", "weapons": [["assault_rifle", "very_heavy_pistol"]], "grenades": 2,
+      "skills": {"handgun": 15, "shoulder_arms": 15, "autofire": 15, "evasion": 12, "brawling": 13, "melee_weapon": 13, "athletics": 12, "concentration": 11, "perception": 12, "first_aid": 8, "stealth": 9}}
+  }
+}

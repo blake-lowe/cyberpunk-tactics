@@ -7,7 +7,6 @@ extends RefCounted
 ## NET, or put every guard down. The crew loses if everyone is dead.
 
 const JACK_IN_RANGE_M := 6.0      # p198
-const GUARDS_BASE := 3
 const SPOT_RANGE := 15            # squares a guard notices the crew at (clear sight)
 const GUNFIRE_RANGE := 12         # squares within which gunfire alerts guards (any floor)
 const SHOUT_RANGE := 8            # an alerted guard rouses others this close on its floor
@@ -53,7 +52,8 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant]) -> Encoun
 	var posts := p_map.posts.duplicate()
 	posts.sort_custom(func(a, b): return int(a.structure == target_sid) > int(b.structure == target_sid))
 	var sec := int(p_map.params.get("security", 1))
-	var want := GUARDS_BASE + sec * 2
+	var roster := Recruit.opposition(crew.size(), sec)   # CPR p399 budget, strongest first (target building posts)
+	var want := roster.size()
 	if posts.size() < want:
 		# Not enough posts (small sites with no guard rooms or security doors): spread the rest over
 		# the target building, farthest from the deploy zone first, at least 3 squares apart.
@@ -76,11 +76,11 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant]) -> Encoun
 			posts.append({"floor": v.z, "pos": Vector2i(v.x, v.y), "structure": target_sid, "zone": 1, "kind": "patrol"})
 	var n := mini(posts.size(), want)
 	for i in n:
-		var g := Recruit.generate(p_dice, "solo" if p_dice.d(3) > 1 else "lawman", "streetrat", "Guard %d" % (i + 1))
+		var tier: String = roster[i]
+		var g := Recruit.npc(p_dice, tier, "%s %d" % [RulesDB.load_json("npcs.json")["tiers"][tier]["name"], i + 1])
 		g.team = 1
-		g.awareness = {}
-		g.tracks_humanity = false  # rank-and-file guards don't roll cyberpsychosis episodes
-		g.grenades = 1 if p_dice.d(3) == 1 else 0   # HOUSE-RULE: about a third of guards carry a frag grenade
+		if tier == "mook" and p_dice.d(3) == 1:
+			g.grenades = 1   # HOUSE-RULE: about a third of Mooks carry a frag grenade
 		e._add(g, Vector3i(posts[i].pos.x, posts[i].pos.y, posts[i].floor), 1)
 	# Objective: the target NET's most valuable File.
 	if p_map.architectures.has(target_sid):

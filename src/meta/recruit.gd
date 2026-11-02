@@ -92,3 +92,41 @@ static func _cost(skill_id: String) -> int:
 ## A sensible starting Combat Awareness spread for AI and new recruits (Rank 4).
 static func _default_awareness(c: Combatant) -> void:
 	c.set_awareness({"precision_attack": 3, "initiative_reaction": c.role_rank - 3})
+
+
+## An NPC from the book's tiers (npcs.json: mook, lieutenant, mini_boss; CPR p399, p411-415).
+## The book prints Skill Bases (STAT + skill), so each skill level is the base minus its stat.
+static func npc(dice: Dice, tier: String, handle: String = "") -> Combatant:
+	var td: Dictionary = RulesDB.load_json("npcs.json")["tiers"][tier]
+	var stats: Dictionary = (td["stats"] as Dictionary).duplicate()
+	var skills := {}
+	for s in td["skills"]:
+		skills[s] = maxi(0, int(td["skills"][s]) - int(stats.get(RulesDB.skill_stat(s), 0)))
+	var c := Combatant.new(handle if handle != "" else String(td["name"]), stats, skills)
+	c.armor["body"] = ArmorPiece.from_id(String(td["armor"]))
+	c.armor["head"] = ArmorPiece.from_id(String(td["armor"]))
+	var kits: Array = td["weapons"]
+	for w in kits[dice.d(kits.size()) - 1]:
+		c.weapons.append(Weapon.from_id(String(w)))
+	c.grenades = int(td.get("grenades", 0))
+	c.role = tier
+	c.tracks_humanity = false
+	return c
+
+
+## Opposition for a gig (CPR p399 budget: 1 Mook = 1 Edgerunner, a Lieutenant 2, a Mini Boss 3).
+## The site holds crew_size x (1.5 + security) edgerunners' worth, spread over its posts:
+## security 1 is all Mooks, 2 adds a Lieutenant, 3 adds a Mini Boss. Alerts are local, so the
+## crew rarely meets the whole budget at once (XCOM-style pods).
+static func opposition(crew_size: int, security: int) -> Array[String]:
+	var budget := int(round(crew_size * (1.5 + security)))
+	var out: Array[String] = []
+	if security >= 3:
+		out.append("mini_boss")
+		budget -= 3
+	if security >= 2:
+		out.append("lieutenant")
+		budget -= 2
+	for i in maxi(2, budget):
+		out.append("mook")
+	return out
