@@ -1404,14 +1404,27 @@ func _run_reel() -> void:
 	if _reel not in ["move", "jack", "cover"]:
 		_reel_setup_shot(g)
 	var cell := Vector3i(-1, -1, -1)
-	if _reel == "cover":   # the nearest cover piece in sight, framed from the first frame
-		for v in enc.los.cover_hp:
-			if enc.los.cover_hp[v] > 0 and v.z == enc.cur.pos.z and Vector2(v.x - enc.cur.pos.x, v.y - enc.cur.pos.y).length() < 9 and enc.los.sight(enc.cur.pos, v).visible:
-				cell = v
-				break
+	if _reel == "cover":   # a one-square piece that takes a few shots; the shooter stands 3-5 squares off in sight
+		var best_hp := 0
+		for c in m.cover:
+			var v := Vector3i(c.pos.x, c.pos.y, c.floor)
+			var hp: int = enc.los.cover_hp.get(v, 0)
+			if int(c.get("prop", -1)) >= 0 or hp < 8 or hp > 40 or hp <= best_hp:
+				continue
+			for s in enc.nav.reachable(v, 6, enc.occupied()):
+				var dd := Vector2(s.x - v.x, s.y - v.y).length()
+				if s.z == v.z and dd >= 3 and dd <= 5 and enc.los.sight(s, v).visible:
+					cell = v
+					best_hp = hp
+					enc.cur.pos = s
+					break
 		if cell.x >= 0:
+			print("reel cover: %s %s hp %d" % [cell, m.cover.filter(func(c): return Vector3i(c.pos.x, c.pos.y, c.floor) == cell)[0].kind, best_hp])
+			view_floor = cell.z
 			cam_target = Vector3((enc.cur.pos.x + cell.x) / 2.0 + 0.5, 0, (enc.cur.pos.y + cell.y) / 2.0 + 0.5)
-			_place_camera()   # synchronous: the first rendered frame already frames shooter and target
+			_place_camera()
+			enc.refresh_vision()
+			_refresh()   # synchronous: the first rendered frame already frames shooter and target
 	await get_tree().create_timer(0.6).timeout
 	var tail := 1.6
 	match _reel:
@@ -1458,7 +1471,7 @@ func _run_reel() -> void:
 				await get_tree().create_timer(0.3).timeout
 		"cover":
 			if cell.x >= 0:
-				for k in 4:
+				for k in 8:
 					if enc.los.cover_hp.get(cell, 0) <= 0:
 						break
 					enc.turn.action_available = true
