@@ -12,7 +12,8 @@ Check-ins (🔶) are where work pauses for a user decision or review.
 | M4 | Visual pass: pixel post-process, neon lighting/bloom, VFX, tuning controls. M4a-c: off-grid world builder, cutaway, light field, OKLab palette, stylised HUD, juice, cyberspace styles. M4d: animated characters (Quaternius bodies + Mixamo clips, retargeted), gun handling with IK, deaths, blood, debris; sunset badlands (natural terrain, per-scene light and palette) | ✅ M4d reviewed twice; badlands new | 🔶 motion review round 3 + badlands |
 | M5 | Gameplay depth (owner's "c"): suppressive fire, shotgun shells, melee/brawling, grenades, stabilisation, reload in play; AI uses them; guards from the book's NPC tiers on the p399 budget | ✅ built overnight | 🔶 overnight review page |
 | M6 | Gig loop, first slice: fixer board, gig → encounter → results (pay, rep, IP, injuries, permadeath), rest/treat/train/hire, saves | ✅ first slice built overnight | 🔶 overnight review page |
-| M7+ | Stealth phase (patrols, detection, alarm, reinforcements), base facilities, gear shop and loot, Role skill trees, Tech, more objectives; equipment models (owner: keep painted clothes for now, add modelled gear later); economy tuning | — | per feature |
+| M7 | Stealth phase (facing, vision cones, Perception vs Stealth with light, patrols, alarm, backup); gig objectives (data / eliminate / snatch-and-extract); twists; per-fixer rep; night market + salvage; safehouse facilities; ripperdoc + therapy; Role perk trees + Role Rank | ✅ built overnight (second night) | 🔶 overnight review page |
+| M8+ | Tech Role, Medtech Role Ability, civilians/hazards/weather, vehicles, equipment models (owner: keep painted clothes for now), economy tuning, story gigs | — | per feature |
 
 ## Decisions log
 - Godot 4.7.2, GDScript, Forward+ renderer.
@@ -153,3 +154,28 @@ Check-ins (🔶) are where work pauses for a user decision or review.
 - Board is the main scene; dev flags still open the tactical view directly.
 - Fresh-eyes review (subagent): fixed four bugs (jack-in range anchor, NET action validation, ICE/strain
   damage events, all-unconscious hang); its next-step list is on the review page.
+
+### Overnight decisions, night 2 (report to owner)
+- Stealth (M7): guards on posts face outward; HOUSE-RULE 120° view cone (VIEW_HALF_ANGLE 60) plus
+  2-square all-round awareness; Perception vs Stealth with -4 in darkness ("obscured" task modifier) and
+  -1 per 5 squares past 5; badlands counts as daylight; unalerted guards patrol after each crew turn; a
+  guard who sees the crew and survives a turn calls it in; backup (HOUSE-RULE 3 rounds) enters at the
+  entrance farthest from the crew.
+- Objectives by gig kind: data theft = pull the File or clear the site; gang hit = eliminate (not done
+  while backup is inbound, HOUSE-RULE); corp extraction = snatch: GRAB (an Action) the package in the
+  target building's most secure zone, carry it to the deploy zone; a downed carrier drops it.
+- Twists (35% of gigs, HOUSE-RULE): Heavy security (+1 security, pay ×1.25), Blackout (no lights),
+  Shift change (alarm on round 6, pay ×1.15).
+- Reputation is per fixer (security tiers and pay scale with that fixer's rep); overall street cred
+  still gates market stock and board size.
+- Night market: book list prices; items ≥ 500 eb cost +20% "via a fixer" (spec); stock gated by
+  reputation (stand-in for p337 rolls); resale at half; two guns + one melee weapon per person.
+  Salvage after a won gig: 25% of the downed opposition's gear list value.
+- Safehouse: Med Bay, Armory, Fixer Network, Training Room; two levels each (costs and effects in
+  Campaign.FACILITIES).
+- Ripperdoc: twelve pieces whose effects the rules already use, book foundations (p111-116), price
+  includes surgery (p110), Humanity Loss rolled; therapy = 600 eb and a week (p230), crew rests meanwhile.
+- Role perks (spec "short skill tree per Role"): two tiers × two choices for Solo, Netrunner, Medtech
+  (data/rules/perks.json); tier 1 100 IP, tier 2 200 IP + Role Rank 5; Role Rank at 60 × new Rank (p411).
+- Unit readability in bright scenes: left as is, per your "no glows under units" verdict; options on the
+  review page.
