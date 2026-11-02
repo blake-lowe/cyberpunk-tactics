@@ -1745,7 +1745,7 @@ func _anim_attack(e: Dictionary) -> void:
 	if from != su.pos:
 		var lean := Vector3(from.x - su.pos.x, 0, from.y - su.pos.y).normalized() * 0.35
 		create_tween().tween_property(sn, "position", home + lean, 0.12)
-	sn.set_meta("crouch_goal", 0.0)
+	sn.set_meta("crouch_goal", 0.0)   # stand (or lean out) to fire: the muzzle clears low cover; crouch is only the idle in-cover pose
 	_turn_to(sn, atan2(d.x, d.y), 0.12)
 	create_tween().tween_method(func(v: float): sn.set_meta("aim", v), float(sn.get_meta("aim", 0.0)), 1.0, 0.1)
 	await get_tree().create_timer(0.18).timeout
@@ -1907,6 +1907,7 @@ func _anim_cover(e: Dictionary) -> void:
 	var cell: Vector3i = e.cell
 	var at := Vector3(cell.x + 0.5, cell.z * FH + 0.45, cell.y + 0.5)
 	sn.set_meta("aim_at", at)
+	sn.set_meta("crouch_goal", 0.0)   # stand to fire: never shoot into the cover you're crouched behind
 	_focus_unit = su.id
 	var d := Vector2(cell.x - su.pos.x, cell.y - su.pos.y)
 	_turn_to(sn, atan2(d.x, d.y), 0.12)

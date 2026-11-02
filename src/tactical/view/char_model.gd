@@ -415,8 +415,8 @@ func _pick(now: bool) -> void:
 		clip = "injured_walk" if serious else w + ("_sprint" if get_meta("run", false) else "_run")
 	elif get_meta("jack", false):
 		clip = "jack"
-	elif float(get_meta("aim", 0.0)) > 0.3:
-		clip = ("rifle_crouch_aim" if w == "rifle" else "pistol_crouch") if float(get_meta("crouch_goal", 0.0)) > 0.5 else w + "_aim"
+	elif float(get_meta("aim", 0.0)) > 0.3:   # always standing: a crouched muzzle would fire into the cover (owner)
+		clip = w + "_aim"
 	elif float(get_meta("crouch_goal", 0.0)) > 0.5:
 		clip = w + "_crouch"
 	elif get_meta("calm", false):
