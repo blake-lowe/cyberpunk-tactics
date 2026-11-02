@@ -575,7 +575,9 @@ func place_gun(s: Skeleton3D) -> void:
 		var b := r.basis.orthonormalized()
 		var fore := r.origin - s.get_bone_global_pose(s.find_bone("RightLowerArm")).origin
 		fwd = fore.normalized() if fore.length() > 0.01 else b.y
-		up = (b.x - fwd * fwd.dot(b.x)).normalized()   # top of the gun toward the thumb
+		var thumb := (b.x - fwd * fwd.dot(b.x)).normalized()
+		var level := (Vector3.UP - fwd * fwd.dot(Vector3.UP)).normalized()
+		up = level if level.dot(thumb) > -0.3 else thumb   # held upright, not canted with the wrist (owner); thumb only when it's upside down
 		fwd = fwd.rotated(fwd.cross(up).normalized(), GRIP_TILT * 0.4).normalized()   # muzzle a touch above the wrist line
 		up = (up - fwd * fwd.dot(up)).normalized()
 	var aim_w := clampf(float(get_meta("aim", 0.0)), 0.0, 1.0)
