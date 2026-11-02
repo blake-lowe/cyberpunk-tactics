@@ -128,7 +128,8 @@ func _build() -> void:
 	_root.add_child(head)
 	var title := _text("NIGHT CITY", Hud.F_DISPLAY, 56, Hud.GOLD)
 	head.add_child(title)
-	for s in [["DAY %d" % camp.day, Hud.CYAN], ["%s eb" % _money(camp.eb), Hud.GREEN], ["REP %d" % camp.rep, Hud.MAGENTA]]:
+	for s in [["DAY %d" % camp.day, Hud.CYAN], ["%s eb" % _money(camp.eb), Hud.GREEN], ["REP %d" % camp.rep, Hud.MAGENTA],
+			["HEAT %d" % camp.heat, Hud.RED if camp.heat >= 5 else (Hud.GOLD if camp.heat > 0 else Hud.DIM)]]:
 		var l := _text(s[0], Hud.F_TERM, 34, s[1])
 		l.size_flags_vertical = Control.SIZE_SHRINK_END
 		head.add_child(l)
@@ -435,6 +436,8 @@ func _report_panel() -> PanelContainer:
 	p.add_child(col)
 	col.add_child(_text(("GIG COMPLETE · " if won else "GIG FAILED · ") + String(report.gig.get("title", "")).to_upper(), Hud.F_DISPLAY, 34, Hud.GREEN if won else Hud.RED, true))
 	var parts := ["%+d eb" % (int(report.pay) - int(report.fees)), "%+d rep" % int(report.rep), "%d IP each" % int(report.ip)]
+	if int(report.get("heat", 0)) != 0:
+		parts.append("%+d heat" % int(report.heat))
 	if int(report.get("salvage", 0)) > 0:
 		parts.insert(1, "+%d eb salvage" % int(report.salvage))
 	col.add_child(_text("   ".join(parts), Hud.F_TERM, 26, Hud.TEXT))

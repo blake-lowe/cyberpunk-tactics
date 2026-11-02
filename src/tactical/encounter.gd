@@ -40,6 +40,7 @@ var alarm := 0                      ## 0 quiet, 1 a guard is onto the crew, 2 ba
 var backup_in := -1                 ## rounds until reinforcements arrive (-1 none scheduled)
 var _backup_round := 0
 var _patrol_round := -1
+var heat := 0                       ## campaign heat: NCPD answers faster (HOUSE-RULE: -1 round per 2 heat)
 var reinforcements := true          ## backup/NCPD on (balance tests switch them off)
 var ncpd_in := -1                   ## rounds until the NCPD response (after backup has arrived)
 var _ncpd_round := 0
@@ -499,7 +500,7 @@ func _tick_backup() -> void:
 		roster.append("mook")
 	_spawn_wave(roster, "Backup", "BACKUP")
 	if ncpd_in == -1:   # escalation: keep fighting and the city notices
-		ncpd_in = NCPD_ROUNDS
+		ncpd_in = maxi(2, NCPD_ROUNDS - heat / 2)
 		_ncpd_round = init.round_num
 
 

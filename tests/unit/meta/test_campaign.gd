@@ -175,3 +175,18 @@ func test_cyber_claws_are_never_sold() -> void:
 	assert_eq(melee[0].id(), "heavy_melee", "keeps the harder-hitting Wolvers")
 	var d := Combatant.from_dict(JSON.parse_string(JSON.stringify(solo.to_dict())))
 	assert_true(d.weapons.any(func(w): return w.builtin))
+
+
+func test_heat_rises_when_loud_and_cools_with_rest() -> void:
+	var c := Campaign.new_game(6)
+	var e := _finish(c, true)
+	e.alarm = 2
+	e.ncpd_in = -2
+	var r := c.resolve(e)
+	assert_eq(int(r.heat), Campaign.gig_heat(e))
+	assert_true(c.heat >= 3, "alarm + NCPD")
+	var h := c.heat
+	c.rest(4)
+	assert_eq(c.heat, h - 2, "lying low")
+	var d := Campaign.from_dict(JSON.parse_string(JSON.stringify(c.to_dict())))
+	assert_eq(d.heat, c.heat)

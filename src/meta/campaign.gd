@@ -45,6 +45,7 @@ var seed_value := 1
 var dice: Dice
 var eb := 0
 var rep := 0                         ## street cred: the overall name (market access, crew size of the board)
+var heat := 0                        ## 0-10: how hard NCPD is looking for the crew (spec: consequences, heat)
 var fixer_rep := {}                  ## fixer name → reputation with them (spec: per-fixer reputation)
 var day := 1
 var crew: Array[Combatant] = []
@@ -102,7 +103,7 @@ func refresh_board() -> void:
 				sec = s
 				break
 		var twist := ""
-		if dice.rng.randf() < float(g.get("twist_chance", 0.0)):
+		if dice.rng.randf() < float(g.get("twist_chance", 0.0)) + heat * 0.04:   # heat: corps are expecting trouble
 			var keys: Array = g.twists.keys()
 			twist = keys[dice.d(keys.size()) - 1]
 		var mult := float(g.twists[twist].pay) if twist != "" else 1.0
@@ -114,6 +115,21 @@ func refresh_board() -> void:
 
 static func objective_for(g: Dictionary) -> String:
 	return String(OBJECTIVES.get(String(g.get("kind", "")), "data"))
+
+
+## Heat from how a gig went (HOUSE-RULE): in and out unseen cools things down; an alarm, NCPD
+## showing up, and bodies left behind warm them up.
+static func gig_heat(e: Encounter) -> int:
+	var h := 0
+	if e.alarm == 0:
+		h -= 1
+	if e.alarm >= 2:
+		h += 1
+	if e.ncpd_in == -2:
+		h += 2
+	var bodies := e.units.filter(func(u): return u.team == 1 and u.c.dead).size()
+	h += bodies / 3
+	return h
 
 
 func _salvage_mult() -> float:
@@ -152,7 +168,7 @@ func accept(index: int) -> Dictionary:
 func resolve(e: Encounter) -> Dictionary:
 	var gig := active_gig
 	var won := e.state == "won"
-	var report := {"gig": gig, "won": won, "pay": 0, "rep": 0, "ip": 0, "dead": [], "hurt": [], "fees": 0, "salvage": 0}
+	var report := {"gig": gig, "won": won, "pay": 0, "rep": 0, "ip": 0, "dead": [], "hurt": [], "fees": 0, "salvage": 0, "heat": 0}
 	var anyone_down := false
 	for c in crew:
 		if c.dead or c.wound_state() >= Combatant.Wound.MORTAL or c.unconscious:
@@ -190,6 +206,8 @@ func resolve(e: Encounter) -> Dictionary:
 						value += int(RulesDB.armor((u.c.armor[loc] as ArmorPiece).id).get("cost", 0))
 				report.salvage += int(value * float(ECON.salvage) * _salvage_mult())
 	eb += report.pay - report.fees + report.salvage
+	report.heat = gig_heat(e)
+	heat = clampi(heat + report.heat, 0, 10)
 	rep = maxi(0, rep + report.rep)
 	var fx_name := String(gig.get("fixer", ""))
 	if fx_name != "":
@@ -222,6 +240,7 @@ func rest(days := 1) -> void:
 			c.grenades += 1
 			eb -= price
 	day += days
+	heat = maxi(0, heat - days / 2)   # HOUSE-RULE: lying low cools heat by 1 every 2 days
 	refresh_board()
 	say("Rested %d day%s." % [days, "s" if days > 1 else ""])
 
@@ -466,7 +485,7 @@ func upgrade(facility: String) -> bool:
 func to_dict() -> Dictionary:
 	return {"version": 1, "seed": seed_value, "eb": eb, "rep": rep, "day": day, "crew": crew.map(func(c): return c.to_dict()),
 		"fallen": fallen, "board": board, "recruits": recruits.map(func(c): return c.to_dict()), "log": log.slice(-50),
-		"rng_state": dice.rng.state, "facilities": facilities, "fixer_rep": fixer_rep}
+		"rng_state": dice.rng.state, "facilities": facilities, "fixer_rep": fixer_rep, "heat": heat}
 
 
 static func from_dict(d: Dictionary) -> Campaign:
@@ -485,6 +504,7 @@ static func from_dict(d: Dictionary) -> Campaign:
 		c.board.append(b)
 	for r in d.get("recruits", []):
 		c.recruits.append(Combatant.from_dict(r))
+	c.heat = int(d.get("heat", 0))
 	for k in d.get("fixer_rep", {}):
 		c.fixer_rep[String(k)] = int(d.fixer_rep[k])
 	for k in d.get("facilities", {}):

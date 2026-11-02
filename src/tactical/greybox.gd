@@ -477,6 +477,8 @@ func new_gig() -> void:
 		kind = Campaign.objective_for(camp.active_gig)
 		tw = [] if String(camp.active_gig.get("twist", "")) == "" else [String(camp.active_gig.twist)]
 	enc = Encounter.setup(m, dice, crew, kind, tw)
+	if campaign_gig:
+		enc.heat = camp.heat
 	_log_seen = 0
 	var lk := _scene_look()
 	env.ambient_light_color = Color(lk.ambient)
