@@ -477,7 +477,7 @@ func play_once(clip: String, blend := 0.1) -> void:
 func die(dir: Vector3, head := false, instant := false) -> void:
 	var local := global_transform.basis.inverse() * Vector3(dir.x, 0, dir.z)
 	var clip := "death_front"
-	if float(get_meta("crouch", get_meta("crouch_goal", 0.0))) > 0.5:
+	if float(get_meta("crouch", get_meta("crouch_goal", 0.0))) > 0.5 or state == "dying":   # from a crouch or a knee
 		clip = "death_crouch"
 	elif local.x > absf(local.z) * 1.4:   # round travelling toward the body's left (+X): shot from the right
 		clip = "death_side"

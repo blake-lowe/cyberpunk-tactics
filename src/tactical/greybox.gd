@@ -1466,9 +1466,20 @@ func _run_reel() -> void:
 				await _act()
 				if _reel in ["single", "auto", "pistol"] or g.c.dead:
 					break
-				if _reel == "armor" and r.get("hit", false) and not r.get("dodged", false):
-					break   # kill/headshot keep going: 0 HP is Mortally Wounded (DYING) first, then dead
+				if r.get("hit", false) and not r.get("dodged", false):
+					break
 				await get_tree().create_timer(0.3).timeout
+			if _reel in ["kill", "headshot"] and not g.c.dead:
+				# 0 HP is Mortally Wounded (DYING); death comes from a failed Death Save at the start
+				# of the guard's own turn (p222). Make the save fail and play turns until it does.
+				g.c.dsp = 50
+				for k in 6:
+					if g.c.dead:
+						break
+					_on_hud("end_turn", null)
+					await get_tree().create_timer(0.2).timeout
+					while busy:
+						await get_tree().process_frame
 		"cover":
 			if cell.x >= 0:
 				for k in 8:
@@ -1493,6 +1504,7 @@ func _run_reel() -> void:
 			_demo_jack()
 			await get_tree().create_timer(3.5).timeout
 	await get_tree().create_timer(tail).timeout
+	print("reel %s end: target %s" % [_reel, "dead" if g.get("c") and g.c.dead else "alive"])
 	get_tree().quit()
 
 
@@ -1607,7 +1619,7 @@ func _play_events() -> void:
 	while not enc.events.is_empty():
 		var e: Dictionary = enc.events.pop_front()
 		var u: Dictionary = enc.units[e.unit]
-		if u.team == 1 and not hostile_shown and String(e.type) != "alert" and _event_visible(e):
+		if u.team == 1 and not hostile_shown and String(e.type) not in ["alert", "death"] and _event_visible(e):
 			hostile_shown = true
 			hud.enemy_phase(true)
 			hud.turn_banner("HOSTILE ACTIVITY", Hud.RED)
@@ -1617,6 +1629,7 @@ func _play_events() -> void:
 			"attack": await _anim_attack(e)
 			"cover": await _anim_cover(e)
 			"alert": _anim_alert(e)
+			"death": await _anim_death(e)
 	hud.enemy_phase(false)
 	_focus_unit = -1
 
@@ -1946,6 +1959,20 @@ func _anim_cover(e: Dictionary) -> void:
 		_float_at(at + Vector3(0, 0.5, 0), "-%d · %s" % [int(e.damage), "DESTROYED" if gone else "%d HP" % left], Hud.GOLD if gone else Hud.TEXT))
 	await get_tree().create_timer(0.45).timeout
 	create_tween().tween_method(func(v: float): sn.set_meta("aim", v), 1.0, 0.0, 0.25)
+
+
+## A Mortally Wounded unit fails its Death Save at the start of its turn (p222): it dies where it
+## knelt, toppling backwards.
+func _anim_death(e: Dictionary) -> void:
+	var u: Dictionary = enc.units[e.unit]
+	var n: Node3D = unit_nodes[u.id]
+	if not _seen(u.pos) or n.get_meta("fallen", false):
+		return
+	_focus_unit = u.id
+	await _pan_to(_body_pos(u), 0.3)
+	_float(u, "DEATH SAVE FAILED", Hud.RED)
+	await _die(u, n, -n.global_transform.basis.z, true)
+	await get_tree().create_timer(1.2).timeout
 
 
 func _anim_alert(e: Dictionary) -> void:

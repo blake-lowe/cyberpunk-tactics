@@ -149,6 +149,7 @@ func next_turn() -> void:
 		net_left = 0
 		if not turn.survived:
 			say("%s fails a Death Save and dies." % c.display_name)
+			events.append({"type": "death", "unit": cur.id})   # so the view plays the death, not a snap
 		elif c.can_act():
 			_ice_turn(cur)
 			if cur.team == 1 or turn.psychotic:

@@ -149,3 +149,21 @@ func test_skirmish_always_has_guards() -> void:
 		var dice := Dice.new(seed)
 		var e := Encounter.setup(m, dice, _crew(dice))
 		assert_eq(e.units.filter(func(u): return u.team == 1).size(), 5, "3 + 2 per security level, even without posts")
+
+
+func test_failed_death_save_emits_a_death_event() -> void:
+	var m := SceneGen.generate(11, "street_block", {"security": 1})
+	var dice := Dice.new(4)
+	var crew := _crew(dice)
+	var e := Encounter.setup(m, dice, crew)
+	crew[1].hp = 0          # Mortally Wounded (p221)
+	crew[1].dsp = 50        # and certain to fail the save
+	var died := false
+	for k in 6:
+		e.end_turn()
+		e.next_turn()
+		if e.events.any(func(x): return x.type == "death" and e.units[x.unit].c == crew[1]):
+			died = true
+			break
+	assert_true(died, "the view gets a death event to animate")
+	assert_true(crew[1].dead)
