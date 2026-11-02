@@ -1539,7 +1539,7 @@ func _jack_in() -> void:
 		return
 	var pts := enc.jack_points(enc.cur)
 	if pts.is_empty():
-		hud.toast("No terminal within 6 m.")
+		hud.toast("No terminal within %d m." % int(Encounter.jack_range(enc.cur.c)))
 	elif enc.jack_in(pts[0]):
 		enc.net_left = NetRun.net_actions(NetRun.interface_rank(enc.cur.c)) - 1
 	_after_action()

@@ -15,6 +15,12 @@ var _root: VBoxContainer
 var _shot_path := ""
 var _frames := 0
 var _shop_for := 0   ## crew index the night market is buying for
+var _train_for := -1 ## crew index whose training panel is open
+## Skills offered for training, by Role first (the rest of the list follows).
+const TRAIN_SKILLS := {"solo": ["handgun", "shoulder_arms", "autofire", "evasion", "melee_weapon", "athletics"],
+	"netrunner": ["handgun", "evasion", "stealth", "perception", "concentration"],
+	"medtech": ["first_aid", "paramedic", "shoulder_arms", "evasion", "athletics", "concentration"]}
+const TRAIN_COMMON := ["handgun", "shoulder_arms", "evasion", "stealth", "perception", "athletics", "concentration", "first_aid"]
 
 
 func _ready() -> void:
@@ -28,6 +34,8 @@ func _ready() -> void:
 			_shot_path = a.get_slice("=", 1)
 		if k == "board":   # --board --shot=x.png screenshots this screen
 			board_shot = true
+		if k == "train":   # --train=n opens crew member n's training panel (screenshots)
+			_train_for = int(a.get_slice("=", 1))
 	if dev and not board_shot:
 		get_tree().change_scene_to_file.call_deferred(GREYBOX)
 		return
@@ -255,18 +263,55 @@ func _crew_card(c: Combatant) -> PanelContainer:
 		var r := HBoxContainer.new()
 		r.add_child(_text("! " + String(inj.get("name", "injury")).to_upper(), Hud.F_TERM, 20, Hud.RED))
 		var idx := i
-		r.add_child(_button("TREAT %d eb" % int(Campaign.ECON.treat_injury), Hud.GREEN, func(): camp.treat(c, idx); _rebuild(), camp.eb >= int(Campaign.ECON.treat_injury)))
+		r.add_child(_button("TREAT %d eb" % camp.treat_cost(), Hud.GREEN, func(): camp.treat(c, idx); _rebuild(), camp.eb >= camp.treat_cost()))
 		col.add_child(r)
-	# training: the best combat skill to raise next, if affordable
-	var best := ""
-	for s in ["handgun", "shoulder_arms", "autofire", "evasion", "melee_weapon", "first_aid", "athletics", "stealth"]:
-		if c.skills.has(s) and (best == "" or int(c.skills[s]) > int(c.skills[best])):
-			best = s
-	if best != "":
-		var cost := c.skill_raise_cost(best)
-		col.add_child(_button("TRAIN %s → %d  (%d IP)" % [best.replace("_", " ").to_upper(), int(c.skills[best]) + 1, cost], Hud.MAGENTA,
-			func(): c.raise_skill(best); _rebuild(), c.ip >= cost and int(c.skills[best]) < 10))
+	var idx2 := camp.crew.find(c)
+	var open := _train_for == idx2
+	col.add_child(_button("TRAINING ▲" if open else "TRAINING ▼  (%d IP)" % c.ip, Hud.MAGENTA, func(): _train_for = -1 if open else idx2; _rebuild()))
+	if open:
+		col.add_child(_training(c))
 	return p
+
+
+## Spend IP: Role Rank (p411), the Role's perk tree (two tiers, one pick each), and skills.
+func _training(c: Combatant) -> VBoxContainer:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 4)
+	box.add_child(_button("ROLE RANK %d → %d  (%d IP)" % [c.role_rank, c.role_rank + 1, c.rank_raise_cost()], Hud.GOLD,
+		func(): c.raise_rank(); _rebuild(), c.ip >= c.rank_raise_cost() and c.role_rank < 10))
+	var tree := Combatant.perk_tree(c.role)
+	for t in tree.size():
+		box.add_child(_text("TIER %d PERK%s" % [t + 1, "  · needs Rank %d" % int(RulesDB.load_json("perks.json").tier2_rank) if t > 0 else ""], Hud.F_TERM, 18, Hud.DIM))
+		for pk in tree[t]:
+			var id: String = pk.id
+			var taken: bool = id in c.perks
+			var why := c.perk_block(id)
+			var b := _button(("✓ " if taken else "") + "%s · %s" % [String(pk.name).to_upper(), pk.desc] + ("" if taken else "  (%d IP)" % c.perk_cost(id)),
+				Hud.GREEN if taken else Hud.CYAN, func(): c.take_perk(id); _rebuild(), why == "" and not taken)
+			b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			b.add_theme_font_override("font", Hud.F_TERM)
+			b.add_theme_font_size_override("font_size", 17)
+			b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			b.custom_minimum_size.x = 260
+			box.add_child(b)
+	box.add_child(_text("SKILLS", Hud.F_TERM, 18, Hud.DIM))
+	var grid := GridContainer.new()
+	grid.columns = 2
+	box.add_child(grid)
+	var list: Array = TRAIN_SKILLS.get(c.role, []).duplicate()
+	for sk in TRAIN_COMMON:
+		if sk not in list:
+			list.append(sk)
+	for sk in list.slice(0, 8):
+		if not RulesDB.load_json("skills.json")["skills"].has(sk):
+			continue
+		var skid: String = sk
+		var lv := int(c.skills.get(sk, 0))
+		var cost := c.skill_raise_cost(sk)
+		var b2 := _button("%s %d→%d · %d" % [sk.replace("_", " ").to_upper(), lv, lv + 1, cost], Hud.MAGENTA, func(): c.raise_skill(skid); _rebuild(), c.ip >= cost and lv < 10)
+		b2.add_theme_font_size_override("font_size", 15)
+		grid.add_child(b2)
+	return box
 
 
 func _gig_card(i: int) -> PanelContainer:

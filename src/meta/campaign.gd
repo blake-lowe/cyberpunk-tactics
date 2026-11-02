@@ -189,11 +189,21 @@ func rest(days := 1) -> void:
 	say("Rested %d day%s." % [days, "s" if days > 1 else ""])
 
 
+## Clinic price, halved while a Trauma Surgeon is on the crew (HOUSE-RULE perk).
+func treat_cost() -> int:
+	var mult := 1.0
+	for c in alive_crew():
+		var d := float(c.perk_fx("treat_discount"))
+		if d > 0.0:
+			mult = minf(mult, d)
+	return int(int(ECON.treat_injury) * mult)
+
+
 ## A clinic's Treatment for one Critical Injury (p223: Treatment removes it permanently).
 func treat(c: Combatant, injury_index: int) -> bool:
-	if injury_index < 0 or injury_index >= c.injuries.size() or eb < int(ECON.treat_injury):
+	if injury_index < 0 or injury_index >= c.injuries.size() or eb < treat_cost():
 		return false
-	eb -= int(ECON.treat_injury)
+	eb -= treat_cost()
 	var inj: Dictionary = c.injuries[injury_index]
 	c.injuries.remove_at(injury_index)
 	say("%s's %s treated." % [c.display_name, inj.get("name", "injury")])

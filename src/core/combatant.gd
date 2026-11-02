@@ -29,6 +29,7 @@ var look_seed: int = -1        ## the crew member's appearance seed (stable acro
 
 var role: String = ""         ## "solo", "netrunner", "medtech", "tech", ...
 var role_rank: int = 0
+var perks: Array[String] = []   ## Role specialisation perks (data/rules/perks.json, HOUSE-RULE)
 ## Solo Combat Awareness allocation (p146): ability id → points spent. See COMBAT_AWARENESS.
 var awareness: Dictionary = {}
 var tracks_humanity := false  ## Mooks skip Humanity entirely.
@@ -119,7 +120,90 @@ func skill_level(skill_id: String) -> int:
 
 ## STAT + Skill (p130), before situational modifiers.
 func skill_base(skill_id: String) -> int:
-	return stat(RulesDB.skill_stat(skill_id)) + skill_level(skill_id)
+	return stat(RulesDB.skill_stat(skill_id)) + skill_level(skill_id) + int(perk_fx("skills").get(skill_id, 0))
+
+
+# --- Role perks (HOUSE-RULE game content, data/rules/perks.json) --------------------
+
+## The perk tree for a Role: [[tier-1 options], [tier-2 options]].
+static func perk_tree(p_role: String) -> Array:
+	return RulesDB.load_json("perks.json")["roles"].get(p_role, [])
+
+
+static func perk_def(id: String) -> Dictionary:
+	for roles in RulesDB.load_json("perks.json")["roles"].values():
+		for tier in roles:
+			for p in tier:
+				if p.id == id:
+					return p
+	return {}
+
+
+## An effect summed over taken perks: a Dictionary for "skills" (merged), a number otherwise
+## (numbers add; booleans become 1).
+func perk_fx(key: String) -> Variant:
+	if key == "skills":
+		var out := {}
+		for id in perks:
+			var sk: Dictionary = perk_def(id).get("skills", {})
+			for s in sk:
+				out[s] = int(out.get(s, 0)) + int(sk[s])
+		return out
+	var total := 0.0
+	for id in perks:
+		var v: Variant = perk_def(id).get(key, null)
+		if v != null:
+			total += float(v)
+	return total
+
+
+## Can this perk be taken now? Returns "" if so, else the reason.
+func perk_block(id: String) -> String:
+	var tree := perk_tree(role)
+	var cfg: Dictionary = RulesDB.load_json("perks.json")
+	for t in tree.size():
+		var ids: Array = tree[t].map(func(p): return p.id)
+		if id not in ids:
+			continue
+		if ids.any(func(x): return x in perks):
+			return "tier taken"
+		if t >= 1 and not (tree[t - 1] as Array).any(func(p): return p.id in perks):
+			return "needs tier %d" % t
+		if t >= 1 and role_rank < int(cfg.tier2_rank):
+			return "needs Rank %d" % int(cfg.tier2_rank)
+		if ip < int(cfg.tier_cost[t]):
+			return "%d IP" % int(cfg.tier_cost[t])
+		return ""
+	return "not this Role"
+
+
+func perk_cost(id: String) -> int:
+	var tree := perk_tree(role)
+	for t in tree.size():
+		if (tree[t] as Array).any(func(p): return p.id == id):
+			return int(RulesDB.load_json("perks.json").tier_cost[t])
+	return 0
+
+
+func take_perk(id: String) -> bool:
+	if perk_block(id) != "":
+		return false
+	ip -= perk_cost(id)
+	perks.append(id)
+	return true
+
+
+## Role Rank (p411): 60 IP x the new Rank, max 10.
+func rank_raise_cost() -> int:
+	return 60 * (role_rank + 1)   # CPR core p411
+
+
+func raise_rank() -> bool:
+	if role_rank >= 10 or ip < rank_raise_cost():
+		return false
+	ip -= rank_raise_cost()
+	role_rank += 1
+	return true
 
 
 func wound_state() -> Wound:
@@ -434,7 +518,7 @@ func to_dict() -> Dictionary:
 		"subdermal": sub, "injuries": injuries, "base_dsp": base_dsp, "dsp": dsp, "dead": dead, "unconscious": unconscious,
 		"weapons": weapons.map(func(w): return {"id": w.id(), "ammo": w.ammo}), "grenades": grenades, "role": role,
 		"role_rank": role_rank, "awareness": awareness, "tracks_humanity": tracks_humanity, "humanity": humanity,
-		"max_humanity": max_humanity, "cyberware": cyberware, "ip": ip, "look_seed": look_seed}
+		"max_humanity": max_humanity, "cyberware": cyberware, "ip": ip, "look_seed": look_seed, "perks": perks}
 
 
 static func from_dict(d: Dictionary) -> Combatant:
@@ -473,6 +557,8 @@ static func from_dict(d: Dictionary) -> Combatant:
 		c.cyberware.append(String(cw))
 	c.ip = int(d.get("ip", 0))
 	c.look_seed = int(d.get("look_seed", -1))
+	for pk in d.get("perks", []):
+		c.perks.append(String(pk))
 	return c
 
 

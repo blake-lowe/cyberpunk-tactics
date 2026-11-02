@@ -181,7 +181,7 @@ func next_turn() -> void:
 				end_turn()
 				continue
 			if runs.has(cur.id):
-				net_left = NetRun.net_actions(NetRun.interface_rank(c))
+				net_left = NetRun.net_actions(NetRun.interface_rank(c)) + int(c.perk_fx("net_actions"))
 			return
 		_check_end()
 
@@ -538,7 +538,7 @@ func move_to(dest: Vector3i, allow_run := false) -> bool:
 		if m.t(v.z, v.x, v.y) == TacMap.T.DOOR:
 			los.open_doors[v] = true  # doors stay open once someone walks through
 	update_alerts()
-	if runs.has(cur.id) and Los.distance_m(dest, _ap_pos(runs[cur.id])) > JACK_IN_RANGE_M:
+	if runs.has(cur.id) and Los.distance_m(dest, _ap_pos(runs[cur.id])) > jack_range(cur.c):
 		say("%s moves out of range and is dumped from the NET." % cur.c.display_name)
 		runs.erase(cur.id)
 	_check_end()   # a carrier reaching the extraction point
@@ -752,10 +752,18 @@ func throw_grenade(cell: Vector3i) -> Dictionary:
 	return {"ok": true, "hit": check.success, "center": center, "damage": dmg, "hits": hits}
 
 
+## Next to them, or within a Triage perk's reach (HOUSE-RULE) on the same floor.
+func can_reach_to_stabilize(u: Dictionary, target: Dictionary) -> bool:
+	var reach := int(u.c.perk_fx("stabilize_reach"))
+	if reach > 0 and target.pos.z == u.pos.z:
+		return maxi(absi(target.pos.x - u.pos.x), absi(target.pos.y - u.pos.y)) <= reach
+	return adjacent(u.pos, target.pos)
+
+
 ## Stabilize (p169, p222): TECH + First Aid (or Paramedic, whichever is better) vs the wound's DV
 ## on a neighbouring ally. Mortally Wounded → 1 HP, Unconscious, no more Death Saves.
 func stabilize(target: Dictionary) -> Dictionary:
-	if not adjacent(cur.pos, target.pos) or target.team != cur.team or target.c.dead:
+	if not can_reach_to_stabilize(cur, target) or target.team != cur.team or target.c.dead:
 		return {"ok": false, "reason": "not next to a wounded ally"}
 	if target.c.wound_state() != Combatant.Wound.MORTAL:
 		return {"ok": false, "reason": "not Mortally Wounded"}
@@ -765,6 +773,10 @@ func stabilize(target: Dictionary) -> Dictionary:
 	var check := Check.vs_dv(dice, base, target.c.stabilization_dv())
 	if check.success:
 		target.c.stabilize()
+		if cur.c.perk_fx("revive") > 0:   # HOUSE-RULE perk: back on their feet
+			target.c.unconscious = false
+			target.c.wake_in = 0
+			target.c.hp = maxi(target.c.hp, target.c.raw_stat("BODY"))
 	events.append({"type": "stabilize", "unit": cur.id, "target": target.id, "ok": check.success})
 	say("%s %s %s." % [cur.c.display_name, "stabilizes" if check.success else "fails to stabilize", target.c.display_name])
 	return {"ok": true, "success": check.success}
@@ -842,6 +854,11 @@ func shoot_cover(cell: Vector3i, weapon: Weapon) -> Dictionary:
 
 # --- NET ---------------------------------------------------------------------------
 
+## Meatspace jack-in range: 6 m (p198), or a Long Leash perk's (HOUSE-RULE).
+static func jack_range(c: Combatant) -> float:
+	return maxf(JACK_IN_RANGE_M, float(c.perk_fx("jack_range_m")))
+
+
 ## Access points within jack-in range of `u` (6 m, p198): [{index, structure, device}].
 func jack_points(u: Dictionary) -> Array:
 	var out := []
@@ -850,7 +867,7 @@ func jack_points(u: Dictionary) -> Array:
 		for i in a.access_points.size():
 			var d: Dictionary = m.devices[a.access_points[i].device]
 			var dp := Vector3i(d.pos.x, d.pos.y, d.floor)
-			if dp.z == u.pos.z and Los.distance_m(u.pos, dp) <= JACK_IN_RANGE_M:
+			if dp.z == u.pos.z and Los.distance_m(u.pos, dp) <= jack_range(u.c):
 				out.append({"index": i, "structure": sid, "device": d.id})
 	return out
 

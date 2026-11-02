@@ -577,7 +577,7 @@ func _refresh_tools(enc: Encounter, crew_turn: bool) -> void:
 	var c: Combatant = enc.cur.c
 	var w: Weapon = c.weapons[0] if not c.weapons.is_empty() else null
 	var near_dying := enc.units.any(func(o): return o.team == enc.cur.team and o != enc.cur and not o.c.dead \
-		and o.c.wound_state() == Combatant.Wound.MORTAL and enc.adjacent(enc.cur.pos, o.pos))
+		and o.c.wound_state() == Combatant.Wound.MORTAL and enc.can_reach_to_stabilize(enc.cur, o))
 	var show := {"melee": true, "shell": w != null and w.def.get("shotgun_shell", false),
 		"grenade": c.grenades > 0, "suppress": w != null and w.def.get("suppressive", false), "medic": near_dying,
 		"grab": enc.can_grab()}
