@@ -86,3 +86,17 @@ Check-ins (🔶) are where work pauses for a user decision or review.
 - Fonts generic, UI must be more stylised, no rounded elements → CutBox chamfered chrome, Jersey 10 + VT323, pixel portraits.
 - Ask a subagent for visual improvements at least twice before the next approval → two critique rounds, both applied (see commits 9419a99, 1fa4f05).
 - M4b review page: https://claude.ai/artifact/Vs8526BGY2RDEK7VpBKE8X (db collection `verdicts`, keys m4b_*). The M4a page's verdicts were never saved; its questions carry over.
+
+### M4b-c chat notes (user)
+- Two more critique rounds (3 and 4) applied; then smooth (non-blocky) character models.
+- Lighting on squad models; portrait polish; a juice pass incl. combat; a game-feel review applied.
+- Muzzle flashes: realistically large, very short-lived, weapon-specific; no laser-like trails for
+  ballistic weapons → per-weapon flash profiles, travelling rounds, brass, smoke.
+- Turn banner moved under the turn-order strip (style kept).
+- Run Action: the owner thought CPR had none; the core book has it (p127 Actions table, "Run: take an
+  additional Move Action"), so it stays rules-as-written and is now clickable, pending the m4c_run verdict.
+- Cyberspace view: a stylised environment background (six styles to pick from) under a holographic
+  NET showing only linked nodes, with firewalls blocking.
+- Units blend in (no extra lighting, no rings or glows); only the active unit gets a white outline.
+  ROUND / UNDETECTED top right. Turn-order portraits no longer stretch. Portraits rendered from 3D.
+- Review page updated in place: https://claude.ai/artifact/Vs8526BGY2RDEK7VpBKE8X (new keys m4c_*).
