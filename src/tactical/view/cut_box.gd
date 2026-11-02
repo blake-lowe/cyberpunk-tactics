@@ -10,7 +10,7 @@ var accent := Color(0, 0, 0, 0)
 var cut := 10.0
 var corners := 0b0101
 var scan := true
-var width := 1.0
+var width := 2.0   # 2 px: matches the world's pixel size
 
 
 static func make(p_fill: Color, p_edge: Color, p_cut := 10.0, p_corners := 0b0101, p_accent := Color(0, 0, 0, 0), margin := 10.0) -> CutBox:
@@ -52,8 +52,8 @@ func _draw(ci: RID, r: Rect2) -> void:
 	if scan and r.size.y > 12:
 		var y := r.position.y + 2.0
 		while y < r.end.y - 2:
-			RenderingServer.canvas_item_add_line(ci, Vector2(r.position.x + 2, y), Vector2(r.end.x - 2, y), Color(1, 1, 1, 0.025))
-			y += 3.0
+			RenderingServer.canvas_item_add_rect(ci, Rect2(r.position.x + 2, y, r.size.x - 4, 2), Color(1, 1, 1, 0.022))
+			y += 4.0
 	if edge.a > 0:
 		var loop := p.duplicate()
 		loop.append(p[0])

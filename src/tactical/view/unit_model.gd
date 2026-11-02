@@ -81,6 +81,7 @@ static func build(team: int, index: int, role := "") -> Node3D:
 		var el := b.joint(sh, "elbow_l" if side < 0 else "elbow_r", Vector3(0, -0.18, 0), Vector3(deg_to_rad(-25 if side > 0 else -45), 0, 0))
 		b.capsule(el, Vector3(0, -0.085, 0), 0.032, 0.18, jacket)
 		b.sphere(el, Vector3(0, -0.18, 0), Vector3(0.06, 0.06, 0.06), skin if team == 0 else dark)   # hand
+	root.set_meta("ink", b._outline_mat())
 	# rifle, held at the chest pointing forward
 	var gun := Node3D.new()
 	gun.name = "weapon"

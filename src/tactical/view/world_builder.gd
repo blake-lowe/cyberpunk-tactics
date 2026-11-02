@@ -28,7 +28,7 @@ const LIB := {
 	"gravel": [Color("3b3833"), Color("2a2824"), 5, 2.0, 0.95, 0.0],
 	"dirt": [Color("3a2f25"), Color("281f18"), 5, 0.8, 0.95, 0.0],
 	"grass": [Color("1d2e1f"), Color("2c3a1c"), 5, 1.1, 0.95, 0.0],
-	"sand": [Color("7a6a5e"), Color("5a4c48"), 5, 0.53, 0.95, 0.0],
+	"sand": [Color("7a6a5e"), Color("5a4c48"), 5, 1.2, 0.95, 0.0],
 	"rail": [Color("2c2724"), Color("1a1715"), 6, 0.9, 0.7, 0.2],
 	"dock": [Color("2f2a25"), Color("1a1714"), 2, 0.8, 0.75, 0.0],
 	"water": [Color("0a1822"), Color("0a1822"), 10, 0.5, 0.05, 0.2],
@@ -39,7 +39,7 @@ const LIB := {
 	"floor_carpet": [Color("2a2233"), Color("2a2233"), 0, 4.0, 0.95, 0.0],
 	"floor_metal": [Color("2a3038"), Color("181c21"), 6, 1.4, 0.45, 0.5],
 	"floor_vault": [Color("2c2228"), Color("15101a"), 1, 0.9, 0.35, 0.3],
-	"roof": [Color("2b2e33"), Color("1d1f22"), 5, 0.71, 0.85, 0.0, {"shell": true}],
+	"roof": [Color("2b2e33"), Color("16181b"), 4, 0.5, 0.85, 0.0, {"shell": true}],
 	"stairs": [Color("4a5058"), Color("2a2e33"), 6, 3.0, 0.5, 0.3],
 	"wall_concrete": [Color("5a5f66"), Color("34373c"), 7, 1.0, 0.85, 0.0],
 	"wall_plaster": [Color("6e675d"), Color("47423b"), 7, 1.0, 0.9, 0.0],
@@ -52,9 +52,9 @@ const LIB := {
 	"glass": [Color("7fc8e8"), Color("7fc8e8"), 0, 1.0, 0.05, 0.0, {"alpha": 0.24, "glow": 0.25}],
 	"fence": [Color("7a8a7a"), Color("7a8a7a"), 0, 1.0, 0.4, 0.7, {"alpha": 0.3}],
 	"post": [Color("3a4048"), Color("3a4048"), 0, 1.0, 0.4, 0.7],
-	"rock": [Color("6a5a50"), Color("4a4038"), 5, 1.5, 0.95, 0.0],
+	"rock": [Color("5a4a40"), Color("463a32"), 5, 1.5, 0.95, 0.0, {"flat": true}],
 	"unknown": [Color("1c212c"), Color("1c212c"), 0, 1.0, 0.95, 0.0, {"mode": 1, "glow": 0.5, "emit": Color("141a26")}],
-	"wood": [Color("6a4e35"), Color("3e2c1e"), 2, 2.0, 0.8, 0.0],
+	"wood": [Color("4e3a28"), Color("2e2216"), 2, 2.0, 0.8, 0.0],
 	"steel": [Color("56606a"), Color("3a424a"), 0, 1.0, 0.4, 0.55],
 	"concrete_prop": [Color("6a6e73"), Color("4a4d51"), 0, 2.0, 0.85, 0.0],
 	"stone": [Color("67625b"), Color("4a4640"), 5, 2.0, 0.9, 0.0],
@@ -66,7 +66,7 @@ const LIB := {
 	"tower_top": [Color("101216"), Color("101216"), 0, 1.0, 0.8, 0.2, {"mode": 2}],
 	"far_ground": [Color("111316"), Color("0b0c0e"), 0, 0.3, 0.9, 0.0, {"mode": 2}],
 }
-const PAINT := [Color("8a1c2a"), Color("1c3a5a"), Color("c8c8c0"), Color("2a2a2e"), Color("b07a1a"), Color("3a5a2a")]
+const PAINT := [Color("8a1c2a"), Color("1c3a5a"), Color("9a9a92"), Color("2a2a2e"), Color("b07a1a"), Color("3a5a2a")]
 const NEON := LightPlan.NEON
 
 var m: TacMap
@@ -99,7 +99,12 @@ func _init(p_map: TacMap, p_vision: Vision, p_fog: Texture2D) -> void:
 	sph.rings = 4
 	var quad := QuadMesh.new()
 	quad.size = Vector2.ONE
-	_shapes = {"box": box, "cyl": cyl, "sphere": sph, "quad": quad}
+	var rock := SphereMesh.new()   # low-poly and flat-shaded: faceted rocks read well as pixel art
+	rock.radius = 0.5
+	rock.height = 1.0
+	rock.radial_segments = 5
+	rock.rings = 3
+	_shapes = {"box": box, "cyl": cyl, "sphere": sph, "quad": quad, "rock": rock}
 
 
 # --- Materials ---------------------------------------------------------------------
@@ -127,6 +132,8 @@ func mat(name: String, f: int, cut := true, over := {}) -> ShaderMaterial:
 	mt.set_shader_parameter("emission_energy", minf(float(extra.get("glow", 0.0)), 1.6))   # keep emitters in hue
 	mt.set_shader_parameter("mode", extra.get("mode", 0))
 	mt.set_shader_parameter("shell", extra.get("shell", false))
+	mt.set_shader_parameter("flat_shade", extra.get("flat", false))
+	mt.set_shader_parameter("offmap", extra.get("offmap", false))
 	mt.set_shader_parameter("cuttable", cut)
 	mt.set_shader_parameter("fog", fog_tex)
 	if lightfield:
@@ -143,7 +150,7 @@ static func _alpha_shader() -> Shader:
 	if _alpha == null:
 		_alpha = Shader.new()
 		_alpha.code = SHADER.code.replace("render_mode cull_disabled;", "render_mode cull_disabled, blend_mix, depth_draw_opaque;") \
-			.replace("EMISSION = emit * k;", "EMISSION = emit * k;\n\tALPHA = albedo.a;")
+			.replace("	EMISSION = emit;", "	EMISSION = emit;\n\tALPHA = albedo.a;")
 	return _alpha
 
 
@@ -210,7 +217,7 @@ func build(root: Node3D) -> Array[Node3D]:
 	if String(m.params.get("scene", "")) != "badlands":
 		_skyline()
 	else:
-		box(mat("sand", 0, false, {"mode": 2}), Vector3(m.w / 2.0, -0.2, m.h / 2.0), Vector3(m.w + 120, 0.1, m.h + 120))
+		box(mat("sand", 0, false, {"mode": 2, "offmap": true}), Vector3(m.w / 2.0, -0.2, m.h / 2.0), Vector3(m.w + 120, 0.1, m.h + 120))
 	flush(sky)
 	return out
 
@@ -543,6 +550,23 @@ func _run(f: int, horiz: bool, a: int, b0: int, b1: int, glass: bool, k: int) ->
 		box(mat("glass", f, true, gsh), c + Vector3(0, y0 + (sill + lintel) / 2, 0), size.call(lintel - sill, 0.05))
 		box(mat("frame", f, true, gsh), c + Vector3(0, y0 + sill + 0.02, 0), size.call(0.04, t + 0.06))
 		var n := maxi(1, roundi(length / 0.62))
+		if ext:   # ~35% of panes lit from inside: rhythm on the facade and coloured spill outside
+			var inward := Vector3.ZERO
+			var probe := Vector2i(b0, a + 1) if horiz else Vector2i(a + 1, b0)
+			var norm := Vector3(0, 0, 1) if horiz else Vector3(1, 0, 0)
+			inward = norm if (m.inb(probe.x, probe.y) and not vision._outdoor(f, probe.x, probe.y)) else -norm
+			for i in n:
+				rng.seed = hash(Vector3i(b0 + i, a, f)) + 41
+				if rng.randf() > 0.35:
+					continue
+				var wcol: Color = [Color("ffc890"), Color("ffb070"), Color("aaf6ff"), Color("ffa0c0")][rng.randi() % 4]
+				var pc := s + length * (i + 0.5) / n
+				var pcv := (Vector3(pc, 0, a + 0.5) if horiz else Vector3(a + 0.5, 0, pc)) + inward * 0.05
+				var pw := length / n * 0.9
+				box(mat("dark", f, true, {"glow": 1.2, "emit": wcol, "shell": true}), pcv + Vector3(0, y0 + (sill + lintel) / 2, 0), Vector3(pw, lintel - sill - 0.04, 0.02) if horiz else Vector3(0.02, lintel - sill - 0.04, pw))
+				if f == 0:
+					var oc := Vector3(pc, 0, a + 0.5) - inward * 1.0
+					emitters.append({"cell": Vector3i(int(oc.x), int(oc.z), 0), "color": wcol, "energy": 0.6, "range": 3.0, "out": Vector2i.ZERO})
 		for i in range(1, n):
 			var p := s + length * i / n
 			var mc := Vector3(p, 0, a + 0.5) if horiz else Vector3(a + 0.5, 0, p)
@@ -742,7 +766,7 @@ func _piece(kind: String, p: Vector3, yaw: float, f: int, h0: int) -> void:
 		"boulder":
 			for i in 3:
 				rng.seed = h0 + i
-				put("sphere", mat("rock", f, false), Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled_local(Vector3(rng.randf_range(0.5, 0.9), rng.randf_range(0.4, 0.7), rng.randf_range(0.5, 0.9))), p + Vector3(rng.randf_range(-0.2, 0.2), 0.2, rng.randf_range(-0.2, 0.2))))
+				put("rock", mat("rock", f, false), Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled_local(Vector3(rng.randf_range(0.5, 0.9), rng.randf_range(0.4, 0.7), rng.randf_range(0.5, 0.9))), p + Vector3(rng.randf_range(-0.2, 0.2), 0.2, rng.randf_range(-0.2, 0.2))))
 		"transformer":
 			box(S, p + Vector3(0, 0.4, 0), Vector3(0.7, 0.8, 0.6), yaw)
 			for i in 4:
@@ -843,6 +867,7 @@ func _street_clutter() -> void:
 func _roof_clutter(f: int) -> void:
 	var y0 := f * FH
 	var S := mat("steel", f)
+	_billboards(f)
 	for y in m.h:
 		for x in m.w:
 			if m.t(f, x, y) != TacMap.T.ROOF:
@@ -866,6 +891,50 @@ func _roof_clutter(f: int) -> void:
 				box(mat("dark", f, true, {"glow": 1.2, "emit": Color("ff2020")}), p + Vector3(0, 0.92, 0), Vector3(0.06, 0.06, 0.06))
 			elif roll < 0.16:
 				box(S, p + Vector3(0, 0.12, 0), Vector3(0.3, 0.24, 0.3), rng.randf())
+			elif roll < 0.19:   # skylight glowing from the room below
+				var sk: Color = [Color("ffc890"), Color("aaf6ff")][rng.randi() % 2]
+				box(mat("dark", f, true, {"glow": 1.2, "emit": sk}), Vector3(x + 0.5, y0 + 0.03, y + 0.5), Vector3(0.6, 0.05, 0.6))
+				emitters.append({"cell": Vector3i(x, y, f), "color": sk, "energy": 0.8, "range": 2.5, "out": Vector2i.ZERO})
+
+
+## One rooftop billboard per structure: two posts and a big neon panel, with light spill.
+func _billboards(f: int) -> void:
+	var done := {}
+	for y in m.h:
+		for x in m.w:
+			if m.t(f, x, y) != TacMap.T.ROOF:
+				continue
+			var sid := _structure_at(f, x, y)
+			if done.has(sid):
+				continue
+			# a roof edge square facing open air
+			var face := Vector2i.ZERO
+			for d in MapGen.DIRS:
+				var n: Vector2i = Vector2i(x, y) + d
+				if not m.inb(n.x, n.y) or m.t(f, n.x, n.y) == TacMap.T.VOID:
+					face = d
+			if face == Vector2i.ZERO:
+				continue
+			rng.seed = hash(Vector3i(x, y, f)) + 99
+			if rng.randf() < 0.6:
+				done[sid] = true
+				continue
+			done[sid] = true
+			var col: Color = NEON[rng.randi() % NEON.size()]
+			var c := Vector3(x + 0.5, f * FH, y + 0.5) - Vector3(face.x, 0, face.y) * 0.1
+			var along := Vector3(0.9, 0, 0) if face.x == 0 else Vector3(0, 0, 0.9)
+			for sgn in [-1, 1]:
+				box(mat("post", f), c + along * 0.45 * sgn + Vector3(0, 0.45, 0), Vector3(0.05, 0.9, 0.05))
+			box(mat("dark", f, true, {"glow": 1.5, "emit": col}), c + Vector3(0, 0.95, 0), Vector3(1.6, 0.6, 0.06) if face.x == 0 else Vector3(0.06, 0.6, 1.6))
+			emitters.append({"cell": Vector3i(x, y, f), "color": col, "energy": 1.4, "range": 4.0, "out": Vector2i.ZERO})
+
+
+func _structure_at(f: int, x: int, y: int) -> int:
+	for d in [Vector2i.ZERO] + Nav.DIRS8:
+		var l := m.label(f, x + d.x, y + d.y)
+		if l >= 0:
+			return int(m.rooms[l].structure)
+	return -1
 
 
 ## Facades: AC units and pipes on exterior walls, posters, and tall vertical neon boards.
@@ -938,8 +1007,13 @@ func _skyline() -> void:
 			continue
 		placed.append(r)
 		var h := rng.randf_range(6.0, 14.0) + dist * rng.randf_range(0.3, 0.9)
+		h = minf(h, dist * 0.7 + 1.0)   # the near ring never hides the map at the lowest camera pitch
 		box(T, Vector3(p.x, h / 2 - 0.2, p.y), Vector3(w, h, d))
 		box(top, Vector3(p.x, h - 0.15, p.y), Vector3(w * 0.7, 0.4, d * 0.7))
+		box(mat("cornice", 0, false, {"mode": 2, "color": Color("2a3040")}), Vector3(p.x, h - 0.2, p.y), Vector3(w + 0.15, 0.12, d + 0.15))
+		if rng.randf() < 0.25:   # a vertical neon edge so the mass has an outline
+			var sc: Color = NEON[rng.randi() % NEON.size()]
+			box(mat("dark", 0, false, {"glow": 1.4, "emit": sc, "mode": 2}), Vector3(p.x + w / 2, h / 2, p.y + d / 2), Vector3(0.12, h, 0.12))
 		if rng.randf() < 0.35:
 			box(mat("dark", 0, false, {"glow": 1.2, "emit": Color("ff2020"), "mode": 2}), Vector3(p.x, h + 0.1, p.y), Vector3(0.08, 0.08, 0.08))
 		if rng.randf() < 0.3:   # a billboard: a big emissive panel on the face toward the map
@@ -963,4 +1037,4 @@ func _rocks() -> void:
 				rng.seed = hash(Vector2i(x, y)) + i
 				var s := Vector3(rng.randf_range(0.8, 1.5), rng.randf_range(0.7, 1.9), rng.randf_range(0.8, 1.5))
 				var p := Vector3(x + rng.randf_range(0.2, 0.8), s.y * 0.35, y + rng.randf_range(0.2, 0.8))
-				put("sphere", mat("rock", 0, false), Transform3D(Basis(Vector3.UP, rng.randf() * TAU).rotated(Vector3.RIGHT, rng.randf_range(-0.3, 0.3)).scaled_local(s), p))
+				put("rock", mat("rock", 0, false), Transform3D(Basis(Vector3.UP, rng.randf() * TAU).rotated(Vector3.RIGHT, rng.randf_range(-0.3, 0.3)).scaled_local(s), p))

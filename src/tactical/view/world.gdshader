@@ -32,6 +32,9 @@ uniform float spill = 0.9;
 global uniform vec3 cut_center;     // xz focus, y = viewed floor index
 global uniform float cut_radius;    // 0 = no cutaway
 global uniform vec2 cut_dir;        // camera forward on the ground plane
+global uniform vec4 focus_view;     // focus in screen UV (xy), its view depth (z), hole radius (w)
+uniform bool flat_shade = false;    // faceted lighting (rocks)
+uniform bool offmap = false;        // ground beyond the map: fades out with distance
 
 varying vec3 wpos;
 varying vec3 wnorm;
@@ -48,37 +51,50 @@ float noise(vec2 p) {
 	return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y);
 }
 float fbm(vec2 p) { return noise(p) * 0.62 + noise(p * 2.13) * 0.38; }  // no sub-pixel octave
+float bayer4(vec2 p) {  // ordered dither, -0.5..0.5
+	int x = int(mod(p.x, 4.0));
+	int y = int(mod(p.y, 4.0));
+	int m[16] = {0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5};
+	return (float(m[x + y * 4]) + 0.5) / 16.0 - 0.5;
+}
 float line(float x, float w) { float d = abs(fract(x) - 0.5); return smoothstep(0.5 - w, 0.5, d); }
 
 void fragment() {
-	// --- cutaway: only the near side of the focus (a capsule reaching toward the camera), so the
-	// far walls stay up and give vertical context. Floors above the viewed one vanish there; walls
-	// on it drop to waist height. Cut faces show as dark section caps with a cyan core.
 	vec2 uvbase;
 	{
 		vec2 c = wpos.xz - wnorm.xz * 0.08;   // sample just inside the surface
 		uvbase = vec2(c.x / map_size.x, (floor_idx * map_size.y + clamp(c.y, 0.5, map_size.y - 0.5)) / (map_size.y * floors));
 	}
 	vec2 fogv = texture(fog, uvbase).rg;
+	float bay = bayer4(FRAGCOORD.xy);
+	// --- see-through hole: tall things between the camera and the focus (skyline, buildings that
+	// haven't been opened) dissolve in a dithered disc around the focus (BG3/Divinity style)
+	if ((mode == 2 || (shell && fogv.g < 0.5)) && focus_view.w > 0.0 && wpos.y > cut_center.y * 1.6 + 0.9 && -VERTEX.z < focus_view.z - 1.5) {
+		float r = length((SCREEN_UV - focus_view.xy) * vec2(VIEWPORT_SIZE.x / VIEWPORT_SIZE.y, 1.0)) / focus_view.w;
+		if (smoothstep(0.7, 1.0, r) < bay + 0.5) discard;
+	}
+	// --- cutaway (XCOM roof-off): in buildings the crew is in or has seen into (fog G), every
+	// storey above the viewed one goes, and walls on the camera side of the focus drop to waist
+	// height with a dithered edge. Far walls stay up for context. Cut faces show as section caps.
 	if (cut_radius > 0.0 && fogv.g > 0.5) {
-		vec2 rel = wpos.xz - cut_center.xz;
-		float along = dot(rel, cut_dir);
-		float lateral = length(rel - cut_dir * along);
-		if (lateral < cut_radius && along < cut_radius * 0.3 && along > -cut_radius * 3.0) {
-			if (floor_idx > cut_center.y + 0.5) discard;
-			if (cuttable && floor_idx > cut_center.y - 0.5 && wpos.y - floor_idx * 1.6 > 0.72) discard;
+		if (floor_idx > cut_center.y + 0.5) discard;
+		if (cuttable && floor_idx > cut_center.y - 0.5 && wpos.y - floor_idx * 1.6 > 0.72) {
+			float along = dot(wpos.xz - cut_center.xz, cut_dir);
+			if (smoothstep(-0.5, 0.5, along) < bay + 0.5) discard;
 		}
 	}
-	// --- fog of war
+	// --- fog of war: dithered frontier; explored-but-unseen is dimmer, cooler, with lights low
 	float f = mode != 2 ? fogv.r : 1.0;
 	if (shell) f = max(f, 0.5);
-	if (mode == 0 && f < 0.22) discard;
+	if (mode == 0 && f < 0.15 + 0.14 * (bay + 0.5)) discard;
 	if (mode == 1 && f >= 0.22) discard;
-	float k = mode == 0 ? mix(explored_dim, 1.0, smoothstep(0.55, 0.9, f)) : 1.0;
+	float vis = smoothstep(0.55, 0.9, f);
+	float k = mode == 0 ? mix(explored_dim, 1.0, vis) : 1.0;
 
 	// --- pattern: floors use xz, walls use (along-wall, height)
 	bool up = abs(wnorm.y) > 0.5;
 	vec2 p = (up ? wpos.xz : vec2(wpos.x + wpos.z, wpos.y)) * pattern_scale;
+	float local_h = wpos.y - floor_idx * 1.6;
 	vec3 base = albedo.rgb;
 	float rough = roughness;
 	float wet = 0.0;
@@ -95,13 +111,14 @@ void fragment() {
 		float x = p.x * 0.7 + hash(vec2(row, 1.0)) * 3.0;
 		base *= 0.85 + hash(vec2(row, floor(x))) * 0.25 + noise(vec2(p.x * 4.0, row)) * 0.08;
 		base = mix(base, albedo2.rgb, max(line(p.y * 3.0, 0.05), line(x, 0.015)));
-	} else if (pattern == 3) {            // asphalt: aggregate, patches, puddles
-		float speck = hash(floor(p * 10.0));
+	} else if (pattern == 3) {            // asphalt: aggregate (faded when sub-pixel), puddles
+		float aa = 1.0 - smoothstep(0.4, 0.9, fwidth(p.x) * 10.0);
+		float speck = hash(floor(p * 10.0)) * aa;
 		base *= 0.85 + n * 0.3 + speck * 0.08;
 		float pud = smoothstep(0.62, 0.68, fbm(p * 0.35 + 7.0));
 		rough = mix(rough, 0.04, pud);
 		wet = pud;
-	} else if (pattern == 4) {            // sidewalk slabs, offset rows, a few cracks
+	} else if (pattern == 4) {            // slabs (sidewalk, roof membrane), offset rows
 		vec2 q = vec2(p.x + floor(p.y) * 0.5, p.y);
 		float g = max(line(q.x, 0.03), line(q.y, 0.03));
 		base *= 0.9 + hash(floor(q)) * 0.15 + n * 0.08;
@@ -110,8 +127,9 @@ void fragment() {
 		rough = mix(rough, 0.08, pud);
 		wet = pud;
 	} else if (pattern == 5) {            // earth / grass / sand: two-colour noise
-		base = mix(albedo.rgb, albedo2.rgb, smoothstep(0.3, 0.75, fbm(p * 1.3)));
-		base *= 0.9 + hash(floor(p * 25.0)) * 0.15;
+		base = mix(albedo.rgb, albedo2.rgb, smoothstep(0.45, 0.6, fbm(p * 1.3)));
+		float aa5 = 1.0 - smoothstep(0.4, 0.9, fwidth(p.x) * 25.0);
+		base *= 0.9 + hash(floor(p * 25.0)) * 0.15 * aa5;
 	} else if (pattern == 6) {            // grating
 		float g = line(p.x * 4.0, 0.25);
 		base = mix(base, albedo2.rgb, g);
@@ -119,8 +137,7 @@ void fragment() {
 		float g = max(line(p.x * 0.75, 0.012), line(p.y * 0.625 + 0.5, 0.02));
 		base *= 0.88 + hash(floor(vec2(p.x * 0.75, p.y * 0.625))) * 0.12 + n * 0.08;
 		base = mix(base, albedo2.rgb, g);
-		// grime streaks running down from the top
-		base *= 1.0 - smoothstep(0.55, 0.9, noise(vec2(p.x * 6.0, p.y * 0.3))) * 0.18;
+		base *= 1.0 - smoothstep(0.55, 0.9, noise(vec2(p.x * 6.0, p.y * 0.3))) * 0.18;   // grime streaks
 	} else if (pattern == 8) {            // corrugated metal
 		float r = sin(p.x * 12.0) * 0.5 + 0.5;
 		base *= 0.8 + r * 0.25 + n * 0.1;
@@ -136,30 +153,48 @@ void fragment() {
 	} else if (pattern == 10) {           // water: dark, glossy, slow ripples
 		float r = noise(p * 2.0 + vec2(TIME * 0.15, TIME * 0.1));
 		base *= 0.8 + r * 0.3;
-		rough = 0.22 + r * 0.1;   // glossy enough to catch spill, not a white hotspot
+		rough = 0.22 + r * 0.1;
 	}
-	// --- baked light spill: walls sample the space they face; puddles reflect it brighter
+	// --- grounding: contact darkening at wall/prop bases, a light edge on top faces
+	if (mode != 2) {
+		if (!up) base *= mix(0.6, 1.0, smoothstep(0.0, 0.6, local_h));
+		else if (local_h > 0.2) base *= 1.4;
+	}
+	if (offmap) {
+		float od = length(max(abs(wpos.xz - map_size * 0.5) - map_size * 0.5, 0.0));
+		base *= mix(1.0, 0.35, smoothstep(0.0, 25.0, od));
+	}
+	// --- baked light spill (rgb) and contact occlusion (a): walls sample the space they face
 	vec2 lfo = up ? vec2(0.0) : wnorm.xz * 0.35;
 	vec2 luv = uvbase + vec2(lfo.x / map_size.x, lfo.y / (map_size.y * floors));
 	vec2 t = vec2(0.25 / map_size.x, 0.25 / (map_size.y * floors));
-	vec3 lf = (texture(lightfield, luv).rgb * 2.0 + texture(lightfield, luv + vec2(t.x, 0)).rgb + texture(lightfield, luv - vec2(t.x, 0)).rgb
-		+ texture(lightfield, luv + vec2(0, t.y)).rgb + texture(lightfield, luv - vec2(0, t.y)).rgb) / 6.0;
-	if (!up) lf *= 1.0 - 0.45 * clamp((wpos.y - floor_idx * 1.6) / 1.6, 0.0, 1.0);
+	vec4 lfs = (texture(lightfield, luv) * 2.0 + texture(lightfield, luv + vec2(t.x, 0)) + texture(lightfield, luv - vec2(t.x, 0))
+		+ texture(lightfield, luv + vec2(0, t.y)) + texture(lightfield, luv - vec2(0, t.y))) / 6.0;
+	vec3 lf = lfs.rgb;
+	if (up && local_h < 0.2 && mode != 2) base *= 1.0 - 0.45 * clamp(lfs.a, 0.0, 1.0);
+	if (!up) lf *= 1.0 - 0.45 * clamp(local_h / 1.6, 0.0, 1.0);
 	float pk = max(lf.r, max(lf.g, lf.b));
 	lf *= 1.0 / (1.0 + pk * 0.6);   // soft knee: pools keep their hue instead of clipping white
 	pk = max(lf.r, max(lf.g, lf.b));
-	// puddles: a darker surface with a thin saturated reflection, not a bright stain
-	base *= 1.0 - 0.5 * wet;
-	emit += base * lf * spill * (1.0 - wet * 0.6) + (lf / max(pk, 1e-3)) * min(pk, 1.0) * wet * 0.25;
-	if (k < 1.0) base = mix(vec3(dot(base, vec3(0.3, 0.59, 0.11))), base, 0.5) * k;
+	float lq = floor(pk * 4.0 + 0.5 + bay * 0.6) / 4.0;   // hard pixel-art light bands
+	lf *= lq / max(pk, 1e-3);
+	pk = lq;
+	base *= 1.0 - 0.5 * wet;   // puddles: darker surface with a thin saturated reflection
+	vec3 sb = max(base, vec3(0.045));   // spill must show on near-black asphalt too
+	emit += sb * lf * spill * (1.0 - wet * 0.6) + (lf / max(pk, 1e-3)) * min(pk, 1.0) * wet * 0.25;
+	if (k < 1.0) {
+		float l = dot(base, vec3(0.3, 0.59, 0.11));
+		base = mix(vec3(l), base, 0.3) * k * mix(vec3(0.8, 0.9, 1.15), vec3(1.0), vis);
+		emit *= mix(0.4, 1.0, vis);
+	}
+	if (flat_shade) NORMAL = normalize(cross(dFdy(VERTEX), dFdx(VERTEX)));
 	ALBEDO = base;
 	ROUGHNESS = rough;
 	METALLIC = metallic;
-	EMISSION = emit * k;
+	EMISSION = emit;
 	if (mode == 1) {  // unknown interior: dark hologram, screen-space scanlines, cyan edge at the frontier
 		float scan = step(2.0, mod(FRAGCOORD.y + floor(TIME * 8.0), 3.0));
-		float fr = texture(fog, uvbase).r;
-		float edge = smoothstep(0.04, 0.2, fr) * (1.0 - smoothstep(0.2, 0.22, fr));
+		float edge = smoothstep(0.04, 0.2, fogv.r) * (1.0 - smoothstep(0.2, 0.22, fogv.r));
 		ALBEDO = vec3(0.06, 0.08, 0.11);
 		EMISSION = vec3(0.03, 0.09, 0.12) * (0.7 + scan * 0.6) + vec3(0.02, 0.85, 0.91) * edge;
 		ROUGHNESS = 0.9;

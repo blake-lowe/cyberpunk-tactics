@@ -31,3 +31,7 @@ cut_dir={
 "type": "vec2",
 "value": Vector2(0, -1)
 }
+focus_view={
+"type": "vec4",
+"value": Vector4(0.5, 0.5, 0, 0)
+}

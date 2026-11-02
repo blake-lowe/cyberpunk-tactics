@@ -35,23 +35,27 @@ var hover := Vector3i(-1, -1, -1)
 var mouse := Vector2.ZERO
 var gig := {"scene": "skirmish", "profile": "", "seed": 11, "security": 1}
 var look := {"pixel": 0.0, "palette": 1.0, "levels": 0.0, "dither": 0.3, "contrast": 1.0, "saturation": 1.1, "outline": 0.35,
-	"bloom": 1.2, "ortho": 1.0, "lights": 1.0, "dim": 0.8, "spill": 1.0}
+	"bloom": 1.2, "ortho": 1.0, "lights": 1.0, "dim": 0.5, "spill": 1.0}
 
 ## Curated palette (M4b critique: a real limited palette instead of free-floating mids): ink and
 ## navy ramps, warm concrete, cool greys, skin, wood, foliage, and each neon in two steps.
 ## Round 2: each neon has a 4-step ramp (deep, mid, full, pale) so coloured light keeps its hue in
 ## shadow and highlight; skin and wood are cut to two steps each; matching happens in OKLab.
+## Round 3: neutrals first; neon-ramp entries are only allowed for saturated pixels (post shader),
+## so shadows go navy instead of a violet wash. Warm darks added for earth.
+const PALETTE_NEUTRALS := 32
 const PALETTE := ["05060a", "0b0e16", "141a26", "1e2636", "2a3448", "3a4660", "4e5c78",
 	"1a1714", "2b2622", "3d3630", "554b42", "70665a", "8e8476",
 	"4a5560", "66717c", "8a96a0", "b4bec6", "dfe6ea", "fff4e0",
 	"8a5a40", "c08a68", "3a2418", "6a4a2a", "12261a", "1f4a2a", "3a6a3a", "6a5a50", "8a7a68",
+	"241c18", "3a2c22", "5a4636", "2a3a5a",
 	"2a0a1e", "5a1040", "ff2a6d", "ffa0c0", "062430", "0a4a5a", "05d9e8", "aaf6ff",
 	"2a1e06", "6a4a08", "f9c80e", "fff0a0", "1e0a2e", "4a1a6a", "b537f2", "e2b0ff",
 	"2e1206", "7a3008", "ff6b1a", "ffc8a0", "06261a", "0e5a3a", "39f0a0", "b8ffe0",
-	"7a1420", "ff3b4f", "2a3a5a", "3a2a48"]
+	"7a1420", "ff3b4f"]
 ## Per-scene light: ambient, moon key, fog (round 2: the desert needs moonlit sand).
 const LOOKS := {
-	"default": {"ambient": "262c44", "amb_e": 0.85, "key": "8fa0e0", "key_e": 0.5, "fog": "2a1020", "fog_d": 0.006},
+	"default": {"ambient": "262c44", "amb_e": 0.65, "key": "8fa0e0", "key_e": 0.5, "fog": "0d1422", "fog_d": 0.0035},
 	"badlands": {"ambient": "3a3550", "amb_e": 1.0, "key": "9ab0e8", "key_e": 0.75, "fog": "1a1828", "fog_d": 0.004},
 }
 const DECAL := """
@@ -296,6 +300,7 @@ func _apply_look() -> void:
 		pal.append(_oklab(Color(h)))
 	post.set_shader_parameter("palette", pal)
 	post.set_shader_parameter("palette_n", pal.size())
+	post.set_shader_parameter("palette_neutral_n", PALETTE_NEUTRALS)
 	post.set_shader_parameter("levels", look.levels)
 	post.set_shader_parameter("dither", look.dither)
 	post.set_shader_parameter("contrast", look.contrast)
@@ -418,6 +423,12 @@ func _build_world() -> void:
 	for u in enc.units:
 		var n := UnitModel.build(u.team, u.id if u.team == 0 else 0, String(u.c.role))
 		decals[u.id] = _decal(Color("05d9e8") if u.team == 0 else Color("ff3b4f"), 0.95, false, 0.0)
+		var blob := _decal(Color.BLACK, 0.75, false, 0.0, true)   # contact shadow
+		blob.name = "blob"
+		blob.get_parent().remove_child(blob)
+		n.add_child(blob)
+		blob.position = Vector3(0, 0.02, 0)
+		blob.scale = Vector3.ONE / 1.5
 		if u.team == 0:  # crew carry a small light (XCOM-style) so they read at night through the pixel filter
 			var pl := OmniLight3D.new()
 			pl.light_color = Color("cfe6ff")
@@ -442,12 +453,12 @@ func _apply_world_look() -> void:
 
 ## A soft additive glow on the ground (team colour under units; a ring for the active unit and
 ## the hovered target).
-func _decal(col: Color, size: float, ring_mode: bool, pulse: float) -> MeshInstance3D:
+func _decal(col: Color, size: float, ring_mode: bool, pulse: float, shadow := false) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	var q := PlaneMesh.new()
 	q.size = Vector2(size, size)
 	var sh := Shader.new()
-	sh.code = DECAL
+	sh.code = DECAL if not shadow else DECAL.replace("blend_add", "blend_mul").replace("ALBEDO = col.rgb * a * 1.6;", "ALBEDO = mix(vec3(1.0), vec3(0.35), clamp(a * 2.2, 0.0, 1.0));")
 	var mt := ShaderMaterial.new()
 	mt.shader = sh
 	mt.set_shader_parameter("col", col)
@@ -503,7 +514,7 @@ func _build_lights() -> void:
 				var head := MeshInstance3D.new()
 				var hm := BoxMesh.new()
 				hm.size = Vector3(0.2, 0.04, 0.12)
-				hm.material = _unlit(e.color, 1.0, 1.5)
+				hm.material = _unlit(e.color.lerp(Color.WHITE, 0.15), 1.0, 1.25)
 				head.mesh = hm
 				head.position = base + Vector3(-0.05, 1.48, 0.3)
 				fn.add_child(head)
@@ -586,6 +597,12 @@ func _update_cut() -> void:
 	var fwd := Vector2(-cam.global_transform.basis.z.x, -cam.global_transform.basis.z.z)
 	RenderingServer.global_shader_parameter_set("cut_dir", fwd.normalized() if fwd.length() > 0.01 else Vector2(0, -1))
 	RenderingServer.global_shader_parameter_set("cut_center", Vector3(cam_target.x, view_floor, cam_target.z))
+	# see-through hole around the focus (screen UV, view depth, radius)
+	if svp and svp.size.y > 0:
+		var fp := Vector3(cam_target.x, view_floor * FH, cam_target.z)
+		var uv := cam.unproject_position(fp) / Vector2(svp.size)
+		var dep := (fp - cam.global_position).dot(-cam.global_transform.basis.z)
+		RenderingServer.global_shader_parameter_set("focus_view", Vector4(uv.x, uv.y, dep, 0.2))
 	RenderingServer.global_shader_parameter_set("cut_radius", _cut_radius())
 
 
@@ -595,9 +612,7 @@ func _cut_hides(v: Vector3i) -> bool:
 	var fwd := Vector2(-cam.global_transform.basis.z.x, -cam.global_transform.basis.z.z).normalized()
 	var rel := Vector2(v.x + 0.5 - cam_target.x, v.y + 0.5 - cam_target.z)
 	var along := rel.dot(fwd)
-	var r := _cut_radius()
-	var inside_open := open_rects.any(func(q: Rect2i) -> bool: return q.has_point(Vector2i(v.x, v.y)))
-	return inside_open and (rel - fwd * along).length() < r and along < r * 0.3 and along > -r * 3.0
+	return open_rects.any(func(q: Rect2i) -> bool: return q.has_point(Vector2i(v.x, v.y)))
 
 
 ## Fog texture: R = vision state per square, G = 1 inside structures the cutaway may open (the
@@ -656,7 +671,7 @@ func _build_doors() -> void:
 		door_nodes.add_child(mi)
 		var lamp := MeshInstance3D.new()
 		var lm := BoxMesh.new()
-		lm.size = Vector3(0.05, 0.08, 0.05)
+		lm.size = Vector3(0.09, 0.11, 0.09)
 		var locked: bool = enc.nav.locked.has(v)
 		lm.material = _unlit(Color("ff3030") if locked else Color("30ff90"), 1.0, 3.0)
 		lamp.mesh = lm
@@ -761,6 +776,8 @@ func _place_camera() -> void:
 		shift = Vector2(-(lx - sx), (ly - sy)) / texel * px
 	screen.position = Vector2(-px, -px) + shift
 	sun.rotation_degrees = Vector3(-55, cam_yaw + 35, 0)
+	if enc and not unit_nodes.is_empty():
+		_update_outlines()
 	if rim:
 		rim.rotation_degrees = Vector3(-30, cam_yaw + 190, 0)
 	_update_cut()
@@ -773,6 +790,15 @@ func _frame_unit(u: Dictionary) -> void:
 	cam_target = Vector3(clampf(p.x, 0, m.w), 0, clampf(p.y, 0, m.h))
 	view_floor = u.pos.z
 	_place_camera()
+
+
+## Zoomed out, unit outlines switch from ink to team colour so units stay findable.
+func _update_outlines() -> void:
+	for u in enc.units:
+		var n: Node3D = unit_nodes.get(u.id)
+		if n and n.has_meta("ink"):
+			var mt: StandardMaterial3D = n.get_meta("ink")
+			mt.albedo_color = (Color("05d9e8") if u.team == 0 else Color("ff3b4f")) if cam_dist > 30.0 else (Color("05060a") if u.team == 0 else Color("2a0406"))
 
 
 func _to_screen(p: Vector3) -> Vector2:
@@ -803,7 +829,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 		match ev.keycode:
 			KEY_Q: yaw_goal = snappedf(yaw_goal, 45.0) - 90
 			KEY_E: yaw_goal = snappedf(yaw_goal, 45.0) + 90
-			KEY_H: hud.hint.visible = not hud.hint.visible
+			KEY_H: hud.toggle_hint()
 			KEY_PAGEUP: view_floor = mini(view_floor + 1, m.floors - 1); _place_camera(); _refresh()
 			KEY_PAGEDOWN: view_floor = maxi(view_floor - 1, 0); _place_camera(); _refresh()
 			KEY_C: cutaway = not cutaway; _refresh()

@@ -47,6 +47,7 @@ var _banner: Label
 var _banner_panel: PanelContainer
 var settings: PanelContainer
 var hint: PanelContainer
+var hint_tab: PanelContainer
 var _mode_buttons := {}
 
 
@@ -71,7 +72,7 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var th := Theme.new()
 	th.default_font = F_BODY
-	th.default_font_size = 19
+	th.default_font_size = 20
 	theme = th
 	portraits = Portraits.new()
 	add_child(portraits)
@@ -85,8 +86,8 @@ func _ready() -> void:
 	_log_panel = _panel(CYAN, 0b0100)
 	var lv := VBoxContainer.new()
 	_log_panel.add_child(lv)
-	lv.add_child(_text("// COMBAT LOG", F_PIXEL, 18, DIM))
-	_log = _text("", F_TERM, 19, Color("9fb4c4"))
+	lv.add_child(_text("// COMBAT LOG", F_PIXEL, 20, DIM))
+	_log = _text("", F_TERM, 20, Color("9fb4c4"))
 	_log.custom_minimum_size = Vector2(340, 0)
 	_log.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lv.add_child(_log)
@@ -101,7 +102,7 @@ func _ready() -> void:
 	_tip.add_theme_stylebox_override("panel", CutBox.make(INK, Color(CYAN, 0.7), 8, 0b0101, CYAN, 8))
 	var tv := VBoxContainer.new()
 	_tip.add_child(tv)
-	_tip_head = _text("", F_PIXEL, 18, CYAN)
+	_tip_head = _text("", F_PIXEL, 20, CYAN)
 	tv.add_child(_tip_head)
 	_tip_label = RichTextLabel.new()
 	_tip_label.bbcode_enabled = true
@@ -111,21 +112,21 @@ func _ready() -> void:
 	_tip_label.add_theme_font_override("normal_font", F_BODY)
 	_tip_label.add_theme_font_override("bold_font", F_DISPLAY)
 	_tip_label.add_theme_font_override("mono_font", F_TERM)
-	_tip_label.add_theme_font_size_override("normal_font_size", 19)
-	_tip_label.add_theme_font_size_override("bold_font_size", 26)
-	_tip_label.add_theme_font_size_override("mono_font_size", 22)
+	_tip_label.add_theme_font_size_override("normal_font_size", 20)
+	_tip_label.add_theme_font_size_override("bold_font_size", 30)
+	_tip_label.add_theme_font_size_override("mono_font_size", 20)
 	_tip_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tv.add_child(_tip_label)
 	_tip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_tip.visible = false
 	add_child(_tip)
-	_toast = _text("", F_DISPLAY, 44, GOLD)
+	_toast = _text("", F_DISPLAY, 40, GOLD)
 	_toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_toast.add_theme_color_override("font_shadow_color", Color(MAGENTA, 0.8))
 	_toast.add_theme_constant_override("shadow_offset_x", 3)
 	_toast.add_theme_constant_override("shadow_offset_y", 0)
 	add_child(_toast)
-	_banner = _text("", F_DISPLAY, 18, Color("9fb4c4"))
+	_banner = _text("", F_DISPLAY, 20, Color("9fb4c4"))
 	_banner_panel = _panel(CYAN, 0b0100)
 	_banner_panel.add_child(_banner)
 	add_child(_banner_panel)
@@ -334,7 +335,9 @@ func _layout() -> void:
 	_toast.size = Vector2(800, 40)
 	_banner_panel.position = Vector2(14, 12)
 	if hint:
+		hint.reset_size()
 		hint.position = Vector2(14, s.y - hint.size.y - 12)
+		hint_tab.position = Vector2(14, s.y - hint_tab.size.y - 12)
 
 
 func _clear(c: Node) -> void:
@@ -365,8 +368,8 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 	var tv := VBoxContainer.new()
 	tv.add_theme_constant_override("separation", 0)
 	tab.add_child(tv)
-	tv.add_child(_text("RND %02d" % maxi(1, enc.init.round_num), F_TERM, 22, CYAN))
-	tv.add_child(_text("ENGAGED" if enc.engaged() else "UNDETECTED", F_DISPLAY, 18, RED if enc.engaged() else GREEN))
+	tv.add_child(_text("RND %02d" % maxi(1, enc.init.round_num), F_TERM, 20, CYAN))
+	tv.add_child(_text("ENGAGED" if enc.engaged() else "UNDETECTED", F_DISPLAY, 20, RED if enc.engaged() else CYAN))
 	var gap := Control.new()
 	gap.custom_minimum_size = Vector2(14, 0)
 	_init_strip.add_child(gap)
@@ -381,8 +384,8 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 		var nv := VBoxContainer.new()
 		nv.add_theme_constant_override("separation", 0)
 		top.add_child(nv)
-		nv.add_child(_text(c.display_name.to_upper(), F_DISPLAY, 38, GOLD if crew_turn else RED))
-		nv.add_child(_text(c.role.to_upper() + "  ·  " + ["UNHURT", "LIGHT WOUNDS", "SERIOUS WOUNDS", "MORTAL", "DEAD"][c.wound_state()], F_DISPLAY, 18, CYAN if crew_turn else RED))
+		nv.add_child(_text(c.display_name.to_upper(), F_DISPLAY, 40, GOLD if crew_turn else RED))
+		nv.add_child(_text(c.role.to_upper() + "  ·  " + ["UNHURT", "LIGHT WOUNDS", "SERIOUS WOUNDS", "MORTAL", "DEAD"][c.wound_state()], F_DISPLAY, 20, CYAN if crew_turn else RED))
 		_card.add_child(top)
 		var hp := HBoxContainer.new()
 		hp.add_theme_constant_override("separation", 8)
@@ -390,11 +393,11 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 		var hm := Meter.new(float(maxi(c.hp, 0)) / c.max_hp(), c.max_hp() / 5, _hp_col(c), 150, 12)
 		hm.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		hp.add_child(hm)
-		hp.add_child(_text("%d/%d HP" % [c.hp, c.max_hp()], F_TERM, 22, _hp_col(c)))
+		hp.add_child(_text("%d/%d HP" % [c.hp, c.max_hp()], F_TERM, 20, _hp_col(c)))
 		_card.add_child(hp)
 		_card.add_child(_text("SP  HEAD %02d   BODY %02d" % [c.sp("head"), c.sp("body")], F_TERM, 20, Color("9fb4c4")))
 		if not c.injuries.is_empty():
-			_card.add_child(_text("! " + ", ".join(c.injuries.map(func(i): return String(i.get("name", i.id)))).to_upper(), F_TERM, 17, RED))
+			_card.add_child(_text("! " + ", ".join(c.injuries.map(func(i): return String(i.get("name", i.id)))).to_upper(), F_TERM, 20, RED))
 		var t := enc.turn
 		var act := t.action_available or t.attacks_left > 0
 		_econ.add_child(_text("◆ ACTION" if act else "◇ ACTION", F_DISPLAY, 20, CYAN if act else Color(DIM, 0.6)))
@@ -407,9 +410,9 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 		var exhausted := not act and mv == 0
 		(_end_btn as ActBtn).tint = GOLD if exhausted else Color("8a96a0")
 		var w: Weapon = c.weapons[0] if not c.weapons.is_empty() else null
-		_econ.add_child(_text(("%s  %s" % [String(w.def.name).to_upper(), ("%02d/%02d" % [w.ammo, int(w.def.get("mag", 0))]) if w.uses_ammo() else ""]) if w else "UNARMED", F_TERM, 22, TEXT))
+		_econ.add_child(_text(("%s  %s" % [String(w.def.name).to_upper(), ("%02d/%02d" % [w.ammo, int(w.def.get("mag", 0))]) if w.uses_ammo() else ""]) if w else "UNARMED", F_TERM, 20, TEXT))
 		if enc.runs.has(enc.cur.id):
-			_econ.add_child(_text("◆ NET %d" % enc.net_left, F_PIXEL, 18, Color("d68cff")))
+			_econ.add_child(_text("◆ NET %d" % enc.net_left, F_PIXEL, 20, Color("d68cff")))
 	for k in _mode_buttons:
 		_mode_buttons[k].set_pressed_no_signal((k == mode) and not cover_mode)
 	for b in _buttons.get_children():
@@ -424,6 +427,7 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 	_log_panel.visible = not enc.log.is_empty()
 	_log_panel.reset_size()
 	_banner.text = floor_text
+	_banner.add_theme_color_override("font_color", GOLD if not floor_text.ends_with("1/%s" % floor_text.get_slice("/", 1)) else Color("9fb4c4"))
 	_net_refresh(enc)
 	if enc.state != "playing":
 		toast("GIG %s" % ("COMPLETE" if enc.state == "won" else "FAILED"), 1e9)
@@ -444,7 +448,7 @@ func _party_card(u: Dictionary, active: bool) -> Control:
 	p.add_child(h)
 	var face := TextureRect.new()
 	face.texture = portraits.tex(u)
-	face.custom_minimum_size = Vector2(64, 64)
+	face.custom_minimum_size = Vector2(64, 64)   # 2x the 32 px art
 	face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	face.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -454,10 +458,8 @@ func _party_card(u: Dictionary, active: bool) -> Control:
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 2)
 	h.add_child(v)
-	v.add_child(_text(c.display_name.to_upper(), F_DISPLAY, 26, GOLD if active else TEXT))
-	v.add_child(_text(c.role.to_upper(), F_PIXEL, 18, _team_col(u)))
-	v.add_child(Meter.new(float(maxi(c.hp, 0)) / c.max_hp(), c.max_hp() / 5, _hp_col(c), 110, 9))
-	v.add_child(_text("%d/%d HP" % [c.hp, c.max_hp()], F_TERM, 19, _hp_col(c)))
+	v.add_child(_text(c.display_name.to_upper(), F_DISPLAY, 30, GOLD if active else TEXT))
+	v.add_child(Meter.new(float(maxi(c.hp, 0)) / c.max_hp(), c.max_hp() / 5, _hp_col(c), 96, 9))
 	return p
 
 
@@ -506,16 +508,16 @@ func _net_refresh(enc: Encounter) -> void:
 	_net_panel.visible = run != null
 	if run == null:
 		return
-	_net_box.add_child(_text("// NET SESSION · %d ACTIONS" % enc.net_left, F_PIXEL, 18, MAGENTA))
-	_net_box.add_child(_text(_node_label(run.cur_node()).to_upper(), F_DISPLAY, 18, Color("e2c8ff")))
+	_net_box.add_child(_text("// NET SESSION · %d ACTIONS" % enc.net_left, F_PIXEL, 20, MAGENTA))
+	_net_box.add_child(_text(_node_label(run.cur_node()).to_upper(), F_DISPLAY, 20, Color("e2c8ff")))
 	for i in run.arch.ice_at(run.current):
-		_net_box.add_child(_text("!! BLACK ICE: %s" % String(i.kind).to_upper(), F_TERM, 19, RED))
+		_net_box.add_child(_text("!! BLACK ICE: %s" % String(i.kind).to_upper(), F_TERM, 20, RED))
 	var acts := GridContainer.new()
 	acts.columns = 3
 	for spec in [["BACKDOOR", "backdoor"], ["CONTROL", "control"], ["EYE-DEE", "eye_dee"], ["ZAP", "zap"], ["CROSS", "cross"], ["JACK OUT", "jack_out"]]:
 		acts.add_child(_net_button(spec[0], func(): action.emit("net", spec[1]), 96, 28, enc.net_left <= 0 and spec[1] != "jack_out"))
 	_net_box.add_child(acts)
-	_net_box.add_child(_text("ROUTE (FREE)", F_PIXEL, 18, DIM))
+	_net_box.add_child(_text("ROUTE (FREE)", F_PIXEL, 20, DIM))
 	var k := 0
 	for id in run.movable():
 		if id == run.current or k >= 10:
@@ -538,9 +540,19 @@ func build_hint(text: String) -> void:
 	hint = _panel(CYAN, 0b0010)
 	var v := VBoxContainer.new()
 	hint.add_child(v)
-	v.add_child(_text("CONTROLS", F_DISPLAY, 18, CYAN))
-	v.add_child(_text(text, F_TERM, 18, Color("9fb4c4")))
+	v.add_child(_text("CONTROLS", F_DISPLAY, 20, CYAN))
+	v.add_child(_text(text, F_TERM, 20, Color("9fb4c4")))
+	hint.visible = false
 	add_child(hint)
+	hint_tab = _panel(CYAN, 0b0010)
+	hint_tab.add_child(_text("H · HELP", F_DISPLAY, 20, CYAN))
+	add_child(hint_tab)
+	_layout.call_deferred()
+
+
+func toggle_hint() -> void:
+	hint.visible = not hint.visible
+	hint_tab.visible = not hint.visible
 	_layout.call_deferred()
 
 
@@ -550,10 +562,10 @@ func build_settings(vals: Dictionary, specs: Array, changed: Callable) -> void:
 	settings = _panel(GOLD, 0b0101, GOLD)
 	var v := VBoxContainer.new()
 	settings.add_child(v)
-	v.add_child(_text("// LOOK · F2", F_PIXEL, 18, GOLD))
+	v.add_child(_text("// LOOK · F2", F_PIXEL, 20, GOLD))
 	for s in specs:  # [key, label, min, max, step]
 		var row := HBoxContainer.new()
-		var l := _text(String(s[1]).to_upper(), F_PIXEL, 18, TEXT)
+		var l := _text(String(s[1]).to_upper(), F_PIXEL, 20, TEXT)
 		l.custom_minimum_size = Vector2(120, 0)
 		row.add_child(l)
 		var sl := HSlider.new()
@@ -562,7 +574,7 @@ func build_settings(vals: Dictionary, specs: Array, changed: Callable) -> void:
 		sl.step = s[4]
 		sl.value = float(vals[s[0]])
 		sl.custom_minimum_size = Vector2(160, 18)
-		var val := _text(str(vals[s[0]]), F_TERM, 18, CYAN)
+		var val := _text(str(vals[s[0]]), F_TERM, 20, CYAN)
 		sl.value_changed.connect(func(x):
 			vals[s[0]] = x
 			val.text = str(snappedf(x, 0.01))

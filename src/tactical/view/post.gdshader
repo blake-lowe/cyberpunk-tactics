@@ -12,6 +12,7 @@ uniform float outline = 0.0;       // 0..1 darken pixels on strong luminance edg
 uniform bool palette_on = true;
 uniform vec3 palette[64];          // in OKLab (converted on the CPU)
 uniform int palette_n = 0;
+uniform int palette_neutral_n = 0;  // entries after this are neon ramps: only for saturated pixels
 uniform vec2 src_size = vec2(640.0, 360.0);
 
 float bayer4(vec2 p) {
@@ -71,7 +72,9 @@ void fragment() {
 		vec3 lab = oklab(clamp(c, 0.0, 1.0));
 		float best = 1e9;
 		vec3 pick = lab;
+		float chroma = length(lab.yz);
 		for (int i = 0; i < palette_n; i++) {
+			if (i >= palette_neutral_n && chroma < 0.05) continue;
 			vec3 d = lab - palette[i];
 			float e = dot(d, d * vec3(1.0, 1.6, 1.6));
 			if (e < best) { best = e; pick = palette[i]; }
