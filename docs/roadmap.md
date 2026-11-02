@@ -9,8 +9,9 @@ Check-ins (🔶) are where work pauses for a user decision or review.
 | M2 | Procedural generation: multi-floor maps, cover, hackables, coupled Net Architectures (+ Netrunner Interface rules); debug renders | ✅ done (reviewed through M2f) | ✅ |
 | M3a | Tactical core, headless: grid pathfinding (stairs, ladders, bridges), line of sight and binary cover (walls, windows, cover pieces), destructible cover, encounter setup (crew at deploy, guards at posts), enemy AI, Netrunner session (jack in within 6 m, NET actions per turn, Black ICE fights), win/lose | ✅ done (headless) | — |
 | M3b | ✅ playtested — Playable greybox in Godot: 3D blockout from TacMap with floor slicing, camera, move grid shown only while planning, hit % and DODGE callouts, initiative bar, unit panel, NET overlay | — | 🔶 user plays locally |
-| M4 | Visual pass: pixel post-process, neon lighting/bloom, VFX, tuning controls. M4a + M4b built: off-grid world builder, full-height city with near-side cutaway, baked light field, OKLab palette, stylised pixel HUD | 🔄 M4b in review | 🔶 aesthetic review on user's GPU |
-| M5+ | Gigs/fixers, base & downtime, progression, Medtech, Tech, reinforcements, cyberpsychosis | — | per feature |
+| M4 | Visual pass: pixel post-process, neon lighting/bloom, VFX, tuning controls. M4a-c: off-grid world builder, cutaway, light field, OKLab palette, stylised HUD, juice, cyberspace styles. M4d: animated characters (Quaternius bodies + Mixamo clips, retargeted), gun handling with IK, deaths, blood, debris; sunset badlands (natural terrain, per-scene light and palette) | ✅ M4d reviewed twice; badlands new | 🔶 motion review round 3 + badlands |
+| M5 | Gameplay depth (owner's "c"): suppressive fire, shotgun shells, melee/brawling, grenades, Medtech stabilisation, reload in play | 🔄 next | 🔶 review videos |
+| M6+ | Gigs/fixers, base & downtime, progression, Tech, reinforcements, cyberpsychosis; equipment models (owner: keep painted clothes for now, add modelled gear later) | — | per feature |
 
 ## Decisions log
 - Godot 4.7.2, GDScript, Forward+ renderer.
@@ -119,3 +120,23 @@ Check-ins (🔶) are where work pauses for a user decision or review.
   Universal Animation Library (CC0, humanoid rig, glTF) retargeted in Godot. The itch.io download can't be
   scripted from the cloud container; owner to download and add (or share a Drive link).
 - Next: VFX + motion (done in M4c), then characters/animation (b), then gameplay (c).
+
+### M4d review verdicts (user, two rounds)
+- Motion review page (videos of every clip and combat beat): https://claude.ai/artifact/Vs8526BGY2RDEK7VpBKE8X
+- Round 1 → fixed: single-shot outcomes never played (rounding bug), destroyed cover redrawn, doors only
+  opened after playback, flashes larger/brighter with light, barrel follows the aim point, blood spray and
+  floor splats, deaths swapped/blended, pistols, smaller guns, flat sling, steady reloads, CPR compressions,
+  stand to fire (never into own cover), cleaner cyberspace.
+- Round 2 → fixed: guards seen "walking through walls" were on upper storeys above the cutaway (now hidden
+  while moving there; the view lifts for guards firing from above); dying units drop their gun; dodge is a
+  snap duck into the crouch; pistols held upright; cover breaks into debris that stays; cyberspace readable
+  again without light rings. Found on the way: failed Death Saves now play a death; screen shake was
+  unstable at low frame rates.
+- Deferred with the owner's OK: the rifle reload's magazine (detaching mag, matching the left hand).
+- Outfits: keep the painted clothes; modelled equipment later (M6+).
+
+### Badlands (owner, overnight brief)
+- "A sunset badlands scene to make sure we can handle more natural environments": per-scene looks (fixed
+  sun, sky, rim, lamp strength, palette), a sunset palette without orange/yellow neon ramps (sunlit rock went
+  garish), CC0 Stylized Nature models through the world shader (rocks rising into low cliffs, dead/twisted
+  trees, scrub, grass, pebbles as decoration only), buttes on the horizon, off-map ground matched to fog.
