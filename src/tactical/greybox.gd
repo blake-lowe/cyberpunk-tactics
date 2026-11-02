@@ -47,6 +47,16 @@ const NET_CYCLE := [7, 8, 9, 3, 1, 2, 4, 5, 6]
 ## shadow and highlight; skin and wood are cut to two steps each; matching happens in OKLab.
 ## Round 3: neutrals first; neon-ramp entries are only allowed for saturated pixels (post shader),
 ## so shadows go navy instead of a violet wash. Warm darks added for earth.
+## Sunset (badlands): violet-ink shadows, a long sand ramp, rust rock, cool metal greys, dry
+## scrub, skin, dusk violet; then the neon ramps for the camp's signs and the UI-coloured effects.
+## No orange/yellow neon ramps here: sunlit rock would snap to them and turn garish.
+const PALETTE_SUNSET_NEUTRALS := 37
+const PALETTE_SUNSET := ["07060a", "120c14", "1c1420", "2a1c2c", "3a2636", "4e3240",
+	"3a2a22", "543a2c", "70503a", "8e6648", "ae8058", "c89a6a", "e0b884", "f2d6a8", "fff0d4",
+	"4a2418", "6a3220", "8c4428", "ae5a32", "cc7440", "d88a48", "eaa860", "f4c88a",
+	"2a2a34", "44444e", "62626c", "84828a", "aaa6a8", "d2ccc6",
+	"5a4a30", "7a6840", "9a8a58", "8a5a40", "c08a68", "3a3a5a", "5a5a8a", "8a80b0",
+	"5a1040", "ff2a6d", "ffa0c0", "0a4a5a", "05d9e8", "aaf6ff", "4a1a6a", "b537f2", "0e5a3a", "39f0a0", "7a1420", "ff3b4f"]
 const PALETTE_NEUTRALS := 35
 const PALETTE := ["05060a", "0b0e16", "141a26", "1e2636", "2a3448", "3a4660", "4e5c78",
 	"1a1714", "2b2622", "3d3630", "554b42", "70665a", "8e8476",
@@ -58,9 +68,13 @@ const PALETTE := ["05060a", "0b0e16", "141a26", "1e2636", "2a3448", "3a4660", "4
 	"2e1206", "7a3008", "ff6b1a", "ffc8a0", "06261a", "0e5a3a", "39f0a0", "b8ffe0",
 	"7a1420", "ff3b4f"]
 ## Per-scene light: ambient, moon key, fog (round 2: the desert needs moonlit sand).
+## Optional per scene: "sun" [elevation, world yaw] fixes the key light in the world (a real sun;
+## night scenes let the moon key follow the camera), "sky" [zenith, mid, horizon], "palette",
+## "rim" colour/energy and "lights" (lamp scale: dusk lamps are weaker than night ones).
 const LOOKS := {
 	"default": {"ambient": "262c44", "amb_e": 0.65, "key": "8fa0e0", "key_e": 0.5, "fog": "0d1422", "fog_d": 0.0035},
-	"badlands": {"ambient": "3a3550", "amb_e": 1.0, "key": "9ab0e8", "key_e": 0.75, "fog": "1a1828", "fog_d": 0.004},
+	"badlands": {"ambient": "4c4c90", "amb_e": 0.75, "key": "ffc898", "key_e": 1.15, "fog": "a86a58", "fog_d": 0.0025,
+		"sun": [-17.0, 235.0], "sky": ["1c2050", "9a4466", "ff8c3c"], "palette": "sunset", "rim": ["6a5aa0", 0.35], "lights": 0.55},
 }
 const DECAL := """
 shader_type spatial;
@@ -117,6 +131,14 @@ var fires: Array[OmniLight3D] = []
 var decals := {}              ## unit id → ground glow MeshInstance3D
 var dash_opts := {}           ## squares reachable by also spending the Action on a Run (amber contour)
 var rim: DirectionalLight3D
+var sky_mat: ShaderMaterial
+
+
+## This scene's light and palette (LOOKS), defaulting to the night city.
+func _scene_look() -> Dictionary:
+	if m == null:
+		return LOOKS["default"]
+	return LOOKS.get(String(m.params.get("scene", "")), LOOKS["default"])
 var open_cells := {}             ## Vector2i squares the cutaway may open (seen-into rooms + walls)
 var room_xy := {}                ## room label → its squares, for opening rooms
 const KERB := 0.07               # sidewalk height (WorldBuilder raises sidewalks)
@@ -300,6 +322,7 @@ func _build_view() -> void:
 	var skm := ShaderMaterial.new()
 	skm.shader = SKY_SHADER
 	sky.sky_material = skm
+	sky_mat = skm
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color("222a48")
@@ -386,15 +409,20 @@ func _apply_look() -> void:
 	screen.size = Vector2(svp.size) * px
 	post.set_shader_parameter("src_size", Vector2(svp.size))
 	post.set_shader_parameter("palette_on", look.palette > 0.5)
+	var sunset := String(_scene_look().get("palette", "")) == "sunset"
 	var pal := PackedVector3Array()
-	for h in PALETTE:
+	for h in (PALETTE_SUNSET if sunset else PALETTE):
 		pal.append(_oklab(Color(h)))
+	var nn := PALETTE_SUNSET_NEUTRALS if sunset else PALETTE_NEUTRALS
 	post.set_shader_parameter("palette", pal)
 	post.set_shader_parameter("palette_n", pal.size())
-	post.set_shader_parameter("palette_neutral_n", PALETTE_NEUTRALS)
-	if hud and hud.portraits:   # portraits go through the same palette shader
+	post.set_shader_parameter("palette_neutral_n", nn)
+	if hud and hud.portraits:   # portraits stay on the night palette: the HUD is the same in every scene
+		var npal := PackedVector3Array()
+		for h in PALETTE:
+			npal.append(_oklab(Color(h)))
 		hud.portraits.post_shader = POST_SHADER
-		hud.portraits.palette = pal
+		hud.portraits.palette = npal
 		hud.portraits.palette_neutral_n = PALETTE_NEUTRALS
 	post.set_shader_parameter("levels", look.levels)
 	post.set_shader_parameter("dither", look.dither)
@@ -405,7 +433,7 @@ func _apply_look() -> void:
 	env.glow_strength = 1.0
 	cam.projection = Camera3D.PROJECTION_ORTHOGONAL if look.ortho > 0.5 else Camera3D.PROJECTION_PERSPECTIVE
 	for l in lights:
-		l[0].light_energy = l[0].get_meta("base", 1.0) * look.lights
+		l[0].light_energy = l[0].get_meta("base", 1.0) * look.lights * float(_scene_look().get("lights", 1.0))
 	_apply_world_look()
 	_place_camera()
 
@@ -421,13 +449,22 @@ func new_gig() -> void:
 	var crew: Array[Combatant] = [Recruit.generate(dice, "solo", "edgerunner", "Vex"), Recruit.generate(dice, "netrunner", "edgerunner", "Patch")]
 	enc = Encounter.setup(m, dice, crew)
 	_log_seen = 0
-	var lk: Dictionary = LOOKS.get(String(m.params.get("scene", "")), LOOKS["default"])
+	var lk := _scene_look()
 	env.ambient_light_color = Color(lk.ambient)
 	env.ambient_light_energy = lk.amb_e
 	sun.light_color = Color(lk.key)
 	sun.light_energy = lk.key_e
 	env.fog_light_color = Color(lk.fog)
 	env.fog_density = lk.fog_d
+	var skc: Array = lk.get("sky", ["030308", "0d0817", "521a29"])
+	sky_mat.set_shader_parameter("zenith", Color(skc[0]))
+	sky_mat.set_shader_parameter("mid", Color(skc[1]))
+	sky_mat.set_shader_parameter("horizon", Color(skc[2]))
+	var rimc: Array = lk.get("rim", ["5a6aa0", 0.25])
+	rim.light_color = Color(rimc[0])
+	rim.light_energy = rimc[1]
+	sun.directional_shadow_max_distance = 140.0
+	_apply_look()
 	_build_world()
 	_last_cur = -1
 	_frame_unit(enc.units[0])
@@ -1133,7 +1170,8 @@ func _place_camera() -> void:
 		shift = Vector2(-(lx - sx), (ly - sy)) / texel * px
 	_screen_base = Vector2(-px, -px) + shift
 	screen.position = _screen_base + _shake_px.round() * px
-	sun.rotation_degrees = Vector3(-55, cam_yaw + 35, 0)
+	var sd: Array = _scene_look().get("sun", [])
+	sun.rotation_degrees = Vector3(sd[0], sd[1], 0) if not sd.is_empty() else Vector3(-55, cam_yaw + 35, 0)   # a real sun stays put
 	if enc and not unit_nodes.is_empty():
 		_update_outlines()
 	if rim:
@@ -1146,7 +1184,7 @@ func _frame_unit(u: Dictionary) -> void:
 	var fwd := Vector2(-sin(deg_to_rad(cam_yaw)), -cos(deg_to_rad(cam_yaw)))
 	var p := Vector2(u.pos.x + 0.5, u.pos.y + 0.5) - fwd * cam_dist * 0.12
 	if _last_cur == -1 and m.w > 40:   # first turn on a big map: lean toward the middle (objective)
-		p = p.lerp(Vector2(m.w / 2.0, m.h / 2.0), 0.2)
+		p += (Vector2(m.w / 2.0, m.h / 2.0) - p).limit_length(cam_dist * 0.2)   # but keep the unit in view
 	cam_target = Vector3(clampf(p.x, 0, m.w), 0, clampf(p.y, 0, m.h))
 	view_floor = u.pos.z
 	_place_camera()

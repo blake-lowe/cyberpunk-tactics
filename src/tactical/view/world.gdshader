@@ -35,6 +35,8 @@ global uniform vec2 cut_dir;        // camera forward on the ground plane
 global uniform vec4 focus_view;     // focus in screen UV (xy), its view depth (z), hole radius (w)
 uniform bool flat_shade = false;    // faceted lighting (rocks)
 uniform bool offmap = false;        // ground beyond the map: fades out with distance
+uniform sampler2D tex : source_color, filter_linear_mipmap, repeat_enable;   // imported models (nature kit)
+uniform float tex_mix = 0.0;        // 1: the model's own texture (tinted by albedo) replaces the pattern
 
 varying vec3 wpos;
 varying vec3 wnorm;
@@ -160,14 +162,17 @@ void fragment() {
 		base *= 0.8 + r * 0.3;
 		rough = 0.22 + r * 0.1;
 	}
+	if (tex_mix > 0.0) base = mix(base, texture(tex, UV).rgb * albedo.rgb, tex_mix);
 	// --- grounding: contact darkening at wall/prop bases, a light edge on top faces
 	if (mode != 2) {
 		if (!up) base *= mix(0.6, 1.0, smoothstep(0.0, 0.6, local_h));
 		else if (local_h > 0.2) base *= 1.4;
 	}
-	if (offmap) {
+	if (offmap) {   // beyond the map reads like explored-but-unseen ground, then fades with distance
 		float od = length(max(abs(wpos.xz - map_size * 0.5) - map_size * 0.5, 0.0));
-		base *= mix(1.0, 0.35, smoothstep(0.0, 25.0, od));
+		float lo = dot(base, vec3(0.3, 0.59, 0.11));
+		base = mix(vec3(lo), base, 0.3) * explored_dim * vec3(0.8, 0.9, 1.15);
+		base *= mix(1.0, 0.55, smoothstep(0.0, 60.0, od));
 	}
 	// --- baked light spill (rgb) and contact occlusion (a): walls sample the space they face
 	vec2 lfo = up ? vec2(0.0) : wnorm.xz * 0.35;

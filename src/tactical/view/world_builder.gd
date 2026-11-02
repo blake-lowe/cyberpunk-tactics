@@ -28,7 +28,7 @@ const LIB := {
 	"gravel": [Color("3b3833"), Color("2a2824"), 5, 2.0, 0.95, 0.0],
 	"dirt": [Color("3a2f25"), Color("281f18"), 5, 0.8, 0.95, 0.0],
 	"grass": [Color("1d2e1f"), Color("2c3a1c"), 5, 1.1, 0.95, 0.0],
-	"sand": [Color("726458"), Color("66584e"), 5, 1.2, 0.95, 0.0],
+	"sand": [Color("8e7c68"), Color("766452"), 5, 0.7, 0.95, 0.0],
 	"rail": [Color("2c2724"), Color("1a1715"), 6, 0.9, 0.7, 0.2],
 	"dock": [Color("2f2a25"), Color("1a1714"), 2, 0.8, 0.75, 0.0],
 	"water": [Color("0a1822"), Color("0a1822"), 10, 0.5, 0.05, 0.2],
@@ -53,6 +53,8 @@ const LIB := {
 	"fence": [Color("7a8a7a"), Color("7a8a7a"), 0, 1.0, 0.4, 0.7, {"alpha": 0.3}],
 	"post": [Color("3a4048"), Color("3a4048"), 0, 1.0, 0.4, 0.7],
 	"rock": [Color("5a4a40"), Color("463a32"), 5, 1.5, 0.95, 0.0, {"flat": true}],
+	"nature": [Color.WHITE, Color.WHITE, 0, 1.0, 0.92, 0.0],
+	"mesa": [Color("b06a40"), Color("8a4a2c"), 5, 0.18, 0.95, 0.0, {"flat": true, "mode": 2, "offmap": true}],   # imported models: their own texture, tinted
 	"unknown": [Color("1c212c"), Color("1c212c"), 0, 1.0, 0.95, 0.0, {"mode": 1, "glow": 0.5, "emit": Color("141a26")}],
 	"wood": [Color("4e3a28"), Color("2e2216"), 2, 2.0, 0.8, 0.0],
 	"steel": [Color("56606a"), Color("3a424a"), 0, 1.0, 0.4, 0.55],
@@ -76,6 +78,7 @@ var rng := RandomNumberGenerator.new()
 var _mats := {}
 var _shapes := {}
 var _b := {}            ## batches for the floor being built
+var natural := false     ## open-country scene: modelled rocks, plants, mesas instead of a skyline
 var tag: Variant = null ## while set, instances added by put() are recorded under it (cover cells)
 var _tagged := {}       ## Vector3i cell → [[batch, index]] so a destroyed piece can be hidden
 var lightfield: Texture2D   ## set by the greybox after baking (LightField)
@@ -106,7 +109,13 @@ func _init(p_map: TacMap, p_vision: Vision, p_fog: Texture2D) -> void:
 	rock.height = 1.0
 	rock.radial_segments = 5
 	rock.rings = 3
-	_shapes = {"box": box, "cyl": cyl, "sphere": sph, "quad": quad, "rock": rock}
+	var mesa := CylinderMesh.new()   # a flat-topped butte: tapered, few facets
+	mesa.top_radius = 0.4
+	mesa.bottom_radius = 0.5
+	mesa.height = 1.0
+	mesa.radial_segments = 7
+	mesa.rings = 2
+	_shapes = {"box": box, "cyl": cyl, "sphere": sph, "quad": quad, "rock": rock, "mesa": mesa}
 
 
 # --- Materials ---------------------------------------------------------------------
@@ -121,6 +130,8 @@ func mat(name: String, f: int, cut := true, over := {}) -> ShaderMaterial:
 	var mt := ShaderMaterial.new()
 	if extra.get("alpha", 1.0) < 1.0:
 		mt.shader = _alpha_shader()
+	elif extra.get("cutout", false):
+		mt.shader = _cutout_shader()
 	else:
 		mt.shader = SHADER
 	var col: Color = extra.get("color", d[0])
@@ -137,6 +148,9 @@ func mat(name: String, f: int, cut := true, over := {}) -> ShaderMaterial:
 	mt.set_shader_parameter("flat_shade", extra.get("flat", false))
 	mt.set_shader_parameter("offmap", extra.get("offmap", false))
 	mt.set_shader_parameter("cuttable", cut)
+	if extra.has("tex"):
+		mt.set_shader_parameter("tex", extra.tex)
+		mt.set_shader_parameter("tex_mix", 1.0)
 	mt.set_shader_parameter("fog", fog_tex)
 	if lightfield:
 		mt.set_shader_parameter("lightfield", lightfield)
@@ -154,6 +168,60 @@ static func _alpha_shader() -> Shader:
 		_alpha.code = SHADER.code.replace("render_mode cull_disabled;", "render_mode cull_disabled, blend_mix, depth_draw_opaque;") \
 			.replace("	EMISSION = emit;", "	EMISSION = emit;\n\tALPHA = albedo.a;")
 	return _alpha
+
+
+static var _cutout: Shader
+## Leaves and grass blades: the texture's alpha cuts the shape (opaque pipeline, alpha scissor).
+static func _cutout_shader() -> Shader:
+	if _cutout == null:
+		_cutout = Shader.new()
+		_cutout.code = SHADER.code.replace("	EMISSION = emit;", "	EMISSION = emit;\n\tALPHA = texture(tex, UV).a;\n\tALPHA_SCISSOR_THRESHOLD = 0.5;")
+	return _cutout
+
+
+const NATURE := "res://assets/third_party/quaternius/nature/%s.gltf"
+static var _models := {}   ## model name → {mesh, xf (node transform in the scene), surf: [[texture, cutout]]}
+
+
+## An imported model's mesh, its transform inside the file, and each surface's texture.
+static func model(name: String) -> Dictionary:
+	if _models.has(name):
+		return _models[name]
+	var sc: Node = (load(NATURE % name) as PackedScene).instantiate()
+	var mi: MeshInstance3D = sc.find_children("*", "MeshInstance3D", true, false)[0]
+	var xf := Transform3D.IDENTITY
+	var n: Node = mi
+	while n and n != sc:
+		if n is Node3D:
+			xf = (n as Node3D).transform * xf
+		n = n.get_parent()
+	var surf: Array = []
+	for s in mi.mesh.get_surface_count():
+		var sm := mi.get_active_material(s) as BaseMaterial3D
+		var cut: bool = sm != null and (sm.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED)
+		surf.append([sm.albedo_texture if sm else null, cut])
+	_models[name] = {"mesh": mi.mesh, "xf": xf, "surf": surf}
+	sc.free()
+	return _models[name]
+
+
+## Place an imported model (batched like the primitives). `over` overrides the material, e.g. a
+## different texture ({"tex": ...}) or a tint ({"color": ...}).
+func nature(name: String, xf: Transform3D, f := 0, over := {}) -> void:
+	var md := model(name)
+	var mats: Array = []
+	for sv in md.surf:
+		var o := {"tex": sv[0], "cutout": sv[1]}
+		o.merge(over, true)
+		if o.tex == null:
+			o.erase("tex")
+		mats.append(mat("nature", f, false, o))
+	var key := "%d,%d|%s|%d" % [int(xf.origin.x) / CHUNK, int(xf.origin.z) / CHUNK, name, mats[0].get_instance_id()]
+	var b: Dictionary = _b.get_or_add(key, {"shape": name, "mat": mats[0], "surf": mats, "xf": []})
+	b.xf.append(xf * (md.xf as Transform3D))
+	if tag != null:
+		for cell in (tag if tag is Array else [tag]):
+			_tagged.get_or_add(cell, []).append([b, b.xf.size() - 1])
 
 
 ## Every material the builder made (the greybox sets fog/look parameters on them).
@@ -190,9 +258,15 @@ func flush(parent: Node3D) -> void:
 		var b: Dictionary = _b[key]
 		var mm := MultiMesh.new()
 		mm.transform_format = MultiMesh.TRANSFORM_3D
-		var mesh: PrimitiveMesh = _shapes[b.shape].duplicate()
-		mesh.material = b.mat
-		mm.mesh = mesh
+		if b.has("surf"):   # imported model: one material per surface
+			var am: Mesh = (model(b.shape).mesh as Mesh).duplicate()
+			for s in am.get_surface_count():
+				am.surface_set_material(s, b.surf[s])
+			mm.mesh = am
+		else:
+			var mesh: PrimitiveMesh = _shapes[b.shape].duplicate()
+			mesh.material = b.mat
+			mm.mesh = mesh
 		mm.instance_count = b.xf.size()
 		b["mm"] = mm
 		for i in b.xf.size():
@@ -208,6 +282,7 @@ func flush(parent: Node3D) -> void:
 ## Builds everything under `root`; returns per-floor nodes.
 func build(root: Node3D) -> Array[Node3D]:
 	rng.seed = m.seed_value * 31 + 7
+	natural = String(m.params.get("scene", "")) == "badlands"
 	var out: Array[Node3D] = []
 	for f in m.floors:
 		var fn := Node3D.new()
@@ -223,16 +298,19 @@ func build(root: Node3D) -> Array[Node3D]:
 			_ground_organic()
 			_rocks()
 			_street_clutter()
+			if natural:
+				_nature_scatter()
 		_roof_clutter(f)
 		_facade_dressing(f)
 		flush(fn)
 	var sky := Node3D.new()
 	sky.name = "skyline"
 	root.add_child(sky)
-	if String(m.params.get("scene", "")) != "badlands":
+	if not natural:
 		_skyline()
 	else:
-		box(mat("sand", 0, false, {"mode": 2, "offmap": true}), Vector3(m.w / 2.0, -0.2, m.h / 2.0), Vector3(m.w + 120, 0.1, m.h + 120))
+		box(mat("sand", 0, false, {"mode": 2, "offmap": true}), Vector3(m.w / 2.0, -0.2, m.h / 2.0), Vector3(m.w + 260, 0.1, m.h + 260))
+		_mesas()
 	flush(sky)
 	return out
 
@@ -783,6 +861,9 @@ func _piece(kind: String, p: Vector3, yaw: float, f: int, h0: int) -> void:
 				box(mat("concrete_prop", f, false), p + Vector3(0, 0.42, 0), Vector3(0.9, 0.26, 0.2), yaw)
 				box(mat("steel", f, false, {"color": Color("c8a020")}), p + Vector3(0, 0.5, 0), Vector3(0.92, 0.05, 0.22), yaw)
 		"boulder":
+			if natural:
+				_rock_model(p + Vector3(0, -0.05, 0), Vector3(0.32, 0.3, 0.32), h0, f)
+				return
 			for i in 3:
 				rng.seed = h0 + i
 				put("rock", mat("rock", f, false), Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled_local(Vector3(rng.randf_range(0.5, 0.9), rng.randf_range(0.4, 0.7), rng.randf_range(0.5, 0.9))), p + Vector3(rng.randf_range(-0.2, 0.2), 0.2, rng.randf_range(-0.2, 0.2))))
@@ -1044,6 +1125,81 @@ func _skyline() -> void:
 				Vector3(0.05, bw * 0.5, bw) if face.x != 0 else Vector3(bw, bw * 0.5, 0.05))
 
 
+# --- Open country (badlands) ----------------------------------------------------------------
+
+const ROCKS := ["Rock_Medium_1", "Rock_Medium_2", "Rock_Medium_3"]
+var _desert_tex: Texture2D
+
+
+## A modelled rock (Stylized Nature kit, CC0) with the kit's desert texture.
+func _rock_model(at: Vector3, scl: Vector3, h0: int, f: int, over := {}) -> void:
+	if _desert_tex == null:
+		_desert_tex = load("res://assets/third_party/quaternius/nature/Rocks_Desert_Diffuse.png")
+	rng.seed = h0
+	var o := {"tex": _desert_tex, "flat": true}
+	o.merge(over, true)
+	var b := Basis(Vector3.UP, rng.randf() * TAU).rotated(Vector3.RIGHT, rng.randf_range(-0.12, 0.12)).scaled_local(scl)
+	nature(ROCKS[rng.randi() % ROCKS.size()], Transform3D(b, at), f, o)
+
+
+## Dead and twisted trees, dry scrub, straw grass and pebbles on open ground; decoration only (no
+## cover, no blocking), so they never disagree with the rules.
+func _nature_scatter() -> void:
+	var straw := Color(1.05, 0.82, 0.55)
+	var dry := Color(0.8, 0.7, 0.5)
+	for y in m.h:
+		for x in m.w:
+			if m.t(0, x, y) != TacMap.T.OUTSIDE or m.label(0, x, y) >= 0 or m.has_cover_at(0, Vector2i(x, y)):
+				continue
+			var g := int(m.ground[y * m.w + x])
+			if g not in [TacMap.G.SAND, TacMap.G.DIRT, TacMap.G.GRAVEL]:
+				continue
+			rng.seed = hash(Vector3i(x, y, 77))
+			var roll := rng.randf()
+			var p := Vector3(x + rng.randf_range(0.2, 0.8), -0.02, y + rng.randf_range(0.2, 0.8))
+			var yaw := Basis(Vector3.UP, rng.randf() * TAU)
+			if roll < 0.018 and g != TacMap.G.DIRT:
+				var s := rng.randf_range(0.11, 0.17)
+				nature("DeadTree_%d" % (1 + rng.randi() % 5), Transform3D(yaw.scaled_local(Vector3.ONE * s), p), 0, {"color": Color(0.85, 0.75, 0.65)})
+			elif roll < 0.026 and g != TacMap.G.DIRT:
+				var s := rng.randf_range(0.1, 0.14)
+				nature("TwistedTree_%d" % (1 + rng.randi() % 3), Transform3D(yaw.scaled_local(Vector3.ONE * s), p), 0, {"color": dry})
+			elif roll < 0.07:
+				nature("Plant_7", Transform3D(yaw.scaled_local(Vector3.ONE * rng.randf_range(0.18, 0.3)), p), 0, {"color": dry})
+			elif roll < 0.2:
+				nature("Grass_Wispy_Tall" if rng.randf() < 0.5 else "Grass_Wispy_Short", Transform3D(yaw.scaled_local(Vector3.ONE * rng.randf_range(0.22, 0.38)), p), 0, {"color": straw})
+			elif roll < 0.3:
+				var pb := ["Pebble_Round_1", "Pebble_Round_2", "Pebble_Round_3", "Pebble_Square_1", "Pebble_Square_2"]
+				nature(pb[rng.randi() % pb.size()], Transform3D(yaw.scaled_local(Vector3.ONE * rng.randf_range(0.12, 0.25)), p), 0, {"tex": _desert_tex if _desert_tex else null})
+
+
+## Buttes on the horizon: tapered, faceted, banded; a ring of talus rocks round each base.
+func _mesas() -> void:
+	rng.seed = m.seed_value * 17 + 3
+	var placed: Array[Rect2] = []
+	for i in 60:
+		var side := rng.randi() % 4
+		var dist := rng.randf_range(12.0, 110.0)
+		var r := rng.randf_range(5.0, 16.0)
+		var p := Vector2.ZERO
+		match side:
+			0: p = Vector2(rng.randf_range(-60, m.w + 60), -dist - r)
+			1: p = Vector2(rng.randf_range(-60, m.w + 60), m.h + dist + r)
+			2: p = Vector2(-dist - r, rng.randf_range(-60, m.h + 60))
+			3: p = Vector2(m.w + dist + r, rng.randf_range(-60, m.h + 60))
+		var rect := Rect2(p - Vector2(r, r), Vector2(r, r) * 2)
+		if placed.any(func(q: Rect2) -> bool: return q.grow(2.0).intersects(rect)):
+			continue
+		placed.append(rect)
+		var h := rng.randf_range(4.0, 9.0) + dist * rng.randf_range(0.08, 0.2)
+		h = minf(h, dist * 0.55 + 2.0)   # the near ones stay low so they never hide the map
+		put("mesa", mat("mesa", 0, false), Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled_local(Vector3(r * 2, h, r * 2)), Vector3(p.x, h / 2 - 0.2, p.y)))
+		for k in 4:
+			var a := rng.randf() * TAU
+			var tp := Vector3(p.x + cos(a) * r * 1.05, -0.2, p.y + sin(a) * r * 1.05)
+			_rock_model(tp, Vector3.ONE * rng.randf_range(0.8, 1.8), hash(Vector3i(i, k, 5)), 0, {"mode": 2, "offmap": true})
+
+
 # --- Rock ----------------------------------------------------------------------------------
 
 ## Rock walls (material 4) become heaps of jittered boulders: 2-3 per square, overlapping.
@@ -1051,6 +1207,18 @@ func _rocks() -> void:
 	for y in m.h:
 		for x in m.w:
 			if _wall_kind(0, x, y) != 4:
+				continue
+			if natural:   # modelled rock, rising toward the middle of each outcrop like a low cliff
+				var n := 0
+				for dy in range(-2, 3):
+					for dx in range(-2, 3):
+						if _wall_kind(0, x + dx, y + dy) == 4:
+							n += 1
+				var depth := clampf((n - 6) / 18.0, 0.0, 1.0)
+				rng.seed = hash(Vector2i(x, y))
+				var sxz := rng.randf_range(0.42, 0.56)
+				var sy := rng.randf_range(0.35, 0.55) + depth * rng.randf_range(0.5, 1.1)
+				_rock_model(Vector3(x + 0.5 + rng.randf_range(-0.15, 0.15), -0.05, y + 0.5 + rng.randf_range(-0.15, 0.15)), Vector3(sxz, sy, sxz), hash(Vector2i(x, y)), 0)
 				continue
 			for i in 3:
 				rng.seed = hash(Vector2i(x, y)) + i
