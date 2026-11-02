@@ -5,6 +5,7 @@ config_version=5
 
 config/name="Cyberpunk Tactics"
 config/description="Turn-based tactical game built on Cyberpunk RED rules."
+run/main_scene="res://scenes/greybox.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 
 [display]

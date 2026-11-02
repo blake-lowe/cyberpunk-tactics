@@ -32,3 +32,7 @@ Design source of truth: `docs/design-spec.md`. Milestones and status: `docs/road
 - One milestone per session where possible; commit at green-test checkpoints.
 - Stop for the user only at the check-ins in `docs/roadmap.md` or on genuine design/aesthetic questions.
   Routine implementation choices: decide, then note them in the commit message.
+
+## Greybox (M3b)
+- `scenes/greybox.tscn` (main scene) → `src/tactical/greybox.gd` builds a 3D blockout from a generated TacMap and drives `Encounter`.
+- Screenshot it headless with software GL: `timeout 180 xvfb-run -a -s "-screen 0 1280x720x24" godot --rendering-method gl_compatibility --resolution 1280x720 --path . -- --shot=out.png [--scene=x|--profile=y] [--seed=n]`.
