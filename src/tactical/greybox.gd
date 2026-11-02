@@ -244,7 +244,7 @@ func _process(delta: float) -> void:
 		fl.light_energy = fl.get_meta("base", 1.0) * look.lights * (0.85 + 0.15 * sin(Time.get_ticks_msec() * 0.013 + fl.position.x) + randf() * 0.08)
 	if _reel != "":
 		_frames += 1
-		if _frames == 10:
+		if _frames == 1:   # set up on the very first frame, so the video opens on the action
 			_run_reel()
 	elif _shot_path != "":
 		_frames += 1
@@ -1375,8 +1375,20 @@ func _demo_jack() -> void:
 ## (tools/review_videos.sh). Outcomes are forced by setting HP/SP before the roll and retrying, so
 ## each reel shows the effect it is named for.
 func _run_reel() -> void:
-	await get_tree().create_timer(0.6).timeout
 	var g := _nearest_guard()
+	if _reel not in ["move", "jack", "cover"]:
+		_reel_setup_shot(g)
+	var cell := Vector3i(-1, -1, -1)
+	if _reel == "cover":   # the nearest cover piece in sight, framed from the first frame
+		for v in enc.los.cover_hp:
+			if enc.los.cover_hp[v] > 0 and v.z == enc.cur.pos.z and Vector2(v.x - enc.cur.pos.x, v.y - enc.cur.pos.y).length() < 9 and enc.los.sight(enc.cur.pos, v).visible:
+				cell = v
+				break
+		if cell.x >= 0:
+			cam_target = Vector3((enc.cur.pos.x + cell.x) / 2.0 + 0.5, 0, (enc.cur.pos.y + cell.y) / 2.0 + 0.5)
+			_place_camera()   # synchronous: the first rendered frame already frames shooter and target
+	await get_tree().create_timer(0.6).timeout
+	var tail := 1.6
 	match _reel:
 		"move":
 			var far := Vector3i(-1, -1, -1)
@@ -1394,11 +1406,16 @@ func _run_reel() -> void:
 			enc.move_to(far2, true)   # Run action
 			await _act()
 		"single", "auto", "kill", "headshot", "armor", "pistol":
-			_reel_setup_shot(g)
-			await get_tree().create_timer(0.5).timeout
 			var md: int = {"auto": Attack.Mode.AUTOFIRE, "headshot": Attack.Mode.AIMED_HEAD}.get(_reel, Attack.Mode.SINGLE)
+			if _reel in ["kill", "headshot", "armor"]:   # make the beat happen on the first shot
+				for sk in enc.cur.c.skills:
+					enc.cur.c.skills[sk] = int(enc.cur.c.skills[sk]) + 12
 			if _reel in ["kill", "headshot"]:
 				g.c.hp = 1
+				for loc in ["head", "body"]:
+					if g.c.armor[loc]:
+						g.c.armor[loc].sp = 0
+				tail = 4.0   # the whole fall
 			if _reel == "armor":
 				for loc in ["head", "body"]:
 					if g.c.armor[loc]:
@@ -1413,14 +1430,7 @@ func _run_reel() -> void:
 					break
 				await get_tree().create_timer(0.3).timeout
 		"cover":
-			var cell := Vector3i(-1, -1, -1)
-			for v in enc.los.cover_hp:
-				if enc.los.cover_hp[v] > 0 and v.z == enc.cur.pos.z and Vector2(v.x - enc.cur.pos.x, v.y - enc.cur.pos.y).length() < 9 and enc.los.sight(enc.cur.pos, v).visible:
-					cell = v
-					break
 			if cell.x >= 0:
-				cam_target = Vector3((enc.cur.pos.x + cell.x) / 2.0 + 0.5, 0, (enc.cur.pos.y + cell.y) / 2.0 + 0.5)
-				_place_camera()
 				for k in 4:
 					if enc.los.cover_hp.get(cell, 0) <= 0:
 						break
@@ -1429,8 +1439,6 @@ func _run_reel() -> void:
 					enc.shoot_cover(cell, enc.cur.c.weapons[0])
 					await _act()
 		"enemy":
-			_reel_setup_shot(g)
-			await get_tree().create_timer(0.4).timeout
 			enc.attack(g, enc.cur.c.weapons[0], Attack.Mode.SINGLE)   # gunfire rouses the guards into initiative
 			await _act()
 			var others: Array = enc.units.filter(func(o): return o.team == 1 and not o.alerted and not o.c.dead)
@@ -1444,7 +1452,7 @@ func _run_reel() -> void:
 		"jack":
 			_demo_jack()
 			await get_tree().create_timer(3.5).timeout
-	await get_tree().create_timer(1.6).timeout
+	await get_tree().create_timer(tail).timeout
 	get_tree().quit()
 
 
