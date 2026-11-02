@@ -3,8 +3,13 @@ extends RefCounted
 ## A gig on a generated scene: crew vs guards, turn by turn, with the Netrunner's NET session.
 ## Pure rules (no Nodes) so it runs headless; the M3b greybox drives it and draws the results.
 ##
-## Objective (greybox): download the target building's most valuable File by Eye-Dee'ing it in the
-## NET, or put every guard down. The crew loses if everyone is dead.
+## Objectives (gig kinds, M7):
+## - "data": download the target building's most valuable File by Eye-Dee'ing it in the NET, or put
+##   every guard down;
+## - "eliminate": put every guard down (backup included);
+## - "snatch": grab the package in the target building and carry it back to the deploy zone. A
+##   carrier who goes down drops it where they fall.
+## The crew loses if nobody can act.
 
 const JACK_IN_RANGE_M := 6.0      # p198
 const SPOT_RANGE := 15            # squares a guard notices the crew at (clear sight)
@@ -23,7 +28,8 @@ var log: Array[String] = []
 var state := "playing"              ## playing | won | lost
 var runs := {}                      ## unit id → NetRun
 var net_left := 0                   ## NET Actions left this turn (runner only)
-var objective := {}                 ## {structure, node, done}
+var objective := {}                 ## {kind, done, + data: structure, node | snatch: cell, carrier}
+var extract_cells := {}             ## Vector3i → true: the deploy zone, where a snatch is carried out
 var vision: Vision                  ## what the crew can see (drives fog and hidden guards)
 ## What happened, in order, for the view to animate: {type: move|attack|cover|alert, ...}.
 ## The view drains it; rules code never reads it.
@@ -36,7 +42,7 @@ var jack_pos := {}                  ## runner unit id → the square of the devi
 var disabled_devices := {}          ## device id → true (turrets/cameras under the runner's control)
 
 
-static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant]) -> Encounter:
+static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "data") -> Encounter:
 	var e := Encounter.new()
 	e.m = p_map
 	e.dice = p_dice
@@ -45,6 +51,8 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant]) -> Encoun
 	e.init = Initiative.new(p_dice)
 	var deploy: Dictionary = p_map.entrances.filter(func(x): return x.kind == "deploy")[0]
 	var cells: Array = deploy.get("cells", [deploy.pos])
+	for c0 in cells:
+		e.extract_cells[Vector3i(c0.x, c0.y, 0)] = true
 	for i in crew.size():
 		var c: Vector2i = cells[i % cells.size()]
 		e._add(crew[i], Vector3i(c.x, c.y, 0), 0)
@@ -86,14 +94,17 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant]) -> Encoun
 		if tier == "mook" and p_dice.d(3) == 1:
 			g.grenades = 1   # HOUSE-RULE: about a third of Mooks carry a frag grenade
 		e._add(g, Vector3i(posts[i].pos.x, posts[i].pos.y, posts[i].floor), 1)
-	# Objective: the target NET's most valuable File.
-	if p_map.architectures.has(target_sid):
+	# Objective: the target NET's most valuable File (data), everyone down, or the package.
+	e.objective = {"kind": kind, "done": false}
+	if kind == "data" and p_map.architectures.has(target_sid):
 		var a: NetArchitecture = p_map.architectures[target_sid]
 		var best := -1
 		for nd in a.nodes_of_type("file"):
 			if best < 0 or int(nd.value) > int(a.nodes[best].value):
 				best = nd.id
-		e.objective = {"structure": target_sid, "node": best, "done": false}
+		e.objective.merge({"structure": target_sid, "node": best})
+	elif kind == "snatch":
+		e.objective.merge({"cell": e._package_cell(target_sid, cells[0]), "carrier": -1})
 	# M3 playtest verdict: guards only join the initiative order once they're alerted.
 	for u in e.units:
 		if u.alerted:
@@ -190,15 +201,80 @@ func end_turn() -> void:
 func _check_end() -> void:
 	if state != "playing":
 		return
+	if objective.get("kind", "data") == "snatch":
+		_drop_package()
 	if units.filter(func(u): return u.team == 0 and u.c.can_act()).is_empty() \
 			and units.filter(func(u): return u.team == 0 and not u.c.dead and u.c.wake_in > 0).is_empty():
 		state = "lost"   # nobody on the crew can act or will wake up (the loop would otherwise spin)
-	elif alive(1).is_empty():
+		return
+	if objective.get("kind", "data") == "snatch":
+		var carrier: int = objective.carrier
+		if carrier >= 0 and extract_cells.has(units[carrier].pos):
+			objective.done = true
+			state = "won"
+			say("%s gets the package out." % units[carrier].c.display_name)
+		return
+	if alive(1).is_empty():
+		if objective.get("kind", "data") == "eliminate" and backup_in > 0:
+			return   # HOUSE-RULE: a gang hit isn't done while backup is still on its way
 		state = "won"
 		say("All guards are down.")
 	elif objective.get("done", false):
 		state = "won"
 		say("The data is yours.")
+
+
+# --- Snatch objective ------------------------------------------------------------------
+
+## The package sits indoors in the target building's most secure zone, as far from the deploy zone
+## as walking gets (upper floors count through the distance field), off guard posts and cover.
+func _package_cell(target_sid: int, origin: Vector2i) -> Vector3i:
+	var field: Dictionary = nav.distance_field([Vector3i(origin.x, origin.y, 0)], {})
+	var best := Vector3i(origin.x, origin.y, 0)
+	var best_d := -1.0
+	var occ := occupied()
+	for cell in field:
+		var l := m.label(cell.z, cell.x, cell.y)
+		if l < 0 or m.rooms[l].structure != target_sid or m.rooms[l].get("kind", "") == "roof" or occ.has(cell) \
+				or m.has_cover_at(cell.z, Vector2i(cell.x, cell.y)):
+			continue
+		var score := float(field[cell]) + 20.0 * int(m.rooms[l].get("zone", 0))   # the most secure rooms first
+		if score > best_d:
+			best_d = score
+			best = cell
+	return best
+
+
+## Grab the package (an Action) from its square or a neighbouring one.
+func grab() -> Dictionary:
+	if objective.get("kind", "") != "snatch" or int(objective.carrier) >= 0:
+		return {"ok": false, "reason": "nothing to grab"}
+	var cell: Vector3i = objective.cell
+	if cur.pos != cell and not adjacent(cur.pos, cell):
+		return {"ok": false, "reason": "get next to the package"}
+	if not turn.use_action():
+		return {"ok": false, "reason": "no action left"}
+	objective.carrier = cur.id
+	events.append({"type": "grab", "unit": cur.id, "cell": cell})
+	say("%s grabs the package. Get it to the extraction point." % cur.c.display_name)
+	_check_end()
+	return {"ok": true}
+
+
+func can_grab() -> bool:
+	return objective.get("kind", "") == "snatch" and int(objective.carrier) < 0 and not cur.is_empty() \
+		and cur.team == 0 and (cur.pos == objective.cell or adjacent(cur.pos, objective.cell))
+
+
+## A carrier who can't act any more drops the package on their square.
+func _drop_package() -> void:
+	var carrier: int = objective.get("carrier", -1)
+	if carrier < 0 or units[carrier].c.can_act():
+		return
+	objective.cell = units[carrier].pos
+	objective.carrier = -1
+	events.append({"type": "drop", "unit": carrier, "cell": objective.cell})
+	say("%s drops the package." % units[carrier].c.display_name)
 
 
 # --- Alerts ------------------------------------------------------------------------
@@ -465,6 +541,7 @@ func move_to(dest: Vector3i, allow_run := false) -> bool:
 	if runs.has(cur.id) and Los.distance_m(dest, _ap_pos(runs[cur.id])) > JACK_IN_RANGE_M:
 		say("%s moves out of range and is dumped from the NET." % cur.c.display_name)
 		runs.erase(cur.id)
+	_check_end()   # a carrier reaching the extraction point
 	return true
 
 

@@ -129,6 +129,7 @@ var range_img: Image
 var range_tex: ImageTexture
 var fires: Array[OmniLight3D] = []
 var decals := {}              ## unit id → ground glow MeshInstance3D
+var obj_node: Node3D           ## snatch objective: the package (a case on a gold beacon) and the extraction squares
 var dash_opts := {}           ## squares reachable by also spending the Action on a Run (amber contour)
 var rim: DirectionalLight3D
 var sky_mat: ShaderMaterial
@@ -201,6 +202,7 @@ func _ready() -> void:
 			"profile": gig.profile = kv[1]
 			"seed": gig.seed = int(kv[1])
 			"security": gig.security = int(kv[1])
+			"objective": gig["objective"] = kv[1]
 			"fog": fog_on = kv[1] != "0"
 			"zoom": cam_dist = float(kv[1])
 			"yaw":
@@ -238,6 +240,10 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if obj_node and is_instance_valid(obj_node) and int(enc.objective.get("carrier", -1)) >= 0:   # the diamond follows the carrier
+		var tag := obj_node.get_node("tag") as Node3D
+		tag.position = (unit_nodes[int(enc.objective.carrier)] as Node3D).position + Vector3(0, 2.75, 0)
+		tag.rotation.y += delta * 2.0
 	var pan := Vector3.ZERO
 	if Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP): pan.z -= 1
 	if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN): pan.z += 1
@@ -462,7 +468,10 @@ func new_gig() -> void:
 		for c in camp.alive_crew():
 			if c.can_act():
 				crew.append(c)
-	enc = Encounter.setup(m, dice, crew)
+	var kind := gig.get("objective", "data") as String
+	if campaign_gig:
+		kind = Campaign.objective_for(camp.active_gig)
+	enc = Encounter.setup(m, dice, crew, kind)
 	_log_seen = 0
 	var lk := _scene_look()
 	env.ambient_light_color = Color(lk.ambient)
@@ -507,7 +516,11 @@ func new_gig() -> void:
 		_frame_unit(enc.cur)
 	if _focus != "":
 		var fc := Vector2(m.w / 2.0, m.h / 2.0)
-		if _focus == "center":
+		if _focus == "objective" and enc.objective.has("cell"):   # review renders: the snatch package
+			var oc: Vector3i = enc.objective.cell
+			fc = Vector2(oc.x, oc.y)
+			view_floor = oc.z
+		elif _focus == "center":
 			for st in m.structures:
 				if st.target and st.has("rect"):
 					fc = Vector2((st.rect as Rect2i).get_center())
@@ -721,6 +734,7 @@ func _build_lights() -> void:
 func _refresh() -> void:
 	_update_fog()
 	_update_cut()
+	_update_objective()
 	for l in lights:  # rooms stay dark until explored, so a reveal reads as lights coming on
 		var cell: Vector3i = l[1]
 		l[0].visible = not _net_cleaned and (l[2] != "room" or not fog_on or enc.vision.explored.has(cell))
@@ -1312,6 +1326,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			KEY_5: _on_hud("tool", "shell")
 			KEY_4: _on_hud("suppress", null)
 			KEY_T: _on_hud("tool", "stabilize")
+			KEY_B: _on_hud("grab", null)
 			KEY_ESCAPE:
 				if tool != "":
 					tool = ""
@@ -1343,6 +1358,12 @@ func _on_hud(name: String, arg: Variant) -> void:
 			cover_mode = false
 			_refresh(); _update_hover()
 		"suppress": _suppress()
+		"grab":
+			if _crew_turn():
+				var r := enc.grab()
+				if not r.get("ok", false):
+					hud.toast(String(r.get("reason", "can't")))
+				_after_action()
 		"reload": _reload()
 		"jack_in": _jack_in()
 		"end_turn": _end_turn()
@@ -1854,6 +1875,80 @@ func _after_action() -> void:
 		_finish_gig()
 
 
+## Snatch gigs: the package sits on a gold beacon until someone carries it (then a gold diamond
+## floats over the carrier), and the deploy squares glow as the extraction point.
+func _update_objective() -> void:
+	if enc.objective.get("kind", "") != "snatch":
+		if obj_node:
+			obj_node.visible = false
+		return
+	if obj_node == null or not is_instance_valid(obj_node) or obj_node.get_parent() != world:
+		obj_node = Node3D.new()
+		world.add_child(obj_node)
+		var case := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = Vector3(0.42, 0.16, 0.3)
+		case.mesh = bm
+		var cm := StandardMaterial3D.new()
+		cm.albedo_color = Color("2a2c30")
+		cm.metallic = 0.6
+		cm.roughness = 0.35
+		case.material_override = cm
+		case.position.y = 0.08
+		case.name = "case"
+		obj_node.add_child(case)
+		var beacon := MeshInstance3D.new()
+		var cy := CylinderMesh.new()
+		cy.top_radius = 0.42
+		cy.bottom_radius = 0.42
+		cy.height = 2.2
+		cy.cap_top = false
+		cy.cap_bottom = false
+		beacon.mesh = cy
+		beacon.material_override = _unlit(Hud.GOLD, 0.16, 1.3)
+		beacon.position.y = 1.1
+		beacon.name = "beacon"
+		obj_node.add_child(beacon)
+		var tag := MeshInstance3D.new()   # the carrier's diamond
+		var pm := PrismMesh.new()
+		pm.size = Vector3(0.22, 0.3, 0.06)
+		tag.mesh = pm
+		tag.material_override = _unlit(Hud.GOLD, 1.0, 1.4)
+		tag.rotation.z = PI
+		tag.name = "tag"
+		obj_node.add_child(tag)
+		var zone := Node3D.new()
+		zone.name = "zone"
+		obj_node.add_child(zone)
+		for cell in enc.extract_cells:
+			var q := MeshInstance3D.new()
+			var qm := PlaneMesh.new()
+			qm.size = Vector2(0.86, 0.86)
+			q.mesh = qm
+			q.material_override = _unlit(Hud.GOLD, 0.22, 1.0)
+			q.position = Vector3(cell.x + 0.5, _gy(cell) + 0.025, cell.y + 0.5)
+			zone.add_child(q)
+	obj_node.visible = not _net_cleaned
+	var carrier: int = enc.objective.get("carrier", -1)
+	var case_n := obj_node.get_node("case") as Node3D
+	var beacon_n := obj_node.get_node("beacon") as Node3D
+	var tag_n := obj_node.get_node("tag") as Node3D
+	if carrier < 0:
+		var cell: Vector3i = enc.objective.cell
+		var p := Vector3(cell.x + 0.5, _gy(cell), cell.y + 0.5)
+		case_n.position = p + Vector3(0, 0.08, 0)
+		beacon_n.position = p + Vector3(0, 1.1, 0)
+		case_n.visible = not _cut_hides(cell)
+		beacon_n.visible = case_n.visible
+		tag_n.visible = false
+	else:
+		case_n.visible = false
+		beacon_n.visible = false
+		var cn: Node3D = unit_nodes[carrier]
+		tag_n.visible = cn.visible
+		tag_n.position = cn.position + Vector3(0, 2.75, 0)
+
+
 ## A board gig is over: settle it (pay, injuries, the dead), save, and go back to the board.
 func _finish_gig() -> void:
 	hud.turn_banner("GIG %s  ·  BACK TO THE BOARD" % ("COMPLETE" if enc.state == "won" else "FAILED"), Hud.GREEN if enc.state == "won" else Hud.RED)
@@ -1916,6 +2011,16 @@ func _play_events() -> void:
 				hud.toast("ALARM: BACKUP IN %d ROUNDS" % int(e.rounds))
 			"backup": await _anim_backup(e)
 			"death": await _anim_death(e)
+			"grab":
+				var gn: CharModel = unit_nodes[u.id]
+				_focus_unit = u.id
+				gn.duck(0.6)
+				await get_tree().create_timer(0.4).timeout
+				_float(u, "PACKAGE SECURED", Hud.GOLD)
+				hud.toast("GET IT TO THE EXTRACTION POINT")
+				await get_tree().create_timer(0.5).timeout
+			"drop":
+				_float(u, "PACKAGE DROPPED", Hud.RED)
 	hud.enemy_phase(false)
 	_focus_unit = -1
 

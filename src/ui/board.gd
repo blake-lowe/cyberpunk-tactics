@@ -233,6 +233,8 @@ func _gig_card(i: int) -> PanelContainer:
 	top.add_child(_text("%s eb" % _money(int(g.pay)), Hud.F_TERM, 30, Hud.GREEN))
 	col.add_child(_text("%s · %s · SECURITY %s" % [String(g.fixer).to_upper(), String(RulesDB.gen("scenes.json")[g.scene].get("name", g.scene)).to_upper(), "◆".repeat(int(g.security)) + "◇".repeat(3 - int(g.security))], Hud.F_TERM, 20, Hud.CYAN))
 	col.add_child(_text(String(g.blurb), Hud.F_BODY, 20, Color(Hud.TEXT, 0.85), true))
+	col.add_child(_text({"data": "OBJECTIVE · PULL THE FILE IN THE NET, OR CLEAR THE SITE", "eliminate": "OBJECTIVE · NOBODY LEFT STANDING, BACKUP INCLUDED",
+		"snatch": "OBJECTIVE · GRAB THE PACKAGE, CARRY IT OUT THE WAY YOU CAME"}[Campaign.objective_for(g)], Hud.F_TERM, 18, Hud.GOLD))
 	var ready := camp.alive_crew().any(func(c): return c.can_act() and c.wound_state() < Combatant.Wound.MORTAL)
 	col.add_child(_button("TAKE THE GIG", Hud.GOLD, func(): _take(i), ready))
 	return p

@@ -376,6 +376,10 @@ class ActBtn extends Button:
 			"medic":
 				draw_rect(Rect2(o + Vector2(-r * 0.35, -r), Vector2(r * 0.7, r * 2.0)), c)
 				draw_rect(Rect2(o + Vector2(-r, -r * 0.35), Vector2(r * 2.0, r * 0.7)), c)
+			"grab":   # a case with a handle
+				draw_rect(Rect2(o + Vector2(-r * 1.1, -r * 0.4), Vector2(r * 2.2, r * 1.4)), c, false, 2.0)
+				draw_rect(Rect2(o + Vector2(-r * 0.4, -r * 0.9), Vector2(r * 0.8, r * 0.5)), c, false, 2.0)
+				draw_line(o + Vector2(-r * 1.1, r * 0.25), o + Vector2(r * 1.1, r * 0.25), c, 1.5)
 			"end":
 				draw_colored_polygon(PackedVector2Array([o + Vector2(-r * 1.2, -r), o + Vector2(r * 0.2, 0), o + Vector2(-r * 1.2, r)]), c)
 				draw_colored_polygon(PackedVector2Array([o + Vector2(0, -r), o + Vector2(r * 1.4, 0), o + Vector2(0, r)]), c)
@@ -424,7 +428,7 @@ func _build_bar() -> void:
 	# M5 actions: target-picking tools (toggle; right-click applies) and instant ones
 	for spec in [["melee", "MELEE", "F", "tool", "melee", CYAN], ["shell", "SHELL", "5", "tool", "shell", CYAN],
 			["grenade", "FRAG", "G", "tool", "grenade", GOLD], ["suppress", "SUPPRESS", "4", "suppress", null, CYAN],
-			["medic", "STABILIZE", "T", "tool", "stabilize", GREEN]]:
+			["medic", "STABILIZE", "T", "tool", "stabilize", GREEN], ["grab", "GRAB", "B", "grab", null, GOLD]]:
 		var b3 := ActBtn.new(spec[0], spec[1], spec[2], spec[5])
 		b3.toggle_mode = spec[3] == "tool"
 		var arg: Variant = spec[4]
@@ -490,6 +494,7 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 	elif enc.engaged():
 		state = "ENGAGED"
 	_round_box.add_child(_text(state, F_DISPLAY, 20, RED if state != "UNDETECTED" else CYAN))
+	_round_box.add_child(_text(objective_text(enc), F_TERM, 18, GOLD))
 	_clear(_card)
 	_clear(_econ)
 	var crew_turn: bool = enc.state == "playing" and not enc.cur.is_empty() and enc.cur.team == 0
@@ -554,6 +559,17 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 	_layout.call_deferred()
 
 
+## The gig's goal in a few words, for the round tab.
+static func objective_text(enc: Encounter) -> String:
+	var o := enc.objective
+	match String(o.get("kind", "data")):
+		"snatch":
+			return "OBJ · EXTRACT THE PACKAGE" if int(o.get("carrier", -1)) >= 0 else "OBJ · GRAB THE PACKAGE"
+		"eliminate":
+			return "OBJ · NOBODY STANDING (%d LEFT)" % enc.alive(1).size()
+	return "OBJ · PULL THE FILE OR CLEAR OUT" if o.has("node") else "OBJ · CLEAR OUT"
+
+
 ## Show each M5 action only when it applies to the active unit; reflect the active tool.
 func _refresh_tools(enc: Encounter, crew_turn: bool) -> void:
 	if _tool_buttons.is_empty() or enc.cur.is_empty():
@@ -563,7 +579,8 @@ func _refresh_tools(enc: Encounter, crew_turn: bool) -> void:
 	var near_dying := enc.units.any(func(o): return o.team == enc.cur.team and o != enc.cur and not o.c.dead \
 		and o.c.wound_state() == Combatant.Wound.MORTAL and enc.adjacent(enc.cur.pos, o.pos))
 	var show := {"melee": true, "shell": w != null and w.def.get("shotgun_shell", false),
-		"grenade": c.grenades > 0, "suppress": w != null and w.def.get("suppressive", false), "medic": near_dying}
+		"grenade": c.grenades > 0, "suppress": w != null and w.def.get("suppressive", false), "medic": near_dying,
+		"grab": enc.can_grab()}
 	for k in _tool_buttons:
 		var b: ActBtn = _tool_buttons[k]
 		b.visible = show[k]

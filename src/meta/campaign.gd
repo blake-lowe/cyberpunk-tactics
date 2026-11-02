@@ -20,6 +20,8 @@ const ECON := {
 }
 ## IP per gig (p410: the GM awards 10-80; AMBIGUITY: the tiers are qualitative). Our rubric:
 ## a failed gig 10, success 30, success without anyone going down +10, the NET objective +10.
+## Gig kind → encounter objective (Encounter.setup).
+const OBJECTIVES := {"data_theft": "data", "gang_hit": "eliminate", "corp_extraction": "snatch"}
 const IP_FAIL := 10
 const IP_WIN := 30
 
@@ -88,6 +90,10 @@ func refresh_board() -> void:
 			"pay": int(int(g.pay[str(sec)]) * (1.0 + rep * 0.05)), "rep": sec, "seed": dice.rng.randi_range(1, 99999)})
 
 
+static func objective_for(g: Dictionary) -> String:
+	return String(OBJECTIVES.get(String(g.get("kind", "")), "data"))
+
+
 func _pick(a: Array) -> Variant:
 	return a[dice.d(a.size()) - 1]
 
@@ -134,7 +140,7 @@ func resolve(e: Encounter) -> Dictionary:
 	if won:
 		report.pay = int(gig.get("pay", 0))
 		report.rep = int(gig.get("rep", 1))
-		report.ip = IP_WIN + (10 if not anyone_down else 0) + (10 if e.objective.get("done", false) else 0)
+		report.ip = IP_WIN + (10 if not anyone_down else 0) + (10 if e.objective.get("kind", "") == "data" and e.objective.get("done", false) else 0)
 	else:
 		report.rep = -1
 		report.ip = IP_FAIL

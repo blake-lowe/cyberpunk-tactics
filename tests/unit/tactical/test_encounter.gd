@@ -236,3 +236,75 @@ func test_patrols_walk_their_route() -> void:
 	e.patrol_step()
 	assert_true(w.alerted or w.pos != start, "a patrol step moves the guard (unless it just spotted someone)")
 	assert_true(e.events.any(func(x): return x.type == "move" and x.get("patrol", false)))
+
+
+func _snatch() -> Encounter:
+	var m := SceneGen.generate(5, "lone_building", {"security": 1})
+	var d := Dice.new(9)
+	var crew: Array[Combatant] = [Recruit.generate(d, "solo", "edgerunner")]
+	return Encounter.setup(m, d, crew, "snatch")
+
+
+func test_snatch_package_sits_in_the_target_building_reachable() -> void:
+	var e := _snatch()
+	var cell: Vector3i = e.objective.cell
+	var l := e.m.label(cell.z, cell.x, cell.y)
+	assert_true(l >= 0, "package indoors")
+	var sid := -1
+	for st in e.m.structures:
+		if st.target:
+			sid = st.id
+	assert_eq(e.m.rooms[l].structure, sid)
+	assert_true(e.nav.distance_field([e.units[0].pos], {}).has(cell), "crew can walk to it")
+
+
+func test_snatch_grab_then_extract_wins() -> void:
+	var e := _snatch()
+	e.next_turn()
+	while e.cur.team != 0:
+		e.end_turn()
+		e.next_turn()
+	var u := e.cur
+	var start: Vector3i = u.pos
+	assert_false(e.grab().ok, "too far to grab")
+	u.pos = e.objective.cell
+	e.turn.action_available = true
+	assert_true(e.grab().ok)
+	assert_eq(int(e.objective.carrier), u.id)
+	assert_eq(e.state, "playing", "holding it isn't enough")
+	u.pos = start + Vector3i(0, 0, 0)
+	e._check_end()
+	assert_eq(e.state, "won", "carried out through the deploy zone")
+
+
+func test_snatch_carrier_down_drops_package() -> void:
+	var e := _snatch()
+	e.next_turn()
+	while e.cur.team != 0:
+		e.end_turn()
+		e.next_turn()
+	var u := e.cur
+	u.pos = e.objective.cell + Vector3i(1, 0, 0) if e.m.walkable(e.objective.cell.z, Vector2i(e.objective.cell.x + 1, e.objective.cell.y)) else e.objective.cell
+	assert_true(e.grab().ok)
+	u.c.hp = 0
+	u.c.dead = true
+	e._check_end()
+	assert_eq(int(e.objective.carrier), -1)
+	assert_eq(e.objective.cell, u.pos)
+
+
+func test_eliminate_ignores_the_file_and_waits_for_backup() -> void:
+	var m := SceneGen.generate(5, "lone_building", {"security": 1})
+	var d := Dice.new(9)
+	var crew: Array[Combatant] = [Recruit.generate(d, "solo", "edgerunner")]
+	var e := Encounter.setup(m, d, crew, "eliminate")
+	assert_false(e.objective.has("node"))
+	for g in e.units:
+		if g.team == 1:
+			g.c.dead = true
+	e.backup_in = 2
+	e._check_end()
+	assert_eq(e.state, "playing", "backup still coming")
+	e.backup_in = -1
+	e._check_end()
+	assert_eq(e.state, "won")

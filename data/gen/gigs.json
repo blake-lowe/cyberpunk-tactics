@@ -12,7 +12,7 @@
       "blurb": "The {gang} have dug in at the {place}. {fixer} wants the stash on their network, and nobody standing.",
       "scenes": ["badlands", "shipyard", "rail_yard", "skirmish"], "places": ["camp", "docks", "yard", "bar"]},
     {"kind": "corp_extraction", "titles": ["Off-the-books audit at {corp}", "{corp}'s night shift has a leak"],
-      "blurb": "A {corp} insider left a door open for one night. {fixer} wants the {data} before morning.",
+      "blurb": "A {corp} insider left a door open for one night. {fixer} wants the {data} drive physically carried out before morning: grab it and get back to the extraction point.",
       "scenes": ["corp_campus", "lone_building", "megablock"]}
   ],
   "pay": {"1": 1000, "2": 2000, "3": 4000},
