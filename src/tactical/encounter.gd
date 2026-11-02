@@ -79,6 +79,7 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant]) -> Encoun
 		g.team = 1
 		g.awareness = {}
 		g.tracks_humanity = false  # rank-and-file guards don't roll cyberpsychosis episodes
+		g.grenades = 1 if p_dice.d(3) == 1 else 0   # HOUSE-RULE: about a third of guards carry a frag grenade
 		e._add(g, Vector3i(posts[i].pos.x, posts[i].pos.y, posts[i].floor), 1)
 	# Objective: the target NET's most valuable File.
 	if p_map.architectures.has(target_sid):

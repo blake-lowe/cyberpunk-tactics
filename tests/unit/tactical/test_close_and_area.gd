@@ -120,3 +120,26 @@ func test_reload_is_an_action_with_an_event() -> void:
 	assert_eq(w.ammo, w.mag())
 	assert_eq(e.events[-1].type, "reload")
 	assert_false(e.reload(w), "full magazine / no action left")
+
+
+func test_ai_throws_at_a_cluster_and_punches_when_empty() -> void:
+	var e := _arena([Vector3i(9, 5, 0)])
+	var ally := Fixtures.shooter("B")
+	e._add(ally, Vector3i(3, 5, 0), 0)
+	var g: Dictionary = e.units[1]
+	g.c.weapons.append(Weapon.from_id("heavy_pistol"))
+	g.c.grenades = 1
+	g.c.skills["athletics"] = 8
+	e.cur = g
+	e.turn = TurnState.begin(e.dice, g.c)
+	AI.act(e, g)
+	assert_eq(g.c.grenades, 0, "two crew in one blast: the guard throws")
+	assert_true(e.events.any(func(x): return x.type == "blast"))
+	# an empty gun next to an enemy: fists
+	g.pos = Vector3i(4, 5, 0)
+	g.c.weapons[0].ammo = 0
+	g.c.grenades = 0
+	e.turn = TurnState.begin(e.dice, g.c)
+	e.events.clear()
+	AI.act(e, g)
+	assert_true(e.events.any(func(x): return x.type == "attack" and x.weapon == "brawling"), "empty gun, enemy in reach: fists, not a reload")

@@ -13,11 +13,81 @@ static func act(e: Encounter, u: Dictionary) -> void:
 		return
 	var w: Weapon = u.c.weapons[0]
 	if w.uses_ammo() and w.ammo <= 0:
+		for f in _enemies(e, u):   # empty with an enemy in reach: hit them rather than reload
+			if e.adjacent(u.pos, f.pos):
+				e.melee(f)
+				return
 		e.reload(w)
+		return
+	if _special(e, u, w):   # a grenade, a shotgun shell, suppression or a punch beats the best shot
 		return
 	if not _shoot(e, u, w):
 		_advance(e, u)
-		_shoot(e, u, w)
+		if not _special(e, u, w):
+			_shoot(e, u, w)
+
+
+## Expected damage of the best plain shot this turn (for comparing with the area options).
+static func _best_shot_value(e: Encounter, u: Dictionary, w: Weapon) -> float:
+	var best := 0.0
+	for t in _enemies(e, u):
+		var p := e.preview(t, w, Attack.Mode.SINGLE)
+		if p.ok:
+			best = maxf(best, p.chance * w.dice() * 3.5 * mini(2, w.rof()))
+		var pa := e.preview(t, w, Attack.Mode.AUTOFIRE)
+		if pa.ok:
+			best = maxf(best, pa.chance * 7.0 * w.autofire_mult() * 0.6)
+	return best
+
+
+## The M5 options, taken when they're clearly better than shooting:
+## - grenade: two or more enemies (and no friends) in a 5x5 blast within throwing range;
+## - shotgun shell: two or more enemies in the cone;
+## - melee: an enemy next to us and the gun is empty or hopeless;
+## - suppression: three or more enemies in sight and every shot is a long shot.
+static func _special(e: Encounter, u: Dictionary, w: Weapon) -> bool:
+	if not e.turn.action_available:
+		return false
+	var foes := _enemies(e, u)
+	var shot := _best_shot_value(e, u, w)
+	if u.c.grenades > 0:
+		var best_cell := Vector3i(-1, -1, -1)
+		var best_n := 1
+		for f in foes:
+			var cell: Vector3i = f.pos
+			if cell.z != u.pos.z or Los.distance_m(u.pos, cell) > Encounter.THROW_RANGE_M or not e.los.trace(u.pos, cell).clear:
+				continue
+			var n := 0
+			var friends := 0
+			for o in e.units:
+				if not o.c.dead and o.pos.z == cell.z and maxi(absi(o.pos.x - cell.x), absi(o.pos.y - cell.y)) <= Encounter.BLAST_HALF:
+					if o.team == u.team:
+						friends += 1
+					else:
+						n += 1
+			if friends == 0 and n > best_n:
+				best_n = n
+				best_cell = cell
+		if best_cell.x >= 0 and best_n * 21.0 * 0.5 > shot:
+			return e.throw_grenade(best_cell).get("ok", false)
+	if w.def.get("shotgun_shell", false) and w.ammo > 0:
+		for f in foes:
+			var cone := 0
+			for o in foes:
+				var d := Vector2(o.pos.x - u.pos.x, o.pos.y - u.pos.y)
+				var a := Vector2(f.pos.x - u.pos.x, f.pos.y - u.pos.y)
+				if o.pos.z == u.pos.z and Los.distance_m(u.pos, o.pos) <= Attack.SHOTGUN_SHELL_RANGE_M and rad_to_deg(absf(a.angle_to(d))) <= Encounter.SHELL_HALF_ANGLE:
+					cone += 1
+			if cone >= 2:
+				return e.shotgun_shell(f, w).get("ok", false)
+	for f in foes:
+		if e.adjacent(u.pos, f.pos) and ((w.uses_ammo() and w.ammo <= 0) or shot < 4.0):
+			return e.melee(f).get("ok", false)
+	if w.def.get("suppressive", false) and w.ammo >= Attack.AUTOFIRE_AMMO and shot < 5.0:
+		var seen := foes.filter(func(f): return Los.distance_m(u.pos, f.pos) <= Attack.SUPPRESSIVE_RANGE_M and e.los.sight(u.pos, f.pos).visible)
+		if seen.size() >= 3:
+			return e.suppress(w).get("ok", false)
+	return false
 
 
 static func _enemies(e: Encounter, u: Dictionary) -> Array:
