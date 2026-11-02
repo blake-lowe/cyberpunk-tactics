@@ -100,3 +100,22 @@ Check-ins (🔶) are where work pauses for a user decision or review.
 - Units blend in (no extra lighting, no rings or glows); only the active unit gets a white outline.
   ROUND / UNDETECTED top right. Turn-order portraits no longer stretch. Portraits rendered from 3D.
 - Review page updated in place: https://claude.ai/artifact/Vs8526BGY2RDEK7VpBKE8X (new keys m4c_*).
+
+### M4c review verdicts (user)
+- Cyberspace: wireframe reads best → variants (crisp full-res default, blueprint, scan, pixel); keep the other
+  styles for transitions and weapon/item/ability effects.
+- Units blend in: right, but replace the white outline with an amber caret above the active unit → done.
+- Portraits: shorter necks, more hair and face variation, no busy backdrop, softer light, smaller → done
+  (facial realism is limited by primitive models; real character meshes come with the asset route).
+- Combat feel: good so far, needs playtesting. Combat log → top right with hover-to-expand (done). Armour /
+  Friday Night Firefight spot check: core resolution matches the book; not yet in play: Suppressive Fire,
+  shotgun shells, melee/brawling, grenades, Medtech stabilisation.
+- Run: keep (rules as written).
+- Off-grid world: right direction. Add XCOM-style cover shields on hover while moving (done) and an
+  inspector for material/stats (done as hold-Alt; the owner worried a dwell timer would be annoying).
+- Palette: good; later, palettes vary by neighbourhood/zone (backlog).
+- Camera orthographic; cutaway keep; HUD right direction.
+- Assets: CC0 packs; main worry is stiff, unrealistic animation. Plan: Quaternius Universal Base Characters +
+  Universal Animation Library (CC0, humanoid rig, glTF) retargeted in Godot. The itch.io download can't be
+  scripted from the cloud container; owner to download and add (or share a Drive link).
+- Next: VFX + motion (done in M4c), then characters/animation (b), then gameplay (c).
