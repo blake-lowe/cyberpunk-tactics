@@ -436,6 +436,8 @@ func _report_panel() -> PanelContainer:
 	p.add_child(col)
 	col.add_child(_text(("GIG COMPLETE · " if won else "GIG FAILED · ") + String(report.gig.get("title", "")).to_upper(), Hud.F_DISPLAY, 34, Hud.GREEN if won else Hud.RED, true))
 	var parts := ["%+d eb" % (int(report.pay) - int(report.fees)), "%+d rep" % int(report.rep), "%d IP each" % int(report.ip)]
+	for nm in report.get("episodes", []):
+		parts.append("%s: CYBERPSYCHOTIC EPISODE" % String(nm).to_upper())
 	if int(report.get("heat", 0)) != 0:
 		parts.append("%+d heat" % int(report.heat))
 	if int(report.get("salvage", 0)) > 0:

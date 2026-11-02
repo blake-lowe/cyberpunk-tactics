@@ -117,6 +117,26 @@ static func objective_for(g: Dictionary) -> String:
 	return String(OBJECTIVES.get(String(g.get("kind", "")), "data"))
 
 
+## Cyberpsychosis outside combat (spec: episodes "can trigger in or out of combat"). After a gig, each
+## crew member at risk rolls their combat episode chance once (approved HOUSE-RULE table); an
+## episode means lashing out at someone close: a crewmate takes 2d6 (never below 1 HP), and the
+## mess adds heat. Returns the names of those who had one.
+func _downtime_episodes() -> Array:
+	var out := []
+	for c in alive_crew():
+		if c.episode_chance() <= 0.0 or dice.rng.randf() >= c.episode_chance():
+			continue
+		var others := alive_crew().filter(func(o): return o != c)
+		var hurt := ""
+		if not others.is_empty():
+			var o: Combatant = others[dice.d(others.size()) - 1]
+			o.hp = maxi(1, o.hp - dice.roll(2, 6))
+			hurt = o.display_name
+		out.append(c.display_name)
+		say("%s has a cyberpsychotic episode after the job%s. Therapy would help." % [c.display_name, (" and hurts " + hurt) if hurt != "" else ""])
+	return out
+
+
 ## Heat from how a gig went (HOUSE-RULE): in and out unseen cools things down; an alarm, NCPD
 ## showing up, and bodies left behind warm them up.
 static func gig_heat(e: Encounter) -> int:
@@ -168,7 +188,7 @@ func accept(index: int) -> Dictionary:
 func resolve(e: Encounter) -> Dictionary:
 	var gig := active_gig
 	var won := e.state == "won"
-	var report := {"gig": gig, "won": won, "pay": 0, "rep": 0, "ip": 0, "dead": [], "hurt": [], "fees": 0, "salvage": 0, "heat": 0}
+	var report := {"gig": gig, "won": won, "pay": 0, "rep": 0, "ip": 0, "dead": [], "hurt": [], "fees": 0, "salvage": 0, "heat": 0, "episodes": []}
 	var anyone_down := false
 	for c in crew:
 		if c.dead or c.wound_state() >= Combatant.Wound.MORTAL or c.unconscious:
@@ -206,7 +226,8 @@ func resolve(e: Encounter) -> Dictionary:
 						value += int(RulesDB.armor((u.c.armor[loc] as ArmorPiece).id).get("cost", 0))
 				report.salvage += int(value * float(ECON.salvage) * _salvage_mult())
 	eb += report.pay - report.fees + report.salvage
-	report.heat = gig_heat(e)
+	report.episodes = _downtime_episodes()
+	report.heat = gig_heat(e) + report.episodes.size()
 	heat = clampi(heat + report.heat, 0, 10)
 	rep = maxi(0, rep + report.rep)
 	var fx_name := String(gig.get("fixer", ""))

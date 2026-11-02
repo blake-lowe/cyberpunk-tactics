@@ -190,3 +190,16 @@ func test_heat_rises_when_loud_and_cools_with_rest() -> void:
 	assert_eq(c.heat, h - 2, "lying low")
 	var d := Campaign.from_dict(JSON.parse_string(JSON.stringify(c.to_dict())))
 	assert_eq(d.heat, c.heat)
+
+
+func test_downtime_episodes_for_low_humanity() -> void:
+	var c := Campaign.new_game(6)
+	var solo: Combatant = c.crew[0]
+	solo.humanity = -1   # past the edge: an episode every time
+	var other: Combatant = c.crew[1]
+	var hp0 := other.hp
+	var e := _finish(c, true)
+	var r := c.resolve(e)
+	assert_true(solo.display_name in r.episodes)
+	assert_true(other.hp < hp0 or hp0 == 1, "a crewmate got hurt")
+	assert_true(other.hp >= 1)
