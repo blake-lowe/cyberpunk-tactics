@@ -7,29 +7,19 @@ extends Node
 ##
 ## Controls
 ##   WASD / arrows   pan          Mouse wheel   zoom          Q / E   rotate 90°
-##   PageUp/PageDown change the floor you're viewing (higher floors hide)
+##   PageUp/PageDown change the floor you're viewing (floors above open up around the focus)
 ##   Left click      move (path preview while hovering the move grid)
 ##   Right click     attack the enemy under the cursor (X or Shift: shoot the cover in the way)
 ##   1 / 2 / 3       single shot / autofire / aimed head shot
 ##   R reload    J jack in (Netrunner, within 6 m of a terminal)    Space  end turn
-##   C cutaway walls    F1 new gig    F2 look settings    F3 toggle fog of war
+##   C cutaway on/off    F1 new gig    F2 look settings    F3 toggle fog of war
 ## Screenshot mode:  -- --shot=path.png [--scene=x] [--profile=y] [--seed=n] [--pixel=3]
 ##   [--levels=0] [--dither=0.5] [--outline=0.4] [--bloom=0.8] [--contrast=1.1] [--ortho=1]
 ##   [--fog=0] [--zoom=24] [--yaw=45] [--lights=1] [--hover=x,y]
 
 const FH := 1.6           # floor height in squares (3.2 m)
-const LOW_WALL := 0.38    # cutaway height on the viewed floor
-const CHUNK := 8          # world meshes are batched per 8×8 cells so each batch gets its nearby lights
-const WORLD_SHADER := preload("res://src/tactical/view/world.gdshader")
 const POST_SHADER := preload("res://src/tactical/view/post.gdshader")
-
-const GROUND := {  # TacMap.G → [colour, roughness]
-	0: [Color("1c1f24"), 0.8], 1: [Color("15171b"), 0.22], 2: [Color("34383e"), 0.6], 3: [Color("3b3833"), 0.95],
-	4: [Color("3a2f25"), 0.95], 5: [Color("3c4046"), 0.7], 6: [Color("2c2724"), 0.6], 7: [Color("2e2a26"), 0.6],
-	8: [Color("1d2e1f"), 0.95], 9: [Color("5a4c36"), 0.95]}
-const WALL := [Color("7e848b"), Color("5f656c"), Color("4c5560"), Color("6c7a6a"), Color("5e5246"), Color("8fd8f0"), Color("70b8d0")]
-const ZONE_FLOOR := [Color("26292e"), Color("2b2a2c"), Color("262b31"), Color("23302e"), Color("33242a")]
-const COVER_COL := {"wood": Color("6e5238"), "steel": Color("59626c"), "concrete": Color("6d7177"), "stone": Color("6a6660"), "plaster": Color("7a7268")}
+const SKY_SHADER := preload("res://src/tactical/view/sky.gdshader")
 
 var m: TacMap
 var enc: Encounter
@@ -44,7 +34,7 @@ var hover := Vector3i(-1, -1, -1)
 var mouse := Vector2.ZERO
 var gig := {"scene": "skirmish", "profile": "", "seed": 11, "security": 1}
 var look := {"pixel": 3.0, "levels": 0.0, "dither": 0.5, "contrast": 1.1, "saturation": 1.15, "outline": 0.4,
-	"bloom": 0.8, "ortho": 0.0, "lights": 1.0, "dim": 0.6}
+	"bloom": 0.8, "ortho": 0.0, "lights": 1.6, "dim": 0.65}
 
 var svp: SubViewport
 var screen: TextureRect
@@ -60,14 +50,14 @@ var world: Node3D
 var floor_nodes: Array[Node3D] = []
 var unit_nodes := {}
 var door_nodes: Node3D
-var grid_node: MultiMeshInstance3D
+var grid_node: MeshInstance3D
 var path_node: MultiMeshInstance3D
 var ring: MeshInstance3D
 var target_ring: MeshInstance3D
 var lights: Array = []        ## [OmniLight3D, Vector3i cell, kind]
 var fog_img: Image
 var fog_tex: ImageTexture
-var _mats := {}
+var builder: WorldBuilder
 var _log_seen := 0
 var _shot_path := ""
 var _shot_hover := Vector2i(-1, -1)
@@ -157,11 +147,15 @@ func _build_view() -> void:
 	bg.add_child(screen)
 	var we := WorldEnvironment.new()
 	env = Environment.new()
-	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color("05070c")
+	env.background_mode = Environment.BG_SKY
+	var sky := Sky.new()
+	var skm := ShaderMaterial.new()
+	skm.shader = SKY_SHADER
+	sky.sky_material = skm
+	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color("39404f")
-	env.ambient_light_energy = 0.5
+	env.ambient_light_color = Color("4a5470")
+	env.ambient_light_energy = 0.85
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
 	env.tonemap_exposure = 1.1
 	env.glow_enabled = true
@@ -178,7 +172,7 @@ func _build_view() -> void:
 	sun = DirectionalLight3D.new()   # cold moonlight, just enough to read the blockout
 	sun.rotation_degrees = Vector3(-58, 30, 0)
 	sun.light_color = Color("98a6c8")
-	sun.light_energy = 0.22
+	sun.light_energy = 0.45
 	sun.shadow_enabled = true
 	svp.add_child(sun)
 	cam = Camera3D.new()
@@ -211,6 +205,7 @@ func _apply_look() -> void:
 	cam.projection = Camera3D.PROJECTION_ORTHOGONAL if look.ortho > 0.5 else Camera3D.PROJECTION_PERSPECTIVE
 	for l in lights:
 		l[0].light_energy = l[0].get_meta("base", 1.0) * look.lights
+	_apply_world_look()
 	if cam_target != Vector3.ZERO:
 		_place_camera()
 
@@ -226,7 +221,6 @@ func new_gig() -> void:
 	var crew: Array[Combatant] = [Recruit.generate(dice, "solo", "edgerunner", "Vex"), Recruit.generate(dice, "netrunner", "edgerunner", "Patch")]
 	enc = Encounter.setup(m, dice, crew)
 	_log_seen = 0
-	_mats.clear()
 	_build_world()
 	var d: Dictionary = enc.units[0]
 	cam_target = Vector3(d.pos.x + 0.5, 0, d.pos.y + 0.5).lerp(Vector3(m.w / 2.0, 0, m.h / 2.0), 0.75 if m.w <= 40 else 0.3)
@@ -257,39 +251,7 @@ func new_gig() -> void:
 	_after_action()
 
 
-# --- Materials ---------------------------------------------------------------------
-
-## Fogged surface material, cached per look and floor. opts: rough, metal, glow (emission energy),
-## emit (emission colour), alpha, mode (0 surface, 1 unknown-cap, 2 no fog).
-func _mat(col: Color, f: int, opts := {}) -> ShaderMaterial:
-	var key := "%s|%d|%s" % [col.to_html(), f, str(opts)]
-	if _mats.has(key):
-		return _mats[key]
-	var mt := ShaderMaterial.new()
-	mt.shader = _alpha_shader() if opts.get("alpha", 1.0) < 1.0 else WORLD_SHADER
-	mt.set_shader_parameter("albedo", Color(col, opts.get("alpha", 1.0)))
-	mt.set_shader_parameter("roughness", opts.get("rough", 0.85))
-	mt.set_shader_parameter("metallic", opts.get("metal", 0.0))
-	mt.set_shader_parameter("emission", opts.get("emit", col))
-	mt.set_shader_parameter("emission_energy", opts.get("glow", 0.0))
-	mt.set_shader_parameter("fog", fog_tex)
-	mt.set_shader_parameter("map_size", Vector2(m.w, m.h))
-	mt.set_shader_parameter("floor_idx", float(f))
-	mt.set_shader_parameter("explored_dim", look.dim)
-	mt.set_shader_parameter("floors", float(m.floors))
-	mt.set_shader_parameter("mode", 2 if not fog_on and opts.get("mode", 0) == 0 else opts.get("mode", 0))
-	_mats[key] = mt
-	return mt
-
-
-var _alpha_cache: Shader
-func _alpha_shader() -> Shader:
-	if _alpha_cache == null:
-		_alpha_cache = Shader.new()
-		_alpha_cache.code = WORLD_SHADER.code.replace("shader_type spatial;", "shader_type spatial;\nrender_mode blend_mix, depth_draw_opaque, cull_disabled;") \
-			.replace("EMISSION = emission * emission_energy * k;", "EMISSION = emission * emission_energy * k;\n\tALPHA = albedo.a;")
-	return _alpha_cache
-
+# --- World -------------------------------------------------------------------------
 
 func _unlit(col: Color, alpha := 1.0, glow := 1.0) -> StandardMaterial3D:
 	var mt := StandardMaterial3D.new()
@@ -300,32 +262,6 @@ func _unlit(col: Color, alpha := 1.0, glow := 1.0) -> StandardMaterial3D:
 	return mt
 
 
-# --- World building --------------------------------------------------------------
-
-## Batches: "chunk|matkey" → {mat, xf: [Transform3D]}. Flushed into MultiMeshes per parent node.
-func _put(batches: Dictionary, x: int, y: int, mat: Material, pos: Vector3, scale: Vector3) -> void:
-	var key := "%d,%d|%d" % [x / CHUNK, y / CHUNK, mat.get_instance_id()]
-	var b: Dictionary = batches.get_or_add(key, {"mat": mat, "xf": []})
-	b.xf.append(Transform3D(Basis.from_scale(scale), pos))
-
-
-func _flush(parent: Node3D, batches: Dictionary) -> void:
-	for key in batches:
-		var b: Dictionary = batches[key]
-		var mm := MultiMesh.new()
-		mm.transform_format = MultiMesh.TRANSFORM_3D
-		var box := BoxMesh.new()
-		box.size = Vector3.ONE
-		box.material = b.mat
-		mm.mesh = box
-		mm.instance_count = b.xf.size()
-		for i in b.xf.size():
-			mm.set_instance_transform(i, b.xf[i])
-		var mi := MultiMeshInstance3D.new()
-		mi.multimesh = mm
-		parent.add_child(mi)
-
-
 func _build_world() -> void:
 	if world:
 		world.queue_free()
@@ -333,19 +269,17 @@ func _build_world() -> void:
 	svp.add_child(world)
 	fog_img = Image.create(m.w, m.h * m.floors, false, Image.FORMAT_L8)
 	fog_tex = ImageTexture.create_from_image(fog_img)
-	_mats.clear()
-	floor_nodes.clear()
+	_update_fog()
+	builder = WorldBuilder.new(m, enc.vision, fog_tex)
+	floor_nodes = builder.build(world)
+	for s in builder.surfaces():
+		floor_nodes[0].add_child(s)
 	unit_nodes.clear()
 	lights.clear()
-	for f in m.floors:
-		var fn := Node3D.new()
-		world.add_child(fn)
-		floor_nodes.append(fn)
-		_build_floor(fn, f)
 	_build_lights()
 	door_nodes = Node3D.new()
 	world.add_child(door_nodes)
-	grid_node = MultiMeshInstance3D.new()
+	grid_node = MeshInstance3D.new()
 	world.add_child(grid_node)
 	path_node = MultiMeshInstance3D.new()
 	world.add_child(path_node)
@@ -362,7 +296,14 @@ func _build_world() -> void:
 			n.add_child(pl)
 		world.add_child(n)
 		unit_nodes[u.id] = n
+	_apply_world_look()
 	_refresh()
+
+
+func _apply_world_look() -> void:
+	if builder:
+		for mt in builder.materials():
+			mt.set_shader_parameter("explored_dim", look.dim)
 
 
 func _ring(col: Color, r: float) -> MeshInstance3D:
@@ -376,100 +317,6 @@ func _ring(col: Color, r: float) -> MeshInstance3D:
 	mi.scale = Vector3(1, 0.3, 1)
 	world.add_child(mi)
 	return mi
-
-
-func _build_floor(fn: Node3D, f: int) -> void:
-	var base := {}
-	var full := {}
-	var low := {}
-	var y0 := f * FH
-	var cap_full := _mat(Color("2a2f3b"), f, {"mode": 1, "rough": 0.9, "glow": 0.6, "emit": Color("1c2433")})
-	var cap_low := cap_full
-	for y in m.h:
-		for x in m.w:
-			var t := m.t(f, x, y)
-			var i := y * m.w + x
-			var p := Vector3(x + 0.5, y0, y + 0.5)
-			var indoor := t != TacMap.T.VOID and not enc.vision._outdoor(f, x, y)
-			match t:
-				TacMap.T.VOID:
-					continue
-				TacMap.T.WATER:
-					_put(base, x, y, _mat(Color("0a1a26"), f, {"rough": 0.05, "metal": 0.3}), p - Vector3(0, 0.12, 0), Vector3(1, 0.05, 1))
-				TacMap.T.OUTSIDE:
-					var g: Array = GROUND.get(int(m.ground[i]), GROUND[0])
-					var col: Color = g[0]
-					if (x * 7 + y * 13) % 5 == 0:
-						col = col.lightened(0.04)  # a little texture so the pixel filter has something to chew on
-					_put(base, x, y, _mat(col, f, {"rough": g[1]}), p - Vector3(0, 0.05, 0), Vector3(1, 0.1, 1))
-				TacMap.T.WALL:
-					var wm := int(m.wall_mat[f][i])
-					if wm in [5, 6]:
-						var gm := _mat(WALL[wm], f, {"alpha": 0.32, "glow": 0.5, "rough": 0.05})
-						_put(full, x, y, gm, p + Vector3(0, FH / 2, 0), Vector3(1, FH, 0.98))
-						_put(low, x, y, gm, p + Vector3(0, LOW_WALL / 2, 0), Vector3(1, LOW_WALL, 0.98))
-					elif wm == 3:  # chain-link fence: thin and see-through
-						var fm := _mat(WALL[3], f, {"alpha": 0.45, "metal": 0.6})
-						_put(base, x, y, fm, p + Vector3(0, 0.55, 0), Vector3(0.96, 1.1, 0.96))
-					else:
-						var wmat := _mat(WALL[wm], f, {"rough": 0.9 if wm < 2 else 0.5, "metal": 0.4 if wm == 2 else 0.0})
-						_put(full, x, y, wmat, p + Vector3(0, FH / 2, 0), Vector3(1, FH, 1))
-						_put(low, x, y, wmat, p + Vector3(0, LOW_WALL / 2, 0), Vector3(1, LOW_WALL, 1))
-						# Neon trim along the roofline of outer walls (light spill, Cyberpunk 2077 look).
-						if f == _top_floor(x, y) and enc.vision.explored.has(Vector3i(x, y, f)) and (x + y) % 3 != 0:
-							var tc: Color = LightPlan.NEON[posmod(hash(_structure_at(f, x, y)), LightPlan.NEON.size())]
-							_put(full, x, y, _mat(tc, f, {"glow": 3.0, "emit": tc}), p + Vector3(0, FH + 0.02, 0), Vector3(1.02, 0.05, 1.02))
-				TacMap.T.DOOR:
-					_put(base, x, y, _mat(Color("1d1f22"), f), p - Vector3(0, 0.05, 0), Vector3(1, 0.1, 1))
-				_:
-					var l2 := m.label(f, x, y)
-					var c: Color = ZONE_FLOOR[clampi(m.rooms[l2].zone, 0, 4)] if l2 >= 0 else Color("2c3036")
-					var rough := 0.6
-					if t == TacMap.T.ROOF: c = Color("2e3238"); rough = 0.9
-					elif t == TacMap.T.BRIDGE: c = Color("3e454c"); rough = 0.4
-					elif t in [TacMap.T.STAIRS, TacMap.T.ELEVATOR]: c = Color("8a939b")
-					if (x + y) % 2 == 0 and t == TacMap.T.FLOOR:
-						c = c.lightened(0.03)  # checker tiles
-					_put(base, x, y, _mat(c, f, {"rough": rough}), p - Vector3(0, 0.05, 0), Vector3(1, 0.1, 1))
-			if indoor and fog_on:  # unknown interior: a dark volume, so the building's mass still reads
-				_put(full, x, y, cap_full, p + Vector3(0, FH * 0.45, 0), Vector3(1.001, FH * 0.9, 1.001))
-				_put(low, x, y, cap_low, p + Vector3(0, FH * 0.45, 0), Vector3(1.001, FH * 0.9, 1.001))
-	for c in m.cover:
-		if c.floor != f:
-			continue
-		var h := 0.62 if c.thick else 0.42
-		var col: Color = COVER_COL.get(c.material, Color("666"))
-		var opts := {"rough": 0.4 if c.material == "steel" else 0.85, "metal": 0.5 if c.material == "steel" else 0.0}
-		if c.get("hazard", "") == "explosive":
-			col = Color("b8481c"); opts = {"glow": 0.6, "emit": Color("ff6a1a")}
-		elif c.get("hazard", "") == "electrified":
-			col = Color("3a4a5a"); opts = {"glow": 0.8, "emit": Color("6fb8ff")}
-		_put(base, c.pos.x, c.pos.y, _mat(col, f, opts), Vector3(c.pos.x + 0.5, y0 + h / 2, c.pos.y + 0.5), Vector3(0.84, h, 0.84))
-	_flush(fn, base)
-	var fnode := Node3D.new()
-	fnode.name = "full"
-	var lnode := Node3D.new()
-	lnode.name = "low"
-	fn.add_child(fnode)
-	fn.add_child(lnode)
-	_flush(fnode, full)
-	_flush(lnode, low)
-
-
-func _top_floor(x: int, y: int) -> int:
-	var top := -1
-	for f in m.floors:
-		if m.t(f, x, y) == TacMap.T.WALL and int(m.wall_mat[f][y * m.w + x]) != 3:
-			top = f
-	return top
-
-
-func _structure_at(f: int, x: int, y: int) -> int:
-	for d in Nav.DIRS8:
-		var l := m.label(f, x + d.x, y + d.y)
-		if l >= 0:
-			return int(m.rooms[l].structure)
-	return -1
 
 
 func _build_lights() -> void:
@@ -491,24 +338,34 @@ func _build_lights() -> void:
 				bm.size = Vector3(0.75, 0.16, 0.06) if e.out.y != 0 else Vector3(0.06, 0.16, 0.75)
 				bm.material = _unlit(e.color, 1.0, 1.6)
 				sign.mesh = bm
-				sign.position = base + out * 0.55 + Vector3(0, 1.25, 0)
+				sign.position = base + out * 0.55 + Vector3(0, 1.3, 0)
 				fn.add_child(sign)
 			"lamp":
 				l.position = base + Vector3(0, 1.45, 0)
 				var pole := MeshInstance3D.new()
-				var pm := BoxMesh.new()
-				pm.size = Vector3(0.06, 1.5, 0.06)
-				pm.material = _mat(Color("202428"), cell.z, {"mode": 2})
+				var pm := CylinderMesh.new()
+				pm.top_radius = 0.025
+				pm.bottom_radius = 0.035
+				pm.height = 1.5
+				pm.material = builder.mat("post", 0, false)
 				pole.mesh = pm
-				pole.position = base + Vector3(0, 0.75, 0)
+				pole.position = base + Vector3(0.3, 0.75, 0.3)
 				fn.add_child(pole)
+				var arm := MeshInstance3D.new()
+				var am := BoxMesh.new()
+				am.size = Vector3(0.4, 0.03, 0.03)
+				am.material = pm.material
+				arm.mesh = am
+				arm.position = base + Vector3(0.12, 1.5, 0.3)
+				fn.add_child(arm)
 				var head := MeshInstance3D.new()
 				var hm := BoxMesh.new()
-				hm.size = Vector3(0.22, 0.05, 0.22)
+				hm.size = Vector3(0.2, 0.04, 0.12)
 				hm.material = _unlit(e.color, 1.0, 2.5)
 				head.mesh = hm
-				head.position = base + Vector3(0, 1.5, 0)
+				head.position = base + Vector3(-0.05, 1.48, 0.3)
 				fn.add_child(head)
+				l.position = head.position - Vector3(0, 0.05, 0)
 			"room":
 				l.position = base + Vector3(0, FH * 0.85, 0)
 			"hazard":
@@ -518,24 +375,19 @@ func _build_lights() -> void:
 	_apply_look()
 
 
-# --- Refresh: fog, floors, units, grid, HUD -------------------------------------
+# --- Refresh: fog, cutaway, units, grid, HUD -------------------------------------
 
 func _refresh() -> void:
 	_update_fog()
-	for f in floor_nodes.size():
-		var fn := floor_nodes[f]
-		fn.visible = f <= view_floor
-		fn.get_node("full").visible = not (cutaway and f == view_floor)
-		fn.get_node("low").visible = cutaway and f == view_floor
+	_update_cut()
 	for l in lights:  # rooms stay dark until explored, so a reveal reads as lights coming on
 		var cell: Vector3i = l[1]
-		l[0].visible = cell.z <= view_floor and (l[2] != "room" or not fog_on or enc.vision.explored.has(cell))
+		l[0].visible = l[2] != "room" or not fog_on or enc.vision.explored.has(cell)
 	_build_doors()
-	var crew_eyes := enc.alive(0)
 	for u in enc.units:
 		var n: Node3D = unit_nodes[u.id]
 		var seen: bool = u.team == 0 or not fog_on or enc.vision.visible.has(u.pos)
-		n.visible = seen and u.pos.z <= view_floor
+		n.visible = seen and not _cut_hides(u.pos)
 		n.position = Vector3(u.pos.x + 0.5, u.pos.z * FH, u.pos.y + 0.5)
 		n.scale = Vector3.ONE * 1.2
 		if u.c.dead or u.c.wound_state() == Combatant.Wound.MORTAL:
@@ -559,55 +411,89 @@ func _refresh() -> void:
 	_toast_new_log()
 
 
+func _cut_radius() -> float:
+	return clampf(cam_dist * 0.3, 5.0, 13.0) if cutaway else 0.0
+
+
+func _update_cut() -> void:
+	RenderingServer.global_shader_parameter_set("cut_center", Vector3(cam_target.x, view_floor, cam_target.z))
+	RenderingServer.global_shader_parameter_set("cut_radius", _cut_radius())
+
+
+func _cut_hides(v: Vector3i) -> bool:
+	return v.z > view_floor and Vector2(v.x + 0.5 - cam_target.x, v.y + 0.5 - cam_target.z).length() < _cut_radius()
+
+
 func _update_fog() -> void:
 	var data := PackedByteArray()
 	data.resize(m.w * m.h * m.floors)
-	for f in m.floors:
-		for y in m.h:
-			for x in m.w:
-				data[(f * m.h + y) * m.w + x] = [0, 128, 255][enc.vision.state(Vector3i(x, y, f))]
+	if not fog_on:
+		data.fill(255)
+	else:
+		for f in m.floors:
+			for y in m.h:
+				for x in m.w:
+					data[(f * m.h + y) * m.w + x] = [0, 128, 255][enc.vision.state(Vector3i(x, y, f))]
 	fog_img.set_data(m.w, m.h * m.floors, false, Image.FORMAT_L8, data)
 	fog_tex.update(fog_img)
 
 
-## Doors: a slab while closed (red light strip if a locked security door, green otherwise).
+## Door leaves: closed in the wall line, or swung open 90° on the hinge; a lock light on the frame.
 func _build_doors() -> void:
 	for ch in door_nodes.get_children():
 		ch.queue_free()
 	for d in m.doors:
 		var v := Vector3i(d.pos.x, d.pos.y, d.floor)
-		if d.floor > view_floor or enc.los.open_doors.has(v) or m.t(d.floor, d.pos.x, d.pos.y) != TacMap.T.DOOR:
+		if m.t(d.floor, d.pos.x, d.pos.y) != TacMap.T.DOOR or (fog_on and not enc.vision.explored.has(v)):
 			continue
-		if fog_on and not enc.vision.explored.has(v):
-			continue
-		var ns := m.walkable(d.floor, Vector2i(d.pos.x, d.pos.y - 1)) or m.walkable(d.floor, Vector2i(d.pos.x, d.pos.y + 1))
-		var h := LOW_WALL if cutaway and d.floor == view_floor else FH * 0.8
-		var slab := MeshInstance3D.new()
+		var leaf := builder.door_leaf(d)
+		var horiz: bool = leaf.horiz
+		var c: Vector3 = leaf.center
+		var open: bool = enc.los.open_doors.has(v)
+		var mi := MeshInstance3D.new()
 		var bm := BoxMesh.new()
-		bm.size = Vector3(0.18, h, 1) if not ns else Vector3(1, h, 0.18)
-		bm.material = _mat(Color("2a2d33"), d.floor, {"mode": 2, "metal": 0.5, "rough": 0.4})
-		slab.mesh = bm
-		slab.position = Vector3(v.x + 0.5, v.z * FH + h / 2, v.y + 0.5)
-		door_nodes.add_child(slab)
+		bm.material = builder.mat("door", d.floor)
+		var along := horiz != open
+		bm.size = Vector3(0.88, 1.1, 0.05) if along else Vector3(0.05, 1.1, 0.88)
+		mi.mesh = bm
+		mi.position = c
+		if open:
+			mi.position += Vector3(-0.44, 0, 0.44) if horiz else Vector3(0.44, 0, -0.44)
+		door_nodes.add_child(mi)
+		var lamp := MeshInstance3D.new()
+		var lm := BoxMesh.new()
+		lm.size = Vector3(0.05, 0.08, 0.05)
 		var locked: bool = enc.nav.locked.has(v)
-		var strip := MeshInstance3D.new()
-		var sm := BoxMesh.new()
-		sm.size = bm.size * Vector3(1.05, 0.06, 1.05)
-		sm.material = _unlit(Color("ff3030") if locked else Color("30ff90"), 1.0, 2.5)
-		strip.mesh = sm
-		strip.position = slab.position + Vector3(0, h * 0.35, 0)
-		door_nodes.add_child(strip)
+		lm.material = _unlit(Color("ff3030") if locked else Color("30ff90"), 1.0, 3.0)
+		lamp.mesh = lm
+		lamp.position = c + (Vector3(0.47, 0.05, 0.26) if horiz else Vector3(0.26, 0.05, 0.47))
+		door_nodes.add_child(lamp)
 
 
+## Move range as one marching-squares area (no tiles), with the hovered path as small markers.
 func _draw_grid() -> void:
 	move_opts = {}
 	if _crew_turn() and enc.turn.can_move():
 		move_opts = enc.move_options()
-	var cells := []
+	var mask := {}
 	for v in move_opts:
 		if v.z == view_floor:
-			cells.append(v)
-	grid_node.multimesh = _tiles(cells, Color("05d9e8"), 0.07, 0.8)
+			mask[Vector2i(v.x, v.y)] = true
+	var tris := WorldBuilder.marching(func(x: int, y: int) -> bool: return mask.has(Vector2i(x, y)), m.w, m.h)
+	if tris.is_empty():
+		grid_node.mesh = null
+	else:
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		var y := view_floor * FH + 0.09
+		for i in range(0, tris.size(), 3):
+			for k in [0, 1, 2, 0, 2, 1]:
+				var p: Vector2 = tris[i + k]
+				st.add_vertex(Vector3(p.x, y, p.y))
+		grid_node.mesh = st.commit()
+		var mt := _unlit(Color("05d9e8"), 0.09, 1.0)
+		mt.cull_mode = BaseMaterial3D.CULL_DISABLED
+		grid_node.material_override = mt
 	_draw_path()
 
 
@@ -629,7 +515,7 @@ func _draw_path() -> void:
 	var cells := []
 	if move_opts.has(hover) and _crew_turn():
 		cells = Array(enc._with_locks(func(): return enc.nav.path(enc.cur.pos, hover, enc.occupied(enc.cur))))
-	path_node.multimesh = _tiles(cells, Color("f9c80e"), 0.7, 0.34)
+	path_node.multimesh = _tiles(cells, Color("f9c80e"), 0.9, 0.16)
 
 
 func _place_camera() -> void:
@@ -638,6 +524,7 @@ func _place_camera() -> void:
 	cam.position = cam_target + Vector3(0, fy, 0) + off
 	cam.look_at(cam_target + Vector3(0, fy, 0))
 	cam.size = cam_dist * 0.62
+	_update_cut()
 
 
 # --- Input ------------------------------------------------------------------------
@@ -672,7 +559,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			KEY_SPACE: _on_hud("end_turn", null)
 			KEY_F1: gig.seed += 1; new_gig()
 			KEY_F2: hud.settings.visible = not hud.settings.visible
-			KEY_F3: fog_on = not fog_on; _mats.clear(); _build_world()
+			KEY_F3: fog_on = not fog_on; _refresh()
 
 
 func _on_hud(name: String, arg: Variant) -> void:
@@ -810,7 +697,8 @@ func _toast_new_log() -> void:
 func _float(u: Dictionary, text: String, col: Color) -> void:
 	var l := Label.new()
 	l.text = text
-	l.add_theme_font_size_override("font_size", 26)
+	l.add_theme_font_override("font", Hud.F_DISPLAY)
+	l.add_theme_font_size_override("font_size", 28)
 	l.add_theme_color_override("font_color", col)
 	l.add_theme_color_override("font_outline_color", Color.BLACK)
 	l.add_theme_constant_override("outline_size", 6)
@@ -831,10 +719,10 @@ func _update_hover() -> void:
 	var t := _unit_at(hover)
 	if t.is_empty() or t.team == 0 or enc.cur.c.weapons.is_empty():
 		if cover_mode and enc.los.blocker(hover) != "":
-			hud.tip("[b]Shoot cover[/b]\n%s" % ("cover piece, %d HP" % enc.los.cover_hp[hover] if enc.los.cover_hp.get(hover, 0) > 0 else "wall / door"), mouse)
+			hud.tip("[b]%s[/b]" % ("Cover piece · [code]%d HP[/code]" % enc.los.cover_hp[hover] if enc.los.cover_hp.get(hover, 0) > 0 else "Wall / door"), mouse, "// SHOOT COVER", Hud.GOLD)
 		elif move_opts.has(hover):
 			var p: Array[Vector3i] = enc._with_locks(func(): return enc.nav.path(enc.cur.pos, hover, enc.occupied(enc.cur)))
-			hud.tip("[color=#f9c80e]Move[/color]  %d of %d squares" % [enc.nav.cost_of(enc.cur.pos, p), enc.turn.squares_available()], mouse)
+			hud.tip("[code]%d / %d[/code] squares" % [enc.nav.cost_of(enc.cur.pos, p), enc.turn.squares_available()], mouse, "// MOVE", Color("ffb000"))
 		else:
 			hud.tip("", mouse)
 		return
@@ -847,7 +735,7 @@ func _update_hover() -> void:
 	if p.ok:
 		var pct := roundi(p.chance * 100)
 		var col := "#39f0a0" if pct >= 65 else ("#f9c80e" if pct >= 35 else "#ff3b4f")
-		lines.append("[font_size=24][color=%s]%d%%[/color][/font_size]  to hit · %s" % [col, pct, ["Single", "Autofire", "Head shot", "Leg", "Held"][mode]])
+		lines.append("[code][font_size=44][color=%s]%d%%[/color][/font_size][/code]  to hit · %s" % [col, pct, ["Single", "Autofire", "Head shot", "Leg", "Held"][mode]])
 		lines.append("Range %d m · DV %d · %s" % [roundi(Los.distance_m(p.from, t.pos)), int(p.dv), w.def.name])
 		if p.blocker.x >= 0 and p.from != enc.cur.pos:
 			lines.append("[color=#05d9e8]Leaning out of cover[/color]")
@@ -856,4 +744,4 @@ func _update_hover() -> void:
 		if p.get("blocker", Vector3i(-1, -1, -1)).x >= 0:
 			lines.append("[color=#7d8a96]X: shoot the cover in the way[/color]")
 	lines.append("HP %d/%d · SP head %d body %d" % [c.hp, c.max_hp(), c.sp("head"), c.sp("body")])
-	hud.tip("\n".join(lines), mouse)
+	hud.tip("\n".join(lines), mouse, "// TARGET · HOSTILE", Hud.RED)
