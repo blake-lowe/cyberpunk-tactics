@@ -25,6 +25,8 @@ uniform float floor_idx = 0.0;
 uniform float floors = 1.0;
 uniform int mode = 0;
 uniform float explored_dim = 0.6;
+uniform float fog_sat = 0.3;        // colour kept in explored-but-unseen areas (1 = full colour)
+uniform float fog_cool = 1.0;       // 1: unseen areas shift blue (night scenes); 0: same hue, just dimmer
 uniform bool cuttable = false;
 uniform bool shell = false;
 uniform sampler2D lightfield : filter_linear, repeat_disable;
@@ -171,7 +173,7 @@ void fragment() {
 	if (offmap) {   // beyond the map reads like explored-but-unseen ground, then fades with distance
 		float od = length(max(abs(wpos.xz - map_size * 0.5) - map_size * 0.5, 0.0));
 		float lo = dot(base, vec3(0.3, 0.59, 0.11));
-		base = mix(vec3(lo), base, 0.3) * explored_dim * vec3(0.8, 0.9, 1.15);
+		base = mix(vec3(lo), base, fog_sat) * explored_dim * mix(vec3(1.0), vec3(0.8, 0.9, 1.15), fog_cool);
 		base *= mix(1.0, 0.55, smoothstep(0.0, 60.0, od));
 	}
 	// --- baked light spill (rgb) and contact occlusion (a): walls sample the space they face
@@ -195,8 +197,8 @@ void fragment() {
 	if (lq >= 0.75) emit += (lf / max(pk, 1e-3)) * 0.12;   // hot core: pools have a coloured centre
 	if (k < 1.0) {
 		float l = dot(base, vec3(0.3, 0.59, 0.11));
-		base = mix(vec3(l), base, 0.3) * k * mix(vec3(0.8, 0.9, 1.15), vec3(1.0), vis);
-		emit *= mix(0.4, 1.0, vis);
+		base = mix(vec3(l), base, mix(fog_sat, 1.0, vis)) * k * mix(mix(vec3(1.0), vec3(0.8, 0.9, 1.15), fog_cool), vec3(1.0), vis);
+		emit *= mix(mix(0.4, 0.85, 1.0 - fog_cool), 1.0, vis);
 	}
 	if (flat_shade) NORMAL = normalize(cross(dFdy(VERTEX), dFdx(VERTEX)));
 	ALBEDO = base;

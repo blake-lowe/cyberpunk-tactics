@@ -74,7 +74,8 @@ const PALETTE := ["05060a", "0b0e16", "141a26", "1e2636", "2a3448", "3a4660", "4
 const LOOKS := {
 	"default": {"ambient": "262c44", "amb_e": 0.65, "key": "8fa0e0", "key_e": 0.5, "fog": "0d1422", "fog_d": 0.0035},
 	"badlands": {"ambient": "4c4c90", "amb_e": 0.75, "key": "ffc898", "key_e": 1.15, "fog": "a86a58", "fog_d": 0.0025,
-		"sun": [-17.0, 235.0], "sky": ["1c2050", "9a4466", "ff8c3c"], "palette": "sunset", "rim": ["6a5aa0", 0.35], "lights": 0.55},
+		"sun": [-17.0, 235.0], "sky": ["1c2050", "9a4466", "ff8c3c"], "palette": "sunset", "rim": ["6a5aa0", 0.35], "lights": 0.55,
+		"fog_dim": 0.78, "fog_sat": 0.9, "fog_cool": 0.0},
 }
 const DECAL := """
 shader_type spatial;
@@ -633,7 +634,10 @@ func _unit_node(u: Dictionary) -> CharModel:
 func _apply_world_look() -> void:
 	if builder:
 		for mt in builder.materials():
-			mt.set_shader_parameter("explored_dim", look.dim)
+			var lk := _scene_look()   # per scene: bright natural scenes only dim what's out of sight (owner)
+			mt.set_shader_parameter("explored_dim", float(lk.get("fog_dim", look.dim)))
+			mt.set_shader_parameter("fog_sat", float(lk.get("fog_sat", 0.3)))
+			mt.set_shader_parameter("fog_cool", float(lk.get("fog_cool", 1.0)))
 			mt.set_shader_parameter("spill", 0.0 if _net_cleaned else look.spill)   # cyberspace keeps the spill off
 			mt.set_shader_parameter("lightfield", builder.lightfield)
 
