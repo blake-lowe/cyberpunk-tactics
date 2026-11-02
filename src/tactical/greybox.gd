@@ -446,9 +446,22 @@ func new_gig() -> void:
 	var o := {"security": gig.security}
 	if gig.profile != "":
 		o["profile"] = gig.profile
+	var camp := Campaign.current
+	var campaign_gig: bool = camp != null and not camp.active_gig.is_empty() and _reel == "" and _shot_path == ""
+	if campaign_gig:   # a gig taken from the fixer board: its scene, security and crew
+		gig.scene = String(camp.active_gig.scene)
+		gig.seed = int(camp.active_gig.seed)
+		gig.security = int(camp.active_gig.security)
+		gig.profile = ""
+		o = {"security": gig.security}
 	m = SceneGen.generate(gig.seed, "neighborhood" if gig.profile != "" else gig.scene, o)
 	dice = Dice.new(gig.seed + 1)
 	var crew: Array[Combatant] = [Recruit.generate(dice, "solo", "edgerunner", "Vex"), Recruit.generate(dice, "netrunner", "edgerunner", "Patch")]
+	if campaign_gig:
+		crew.clear()
+		for c in camp.alive_crew():
+			if c.can_act():
+				crew.append(c)
 	enc = Encounter.setup(m, dice, crew)
 	_log_seen = 0
 	var lk := _scene_look()
@@ -570,7 +583,7 @@ func _build_world() -> void:
 	target_ring = _decal(Color("ff3b4f"), 1.2, true, 0.0)
 	decals.clear()
 	for u in enc.units:
-		var n := CharModel.build(u.team, u.id, String(u.c.role), u.c.weapons[0].id() if not u.c.weapons.is_empty() else "assault_rifle")
+		var n := CharModel.build(u.team, u.c.look_seed if u.c.look_seed >= 0 else u.id, String(u.c.role), u.c.weapons[0].id() if not u.c.weapons.is_empty() else "assault_rifle")
 		decals[u.id] = _decal(Color("05d9e8"), 0.95, false, 0.0)
 		decals[u.id].visible = false   # owner: no glows under units; they blend into the scene
 		var blob := _decal(Color.BLACK, 0.75, false, 0.0, true)   # contact shadow
@@ -1824,6 +1837,19 @@ func _after_action() -> void:
 	_update_hover()
 	if new_turn and enc.state == "playing":
 		hud.turn_banner("%s  ·  YOUR MOVE" % enc.cur.c.display_name.to_upper(), Hud.GOLD)
+	if enc.state != "playing" and Campaign.current and not Campaign.current.active_gig.is_empty():
+		_finish_gig()
+
+
+## A board gig is over: settle it (pay, injuries, the dead), save, and go back to the board.
+func _finish_gig() -> void:
+	hud.turn_banner("GIG %s  ·  BACK TO THE BOARD" % ("COMPLETE" if enc.state == "won" else "FAILED"), Hud.GREEN if enc.state == "won" else Hud.RED)
+	await get_tree().create_timer(3.0).timeout
+	var camp := Campaign.current
+	var report := camp.resolve(enc)
+	camp.set_meta("report", report)
+	camp.save()
+	get_tree().change_scene_to_file("res://scenes/board.tscn")
 
 
 # --- Juice: event playback ----------------------------------------------------------

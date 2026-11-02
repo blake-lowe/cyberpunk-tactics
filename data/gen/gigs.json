@@ -3,7 +3,7 @@
   "fixers": ["Rogue's Cousin", "Mama Lou", "Padre", "Hex Kowalski", "Tanaka-san", "Dakota"],
   "corps": ["Biotechnica", "Petrochem", "Militech", "Zetatech", "Kang Tao", "Trauma Team", "Rocklin Augmentics"],
   "gangs": ["Maelstrom", "Tyger Claws", "Valentinos", "6th Street", "Wraiths", "Bozos"],
-  "data": ["payroll ledger", "prototype schematics", "blackmail archive", "clinical trial data", "shipping manifests", "a rival's black book"],
+  "data": ["payroll ledger", "prototype schematics", "blackmail archive", "clinical trial data", "shipping manifests", "black book"],
   "templates": [
     {"kind": "data_theft", "titles": ["Lift the {data} from {corp}", "{corp} wants it gone, we want it first: {data}", "Get in, pull the {data}, get out"],
       "blurb": "{fixer} has a buyer for {corp}'s {data}. Jack in and pull the file, or put the guards down and take it the old way.",

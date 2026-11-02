@@ -1,0 +1,271 @@
+class_name Board
+extends Control
+## Between gigs (M6, spec: Gigs & Mission Structure, Meta Progression): the crew, the fixer board,
+## recruits, rest and treatment. Same visual language as the tactical HUD (chamfered panels, pixel
+## and terminal fonts, no rounded corners). Main scene: dev flags (--shot, --reel, --scene, ...) skip
+## straight to the tactical view so the review tooling keeps working.
+
+const GREYBOX := "res://scenes/greybox.tscn"
+const DEV_FLAGS := ["shot", "reel", "scene", "profile", "attack", "jack", "walk"]
+
+var camp: Campaign
+var report: Dictionary = {}   ## the last gig's results, shown once
+var portraits: Portraits
+var _root: VBoxContainer
+var _shot_path := ""
+var _frames := 0
+
+
+func _ready() -> void:
+	var dev := false
+	var board_shot := false
+	for a in OS.get_cmdline_user_args():
+		var k := a.trim_prefix("--").get_slice("=", 0)
+		if k in DEV_FLAGS:
+			dev = true
+		if k == "shot":
+			_shot_path = a.get_slice("=", 1)
+		if k == "board":   # --board --shot=x.png screenshots this screen
+			board_shot = true
+	if dev and not board_shot:
+		get_tree().change_scene_to_file.call_deferred(GREYBOX)
+		return
+	Hud._fonts()
+	camp = Campaign.current
+	if camp == null:
+		camp = Campaign.load_from()
+		if camp == null or camp.crew.is_empty():
+			camp = Campaign.new_game(int(Time.get_unix_time_from_system()) % 100000)
+		Campaign.current = camp
+	if camp.has_meta("report"):
+		report = camp.get_meta("report")
+		camp.remove_meta("report")
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var bg := ColorRect.new()
+	bg.color = Color("06080c")
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(bg)
+	portraits = Portraits.new()
+	add_child(portraits)
+	_build()
+
+
+func _process(_d: float) -> void:
+	if _shot_path != "":
+		_frames += 1
+		if _frames == 20:
+			get_viewport().get_texture().get_image().save_png(_shot_path)
+			get_tree().quit()
+
+
+func _text(s: String, font: Font, size: int, col := Hud.TEXT, wrap := false) -> Label:
+	var l := Label.new()
+	l.text = s
+	l.add_theme_font_override("font", font)
+	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_color_override("font_color", col)
+	if wrap:   # only in vertical stacks: in a row a wrapping label collapses to one letter per line
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	return l
+
+
+func _panel(accent: Color) -> PanelContainer:
+	var p := PanelContainer.new()
+	p.add_theme_stylebox_override("panel", CutBox.make(Hud.INK, Color(accent, 0.5), 12, 0b0101, accent, 12))
+	return p
+
+
+func _button(label: String, col: Color, cb: Callable, enabled := true) -> Button:
+	var b := Button.new()
+	b.text = label
+	b.focus_mode = Control.FOCUS_NONE
+	b.disabled = not enabled
+	b.add_theme_font_override("font", Hud.F_DISPLAY)
+	b.add_theme_font_size_override("font_size", 20)
+	b.add_theme_color_override("font_color", col)
+	b.add_theme_stylebox_override("normal", CutBox.make(Color(0.03, 0.045, 0.06, 0.95), Color(col, 0.5), 7, 0b0101))
+	b.add_theme_stylebox_override("hover", CutBox.make(Color(col.r * 0.15, col.g * 0.15, col.b * 0.15, 0.97), col, 7, 0b0101))
+	b.add_theme_stylebox_override("pressed", CutBox.make(Color(0.14, 0.11, 0.02, 0.97), Hud.GOLD, 7, 0b0101))
+	b.add_theme_stylebox_override("disabled", CutBox.make(Color(0.02, 0.025, 0.03, 0.8), Color(Hud.DIM, 0.2), 7, 0b0101))
+	b.pressed.connect(cb)
+	return b
+
+
+func _rebuild() -> void:
+	camp.save()
+	for ch in get_children():
+		if ch is ScrollContainer:
+			ch.queue_free()
+	_build()
+
+
+func _build() -> void:
+	var scroll := ScrollContainer.new()
+	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	add_child(scroll)
+	var margin := MarginContainer.new()
+	margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for side in ["left", "right", "top", "bottom"]:
+		margin.add_theme_constant_override("margin_" + side, 28)
+	scroll.add_child(margin)
+	_root = VBoxContainer.new()
+	_root.add_theme_constant_override("separation", 18)
+	margin.add_child(_root)
+	# header
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 24)
+	_root.add_child(head)
+	var title := _text("NIGHT CITY", Hud.F_DISPLAY, 56, Hud.GOLD)
+	head.add_child(title)
+	for s in [["DAY %d" % camp.day, Hud.CYAN], ["%s eb" % _money(camp.eb), Hud.GREEN], ["REP %d" % camp.rep, Hud.MAGENTA]]:
+		var l := _text(s[0], Hud.F_TERM, 34, s[1])
+		l.size_flags_vertical = Control.SIZE_SHRINK_END
+		head.add_child(l)
+	if not report.is_empty():
+		_root.add_child(_report_panel())
+	var cols := HBoxContainer.new()
+	cols.add_theme_constant_override("separation", 18)
+	_root.add_child(cols)
+	var left := VBoxContainer.new()
+	left.custom_minimum_size = Vector2(430, 0)
+	left.add_theme_constant_override("separation", 12)
+	cols.add_child(left)
+	var mid := VBoxContainer.new()
+	mid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	mid.add_theme_constant_override("separation", 12)
+	cols.add_child(mid)
+	left.add_child(_text("// CREW", Hud.F_PIXEL, 22, Hud.CYAN))
+	for c in camp.crew:
+		left.add_child(_crew_card(c))
+	var acts := HBoxContainer.new()
+	acts.add_theme_constant_override("separation", 8)
+	acts.add_child(_button("REST 1 DAY", Hud.CYAN, func(): camp.rest(1); _rebuild()))
+	acts.add_child(_button("REST UNTIL HEALED", Hud.CYAN, func(): _rest_full(); _rebuild()))
+	left.add_child(acts)
+	if not camp.fallen.is_empty():
+		left.add_child(_text("// FLATLINED", Hud.F_PIXEL, 22, Hud.RED))
+		for f in camp.fallen:
+			left.add_child(_text("%s · %s · day %d · %s" % [String(f.name).to_upper(), String(f.role).capitalize(), int(f.day), f.gig], Hud.F_TERM, 20, Color(Hud.RED, 0.8), true))
+	mid.add_child(_text("// FIXER BOARD", Hud.F_PIXEL, 22, Hud.GOLD))
+	for i in camp.board.size():
+		mid.add_child(_gig_card(i))
+	mid.add_child(_text("// FOR HIRE  (%s eb · crew of 4 max)" % _money(int(Campaign.ECON.hire)), Hud.F_PIXEL, 22, Hud.GREEN))
+	var hires := HBoxContainer.new()
+	hires.add_theme_constant_override("separation", 10)
+	mid.add_child(hires)
+	for i in camp.recruits.size():
+		hires.add_child(_recruit_card(i))
+	mid.add_child(_text("// LOG", Hud.F_PIXEL, 22, Hud.DIM))
+	for l in camp.log.slice(-6):
+		mid.add_child(_text("> " + l, Hud.F_TERM, 20, Color(Hud.TEXT, 0.7), true))
+
+
+static func _money(v: int) -> String:
+	var s := str(absi(v))
+	var out := ""
+	while s.length() > 3:
+		out = "," + s.substr(s.length() - 3) + out
+		s = s.substr(0, s.length() - 3)
+	return ("-" if v < 0 else "") + s + out
+
+
+func _rest_full() -> void:
+	var days := 0
+	while days < 14 and camp.crew.any(func(c): return c.hp < c.max_hp()):
+		camp.rest(1)
+		days += 1
+
+
+func _crew_card(c: Combatant) -> PanelContainer:
+	var p := _panel(UnitLook.CREW_ACCENTS[maxi(0, c.look_seed) % 4])
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	p.add_child(row)
+	var pic := TextureRect.new()
+	pic.texture = portraits.tex({"id": 1000 + maxi(0, c.look_seed), "team": 0, "c": c})
+	pic.custom_minimum_size = Vector2(72, 72)
+	pic.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	row.add_child(pic)
+	var col := VBoxContainer.new()
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	col.add_theme_constant_override("separation", 2)
+	row.add_child(col)
+	col.add_child(_text(c.display_name.to_upper(), Hud.F_DISPLAY, 30, Hud.TEXT))
+	col.add_child(_text("%s · RANK %d · %d IP" % [c.role.to_upper(), c.role_rank, c.ip], Hud.F_TERM, 20, Hud.CYAN))
+	var hpcol := Hud.GREEN if c.hp >= c.max_hp() else (Hud.GOLD if c.wound_state() < Combatant.Wound.SERIOUS else Hud.RED)
+	col.add_child(_text("HP %d/%d   SP %d/%d" % [c.hp, c.max_hp(), c.sp("head"), c.sp("body")], Hud.F_TERM, 20, hpcol))
+	if c.grenades > 0 or not c.weapons.is_empty():
+		col.add_child(_text(", ".join(c.weapons.map(func(w): return String(w.def.name))) + ("  · frag ×%d" % c.grenades if c.grenades > 0 else ""), Hud.F_TERM, 18, Color(Hud.TEXT, 0.7), true))
+	for i in c.injuries.size():
+		var inj: Dictionary = c.injuries[i]
+		var r := HBoxContainer.new()
+		r.add_child(_text("! " + String(inj.get("name", "injury")).to_upper(), Hud.F_TERM, 20, Hud.RED))
+		var idx := i
+		r.add_child(_button("TREAT %d eb" % int(Campaign.ECON.treat_injury), Hud.GREEN, func(): camp.treat(c, idx); _rebuild(), camp.eb >= int(Campaign.ECON.treat_injury)))
+		col.add_child(r)
+	# training: the best combat skill to raise next, if affordable
+	var best := ""
+	for s in ["handgun", "shoulder_arms", "autofire", "evasion", "melee_weapon", "first_aid", "athletics", "stealth"]:
+		if c.skills.has(s) and (best == "" or int(c.skills[s]) > int(c.skills[best])):
+			best = s
+	if best != "":
+		var cost := c.skill_raise_cost(best)
+		col.add_child(_button("TRAIN %s → %d  (%d IP)" % [best.replace("_", " ").to_upper(), int(c.skills[best]) + 1, cost], Hud.MAGENTA,
+			func(): c.raise_skill(best); _rebuild(), c.ip >= cost and int(c.skills[best]) < 10))
+	return p
+
+
+func _gig_card(i: int) -> PanelContainer:
+	var g: Dictionary = camp.board[i]
+	var p := _panel(Hud.GOLD)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 4)
+	p.add_child(col)
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 14)
+	col.add_child(top)
+	var t := _text(String(g.title).to_upper(), Hud.F_DISPLAY, 30, Hud.GOLD, true)
+	top.add_child(t)
+	top.add_child(_text("%s eb" % _money(int(g.pay)), Hud.F_TERM, 30, Hud.GREEN))
+	col.add_child(_text("%s · %s · SECURITY %s" % [String(g.fixer).to_upper(), String(RulesDB.gen("scenes.json")[g.scene].get("name", g.scene)).to_upper(), "◆".repeat(int(g.security)) + "◇".repeat(3 - int(g.security))], Hud.F_TERM, 20, Hud.CYAN))
+	col.add_child(_text(String(g.blurb), Hud.F_BODY, 20, Color(Hud.TEXT, 0.85), true))
+	var ready := camp.alive_crew().any(func(c): return c.can_act() and c.wound_state() < Combatant.Wound.MORTAL)
+	col.add_child(_button("TAKE THE GIG", Hud.GOLD, func(): _take(i), ready))
+	return p
+
+
+func _recruit_card(i: int) -> PanelContainer:
+	var r: Combatant = camp.recruits[i]
+	var p := _panel(Hud.GREEN)
+	var col := VBoxContainer.new()
+	p.add_child(col)
+	col.add_child(_text(r.display_name.to_upper(), Hud.F_DISPLAY, 26, Hud.TEXT))
+	col.add_child(_text(r.role.to_upper(), Hud.F_TERM, 20, Hud.GREEN))
+	col.add_child(_button("HIRE", Hud.GREEN, func(): camp.hire(i); _rebuild(), camp.eb >= int(Campaign.ECON.hire) and camp.crew.size() < 4))
+	return p
+
+
+func _report_panel() -> PanelContainer:
+	var won: bool = report.won
+	var p := _panel(Hud.GREEN if won else Hud.RED)
+	var col := VBoxContainer.new()
+	p.add_child(col)
+	col.add_child(_text(("GIG COMPLETE · " if won else "GIG FAILED · ") + String(report.gig.get("title", "")).to_upper(), Hud.F_DISPLAY, 34, Hud.GREEN if won else Hud.RED, true))
+	var parts := ["%+d eb" % (int(report.pay) - int(report.fees)), "%+d rep" % int(report.rep), "%d IP each" % int(report.ip)]
+	col.add_child(_text("   ".join(parts), Hud.F_TERM, 26, Hud.TEXT))
+	if not report.dead.is_empty():
+		col.add_child(_text("FLATLINED: " + ", ".join(report.dead).to_upper(), Hud.F_TERM, 24, Hud.RED))
+	if not report.hurt.is_empty():
+		col.add_child(_text("Hurt: " + ", ".join(report.hurt) + " (rest to heal; clinics treat Critical Injuries)", Hud.F_TERM, 20, Hud.GOLD, true))
+	return p
+
+
+func _take(i: int) -> void:
+	if camp.accept(i).is_empty():
+		return
+	camp.save()
+	get_tree().change_scene_to_file(GREYBOX)

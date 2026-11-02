@@ -27,13 +27,15 @@ func tex(u: Dictionary, _state := 0) -> Texture2D:
 	vp.msaa_3d = Viewport.MSAA_DISABLED
 	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 	add_child(vp)
-	var model := CharModel.build(u.team, u.id, String(u.c.role), u.c.weapons[0].id() if not u.c.weapons.is_empty() else "assault_rifle")
+	var model := CharModel.build(u.team, u.c.look_seed if u.c.look_seed >= 0 else u.id, String(u.c.role), u.c.weapons[0].id() if not u.c.weapons.is_empty() else "assault_rifle")
 	var look: Dictionary = model.look
 	for mt in model.get_meta("mats", []):
 		(mt as ShaderMaterial).set_shader_parameter("use_field", false)
 	model.rotation.y = deg_to_rad(-18)
 	vp.add_child(model)
 	model.pose_still("idle_shift" if u.team == 0 else "rifle_idle", 0.4)   # a calm frame for the bust
+	vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	_render_later.call_deferred(vp, model, "idle_shift" if u.team == 0 else "rifle_idle")
 	var accent: Color = look.accent
 	# backdrop: plain dark (owner: the bokeh was messy)
 	var cam := Camera3D.new()
@@ -73,6 +75,15 @@ func tex(u: Dictionary, _state := 0) -> Texture2D:
 	vp.add_child(we)
 	_cache[u.id] = vp.get_texture()
 	return _cache[u.id]
+
+
+## The model may not have been ready when posed (fresh scene): pose again once it is, then render
+## the bust a couple of frames later so the skeleton has settled.
+func _render_later(vp: SubViewport, model: CharModel, clip: String) -> void:
+	model.pose_still(clip, 0.4)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 
 
 ## Material for drawing portraits: the palette post shader at portrait resolution.
