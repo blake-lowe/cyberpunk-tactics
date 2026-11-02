@@ -38,6 +38,26 @@ static func plan(m: TacMap, seed_value: int) -> Array:
 				continue
 			taken.append(p)
 			out.append({"kind": "lamp", "cell": Vector3i(x, y, 0), "out": Vector2i.ZERO, "color": lamp_col, "energy": 0.9, "range": 7.0})
+	# Outside the city (few lamps): a few burning barrels / fire pits near cover, for warm pools.
+	if out.filter(func(x): return x.kind == "lamp").size() < 2:
+		var spots: Array[Vector2i] = []
+		for c in m.cover:
+			if c.floor != 0:
+				continue
+			for d in MapGen.DIRS:
+				var v: Vector2i = Vector2i(c.pos.x, c.pos.y) + d
+				if m.inb(v.x, v.y) and m.t(0, v.x, v.y) == TacMap.T.OUTSIDE and not m.has_cover_at(0, v):
+					spots.append(v)
+					break
+		var placed: Array[Vector2i] = []
+		for i in 40:
+			if spots.is_empty() or placed.size() >= 3:
+				break
+			var v: Vector2i = spots[rng.randi() % spots.size()]
+			if placed.any(func(q): return q.distance_to(v) < 12):
+				continue
+			placed.append(v)
+			out.append({"kind": "fire", "cell": Vector3i(v.x, v.y, 0), "out": Vector2i.ZERO, "color": Color("ff8a30"), "energy": 2.2, "range": 7.0})
 	# One light per indoor room (big rooms get two), tinted by security level.
 	for r in m.rooms:
 		if r.cells < 4 or r.get("outdoor", false) or r.floor < 0 or r.kind == "void":

@@ -33,8 +33,45 @@ var move_opts := {}
 var hover := Vector3i(-1, -1, -1)
 var mouse := Vector2.ZERO
 var gig := {"scene": "skirmish", "profile": "", "seed": 11, "security": 1}
-var look := {"pixel": 3.0, "levels": 0.0, "dither": 0.5, "contrast": 1.1, "saturation": 1.15, "outline": 0.4,
-	"bloom": 0.8, "ortho": 0.0, "lights": 1.6, "dim": 0.65}
+var look := {"pixel": 0.0, "palette": 1.0, "levels": 0.0, "dither": 0.3, "contrast": 1.0, "saturation": 1.1, "outline": 0.35,
+	"bloom": 1.2, "ortho": 1.0, "lights": 1.0, "dim": 0.8, "spill": 1.8}
+
+## Curated palette (M4b critique: a real limited palette instead of free-floating mids): ink and
+## navy ramps, warm concrete, cool greys, skin, wood, foliage, and each neon in two steps.
+const PALETTE := ["05060a", "0b0e16", "141a26", "1e2636", "2a3448", "3a4660", "1a1714", "2b2622", "3d3630", "554b42",
+	"70665a", "8e8476", "4a5560", "66717c", "8a96a0", "b4bec6", "dfe6ea", "5a3a2a", "8a5a40", "c08a68", "e8b896",
+	"3a2418", "6a4a2a", "12261a", "1f4a2a", "3a6a3a", "ff2a6d", "8a1438", "05d9e8", "046a78", "f9c80e", "8a6a06",
+	"b537f2", "5a1a7a", "ff6b1a", "8a3608", "39f0a0", "12784a", "fff4e0", "ffffff", "ff3b4f", "7a1420", "0d2a3a",
+	"1a4a5a", "4a2a4a", "2a1a2e"]
+const DECAL := """
+shader_type spatial;
+render_mode unshaded, blend_add, depth_draw_never, cull_disabled, shadows_disabled;
+uniform vec4 col : source_color = vec4(0.0, 0.85, 0.9, 1.0);
+uniform float pulse = 0.0;
+uniform float ring = 0.0;
+void fragment() {
+	float d = length(UV - 0.5) * 2.0;
+	float a = smoothstep(1.0, 0.15, d) * 0.45;
+	if (ring > 0.5) a = max(a * 0.35, smoothstep(0.1, 0.0, abs(d - 0.82)));
+	a *= 1.0 + pulse * 0.45 * sin(TIME * 4.0);
+	ALBEDO = col.rgb * a * 1.6;
+}
+"""
+const RANGE := """
+shader_type spatial;
+render_mode unshaded, blend_add, depth_draw_never, cull_disabled, shadows_disabled;
+uniform sampler2D mask : filter_linear, repeat_disable;
+uniform vec4 col : source_color = vec4(0.02, 0.85, 0.91, 1.0);
+varying vec3 wpos;
+void vertex() { wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
+void fragment() {
+	float v = texture(mask, UV).r;
+	float edge = smoothstep(0.38, 0.5, v) - smoothstep(0.5, 0.62, v);
+	float fill = smoothstep(0.45, 0.55, v);
+	float dash = step(0.5, fract((wpos.x + wpos.z) * 1.2 - TIME * 0.5));
+	ALBEDO = col.rgb * (edge * (1.2 + dash * 0.9) + fill * 0.05);
+}
+"""
 
 var svp: SubViewport
 var screen: TextureRect
@@ -44,14 +81,18 @@ var sun: DirectionalLight3D
 var cam: Camera3D
 var cam_target := Vector3.ZERO
 var cam_yaw := 45.0
-var cam_dist := 34.0
+var cam_dist := 20.0
 var hud: Hud
 var world: Node3D
 var floor_nodes: Array[Node3D] = []
 var unit_nodes := {}
 var door_nodes: Node3D
 var grid_node: MeshInstance3D
-var path_node: MultiMeshInstance3D
+var path_node: MeshInstance3D
+var range_img: Image
+var range_tex: ImageTexture
+var fires: Array[OmniLight3D] = []
+var decals := {}              ## unit id → ground glow MeshInstance3D
 var ring: MeshInstance3D
 var target_ring: MeshInstance3D
 var lights: Array = []        ## [OmniLight3D, Vector3i cell, kind]
@@ -106,8 +147,8 @@ func _process(delta: float) -> void:
 	if pan != Vector3.ZERO:
 		cam_target += pan.rotated(Vector3.UP, deg_to_rad(-cam_yaw + 45)).normalized() * delta * cam_dist * 0.9
 		_place_camera()
-	if ring and ring.visible:
-		ring.rotation.y += delta * 0.8
+	for fl in fires:  # firelight flicker
+		fl.light_energy = fl.get_meta("base", 1.0) * look.lights * (0.85 + 0.15 * sin(Time.get_ticks_msec() * 0.013 + fl.position.x) + randf() * 0.08)
 	if _shot_path != "":
 		_frames += 1
 		if _frames == 2 and _shot_hover == Vector2i(-2, -2):  # --hover=guard: the nearest guard in sight
@@ -116,7 +157,7 @@ func _process(delta: float) -> void:
 					_shot_hover = Vector2i(u.pos.x, u.pos.y)
 		if _frames == 3 and _shot_hover.x >= 0:
 			hover = Vector3i(_shot_hover.x, _shot_hover.y, view_floor)
-			mouse = cam.unproject_position(Vector3(hover.x + 0.5, view_floor * FH, hover.y + 0.5)) * look.pixel
+			mouse = _to_screen(Vector3(hover.x + 0.5, view_floor * FH, hover.y + 0.5))
 			_update_hover()
 		if _frames == 12:
 			get_viewport().get_texture().get_image().save_png(_shot_path)
@@ -136,7 +177,6 @@ func _build_view() -> void:
 	screen.texture = svp.get_texture()
 	screen.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	screen.stretch_mode = TextureRect.STRETCH_SCALE
-	screen.set_anchors_preset(Control.PRESET_FULL_RECT)
 	screen.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	post = ShaderMaterial.new()
 	post.shader = POST_SHADER
@@ -154,27 +194,34 @@ func _build_view() -> void:
 	sky.sky_material = skm
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color("4a5470")
-	env.ambient_light_energy = 0.85
+	env.ambient_light_color = Color("222a48")
+	env.ambient_light_energy = 0.6
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
-	env.tonemap_exposure = 1.1
+	env.tonemap_exposure = 1.15
 	env.glow_enabled = true
-	env.glow_hdr_threshold = 0.9
-	env.glow_bloom = 0.05
+	env.glow_hdr_threshold = 1.0
+	env.glow_bloom = 0.0
 	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_ADDITIVE
+	for i in 7:  # wide, chunky halos once the low-res buffer is upscaled
+		env.set_glow_level(i, 1.0 if i in [1, 2, 3, 4] else 0.0)
 	env.ssao_enabled = true        # Forward+ only; ignored by the compatibility renderer
 	env.ssr_enabled = true         # wet-street reflections on the user's GPU
 	env.fog_enabled = true
-	env.fog_light_color = Color("1a1430")
-	env.fog_density = 0.004
+	env.fog_light_color = Color("2a1020")
+	env.fog_density = 0.006
 	we.environment = env
 	svp.add_child(we)
 	sun = DirectionalLight3D.new()   # cold moonlight, just enough to read the blockout
-	sun.rotation_degrees = Vector3(-58, 30, 0)
-	sun.light_color = Color("98a6c8")
-	sun.light_energy = 0.45
+	sun.rotation_degrees = Vector3(-38, 200, 0)   # rakes from behind the default camera: rim light
+	sun.light_color = Color("7f9cd0")
+	sun.light_energy = 0.35
 	sun.shadow_enabled = true
 	svp.add_child(sun)
+	var fill := DirectionalLight3D.new()   # weak cool fill from the camera side so facades facing us read
+	fill.rotation_degrees = Vector3(-25, 45, 0)
+	fill.light_color = Color("5a6aa0")
+	fill.light_energy = 0.22
+	svp.add_child(fill)
 	cam = Camera3D.new()
 	cam.fov = 34
 	svp.add_child(cam)
@@ -183,18 +230,34 @@ func _build_view() -> void:
 	hud = Hud.new()
 	layer.add_child(hud)
 	hud.action.connect(_on_hud)
-	hud.build_settings(look, [["pixel", "Pixel scale", 1, 6, 1], ["levels", "Palette steps", 0, 32, 1], ["dither", "Dither", 0, 1, 0.05],
+	hud.build_settings(look, [["pixel", "Pixel scale (0 auto)", 0, 6, 1], ["palette", "Palette", 0, 1, 1], ["levels", "Channel steps", 0, 32, 1], ["dither", "Dither", 0, 1, 0.05], ["spill", "Light spill", 0, 2, 0.05],
 		["contrast", "Contrast", 0.6, 1.6, 0.05], ["saturation", "Saturation", 0, 2, 0.05], ["outline", "Outline", 0, 1, 0.05],
 		["bloom", "Bloom", 0, 2, 0.05], ["lights", "Light level", 0.2, 2, 0.05], ["ortho", "Orthographic", 0, 1, 1]], _apply_look)
 	get_viewport().size_changed.connect(_apply_look)
 	_apply_look()
 
 
+## Screen pixels per buffer pixel: set, or auto so the buffer is ~360 lines tall at any window size.
+func _px() -> float:
+	if look.pixel >= 1.0:
+		return float(look.pixel)
+	return maxf(1.0, roundf(get_viewport().get_visible_rect().size.y / 360.0))
+
+
 func _apply_look() -> void:
-	var px := maxf(1.0, look.pixel)
+	var px := _px()
 	var win := Vector2(get_viewport().get_visible_rect().size)
-	svp.size = Vector2i(maxi(1, int(win.x / px)), maxi(1, int(win.y / px)))
+	# one spare buffer pixel on each side so the texel-snapped camera can shift the image sub-pixel
+	svp.size = Vector2i(maxi(1, int(win.x / px)) + 2, maxi(1, int(win.y / px)) + 2)
+	screen.size = Vector2(svp.size) * px
 	post.set_shader_parameter("src_size", Vector2(svp.size))
+	post.set_shader_parameter("palette_on", look.palette > 0.5)
+	var pal := PackedVector3Array()
+	for h in PALETTE:
+		var c := Color(h)
+		pal.append(Vector3(c.r, c.g, c.b))
+	post.set_shader_parameter("palette", pal)
+	post.set_shader_parameter("palette_n", pal.size())
 	post.set_shader_parameter("levels", look.levels)
 	post.set_shader_parameter("dither", look.dither)
 	post.set_shader_parameter("contrast", look.contrast)
@@ -206,8 +269,7 @@ func _apply_look() -> void:
 	for l in lights:
 		l[0].light_energy = l[0].get_meta("base", 1.0) * look.lights
 	_apply_world_look()
-	if cam_target != Vector3.ZERO:
-		_place_camera()
+	_place_camera()
 
 
 # --- Gig setup -------------------------------------------------------------------
@@ -273,25 +335,39 @@ func _build_world() -> void:
 	builder = WorldBuilder.new(m, enc.vision, fog_tex)
 	floor_nodes = builder.build(world)
 	for s in builder.surfaces():
-		floor_nodes[0].add_child(s)
+		floor_nodes[int(s.get_meta("floor", 0))].add_child(s)
+	builder.lightfield = LightField.bake(m, enc.los, LightPlan.plan(m, m.seed_value) + builder.emitters)
 	unit_nodes.clear()
 	lights.clear()
 	_build_lights()
 	door_nodes = Node3D.new()
 	world.add_child(door_nodes)
 	grid_node = MeshInstance3D.new()
+	var pm := PlaneMesh.new()
+	pm.size = Vector2(m.w, m.h)
+	grid_node.mesh = pm
+	grid_node.position = Vector3(m.w / 2.0, 0, m.h / 2.0)
+	var rsh := Shader.new()
+	rsh.code = RANGE
+	var rmt := ShaderMaterial.new()
+	rmt.shader = rsh
+	grid_node.material_override = rmt
+	range_img = Image.create(m.w, m.h, false, Image.FORMAT_L8)
+	range_tex = null
 	world.add_child(grid_node)
-	path_node = MultiMeshInstance3D.new()
+	path_node = MeshInstance3D.new()
 	world.add_child(path_node)
-	ring = _ring(Color("f9c80e"), 0.36)
-	target_ring = _ring(Color("ff3b4f"), 0.4)
+	ring = _decal(Color("f9c80e"), 1.1, true, 1.0)
+	target_ring = _decal(Color("ff3b4f"), 1.2, true, 0.0)
+	decals.clear()
 	for u in enc.units:
 		var n := UnitModel.build(u.team, u.id if u.team == 0 else 0)
+		decals[u.id] = _decal(Color("05d9e8") if u.team == 0 else Color("ff3b4f"), 0.95, false, 0.0)
 		if u.team == 0:  # crew carry a small light (XCOM-style) so they read at night through the pixel filter
 			var pl := OmniLight3D.new()
 			pl.light_color = Color("cfe6ff")
-			pl.light_energy = 0.4
-			pl.omni_range = 2.6
+			pl.light_energy = 0.8
+			pl.omni_range = 3.5
 			pl.position = Vector3(0, 1.1, 0.2)
 			n.add_child(pl)
 		world.add_child(n)
@@ -304,22 +380,32 @@ func _apply_world_look() -> void:
 	if builder:
 		for mt in builder.materials():
 			mt.set_shader_parameter("explored_dim", look.dim)
+			mt.set_shader_parameter("spill", look.spill)
+			mt.set_shader_parameter("lightfield", builder.lightfield)
 
 
-func _ring(col: Color, r: float) -> MeshInstance3D:
+## A soft additive glow on the ground (team colour under units; a ring for the active unit and
+## the hovered target).
+func _decal(col: Color, size: float, ring_mode: bool, pulse: float) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
-	var t := TorusMesh.new()
-	t.inner_radius = r - 0.04
-	t.outer_radius = r
-	t.rings = 24
-	t.material = _unlit(col, 1.0, 2.2)
-	mi.mesh = t
-	mi.scale = Vector3(1, 0.3, 1)
+	var q := PlaneMesh.new()
+	q.size = Vector2(size, size)
+	var sh := Shader.new()
+	sh.code = DECAL
+	var mt := ShaderMaterial.new()
+	mt.shader = sh
+	mt.set_shader_parameter("col", col)
+	mt.set_shader_parameter("ring", 1.0 if ring_mode else 0.0)
+	mt.set_shader_parameter("pulse", pulse)
+	q.material = mt
+	mi.mesh = q
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	world.add_child(mi)
 	return mi
 
 
 func _build_lights() -> void:
+	fires.clear()
 	for e in LightPlan.plan(m, m.seed_value):
 		var cell: Vector3i = e.cell
 		var fn: Node3D = floor_nodes[cell.z]
@@ -336,7 +422,7 @@ func _build_lights() -> void:
 				var sign := MeshInstance3D.new()
 				var bm := BoxMesh.new()
 				bm.size = Vector3(0.75, 0.16, 0.06) if e.out.y != 0 else Vector3(0.06, 0.16, 0.75)
-				bm.material = _unlit(e.color, 1.0, 1.6)
+				bm.material = _unlit(e.color, 1.0, 5.0)
 				sign.mesh = bm
 				sign.position = base + out * 0.55 + Vector3(0, 1.3, 0)
 				fn.add_child(sign)
@@ -368,6 +454,29 @@ func _build_lights() -> void:
 				l.position = head.position - Vector3(0, 0.05, 0)
 			"room":
 				l.position = base + Vector3(0, FH * 0.85, 0)
+				l.set_meta("base", e.energy * 0.5)   # the baked light field does most of the work
+			"fire":
+				l.position = base + Vector3(0, 0.45, 0)
+				var pit := MeshInstance3D.new()
+				var cm := CylinderMesh.new()
+				cm.top_radius = 0.22
+				cm.bottom_radius = 0.26
+				cm.height = 0.1
+				cm.material = builder.mat("stone", 0, false)
+				pit.mesh = cm
+				pit.position = base + Vector3(0, 0.05, 0)
+				fn.add_child(pit)
+				var flame := MeshInstance3D.new()
+				var fm := SphereMesh.new()
+				fm.radius = 0.16
+				fm.height = 0.36
+				fm.radial_segments = 6
+				fm.rings = 3
+				fm.material = _unlit(Color("ff9a30"), 1.0, 4.0)
+				flame.mesh = fm
+				flame.position = base + Vector3(0, 0.2, 0)
+				fn.add_child(flame)
+				fires.append(l)
 			"hazard":
 				l.position = base + Vector3(0, 0.6, 0)
 		fn.add_child(l)
@@ -389,7 +498,10 @@ func _refresh() -> void:
 		var seen: bool = u.team == 0 or not fog_on or enc.vision.visible.has(u.pos)
 		n.visible = seen and not _cut_hides(u.pos)
 		n.position = Vector3(u.pos.x + 0.5, u.pos.z * FH, u.pos.y + 0.5)
-		n.scale = Vector3.ONE * 1.2
+		n.scale = Vector3.ONE * 1.3
+		var dc: MeshInstance3D = decals[u.id]
+		dc.visible = n.visible and not u.c.dead
+		dc.position = n.position + Vector3(0, 0.03, 0)
 		if u.c.dead or u.c.wound_state() == Combatant.Wound.MORTAL:
 			n.rotation = Vector3(deg_to_rad(-88), n.rotation.y, 0)
 			n.position.y += 0.08
@@ -404,7 +516,7 @@ func _refresh() -> void:
 				n.rotation.y = atan2(float(d.x), float(d.y))
 	if not enc.cur.is_empty():
 		ring.visible = enc.cur.team == 0 or enc.vision.visible.has(enc.cur.pos)
-		ring.position = Vector3(enc.cur.pos.x + 0.5, enc.cur.pos.z * FH + 0.04, enc.cur.pos.y + 0.5)
+		ring.position = Vector3(enc.cur.pos.x + 0.5, enc.cur.pos.z * FH + 0.05, enc.cur.pos.y + 0.5)
 	_draw_grid()
 	hud.refresh(enc, mode, cover_mode, "FLOOR %d / %d   ·   %s   ·   %s" % [view_floor + 1, m.floors, gig.scene.replace("_", " ").to_upper(),
 		"ENGAGED" if enc.engaged() else "UNDETECTED"])
@@ -416,12 +528,20 @@ func _cut_radius() -> float:
 
 
 func _update_cut() -> void:
+	var fwd := Vector2(-cam.global_transform.basis.z.x, -cam.global_transform.basis.z.z)
+	RenderingServer.global_shader_parameter_set("cut_dir", fwd.normalized() if fwd.length() > 0.01 else Vector2(0, -1))
 	RenderingServer.global_shader_parameter_set("cut_center", Vector3(cam_target.x, view_floor, cam_target.z))
 	RenderingServer.global_shader_parameter_set("cut_radius", _cut_radius())
 
 
 func _cut_hides(v: Vector3i) -> bool:
-	return v.z > view_floor and Vector2(v.x + 0.5 - cam_target.x, v.y + 0.5 - cam_target.z).length() < _cut_radius()
+	if v.z <= view_floor or not cutaway:
+		return false
+	var fwd := Vector2(-cam.global_transform.basis.z.x, -cam.global_transform.basis.z.z).normalized()
+	var rel := Vector2(v.x + 0.5 - cam_target.x, v.y + 0.5 - cam_target.z)
+	var along := rel.dot(fwd)
+	var r := _cut_radius()
+	return (rel - fwd * along).length() < r and along < r * 0.3 and along > -r * 3.0
 
 
 func _update_fog() -> void:
@@ -470,30 +590,28 @@ func _build_doors() -> void:
 		door_nodes.add_child(lamp)
 
 
-## Move range as one marching-squares area (no tiles), with the hovered path as small markers.
+## Move range as a soft contour (a cubic-upscaled mask drawn by the RANGE shader): no tiles,
+## no stair-steps; the hovered path is a ribbon.
 func _draw_grid() -> void:
 	move_opts = {}
 	if _crew_turn() and enc.turn.can_move():
 		move_opts = enc.move_options()
-	var mask := {}
+	var data := PackedByteArray()
+	data.resize(m.w * m.h)
 	for v in move_opts:
 		if v.z == view_floor:
-			mask[Vector2i(v.x, v.y)] = true
-	var tris := WorldBuilder.marching(func(x: int, y: int) -> bool: return mask.has(Vector2i(x, y)), m.w, m.h)
-	if tris.is_empty():
-		grid_node.mesh = null
-	else:
-		var st := SurfaceTool.new()
-		st.begin(Mesh.PRIMITIVE_TRIANGLES)
-		var y := view_floor * FH + 0.09
-		for i in range(0, tris.size(), 3):
-			for k in [0, 1, 2, 0, 2, 1]:
-				var p: Vector2 = tris[i + k]
-				st.add_vertex(Vector3(p.x, y, p.y))
-		grid_node.mesh = st.commit()
-		var mt := _unlit(Color("05d9e8"), 0.09, 1.0)
-		mt.cull_mode = BaseMaterial3D.CULL_DISABLED
-		grid_node.material_override = mt
+			data[v.y * m.w + v.x] = 255
+	grid_node.visible = not move_opts.is_empty()
+	if grid_node.visible:
+		range_img.set_data(m.w, m.h, false, Image.FORMAT_L8, data)
+		var big := range_img.duplicate() as Image
+		big.resize(m.w * 4, m.h * 4, Image.INTERPOLATE_CUBIC)
+		if range_tex == null:
+			range_tex = ImageTexture.create_from_image(big)
+		else:
+			range_tex.update(big)
+		(grid_node.material_override as ShaderMaterial).set_shader_parameter("mask", range_tex)
+		grid_node.position.y = view_floor * FH + 0.1
 	_draw_path()
 
 
@@ -512,19 +630,74 @@ func _tiles(cells: Array, col: Color, alpha: float, s: float) -> MultiMesh:
 
 
 func _draw_path() -> void:
-	var cells := []
+	var pts: Array[Vector3] = []
 	if move_opts.has(hover) and _crew_turn():
-		cells = Array(enc._with_locks(func(): return enc.nav.path(enc.cur.pos, hover, enc.occupied(enc.cur))))
-	path_node.multimesh = _tiles(cells, Color("f9c80e"), 0.9, 0.16)
+		var cells: Array[Vector3i] = enc._with_locks(func(): return enc.nav.path(enc.cur.pos, hover, enc.occupied(enc.cur)))
+		cells.push_front(enc.cur.pos)
+		for c in cells:
+			pts.append(Vector3(c.x + 0.5, c.z * FH + 0.12, c.y + 0.5))
+	if pts.size() < 2:
+		path_node.mesh = null
+		return
+	# Catmull-Rom through square centres, then a flat ribbon with an end diamond
+	var smooth: Array[Vector3] = []
+	for i in pts.size() - 1:
+		var p0 := pts[maxi(i - 1, 0)]
+		var p1 := pts[i]
+		var p2 := pts[i + 1]
+		var p3 := pts[mini(i + 2, pts.size() - 1)]
+		for k in 4:
+			var t := k / 4.0
+			smooth.append(0.5 * ((2.0 * p1) + (-p0 + p2) * t + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t * t + (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t * t * t))
+	smooth.append(pts[-1])
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var w := 0.05
+	for i in smooth.size() - 1:
+		var a := smooth[i]
+		var b := smooth[i + 1]
+		var side := (b - a).cross(Vector3.UP).normalized() * w
+		for v in [a - side, a + side, b + side, a - side, b + side, b - side]:
+			st.add_vertex(v)
+	var e := pts[-1] + Vector3(0, 0.01, 0)
+	for v in [e + Vector3(-0.2, 0, 0), e + Vector3(0, 0, -0.2), e + Vector3(0.2, 0, 0), e + Vector3(-0.2, 0, 0), e + Vector3(0.2, 0, 0), e + Vector3(0, 0, 0.2)]:
+		st.add_vertex(v)
+	var mesh := st.commit()
+	var mt := _unlit(Color("f9c80e"), 1.0, 2.2)
+	mt.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mesh.surface_set_material(0, mt)
+	path_node.mesh = mesh
 
 
+## Pitch follows zoom (close: low, to see facades and signs; far: high, a planning view). In
+## orthographic mode the camera is snapped to the buffer's texel grid and the sub-texel remainder
+## is applied as a screen-space shift, so the pixel art doesn't crawl while panning.
 func _place_camera() -> void:
 	var fy := view_floor * FH
-	var off := Vector3(0, cam_dist * 0.78, cam_dist * 0.62).rotated(Vector3.UP, deg_to_rad(cam_yaw))
-	cam.position = cam_target + Vector3(0, fy, 0) + off
-	cam.look_at(cam_target + Vector3(0, fy, 0))
+	var pitch := deg_to_rad(lerpf(36.0, 62.0, clampf(inverse_lerp(12.0, 70.0, cam_dist), 0.0, 1.0)))
+	var off := Vector3(0, sin(pitch), cos(pitch)).rotated(Vector3.UP, deg_to_rad(cam_yaw)) * cam_dist
+	var focus := cam_target + Vector3(0, fy, 0)
+	cam.position = focus + off
+	cam.look_at(focus)
 	cam.size = cam_dist * 0.62
+	var px := _px()
+	var shift := Vector2.ZERO
+	if cam.projection == Camera3D.PROJECTION_ORTHOGONAL and svp.size.y > 0:
+		var texel := cam.size / float(svp.size.y)
+		var bx := cam.global_transform.basis.x
+		var by := cam.global_transform.basis.y
+		var lx := bx.dot(cam.position)
+		var ly := by.dot(cam.position)
+		var sx := roundf(lx / texel) * texel
+		var sy := roundf(ly / texel) * texel
+		cam.position += bx * (sx - lx) + by * (sy - ly)
+		shift = Vector2(-(lx - sx), (ly - sy)) / texel * px
+	screen.position = Vector2(-px, -px) + shift
 	_update_cut()
+
+
+func _to_screen(p: Vector3) -> Vector2:
+	return cam.unproject_position(p) * _px() + screen.position
 
 
 # --- Input ------------------------------------------------------------------------
@@ -588,7 +761,7 @@ func _on_hud(name: String, arg: Variant) -> void:
 
 
 func _pick(screen_pos: Vector2) -> Vector3i:
-	var sp := screen_pos / maxf(1.0, look.pixel)
+	var sp := (screen_pos - screen.position) / _px()
 	var o := cam.project_ray_origin(sp)
 	var d := cam.project_ray_normal(sp)
 	var hit: Variant = Plane(Vector3.UP, view_floor * FH).intersects_ray(o, d)
@@ -703,7 +876,7 @@ func _float(u: Dictionary, text: String, col: Color) -> void:
 	l.add_theme_color_override("font_outline_color", Color.BLACK)
 	l.add_theme_constant_override("outline_size", 6)
 	var wp := Vector3(u.pos.x + 0.5, u.pos.z * FH + 1.1, u.pos.y + 0.5)
-	l.position = cam.unproject_position(wp) * look.pixel - Vector2(30, 20)
+	l.position = _to_screen(wp) - Vector2(30, 20)
 	hud.add_child(l)
 	var tw := create_tween()
 	tw.tween_property(l, "position:y", l.position.y - 50, 1.2)

@@ -36,6 +36,9 @@ static func _box(parent: Node3D, pos: Vector3, size: Vector3, col: Color, glow :
 	var mt := StandardMaterial3D.new()
 	mt.albedo_color = col
 	mt.roughness = 0.6
+	mt.rim_enabled = true   # silhouettes read against dark streets
+	mt.rim = 0.7
+	mt.rim_tint = 0.6
 	if glow > 0.0:
 		mt.emission_enabled = true
 		mt.emission = col

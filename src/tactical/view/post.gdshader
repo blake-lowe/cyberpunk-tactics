@@ -1,12 +1,17 @@
 shader_type canvas_item;
-// Pixel-art post-process for the low-res 3D view (spec: limited palette feel, hard edges,
-// controls for pixel scale, contrast and bloom). Applied to the upscaled SubViewport texture.
+// Pixel-art post-process for the low-res 3D view (spec: limited palette, hard edges, controls for
+// pixel scale, contrast and bloom). Applied to the upscaled SubViewport texture.
+// Order: outline → tone (gamma S-curve, saturation) → light Bayer dither → nearest colour in a
+// curated palette (or plain per-channel steps when the palette is off).
 
-uniform float levels = 0.0;        // colour steps per channel; 0 = off (full colour)
-uniform float dither = 0.0;        // 0..1 ordered (Bayer 4x4) dither strength before quantising
-uniform float contrast = 1.0;
+uniform float levels = 0.0;        // per-channel steps when palette_on is false; 0 = off
+uniform float dither = 0.3;        // 0..1 ordered (Bayer 4x4) dither strength
+uniform float contrast = 1.0;      // strength of the S-curve
 uniform float saturation = 1.0;
 uniform float outline = 0.0;       // 0..1 darken pixels on strong luminance edges
+uniform bool palette_on = true;
+uniform vec3 palette[48];
+uniform int palette_n = 0;
 uniform vec2 src_size = vec2(640.0, 360.0);
 
 float bayer4(vec2 p) {
@@ -19,6 +24,12 @@ float bayer4(vec2 p) {
 
 float luma(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
 
+// perceptual-ish distance: weight green, and compare in a gamma-lifted space so darks separate
+float cdist(vec3 a, vec3 b) {
+	vec3 d = sqrt(max(a, 0.0)) - sqrt(max(b, 0.0));
+	return dot(d * d, vec3(0.3, 0.5, 0.2));
+}
+
 void fragment() {
 	vec2 px = floor(UV * src_size);
 	vec2 uv = (px + 0.5) / src_size;
@@ -28,15 +39,27 @@ void fragment() {
 		float l = luma(c);
 		float e = max(max(abs(l - luma(texture(TEXTURE, uv + vec2(t.x, 0.0)).rgb)), abs(l - luma(texture(TEXTURE, uv + vec2(0.0, t.y)).rgb))),
 			max(abs(l - luma(texture(TEXTURE, uv - vec2(t.x, 0.0)).rgb)), abs(l - luma(texture(TEXTURE, uv - vec2(0.0, t.y)).rgb))));
-		// darken the darker side of an edge only, so outlines sit on silhouettes
 		float darker = step(l, luma(texture(TEXTURE, uv + vec2(t.x, t.y)).rgb) + 0.02);
 		c *= 1.0 - outline * smoothstep(0.08, 0.25, e) * darker * 0.7;
 	}
-	c = (c - 0.5) * contrast + 0.5;
+	// S-curve: deepen shadows, keep highlights (neon) bright
+	c = clamp(c, 0.0, 1.0);
+	c = pow(c, vec3(1.0 + 0.15 * contrast));
+	c = mix(c, c * c * (3.0 - 2.0 * c), 0.35 * contrast);
 	c = mix(vec3(luma(c)), c, saturation);
-	if (levels > 0.0) {
+	c = clamp(c, 0.0, 1.0);
+	if (palette_on && palette_n > 0) {
+		c += bayer4(px) * dither * 0.12;
+		float best = 1e9;
+		vec3 pick = c;
+		for (int i = 0; i < palette_n; i++) {
+			float d = cdist(c, palette[i]);
+			if (d < best) { best = d; pick = palette[i]; }
+		}
+		c = pick;
+	} else if (levels > 0.0) {
 		c += bayer4(px) * dither / levels;
 		c = floor(clamp(c, 0.0, 1.0) * levels + 0.5) / levels;
 	}
-	COLOR = vec4(clamp(c, 0.0, 1.0), 1.0);
+	COLOR = vec4(c, 1.0);
 }

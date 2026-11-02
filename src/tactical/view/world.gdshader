@@ -1,9 +1,13 @@
 shader_type spatial;
+render_mode cull_disabled;
 // Everything built by WorldBuilder: lit surface with an off-grid procedural pattern, fog of war
 // from a per-cell texture (bilinear, so fog edges are soft rather than square), and an XCOM-style
 // radial cutaway around the focus point.
 // fog texture: one row block per floor (h rows each); value 0 unknown, ~0.5 explored, 1 visible.
-// mode 0: surface (hidden when unknown); 1: unknown volume (shown only when unknown); 2: no fog.
+// mode 0: surface (hidden when unknown); 1: unknown interior (hologram, shown only when unknown);
+// 2: no fog. `shell`: exterior surfaces never fog out (building shells are always known, XCOM-style).
+// lightfield: baked RGB light spill per floor (4 texels per square), blocked by walls; it adds
+// colour where the compatibility renderer's per-mesh light limit would drop real lights.
 // pattern: 0 plain, 1 tiles, 2 planks, 3 asphalt, 4 slabs, 5 earth, 6 grating, 7 panels,
 //          8 corrugated, 9 tower windows, 10 water
 
@@ -22,8 +26,12 @@ uniform float floors = 1.0;
 uniform int mode = 0;
 uniform float explored_dim = 0.6;
 uniform bool cuttable = false;
+uniform bool shell = false;
+uniform sampler2D lightfield : filter_linear, repeat_disable;
+uniform float spill = 0.9;
 global uniform vec3 cut_center;     // xz focus, y = viewed floor index
 global uniform float cut_radius;    // 0 = no cutaway
+global uniform vec2 cut_dir;        // camera forward on the ground plane
 
 varying vec3 wpos;
 varying vec3 wnorm;
@@ -43,23 +51,27 @@ float fbm(vec2 p) { return noise(p) * 0.55 + noise(p * 2.13) * 0.3 + noise(p * 4
 float line(float x, float w) { float d = abs(fract(x) - 0.5); return smoothstep(0.5 - w, 0.5, d); }
 
 void fragment() {
-	// --- cutaway: XCOM-style hole around the focus, with a ragged edge
-	// cut_center.y is the viewed floor; floors above it vanish inside the radius, and walls on it
-	// drop to waist height.
+	// --- cutaway: only the near side of the focus (a capsule reaching toward the camera), so the
+	// far walls stay up and give vertical context. Floors above the viewed one vanish there; walls
+	// on it drop to waist height. Cut faces show as dark section caps with a cyan core.
 	if (cut_radius > 0.0) {
-		float d = distance(wpos.xz, cut_center.xz) + (noise(wpos.xz * 0.6) - 0.5) * 0.6;
-		if (d < cut_radius) {
+		vec2 rel = wpos.xz - cut_center.xz;
+		float along = dot(rel, cut_dir);
+		float lateral = length(rel - cut_dir * along);
+		if (lateral < cut_radius && along < cut_radius * 0.3 && along > -cut_radius * 3.0) {
 			if (floor_idx > cut_center.y + 0.5) discard;
 			if (cuttable && floor_idx > cut_center.y - 0.5 && wpos.y - floor_idx * 1.6 > 0.72) discard;
 		}
 	}
 	// --- fog of war
 	float f = 1.0;
-	if (mode != 2) {
+	vec2 uvbase = vec2(0.0);
+	{
 		vec2 c = wpos.xz - wnorm.xz * 0.08;   // sample just inside the surface
-		vec2 uv = vec2(c.x / map_size.x, (floor_idx * map_size.y + clamp(c.y, 0.5, map_size.y - 0.5)) / (map_size.y * floors));
-		f = texture(fog, uv).r;
+		uvbase = vec2(c.x / map_size.x, (floor_idx * map_size.y + clamp(c.y, 0.5, map_size.y - 0.5)) / (map_size.y * floors));
+		if (mode != 2) f = texture(fog, uvbase).r;
 	}
+	if (shell) f = max(f, 0.5);
 	if (mode == 0 && f < 0.22) discard;
 	if (mode == 1 && f >= 0.22) discard;
 	float k = mode == 0 ? mix(explored_dim, 1.0, smoothstep(0.55, 0.9, f)) : 1.0;
@@ -69,6 +81,7 @@ void fragment() {
 	vec2 p = (up ? wpos.xz : vec2(wpos.x + wpos.z, wpos.y)) * pattern_scale;
 	vec3 base = albedo.rgb;
 	float rough = roughness;
+	float wet = 0.0;
 	float n = fbm(p * 3.0);
 	vec3 emit = emission * emission_energy;
 	if (pattern == 0) {
@@ -88,6 +101,7 @@ void fragment() {
 		float pud = smoothstep(0.62, 0.68, fbm(p * 0.35 + 7.0));
 		base = mix(base, base * 0.55, pud);
 		rough = mix(rough, 0.04, pud);
+		wet = pud;
 	} else if (pattern == 4) {            // sidewalk slabs, offset rows, a few cracks
 		vec2 q = vec2(p.x + floor(p.y) * 0.5, p.y);
 		float g = max(line(q.x, 0.03), line(q.y, 0.03));
@@ -95,6 +109,7 @@ void fragment() {
 		base = mix(base, albedo2.rgb, g);
 		float pud = smoothstep(0.7, 0.74, fbm(p * 0.5 + 3.0));
 		rough = mix(rough, 0.08, pud);
+		wet = pud;
 	} else if (pattern == 5) {            // earth / grass / sand: two-colour noise
 		base = mix(albedo.rgb, albedo2.rgb, smoothstep(0.3, 0.75, fbm(p * 1.3)));
 		base *= 0.9 + hash(floor(p * 25.0)) * 0.15;
@@ -115,18 +130,35 @@ void fragment() {
 		vec2 cell = floor(w);
 		vec2 fr = fract(w);
 		float win = step(0.18, fr.x) * step(fr.x, 0.82) * step(0.25, fr.y) * step(fr.y, 0.8);
-		float lit = step(0.62, hash(cell + floor(wpos.xz * 0.05)));
+		float lit = step(0.5, hash(cell + floor(wpos.xz * 0.05)));
 		vec3 wc = mix(vec3(1.0, 0.72, 0.45), vec3(0.55, 0.85, 1.0), hash(cell * 1.7));
 		base *= 0.7 + n * 0.3;
-		emit += wc * win * lit * 1.4 * (up ? 0.0 : 1.0);
+		emit += wc * win * lit * 3.0 * (up ? 0.0 : 1.0);
 	} else if (pattern == 10) {           // water: dark, glossy, slow ripples
 		float r = noise(p * 2.0 + vec2(TIME * 0.15, TIME * 0.1));
 		base *= 0.8 + r * 0.3;
 		rough = 0.03 + r * 0.05;
 	}
+	// --- baked light spill: walls sample the space they face; puddles reflect it brighter
+	vec2 lfo = up ? vec2(0.0) : wnorm.xz * 0.35;
+	vec2 luv = uvbase + vec2(lfo.x / map_size.x, lfo.y / (map_size.y * floors));
+	vec2 t = vec2(0.25 / map_size.x, 0.25 / (map_size.y * floors));
+	vec3 lf = (texture(lightfield, luv).rgb * 2.0 + texture(lightfield, luv + vec2(t.x, 0)).rgb + texture(lightfield, luv - vec2(t.x, 0)).rgb
+		+ texture(lightfield, luv + vec2(0, t.y)).rgb + texture(lightfield, luv - vec2(0, t.y)).rgb) / 6.0;
+	if (!up) lf *= 1.0 - 0.45 * clamp((wpos.y - floor_idx * 1.6) / 1.6, 0.0, 1.0);
+	emit += base * lf * spill * (1.0 + wet * 2.5) + lf * wet * 0.35;
 	if (k < 1.0) base = mix(vec3(dot(base, vec3(0.3, 0.59, 0.11))), base, 0.5) * k;
 	ALBEDO = base;
 	ROUGHNESS = rough;
 	METALLIC = metallic;
 	EMISSION = emit * k;
+	if (mode == 1) {  // unknown interior: dark hologram with slow scanlines
+		float scan = step(0.9, fract(wpos.x * 0.7 + wpos.z * 0.7 - TIME * 0.35));
+		ALBEDO = vec3(0.03, 0.035, 0.05);
+		EMISSION = vec3(0.02, 0.32, 0.4) * (0.12 + scan * 0.5);
+		ROUGHNESS = 0.9;
+	} else if (!FRONT_FACING) {  // section cap where the cutaway opened a wall
+		ALBEDO = vec3(0.015);
+		EMISSION = vec3(0.02, 0.35, 0.4) * 0.5;
+	}
 }

@@ -24,22 +24,22 @@ const SHADER := preload("res://src/tactical/view/world.gdshader")
 const LIB := {
 	"asphalt": [Color("17191d"), Color("0e0f12"), 3, 0.6, 0.55, 0.0],
 	"sidewalk": [Color("3b3e43"), Color("25272b"), 4, 1.6, 0.7, 0.0],
-	"concrete": [Color("33363a"), Color("232528"), 1, 0.34, 0.8, 0.0],
+	"concrete": [Color("33363a"), Color("232528"), 1, 0.37, 0.8, 0.0],
 	"gravel": [Color("3b3833"), Color("2a2824"), 5, 2.0, 0.95, 0.0],
 	"dirt": [Color("3a2f25"), Color("281f18"), 5, 0.8, 0.95, 0.0],
 	"grass": [Color("1d2e1f"), Color("2c3a1c"), 5, 1.1, 0.95, 0.0],
-	"sand": [Color("5a4c36"), Color("47392a"), 5, 0.6, 0.95, 0.0],
+	"sand": [Color("7a6a52"), Color("5e4e3a"), 5, 0.53, 0.95, 0.0],
 	"rail": [Color("2c2724"), Color("1a1715"), 6, 0.9, 0.7, 0.2],
 	"dock": [Color("2f2a25"), Color("1a1714"), 2, 0.8, 0.75, 0.0],
 	"water": [Color("0a1822"), Color("0a1822"), 10, 0.5, 0.05, 0.2],
 	"slab": [Color("1a1c20"), Color("1a1c20"), 0, 1.0, 0.9, 0.0],
-	"floor_tile": [Color("2c2e33"), Color("1b1c1f"), 1, 1.4, 0.4, 0.0],
+	"floor_tile": [Color("2c2e33"), Color("1b1c1f"), 1, 1.13, 0.4, 0.0],
 	"floor_wood": [Color("3a2a1f"), Color("1a120d"), 2, 1.1, 0.55, 0.0],
-	"floor_concrete": [Color("2f3135"), Color("222427"), 1, 0.4, 0.75, 0.0],
+	"floor_concrete": [Color("2f3135"), Color("222427"), 1, 0.43, 0.75, 0.0],
 	"floor_carpet": [Color("2a2233"), Color("2a2233"), 0, 4.0, 0.95, 0.0],
 	"floor_metal": [Color("2a3038"), Color("181c21"), 6, 1.4, 0.45, 0.5],
 	"floor_vault": [Color("2c2228"), Color("15101a"), 1, 0.9, 0.35, 0.3],
-	"roof": [Color("2b2e33"), Color("1f2124"), 1, 0.5, 0.85, 0.0],
+	"roof": [Color("2b2e33"), Color("1d1f22"), 5, 0.71, 0.85, 0.0, {"shell": true}],
 	"stairs": [Color("4a5058"), Color("2a2e33"), 6, 3.0, 0.5, 0.3],
 	"wall_concrete": [Color("5a5f66"), Color("34373c"), 7, 1.0, 0.85, 0.0],
 	"wall_plaster": [Color("6e675d"), Color("47423b"), 7, 1.0, 0.9, 0.0],
@@ -59,10 +59,10 @@ const LIB := {
 	"concrete_prop": [Color("6a6e73"), Color("4a4d51"), 0, 2.0, 0.85, 0.0],
 	"stone": [Color("67625b"), Color("4a4640"), 5, 2.0, 0.9, 0.0],
 	"fabric": [Color("3b3048"), Color("3b3048"), 0, 6.0, 0.95, 0.0],
-	"plant": [Color("1f4a2a"), Color("2f5a20"), 5, 3.0, 0.9, 0.0],
+	"plant": [Color("3a4a2a"), Color("2f5a20"), 5, 3.0, 0.9, 0.0],
 	"dark": [Color("141619"), Color("141619"), 0, 1.0, 0.6, 0.3],
 	"container": [Color("6a3428"), Color("4a2418"), 8, 1.0, 0.6, 0.4],
-	"tower": [Color("14171c"), Color("0e1014"), 9, 1.0, 0.8, 0.2, {"mode": 2}],
+	"tower": [Color("14171c"), Color("0e1014"), 9, 0.55, 0.8, 0.2, {"mode": 2}],
 	"tower_top": [Color("101216"), Color("101216"), 0, 1.0, 0.8, 0.2, {"mode": 2}],
 	"far_ground": [Color("111316"), Color("0b0c0e"), 3, 0.3, 0.6, 0.0, {"mode": 2}],
 }
@@ -76,6 +76,8 @@ var rng := RandomNumberGenerator.new()
 var _mats := {}
 var _shapes := {}
 var _b := {}            ## batches for the floor being built
+var lightfield: Texture2D   ## set by the greybox after baking (LightField)
+var emitters: Array = []  ## extra light-field sources from dressing: {cell, color, energy, range}
 
 
 func _init(p_map: TacMap, p_vision: Vision, p_fog: Texture2D) -> void:
@@ -124,8 +126,11 @@ func mat(name: String, f: int, cut := true, over := {}) -> ShaderMaterial:
 	mt.set_shader_parameter("emission", extra.get("emit", col))
 	mt.set_shader_parameter("emission_energy", extra.get("glow", 0.0))
 	mt.set_shader_parameter("mode", extra.get("mode", 0))
+	mt.set_shader_parameter("shell", extra.get("shell", false))
 	mt.set_shader_parameter("cuttable", cut)
 	mt.set_shader_parameter("fog", fog_tex)
+	if lightfield:
+		mt.set_shader_parameter("lightfield", lightfield)
 	mt.set_shader_parameter("map_size", Vector2(m.w, m.h))
 	mt.set_shader_parameter("floor_idx", float(f))
 	mt.set_shader_parameter("floors", float(m.floors))
@@ -137,7 +142,7 @@ static var _alpha: Shader
 static func _alpha_shader() -> Shader:
 	if _alpha == null:
 		_alpha = Shader.new()
-		_alpha.code = SHADER.code.replace("shader_type spatial;", "shader_type spatial;\nrender_mode blend_mix, depth_draw_opaque, cull_disabled;") \
+		_alpha.code = SHADER.code.replace("render_mode cull_disabled;", "render_mode cull_disabled, blend_mix, depth_draw_opaque;") \
 			.replace("EMISSION = emit * k;", "EMISSION = emit * k;\n\tALPHA = albedo.a;")
 	return _alpha
 
@@ -202,7 +207,10 @@ func build(root: Node3D) -> Array[Node3D]:
 	var sky := Node3D.new()
 	sky.name = "skyline"
 	root.add_child(sky)
-	_skyline()
+	if String(m.params.get("scene", "")) != "badlands":
+		_skyline()
+	else:
+		box(mat("sand", 0, false, {"mode": 2}), Vector3(m.w / 2.0, -0.2, m.h / 2.0), Vector3(m.w + 120, 0.1, m.h + 120))
 	flush(sky)
 	return out
 
@@ -411,10 +419,12 @@ func _ground_organic() -> void:
 				(m.inb(x, y) and int(m.ground[y * m.w + x]) == g and m.label(0, x, y) >= 0 and m.rooms[m.label(0, x, y)].get("outdoor", false)), m.w, m.h, 0.22, g)
 		var s := _surface(tris, -0.02 + lift, mat(gtypes[g], 0, false))
 		if s:
+			s.set_meta("floor", 0)
 			_surfaces.append(s)
 	var wt := marching(func(x: int, y: int) -> bool: return m.inb(x, y) and m.t(0, x, y) == TacMap.T.WATER, m.w, m.h, 0.15, 99)
 	var ws := _surface(wt, -0.35, mat("water", 0, false))
 	if ws:
+		ws.set_meta("floor", 0)
 		_surfaces.append(ws)
 		# a dark bed under the water
 		for y in m.h:
@@ -527,10 +537,11 @@ func _run(f: int, horiz: bool, a: int, b0: int, b1: int, glass: bool, k: int) ->
 		# sill, pane, lintel, and mullions at a spacing that ignores the grid
 		var sill := 0.32
 		var lintel := 1.32
-		box(mat("wall_concrete" if ext else "wall_int", f), c + Vector3(0, y0 + sill / 2, 0), size.call(sill, t))
-		box(mat("wall_concrete" if ext else "wall_int", f), c + Vector3(0, y0 + (lintel + FH) / 2, 0), size.call(FH - lintel, t))
-		box(mat("glass", f), c + Vector3(0, y0 + (sill + lintel) / 2, 0), size.call(lintel - sill, 0.05))
-		box(mat("frame", f), c + Vector3(0, y0 + sill + 0.02, 0), size.call(0.04, t + 0.06))
+		var gsh := {"shell": true} if ext else {}
+		box(mat("wall_concrete" if ext else "wall_int", f, true, gsh), c + Vector3(0, y0 + sill / 2, 0), size.call(sill, t))
+		box(mat("wall_concrete" if ext else "wall_int", f, true, gsh), c + Vector3(0, y0 + (lintel + FH) / 2, 0), size.call(FH - lintel, t))
+		box(mat("glass", f, true, gsh), c + Vector3(0, y0 + (sill + lintel) / 2, 0), size.call(lintel - sill, 0.05))
+		box(mat("frame", f, true, gsh), c + Vector3(0, y0 + sill + 0.02, 0), size.call(0.04, t + 0.06))
 		var n := maxi(1, roundi(length / 0.62))
 		for i in range(1, n):
 			var p := s + length * i / n
@@ -538,12 +549,13 @@ func _run(f: int, horiz: bool, a: int, b0: int, b1: int, glass: bool, k: int) ->
 			box(mat("frame", f), mc + Vector3(0, y0 + (sill + lintel) / 2, 0), Vector3(0.04, lintel - sill, 0.08) if horiz else Vector3(0.08, lintel - sill, 0.04))
 		return
 	var name := "wall_int"
+	var sh := {"shell": true} if ext else {}
 	if ext:
 		name = ["wall_plaster", "wall_concrete", "wall_steel", "wall_concrete", "wall_concrete", "wall_concrete", "wall_concrete"][k]
-	box(mat(name, f), c + Vector3(0, y0 + FH / 2, 0), size.call(FH, t))
-	box(mat("skirt", f), c + Vector3(0, y0 + 0.06, 0), size.call(0.12, t + 0.04))
+	box(mat(name, f, true, sh), c + Vector3(0, y0 + FH / 2, 0), size.call(FH, t))
+	box(mat("skirt", f, true, sh), c + Vector3(0, y0 + 0.06, 0), size.call(0.12, t + 0.04))
 	if ext:
-		box(mat("cornice", f), c + Vector3(0, y0 + FH - 0.04, 0), size.call(0.08, t + 0.1))
+		box(mat("cornice", f, true, sh), c + Vector3(0, y0 + FH - 0.04, 0), size.call(0.08, t + 0.1))
 
 
 func _door_frame(f: int, p: Vector2i) -> void:
@@ -554,7 +566,8 @@ func _door_frame(f: int, p: Vector2i) -> void:
 	var c := Vector3(p.x + 0.5, y0, p.y + 0.5)
 	var head := 1.15
 	var lintel := Vector3(1, FH - head, t) if horiz else Vector3(t, FH - head, 1)
-	box(mat("wall_concrete" if ext else "wall_int", f), c + Vector3(0, head + (FH - head) / 2, 0), lintel)
+	var dsh := {"shell": true} if ext else {}
+	box(mat("wall_concrete" if ext else "wall_int", f, true, dsh), c + Vector3(0, head + (FH - head) / 2, 0), lintel)
 	for side in [-1, 1]:
 		var off := Vector3(side * 0.47, 0, 0) if horiz else Vector3(0, 0, side * 0.47)
 		box(mat("frame", f), c + off + Vector3(0, head / 2, 0), Vector3(0.06, head, t + 0.04) if horiz else Vector3(t + 0.04, head, 0.06))
@@ -582,14 +595,17 @@ func door_leaf(d: Dictionary) -> Dictionary:
 # --- Unknown interiors -----------------------------------------------------------------
 
 func _unknown(f: int) -> void:
-	var mt := mat("unknown", f)
-	var y0 := f * FH
-	for y in m.h:
-		for x in m.w:
-			var t := m.t(f, x, y)
-			if t == TacMap.T.VOID or vision._outdoor(f, x, y) or vision.explored.has(Vector3i(x, y, f)):
-				continue
-			box(mt, Vector3(x + 0.5, y0 + FH * 0.47, y + 0.5), Vector3(1.002, FH * 0.94, 1.002))
+	## Unknown interiors: one marching-squares surface just under the cutaway height, drawn as a
+	## dark hologram (world.gdshader mode 1); it disappears cell by cell as the squad sees inside.
+	var tris := marching(func(x: int, y: int) -> bool:
+		if not m.inb(x, y):
+			return false
+		var t := m.t(f, x, y)
+		return t != TacMap.T.VOID and not vision._outdoor(f, x, y) and not (t in [TacMap.T.WALL, TacMap.T.DOOR] and _exterior(f, x, y)), m.w, m.h)
+	var s := _surface(tris, f * FH + 0.7, mat("unknown", f))
+	if s:
+		s.set_meta("floor", f)
+		_surfaces.append(s)
 
 
 # --- Vertical links ----------------------------------------------------------------------
@@ -794,7 +810,7 @@ func _street_clutter() -> void:
 			for j in rng.randi_range(1, 3):
 				put("sphere", mat("dark", 0, false, {"color": Color("101418")}), Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled_local(Vector3(0.28, 0.22, 0.24)), Vector3(p.x + rng.randf_range(-0.2, 0.2), 0.09, p.y + rng.randf_range(-0.2, 0.2))))
 		elif roll < 0.8:  # paper, flyers
-			box(mat("wall_int", 0, false, {"color": Color("6a6460")}), Vector3(p.x, 0.012, p.y), Vector3(0.14, 0.004, 0.2), rng.randf() * TAU)
+			box(mat("wall_int", 0, false, {"color": Color("3a3632")}), Vector3(p.x, 0.012, p.y), Vector3(0.14, 0.004, 0.2), rng.randf() * TAU)
 		else:             # manhole / drain
 			put("cyl", D, Transform3D(Basis.from_scale(Vector3(0.4, 0.01, 0.4)), Vector3(p.x, 0.005, p.y)))
 	# overhead cables between facing exterior walls across streets
@@ -835,7 +851,7 @@ func _roof_clutter(f: int) -> void:
 				var n: Vector2i = Vector2i(x, y) + d
 				if not m.inb(n.x, n.y) or m.t(f, n.x, n.y) in [TacMap.T.VOID, TacMap.T.OUTSIDE]:
 					var off := Vector3(d.x, 0, d.y) * 0.44
-					box(mat("cornice", f), Vector3(x + 0.5, y0 + 0.14, y + 0.5) + off, Vector3(1.0 if d.x == 0 else 0.12, 0.28, 1.0 if d.y == 0 else 0.12))
+					box(mat("cornice", f, true, {"shell": true}), Vector3(x + 0.5, y0 + 0.14, y + 0.5) + off, Vector3(1.0 if d.x == 0 else 0.12, 0.28, 1.0 if d.y == 0 else 0.12))
 			rng.seed = hash(Vector3i(x, y, f)) + 5
 			var roll := rng.randf()
 			var p := Vector3(x + rng.randf_range(0.2, 0.8), y0, y + rng.randf_range(0.2, 0.8))
@@ -873,15 +889,26 @@ func _facade_dressing(f: int) -> void:
 				var side := Vector3(-d.y, 0, d.x) * along
 				var face := Vector3(x + 0.5, y0, y + 0.5) + out * (EXT_T / 2 + 0.01) + side
 				if roll < 0.06 and f > 0 or (roll < 0.03):
-					box(mat("steel", f), face + out * 0.14 + Vector3(0, rng.randf_range(0.8, 1.3), 0), Vector3(0.36, 0.26, 0.26))
+					box(mat("steel", f, true, {"shell": true}), face + out * 0.14 + Vector3(0, rng.randf_range(0.8, 1.3), 0), Vector3(0.36, 0.26, 0.26))
 				elif roll < 0.1:
 					var col: Color = NEON[rng.randi() % NEON.size()]
-					box(mat("dark", f, true, {"glow": 0.9, "emit": col.darkened(0.3), "color": col.darkened(0.6)}), face + out * 0.005 + Vector3(0, rng.randf_range(0.4, 0.8), 0), Vector3(0.36 if d.x == 0 else 0.01, 0.46, 0.01 if d.x == 0 else 0.36))
-				elif roll < 0.125:
+					box(mat("dark", f, true, {"glow": 0.9, "emit": col.darkened(0.3), "color": col.darkened(0.6), "shell": true}), face + out * 0.005 + Vector3(0, rng.randf_range(0.4, 0.8), 0), Vector3(0.36 if d.x == 0 else 0.01, 0.46, 0.01 if d.x == 0 else 0.36))
+				elif roll < 0.15:
+					# blade sign sticking out of the facade, with light spill
 					var col2: Color = NEON[rng.randi() % NEON.size()]
-					box(mat("dark", f, true, {"glow": 2.6, "emit": col2}), face + out * 0.1 + Vector3(0, FH * 0.55, 0), Vector3(0.1 if d.x == 0 else 0.04, FH * 0.8, 0.04 if d.x == 0 else 0.1))
+					var bl := Vector3(0.42, FH * 0.75, 0.06) if d.x != 0 else Vector3(0.06, FH * 0.75, 0.42)
+					box(mat("dark", f, true, {"glow": 5.0, "emit": col2, "shell": true}), face + out * 0.3 + Vector3(0, FH * 0.55 + 0.2, 0), bl)
+					emitters.append({"cell": Vector3i(n.x, n.y, 0), "color": col2, "energy": 1.4, "range": 5.0, "out": Vector2i.ZERO})
+				elif roll < 0.2 and f == 0:
+					# awning over a lit shop window
+					var col3: Color = [Color("ffb070"), Color("ff6b9a"), Color("70e0ff")][rng.randi() % 3]
+					var wide := Vector3(0.95, 0.04, 0.5) if d.x == 0 else Vector3(0.5, 0.04, 0.95)
+					box(mat("fabric", f, true, {"color": NEON[rng.randi() % NEON.size()].darkened(0.55), "shell": true}), face + out * 0.25 + Vector3(0, 1.22, 0), wide)
+					box(mat("dark", f, true, {"glow": 4.0, "emit": col3, "shell": true}), face + out * 0.48 + Vector3(0, 1.2, 0), Vector3(0.95, 0.02, 0.02) if d.x == 0 else Vector3(0.02, 0.02, 0.95))
+					box(mat("dark", f, true, {"glow": 1.6, "emit": col3, "shell": true}), face + out * 0.01 + Vector3(0, 0.62, 0), Vector3(0.7, 0.6, 0.01) if d.x == 0 else Vector3(0.01, 0.6, 0.7))
+					emitters.append({"cell": Vector3i(n.x, n.y, 0), "color": col3, "energy": 1.1, "range": 4.0, "out": Vector2i.ZERO})
 				elif roll < 0.16:
-					box(mat("post", f), face + out * 0.05 + Vector3(0, FH / 2, 0), Vector3(0.05, FH, 0.05))
+					box(mat("post", f, true, {"shell": true}), face + out * 0.05 + Vector3(0, FH / 2, 0), Vector3(0.05, FH, 0.05))
 
 
 # --- Skyline -----------------------------------------------------------------------------

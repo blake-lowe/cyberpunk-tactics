@@ -27,3 +27,7 @@ cut_radius={
 "type": "float",
 "value": 0.0
 }
+cut_dir={
+"type": "vec2",
+"value": Vector2(0, -1)
+}
