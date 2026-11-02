@@ -46,6 +46,8 @@ static func generate(dice: Dice, role: String, method: String = "edgerunner", ha
 	var c := Combatant.new(handle, stats, skills)
 	c.role = role
 	c.role_rank = 4  # p142
+	if role == "medtech":   # Rank 4 = 4 Specialty points (p149): HOUSE-RULE split, 2 Surgery / 2 Pharmaceuticals
+		c.medicine = {"surgery": 2, "pharma": 2, "cryo": 0}
 	c.init_humanity()
 	for w in LOADOUT.get(role, []):   # guns first: weapons[0] is the primary
 		c.weapons.append(Weapon.from_id(w))

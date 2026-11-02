@@ -56,6 +56,7 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 	for c0 in cells:
 		e.extract_cells[Vector3i(c0.x, c0.y, 0)] = true
 	for i in crew.size():
+		crew[i].gig_reset()
 		var c: Vector2i = cells[i % cells.size()]
 		e._add(crew[i], Vector3i(c.x, c.y, 0), 0)
 	# Guards at posts, target building first.
@@ -778,6 +779,57 @@ func throw_grenade(cell: Vector3i) -> Dictionary:
 	say("%s throws a grenade%s: %d damage, %d caught." % [cur.c.display_name, "" if check.success else " (off target)", dmg, hits.filter(func(h): return h.damage > 0).size()])
 	_check_end()
 	return {"ok": true, "hit": check.success, "center": center, "damage": dmg, "hits": hits}
+
+
+## Medtech Pharmaceuticals (p150): giving a dose is an Action, to an ally next to you (or yourself).
+## Speedheal: a non-Mortally-Wounded target heals BODY + WILL HP, once per day. Stim: ignore
+## Seriously Wounded penalties for an hour (the rest of the gig), once per day.
+func dose(target: Dictionary, drug: String) -> Dictionary:
+	var c: Combatant = cur.c
+	if not c.knows_drug(drug) or c.doses <= 0:
+		return {"ok": false, "reason": "no %s doses" % drug}
+	if target.team != cur.team or target.c.dead or (target != cur and not adjacent(cur.pos, target.pos)):
+		return {"ok": false, "reason": "pick yourself or an ally next to you"}
+	var t: Combatant = target.c
+	match drug:
+		"speedheal":
+			if t.wound_state() == Combatant.Wound.MORTAL:
+				return {"ok": false, "reason": "Mortally Wounded: stabilize first"}
+			if t.speedhealed:
+				return {"ok": false, "reason": "already had Speedheal today"}
+			if t.hp >= t.max_hp():
+				return {"ok": false, "reason": "not hurt"}
+		"stim":
+			if t.stimmed:
+				return {"ok": false, "reason": "already stimmed"}
+	if not turn.use_action():
+		return {"ok": false, "reason": "no action left"}
+	c.doses -= 1
+	var healed := 0
+	if drug == "speedheal":
+		var before := t.hp
+		t.hp = mini(t.max_hp(), t.hp + t.raw_stat("BODY") + t.raw_stat("WILL"))
+		t.speedhealed = true
+		healed = t.hp - before
+	else:
+		t.stimmed = true
+	events.append({"type": "dose", "unit": cur.id, "target": target.id, "drug": drug, "healed": healed})
+	say("%s gives %s %s%s." % [c.display_name, t.display_name, drug.capitalize(), " (+%d HP)" % healed if healed > 0 else ""])
+	return {"ok": true, "healed": healed}
+
+
+## The drug a Medtech would give this ally now ("" if none helps): Speedheal for the hurt, Stim for
+## the Seriously Wounded who already had it.
+func best_dose(target: Dictionary) -> String:
+	var c: Combatant = cur.c
+	var t: Combatant = target.c
+	if c.doses <= 0 or t.dead or t.wound_state() == Combatant.Wound.MORTAL:
+		return ""
+	if c.knows_drug("speedheal") and not t.speedhealed and t.hp < t.max_hp():
+		return "speedheal"
+	if c.knows_drug("stim") and not t.stimmed and t.wound_state() == Combatant.Wound.SERIOUS:
+		return "stim"
+	return ""
 
 
 ## Next to them, or within a Triage perk's reach (HOUSE-RULE) on the same floor.

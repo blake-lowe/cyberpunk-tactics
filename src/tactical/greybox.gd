@@ -1360,6 +1360,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			KEY_4: _on_hud("suppress", null)
 			KEY_T: _on_hud("tool", "stabilize")
 			KEY_B: _on_hud("grab", null)
+			KEY_Y: _on_hud("tool", "dose")
 			KEY_ESCAPE:
 				if tool != "":
 					tool = ""
@@ -1498,6 +1499,10 @@ func _click_tool() -> void:
 		"stabilize":
 			if not t.is_empty():
 				r = enc.stabilize(t)
+		"dose":
+			if not t.is_empty():
+				var drug := enc.best_dose(t)
+				r = enc.dose(t, drug) if drug != "" else {"ok": false, "reason": "no drug would help"}
 	if not r.get("ok", false):
 		hud.toast(String(r.get("reason", "can't")).capitalize())
 		return
@@ -1559,6 +1564,16 @@ func _tool_hover() -> void:
 				return
 			var pct2 := roundi(Check.chance_vs_dv(c.skill_base(enc.cur.c.weapons[0].skill()) - c.action_penalty(), Attack.SHOTGUN_SHELL_DV) * 100)
 			hud.tip("[code][font_size=44]%d%%[/font_size][/code] vs DV13 · 3d6 to everyone in the cone" % pct2, mouse, "// SHOTGUN SHELL", Hud.CYAN)
+		"dose":
+			if t.is_empty() or t.team != enc.cur.team:
+				hud.tip("Pick yourself or a neighbouring ally (%d doses)" % c.doses, mouse, "// PHARMACEUTICALS", Hud.GREEN)
+				return
+			var drug := enc.best_dose(t)
+			if drug == "":
+				hud.tip("Nothing helps: unhurt, Mortally Wounded, or already dosed today", mouse, "// PHARMACEUTICALS", Hud.GREEN)
+				return
+			var what := "+%d HP (BODY + WILL)" % mini(t.c.max_hp() - t.c.hp, t.c.raw_stat("BODY") + t.c.raw_stat("WILL")) if drug == "speedheal" else "ignore Seriously Wounded penalties"
+			hud.tip("%s · %s · %d doses left" % [drug.to_upper(), what, c.doses], mouse, "// PHARMACEUTICALS", Hud.GREEN)
 		"stabilize":
 			if t.is_empty() or t.team != enc.cur.team or t.c.wound_state() != Combatant.Wound.MORTAL:
 				hud.tip("Pick a neighbouring Mortally Wounded ally", mouse, "// STABILIZE", Hud.GREEN)
@@ -2034,6 +2049,17 @@ func _play_events() -> void:
 			"alert": _anim_alert(e)
 			"reload": await _anim_reload(e)
 			"stabilize": await _anim_stabilize(e)
+			"dose":
+				var dn: CharModel = unit_nodes[u.id]
+				var dt: Dictionary = enc.units[e.target]
+				_focus_unit = u.id
+				if dt != u:
+					var dd := Vector2(dt.pos.x - u.pos.x, dt.pos.y - u.pos.y)
+					_turn_to(dn, atan2(dd.x, dd.y), 0.15)
+				dn.duck(0.4)
+				await get_tree().create_timer(0.35).timeout
+				_float(dt, ("SPEEDHEAL +%d" % int(e.healed)) if e.drug == "speedheal" else "STIMMED", Hud.GREEN)
+				await get_tree().create_timer(0.5).timeout
 			"suppress": await _anim_suppress(e)
 			"shell": await _anim_shell(e)
 			"blast": await _anim_blast(e)

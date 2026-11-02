@@ -376,6 +376,10 @@ class ActBtn extends Button:
 			"medic":
 				draw_rect(Rect2(o + Vector2(-r * 0.35, -r), Vector2(r * 0.7, r * 2.0)), c)
 				draw_rect(Rect2(o + Vector2(-r, -r * 0.35), Vector2(r * 2.0, r * 0.7)), c)
+			"dose":   # an airhypo
+				draw_rect(Rect2(o + Vector2(-r * 1.1, -r * 0.3), Vector2(r * 1.5, r * 0.6)), c, false, 2.0)
+				draw_line(o + Vector2(r * 0.4, 0), o + Vector2(r * 1.3, 0), c, 2.0)
+				draw_line(o + Vector2(-r * 1.1, 0), o + Vector2(-r * 1.5, 0), c, 3.0)
 			"grab":   # a case with a handle
 				draw_rect(Rect2(o + Vector2(-r * 1.1, -r * 0.4), Vector2(r * 2.2, r * 1.4)), c, false, 2.0)
 				draw_rect(Rect2(o + Vector2(-r * 0.4, -r * 0.9), Vector2(r * 0.8, r * 0.5)), c, false, 2.0)
@@ -428,7 +432,7 @@ func _build_bar() -> void:
 	# M5 actions: target-picking tools (toggle; right-click applies) and instant ones
 	for spec in [["melee", "MELEE", "F", "tool", "melee", CYAN], ["shell", "SHELL", "5", "tool", "shell", CYAN],
 			["grenade", "FRAG", "G", "tool", "grenade", GOLD], ["suppress", "SUPPRESS", "4", "suppress", null, CYAN],
-			["medic", "STABILIZE", "T", "tool", "stabilize", GREEN], ["grab", "GRAB", "B", "grab", null, GOLD]]:
+			["medic", "STABILIZE", "T", "tool", "stabilize", GREEN], ["grab", "GRAB", "B", "grab", null, GOLD], ["dose", "DOSE", "Y", "tool", "dose", GREEN]]:
 		var b3 := ActBtn.new(spec[0], spec[1], spec[2], spec[5])
 		b3.toggle_mode = spec[3] == "tool"
 		var arg: Variant = spec[4]
@@ -585,12 +589,12 @@ func _refresh_tools(enc: Encounter, crew_turn: bool) -> void:
 		and o.c.wound_state() == Combatant.Wound.MORTAL and enc.can_reach_to_stabilize(enc.cur, o))
 	var show := {"melee": true, "shell": w != null and w.def.get("shotgun_shell", false),
 		"grenade": c.grenades > 0, "suppress": w != null and w.def.get("suppressive", false), "medic": near_dying,
-		"grab": enc.can_grab()}
+		"grab": enc.can_grab(), "dose": c.role == "medtech" and c.doses > 0}
 	for k in _tool_buttons:
 		var b: ActBtn = _tool_buttons[k]
 		b.visible = show[k]
 		b.disabled = not crew_turn
-		b.set_pressed_no_signal(b.toggle_mode and tool == {"melee": "melee", "shell": "shell", "grenade": "grenade", "medic": "stabilize"}.get(k, "-"))
+		b.set_pressed_no_signal(b.toggle_mode and tool == {"melee": "melee", "shell": "shell", "grenade": "grenade", "medic": "stabilize", "dose": "dose"}.get(k, "-"))
 		if k == "grenade":
 			b.title = "FRAG ×%d" % c.grenades   # fits the button
 		b.queue_redraw()

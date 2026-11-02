@@ -29,7 +29,13 @@ var look_seed: int = -1        ## the crew member's appearance seed (stable acro
 
 var role: String = ""         ## "solo", "netrunner", "medtech", "tech", ...
 var role_rank: int = 0
-var perks: Array[String] = []   ## Role specialisation perks (data/rules/perks.json, HOUSE-RULE)
+var perks: Array[String] = []
+## Medtech Medicine (p149-150): Specialty points. Pharmaceutical points unlock drugs in order
+## (Speedheal, Stim); doses per gig = Medical Tech Skill (HOUSE-RULE: synthesized in downtime).
+var medicine := {}               ## {surgery, pharma, cryo} points
+var doses := 0                   ## Pharmaceutical doses carried this gig
+var stimmed := false             ## Stim: ignore Seriously Wounded penalties (1 hour = the gig)
+var speedhealed := false         ## Speedheal: once per day   ## Role specialisation perks (data/rules/perks.json, HOUSE-RULE)
 ## Solo Combat Awareness allocation (p146): ability id → points spent. See COMBAT_AWARENESS.
 var awareness: Dictionary = {}
 var tracks_humanity := false  ## Mooks skip Humanity entirely.
@@ -194,6 +200,27 @@ func take_perk(id: String) -> bool:
 
 
 ## Role Rank (p411): 60 IP x the new Rank, max 10.
+## Medical Tech Skill = Pharmaceutical + Cryosystem points (p149).
+func medical_tech() -> int:
+	return int(medicine.get("pharma", 0)) + int(medicine.get("cryo", 0))
+
+
+## Pharmaceuticals this Medtech can make: one per Pharmaceutical point (p149), in our fixed order.
+const PHARMA_ORDER := ["speedheal", "stim", "antibiotic", "rapidetox", "surge"]
+
+
+func knows_drug(drug: String) -> bool:
+	var i := PHARMA_ORDER.find(drug)
+	return role == "medtech" and i >= 0 and i < int(medicine.get("pharma", 0))
+
+
+## Fresh for a gig: doses restocked, once-a-day effects cleared (HOUSE-RULE: a gig is a day).
+func gig_reset() -> void:
+	doses = medical_tech() if role == "medtech" else 0
+	stimmed = false
+	speedhealed = false
+
+
 func rank_raise_cost() -> int:
 	return 60 * (role_rank + 1)   # CPR core p411
 
@@ -203,6 +230,9 @@ func raise_rank() -> bool:
 		return false
 	ip -= rank_raise_cost()
 	role_rank += 1
+	if role == "medtech":   # each Medicine Rank adds a Specialty point (p149): pharma first, max 5
+		var k := "pharma" if int(medicine.get("pharma", 0)) < 5 else "surgery"
+		medicine[k] = int(medicine.get(k, 0)) + 1
 	return true
 
 
@@ -221,8 +251,8 @@ func wound_state() -> Wound:
 ## Penalty applied to every Action check (wound state + crits like Concussion).
 func action_penalty() -> int:
 	var w := wound_state()
-	if w == Wound.SERIOUS and _cyber_fx().any(func(fx): return fx.get("ignore_seriously_wounded", false)):
-		w = Wound.LIGHT  # Pain Editor (p112)
+	if w == Wound.SERIOUS and (stimmed or _cyber_fx().any(func(fx): return fx.get("ignore_seriously_wounded", false))):
+		w = Wound.LIGHT  # Pain Editor (p112), Stim (p150)
 	return int(WOUND_ACTION_PENALTY.get(w, 0)) + _fx_sum("all")
 
 
@@ -522,7 +552,7 @@ func to_dict() -> Dictionary:
 		"subdermal": sub, "injuries": injuries, "base_dsp": base_dsp, "dsp": dsp, "dead": dead, "unconscious": unconscious,
 		"weapons": weapons.map(func(w): return {"id": w.id(), "ammo": w.ammo}), "grenades": grenades, "role": role,
 		"role_rank": role_rank, "awareness": awareness, "tracks_humanity": tracks_humanity, "humanity": humanity,
-		"max_humanity": max_humanity, "cyberware": cyberware, "ip": ip, "look_seed": look_seed, "perks": perks}
+		"max_humanity": max_humanity, "cyberware": cyberware, "ip": ip, "look_seed": look_seed, "perks": perks, "medicine": medicine}
 
 
 static func from_dict(d: Dictionary) -> Combatant:
@@ -561,6 +591,8 @@ static func from_dict(d: Dictionary) -> Combatant:
 		c.cyberware.append(String(cw))
 	c.ip = int(d.get("ip", 0))
 	c.look_seed = int(d.get("look_seed", -1))
+	for k in d.get("medicine", {}):
+		c.medicine[String(k)] = int(d.medicine[k])
 	for pk in d.get("perks", []):
 		c.perks.append(String(pk))
 	return c
