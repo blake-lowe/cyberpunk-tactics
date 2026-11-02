@@ -151,6 +151,8 @@ var _inspect_cell := Vector3i(-1, -1, -1)
 var _shot_delay := 0.0
 var _demo_ms := 0
 var _reel := ""
+var _net_cleaned := false
+var _lf_dims := Vector3.ZERO
 var _door_leaves := {}        ## door cell → leaf mesh, so moves can swing doors open as they pass
 
 
@@ -498,7 +500,8 @@ func _build_world() -> void:
 		floor_nodes[int(s.get_meta("floor", 0))].add_child(s)
 	builder.lightfield = LightField.bake(m, enc.los, LightPlan.plan(m, m.seed_value) + builder.emitters)
 	RenderingServer.global_shader_parameter_set("lf_tex", builder.lightfield)   # units read it too
-	RenderingServer.global_shader_parameter_set("lf_dims", Vector3(m.w, m.h, m.floors))
+	_lf_dims = Vector3(m.w, m.h, m.floors)
+	RenderingServer.global_shader_parameter_set("lf_dims", _lf_dims)
 	unit_nodes.clear()
 	lights.clear()
 	_build_lights()
@@ -658,7 +661,7 @@ func _refresh() -> void:
 	_update_cut()
 	for l in lights:  # rooms stay dark until explored, so a reveal reads as lights coming on
 		var cell: Vector3i = l[1]
-		l[0].visible = l[2] != "room" or not fog_on or enc.vision.explored.has(cell)
+		l[0].visible = not _net_cleaned and (l[2] != "room" or not fog_on or enc.vision.explored.has(cell))
 	_build_doors()
 	for u in enc.units:
 		var n: Node3D = unit_nodes[u.id]
@@ -706,6 +709,27 @@ func _net_active() -> NetRun:
 	return enc.runs.get(enc.cur.id)
 
 
+## Cyberspace reads cleaner without the physical world's lighting: the edge styles otherwise trace
+## every lamp pool and light spill as white swaths (owner). While jacked in, lamps go dark, the
+## baked spill and sun shadows are off, and the move outline and path are hidden.
+func _net_clean(on: bool) -> void:
+	if on:
+		grid_node.visible = false
+		path_node.mesh = null
+	if on == _net_cleaned:
+		return
+	_net_cleaned = on
+	for l in lights:
+		(l[0] as Node3D).visible = not on and (l[2] != "room" or not fog_on or enc.vision.explored.has(l[1]))
+	for fl in fires:
+		fl.visible = not on
+	sun.shadow_enabled = not on
+	if builder:
+		for mt in builder.materials():
+			mt.set_shader_parameter("spill", 0.0 if on else look.spill)
+	RenderingServer.global_shader_parameter_set("lf_dims", Vector3.ZERO if on else _lf_dims)   # units drop the spill too
+
+
 ## While jacked in: the environment goes to the chosen background style, the NET draws on top.
 func _update_net() -> void:
 	var run := _net_active()
@@ -715,6 +739,7 @@ func _update_net() -> void:
 		_net_full_res = full
 		_apply_look()
 	net_overlay.visible = run != null
+	_net_clean(run != null)
 	if run == null:
 		return
 	var key := run.arch.get_instance_id()

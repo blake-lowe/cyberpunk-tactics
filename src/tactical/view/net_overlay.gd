@@ -104,7 +104,8 @@ func _draw() -> void:
 			draw_polyline(hx, Hud.RED, 2.0)
 			draw_line(mid + Vector2(-5, -5), mid + Vector2(5, 5), Hud.RED, 2.0)
 			draw_line(mid + Vector2(-5, 5), mid + Vector2(5, -5), Hud.RED, 2.0)
-	# nodes
+	# nodes (labels step down out of each other's way)
+	var placed: Array[Rect2] = []
 	for id in sh:
 		if not pos.has(id):
 			continue
@@ -135,9 +136,27 @@ func _draw() -> void:
 			var j := Vector2(sin(_t * 47.0) * 1.5, 0)
 			var tri := PackedVector2Array([p3 + Vector2(r * 0.9, -r * 1.1) + j, p3 + Vector2(r * 1.6, -r * 0.1) + j, p3 + Vector2(r * 0.2, -r * 0.1) + j])
 			draw_colored_polygon(tri, Color(1, 0.1, 0.2, 0.85))
-			draw_string(font, p3 + Vector2(r * 1.7, -r * 0.4), "ICE: %s" % String(ice[0].kind).to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Hud.RED)
+			var ice_at := _free_spot(Rect2(p3 + Vector2(r * 1.7, -r * 0.4 - 12), Vector2(90, 16)), placed)
+			draw_string(font, ice_at.position + Vector2(0, 12), "ICE: %s" % String(ice[0].kind).to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Hud.RED)
 		var label := _label(nd)
-		draw_string(font, p3 + Vector2(-60, r + 16), label, HORIZONTAL_ALIGNMENT_CENTER, 120, 18, Color(col2, 0.95 * flick))
+		var at := _free_spot(Rect2(p3 + Vector2(-60, r + 4), Vector2(120, 16)), placed)
+		draw_string(font, at.position + Vector2(0, 12), label, HORIZONTAL_ALIGNMENT_CENTER, 120, 18, Color(col2, 0.95 * flick))
+
+
+## First spot at or below `want` that doesn't overlap a label already placed; records it.
+func _free_spot(want: Rect2, placed: Array[Rect2]) -> Rect2:
+	var r := want
+	for k in 8:
+		var hit := false
+		for q in placed:
+			if q.intersects(r):
+				hit = true
+				r.position.y = q.end.y + 1
+				break
+		if not hit:
+			break
+	placed.append(r)
+	return r
 
 
 func _glyph(t: String, c: Vector2, col: Color) -> void:

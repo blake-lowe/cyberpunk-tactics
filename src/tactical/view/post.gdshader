@@ -56,8 +56,8 @@ vec3 cyberspace(sampler2D t, vec2 uv, vec2 px, vec2 cell) {
 		on *= 1.0 - step(0.09, e);
 		return mix(vec3(0.06, 0.065, 0.06), vec3(0.47, 0.5, 0.44), on);
 	} else if (net_style == 3 || net_style == 7) {   // wireframe: white edges on black, a ghost of fill
-		float line = smoothstep(0.04, 0.1, e);
-		return vec3(0.03) + vec3(0.06) * l + vec3(0.62) * line;
+		float line = smoothstep(0.06, 0.13, e);   // geometry edges, not soft gradients
+		return vec3(0.02) + vec3(0.035) * l + vec3(0.5) * line;   // dimmer than before so nodes and devices pop (owner)
 	} else if (net_style == 8) {   // blueprint: cyan lines on deep navy, a faint drafting grid
 		float line = smoothstep(0.04, 0.1, e);
 		float grid = step(mod(cell.x, 24.0), 0.9) + step(mod(cell.y, 24.0), 0.9);
