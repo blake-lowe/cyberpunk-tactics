@@ -39,10 +39,24 @@ float lum_at(sampler2D t, vec2 uv) {
 		+ texture(t, uv + vec2(-h.x, h.y)).rgb + texture(t, uv + vec2(h.x, h.y)).rgb;
 	return dot(c * 0.25, vec3(0.299, 0.587, 0.114));
 }
+// luminance over a 4x4 block (four 2x2 blocks): flat across the 4-px hatch and the Bayer dither
+float lum4(sampler2D t, vec2 uv) {
+	vec2 h = 1.0 / src_size;
+	return 0.25 * (lum_at(t, uv + vec2(-h.x, -h.y)) + lum_at(t, uv + vec2(h.x, -h.y)) + lum_at(t, uv + vec2(-h.x, h.y)) + lum_at(t, uv + vec2(h.x, h.y)));
+}
 float edge_at(sampler2D t, vec2 uv, vec2 px) {
 	float l = lum_at(t, uv);
 	return max(max(abs(l - lum_at(t, uv + vec2(px.x, 0.0))), abs(l - lum_at(t, uv + vec2(0.0, px.y)))),
 		max(abs(l - lum_at(t, uv - vec2(px.x, 0.0))), abs(l - lum_at(t, uv - vec2(0.0, px.y)))));
+}
+
+// Wireframe lines for the cyberspace styles (see style 3 for why it's built this way).
+float wire_line(sampler2D t, vec2 uv) {
+	vec2 p2 = 2.0 / src_size;
+	float c0 = lum4(t, uv);
+	float ee = max(max(abs(c0 - lum4(t, uv + vec2(p2.x, 0.0))), abs(c0 - lum4(t, uv + vec2(0.0, p2.y)))),
+		max(abs(c0 - lum4(t, uv - vec2(p2.x, 0.0))), abs(c0 - lum4(t, uv - vec2(0.0, p2.y)))));
+	return smoothstep(0.2, 0.5, ee / (c0 + 0.05)) * smoothstep(0.012, 0.025, ee);
 }
 
 vec3 cyberspace(sampler2D t, vec2 uv, vec2 px, vec2 cell) {
@@ -63,14 +77,18 @@ vec3 cyberspace(sampler2D t, vec2 uv, vec2 px, vec2 cell) {
 		on *= 1.0 - step(0.09, e);
 		return mix(vec3(0.06, 0.065, 0.06), vec3(0.47, 0.5, 0.44), on);
 	} else if (net_style == 3 || net_style == 7) {   // wireframe: white edges on black, a ghost of fill
-		float line = smoothstep(0.035, 0.1, e);   // geometry edges (lamp pools are off in cyberspace, so gradients are rare)
-		return vec3(0.025) + vec3(0.11) * l + vec3(0.52) * line;   // a readable ghost of the scene, still below the NET's brightness
+		// Owner: the outline had faded. Cyberspace turns the lamps off, so the scene is dark and the
+		// 2x2-averaged edges came out weak. Edges are now measured on 4x4-averaged luminance (cancels
+		// the 4-px hatch and the ordered dither exactly), 2 px apart (lines ~2 px thick after the
+		// upscale), and relative to the local brightness so dark geometry still reads.
+		float line = wire_line(t, uv);
+		return vec3(0.02) + vec3(0.09) * l + vec3(0.78) * line;   // a ghost of the scene; bright white lines, still under the NET's glow
 	} else if (net_style == 8) {   // blueprint: cyan lines on deep navy, a faint drafting grid
-		float line = smoothstep(0.04, 0.1, e);
+		float line = wire_line(t, uv);
 		float grid = step(mod(cell.x, 24.0), 0.9) + step(mod(cell.y, 24.0), 0.9);
 		return vec3(0.02, 0.05, 0.1) + vec3(0.02, 0.06, 0.1) * min(grid, 1.0) + vec3(0.1, 0.12, 0.16) * l * 0.4 + vec3(0.35, 0.8, 1.0) * line * 0.75;
 	} else if (net_style == 9) {   // scan: lines brighten as a slow sweep passes, then fade
-		float line = smoothstep(0.04, 0.1, e);
+		float line = wire_line(t, uv);
 		float sweep = fract(TIME * 0.25);
 		float dist = fract(sweep - uv.y);
 		float glow = exp(-dist * 6.0);
