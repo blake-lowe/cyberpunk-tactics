@@ -335,7 +335,61 @@ func kick(amount: float) -> void:
 	shake = maxf(shake, amount)
 
 
+## A cover piece breaks apart: chunks in its material's colour burst out along the shot, tumble,
+## and settle on the floor where they stay for the rest of the gig (owner: leave something behind
+## instead of snapping out of existence).
+const MATERIAL_COL := {"wood": Color("5a4028"), "steel": Color("5a626c"), "concrete": Color("6a6e73"),
+	"stone": Color("67625b"), "plaster": Color("8a8478"), "glass": Color("9fd8ee"), "brick": Color("6a3a2c")}
+var _bits: Array = []   ## falling chunks: [node, velocity, spin, floor y]
+
+
+func shatter(at: Vector3, material: String, dir: Vector3, floor_y: float, big := false) -> void:
+	var col: Color = MATERIAL_COL.get(material, Color("6a6e73"))
+	var mt := StandardMaterial3D.new()
+	mt.albedo_color = col
+	mt.roughness = 0.85
+	var flat := Vector3(dir.x, 0, dir.z).normalized() if Vector3(dir.x, 0, dir.z).length() > 0.01 else Vector3.FORWARD
+	for k in (26 if big else 18):
+		var c := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		var s := rng.randf_range(0.06, 0.22) * (1.3 if big else 1.0)
+		bm.size = Vector3(s, s * rng.randf_range(0.35, 0.8), s * rng.randf_range(0.6, 1.4))
+		bm.material = mt
+		c.mesh = bm
+		add_child(c)
+		c.global_position = at + Vector3(rng.randf_range(-0.25, 0.25), rng.randf_range(-0.15, 0.2), rng.randf_range(-0.25, 0.25))
+		c.rotation = Vector3(rng.randf() * TAU, rng.randf() * TAU, rng.randf() * TAU)
+		var v := flat * rng.randf_range(0.6, 2.2) + Vector3(rng.randf_range(-1.2, 1.2), rng.randf_range(0.8, 2.4), rng.randf_range(-1.2, 1.2))
+		var w := Vector3(rng.randf_range(-12, 12), rng.randf_range(-12, 12), rng.randf_range(-12, 12))
+		_bits.append([c, v, w, floor_y + bm.size.y * 0.5])
+
+
+func _settle_bits(delta: float) -> void:
+	for i in range(_bits.size() - 1, -1, -1):
+		var b: Array = _bits[i]
+		var c: MeshInstance3D = b[0]
+		if not is_instance_valid(c):
+			_bits.remove_at(i)
+			continue
+		var v: Vector3 = b[1]
+		v.y -= 9.0 * delta
+		c.global_position += v * delta
+		c.rotation += (b[2] as Vector3) * delta
+		if c.global_position.y <= b[3]:
+			if absf(v.y) > 1.2:   # one small bounce, then rest flat-ish on the floor
+				c.global_position.y = b[3]
+				b[1] = Vector3(v.x * 0.35, -v.y * 0.25, v.z * 0.35)
+				b[2] = (b[2] as Vector3) * 0.4
+				continue
+			c.global_position.y = b[3]
+			c.rotation = Vector3(0, c.rotation.y, 0)
+			_bits.remove_at(i)
+			continue
+		b[1] = v
+
+
 func _process(_delta: float) -> void:
+	_settle_bits(_delta)
 	for f in _flashes.duplicate():
 		if not is_instance_valid(f):
 			_flashes.erase(f)

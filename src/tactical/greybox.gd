@@ -1991,7 +1991,9 @@ func _anim_cover(e: Dictionary) -> void:
 		fx.debris(at, gone)
 		if gone:
 			if is_cover:
-				builder.hide_cover(cell)   # the piece goes the moment it breaks
+				builder.hide_cover(cell)   # the piece breaks apart: chunks fly and stay on the floor
+				var cv: Array = m.cover.filter(func(c): return c.floor == cell.z and c.pos == Vector2i(cell.x, cell.y))
+				fx.shatter(Vector3(cell.x + 0.5, cell.z * FH + 0.3, cell.y + 0.5), String(cv[0].material) if not cv.is_empty() else "concrete", (at - m0).normalized(), cell.z * FH, cv.size() > 0 and bool(cv[0].get("thick", false)))
 			else:
 				_rebuild = true            # a wall gave way: rebuild after playback
 		_kick(_screen_dir(m0, at), 4.0 if gone else 1.5)
@@ -2047,10 +2049,14 @@ func _hit_stop(ms: int) -> void:
 
 
 func _update_shake(delta: float) -> void:
-	# damped spring back to rest
-	var acc := -_shake_px * 600.0 - _shake_vel * 22.0
-	_shake_vel += acc * delta
-	_shake_px += _shake_vel * delta
+	# damped spring back to rest, in small sub-steps: one big explicit step is unstable at low
+	# frame rates (at 12 fps the offset blew up and threw the view off screen)
+	var left := minf(delta, 0.25)
+	while left > 0.0:
+		var h := minf(left, 1.0 / 240.0)
+		left -= h
+		_shake_vel += (-_shake_px * 600.0 - _shake_vel * 22.0) * h
+		_shake_px += _shake_vel * h
 	if _shake_px.length() < 0.05 and _shake_vel.length() < 0.5:
 		_shake_px = Vector2.ZERO
 		_shake_vel = Vector2.ZERO
