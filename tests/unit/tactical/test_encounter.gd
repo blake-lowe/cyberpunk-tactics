@@ -483,3 +483,97 @@ func test_dumped_by_range_suffers_the_ice_met() -> void:
 	e._drop_run(r[1].id, true)
 	assert_true(r[1].c.hp < hp0, "p198: an unsafe jack-out suffers the ICE met, no roll")
 	assert_false(e.runs.has(r[1].id))
+
+
+func _on_ice(kind: String) -> Array:
+	var r := _jacked()
+	var run: NetRun = r[2]
+	var ice := {"id": 900, "kind": kind, "node": run.current, "patrol": false}
+	run.arch.ice.append(ice)
+	run.met[900] = true
+	r[0].net_left = 3
+	return r + [ice]
+
+
+func test_sword_does_3d6_to_black_ice() -> void:
+	var r := _on_ice("dragon")
+	var e: Encounter = r[0]
+	var ice: Dictionary = r[3]
+	var hits := 0
+	for k in 30:
+		e.net_left = 3
+		var res := e.net_action("sword")
+		assert_true(res.ok)
+		if res.success:
+			hits += 1
+		if ice.get("derezzed", false):
+			break
+	assert_true(hits > 0)
+	assert_true(int(ice.get("rez", 30)) < 30)
+
+
+func test_armor_cuts_brain_damage_once_per_run() -> void:
+	var r := _on_ice("hellhound")
+	var e: Encounter = r[0]
+	var run: NetRun = r[2]
+	assert_true(e.net_action("armor").ok)
+	assert_eq(run.armor_rez, 7)
+	e.net_left = 3
+	assert_false(e.net_action("armor").ok, "once per Netrun")
+
+
+func test_slide_escapes_to_a_neighbour() -> void:
+	var r := _on_ice("wisp")
+	var e: Encounter = r[0]
+	var run: NetRun = r[2]
+	var start := run.current
+	var targets := run.slide_targets()
+	assert_false(targets.is_empty())
+	var res := e.net_action("slide", targets[0])
+	assert_true(res.ok)
+	if res.success:
+		assert_eq(run.current, targets[0])
+	else:
+		assert_eq(run.current, start)
+	e.net_left = 3
+	assert_false(e.net_action("slide", targets[0]).ok, "once per turn")
+
+
+func test_wounds_lower_interface() -> void:
+	var r := _jacked()
+	var run: NetRun = r[2]
+	var full := run.rank()
+	r[1].c.hp = r[1].c.seriously_wounded_threshold() - 1
+	assert_eq(run.rank(), full - 2, "p220: Seriously Wounded -2 to Actions, Interface included")
+
+
+func test_giant_throws_the_runner_out_and_wisp_costs_an_action() -> void:
+	var r := _on_ice("giant")
+	var e: Encounter = r[0]
+	e._ice_effect(r[1], r[2], r[3])
+	assert_false(e.runs.has(r[1].id), "p207: forced unsafe Jack Out")
+	var r2 := _on_ice("wisp")
+	r2[0]._ice_effect(r2[1], r2[2], r2[3])
+	assert_eq((r2[2] as NetRun).wisp, 1)
+
+
+func test_meeting_ice_rolls_speed_and_may_strike_first() -> void:
+	var struck := 0
+	for k in 12:
+		var r := _jacked()
+		var e: Encounter = r[0]
+		var run: NetRun = r[2]
+		var ice := {"id": 901 + k, "kind": "hellhound", "node": run.current, "patrol": false}
+		run.arch.ice.append(ice)
+		var hp0: int = r[1].c.hp
+		e._meet_ice(r[1], run)
+		assert_true(run.met.has(ice.id))
+		if r[1].c.hp < hp0:
+			struck += 1
+	assert_true(struck > 0, "SPD 6 Hellhound beats Interface 4 often enough")
+
+
+func test_jack_in_needs_no_wall_between() -> void:
+	var e := _corridor_encounter(Vector2i(20, 1), 5)
+	assert_true(e._wall_between(Vector3i(3, 1, 0), Vector3i(7, 1, 0)))
+	assert_false(e._wall_between(Vector3i(6, 1, 0), Vector3i(9, 1, 0)))

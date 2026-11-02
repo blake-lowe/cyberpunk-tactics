@@ -70,13 +70,13 @@ static func generate(m: TacMap, dice: Dice, sid: int) -> NetArchitecture:
 			deepest = k
 			break
 	if sec >= 1 and not intro:
-		var cams := []
+		var cams := []   # (deep nodes are a notch harder, capped at the book's top DV of 12, p210)
 		for d in devices:
 			if d.type == "camera":
 				cams.append(d.id)
-		buckets.get_or_add(deepest, []).append({"type": "control", "dv": dv + 2, "group": "master_cameras", "devices": cams, "zone": mz, "net_only": true})
+		buckets.get_or_add(deepest, []).append({"type": "control", "dv": mini(dv + 2, 12), "group": "master_cameras", "devices": cams, "zone": mz, "net_only": true})
 	if sec >= 2 and not intro:
-		buckets.get_or_add(deepest, []).append({"type": "file", "dv": dv + 2, "device": -1, "value": 4, "zone": mz, "net_only": true, "label": "offsite backup"})
+		buckets.get_or_add(deepest, []).append({"type": "file", "dv": mini(dv + 2, 12), "device": -1, "value": 4, "zone": mz, "net_only": true, "label": "offsite backup"})
 	# Every NET holds at least one File, so a data gig always has something to pull (playtest: a site
 	# of only cameras and locks left the objective empty).
 	if not buckets.values().any(func(b): return b.any(func(x): return x.type == "file")):
@@ -120,7 +120,7 @@ static func generate(m: TacMap, dice: Dice, sid: int) -> NetArchitecture:
 		if outer.size() > 1 and dice.rng.randf() < 0.6 * a.complexity:
 			_firewall(a, hub_of[outer[1]], hub_of[k], k.x, dv)
 		elif dice.rng.randf() < 0.35 * a.complexity:
-			_firewall(a, hub_of[outer[0]], hub_of[k], k.x, dv + 2)  # back door with a harder lock
+			_firewall(a, hub_of[outer[0]], hub_of[k], k.x, mini(dv + 2, 12))  # back door with a harder lock
 
 	# 4. Jack-in points: at most one per subnet (M2c review: keep NETs lean); the other terminals
 	#    stay on the map as plain terminals. Each kept one gets its own fixed port node.

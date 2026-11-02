@@ -777,30 +777,102 @@ func _net_refresh(enc: Encounter) -> void:
 	_net_panel.visible = run != null
 	if run == null:
 		return
-	_net_box.add_child(_text("// NET SESSION · %d ACTIONS" % enc.net_left, F_PIXEL, 20, MAGENTA))
-	_net_box.add_child(_text(_node_label(run.cur_node()).to_upper(), F_DISPLAY, 20, Color("e2c8ff")))
-	for i in run.arch.ice_at(run.current):
-		_net_box.add_child(_text("!! BLACK ICE: %s" % String(i.kind).to_upper(), F_TERM, 20, RED))
+	var ice_db: Dictionary = RulesDB.load_json("black_ice.json")["ice"]
+	_net_box.add_child(_text("// NET SESSION · %d ACTION%s LEFT" % [enc.net_left, "" if enc.net_left == 1 else "S"], F_PIXEL, 20, MAGENTA))
+	var here := run.cur_node()
+	_net_box.add_child(_text(_node_label(here, enc, run, true).to_upper(), F_DISPLAY, 20, Color("e2c8ff")))
+	var status: Array[String] = []
+	if run.armor_rez > 0:
+		status.append("ARMOR ON")
+	for p in run.runner.programs:
+		if run.lost.has(p):
+			status.append(p.to_upper() + " DESTROYED")
+	if run.runner.burning:
+		status.append("ON FIRE")
+	if run.kraken_until >= enc.init.round_num:
+		status.append("KRAKEN HOLD")
+	if run.rank() < NetRun.interface_rank(run.runner):
+		status.append("WOUNDED -%d" % (NetRun.interface_rank(run.runner) - run.rank()))
+	if not status.is_empty():
+		_net_box.add_child(_text(" · ".join(status), F_TERM, 18, GOLD))
+	var ice := run.arch.ice_at(run.current)
+	for i in ice:
+		var st: Dictionary = ice_db[i.kind]
+		_net_box.add_child(_text("!! %s  ATK %d DEF %d PER %d · REZ %d/%d" % [String(i.kind).to_upper(), int(st.atk), int(st.def), int(st.per), int(i.get("rez", st.rez)), int(st.rez)], F_TERM, 18, RED))
+		_net_box.add_child(_text("   " + String(st.get("effect", "")), F_TERM, 16, Color(RED, 0.75)))
+	# Only the actions that apply here, each with its odds.
 	var acts := GridContainer.new()
-	acts.columns = 3
-	for spec in [["BACKDOOR", "backdoor"], ["CONTROL", "control"], ["EYE-DEE", "eye_dee"], ["ZAP", "zap"], ["CROSS", "cross"], ["JACK OUT", "jack_out"]]:
-		acts.add_child(_net_button(spec[0], func(): action.emit("net", spec[1]), 96, 28, enc.net_left <= 0 and spec[1] != "jack_out"))
+	acts.columns = 2
+	var none := enc.net_left <= 0
+	var add := func(label: String, kind: String, enabled := true):
+		acts.add_child(_net_button(label, func(): action.emit("net", kind), 148, 28, none or not enabled))
+	match String(here.type):
+		"firewall":
+			if not run.broken.has(run.current):
+				add.call("BACKDOOR %d%% · DV%d" % [roundi(run.chance(int(here.dv)) * 100), int(here.dv)], "backdoor")
+		"control":
+			if not run.held.has(run.current):
+				add.call("CONTROL %d%% · DV%d" % [roundi(run.chance(int(here.dv)) * 100), int(here.dv)], "control")
+		"file":
+			if not run.identified.has(run.current):
+				add.call("EYE-DEE %d%% · DV%d" % [roundi(run.chance(int(here.dv)) * 100), int(here.dv)], "eye_dee")
+		"socket":
+			add.call("CROSS SOCKET", "cross")
+	if not ice.is_empty():
+		var st0: Dictionary = ice_db[ice[0].kind]
+		add.call("ZAP %d%% · 1d6" % roundi(Check.chance_opposed(run.rank(), int(st0.def)) * 100), "zap")
+		if run.has_program("sword"):
+			add.call("SWORD %d%% · 3d6" % roundi(Check.chance_opposed(run.rank() + 1, int(st0.def)) * 100), "sword")
+	if run.has_program("armor") and not run.armor_used:
+		add.call("ARMOR · -4 BRAIN DMG", "armor")
+	add.call("PATHFINDER", "pathfinder")
+	add.call("JACK OUT", "jack_out", run.kraken_until < enc.init.round_num)
 	_net_box.add_child(acts)
-	_net_box.add_child(_text("ROUTE (FREE)", F_PIXEL, 20, DIM))
-	var k := 0
-	for id in run.movable():
-		if id == run.current or k >= 10:
-			continue
-		k += 1
-		_net_box.add_child(_net_button("› " + _node_label(run.arch.nodes[id]), func(): action.emit("net_move", id), 296, 24))
+	if not ice.is_empty():   # pinned: Slide is the way out (p200)
+		var st1: Dictionary = ice_db[ice[0].kind]
+		var pct := roundi(Check.chance_opposed(run.rank() - 2 * run.skunks.size(), int(st1.per)) * 100)
+		_net_box.add_child(_text("SLIDE AWAY (%d%% · ONCE A TURN)" % pct, F_PIXEL, 20, DIM))
+		for nb in run.slide_targets():
+			var id: int = nb
+			_net_box.add_child(_net_button("» " + _node_label(run.arch.nodes[id], enc, run), func(): action.emit("net_slide", id), 296, 24, none or enc._slid_this_turn))
+		return
+	_net_box.add_child(_text("ROUTE (MOVING IS FREE)", F_PIXEL, 20, DIM))
+	var dist := run.route()
+	var ids := dist.keys()
+	ids.sort_custom(func(x, y): return int(dist[x]) < int(dist[y]) or (int(dist[x]) == int(dist[y]) and _is_target(enc, run, x)))
+	for id in ids.slice(0, 10):
+		var nid: int = id
+		var b := _net_button("%s %s" % ["›".repeat(mini(3, int(dist[id]))), _node_label(run.arch.nodes[nid], enc, run)], func(): action.emit("net_move", nid), 296, 24)
+		if _is_target(enc, run, nid):
+			b.add_theme_color_override("font_color", GOLD)
+		_net_box.add_child(b)
 
 
-static func _node_label(n: Dictionary) -> String:
+static func _is_target(enc: Encounter, run: NetRun, id: int) -> bool:
+	return int(enc.objective.get("node", -1)) == id and int(enc.objective.get("structure", -1)) == run.arch.structure
+
+
+static func _node_label(n: Dictionary, enc: Encounter = null, run: NetRun = null, here := false) -> String:
+	var dv_known: bool = run == null or not run.scouted.has(int(n.id))   # Pathfinder shows contents, not DVs (p200)
+	var dv := (" DV%d" % int(n.dv)) if dv_known and n.has("dv") else ""
+	var star := "★ TARGET " if enc != null and run != null and _is_target(enc, run, int(n.id)) else ""
 	match n.type:
-		"firewall": return "Firewall DV%d (L%d)" % [n.dv, n.zone]
-		"file": return "File DV%d" % n.dv
-		"control": return "Control: %s" % String(n.group).replace("_", " ")
-		"socket": return "Socket → structure %d" % n.target_structure
+		"firewall":
+			var open := run != null and run.broken.has(int(n.id))
+			return "Firewall%s (L%d)%s" % ["" if open else dv, n.zone, " · open" if open else ""]
+		"file":
+			var known := run != null and run.identified.has(int(n.id))
+			return "%sFile%s%s%s" % [star, dv, (" · " + String(n.get("label", "data")).to_upper()) if known or star != "" else "", " · IDENTIFIED" if known else ""]
+		"control":
+			var held := run != null and run.held.has(int(n.id))
+			return "Control: %s%s%s" % [String(n.group).replace("_", " "), "" if held else dv, " · HELD" if held else ""]
+		"socket":
+			var nm := "linked site"
+			if enc != null:
+				for st in enc.m.structures:
+					if st.id == int(n.target_structure):
+						nm = String(st.get("name", st.get("kind", "linked site"))).replace("_", " ")
+			return "Socket → %s" % nm
 	return "%s (L%d)" % [String(n.type).capitalize(), n.zone]
 
 

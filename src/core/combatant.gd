@@ -36,6 +36,9 @@ var medicine := {}               ## {surgery, pharma, cryo} points
 var downtime := "recover"        ## between gigs: recover | train | hustle (Campaign.DOWNTIME)
 var maker := {}                  ## Tech Maker Specialty ranks (p147): field, upgrade, fabrication, invention
 var doses := 0                   ## Pharmaceutical doses carried this gig
+var temp_mods := {}              ## stat → penalty for the rest of the gig (Liche, Scorpion: "for 1 hour")
+var burning := false             ## Hellhound: 2 HP at the end of each turn until a meat Action puts it out
+var programs: Array[String] = [] ## cyberdeck Programs (netrunners start with Sword and Armor, p98)
 var stimmed := false             ## Stim: ignore Seriously Wounded penalties (1 hour = the gig)
 var speedhealed := false         ## Speedheal: once per day   ## Role specialisation perks (data/rules/perks.json, HOUSE-RULE)
 ## Solo Combat Awareness allocation (p146): ability id → points spent. See COMBAT_AWARENESS.
@@ -89,6 +92,8 @@ func stat(s: String) -> int:
 	var v := raw_stat(s)
 	if s in ["REF", "DEX", "MOVE"]:
 		v = maxi(0, v - armor_penalty())
+	if temp_mods.has(s):
+		v = maxi(1, v - int(temp_mods[s]))
 	if s == "MOVE":
 		var reduction := _fx_sum("move")
 		if wound_state() == Wound.MORTAL:
@@ -224,6 +229,8 @@ func gig_reset() -> void:
 			(armor[loc] as ArmorPiece).rigged = false
 	stimmed = false
 	speedhealed = false
+	temp_mods.clear()
+	burning = false
 
 
 func rank_raise_cost() -> int:
@@ -567,7 +574,7 @@ func to_dict() -> Dictionary:
 		"subdermal": sub, "injuries": injuries, "base_dsp": base_dsp, "dsp": dsp, "dead": dead, "unconscious": unconscious,
 		"weapons": weapons.map(func(w): return {"id": w.id(), "ammo": w.ammo, "builtin": w.builtin}), "grenades": grenades, "role": role,
 		"role_rank": role_rank, "awareness": awareness, "tracks_humanity": tracks_humanity, "humanity": humanity,
-		"max_humanity": max_humanity, "cyberware": cyberware, "ip": ip, "look_seed": look_seed, "perks": perks, "medicine": medicine, "maker": maker, "downtime": downtime}
+		"max_humanity": max_humanity, "cyberware": cyberware, "ip": ip, "look_seed": look_seed, "perks": perks, "medicine": medicine, "maker": maker, "downtime": downtime, "programs": programs}
 
 
 static func from_dict(d: Dictionary) -> Combatant:
@@ -608,6 +615,8 @@ static func from_dict(d: Dictionary) -> Combatant:
 	c.ip = int(d.get("ip", 0))
 	c.look_seed = int(d.get("look_seed", -1))
 	c.downtime = String(d.get("downtime", "recover"))
+	for pg in d.get("programs", ["sword", "armor"] if String(d.role) == "netrunner" else []):
+		c.programs.append(String(pg))
 	for k in d.get("maker", {}):
 		c.maker[String(k)] = int(d.maker[k])
 	for k in d.get("medicine", {}):

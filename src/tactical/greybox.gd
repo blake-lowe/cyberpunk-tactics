@@ -1431,10 +1431,17 @@ func _on_hud(name: String, arg: Variant) -> void:
 					_float(enc.cur, "%s %s" % [String(arg).replace("_", "-").to_upper(), "OK" if r.success else "FAILED"], Color("d68cff"))
 				_after_action()
 		"net_move":
-			var run: NetRun = enc.runs.get(enc.cur.id)
-			if run and not run.move_to(int(arg)):
+			if not enc.net_move(int(arg)):
 				hud.toast("Blocked by a firewall or ICE.")
 			_after_action()
+		"net_slide":
+			if _crew_turn():
+				var rs := enc.net_action("slide", int(arg))
+				if not rs.get("ok", false):
+					hud.toast(String(rs.get("reason", "can't")))
+				else:
+					_float(enc.cur, "SLIDE %s" % ("OK" if rs.success else "FAILED"), Color("d68cff"))
+				_after_action()
 
 
 func _pick(screen_pos: Vector2) -> Vector3i:

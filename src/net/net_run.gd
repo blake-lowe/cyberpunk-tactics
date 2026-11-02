@@ -16,6 +16,14 @@ var broken := {}     ## firewalls Backdoored
 var held := {}       ## control nodes taken
 var identified := {} ## files Eye-Dee'd
 var met := {}        ## Black ICE ids encountered this session (an unsafe jack-out suffers them all, p198)
+var armor_rez := 0   ## Armor program running (REZ 7, -4 brain damage, p203); 0 = not running
+var armor_used := false   ## each copy once per Netrun (p203)
+var lost := {}       ## Programs destroyed this session (Asp)
+var kraken_until := -1    ## round: no going deeper or safe Jack Out until then (p207)
+var wisp := 0        ## NET Actions lost next turn (p207)
+var skunks := {}     ## Skunk ice ids hitting this runner: -2 Slide each while Rezzed (p207)
+var no_deeper := false
+var scouted := {}    ## nodes seen only through Pathfinder: contents known, DVs not (p199-200)   ## set by the tactical layer while a Kraken holds the runner
 
 
 static func interface_rank(c: Combatant) -> int:
@@ -36,15 +44,17 @@ func _init(p_arch: NetArchitecture, p_runner: Combatant) -> void:
 	runner = p_runner
 
 
+## Interface for checks: the Rank, less wound penalties like any other Action (p220).
 func rank() -> int:
-	return interface_rank(runner)
+	return interface_rank(runner) - runner.action_penalty()
 
 
 ## Jack in at an access point (meatspace range is checked by the tactical layer).
 func jack_in(access_point: int) -> void:
 	current = int(arch.access_points[access_point].entry_node)
 	revealed[current] = true
-	_meet()
+	for nb in arch.neighbors(current):
+		revealed[nb] = true
 
 
 func jack_out() -> void:
@@ -60,7 +70,10 @@ func _passable(from: int, to: int) -> bool:
 	var n: Dictionary = arch.nodes[from]
 	if n.type == "firewall" and not broken.has(from) and int(arch.nodes[to].zone) >= int(n.zone):
 		return false
-	# Active Black ICE pins you: fight it, Slide away (p200) or jack out.
+	if no_deeper and int(arch.nodes[to].zone) > int(n.zone):   # Kraken (p207)
+		return false
+	# HOUSE-RULE (stands in for the book's chase, p205): active Black ICE pins you on its node; fight
+	# it, Slide away (p200) or jack out.
 	return arch.ice_at(from).is_empty()
 
 
@@ -88,15 +101,44 @@ func move_to(id: int) -> bool:
 		return false
 	current = id
 	revealed[id] = true
+	scouted.erase(id)
 	for nb in arch.neighbors(id):   # you can see the doors out of where you stand
 		revealed[nb] = true
-	_meet()
+		scouted.erase(nb)
 	return true
 
 
-func _meet() -> void:
+## Revealed nodes reachable from here, with hop counts (nearest first in the route list).
+func route() -> Dictionary:
+	var dist := {current: 0}
+	var q := [current]
+	while not q.is_empty():
+		var n: int = q.pop_front()
+		for nb in arch.neighbors(n):
+			if not dist.has(nb) and revealed.has(nb) and _passable(n, nb):
+				dist[nb] = int(dist[n]) + 1
+				q.append(nb)
+	dist.erase(current)
+	return dist
+
+
+## ICE on the runner's node not met before (the caller rolls the speed contest, p205).
+func meet() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
 	for i in arch.ice_at(current):
-		met[i.id] = true
+		if not met.has(i.id):
+			met[i.id] = true
+			out.append(i)
+	return out
+
+
+func has_program(p: String) -> bool:
+	return p in runner.programs and not lost.has(p)
+
+
+## Slide (p200): flee to a neighbouring node, not past an unbroken firewall's inward side.
+func slide_targets() -> Array:
+	return arch.neighbors(current).filter(func(nb): return not (cur_node().type == "firewall" and not broken.has(current) and int(arch.nodes[nb].zone) >= int(cur_node().zone)))
 
 
 ## What each NET Action needs from the node the runner is on ("" = fine).
@@ -162,6 +204,7 @@ func pathfinder(dice: Dice) -> Array[int]:
 			budget -= 1
 			if not revealed.has(nb):
 				revealed[nb] = true
+				scouted[nb] = true
 				out.append(nb)
 			var node: Dictionary = arch.nodes[nb]
 			if not (node.type == "firewall" and int(node.dv) > c.total):

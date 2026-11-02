@@ -46,6 +46,8 @@ static func generate(dice: Dice, role: String, method: String = "edgerunner", ha
 	var c := Combatant.new(handle, stats, skills)
 	c.role = role
 	c.role_rank = 4  # p142
+	if role == "netrunner":   # starting deck Programs (p98: Armor, Sword, and one more; ours: those two)
+		c.programs.assign(["sword", "armor"])
 	if role == "tech":   # Rank 4 = 8 Specialty ranks (p147): HOUSE-RULE split for the game's uses
 		c.maker = {"field": 3, "upgrade": 3, "fabrication": 2, "invention": 0}
 	if role == "medtech":   # Rank 4 = 4 Specialty points (p149): HOUSE-RULE split, 2 Surgery / 2 Pharmaceuticals
