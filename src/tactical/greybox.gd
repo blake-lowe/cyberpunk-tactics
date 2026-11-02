@@ -130,6 +130,7 @@ var range_img: Image
 var range_tex: ImageTexture
 var fires: Array[OmniLight3D] = []
 var decals := {}              ## unit id → ground glow MeshInstance3D
+var _withdraw_ask := -10000    ## withdrawal needs a second press within 3 s
 var obj_node: Node3D           ## snatch objective: the package (a case on a gold beacon) and the extraction squares
 var dash_opts := {}           ## squares reachable by also spending the Action on a Run (amber contour)
 var rim: DirectionalLight3D
@@ -1361,6 +1362,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			KEY_T: _on_hud("tool", "stabilize")
 			KEY_B: _on_hud("grab", null)
 			KEY_Y: _on_hud("tool", "dose")
+			KEY_L: _on_hud("withdraw", null)
 			KEY_ESCAPE:
 				if tool != "":
 					tool = ""
@@ -1397,6 +1399,16 @@ func _on_hud(name: String, arg: Variant) -> void:
 				var r := enc.grab()
 				if not r.get("ok", false):
 					hud.toast(String(r.get("reason", "can't")))
+				_after_action()
+		"withdraw":
+			if not _crew_turn() or not enc.can_withdraw():
+				hud.toast("Everyone still standing must be in the deploy zone")
+			elif Time.get_ticks_msec() - _withdraw_ask > 3000:
+				_withdraw_ask = Time.get_ticks_msec()
+				var lb := enc.left_behind()
+				hud.toast("WITHDRAW? PRESS AGAIN" + ("  ·  LEAVING %d BEHIND" % lb.size() if not lb.is_empty() else ""), 3.0)
+			else:
+				enc.withdraw()
 				_after_action()
 		"reload": _reload()
 		"jack_in": _jack_in()
@@ -1926,10 +1938,7 @@ func _after_action() -> void:
 ## Snatch gigs: the package sits on a gold beacon until someone carries it (then a gold diamond
 ## floats over the carrier), and the deploy squares glow as the extraction point.
 func _update_objective() -> void:
-	if enc.objective.get("kind", "") != "snatch":
-		if obj_node:
-			obj_node.visible = false
-		return
+	var snatch: bool = enc.objective.get("kind", "") == "snatch"
 	if obj_node == null or not is_instance_valid(obj_node) or obj_node.get_parent() != world:
 		obj_node = Node3D.new()
 		world.add_child(obj_node)
@@ -1979,6 +1988,10 @@ func _update_objective() -> void:
 	obj_node.visible = not _net_cleaned
 	var carrier: int = enc.objective.get("carrier", -1)
 	var case_n := obj_node.get_node("case") as Node3D
+	if not snatch:   # the deploy zone still marks the way out (withdrawal)
+		for nm in ["case", "beacon", "tag"]:
+			(obj_node.get_node(nm) as Node3D).visible = false
+		return
 	var beacon_n := obj_node.get_node("beacon") as Node3D
 	var tag_n := obj_node.get_node("tag") as Node3D
 	if carrier < 0:
@@ -1999,7 +2012,7 @@ func _update_objective() -> void:
 
 ## A board gig is over: settle it (pay, injuries, the dead), save, and go back to the board.
 func _finish_gig() -> void:
-	hud.turn_banner("GIG %s  ·  BACK TO THE BOARD" % ("COMPLETE" if enc.state == "won" else "FAILED"), Hud.GREEN if enc.state == "won" else Hud.RED)
+	hud.turn_banner("GIG %s  ·  BACK TO THE BOARD" % ("COMPLETE" if enc.state == "won" else ("ABANDONED" if enc.state == "fled" else "FAILED")), Hud.GREEN if enc.state == "won" else Hud.RED)
 	await get_tree().create_timer(3.0).timeout
 	var camp := Campaign.current
 	var report := camp.resolve(enc)
@@ -2408,7 +2421,7 @@ func _anim_backup(e: Dictionary) -> void:
 		n.visible = _seen(bu.pos)
 		if first.is_empty():
 			first = bu
-	hud.toast("BACKUP HAS ARRIVED")
+	hud.toast("%s HAS ARRIVED" % String(e.get("label", "BACKUP")))
 	if not first.is_empty() and _seen(first.pos):
 		await _pan_to(_body_pos(first), 0.4)
 		await get_tree().create_timer(0.6).timeout

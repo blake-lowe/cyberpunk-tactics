@@ -380,6 +380,10 @@ class ActBtn extends Button:
 				draw_rect(Rect2(o + Vector2(-r * 1.1, -r * 0.3), Vector2(r * 1.5, r * 0.6)), c, false, 2.0)
 				draw_line(o + Vector2(r * 0.4, 0), o + Vector2(r * 1.3, 0), c, 2.0)
 				draw_line(o + Vector2(-r * 1.1, 0), o + Vector2(-r * 1.5, 0), c, 3.0)
+			"withdraw":   # an exit arrow
+				draw_line(o + Vector2(-r * 1.2, 0), o + Vector2(r * 0.9, 0), c, 3.0)
+				draw_colored_polygon(PackedVector2Array([o + Vector2(r * 1.3, 0), o + Vector2(r * 0.5, -r * 0.6), o + Vector2(r * 0.5, r * 0.6)]), c)
+				draw_rect(Rect2(o + Vector2(-r * 1.4, -r), Vector2(r * 0.3, r * 2.0)), c)
 			"grab":   # a case with a handle
 				draw_rect(Rect2(o + Vector2(-r * 1.1, -r * 0.4), Vector2(r * 2.2, r * 1.4)), c, false, 2.0)
 				draw_rect(Rect2(o + Vector2(-r * 0.4, -r * 0.9), Vector2(r * 0.8, r * 0.5)), c, false, 2.0)
@@ -432,7 +436,7 @@ func _build_bar() -> void:
 	# M5 actions: target-picking tools (toggle; right-click applies) and instant ones
 	for spec in [["melee", "MELEE", "F", "tool", "melee", CYAN], ["shell", "SHELL", "5", "tool", "shell", CYAN],
 			["grenade", "FRAG", "G", "tool", "grenade", GOLD], ["suppress", "SUPPRESS", "4", "suppress", null, CYAN],
-			["medic", "STABILIZE", "T", "tool", "stabilize", GREEN], ["grab", "GRAB", "B", "grab", null, GOLD], ["dose", "DOSE", "Y", "tool", "dose", GREEN]]:
+			["medic", "STABILIZE", "T", "tool", "stabilize", GREEN], ["grab", "GRAB", "B", "grab", null, GOLD], ["dose", "DOSE", "Y", "tool", "dose", GREEN], ["withdraw", "WITHDRAW", "L", "withdraw", null, RED]]:
 		var b3 := ActBtn.new(spec[0], spec[1], spec[2], spec[5])
 		b3.toggle_mode = spec[3] == "tool"
 		var arg: Variant = spec[4]
@@ -494,7 +498,7 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 	_round_box.add_child(_text("ROUND %02d" % maxi(1, enc.init.round_num), F_TERM, 20, CYAN))
 	var state := "UNDETECTED"
 	if enc.alarm >= 2:
-		state = "ALARM · BACKUP %d" % enc.backup_in if enc.backup_in > 0 else "ALARM"
+		state = "ALARM · BACKUP %d" % enc.backup_in if enc.backup_in > 0 else ("ALARM · NCPD %d" % enc.ncpd_in if enc.ncpd_in > 0 else "ALARM")
 	elif enc.engaged():
 		state = "ENGAGED"
 	_round_box.add_child(_text(state, F_DISPLAY, 20, RED if state != "UNDETECTED" else CYAN))
@@ -564,7 +568,7 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 	for u2 in enc.units:   # remember what the bars showed, for the next ghost drain
 		_hp_seen[u2.id] = float(maxi(u2.c.hp, 0)) / u2.c.max_hp()
 	if enc.state != "playing":
-		toast("GIG %s" % ("COMPLETE" if enc.state == "won" else "FAILED"), 1e9)
+		toast("GIG %s" % ("COMPLETE" if enc.state == "won" else ("ABANDONED" if enc.state == "fled" else "FAILED")), 1e9)
 	_layout.call_deferred()
 
 
@@ -589,7 +593,7 @@ func _refresh_tools(enc: Encounter, crew_turn: bool) -> void:
 		and o.c.wound_state() == Combatant.Wound.MORTAL and enc.can_reach_to_stabilize(enc.cur, o))
 	var show := {"melee": true, "shell": w != null and w.def.get("shotgun_shell", false),
 		"grenade": c.grenades > 0, "suppress": w != null and w.def.get("suppressive", false), "medic": near_dying,
-		"grab": enc.can_grab(), "dose": c.role == "medtech" and c.doses > 0}
+		"grab": enc.can_grab(), "dose": c.role == "medtech" and c.doses > 0, "withdraw": enc.can_withdraw()}
 	for k in _tool_buttons:
 		var b: ActBtn = _tool_buttons[k]
 		b.visible = show[k]
@@ -598,6 +602,13 @@ func _refresh_tools(enc: Encounter, crew_turn: bool) -> void:
 		if k == "grenade":
 			b.title = "FRAG ×%d" % c.grenades   # fits the button
 		b.queue_redraw()
+	# Narrower buttons when many actions apply, so the bar never runs off the screen.
+	var shown := _buttons.get_children().filter(func(x): return x.visible).size()
+	var room := get_viewport_rect().size.x - 28 - 96 - 420   # end-turn button and the unit card
+	var bw := clampf(room / maxf(1.0, shown) - 5.0, 50.0, 66.0)
+	for b2 in _buttons.get_children():
+		(b2 as Control).custom_minimum_size.x = bw
+	_bar.reset_size()
 
 
 func _hp_meter(uid: int, c: Combatant, w: float, h: float) -> Meter:

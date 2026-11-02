@@ -350,3 +350,45 @@ func test_spot_roll_is_once_per_round() -> void:
 	var first := e._spots(g, e.units[0])
 	for k in 20:
 		assert_eq(e._spots(g, e.units[0]), first, "no rerolling the same contest within a round")
+
+
+func test_ncpd_follows_backup_if_the_fight_goes_on() -> void:
+	var m := SceneGen.generate(11, "street_block", {"security": 1})
+	var dice := Dice.new(1)
+	var e := Encounter.setup(m, dice, _crew(dice))
+	e.alarm = 2
+	e.backup_in = 1
+	e._backup_round = -5
+	e.next_turn()
+	assert_eq(e.ncpd_in, Encounter.NCPD_ROUNDS, "backup arrived and the clock started")
+	var cops := false
+	for k in 200:
+		for u in e.units:
+			if u.team == 0:
+				u.c.hp = u.c.max_hp()   # keep the crew alive for the test
+		e.end_turn()
+		e.next_turn()
+		if e.units.any(func(u): return u.c.display_name.begins_with("NCPD")):
+			cops = true
+			break
+	assert_true(cops, "NCPD responds")
+	assert_eq(e.ncpd_in, -2, "only once")
+
+
+func test_withdraw_needs_everyone_up_in_the_zone_and_leaves_the_rest() -> void:
+	var m := SceneGen.generate(11, "street_block", {"security": 1})
+	var dice := Dice.new(1)
+	var e := Encounter.setup(m, dice, _crew(dice))
+	e.next_turn()
+	while e.cur.team != 0:
+		e.end_turn()
+		e.next_turn()
+	var crew := e.units.filter(func(u): return u.team == 0)
+	assert_true(e.can_withdraw(), "everyone starts in the deploy zone")
+	crew[1].pos = crew[1].pos + Vector3i(0, 0, 0)
+	crew[1].c.unconscious = true   # out cold: can't walk out
+	assert_true(e.can_withdraw())
+	assert_eq(e.left_behind().size(), 1)
+	assert_true(e.withdraw())
+	assert_eq(e.state, "fled")
+	assert_true(crew[1].c.dead, "left behind")

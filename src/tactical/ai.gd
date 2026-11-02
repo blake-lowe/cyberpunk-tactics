@@ -145,13 +145,28 @@ static func _advance(e: Encounter, u: Dictionary) -> void:
 		for f in foes:
 			if f.pos.z == cell.z and Vector2(cell.x - f.pos.x, cell.y - f.pos.y).length() < 25 and e.los.trace(f.pos, cell).clear and not covered:
 				exposed += 1
-		var score := -dmin + (8.0 if sees else 0.0) + (5.0 if covered else 0.0) - exposed * 2.0
+		var score := -dmin + (8.0 if sees else 0.0) + (5.0 if covered else 0.0) - exposed * 2.0 + _objective_pull(e, u, cell)
 		if score > best_score:
 			best_score = score
 			best = cell
 	if best != u.pos:
 		e.move_to(best)
 
+
+
+## Snatch gigs: guards close on whoever carries the package, and a few hang back to guard it while
+## it's still on the floor.
+static func _objective_pull(e: Encounter, u: Dictionary, cell: Vector3i) -> float:
+	if u.team != 1 or e.objective.get("kind", "") != "snatch":
+		return 0.0
+	var carrier: int = e.objective.get("carrier", -1)
+	if carrier >= 0:
+		var cp: Vector3i = e.units[carrier].pos
+		return -0.6 * Vector2(cp.x - cell.x, cp.y - cell.y).length() if cp.z == cell.z else 0.0
+	var pk: Vector3i = e.objective.cell
+	if u.id % 3 == 0 and pk.z == cell.z and Vector2(pk.x - cell.x, pk.y - cell.y).length() <= 3.0:
+		return 10.0   # one guard in three keeps watch over the package
+	return 0.0
 
 
 ## Cover that faces the threat (the reviewer's catch: any solid square beside us used to count):

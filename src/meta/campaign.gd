@@ -170,7 +170,7 @@ func resolve(e: Encounter) -> Dictionary:
 	else:
 		report.rep = -1
 		report.ip = IP_FAIL
-		if not crew.is_empty():
+		if not crew.is_empty() and e.state != "fled":   # a crew that walked out needs no rescue
 			report.fees = int(ECON.rescue_fee)
 	if won:   # loot: the opposition's guns and armour, fenced
 		for u in e.units:

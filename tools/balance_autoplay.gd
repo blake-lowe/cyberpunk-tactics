@@ -10,6 +10,7 @@ func _initialize() -> void:
 			var dice := Dice.new(seed * 11)
 			var crew: Array[Combatant] = [Recruit.generate(dice, "solo", "edgerunner", "Vex"), Recruit.generate(dice, "netrunner", "edgerunner", "Patch"), Recruit.generate(dice, "medtech", "edgerunner", "Doc")]
 			var e := Encounter.setup(m, dice, crew)
+			e.reinforcements = OS.get_cmdline_user_args().has("--escalate")   # baseline: the p399 fight alone
 			var kept := 0
 			for u in e.units:   # p399: an equal number of Mooks
 				if u.team == 1:

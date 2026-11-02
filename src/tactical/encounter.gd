@@ -40,6 +40,9 @@ var alarm := 0                      ## 0 quiet, 1 a guard is onto the crew, 2 ba
 var backup_in := -1                 ## rounds until reinforcements arrive (-1 none scheduled)
 var _backup_round := 0
 var _patrol_round := -1
+var reinforcements := true          ## backup/NCPD on (balance tests switch them off)
+var ncpd_in := -1                   ## rounds until the NCPD response (after backup has arrived)
+var _ncpd_round := 0
 var _spot_rolls := {}               ## [guard id, crew id, round] → result: one stealth roll per pair per round
 var jack_pos := {}                  ## runner unit id → the square of the device they jacked in at
 var disabled_devices := {}          ## device id → true (turrets/cameras under the runner's control)
@@ -235,6 +238,33 @@ func _check_end() -> void:
 		say("The data is yours.")
 
 
+# --- Withdrawal ------------------------------------------------------------------------
+
+## The crew can cut and run: on their turn, if everyone still on their feet stands in the deploy
+## zone. The gig fails (state "fled"); anyone left behind (down or elsewhere) is lost
+## (HOUSE-RULE: nobody comes back for them).
+func can_withdraw() -> bool:
+	if state != "playing" or cur.is_empty() or cur.team != 0:
+		return false
+	var up := units.filter(func(u): return u.team == 0 and u.c.can_act())
+	return not up.is_empty() and up.all(func(u): return extract_cells.has(u.pos))
+
+
+func left_behind() -> Array:
+	return units.filter(func(u): return u.team == 0 and not u.c.dead and not (u.c.can_act() and extract_cells.has(u.pos)))
+
+
+func withdraw() -> bool:
+	if not can_withdraw():
+		return false
+	for u in left_behind():
+		u.c.dead = true
+		say("%s is left behind." % u.c.display_name)
+	state = "fled"
+	say("The crew pulls out.")
+	return true
+
+
 # --- Snatch objective ------------------------------------------------------------------
 
 ## The package sits indoors in the target building's most secure zone, as far from the deploy zone
@@ -314,6 +344,7 @@ const AWARE_RANGE := 2.0        ## ...but notices anyone within 2 squares, any d
 const DARK_PENALTY := 4         ## "Task obscured by smoke or darkness" (CPR p? task modifiers)
 const SHIFT_CHANGE_ROUND := 6    ## HOUSE-RULE twist: the next shift arrives and raises the alarm
 const BACKUP_ROUNDS := 3        ## HOUSE-RULE: reinforcements arrive 3 rounds after the call
+const NCPD_ROUNDS := 8          ## HOUSE-RULE: still fighting this long after backup arrives, NCPD rolls in
 
 
 ## Can guard `g` spot crew member `u` right now? Inside the guard's view (cone or close), in clear
@@ -438,7 +469,7 @@ func patrol_step() -> void:
 ## A guard who knows the crew is here calls it in; backup arrives a few rounds later at the
 ## entrance farthest from the crew (spec: alarm levels, reinforcements).
 func _call_it_in(g: Dictionary) -> void:
-	if alarm >= 2 or g.c.dead:
+	if alarm >= 2 or g.c.dead or not reinforcements:
 		return
 	alarm = 2
 	backup_in = BACKUP_ROUNDS
@@ -449,6 +480,13 @@ func _call_it_in(g: Dictionary) -> void:
 
 
 func _tick_backup() -> void:
+	if ncpd_in > 0 and init.round_num != _ncpd_round:
+		_ncpd_round = init.round_num
+		ncpd_in -= 1
+		if ncpd_in == 0:
+			ncpd_in = -2   # once per gig
+			var waves: Array[String] = ["lieutenant", "mook", "mook"]
+			_spawn_wave(waves, "NCPD Officer", "NCPD")
 	if backup_in < 0 or init.round_num == _backup_round:
 		return
 	_backup_round = init.round_num
@@ -456,6 +494,17 @@ func _tick_backup() -> void:
 	if backup_in > 0:
 		return
 	backup_in = -1
+	var roster: Array[String] = []
+	for i in 1 + int(m.params.get("security", 1)) + (1 if "heavy" in twists else 0):
+		roster.append("mook")
+	_spawn_wave(roster, "Backup", "BACKUP")
+	if ncpd_in == -1:   # escalation: keep fighting and the city notices
+		ncpd_in = NCPD_ROUNDS
+		_ncpd_round = init.round_num
+
+
+## Reinforcements enter at the entrance farthest from the crew, alerted and in the initiative order.
+func _spawn_wave(roster: Array[String], prefix: String, label: String) -> void:
 	var crew_c := Vector2.ZERO
 	for u in alive(0):
 		crew_c += Vector2(u.pos.x, u.pos.y)
@@ -470,22 +519,21 @@ func _tick_backup() -> void:
 			spawn = v
 	if spawn.x < 0:
 		return
-	var n := 2 + int(m.params.get("security", 1)) + (1 if "heavy" in twists else 0)
 	var arrived := []
 	var reach: Dictionary = _keys(func(): return nav.reachable(spawn, 6, occupied()))
 	var cells: Array = reach.keys().filter(func(v): return v.z == spawn.z)
 	cells.sort_custom(func(a, b): return int(reach[a]) < int(reach[b]))
-	for i in mini(n, cells.size()):
-		var g := Recruit.npc(dice, "mook", "Backup %d" % (i + 1))
+	for i in mini(roster.size(), cells.size()):
+		var g := Recruit.npc(dice, roster[i], "%s %d" % [prefix, i + 1])
 		g.team = 1
 		_add(g, cells[i], 1)
 		var u: Dictionary = units[-1]
 		u.alerted = true
 		init.add(g)
 		arrived.append(u.id)
-	say("Backup arrives: %d more guards." % arrived.size())
+	say("%s arrives: %d more." % [label.capitalize(), arrived.size()])
 	if not arrived.is_empty():
-		events.append({"type": "backup", "unit": arrived[0], "units": arrived})
+		events.append({"type": "backup", "unit": arrived[0], "units": arrived, "label": label})
 
 
 ## Gunfire at `at` alerts guards within GUNFIRE_RANGE on any floor.
