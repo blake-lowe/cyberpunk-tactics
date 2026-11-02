@@ -65,6 +65,15 @@ var facilities := {}                 ## facility id → level (0 = not built)
 var log: Array[String] = []
 
 
+## The running campaign: the one in memory, else the save, else a new game.
+static func ensure_current() -> Campaign:
+	if current == null:
+		current = load_from()
+		if current == null or current.crew.is_empty():
+			current = new_game(int(Time.get_unix_time_from_system()) % 100000)
+	return current
+
+
 static func new_game(p_seed: int) -> Campaign:
 	var c := Campaign.new()
 	c.seed_value = p_seed

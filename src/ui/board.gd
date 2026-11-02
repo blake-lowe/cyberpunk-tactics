@@ -40,12 +40,7 @@ func _ready() -> void:
 		get_tree().change_scene_to_file.call_deferred(GREYBOX)
 		return
 	Hud._fonts()
-	camp = Campaign.current
-	if camp == null:
-		camp = Campaign.load_from()
-		if camp == null or camp.crew.is_empty():
-			camp = Campaign.new_game(int(Time.get_unix_time_from_system()) % 100000)
-		Campaign.current = camp
+	camp = Campaign.ensure_current()
 	if camp.has_meta("report"):
 		report = camp.get_meta("report")
 		camp.remove_meta("report")
@@ -133,6 +128,9 @@ func _build() -> void:
 		var l := _text(s[0], Hud.F_TERM, 34, s[1])
 		l.size_flags_vertical = Control.SIZE_SHRINK_END
 		head.add_child(l)
+	var sh := _button("‹  SAFEHOUSE", Hud.GREEN, func(): camp.save(); get_tree().change_scene_to_file("res://scenes/base.tscn"))
+	sh.size_flags_vertical = Control.SIZE_SHRINK_END
+	head.add_child(sh)
 	if not report.is_empty():
 		_root.add_child(_report_panel())
 	var cols := HBoxContainer.new()
