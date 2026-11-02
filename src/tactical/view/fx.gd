@@ -418,10 +418,10 @@ func explosion(at: Vector3, floor_y: float, light: OmniLight3D = null) -> void:
 	ball.scale = Vector3.ONE * 0.4
 	var tb := create_tween()
 	tb.set_parallel(true)
-	tb.tween_property(ball, "scale", Vector3.ONE * 2.6, 0.18).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUART)
-	tb.tween_property(bm, "albedo_color", Color("ff6a10"), 0.18)
-	tb.chain().tween_property(ball, "scale", Vector3.ONE * 3.0, 0.2)
-	tb.parallel().tween_property(bm, "albedo_color", Color(0.25, 0.08, 0.02, 0.0), 0.2)
+	tb.tween_property(ball, "scale", Vector3.ONE * 1.9, 0.12).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUART)
+	tb.tween_property(bm, "albedo_color", Color("ff6a10"), 0.12)
+	tb.chain().tween_property(ball, "scale", Vector3.ONE * 2.2, 0.2)
+	tb.parallel().tween_property(bm, "albedo_color", Color.BLACK, 0.2)   # additive: black is invisible
 	tb.chain().tween_callback(ball.queue_free)
 	burst(at + Vector3(0, 0.2, 0), Color("ffd27a"), 30, 9.0, 0.05, 0.35, 2.0, -6.0)   # sparks
 	burst(at + Vector3(0, 0.1, 0), Color("4a4440"), 22, 5.0, 0.08, 0.9, 0.0, -9.0)    # grit
