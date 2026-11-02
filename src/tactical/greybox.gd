@@ -151,6 +151,17 @@ var _inspect_cell := Vector3i(-1, -1, -1)
 var _shot_delay := 0.0
 var _demo_ms := 0
 var _reel := ""
+var _door_leaves := {}        ## door cell → leaf mesh, so moves can swing doors open as they pass
+
+
+## Swing a door leaf open (a quarter turn about its hinge) when someone steps into the doorway.
+func _swing_door(v: Vector3i) -> void:
+	var mi: MeshInstance3D = _door_leaves.get(v)
+	if mi == null or not is_instance_valid(mi) or absf(mi.rotation.y) > 0.1:
+		return
+	var tw := create_tween().set_parallel()
+	tw.tween_property(mi, "rotation:y", PI / 2, 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_property(mi, "position", mi.get_meta("open_at"), 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 
 
 func _ready() -> void:
@@ -961,6 +972,7 @@ func _update_fog() -> void:
 
 ## Door leaves: closed in the wall line, or swung open 90° on the hinge; a lock light on the frame.
 func _build_doors() -> void:
+	_door_leaves.clear()
 	for ch in door_nodes.get_children():
 		ch.queue_free()
 	for d in m.doors:
@@ -974,13 +986,16 @@ func _build_doors() -> void:
 		var mi := MeshInstance3D.new()
 		var bm := BoxMesh.new()
 		bm.material = builder.mat("door", d.floor)   # world shader: obeys cutaway and fog
-		var along := horiz != open
-		bm.size = Vector3(0.88, 1.1, 0.05) if along else Vector3(0.05, 1.1, 0.88)
+		bm.size = Vector3(0.88, 1.1, 0.05) if horiz else Vector3(0.05, 1.1, 0.88)
 		mi.mesh = bm
 		mi.position = c
+		mi.set_meta("closed", c)
+		mi.set_meta("open_at", c + (Vector3(-0.44, 0, 0.44) if horiz else Vector3(0.44, 0, -0.44)))
 		if open:
-			mi.position += Vector3(-0.44, 0, 0.44) if horiz else Vector3(0.44, 0, -0.44)
+			mi.position = mi.get_meta("open_at")
+			mi.rotation.y = PI / 2
 		door_nodes.add_child(mi)
+		_door_leaves[v] = mi
 		var lamp := MeshInstance3D.new()
 		var lm := BoxMesh.new()
 		lm.size = Vector3(0.09, 0.11, 0.09)
@@ -1621,6 +1636,9 @@ func _anim_move(e: Dictionary) -> void:
 		if u.team == 1:
 			n.visible = _seen(a) or _seen(b)
 		var to := Vector3(b.x + 0.5, _gy(b), b.y + 0.5)
+		for dv in [a, b]:   # doors open as the walker reaches them, not after the whole playback
+			if m.t(dv.z, dv.x, dv.y) == TacMap.T.DOOR:
+				_swing_door(dv)
 		var tw := create_tween()
 		tw.tween_property(n, "position", to, step * (1.0 if d.length() < 1.2 else 1.4))
 		(decals[u.id] as Node3D).position = to + Vector3(0, 0.03, 0)

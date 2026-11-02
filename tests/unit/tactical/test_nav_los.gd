@@ -106,3 +106,27 @@ func test_vision_reveals_rooms_only_when_seen() -> void:
 	assert_eq(v.state(Vector3i(8, 4, 0)), 0, "the room behind the inner wall stays unknown")
 	v.update([Vector3i(3, 0, 0) + Vector3i(-3, 0, 0)])
 	assert_eq(v.state(Vector3i(3, 4, 0)) >= 1, true, "explored rooms are remembered")
+
+
+func test_paths_never_enter_walls_or_cut_corners() -> void:
+	var sm := SceneGen.generate(5, "skirmish", {})
+	var nav := Nav.new(sm)
+	nav.locked = {}
+	var open := []
+	for y in sm.h:
+		for x in sm.w:
+			if sm.walkable(0, Vector2i(x, y)):
+				open.append(Vector3i(x, y, 0))
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	for k in 40:
+		var a: Vector3i = open[rng.randi() % open.size()]
+		var b: Vector3i = open[rng.randi() % open.size()]
+		var p := nav.path(a, b)
+		var prev := a
+		for c in p:
+			if c.z == prev.z:
+				assert_true(sm.walkable(c.z, Vector2i(c.x, c.y)), "step %s is walkable" % c)
+				if c.x != prev.x and c.y != prev.y:
+					assert_true(sm.walkable(c.z, Vector2i(c.x, prev.y)) and sm.walkable(c.z, Vector2i(prev.x, c.y)), "diagonal %s→%s doesn't cut a corner" % [prev, c])
+			prev = c
