@@ -179,3 +179,11 @@ Check-ins (🔶) are where work pauses for a user decision or review.
   (data/rules/perks.json); tier 1 100 IP, tier 2 200 IP + Role Rank 5; Role Rank at 60 × new Rank (p411).
 - Unit readability in bright scenes: left as is, per your "no glows under units" verdict; options on the
   review page.
+- Medtech Medicine in play (p149-150): starting split 2 Surgery / 2 Pharmaceuticals (HOUSE-RULE);
+  Speedheal and Stim via DOSE; doses per gig = Medical Tech Skill, made free in downtime; a gig = a day.
+- Second fresh-eyes review: fixed the backup-arrival freeze, sellable cyber-claws, Overclock on the jack-in
+  turn; one stealth roll per guard/sneaker/round (HOUSE-RULE); a call-in rouses every guard on site.
+- Escalation: NCPD (Lieutenant + 2 Mooks) 8 rounds after backup if still fighting; backup = 1 + security
+  Mooks. p399 baseline unchanged (10/12); with escalation a slow AI crew loses ~half → WITHDRAW from the
+  deploy zone (gig fails, no rescue fee, anyone left behind is lost; HOUSE-RULE).
+- Review page (night 2) republished at the same URL, keys m7_*.
