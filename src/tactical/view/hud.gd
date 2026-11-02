@@ -583,7 +583,10 @@ static func objective_text(enc: Encounter) -> String:
 			return "OBJ · EXTRACT THE PACKAGE" if int(o.get("carrier", -1)) >= 0 else "OBJ · GRAB THE PACKAGE"
 		"eliminate":
 			return "OBJ · NOBODY STANDING (%d LEFT)" % enc.alive(1).size()
-	return "OBJ · PULL THE FILE OR CLEAR OUT" if int(o.get("node", -1)) >= 0 else "OBJ · CLEAR OUT"
+	if int(o.get("node", -1)) >= 0 and enc.m.architectures.has(int(o.structure)):
+		var fn: Dictionary = (enc.m.architectures[int(o.structure)] as NetArchitecture).nodes[int(o.node)]
+		return "OBJ · PULL THE ★ FILE (NET L%d) OR CLEAR OUT" % int(fn.zone)
+	return "OBJ · CLEAR OUT"
 
 
 ## Show each M5 action only when it applies to the active unit; reflect the active tool.
