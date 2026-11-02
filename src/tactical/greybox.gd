@@ -1658,7 +1658,8 @@ func _demo_jack() -> void:
 			for dy in range(-2, 3):
 				for dx in range(-2, 3):
 					var v := Vector3i(d.pos.x + dx, d.pos.y + dy, d.floor)
-					if best.x < 0 and m.walkable(v.z, Vector2i(v.x, v.y)) and not enc.occupied().has(v) and Los.distance_m(v, Vector3i(d.pos.x, d.pos.y, d.floor)) <= 4.0:
+					if best.x < 0 and m.walkable(v.z, Vector2i(v.x, v.y)) and not enc.occupied().has(v) and Los.distance_m(v, Vector3i(d.pos.x, d.pos.y, d.floor)) <= 4.0 \
+							and not enc._wall_between(v, Vector3i(d.pos.x, d.pos.y, d.floor)):
 						best = v
 	if best.x < 0:
 		return
@@ -1672,7 +1673,7 @@ func _demo_jack() -> void:
 		var run: NetRun = enc.runs[runner.id]
 		for nb in run.arch.neighbors(run.current):   # step one node in so more of the NET shows
 			if run.can_move_to(nb) and run.arch.neighbors(nb).size() > 1:
-				run.move_to(nb)
+				enc.net_move(nb)
 				break
 	enc.refresh_vision()
 	_frame_unit(runner)
