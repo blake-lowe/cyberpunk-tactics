@@ -24,6 +24,8 @@ var wake_in := 0               ## rounds until a stabilized character comes roun
 var prone := false
 var weapons: Array[Weapon] = []
 var grenades: int = 0          ## frag grenades carried (thrown: DEX + Athletics, 6d6 blast, p174/p177)
+var ip: int = 0                ## unspent Improvement Points (p410-411)
+var look_seed: int = -1        ## the crew member's appearance seed (stable across gigs); -1 = by unit order
 
 var role: String = ""         ## "solo", "netrunner", "medtech", "tech", ...
 var role_rank: int = 0
@@ -405,3 +407,86 @@ func stabilize() -> void:
 		unconscious = true
 		wake_in = 20   # "Unconscious for 1 minute" (p223): 20 rounds of 3 s
 	dsp = base_dsp
+
+
+# --- Save / load (campaign state between gigs) ---------------------------------
+
+static func _armor_dict(a: ArmorPiece) -> Variant:
+	return {"id": a.id, "sp": a.sp} if a else null
+
+
+static func _armor_from(d: Variant) -> ArmorPiece:
+	if d == null:
+		return null
+	var a := ArmorPiece.from_id(String(d.id))
+	a.sp = int(d.sp)
+	return a
+
+
+func to_dict() -> Dictionary:
+	var arm := {}
+	for loc in armor:
+		arm[loc] = _armor_dict(armor[loc])
+	var sub := {}
+	for loc in subdermal:
+		sub[loc] = _armor_dict(subdermal[loc])
+	return {"id": id, "name": display_name, "team": team, "stats": stats, "skills": skills, "hp": hp, "armor": arm,
+		"subdermal": sub, "injuries": injuries, "base_dsp": base_dsp, "dsp": dsp, "dead": dead, "unconscious": unconscious,
+		"weapons": weapons.map(func(w): return {"id": w.id(), "ammo": w.ammo}), "grenades": grenades, "role": role,
+		"role_rank": role_rank, "awareness": awareness, "tracks_humanity": tracks_humanity, "humanity": humanity,
+		"max_humanity": max_humanity, "cyberware": cyberware, "ip": ip, "look_seed": look_seed}
+
+
+static func from_dict(d: Dictionary) -> Combatant:
+	var st := {}
+	for k in d.stats:
+		st[k] = int(d.stats[k])
+	var sk := {}
+	for k in d.skills:
+		sk[k] = int(d.skills[k])
+	var c := Combatant.new(String(d.name), st, sk)
+	c.id = String(d.id)
+	c.team = int(d.team)
+	c.hp = int(d.hp)
+	for loc in d.armor:
+		c.armor[loc] = _armor_from(d.armor[loc])
+	for loc in d.get("subdermal", {}):
+		c.subdermal[loc] = _armor_from(d.subdermal[loc])
+	for inj in d.injuries:
+		c.injuries.append(inj)
+	c.base_dsp = int(d.base_dsp)
+	c.dsp = int(d.dsp)
+	c.dead = bool(d.dead)
+	c.unconscious = bool(d.unconscious)
+	for wd in d.weapons:
+		var w := Weapon.from_id(String(wd.id))
+		w.ammo = int(wd.ammo)
+		c.weapons.append(w)
+	c.grenades = int(d.grenades)
+	c.role = String(d.role)
+	c.role_rank = int(d.role_rank)
+	c.awareness = d.awareness
+	c.tracks_humanity = bool(d.tracks_humanity)
+	c.humanity = int(d.humanity)
+	c.max_humanity = int(d.max_humanity)
+	for cw in d.cyberware:
+		c.cyberware.append(String(cw))
+	c.ip = int(d.get("ip", 0))
+	c.look_seed = int(d.get("look_seed", -1))
+	return c
+
+
+## IP to raise a skill to its next level (p411): 20 x the new level, doubled for (x2) skills.
+func skill_raise_cost(skill_id: String) -> int:
+	var nxt := int(skills.get(skill_id, 0)) + 1
+	return nxt * (40 if RulesDB.skill(skill_id).get("x2", false) else 20)
+
+
+## Spend IP on the next level of a skill (max 10). Returns false if it can't.
+func raise_skill(skill_id: String) -> bool:
+	var cost := skill_raise_cost(skill_id)
+	if int(skills.get(skill_id, 0)) >= 10 or ip < cost:
+		return false
+	ip -= cost
+	skills[skill_id] = int(skills.get(skill_id, 0)) + 1
+	return true
