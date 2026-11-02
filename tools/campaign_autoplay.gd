@@ -44,6 +44,7 @@ func _initialize() -> void:
 			tw.append_array(["setup", "heavy"])
 		var e := Encounter.setup(m, camp.dice, crew, Campaign.objective_for(gig), tw)
 		e.heat = camp.heat
+		e.nav.locked = {}   # stand-in for a player who hacks or shoots security doors (the AI crew can't)
 		e.next_turn()
 		var turns := 0
 		while e.state == "playing" and turns < 400 and e.init.round_num <= 30:
