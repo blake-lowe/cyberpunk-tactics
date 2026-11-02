@@ -1407,6 +1407,7 @@ func _run_reel() -> void:
 				enc.turn.action_available = true
 				enc.turn.attacks_left = 0
 				var r := enc.attack(g, enc.cur.c.weapons[0], md)
+				print("reel %s try %d: %s" % [_reel, k, {"ok": r.get("ok"), "hit": r.get("hit"), "dodged": r.get("dodged"), "damage": r.get("damage"), "through": r.get("through"), "armor": [g.c.armor.head != null, g.c.armor.body != null], "sp": g.c.sp("body"), "reason": r.get("reason"), "dead": g.c.dead}])
 				await _act()
 				if _reel in ["single", "auto", "pistol"] or (r.get("hit", false) and not r.get("dodged", false)) or g.c.dead:
 					break
@@ -1718,8 +1719,8 @@ func _anim_attack(e: Dictionary) -> void:
 	var rounds: int = int(e.get("rounds", 1)) if int(e.mode) == Attack.Mode.AUTOFIRE else 1
 	var connect: int = (int(e.get("mult", 1)) if int(e.mode) == Attack.Mode.AUTOFIRE else 1) if (e.hit and not e.dodged) else 0
 	var hit_rounds := {}   # which rounds connect: spread through the burst
-	for k in connect:
-		hit_rounds[int(round(float(k + 1) * rounds / (connect + 1)))] = true
+	for k in connect:   # floor, not round: a single shot's only round is index 0
+		hit_rounds[mini(rounds - 1, int(floor(float(k + 1) * rounds / (connect + 1))))] = true
 	var last_hit := -1
 	for k in hit_rounds:
 		last_hit = maxi(last_hit, k)
@@ -1733,6 +1734,7 @@ func _anim_attack(e: Dictionary) -> void:
 		tw.tween_property(tn, "position", tn.position, 0.2)
 		_float(tu, "DODGE", Hud.CYAN)
 	var arrived := [0]
+	var outcome_shown := [false]
 	for i in rounds:
 		var m0 := _muzzle_of(sn)
 		var dir := (aim - m0).normalized()
@@ -1747,6 +1749,7 @@ func _anim_attack(e: Dictionary) -> void:
 			if hits:
 				fx.sparks(dest)
 				if is_last:
+					outcome_shown[0] = true
 					_outcome(e, su, tu, tn, dest, dir)
 			else:
 				fx.burst(dest, Color("ffd27a"), 5, 2.0, 0.035, 0.2, 1.6)
@@ -1758,6 +1761,8 @@ func _anim_attack(e: Dictionary) -> void:
 	var t0 := Time.get_ticks_msec()
 	while arrived[0] < rounds and Time.get_ticks_msec() - t0 < 600:
 		await get_tree().process_frame
+	if connect > 0 and not outcome_shown[0]:   # safety net: a hit always resolves on screen
+		_outcome(e, su, tu, tn, aim, (aim - _muzzle_of(sn)).normalized())
 	if not e.hit and not e.dodged:
 		_float(tu, "MISS", Hud.DIM)
 	create_tween().tween_method(func(v: float): sn.set_meta("aim", v), 1.0, 0.0, 0.25).set_delay(0.3)
