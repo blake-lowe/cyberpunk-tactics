@@ -30,6 +30,7 @@ var runs := {}                      ## unit id → NetRun
 var net_left := 0                   ## NET Actions left this turn (runner only)
 var _slid_this_turn := false
 var _ice_round := -1
+var _met_memory := {}               ## unit id → ICE met this gig: re-jacking doesn't re-ambush (playtest Giant loop)
 var _netting := false               ## this turn went to the NET (the meat Action is forgone, p197)
 var objective := {}                 ## {kind, done, + data: structure, node | snatch: cell, carrier}
 var twists: Array = []             ## gig complications: heavy, blackout, shift_change (data/gen/gigs.json)
@@ -208,13 +209,15 @@ func next_turn() -> void:
 				AI.act(self, cur)
 				end_turn()
 				continue
-			if runs.has(cur.id):
+			if runs.has(cur.id) and turn.action_available:   # no Action this turn (e.g. Spinal Injury): no NET either
 				net_left = net_actions_for(c)
 				var r0: NetRun = runs[cur.id]
 				if r0.wisp > 0:   # Wisp (p207): -1 NET Action this turn, never below 2
 					net_left = maxi(mini(2, net_left), net_left - r0.wisp)
 					r0.wisp = 0
-				r0.no_deeper = r0.kraken_until >= init.round_num
+			if runs.has(cur.id):
+				var r1: NetRun = runs[cur.id]
+				r1.no_deeper = r1.kraken_until >= init.round_num
 			return
 		_check_end()
 
@@ -368,11 +371,53 @@ func update_alerts() -> Array:
 	return fresh
 
 
+## The nearest live camera close enough to tamper with (2 squares, same floor, no wall between).
+func camera_in_reach(u: Dictionary) -> Dictionary:
+	var best := {}
+	for d in m.devices:
+		if String(d.type) != "camera" or disabled_devices.has(d.id) or int(d.floor) != u.pos.z:
+			continue
+		var cp := Vector3i(d.pos.x, d.pos.y, d.floor)
+		if maxi(absi(cp.x - u.pos.x), absi(cp.y - u.pos.y)) <= 2 and not _wall_between(u.pos, cp):
+			best = d
+	return best
+
+
+## Kill a camera by hand (p209): an Action, TECH + Electronics/Security Tech vs DV13. A fail
+## leaves it running.
+func tamper_camera() -> Dictionary:
+	var d := camera_in_reach(cur)
+	if d.is_empty():
+		return {"ok": false, "reason": "no live camera within 2 squares"}
+	if not turn.use_action():
+		return {"ok": false, "reason": "no action left"}
+	var check := Check.vs_dv(dice, cur.c.skill_base("electronics_security_tech") - cur.c.action_penalty(), CAMERA_TAMPER_DV)
+	if check.success:
+		disabled_devices[d.id] = true
+	events.append({"type": "tamper", "unit": cur.id, "device": d.id, "ok": check.success})
+	say("%s %s a camera." % [cur.c.display_name, "kills" if check.success else "fumbles with"])
+	return {"ok": true, "success": check.success}
+
+
+## Squares a live camera watches (for the stealth overlay).
+func camera_cells(d: Dictionary) -> Dictionary:
+	var out := {}
+	var cp := Vector3i(d.pos.x, d.pos.y, d.floor)
+	var r := int(CAMERA_RANGE)
+	for dy in range(-r, r + 1):
+		for dx in range(-r, r + 1):
+			var v := Vector3i(cp.x + dx, cp.y + dy, cp.z)
+			if Vector2(dx, dy).length() <= CAMERA_RANGE and m.inb(v.x, v.y) and m.walkable(v.z, Vector2i(v.x, v.y)) and not _wall_between(cp, v):
+				out[v] = true
+	return out
+
+
 ## Security cameras (HOUSE-RULE): a live camera watches its floor within CAMERA_RANGE squares, no
 ## wall between; whoever minds the feed rolls CAMERA_PERCEPTION (-4 in the dark) vs Stealth, once
 ## per camera, crew member and round. A hit rouses the nearest unalerted guard. Holding the
 ## cameras' Control Node in the NET turns them off - the netrunner's job in a stealth gig.
 const CAMERA_RANGE := 8.0
+const CAMERA_TAMPER_DV := 13   # RULES-UNVERIFIED: Electronics/Security Tech counters devices (p209), DV not given; "everyday" DV13 (p129)
 const CAMERA_PERCEPTION := 10
 func _camera_spots() -> Dictionary:
 	if alarm >= 2:
@@ -1139,6 +1184,7 @@ func jack_in(point: Dictionary) -> bool:
 	run.nets = m.architectures
 	run.jack_in(point.index)
 	runs[cur.id] = run
+	run.met = _met_memory.get(cur.id, {}).duplicate()
 	var dev: Dictionary = m.devices[point.device]
 	jack_pos[cur.id] = Vector3i(dev.pos.x, dev.pos.y, dev.floor)
 	say("%s jacks in." % cur.c.display_name)
@@ -1150,6 +1196,10 @@ func jack_in(point: Dictionary) -> bool:
 ## nodes is free (run.move_to). A turn spent in the NET forgoes the meat Action (p197).
 func net_action(kind: String, arg: int = -1) -> Dictionary:
 	var run: NetRun = runs.get(cur.id)
+	if kind == "jack_out_unsafe" and run != null:   # pull the plug: no Action needed, Kraken or not, but every ICE met hits (p198)
+		say("%s pulls the plug." % cur.c.display_name)
+		_drop_run(cur.id, true)
+		return {"ok": true}
 	if kind not in ["backdoor", "control", "eye_dee", "zap", "cross", "jack_out", "sword", "armor", "slide", "pathfinder"]:
 		return {"ok": false, "reason": "unknown action"}
 	if run == null or net_left <= 0:
@@ -1311,10 +1361,11 @@ func _drop_run(uid: int, unsafe: bool) -> void:
 		var cell := Vector3i(dev.pos.x, dev.pos.y, dev.floor)
 		if dev.type == "door_lock" and not los.open_doors.has(cell) and m.t(cell.z, cell.x, cell.y) == TacMap.T.DOOR:
 			nav.locked[cell] = true
+	_met_memory[uid] = run.met.duplicate()
 	if unsafe:
 		var u: Dictionary = units[uid]
 		for ice in run.arch.ice:
-			if run.met.has(ice.id) and not ice.get("derezzed", false):
+			if run.met.has(run.met_key(ice)) and not ice.get("derezzed", false):
 				_ice_effect(u, run, ice, true)
 	runs.erase(uid)
 
@@ -1375,8 +1426,10 @@ func _ice_effect(u: Dictionary, run: NetRun, ice: Dictionary, from_dump := false
 			run.wisp = 1
 		"hellhound":
 			u.c.burning = true
-		"kraken":
-			run.kraken_until = init.round_num + 1
+		"kraken":   # HOUSE-RULE cap (playtest death loop): a lock can't be renewed back to back
+			if init.round_num > run.kraken_until + 1:
+				run.kraken_until = init.round_num + 1
+				run.no_deeper = true
 	if String(stats.brain) != "":
 		var parts := String(stats.brain).split("d")
 		var dmg := dice.roll(int(parts[0]), int(parts[1]))
@@ -1387,7 +1440,7 @@ func _ice_effect(u: Dictionary, run: NetRun, ice: Dictionary, from_dump := false
 		say("%s hits %s for %d brain damage." % [kind.capitalize(), u.c.display_name, dmg])
 		events.append({"type": "harm", "unit": u.id, "damage": dmg, "source": kind.to_upper(), "wound_before": before, "wound_after": u.c.wound_state()})
 	if kind == "giant" and not from_dump and runs.has(u.id):   # forced unsafe Jack Out (the Giant itself excepted)
-		run.met.erase(ice.id)
+		run.met.erase(run.met_key(ice))
 		say("The Giant throws %s out of the NET." % u.c.display_name)
 		_drop_run(u.id, true)
 

@@ -383,6 +383,10 @@ class ActBtn extends Button:
 			"rig":   # a wrench
 				draw_line(o + Vector2(-r * 1.0, r * 1.0), o + Vector2(r * 0.4, -r * 0.4), c, 3.0)
 				draw_arc(o + Vector2(r * 0.6, -r * 0.6), r * 0.5, PI * 0.9, PI * 2.6, 10, c, 2.5)
+			"tamper":   # a camera with a slash
+				draw_rect(Rect2(o + Vector2(-r * 1.0, -r * 0.5), Vector2(r * 1.4, r * 1.0)), c, false, 2.0)
+				draw_colored_polygon(PackedVector2Array([o + Vector2(r * 0.4, -r * 0.3), o + Vector2(r * 1.1, -r * 0.6), o + Vector2(r * 1.1, r * 0.6), o + Vector2(r * 0.4, r * 0.3)]), c)
+				draw_line(o + Vector2(-r * 1.2, r * 1.0), o + Vector2(r * 1.2, -r * 1.0), Color(Hud.RED, c.a), 2.0)
 			"withdraw":   # an exit arrow
 				draw_line(o + Vector2(-r * 1.2, 0), o + Vector2(r * 0.9, 0), c, 3.0)
 				draw_colored_polygon(PackedVector2Array([o + Vector2(r * 1.3, 0), o + Vector2(r * 0.5, -r * 0.6), o + Vector2(r * 0.5, r * 0.6)]), c)
@@ -439,7 +443,7 @@ func _build_bar() -> void:
 	# M5 actions: target-picking tools (toggle; right-click applies) and instant ones
 	for spec in [["melee", "MELEE", "F", "tool", "melee", CYAN], ["shell", "SHELL", "5", "tool", "shell", CYAN],
 			["grenade", "FRAG", "G", "tool", "grenade", GOLD], ["suppress", "SUPPRESS", "4", "suppress", null, CYAN],
-			["medic", "STABILIZE", "T", "tool", "stabilize", GREEN], ["grab", "GRAB", "B", "grab", null, GOLD], ["dose", "DOSE", "Y", "tool", "dose", GREEN], ["rig", "RIG", "U", "tool", "rig", CYAN], ["withdraw", "WITHDRAW", "L", "withdraw", null, RED]]:
+			["medic", "STABILIZE", "T", "tool", "stabilize", GREEN], ["grab", "GRAB", "B", "grab", null, GOLD], ["dose", "DOSE", "Y", "tool", "dose", GREEN], ["rig", "RIG", "U", "tool", "rig", CYAN], ["tamper", "CAMERA", "K", "tamper", null, CYAN], ["withdraw", "WITHDRAW", "L", "withdraw", null, RED]]:
 		var b3 := ActBtn.new(spec[0], spec[1], spec[2], spec[5])
 		b3.toggle_mode = spec[3] == "tool"
 		var arg: Variant = spec[4]
@@ -599,7 +603,7 @@ func _refresh_tools(enc: Encounter, crew_turn: bool) -> void:
 		and o.c.wound_state() == Combatant.Wound.MORTAL and enc.can_reach_to_stabilize(enc.cur, o))
 	var show := {"melee": true, "shell": w != null and w.def.get("shotgun_shell", false),
 		"grenade": c.grenades > 0, "suppress": w != null and w.def.get("suppressive", false), "medic": near_dying,
-		"grab": enc.can_grab(), "dose": c.role == "medtech" and c.doses > 0, "rig": int(c.maker.get("field", 0)) > 0, "withdraw": enc.can_withdraw()}
+		"grab": enc.can_grab(), "dose": c.role == "medtech" and c.doses > 0, "rig": int(c.maker.get("field", 0)) > 0, "withdraw": enc.can_withdraw(), "tamper": not enc.camera_in_reach(enc.cur).is_empty()}
 	for k in _tool_buttons:
 		var b: ActBtn = _tool_buttons[k]
 		b.visible = show[k]
@@ -831,6 +835,9 @@ func _net_refresh(enc: Encounter) -> void:
 	add.call("PATHFINDER", "pathfinder")
 	add.call("JACK OUT", "jack_out", run.kraken_until < enc.init.round_num)
 	_net_box.add_child(acts)
+	var unsafe := _net_button("PULL THE PLUG · UNSAFE: EVERY ICE MET HITS", func(): action.emit("net", "jack_out_unsafe"), 296, 24)
+	unsafe.add_theme_color_override("font_color", RED)
+	_net_box.add_child(unsafe)
 	if not ice.is_empty():   # pinned: Slide is the way out (p200)
 		var st1: Dictionary = ice_db[ice[0].kind]
 		var pct := roundi(Check.chance_opposed(run.rank() - 2 * run.skunks.size(), int(st1.per)) * 100)

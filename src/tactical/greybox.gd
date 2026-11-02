@@ -1267,6 +1267,10 @@ func _draw_watch(show: bool) -> void:
 		for g in enc.units:
 			if g.team == 1 and not g.alerted and g.c.can_act() and g.pos.z == view_floor and (not fog_on or enc.vision.visible.has(g.pos)):
 				cells.merge(enc.watched_cells(g))
+		for d in m.devices:   # live cameras the crew has seen watch their floor too
+			var cp := Vector3i(d.pos.x, d.pos.y, d.floor)
+			if String(d.type) == "camera" and not enc.disabled_devices.has(d.id) and cp.z == view_floor and (not fog_on or enc.vision.explored.has(cp)):
+				cells.merge(enc.camera_cells(d))
 	var mm2 := watch_node.multimesh
 	mm2.instance_count = cells.size()
 	var i := 0
@@ -1372,6 +1376,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			KEY_Y: _on_hud("tool", "dose")
 			KEY_U: _on_hud("tool", "rig")
 			KEY_L: _on_hud("withdraw", null)
+			KEY_K: _on_hud("tamper", null)
 			KEY_ESCAPE:
 				if tool != "":
 					tool = ""
@@ -1408,6 +1413,12 @@ func _on_hud(name: String, arg: Variant) -> void:
 				var r := enc.grab()
 				if not r.get("ok", false):
 					hud.toast(String(r.get("reason", "can't")))
+				_after_action()
+		"tamper":
+			if _crew_turn():
+				var rt := enc.tamper_camera()
+				if not rt.get("ok", false):
+					hud.toast(String(rt.get("reason", "can't")))
 				_after_action()
 		"withdraw":
 			if not _crew_turn() or not enc.can_withdraw():
@@ -2184,6 +2195,12 @@ func _play_events() -> void:
 					_float(u, "CALLING IT IN", Hud.RED)
 				hud.toast("ALARM: BACKUP IN %d ROUNDS" % int(e.rounds))
 			"backup": await _anim_backup(e)
+			"tamper":
+				_focus_unit = u.id
+				(unit_nodes[u.id] as CharModel).perform("idle_shift", 0.8)
+				await get_tree().create_timer(0.6).timeout
+				_float(u, "CAMERA DOWN" if e.ok else "TAMPER FAILED", Hud.CYAN if e.ok else Hud.RED)
+				await get_tree().create_timer(0.4).timeout
 			"camera":
 				var tu: Dictionary = enc.units[e.target]
 				_float(tu, "ON CAMERA", Hud.RED)

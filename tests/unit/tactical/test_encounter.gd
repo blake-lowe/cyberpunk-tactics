@@ -478,7 +478,7 @@ func test_dumped_by_range_suffers_the_ice_met() -> void:
 	var run: NetRun = r[2]
 	var ice := {"id": 999, "kind": "hellhound", "node": run.current, "patrol": false}
 	run.arch.ice.append(ice)
-	run.met[999] = true
+	run.met[run.met_key(ice)] = true
 	var hp0: int = r[1].c.hp
 	e._drop_run(r[1].id, true)
 	assert_true(r[1].c.hp < hp0, "p198: an unsafe jack-out suffers the ICE met, no roll")
@@ -490,7 +490,7 @@ func _on_ice(kind: String) -> Array:
 	var run: NetRun = r[2]
 	var ice := {"id": 900, "kind": kind, "node": run.current, "patrol": false}
 	run.arch.ice.append(ice)
-	run.met[900] = true
+	run.met[run.met_key(ice)] = true
 	r[0].net_left = 3
 	return r + [ice]
 
@@ -567,7 +567,7 @@ func test_meeting_ice_rolls_speed_and_may_strike_first() -> void:
 		run.arch.ice.append(ice)
 		var hp0: int = r[1].c.hp
 		e._meet_ice(r[1], run)
-		assert_true(run.met.has(ice.id))
+		assert_true(run.met.has(run.met_key(ice)))
 		if r[1].c.hp < hp0:
 			struck += 1
 	assert_true(struck > 0, "SPD 6 Hellhound beats Interface 4 often enough")
@@ -614,3 +614,77 @@ func test_firewall_left_from_inside_lets_you_back_in() -> void:
 	var run2 := NetRun.new(a, run.runner)
 	run2.current = outer
 	assert_false(run2.can_move_to(deep), "coming from outside still needs a Backdoor")
+
+
+func test_pathfinder_sees_through_opened_firewalls() -> void:
+	var a := NetArchitecture.new()
+	var hub := a.add_node({"type": "hub", "zone": 1, "subnet": 0})
+	var fw := a.add_node({"type": "firewall", "zone": 2, "subnet": 1, "dv": 30})
+	var deep := a.add_node({"type": "file", "zone": 2, "subnet": 1, "dv": 6})
+	a.link(hub, fw)
+	a.link(fw, deep)
+	var run := NetRun.new(a, Recruit.generate(Dice.new(1), "netrunner", "edgerunner"))
+	run.current = hub
+	run.revealed[hub] = true
+	run.pathfinder(Dice.new(3))
+	assert_false(run.revealed.has(deep), "a DV30 firewall stops it")
+	run.broken[fw] = true
+	run.pathfinder(Dice.new(3))
+	assert_true(run.revealed.has(deep), "a Backdoored firewall doesn't")
+
+
+func test_kraken_hold_blocks_sliding_deeper() -> void:
+	var a := NetArchitecture.new()
+	var here := a.add_node({"type": "hub", "zone": 1, "subnet": 0})
+	var deeper := a.add_node({"type": "hub", "zone": 2, "subnet": 1})
+	var shallower := a.add_node({"type": "hub", "zone": 0, "subnet": 2})
+	a.link(here, deeper)
+	a.link(here, shallower)
+	var run := NetRun.new(a, Recruit.generate(Dice.new(1), "netrunner", "edgerunner"))
+	run.current = here
+	run.no_deeper = true
+	assert_eq(run.slide_targets(), [shallower], "p207: no going deeper")
+
+
+func test_rejacking_remembers_met_ice_and_plug_pull_works() -> void:
+	var r := _on_ice("giant")
+	var e: Encounter = r[0]
+	var run: NetRun = r[2]
+	var key := run.met_key(r[3])
+	assert_true(e.net_action("jack_out_unsafe").ok)
+	assert_false(e.runs.has(r[1].id))
+	e.turn = TurnState.begin(e.dice, r[1].c)
+	e._netting = false
+	e.jack_in(e.jack_points(r[1])[0])
+	assert_true((e.runs[r[1].id] as NetRun).met.has(key), "no fresh ambush on a re-jack")
+
+
+func test_no_net_actions_on_a_turn_without_an_action() -> void:
+	var r := _jacked()
+	var e: Encounter = r[0]
+	e.turn.action_available = false
+	e.net_left = 0
+	assert_false(e.net_action("pathfinder").ok)
+
+
+func test_tamper_with_a_camera_by_hand() -> void:
+	var e := _corridor_encounter(Vector2i(25, 1))
+	e.next_turn()
+	while e.cur.team != 0:
+		e.end_turn()
+		e.next_turn()
+	e.m.devices.append({"id": e.m.devices.size(), "type": "camera", "pos": Vector2i(e.cur.pos.x + 1, 1), "floor": 0, "group": "cameras"})
+	var cam: int = e.m.devices[-1].id
+	assert_false(e.camera_in_reach(e.cur).is_empty())
+	e.cur.c.skills["electronics_security_tech"] = 10
+	var done := false
+	for k in 10:
+		e.turn.action_available = true
+		var r := e.tamper_camera()
+		assert_true(r.ok)
+		if r.success:
+			done = true
+			break
+	assert_true(done)
+	assert_true(e.disabled_devices.has(cam))
+	assert_true(e.camera_in_reach(e.cur).is_empty(), "a dead camera is out of play")

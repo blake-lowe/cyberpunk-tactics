@@ -15,7 +15,7 @@ var revealed := {}   ## node id → true
 var broken := {}     ## firewalls Backdoored
 var held := {}       ## control nodes taken
 var identified := {} ## files Eye-Dee'd
-var met := {}        ## Black ICE ids encountered this session (an unsafe jack-out suffers them all, p198)
+var met := {}        ## Vector2i(structure, ice id) → true: Black ICE met (an unsafe jack-out suffers them all, p198)
 var armor_rez := 0   ## Armor program running (REZ 7, -4 brain damage, p203); 0 = not running
 var armor_used := false   ## each copy once per Netrun (p203)
 var lost := {}       ## Programs destroyed this session (Asp)
@@ -142,10 +142,14 @@ func route() -> Dictionary:
 func meet() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	for i in arch.ice_at(current):
-		if not met.has(i.id):
-			met[i.id] = true
+		if not met.has(met_key(i)):
+			met[met_key(i)] = true
 			out.append(i)
 	return out
+
+
+func met_key(ice: Dictionary) -> Vector2i:
+	return Vector2i(arch.structure, int(ice.id))
 
 
 func has_program(p: String) -> bool:
@@ -154,7 +158,8 @@ func has_program(p: String) -> bool:
 
 ## Slide (p200): flee to a neighbouring node, not past an unbroken firewall's inward side.
 func slide_targets() -> Array:
-	return arch.neighbors(current).filter(func(nb): return not (cur_node().type == "firewall" and not broken.has(current) and int(arch.nodes[nb].zone) >= int(cur_node().zone)))
+	return arch.neighbors(current).filter(func(nb): return not (cur_node().type == "firewall" and not broken.has(current) and not inside.has(current) and int(arch.nodes[nb].zone) >= int(cur_node().zone)) \
+		and not (no_deeper and int(arch.nodes[nb].zone) > int(cur_node().zone)))
 
 
 ## What each NET Action needs from the node the runner is on ("" = fine).
@@ -217,13 +222,14 @@ func pathfinder(dice: Dice) -> Array[int]:
 			if seen.has(nb) or budget <= 0:
 				continue
 			seen[nb] = true
-			budget -= 1
-			if not revealed.has(nb):
+			if not revealed.has(nb):   # only new nodes use up the check (playtest)
+				budget -= 1
 				revealed[nb] = true
 				scouted[nb] = true
 				out.append(nb)
 			var node: Dictionary = arch.nodes[nb]
-			if not (node.type == "firewall" and int(node.dv) > c.total):
+			var open: bool = broken.has(nb) or inside.has(nb)
+			if open or not (node.type == "firewall" and int(node.dv) > c.total):   # opened firewalls don't stop it
 				q.append(nb)
 	return out
 
