@@ -1800,9 +1800,15 @@ func _anim_attack(e: Dictionary) -> void:
 	var sn: Node3D = unit_nodes[su.id]
 	var tn: Node3D = unit_nodes[tu.id]
 	_focus_unit = su.id
+	var restore_floor := -1
 	if su.team == 0 and su.pos.z != view_floor:   # follow a crew shooter to their floor (XCOM-style)
 		view_floor = su.pos.z
 		_refresh()
+	elif su.team == 1 and maxi(su.pos.z, tu.pos.z) > view_floor and _seen(su.pos):   # a guard firing from above: lift the view for the shot
+		restore_floor = view_floor
+		view_floor = maxi(su.pos.z, tu.pos.z)
+		_update_fog()
+		_update_cut()
 	sn.visible = sn.visible or _seen(su.pos)
 	tn.visible = tn.visible or _seen(tu.pos)
 	await _frame_pair(_body_pos(su), _body_pos(tu))
@@ -1879,6 +1885,10 @@ func _anim_attack(e: Dictionary) -> void:
 	if from != su.pos:
 		create_tween().tween_property(sn, "position", home, 0.15).set_delay(0.25)
 	await get_tree().create_timer(0.45 if e.hit else 0.3).timeout
+	if restore_floor >= 0:
+		view_floor = restore_floor
+		_update_fog()
+		_update_cut()
 
 
 ## The result on the target, when the connecting round lands.
