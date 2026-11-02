@@ -9,7 +9,7 @@ Check-ins (🔶) are where work pauses for a user decision or review.
 | M2 | Procedural generation: multi-floor maps, cover, hackables, coupled Net Architectures (+ Netrunner Interface rules); debug renders | ✅ done (reviewed through M2f) | ✅ |
 | M3a | Tactical core, headless: grid pathfinding (stairs, ladders, bridges), line of sight and binary cover (walls, windows, cover pieces), destructible cover, encounter setup (crew at deploy, guards at posts), enemy AI, Netrunner session (jack in within 6 m, NET actions per turn, Black ICE fights), win/lose | ✅ done (headless) | — |
 | M3b | ✅ playtested — Playable greybox in Godot: 3D blockout from TacMap with floor slicing, camera, move grid shown only while planning, hit % and DODGE callouts, initiative bar, unit panel, NET overlay | — | 🔶 user plays locally |
-| M4 | Visual pass: pixel post-process, neon lighting/bloom, VFX, tuning controls. M4a built: pixel/palette post, night + neon lights, fog of war, BG3-style HUD, skirmish map | 🔄 M4a in review | 🔶 aesthetic review on user's GPU |
+| M4 | Visual pass: pixel post-process, neon lighting/bloom, VFX, tuning controls. M4a + M4b built: off-grid world builder, full-height city with near-side cutaway, baked light field, OKLab palette, stylised pixel HUD | 🔄 M4b in review | 🔶 aesthetic review on user's GPU |
 | M5+ | Gigs/fixers, base & downtime, progression, Medtech, Tech, reinforcements, cyberpsychosis | — | per feature |
 
 ## Decisions log
@@ -79,3 +79,10 @@ Check-ins (🔶) are where work pauses for a user decision or review.
 - Guards not in the turn order until they join the encounter → alert system (sight 15 sq, gunfire 12 sq, shout 8 sq).
 - Show building interiors only when visible to squad members → Vision (cell sight; explored remembered and dimmed; guards drawn only in sight).
 - M4a look review page: https://claude.ai/artifact/918gYH5UnmSbw4vCoovnEm (db collection `verdicts`, keys m4_*).
+
+### M4a review notes (user, chat)
+- The grid should only drive movement; render the scene as if it weren't on a grid (marching cubes if needed) → WorldBuilder (continuous walls, merged floors, marching squares, shaped props, off-grid clutter).
+- Not one vertical slice: draw every floor and roof → XCOM-style near-side cutaway; skyline.
+- Fonts generic, UI must be more stylised, no rounded elements → CutBox chamfered chrome, Jersey 10 + VT323, pixel portraits.
+- Ask a subagent for visual improvements at least twice before the next approval → two critique rounds, both applied (see commits 9419a99, 1fa4f05).
+- M4b review page: https://claude.ai/artifact/Vs8526BGY2RDEK7VpBKE8X (db collection `verdicts`, keys m4b_*). The M4a page's verdicts were never saved; its questions carry over.
