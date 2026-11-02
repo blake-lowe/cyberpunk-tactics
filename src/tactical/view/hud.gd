@@ -279,7 +279,7 @@ class ActBtn extends Button:
 				draw_colored_polygon(PackedVector2Array([o + Vector2(-r * 1.2, -r), o + Vector2(r * 0.2, 0), o + Vector2(-r * 1.2, r)]), c)
 				draw_colored_polygon(PackedVector2Array([o + Vector2(0, -r), o + Vector2(r * 1.4, 0), o + Vector2(0, r)]), c)
 		draw_string(Hud.F_DISPLAY, Vector2(0, size.y - 7), title, HORIZONTAL_ALIGNMENT_CENTER, w, 18, Color(Hud.TEXT, 0.45 if disabled else 1.0))
-		draw_string(Hud.F_TERM, Vector2(w - 30, 19), key, HORIZONTAL_ALIGNMENT_RIGHT, 26, 22, Color(Hud.GOLD if not disabled else Hud.DIM, 1.0 if not disabled else 0.6))
+		draw_string(Hud.F_TERM, Vector2(w - 30, 19), key, HORIZONTAL_ALIGNMENT_RIGHT, 26, 20, Color(Hud.TEXT if not disabled else Hud.DIM, 0.85 if not disabled else 0.5))
 
 
 func _build_bar() -> void:
@@ -349,7 +349,7 @@ func _clear(c: Node) -> void:
 # --- Updates -----------------------------------------------------------------------
 
 func _team_col(u: Dictionary) -> Color:
-	return UnitModel.CREW_ACCENTS[u.id % 4] if u.team == 0 else RED
+	return UnitLook.CREW_ACCENTS[u.id % 4] if u.team == 0 else RED
 
 
 func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) -> void:
@@ -395,7 +395,7 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 		hp.add_child(hm)
 		hp.add_child(_text("%d/%d HP" % [c.hp, c.max_hp()], F_TERM, 20, _hp_col(c)))
 		_card.add_child(hp)
-		_card.add_child(_text("SP  HEAD %02d   BODY %02d" % [c.sp("head"), c.sp("body")], F_TERM, 20, Color("9fb4c4")))
+		_card.add_child(_text("ARMOR  [HEAD %d]  [BODY %d]" % [c.sp("head"), c.sp("body")], F_TERM, 20, TEXT))
 		if not c.injuries.is_empty():
 			_card.add_child(_text("! " + ", ".join(c.injuries.map(func(i): return String(i.get("name", i.id)))).to_upper(), F_TERM, 20, RED))
 		var t := enc.turn
@@ -420,7 +420,9 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 			b.disabled = not crew_turn
 			b.queue_redraw()
 	(_buttons.get_child(3) as Button).set_pressed_no_signal(cover_mode)
-	(_buttons.get_child(5) as Button).disabled = not crew_turn or enc.cur.is_empty() or NetRun.interface_rank(enc.cur.c) <= 0
+	var jack := _buttons.get_child(5) as Button
+	jack.visible = not enc.cur.is_empty() and NetRun.interface_rank(enc.cur.c) > 0   # hide role-impossible actions
+	jack.disabled = not crew_turn
 	_end_btn.disabled = not crew_turn
 	_end_btn.queue_redraw()
 	_log.text = "\n".join(enc.log.slice(maxi(0, enc.log.size() - 4)).map(func(l): return "> " + l))
@@ -459,7 +461,14 @@ func _party_card(u: Dictionary, active: bool) -> Control:
 	v.add_theme_constant_override("separation", 2)
 	h.add_child(v)
 	v.add_child(_text(c.display_name.to_upper(), F_DISPLAY, 30, GOLD if active else TEXT))
-	v.add_child(Meter.new(float(maxi(c.hp, 0)) / c.max_hp(), c.max_hp() / 5, _hp_col(c), 96, 9))
+	v.add_child(_text(c.role.to_upper(), F_DISPLAY, 20, DIM))
+	var hr := HBoxContainer.new()
+	hr.add_theme_constant_override("separation", 6)
+	var hm := Meter.new(float(maxi(c.hp, 0)) / c.max_hp(), c.max_hp() / 5, _hp_col(c), 80, 9)
+	hm.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	hr.add_child(hm)
+	hr.add_child(_text("%d/%d" % [c.hp, c.max_hp()], F_TERM, 20, _hp_col(c)))
+	v.add_child(hr)
 	return p
 
 

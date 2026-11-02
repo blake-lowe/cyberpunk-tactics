@@ -74,7 +74,8 @@ void fragment() {
 		vec3 pick = lab;
 		float chroma = length(lab.yz);
 		for (int i = 0; i < palette_n; i++) {
-			if (i >= palette_neutral_n && chroma < 0.05) continue;
+			// neon ramps only for pixels that are saturated and roughly that ramp's hue
+			if (i >= palette_neutral_n && (chroma < 0.025 || dot(lab.yz / max(chroma, 1e-4), normalize(palette[i].yz)) < 0.9)) continue;
 			vec3 d = lab - palette[i];
 			float e = dot(d, d * vec3(1.0, 1.6, 1.6));
 			if (e < best) { best = e; pick = palette[i]; }

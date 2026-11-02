@@ -69,6 +69,11 @@ void fragment() {
 	float bay = bayer4(FRAGCOORD.xy);
 	// --- see-through hole: tall things between the camera and the focus (skyline, buildings that
 	// haven't been opened) dissolve in a dithered disc around the focus (BG3/Divinity style)
+	// camera-side skyline dissolves entirely above street level
+	if (mode == 2 && dot(wpos.xz - cut_center.xz, cut_dir) < -4.0 && wpos.y > 1.2 && wpos.x > -0.5 && wpos.x < map_size.x + 80.0) {
+		float far = smoothstep(4.0, 9.0, -dot(wpos.xz - cut_center.xz, cut_dir));
+		if (far > bay + 0.5) discard;
+	}
 	if ((mode == 2 || (shell && fogv.g < 0.5)) && focus_view.w > 0.0 && wpos.y > cut_center.y * 1.6 + 0.9 && -VERTEX.z < focus_view.z - 1.5) {
 		float r = length((SCREEN_UV - focus_view.xy) * vec2(VIEWPORT_SIZE.x / VIEWPORT_SIZE.y, 1.0)) / focus_view.w;
 		if (smoothstep(0.7, 1.0, r) < bay + 0.5) discard;
@@ -80,12 +85,12 @@ void fragment() {
 		if (floor_idx > cut_center.y + 0.5) discard;
 		if (cuttable && floor_idx > cut_center.y - 0.5 && wpos.y - floor_idx * 1.6 > 0.72) {
 			float along = dot(wpos.xz - cut_center.xz, cut_dir);
-			if (smoothstep(-0.5, 0.5, along) < bay + 0.5) discard;
+			if (smoothstep(-0.12, 0.12, along) < bay + 0.5) discard;
 		}
 	}
 	// --- fog of war: dithered frontier; explored-but-unseen is dimmer, cooler, with lights low
 	float f = mode != 2 ? fogv.r : 1.0;
-	if (shell) f = max(f, 0.5);
+	if (shell) f = 1.0;   // building exteriors are always known and drawn at full value (XCOM-style)
 	if (mode == 0 && f < 0.15 + 0.14 * (bay + 0.5)) discard;
 	if (mode == 1 && f >= 0.22) discard;
 	float vis = smoothstep(0.55, 0.9, f);
@@ -182,6 +187,7 @@ void fragment() {
 	base *= 1.0 - 0.5 * wet;   // puddles: darker surface with a thin saturated reflection
 	vec3 sb = max(base, vec3(0.045));   // spill must show on near-black asphalt too
 	emit += sb * lf * spill * (1.0 - wet * 0.6) + (lf / max(pk, 1e-3)) * min(pk, 1.0) * wet * 0.25;
+	if (lq >= 0.75) emit += (lf / max(pk, 1e-3)) * 0.12;   // hot core: pools have a coloured centre
 	if (k < 1.0) {
 		float l = dot(base, vec3(0.3, 0.59, 0.11));
 		base = mix(vec3(l), base, 0.3) * k * mix(vec3(0.8, 0.9, 1.15), vec3(1.0), vis);
@@ -192,14 +198,14 @@ void fragment() {
 	ROUGHNESS = rough;
 	METALLIC = metallic;
 	EMISSION = emit;
-	if (mode == 1) {  // unknown interior: dark hologram, screen-space scanlines, cyan edge at the frontier
-		float scan = step(2.0, mod(FRAGCOORD.y + floor(TIME * 8.0), 3.0));
+	if (mode == 1) {  // unknown interior: slate with a 45-degree screen hatch and a neutral frontier
+		float hatch = step(3.0, mod(FRAGCOORD.x + FRAGCOORD.y, 4.0));
 		float edge = smoothstep(0.04, 0.2, fogv.r) * (1.0 - smoothstep(0.2, 0.22, fogv.r));
-		ALBEDO = vec3(0.06, 0.08, 0.11);
-		EMISSION = vec3(0.03, 0.09, 0.12) * (0.7 + scan * 0.6) + vec3(0.02, 0.85, 0.91) * edge;
+		ALBEDO = vec3(0.012, 0.018, 0.03);
+		EMISSION = vec3(0.016, 0.02, 0.032) * (1.0 + hatch * 1.2) + vec3(0.078, 0.11, 0.18) * edge;   // 1e2636 / 4e5c78
 		ROUGHNESS = 0.9;
-	} else if (!FRONT_FACING) {  // section cap where the cutaway opened a wall
-		ALBEDO = vec3(0.015);
-		EMISSION = vec3(0.02, 0.35, 0.4) * 0.5;
+	} else if (!FRONT_FACING) {  // section cap: pale, matching the lit wall tops
+		ALBEDO = vec3(0.25, 0.29, 0.32);
+		EMISSION = vec3(0.04, 0.045, 0.05);
 	}
 }

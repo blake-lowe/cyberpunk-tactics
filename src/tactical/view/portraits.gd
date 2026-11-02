@@ -6,8 +6,6 @@ extends Node
 ## jaw, cheek ports, optic). Guards get helmets and red visors. Drawn nearest-upscaled.
 
 const S := 32
-const SKIN := [Color("e8b896"), Color("c08a68"), Color("8a5a40"), Color("5a3a2a")]
-const HAIR := [Color("141018"), Color("3a2418"), Color("8a6a3a"), Color("ff2a6d"), Color("05d9e8"), Color("b537f2"), Color("dfe6ea")]
 
 var _cache := {}
 
@@ -15,19 +13,19 @@ var _cache := {}
 func tex(u: Dictionary) -> Texture2D:
 	if _cache.has(u.id):
 		return _cache[u.id]
-	var t := ImageTexture.create_from_image(make(u.id, u.team, String(u.c.role)))
+	var t := ImageTexture.create_from_image(make(UnitLook.make(u.id, u.team, String(u.c.role))))
 	_cache[u.id] = t
 	return t
 
 
-static func make(id: int, team: int, role: String) -> Image:
-	var rng := RandomNumberGenerator.new()
-	rng.seed = hash(id * 7919 + team * 31 + 17)
+static func make(look: Dictionary) -> Image:
+	var team: int = look.team
+	var role: String = look.role
 	var img := Image.create(S, S, false, Image.FORMAT_RGBA8)
-	var accent: Color = UnitModel.CREW_ACCENTS[id % 4] if team == 0 else Color("ff3030")
-	var jacket: Color = UnitModel.CREW_JACKETS[id % 4] if team == 0 else Color("4a4f56")
-	var skin: Color = SKIN[rng.randi() % SKIN.size()]
-	var hair: Color = HAIR[rng.randi() % HAIR.size()]
+	var accent: Color = look.accent
+	var jacket: Color = look.jacket
+	var skin: Color = look.skin
+	var hair: Color = look.hair
 	# backdrop: dark, a diagonal team-tinted band and scanlines
 	for y in S:
 		for x in S:
@@ -49,7 +47,7 @@ static func make(id: int, team: int, role: String) -> Image:
 		for x in range(13, 19):
 			img.set_pixel(x, y, skin.darkened(0.3))
 	# head: rounded rectangle, lit from the left
-	var hw := 6 + rng.randi() % 2
+	var hw: int = look.head_w
 	for y in range(7, 21):
 		for x in range(16 - hw, 16 + hw):
 			var corner := (y < 9 or y > 18) and (x == 16 - hw or x == 16 + hw - 1)
@@ -71,7 +69,7 @@ static func make(id: int, team: int, role: String) -> Image:
 			img.set_pixel(x, 13, Color("a01818"))
 		return img
 	# hair styles: 0 buzz, 1 mohawk, 2 long, 3 undercut sweep
-	var style := rng.randi() % 4
+	var style: int = UnitLook.STYLES.find(look.style)
 	for y in range(4, 12):
 		for x in range(16 - hw - 1, 16 + hw + 1):
 			var on := false
@@ -87,19 +85,19 @@ static func make(id: int, team: int, role: String) -> Image:
 			img.set_pixel(16 - hw - 1, y, hair)
 			img.set_pixel(16 + hw, y, hair.darkened(0.2))
 	# eyes or visor
-	if role == "netrunner" or rng.randf() < 0.4:
+	if look.visor:
 		for x in range(16 - hw, 16 + hw):
 			img.set_pixel(x, 12, accent)
 			img.set_pixel(x, 13, accent.darkened(0.4))
 	else:
 		for ex in [13, 18]:
 			img.set_pixel(ex, 13, Color("101014"))
-			img.set_pixel(ex + 1, 13, accent if rng.randf() < 0.5 else Color("e8eef2"))
+			img.set_pixel(ex + 1, 13, accent if look.eye_glow else Color("e8eef2"))
 	# mouth
 	for x in range(15, 18):
 		img.set_pixel(x, 17, skin.darkened(0.45))
 	# cyberware: chrome jaw or cheek ports
-	match rng.randi() % 3:
+	match int(look.cyber):
 		0:
 			for x in range(16 - hw + 1, 16 + hw - 1):
 				img.set_pixel(x, 19, Color("b4bec6") if x % 2 == 0 else Color("66717c"))

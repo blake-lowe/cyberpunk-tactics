@@ -43,12 +43,12 @@ var look := {"pixel": 0.0, "palette": 1.0, "levels": 0.0, "dither": 0.3, "contra
 ## shadow and highlight; skin and wood are cut to two steps each; matching happens in OKLab.
 ## Round 3: neutrals first; neon-ramp entries are only allowed for saturated pixels (post shader),
 ## so shadows go navy instead of a violet wash. Warm darks added for earth.
-const PALETTE_NEUTRALS := 32
+const PALETTE_NEUTRALS := 35
 const PALETTE := ["05060a", "0b0e16", "141a26", "1e2636", "2a3448", "3a4660", "4e5c78",
 	"1a1714", "2b2622", "3d3630", "554b42", "70665a", "8e8476",
 	"4a5560", "66717c", "8a96a0", "b4bec6", "dfe6ea", "fff4e0",
 	"8a5a40", "c08a68", "3a2418", "6a4a2a", "12261a", "1f4a2a", "3a6a3a", "6a5a50", "8a7a68",
-	"241c18", "3a2c22", "5a4636", "2a3a5a",
+	"241c18", "3a2c22", "5a4636", "2a3a5a", "2e1c10", "5a3414", "a0601e",
 	"2a0a1e", "5a1040", "ff2a6d", "ffa0c0", "062430", "0a4a5a", "05d9e8", "aaf6ff",
 	"2a1e06", "6a4a08", "f9c80e", "fff0a0", "1e0a2e", "4a1a6a", "b537f2", "e2b0ff",
 	"2e1206", "7a3008", "ff6b1a", "ffc8a0", "06261a", "0e5a3a", "39f0a0", "b8ffe0",
@@ -86,7 +86,7 @@ void fragment() {
 	float e2 = (smoothstep(0.44, 0.5, v.g) - smoothstep(0.5, 0.56, v.g)) * (1.0 - smoothstep(0.4, 0.5, v.r));
 	float fill = smoothstep(0.45, 0.55, v.r);
 	float dash = step(0.5, fract((wpos.x + wpos.z) * 1.2 - TIME * 0.5));
-	ALBEDO = col.rgb * (e1 * (0.75 + 0.25 * dash) + fill * 0.04) + col2.rgb * e2 * 0.6 * (0.6 + 0.4 * dash);
+	ALBEDO = col.rgb * (e1 * (0.75 + 0.25 * dash) + fill * 0.04) + col2.rgb * e2 * 0.85 * (0.6 + 0.4 * dash);
 }
 """
 
@@ -113,7 +113,9 @@ var fires: Array[OmniLight3D] = []
 var decals := {}              ## unit id → ground glow MeshInstance3D
 var dash_opts := {}           ## squares reachable by also spending the Action on a Run (amber contour)
 var rim: DirectionalLight3D
-var open_rects: Array[Rect2i] = []   ## structures the cutaway may open (crew inside, or seen into)
+var open_cells := {}             ## Vector2i squares the cutaway may open (seen-into rooms + walls)
+var room_xy := {}                ## room label → its squares, for opening rooms
+const KERB := 0.07               # sidewalk height (WorldBuilder raises sidewalks)
 var _last_cur := -1
 var ring: MeshInstance3D
 var target_ring: MeshInstance3D
@@ -237,6 +239,8 @@ func _build_view() -> void:
 	env.ssao_enabled = true        # Forward+ only; ignored by the compatibility renderer
 	env.ssr_enabled = true         # wet-street reflections on the user's GPU
 	env.fog_enabled = true
+	env.fog_height = 1.2          # low haze over the far city
+	env.fog_height_density = 0.08
 	env.fog_light_color = Color("2a1020")
 	env.fog_density = 0.006
 	we.environment = env
@@ -392,6 +396,13 @@ func _build_world() -> void:
 	fog_img = Image.create(m.w, m.h * m.floors, false, Image.FORMAT_RG8)
 	fog_tex = ImageTexture.create_from_image(fog_img)
 	_update_fog()
+	room_xy.clear()
+	for f in m.floors:
+		for y in m.h:
+			for x in m.w:
+				var l := m.label(f, x, y)
+				if l >= 0:
+					room_xy.get_or_add(l, []).append(Vector2i(x, y))
 	builder = WorldBuilder.new(m, enc.vision, fog_tex)
 	floor_nodes = builder.build(world)
 	for s in builder.surfaces():
@@ -428,7 +439,7 @@ func _build_world() -> void:
 		blob.get_parent().remove_child(blob)
 		n.add_child(blob)
 		blob.position = Vector3(0, 0.02, 0)
-		blob.scale = Vector3.ONE / 1.5
+		blob.scale = Vector3.ONE / 1.3
 		if u.team == 0:  # crew carry a small light (XCOM-style) so they read at night through the pixel filter
 			var pl := OmniLight3D.new()
 			pl.light_color = Color("cfe6ff")
@@ -504,19 +515,19 @@ func _build_lights() -> void:
 				pole.mesh = pm
 				pole.position = base + Vector3(0.3, 0.75, 0.3)
 				fn.add_child(pole)
-				var arm := MeshInstance3D.new()
-				var am := BoxMesh.new()
-				am.size = Vector3(0.4, 0.03, 0.03)
-				am.material = pm.material
-				arm.mesh = am
-				arm.position = base + Vector3(0.12, 1.5, 0.3)
-				fn.add_child(arm)
+				var housing := MeshInstance3D.new()
+				var hb := BoxMesh.new()
+				hb.size = Vector3(0.14, 0.06, 0.14)
+				hb.material = pm.material
+				housing.mesh = hb
+				housing.position = base + Vector3(0.22, 1.52, 0.3)
+				fn.add_child(housing)
 				var head := MeshInstance3D.new()
 				var hm := BoxMesh.new()
-				hm.size = Vector3(0.2, 0.04, 0.12)
-				hm.material = _unlit(e.color.lerp(Color.WHITE, 0.15), 1.0, 1.25)
+				hm.size = Vector3(0.11, 0.015, 0.11)
+				hm.material = _unlit(e.color, 1.0, 1.4)
 				head.mesh = hm
-				head.position = base + Vector3(-0.05, 1.48, 0.3)
+				head.position = base + Vector3(0.22, 1.485, 0.3)
 				fn.add_child(head)
 				l.position = head.position - Vector3(0, 0.05, 0)
 			"room":
@@ -564,8 +575,8 @@ func _refresh() -> void:
 		var n: Node3D = unit_nodes[u.id]
 		var seen: bool = u.team == 0 or not fog_on or enc.vision.visible.has(u.pos)
 		n.visible = seen and not _cut_hides(u.pos)
-		n.position = Vector3(u.pos.x + 0.5, u.pos.z * FH, u.pos.y + 0.5)
-		n.scale = Vector3.ONE * 1.5   # a touch larger than life: units must read at ~28 buffer px
+		n.position = Vector3(u.pos.x + 0.5, _gy(u.pos), u.pos.y + 0.5)
+		n.scale = Vector3.ONE * 1.3   # a touch larger than life, still in scale with 1.15-high doors
 		var dc: MeshInstance3D = decals[u.id]
 		dc.visible = n.visible and not u.c.dead
 		dc.position = n.position + Vector3(0, 0.03, 0)
@@ -583,7 +594,7 @@ func _refresh() -> void:
 				n.rotation.y = atan2(float(d.x), float(d.y))
 	if not enc.cur.is_empty():
 		ring.visible = enc.cur.team == 0 or enc.vision.visible.has(enc.cur.pos)
-		ring.position = Vector3(enc.cur.pos.x + 0.5, enc.cur.pos.z * FH + 0.05, enc.cur.pos.y + 0.5)
+		ring.position = Vector3(enc.cur.pos.x + 0.5, _gy(enc.cur.pos) + 0.04, enc.cur.pos.y + 0.5)
 	_draw_grid()
 	hud.refresh(enc, mode, cover_mode, "%s  ·  FLOOR %d/%d" % [String(m.params.get("scene", gig.scene)).replace("_", " ").to_upper(), view_floor + 1, m.floors])
 	_toast_new_log()
@@ -599,38 +610,48 @@ func _update_cut() -> void:
 	RenderingServer.global_shader_parameter_set("cut_center", Vector3(cam_target.x, view_floor, cam_target.z))
 	# see-through hole around the focus (screen UV, view depth, radius)
 	if svp and svp.size.y > 0:
+		# the hole follows the active crew member (it exists to keep them visible), else the focus
 		var fp := Vector3(cam_target.x, view_floor * FH, cam_target.z)
+		if enc and not enc.cur.is_empty() and enc.cur.team == 0:
+			fp = Vector3(enc.cur.pos.x + 0.5, enc.cur.pos.z * FH, enc.cur.pos.y + 0.5)
 		var uv := cam.unproject_position(fp) / Vector2(svp.size)
 		var dep := (fp - cam.global_position).dot(-cam.global_transform.basis.z)
-		RenderingServer.global_shader_parameter_set("focus_view", Vector4(uv.x, uv.y, dep, 0.2))
+		RenderingServer.global_shader_parameter_set("focus_view", Vector4(uv.x, uv.y, dep, 0.14))
 	RenderingServer.global_shader_parameter_set("cut_radius", _cut_radius())
 
 
 func _cut_hides(v: Vector3i) -> bool:
 	if v.z <= view_floor or not cutaway:
 		return false
-	var fwd := Vector2(-cam.global_transform.basis.z.x, -cam.global_transform.basis.z.z).normalized()
-	var rel := Vector2(v.x + 0.5 - cam_target.x, v.y + 0.5 - cam_target.z)
-	var along := rel.dot(fwd)
-	return open_rects.any(func(q: Rect2i) -> bool: return q.has_point(Vector2i(v.x, v.y)))
+	return open_cells.has(Vector2i(v.x, v.y))
 
 
-## Fog texture: R = vision state per square, G = 1 inside structures the cutaway may open (the
-## crew is inside, or has seen into it). Unvisited buildings keep their roofs (round 2 critique).
+## Fog texture: R = vision state per square, G = 1 where the cutaway may open: rooms the crew is
+## in or has seen into (grown by one square for their walls), on every floor so the storeys above
+## them lift too. Unseen rooms keep their walls and roof (round-4 critique).
 func _update_fog() -> void:
-	open_rects.clear()
-	var open_sid := {}
+	open_cells.clear()
+	var open_rooms := {}
 	for u in enc.alive(0):
 		var l := m.label(u.pos.z, u.pos.x, u.pos.y)
 		if l >= 0 and not m.rooms[l].get("outdoor", false):
-			open_sid[m.rooms[l].structure] = true
+			open_rooms[l] = true
 	for v in enc.vision.explored:
 		var l2 := m.label(v.z, v.x, v.y)
-		if l2 >= 0 and not m.rooms[l2].get("outdoor", false) and v.z <= view_floor:
-			open_sid[m.rooms[l2].structure] = true
-	for st in m.structures:
-		if (open_sid.has(st.id) or not fog_on) and st.has("rect"):
-			open_rects.append((st.rect as Rect2i).grow(1))
+		if l2 >= 0 and v.z <= view_floor and not m.rooms[l2].get("outdoor", false):
+			open_rooms[l2] = true
+	for l3 in open_rooms:
+		for c in room_xy.get(l3, []):
+			for dy in range(-1, 2):
+				for dx in range(-1, 2):
+					open_cells[Vector2i(c.x + dx, c.y + dy)] = true
+	if not fog_on:
+		for st in m.structures:
+			if st.has("rect"):
+				var r: Rect2i = (st.rect as Rect2i).grow(1)
+				for y in range(r.position.y, r.end.y):
+					for x in range(r.position.x, r.end.x):
+						open_cells[Vector2i(x, y)] = true
 	var data := PackedByteArray()
 	data.resize(m.w * m.h * m.floors * 2)
 	for f in m.floors:
@@ -638,11 +659,10 @@ func _update_fog() -> void:
 			for x in m.w:
 				var i := ((f * m.h + y) * m.w + x) * 2
 				data[i] = 255 if not fog_on else [0, 128, 255][enc.vision.state(Vector3i(x, y, f))]
-	for r in open_rects:
-		for f in m.floors:
-			for y in range(maxi(r.position.y, 0), mini(r.end.y, m.h)):
-				for x in range(maxi(r.position.x, 0), mini(r.end.x, m.w)):
-					data[((f * m.h + y) * m.w + x) * 2 + 1] = 255
+	for c in open_cells:
+		if m.inb(c.x, c.y):
+			for f in m.floors:
+				data[((f * m.h + c.y) * m.w + c.x) * 2 + 1] = 255
 	fog_img.set_data(m.w, m.h * m.floors, false, Image.FORMAT_RG8, data)
 	fog_tex.update(fog_img)
 
@@ -661,7 +681,7 @@ func _build_doors() -> void:
 		var open: bool = enc.los.open_doors.has(v)
 		var mi := MeshInstance3D.new()
 		var bm := BoxMesh.new()
-		bm.material = builder.mat("door", d.floor)
+		bm.material = builder.mat("door", d.floor)   # world shader: obeys cutaway and fog
 		var along := horiz != open
 		bm.size = Vector3(0.88, 1.1, 0.05) if along else Vector3(0.05, 1.1, 0.88)
 		mi.mesh = bm
@@ -673,7 +693,7 @@ func _build_doors() -> void:
 		var lm := BoxMesh.new()
 		lm.size = Vector3(0.09, 0.11, 0.09)
 		var locked: bool = enc.nav.locked.has(v)
-		lm.material = _unlit(Color("ff3030") if locked else Color("30ff90"), 1.0, 3.0)
+		lm.material = builder.mat("dark", d.floor, true, {"glow": 1.2, "emit": Color("ff3b4f") if locked else Color("39f0a0")})
 		lamp.mesh = lm
 		lamp.position = c + (Vector3(0.47, 0.05, 0.26) if horiz else Vector3(0.26, 0.05, 0.47))
 		door_nodes.add_child(lamp)
@@ -694,6 +714,11 @@ func _draw_grid() -> void:
 	for v in move_opts:
 		if v.z == view_floor:
 			data[(v.y * m.w + v.x) * 2] = 255
+	if not move_opts.is_empty():   # draw-only: the contour never wraps a teammate's square
+		for u in enc.alive(0):
+			if u.pos.z == view_floor:
+				data[(u.pos.y * m.w + u.pos.x) * 2] = 255
+				data[(u.pos.y * m.w + u.pos.x) * 2 + 1] = 255
 	for v in dash_opts:
 		if v.z == view_floor:
 			data[(v.y * m.w + v.x) * 2 + 1] = 255
@@ -786,7 +811,9 @@ func _place_camera() -> void:
 ## Put the unit a little above screen centre (the hotbar covers the bottom), clamped to the map.
 func _frame_unit(u: Dictionary) -> void:
 	var fwd := Vector2(-sin(deg_to_rad(cam_yaw)), -cos(deg_to_rad(cam_yaw)))
-	var p := Vector2(u.pos.x + 0.5, u.pos.y + 0.5) - fwd * cam_dist * 0.07
+	var p := Vector2(u.pos.x + 0.5, u.pos.y + 0.5) - fwd * cam_dist * 0.12
+	if _last_cur == -1 and m.w > 40:   # first turn on a big map: lean toward the middle (objective)
+		p = p.lerp(Vector2(m.w / 2.0, m.h / 2.0), 0.2)
 	cam_target = Vector3(clampf(p.x, 0, m.w), 0, clampf(p.y, 0, m.h))
 	view_floor = u.pos.z
 	_place_camera()
@@ -799,6 +826,15 @@ func _update_outlines() -> void:
 		if n and n.has_meta("ink"):
 			var mt: StandardMaterial3D = n.get_meta("ink")
 			mt.albedo_color = (Color("05d9e8") if u.team == 0 else Color("ff3b4f")) if cam_dist > 30.0 else (Color("05060a") if u.team == 0 else Color("2a0406"))
+
+
+## Height of the walkable surface of a square (sidewalks are raised by a kerb).
+func _gy(v: Vector3i) -> float:
+	var y := v.z * FH
+	if v.z == 0 and m.inb(v.x, v.y) and m.t(0, v.x, v.y) == TacMap.T.OUTSIDE and m.label(0, v.x, v.y) < 0 \
+			and m.ground[v.y * m.w + v.x] == TacMap.G.SIDEWALK:
+		y += KERB
+	return y
 
 
 func _to_screen(p: Vector3) -> Vector2:
@@ -1012,7 +1048,7 @@ func _update_hover() -> void:
 			hud.tip("", mouse)
 		return
 	target_ring.visible = true
-	target_ring.position = Vector3(t.pos.x + 0.5, t.pos.z * FH + 0.04, t.pos.y + 0.5)
+	target_ring.position = Vector3(t.pos.x + 0.5, _gy(t.pos) + 0.04, t.pos.y + 0.5)
 	var w: Weapon = enc.cur.c.weapons[0]
 	var p := enc.preview(t, w, mode)
 	var c: Combatant = t.c
