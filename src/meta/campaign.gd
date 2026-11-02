@@ -35,6 +35,14 @@ const FACILITIES := {
 	"training": {"name": "Training Room", "costs": [1000, 3000],
 		"desc": ["+5 IP per gig for each survivor per level.", ""]},
 }
+## Downtime assignments (spec: "assign downtime actions"), HOUSE-RULE numbers, per day of rest:
+## recover heals BODY (p223); train heals half and earns IP; hustle heals half and earns eb from side
+## work (more with reputation) but can draw attention.
+const DOWNTIME := {
+	"recover": {"name": "Recover", "desc": "Heal BODY HP a day (p223)."},
+	"train": {"name": "Train", "desc": "Half healing; +6 IP a day."},
+	"hustle": {"name": "Hustle", "desc": "Half healing; 60 eb a day (+10 per rep); 1 in 10 days adds heat."},
+}
 const FIXER_MARKUP := 1.2   ## HOUSE-RULE: spec "items >= 500 eb require a fixer": sourced at +20%
 const IP_FAIL := 10
 const IP_WIN := 30
@@ -164,9 +172,9 @@ static func gig_heat(e: Encounter) -> int:
 	if e.alarm >= 2:
 		h += 1
 	if e.ncpd_in == -2:
-		h += 2
+		h += 1
 	var bodies := e.units.filter(func(u): return u.team == 1 and u.c.dead).size()
-	h += bodies / 3
+	h += bodies / 4
 	return h
 
 
@@ -273,7 +281,18 @@ func resolve(e: Encounter) -> Dictionary:
 ## refilled; frag grenades restocked to two each if there's cash.
 func rest(days := 1) -> void:
 	for c in crew:
-		c.hp = mini(c.max_hp(), c.hp + (c.raw_stat("BODY") + 2 * level("med_bay")) * days)
+		var heal: int = (c.raw_stat("BODY") + 2 * level("med_bay")) * days
+		match c.downtime:
+			"train":
+				heal /= 2
+				c.ip += 6 * days
+			"hustle":
+				heal /= 2
+				eb += (60 + 10 * rep) * days
+				for dd in days:
+					if dice.d(10) == 1:
+						heat = mini(10, heat + 1)
+		c.hp = mini(c.max_hp(), c.hp + heal)
 		for loc in c.armor:
 			if c.armor[loc]:
 				(c.armor[loc] as ArmorPiece).repair()
@@ -284,7 +303,7 @@ func rest(days := 1) -> void:
 			c.grenades += 1
 			eb -= price
 	day += days
-	heat = maxi(0, heat - days / 2)   # HOUSE-RULE: lying low cools heat by 1 every 2 days
+	heat = maxi(0, heat - days)   # HOUSE-RULE: lying low cools heat by 1 a day
 	refresh_board()
 	say("Rested %d day%s." % [days, "s" if days > 1 else ""])
 

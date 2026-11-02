@@ -350,6 +350,7 @@ const VIEW_HALF_ANGLE := 60.0   ## HOUSE-RULE: a guard watches a 120° cone ahea
 const AWARE_RANGE := 2.0        ## ...but notices anyone within 2 squares, any direction
 const DARK_PENALTY := 4         ## "Task obscured by smoke or darkness" (CPR p? task modifiers)
 const SHIFT_CHANGE_ROUND := 6    ## HOUSE-RULE twist: the next shift arrives and raises the alarm
+const RADIO_RANGE := 20.0       ## HOUSE-RULE: guards a call-in rouses (squares from the caller)
 const BACKUP_ROUNDS := 3        ## HOUSE-RULE: reinforcements arrive 3 rounds after the call
 const NCPD_ROUNDS := 8          ## HOUSE-RULE: still fighting this long after backup arrives, NCPD rolls in
 
@@ -480,7 +481,8 @@ func _call_it_in(g: Dictionary) -> void:
 		return
 	alarm = 2
 	backup_in = BACKUP_ROUNDS
-	_rouse(units.filter(func(o): return o.team == 1 and not o.alerted and not o.c.dead))   # the radio call reaches everyone
+	# The radio call rouses guards within RADIO_RANGE of the caller (HOUSE-RULE): the rest hold posts.
+	_rouse(units.filter(func(o): return o.team == 1 and not o.alerted and not o.c.dead and Vector2(o.pos.x - g.pos.x, o.pos.y - g.pos.y).length() <= RADIO_RANGE))
 	_backup_round = init.round_num
 	say("%s calls it in. Backup in %d rounds." % [g.c.display_name, backup_in])
 	events.append({"type": "alarm", "unit": g.id, "rounds": backup_in})

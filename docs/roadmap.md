@@ -195,3 +195,8 @@ Check-ins (🔶) are where work pauses for a user decision or review.
   cools 1 per 2 days; heat raises twist odds (+4%/heat) and speeds NCPD (-1 round per 2 heat).
 - Cyberpsychosis out of combat: after each gig, crew at risk roll the approved episode chance once; an
   episode hurts a crewmate 2d6 (never below 1 HP).
+- Personal jobs: a fixer at rep 3+ sometimes offers one (security 3, double pay, +3 rep). HOUSE-RULE
+  setups: 8% of gigs from a fixer at rep 0 are a hidden setup (heavy security, guards waiting); winning
+  pays nothing and that fixer stops offering work.
+- Review reels added: dose, rig, grab, backup, watch. tools/campaign_autoplay.gd runs the whole loop
+  headless (AI crew) as a smoke test.

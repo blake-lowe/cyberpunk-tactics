@@ -184,10 +184,10 @@ func test_heat_rises_when_loud_and_cools_with_rest() -> void:
 	e.ncpd_in = -2
 	var r := c.resolve(e)
 	assert_eq(int(r.heat), Campaign.gig_heat(e))
-	assert_true(c.heat >= 3, "alarm + NCPD")
+	assert_true(c.heat >= 2, "alarm + NCPD")
 	var h := c.heat
 	c.rest(4)
-	assert_eq(c.heat, h - 2, "lying low")
+	assert_eq(c.heat, maxi(0, h - 4), "lying low")
 	var d := Campaign.from_dict(JSON.parse_string(JSON.stringify(c.to_dict())))
 	assert_eq(d.heat, c.heat)
 
@@ -231,3 +231,20 @@ func test_setup_pays_nothing_and_burns_the_fixer() -> void:
 	assert_eq(int(r.pay), 0)
 	assert_true(c.rep_with(fixer) < 0)
 	assert_false(c.board.any(func(b): return String(b.fixer) == fixer), "they don't offer work for now")
+
+
+func test_downtime_assignments() -> void:
+	var c := Campaign.new_game(9)
+	var a: Combatant = c.crew[0]
+	var b: Combatant = c.crew[1]
+	a.downtime = "train"
+	b.downtime = "hustle"
+	a.hp = 1
+	var ip0 := a.ip
+	var eb0 := c.eb
+	c.rest(2)
+	assert_eq(a.ip, ip0 + 12, "train: +6 IP a day")
+	assert_eq(a.hp, mini(a.max_hp(), 1 + a.raw_stat("BODY") * 2 / 2), "half healing")
+	assert_true(c.eb >= eb0 + 120 - 2 * 50 * 2, "hustle earns (grenade restock may spend)")
+	var d := Combatant.from_dict(JSON.parse_string(JSON.stringify(a.to_dict())))
+	assert_eq(d.downtime, "train")

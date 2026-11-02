@@ -33,6 +33,7 @@ var perks: Array[String] = []
 ## Medtech Medicine (p149-150): Specialty points. Pharmaceutical points unlock drugs in order
 ## (Speedheal, Stim); doses per gig = Medical Tech Skill (HOUSE-RULE: synthesized in downtime).
 var medicine := {}               ## {surgery, pharma, cryo} points
+var downtime := "recover"        ## between gigs: recover | train | hustle (Campaign.DOWNTIME)
 var maker := {}                  ## Tech Maker Specialty ranks (p147): field, upgrade, fabrication, invention
 var doses := 0                   ## Pharmaceutical doses carried this gig
 var stimmed := false             ## Stim: ignore Seriously Wounded penalties (1 hour = the gig)
@@ -566,7 +567,7 @@ func to_dict() -> Dictionary:
 		"subdermal": sub, "injuries": injuries, "base_dsp": base_dsp, "dsp": dsp, "dead": dead, "unconscious": unconscious,
 		"weapons": weapons.map(func(w): return {"id": w.id(), "ammo": w.ammo, "builtin": w.builtin}), "grenades": grenades, "role": role,
 		"role_rank": role_rank, "awareness": awareness, "tracks_humanity": tracks_humanity, "humanity": humanity,
-		"max_humanity": max_humanity, "cyberware": cyberware, "ip": ip, "look_seed": look_seed, "perks": perks, "medicine": medicine, "maker": maker}
+		"max_humanity": max_humanity, "cyberware": cyberware, "ip": ip, "look_seed": look_seed, "perks": perks, "medicine": medicine, "maker": maker, "downtime": downtime}
 
 
 static func from_dict(d: Dictionary) -> Combatant:
@@ -606,6 +607,7 @@ static func from_dict(d: Dictionary) -> Combatant:
 		c.cyberware.append(String(cw))
 	c.ip = int(d.get("ip", 0))
 	c.look_seed = int(d.get("look_seed", -1))
+	c.downtime = String(d.get("downtime", "recover"))
 	for k in d.get("maker", {}):
 		c.maker[String(k)] = int(d.maker[k])
 	for k in d.get("medicine", {}):

@@ -344,6 +344,12 @@ func _crew_card(c: Combatant) -> PanelContainer:
 		var idx := i
 		r.add_child(_button("TREAT %d eb" % camp.treat_cost(), Hud.GREEN, func(): camp.treat(c, idx); _rebuild(), camp.eb >= camp.treat_cost()))
 		col.add_child(r)
+	var keys: Array = Campaign.DOWNTIME.keys()
+	var nxt: String = keys[(keys.find(c.downtime) + 1) % keys.size()]
+	var dt := _button("DOWNTIME: %s · %s" % [String(Campaign.DOWNTIME[c.downtime].name).to_upper(), Campaign.DOWNTIME[c.downtime].desc], Hud.GREEN,
+		func(): c.downtime = nxt; _rebuild())
+	dt.add_theme_font_size_override("font_size", 15)
+	col.add_child(dt)
 	var idx2 := camp.crew.find(c)
 	var open := _train_for == idx2
 	col.add_child(_button("TRAINING ▲" if open else "TRAINING ▼  (%d IP)" % c.ip, Hud.MAGENTA, func(): _train_for = -1 if open else idx2; _rebuild()))
