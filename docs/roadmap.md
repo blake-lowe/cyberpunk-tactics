@@ -226,3 +226,8 @@ Check-ins (🔶) are where work pauses for a user decision or review.
   HOUSE-RULES: ICE pins rather than chases; Kraken lock can't renew back to back; camera Perception 10,
   range 8.
 - Cyberspace wireframe outline restored (4×4-averaged, brightness-relative edges).
+- NET walk-in replays (crew walking to the terminal): sec1 11 → 18/24, sec2 16 → 18/24 (dipped to 11 when
+  cameras first went live), sec3 5 → 7/24. Cameras retuned (6 squares, Perception 8, 90° cone facing
+  away from the mount, tamper from 3 squares); allies can be passed through (HOUSE-RULE). Open: 4 of 72
+  gigs put every target terminal behind locked security doors (shoot the door or come in through the
+  NET elsewhere); guns, not ICE, are what down runners now.
