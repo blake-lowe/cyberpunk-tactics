@@ -17,6 +17,7 @@ const ECON := {
 	"armor_repair": 0,         # HOUSE-RULE: armour is patched up for free in downtime (for now)
 	"grenade": 50,             # HOUSE-RULE: restock price per frag grenade
 	"hire": 500,               # HOUSE-RULE: signing a new crew member
+	"salvage": 0.25,           # HOUSE-RULE: a won gig strips the downed opposition's gear at a quarter of list
 }
 ## IP per gig (p410: the GM awards 10-80; AMBIGUITY: the tiers are qualitative). Our rubric:
 ## a failed gig 10, success 30, success without anyone going down +10, the NET objective +10.
@@ -119,7 +120,7 @@ func accept(index: int) -> Dictionary:
 func resolve(e: Encounter) -> Dictionary:
 	var gig := active_gig
 	var won := e.state == "won"
-	var report := {"gig": gig, "won": won, "pay": 0, "rep": 0, "ip": 0, "dead": [], "hurt": [], "fees": 0}
+	var report := {"gig": gig, "won": won, "pay": 0, "rep": 0, "ip": 0, "dead": [], "hurt": [], "fees": 0, "salvage": 0}
 	var anyone_down := false
 	for c in crew:
 		if c.dead or c.wound_state() >= Combatant.Wound.MORTAL or c.unconscious:
@@ -146,12 +147,22 @@ func resolve(e: Encounter) -> Dictionary:
 		report.ip = IP_FAIL
 		if not crew.is_empty():
 			report.fees = int(ECON.rescue_fee)
-	eb += report.pay - report.fees
+	if won:   # loot: the opposition's guns and armour, fenced
+		for u in e.units:
+			if u.team == 1 and (u.c.dead or u.c.wound_state() >= Combatant.Wound.MORTAL or u.c.unconscious):
+				var value := 0
+				for w in u.c.weapons:
+					value += int(w.def.get("cost", 0))
+				for loc in u.c.armor:
+					if u.c.armor[loc]:
+						value += int(RulesDB.armor((u.c.armor[loc] as ArmorPiece).id).get("cost", 0))
+				report.salvage += int(value * float(ECON.salvage))
+	eb += report.pay - report.fees + report.salvage
 	rep = maxi(0, rep + report.rep)
 	for c in crew:
 		c.ip += report.ip
 	say("%s: %s. %+d eb, %+d rep, %d IP each%s." % [gig.get("title", "Gig"), "done" if won else "failed",
-		report.pay - report.fees, report.rep, report.ip, (", lost " + ", ".join(report.dead)) if not report.dead.is_empty() else ""])
+		report.pay - report.fees + report.salvage, report.rep, report.ip, (", lost " + ", ".join(report.dead)) if not report.dead.is_empty() else ""])
 	active_gig = {}
 	day += 1
 	refresh_board()
@@ -205,6 +216,70 @@ func hire(index: int) -> bool:
 	recruits.remove_at(index)
 	crew.append(r)
 	say("Hired %s (%s)." % [r.display_name, r.role.capitalize()])
+	return true
+
+
+# --- Night market (gear shop) ------------------------------------------------------
+
+## What the market stocks, and the reputation it takes to get it (HOUSE-RULE: availability by
+## reputation stands in for the book's Night Market rolls, p337). Prices are the book's list
+## prices (weapons p92/p94, armour p97). Bows and launchers wait for their rules and models.
+const SHOP_WEAPONS := {"medium_pistol": 0, "heavy_pistol": 0, "very_heavy_pistol": 0, "smg": 0, "heavy_smg": 1,
+	"shotgun": 1, "assault_rifle": 1, "sniper_rifle": 2, "light_melee": 0, "medium_melee": 0, "heavy_melee": 0,
+	"very_heavy_melee": 2}
+const SHOP_ARMOR := {"leathers": 0, "kevlar": 0, "light_armorjack": 0, "medium_armorjack": 1, "heavy_armorjack": 2,
+	"flak": 2, "bodyweight_suit": 3, "metalgear": 5}
+const RESALE := 0.5   ## HOUSE-RULE: replaced gear sells back at half price
+const MAX_GUNS := 2   ## HOUSE-RULE: a primary and a sidearm (plus one melee weapon)
+
+
+## Shop entries available at the current reputation: {id, kind: weapon|armor, name, cost, info}.
+func shop_stock() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for id in SHOP_WEAPONS:
+		if rep >= int(SHOP_WEAPONS[id]):
+			var d := RulesDB.weapon(id)
+			var info := "%dd6" % int(d.dice) + ("" if d.get("melee", false) else " · ROF %d · %d rds" % [int(d.rof), int(d.mag)])
+			out.append({"id": id, "kind": "weapon", "name": String(d.name), "cost": int(d.cost), "info": info})
+	for id in SHOP_ARMOR:
+		if rep >= int(SHOP_ARMOR[id]):
+			var a := RulesDB.armor(id)
+			out.append({"id": id, "kind": "armor", "name": String(a.name), "cost": int(a.cost),
+				"info": "SP %d" % int(a.sp) + (" · -%d REF/DEX/MOVE" % int(a.penalty) if int(a.penalty) > 0 else "")})
+	return out
+
+
+## Buy an item for a crew member. A gun becomes their primary (the oldest extra gun is sold); a melee
+## weapon replaces their melee weapon; armour is bought for one location (head or body) and the old
+## piece is sold. Returns false if they can't afford it.
+func buy(c: Combatant, id: String, loc := "body") -> bool:
+	var entry: Array = shop_stock().filter(func(x): return x.id == id)
+	if entry.is_empty() or eb < int(entry[0].cost):
+		return false
+	var it: Dictionary = entry[0]
+	var refund := 0
+	if it.kind == "weapon":
+		var w := Weapon.from_id(id)
+		if w.is_melee():
+			for old in c.weapons.filter(func(x): return x.is_melee()):
+				refund += int(int(old.def.cost) * RESALE)
+				c.weapons.erase(old)
+			c.weapons.append(w)
+		else:
+			c.weapons.insert(0, w)
+			var guns := c.weapons.filter(func(x): return not x.is_melee())
+			while guns.size() > MAX_GUNS:
+				var old: Weapon = guns.pop_back()
+				refund += int(int(old.def.cost) * RESALE)
+				c.weapons.erase(old)
+	else:
+		var old_a: ArmorPiece = c.armor.get(loc)
+		if old_a:
+			refund += int(int(RulesDB.armor(old_a.id).cost) * RESALE)
+		c.armor[loc] = ArmorPiece.from_id(id)
+	eb -= int(it.cost) - refund
+	say("%s buys %s%s%s." % [c.display_name, it.name, " (%s)" % loc if it.kind == "armor" else "",
+		", sells the old gear for %d eb" % refund if refund > 0 else ""])
 	return true
 
 

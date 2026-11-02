@@ -87,3 +87,33 @@ func test_ip_raises_skills_at_book_cost() -> void:
 	assert_eq(int(a.skills.handgun), lvl + 1)
 	a.skills["autofire"] = 1
 	assert_eq(a.skill_raise_cost("autofire"), 80, "(x2) skills cost 40 x the new level")
+
+
+func test_shop_stock_grows_with_reputation() -> void:
+	var c := Campaign.new_game(3)
+	var low := c.shop_stock().map(func(x): return x.id)
+	assert_true("heavy_pistol" in low)
+	assert_false("sniper_rifle" in low, "rep 0: no sniper rifles")
+	c.rep = 5
+	var high := c.shop_stock().map(func(x): return x.id)
+	assert_true("sniper_rifle" in high and "metalgear" in high)
+
+
+func test_buy_gun_becomes_primary_and_sells_extra() -> void:
+	var c := Campaign.new_game(3)
+	c.rep = 1
+	var solo: Combatant = c.crew[0]   # assault rifle + heavy pistol
+	var eb0 := c.eb
+	assert_true(c.buy(solo, "shotgun"))
+	assert_eq(solo.weapons[0].id(), "shotgun")
+	assert_eq(solo.weapons.filter(func(w): return not w.is_melee()).size(), Campaign.MAX_GUNS)
+	assert_eq(c.eb, eb0 - 500 + 50, "the heavy pistol sold back at half its 100eb")
+
+
+func test_buy_armor_replaces_location_and_cant_overspend() -> void:
+	var c := Campaign.new_game(3)
+	var r: Combatant = c.crew[1]
+	assert_true(c.buy(r, "light_armorjack", "head"))
+	assert_eq((r.armor.head as ArmorPiece).id, "light_armorjack")
+	c.eb = 10
+	assert_false(c.buy(r, "kevlar", "body"))

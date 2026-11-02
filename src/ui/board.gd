@@ -14,6 +14,7 @@ var portraits: Portraits
 var _root: VBoxContainer
 var _shot_path := ""
 var _frames := 0
+var _shop_for := 0   ## crew index the night market is buying for
 
 
 func _ready() -> void:
@@ -157,9 +158,58 @@ func _build() -> void:
 	mid.add_child(hires)
 	for i in camp.recruits.size():
 		hires.add_child(_recruit_card(i))
+	if not camp.crew.is_empty():
+		mid.add_child(_shop())
 	mid.add_child(_text("// LOG", Hud.F_PIXEL, 22, Hud.DIM))
 	for l in camp.log.slice(-6):
 		mid.add_child(_text("> " + l, Hud.F_TERM, 20, Color(Hud.TEXT, 0.7), true))
+
+
+## Night market: pick who you're shopping for, then buy. Guns become the primary weapon; armour
+## goes on the chosen location; replaced gear sells back at half price.
+func _shop() -> VBoxContainer:
+	_shop_for = clampi(_shop_for, 0, camp.crew.size() - 1)
+	var c: Combatant = camp.crew[_shop_for]
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 8)
+	box.add_child(_text("// NIGHT MARKET  (more stock with reputation · old gear sells at half)", Hud.F_PIXEL, 22, Hud.MAGENTA))
+	var who := HBoxContainer.new()
+	who.add_theme_constant_override("separation", 8)
+	box.add_child(who)
+	who.add_child(_text("BUYING FOR", Hud.F_TERM, 20, Hud.DIM))
+	for i in camp.crew.size():
+		var idx := i
+		var b := _button(camp.crew[i].display_name.to_upper(), Hud.GOLD if i == _shop_for else Hud.CYAN, func(): _shop_for = idx; _rebuild())
+		who.add_child(b)
+	var grid := GridContainer.new()
+	grid.columns = 3
+	grid.add_theme_constant_override("h_separation", 8)
+	grid.add_theme_constant_override("v_separation", 8)
+	box.add_child(grid)
+	var owned := c.weapons.map(func(w): return w.id())
+	for it in camp.shop_stock():
+		var p := _panel(Hud.MAGENTA if it.kind == "weapon" else Hud.CYAN)
+		p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var col := VBoxContainer.new()
+		col.add_theme_constant_override("separation", 2)
+		p.add_child(col)
+		col.add_child(_text(String(it.name).to_upper(), Hud.F_DISPLAY, 20, Hud.TEXT))
+		col.add_child(_text("%s · %s eb" % [it.info, _money(int(it.cost))], Hud.F_TERM, 18, Color(Hud.TEXT, 0.7)))
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 6)
+		col.add_child(row)
+		var id: String = it.id
+		var afford: bool = camp.eb >= int(it.cost)
+		if it.kind == "weapon":
+			var have: bool = id in owned
+			row.add_child(_button("OWNED" if have else "BUY", Hud.GREEN, func(): camp.buy(c, id); _rebuild(), afford and not have))
+		else:
+			for loc in ["body", "head"]:
+				var l: String = loc
+				var have2: bool = c.armor.get(l) != null and (c.armor[l] as ArmorPiece).id == id
+				row.add_child(_button(l.to_upper() if not have2 else "WORN", Hud.GREEN, func(): camp.buy(c, id, l); _rebuild(), afford and not have2))
+		grid.add_child(p)
+	return box
 
 
 static func _money(v: int) -> String:
@@ -258,6 +308,8 @@ func _report_panel() -> PanelContainer:
 	p.add_child(col)
 	col.add_child(_text(("GIG COMPLETE · " if won else "GIG FAILED · ") + String(report.gig.get("title", "")).to_upper(), Hud.F_DISPLAY, 34, Hud.GREEN if won else Hud.RED, true))
 	var parts := ["%+d eb" % (int(report.pay) - int(report.fees)), "%+d rep" % int(report.rep), "%d IP each" % int(report.ip)]
+	if int(report.get("salvage", 0)) > 0:
+		parts.insert(1, "+%d eb salvage" % int(report.salvage))
 	col.add_child(_text("   ".join(parts), Hud.F_TERM, 26, Hud.TEXT))
 	if not report.dead.is_empty():
 		col.add_child(_text("FLATLINED: " + ", ".join(report.dead).to_upper(), Hud.F_TERM, 24, Hud.RED))
