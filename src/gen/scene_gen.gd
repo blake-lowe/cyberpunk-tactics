@@ -28,6 +28,7 @@ static func generate(seed_value: int, scene: String, overrides: Dictionary = {})
 	var c := {"m": m, "dice": dice, "hints": [], "p": p, "reserved": {}, "overrides": overrides, "related": []}
 	match scene:
 		"lone_building": _lone_building(c)
+		"skirmish": _skirmish(c)
 		"street_block", "city_district", "neighborhood": DistrictGen.generate(c, String(p.get("profile", "mixed_residential")))
 		"megablock": _megablock(c)
 		"shipyard": _shipyard(c)
@@ -562,6 +563,23 @@ static func _lone_building(c: Dictionary) -> void:
 	building(c, Rect2i(0, 0, m.w - 3, m.h - 3), String(c.p.get("site", "corp_office")), int(c.p.floors), int(c.p.security), true, TacMap.Zone.PUBLIC, "S")
 	spawn(c, Vector2i(0, m.h - 2))
 	spawn(c, Vector2i(m.w - 2, 0))
+
+
+## Skirmish: a small test map (M3 playtest verdict): one building on a street with a back
+## alley and a few crates, so guards start within a couple of moves of the crew.
+static func _skirmish(c: Dictionary) -> void:
+	var m: TacMap = c.m
+	road(c, Rect2i(0, m.h - 6, m.w, 6), true)
+	ground(c, Rect2i(0, 0, m.w, m.h - 6), G.CONCRETE)
+	ground(c, Rect2i(0, 0, 3, m.h - 6), G.GRAVEL)
+	building(c, Rect2i(3, 1, m.w - 6, m.h - 8), String(c.p.get("site", "bar")), int(c.p.floors), int(c.p.security), true, TacMap.Zone.PUBLIC, "S")
+	props(c, Rect2i(0, m.h - 6, m.w, 6), "dumpster", 2)
+	for i in 3:
+		var v := Vector2i(c.dice.rng.randi_range(1, m.w - 2), c.dice.rng.randi_range(m.h - 5, m.h - 2))
+		if m.t(0, v.x, v.y) == TacMap.T.OUTSIDE and not m.has_cover_at(0, v):
+			m.add_cover(Furnish.cover_entry("crate", 0, v, -1))
+	spawn(c, Vector2i(0, m.h - 2))
+	spawn(c, Vector2i(m.w - 1, m.h - 2))
 
 
 ## Megablock: a long apartment tower over a courtyard, with a parking lot and a corner shop.

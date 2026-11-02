@@ -82,3 +82,27 @@ func test_real_scene_paths_from_deploy_to_target() -> void:
 	var door: Dictionary = sm.main_entrance()
 	var p := nav.path(Vector3i(deploy.pos.x, deploy.pos.y, 0), Vector3i(door.pos.x, door.pos.y, 0))
 	assert_false(p.is_empty(), "crew can walk to the target's door")
+
+
+func test_vision_reveals_rooms_only_when_seen() -> void:
+	# Outdoors (y 0) and a building (y 2-6) with an interior wall at x 6 splitting two rooms.
+	var m := TacMap.new(12, 8, 1)
+	for y in 8:
+		for x in 12:
+			var inside := y >= 2 and y <= 6 and x <= 11
+			var wall := inside and (y == 2 or y == 6 or x == 0 or x == 11 or x == 6)
+			m.set_t(0, x, y, TacMap.T.OUTSIDE if not inside else (TacMap.T.WALL if wall else TacMap.T.FLOOR))
+	m.set_t(0, 3, 2, TacMap.T.DOOR)
+	var los := Los.new(m)
+	var v := Vision.new(m, los)
+	assert_eq(v.state(Vector3i(3, 0, 0)), 1, "outdoors starts explored")
+	assert_eq(v.state(Vector3i(0, 4, 0)), 1, "outer wall starts explored")
+	assert_eq(v.state(Vector3i(3, 4, 0)), 0, "interior starts unknown")
+	v.update([Vector3i(3, 0, 0)])
+	assert_eq(v.state(Vector3i(3, 4, 0)), 0, "closed door hides the room")
+	los.open_doors[Vector3i(3, 2, 0)] = true
+	v.update([Vector3i(3, 0, 0)])
+	assert_eq(v.state(Vector3i(3, 4, 0)), 2, "open door: the room is in sight")
+	assert_eq(v.state(Vector3i(8, 4, 0)), 0, "the room behind the inner wall stays unknown")
+	v.update([Vector3i(3, 0, 0) + Vector3i(-3, 0, 0)])
+	assert_eq(v.state(Vector3i(3, 4, 0)) >= 1, true, "explored rooms are remembered")

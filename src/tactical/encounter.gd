@@ -8,13 +8,16 @@ extends RefCounted
 
 const JACK_IN_RANGE_M := 6.0      # p198
 const GUARDS_BASE := 3
+const SPOT_RANGE := 15            # squares a guard notices the crew at (clear sight)
+const GUNFIRE_RANGE := 12         # squares within which gunfire alerts guards (any floor)
+const SHOUT_RANGE := 8            # an alerted guard rouses others this close on its floor
 
 var m: TacMap
 var dice: Dice
 var nav: Nav
 var los: Los
 var init: Initiative
-var units: Array[Dictionary] = []   ## {id, c: Combatant, pos: Vector3i, team (0 crew, 1 guards)}
+var units: Array[Dictionary] = []   ## {id, c, pos: Vector3i, team (0 crew, 1 guards), alerted}
 var cur: Dictionary = {}
 var turn: TurnState
 var log: Array[String] = []
@@ -22,6 +25,7 @@ var state := "playing"              ## playing | won | lost
 var runs := {}                      ## unit id → NetRun
 var net_left := 0                   ## NET Actions left this turn (runner only)
 var objective := {}                 ## {structure, node, done}
+var vision: Vision                  ## what the crew can see (drives fog and hidden guards)
 var disabled_devices := {}          ## device id → true (turrets/cameras under the runner's control)
 
 
@@ -60,14 +64,24 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant]) -> Encoun
 			if best < 0 or int(nd.value) > int(a.nodes[best].value):
 				best = nd.id
 		e.objective = {"structure": target_sid, "node": best, "done": false}
+	# M3 playtest verdict: guards only join the initiative order once they're alerted.
 	for u in e.units:
-		e.init.add(u.c)
+		if u.alerted:
+			e.init.add(u.c)
+	e.vision = Vision.new(p_map, e.los)
+	e.refresh_vision()
+	e.update_alerts()
 	return e
+
+
+## Recompute crew sight. Returns true if new cells were explored.
+func refresh_vision() -> bool:
+	return vision.update(alive(0).map(func(u): return u.pos))
 
 
 func _add(c: Combatant, pos: Vector3i, team: int) -> void:
 	c.team = team
-	units.append({"id": units.size(), "c": c, "pos": pos, "team": team})
+	units.append({"id": units.size(), "c": c, "pos": pos, "team": team, "alerted": team == 0})
 
 
 func unit_of(c: Combatant) -> Dictionary:
@@ -144,6 +158,54 @@ func _check_end() -> void:
 		say("The data is yours.")
 
 
+# --- Alerts ------------------------------------------------------------------------
+
+## Guards who can see a crew member (clear sight, within SPOT_RANGE) are alerted; every newly
+## alerted guard shouts, rousing guards near it. Newly alerted guards roll Initiative and slot in
+## (Initiative.add keeps the current turn). Returns the units alerted by this call.
+func update_alerts() -> Array:
+	var fresh := []
+	for g in units:
+		if g.alerted or g.c.dead:
+			continue
+		for u in alive(0):
+			if u.pos.z == g.pos.z and Vector2(u.pos.x - g.pos.x, u.pos.y - g.pos.y).length() <= SPOT_RANGE \
+					and los.trace(g.pos, u.pos).clear:
+				fresh.append(g)
+				say("%s spots %s!" % [g.c.display_name, u.c.display_name])
+				break
+	_rouse(fresh)
+	return fresh
+
+
+## Gunfire at `at` alerts guards within GUNFIRE_RANGE on any floor.
+func _noise(at: Vector3i) -> void:
+	var fresh := []
+	for g in units:
+		if not g.alerted and not g.c.dead and Vector2(at.x - g.pos.x, at.y - g.pos.y).length() <= GUNFIRE_RANGE \
+				and absi(at.z - g.pos.z) <= 1:
+			fresh.append(g)
+	_rouse(fresh)
+
+
+func _rouse(fresh: Array) -> void:
+	var q := fresh.duplicate()
+	while not q.is_empty():
+		var g: Dictionary = q.pop_front()
+		if g.alerted:
+			continue
+		g.alerted = true
+		init.add(g.c)
+		for o in units:
+			if not o.alerted and not o.c.dead and o.team == g.team and o.pos.z == g.pos.z \
+					and Vector2(o.pos.x - g.pos.x, o.pos.y - g.pos.y).length() <= SHOUT_RANGE:
+				q.append(o)
+
+
+func engaged() -> bool:
+	return units.any(func(u): return u.team == 1 and u.alerted and not u.c.dead)
+
+
 # --- Movement ----------------------------------------------------------------------
 
 ## Guards carry the keys to their own security doors; the crew needs them hacked or shot open.
@@ -171,6 +233,7 @@ func move_to(dest: Vector3i) -> bool:
 	for v in p:
 		if m.t(v.z, v.x, v.y) == TacMap.T.DOOR:
 			los.open_doors[v] = true  # doors stay open once someone walks through
+	update_alerts()
 	if runs.has(cur.id) and Los.distance_m(dest, _ap_pos(runs[cur.id])) > JACK_IN_RANGE_M:
 		say("%s moves out of range and is dumped from the NET." % cur.c.display_name)
 		runs.erase(cur.id)
@@ -196,6 +259,8 @@ func attack(target: Dictionary, weapon: Weapon, mode: Attack.Mode) -> Dictionary
 	if turn.attacks_left <= 0 and not turn.start_attack(weapon, mode != Attack.Mode.SINGLE or weapon.rof() < 2):
 		return {"ok": false, "reason": "no action left"}
 	turn.use_attack()
+	_rouse([target])
+	_noise(cur.pos)
 	var r := Attack.resolve(dice, cur.c, weapon, target.c, mode, Los.distance_m(p.from, target.pos))
 	var who := "%s → %s" % [cur.c.display_name, target.c.display_name]
 	if r.dodged:
@@ -213,6 +278,7 @@ func shoot_cover(cell: Vector3i, weapon: Weapon) -> Dictionary:
 	if turn.attacks_left <= 0 and not turn.start_attack(weapon, true):
 		return {"ok": false, "reason": "no action left"}
 	turn.use_attack()
+	_noise(cur.pos)
 	var dmg := dice.roll(weapon.dice(), 6)
 	if los.cover_hp.has(cell) and los.cover_hp[cell] > 0:
 		los.cover_hp[cell] = maxi(0, los.cover_hp[cell] - dmg)

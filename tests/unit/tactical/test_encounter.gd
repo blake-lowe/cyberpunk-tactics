@@ -83,3 +83,47 @@ func test_auto_battle_runs_to_an_end() -> void:
 			guard += 1
 		assert_true(e.log.size() > 0, "things happened")
 		assert_true(e.state in ["won", "lost", "playing"])
+
+
+func _corridor_encounter(guard_at: Vector2i, wall_x := -1) -> Encounter:
+	var m := TacMap.new(30, 3, 1)
+	for y in 3:
+		for x in 30:
+			m.set_t(0, x, y, TacMap.T.WALL if x == wall_x else TacMap.T.FLOOR)
+	m.entrances.append({"floor": 0, "pos": Vector2i(1, 1), "kind": "deploy", "main": false, "cells": [Vector2i(1, 1)]})
+	m.posts.append({"floor": 0, "pos": guard_at, "structure": -1, "zone": 1, "kind": "door"})
+	var dice := Dice.new(4)
+	var crew: Array[Combatant] = [Fixtures.shooter("A")]
+	crew[0].weapons.append(Weapon.from_id("heavy_pistol"))
+	return Encounter.setup(m, dice, crew)
+
+
+func _in_init(e: Encounter, u: Dictionary) -> bool:
+	return e.init.entries.any(func(x): return x.c == u.c)
+
+
+func test_unalerted_guards_stay_out_of_initiative() -> void:
+	var e := _corridor_encounter(Vector2i(25, 1), 10)  # a wall between crew and guard
+	var g: Dictionary = e.units[1]
+	assert_false(g.alerted)
+	assert_false(_in_init(e, g), "guard who hasn't seen anyone isn't in the rotation")
+	e.next_turn()
+	assert_eq(e.cur.team, 0, "only the crew takes turns")
+
+
+func test_guard_in_sight_joins_initiative() -> void:
+	var e := _corridor_encounter(Vector2i(12, 1))
+	var g: Dictionary = e.units[1]
+	assert_true(g.alerted, "11 squares, clear corridor: spotted at setup")
+	assert_true(_in_init(e, g))
+
+
+func test_gunfire_alerts_guards_behind_walls() -> void:
+	var e := _corridor_encounter(Vector2i(12, 1), 6)
+	var g: Dictionary = e.units[1]
+	assert_false(g.alerted)
+	e.next_turn()
+	e.los.cover_hp[Vector3i(3, 1, 0)] = 10  # something to shoot at
+	e.shoot_cover(Vector3i(3, 1, 0), e.cur.c.weapons[0])
+	assert_true(g.alerted, "a shot 11 squares away is heard")
+	assert_true(_in_init(e, g))

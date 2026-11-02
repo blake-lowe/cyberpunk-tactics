@@ -24,7 +24,7 @@ func test_every_scene_type_generates() -> void:
 	var seen := {}
 	for m in _scenes():
 		seen[m.params.scene] = true
-		assert_true(m.structures.size() >= 2, "%s has several structures (%d)" % [m.params.scene, m.structures.size()])
+		assert_true(m.structures.size() >= (1 if m.params.scene == "skirmish" else 2), "%s has several structures (%d)" % [m.params.scene, m.structures.size()])
 		assert_true(m.structures.any(func(s): return s.target), "%s has a target" % m.params.scene)
 		assert_true(m.architecture != null, "%s target has a NET" % m.params.scene)
 	assert_eq(seen.size(), SceneGen.scene_types().size() - 1)

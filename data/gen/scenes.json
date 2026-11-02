@@ -1,5 +1,16 @@
 {
  "_doc": "Scene types for SceneGen. params override MapGen.DEFAULTS (w/h in squares of 2 m; floors = tallest structure). The planner code lives in src/gen/scene_gen.gd.",
+ "skirmish": {
+  "name": "Skirmish",
+  "desc": "Small test map for greybox and visual work: one two-storey bar on a street, a back alley, a few crates. Guards start close.",
+  "params": {
+   "w": 30,
+   "h": 24,
+   "floors": 2,
+   "site": "bar",
+   "security": 1
+  }
+ },
  "lone_building": {
   "name": "Lone building",
   "params": {
