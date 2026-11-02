@@ -173,6 +173,8 @@ var _inspect_cell := Vector3i(-1, -1, -1)
 var _shot_delay := 0.0
 var _demo_ms := 0
 var _reel := ""
+var tool := ""                  ## M5 target-picking action: melee, shell, grenade, stabilize ("" = normal attacks)
+var blast_node: MeshInstance3D  ## the grenade's 5x5 blast preview under the cursor
 var _net_cleaned := false
 var _lf_dims := Vector3.ZERO
 var _door_leaves := {}        ## door cell → leaf mesh, so moves can swing doors open as they pass
@@ -1262,7 +1264,11 @@ func _unhandled_input(ev: InputEvent) -> void:
 							hud.toast("Blocked: break the firewall or deal with the ICE first.")
 					return
 				_click_move()
-			MOUSE_BUTTON_RIGHT: _click_attack(ev.shift_pressed or cover_mode)
+			MOUSE_BUTTON_RIGHT:
+				if tool != "":
+					_click_tool()
+				else:
+					_click_attack(ev.shift_pressed or cover_mode)
 	elif ev is InputEventKey and ev.pressed and not ev.echo:
 		match ev.keycode:
 			KEY_Q: yaw_goal = snappedf(yaw_goal, 45.0) - 90
@@ -1275,7 +1281,15 @@ func _unhandled_input(ev: InputEvent) -> void:
 			KEY_2: _on_hud("mode", 1)
 			KEY_3: _on_hud("mode", 2)
 			KEY_X: _on_hud("cover_mode", null)
-			KEY_ESCAPE: pass
+			KEY_F: _on_hud("tool", "melee")
+			KEY_G: _on_hud("tool", "grenade")
+			KEY_5: _on_hud("tool", "shell")
+			KEY_4: _on_hud("suppress", null)
+			KEY_T: _on_hud("tool", "stabilize")
+			KEY_ESCAPE:
+				if tool != "":
+					tool = ""
+					_refresh(); _update_hover()
 			KEY_R: _on_hud("reload", null)
 			KEY_J: _on_hud("jack_in", null)
 			KEY_SPACE: _on_hud("end_turn", null)
@@ -1298,6 +1312,11 @@ func _on_hud(name: String, arg: Variant) -> void:
 			cover_mode = false
 			_refresh(); _update_hover()
 		"cover_mode": cover_mode = not cover_mode; _refresh(); _update_hover()
+		"tool":
+			tool = "" if tool == String(arg) else String(arg)
+			cover_mode = false
+			_refresh(); _update_hover()
+		"suppress": _suppress()
 		"reload": _reload()
 		"jack_in": _jack_in()
 		"end_turn": _end_turn()
@@ -1372,10 +1391,100 @@ func _click_attack(at_cover: bool) -> void:
 
 
 func _reload() -> void:
-	if _crew_turn() and not enc.cur.c.weapons.is_empty() and enc.turn.use_action():
-		enc.cur.c.weapons[0].reload()
-		enc.say("%s reloads." % enc.cur.c.display_name)
-		_after_action()
+	if _crew_turn() and not enc.cur.c.weapons.is_empty():
+		if enc.reload(enc.cur.c.weapons[0]):
+			_after_action()
+		else:
+			hud.toast("Magazine full or no Action left.")
+
+
+## M5: apply the active tool to the hovered square.
+func _click_tool() -> void:
+	if not _crew_turn():
+		return
+	var t := _unit_at(hover)
+	var w: Weapon = enc.cur.c.weapons[0] if not enc.cur.c.weapons.is_empty() else null
+	var r := {"ok": false, "reason": "pick a target"}
+	match tool:
+		"melee":
+			if not t.is_empty() and t.team != enc.cur.team:
+				r = enc.melee(t)
+		"shell":
+			if not t.is_empty() and t.team != enc.cur.team and w:
+				r = enc.shotgun_shell(t, w)
+		"grenade":
+			if hover.x >= 0:
+				r = enc.throw_grenade(hover)
+		"stabilize":
+			if not t.is_empty():
+				r = enc.stabilize(t)
+	if not r.get("ok", false):
+		hud.toast(String(r.get("reason", "can't")).capitalize())
+		return
+	tool = ""
+	if blast_node:
+		blast_node.visible = false
+	_after_action()
+
+
+func _suppress() -> void:
+	if not _crew_turn() or enc.cur.c.weapons.is_empty():
+		return
+	var r := enc.suppress(enc.cur.c.weapons[0])
+	if not r.get("ok", false):
+		hud.toast(String(r.get("reason", "can't")).capitalize())
+		return
+	_after_action()
+
+
+## Hover feedback for the M5 tools: odds and who would be caught; the grenade shows its blast.
+func _tool_hover() -> void:
+	var c: Combatant = enc.cur.c
+	var t := _unit_at(hover)
+	if blast_node == null:
+		blast_node = MeshInstance3D.new()
+		var pm := PlaneMesh.new()
+		pm.size = Vector2(5, 5)
+		var sm := ShaderMaterial.new()
+		var sh := Shader.new()
+		sh.code = "shader_type spatial;\nrender_mode unshaded, blend_add, depth_draw_never, cull_disabled, shadows_disabled;\nvoid fragment() {\n\tvec2 d = abs(UV - 0.5) * 2.0;\n\tfloat edge = step(0.94, max(d.x, d.y));\n\tfloat grid = step(0.92, fract(UV.x * 5.0)) + step(0.92, fract(UV.y * 5.0));\n\tALBEDO = vec3(1.0, 0.55, 0.1) * (0.08 + edge * 0.9 + min(grid, 1.0) * 0.12);\n}"
+		sm.shader = sh
+		pm.material = sm
+		blast_node.mesh = pm
+		world.add_child(blast_node)
+	blast_node.visible = tool == "grenade" and hover.x >= 0
+	match tool:
+		"grenade":
+			if hover.x < 0:
+				hud.tip("", mouse)
+				return
+			blast_node.position = Vector3(hover.x + 0.5, _gy(hover) + 0.05, hover.y + 0.5)
+			var dist := Los.distance_m(enc.cur.pos, hover)
+			var ok: bool = dist <= Encounter.THROW_RANGE_M and hover.z == enc.cur.pos.z and enc.los.trace(enc.cur.pos, hover).clear
+			var dv := maxi(10, RulesDB.range_dv("grenade_launcher", dist))
+			var pct := roundi(Check.chance_vs_dv(c.skill_base("athletics") - c.action_penalty(), dv) * 100)
+			var caught := enc.units.filter(func(o): return not o.c.dead and o.pos.z == hover.z and maxi(absi(o.pos.x - hover.x), absi(o.pos.y - hover.y)) <= Encounter.BLAST_HALF)
+			var names := caught.map(func(o): return ("[color=#39f0a0]%s[/color]" if o.team == enc.cur.team else "[color=#ff3b4f]%s[/color]") % o.c.display_name)
+			hud.tip(("[code][font_size=44]%d%%[/font_size][/code] on target · DV %d · %d m\n6d6 in a 5x5 blast (a miss scatters it)\n%s" % [pct, dv, roundi(dist), ", ".join(names) if not names.is_empty() else "nobody in the blast"]) if ok else "[color=#ff3b4f]Out of reach or no clear throw[/color]", mouse, "// GRENADE ×%d" % c.grenades, Hud.GOLD)
+		"melee":
+			if t.is_empty() or t.team == enc.cur.team:
+				hud.tip("Pick a neighbouring enemy", mouse, "// MELEE", Hud.CYAN)
+				return
+			var mw := enc.melee_weapon(c)
+			var p := enc.preview(t, mw, Attack.Mode.SINGLE)
+			hud.tip(("[code][font_size=44]%d%%[/font_size][/code]  %s · %dd6" % [roundi(p.chance * 100), mw.def.name, mw.dice()]) if p.ok else "[color=#ff3b4f]%s[/color]" % String(p.reason).capitalize(), mouse, "// MELEE", Hud.CYAN)
+		"shell":
+			if t.is_empty() or t.team == enc.cur.team:
+				hud.tip("Pick an enemy: everyone in a 90° cone to 6 m is caught", mouse, "// SHOTGUN SHELL", Hud.CYAN)
+				return
+			var pct2 := roundi(Check.chance_vs_dv(c.skill_base(enc.cur.c.weapons[0].skill()) - c.action_penalty(), Attack.SHOTGUN_SHELL_DV) * 100)
+			hud.tip("[code][font_size=44]%d%%[/font_size][/code] vs DV13 · 3d6 to everyone in the cone" % pct2, mouse, "// SHOTGUN SHELL", Hud.CYAN)
+		"stabilize":
+			if t.is_empty() or t.team != enc.cur.team or t.c.wound_state() != Combatant.Wound.MORTAL:
+				hud.tip("Pick a neighbouring Mortally Wounded ally", mouse, "// STABILIZE", Hud.GREEN)
+				return
+			var pct3 := roundi(Check.chance_vs_dv(maxi(c.skill_base("first_aid"), c.skill_base("paramedic")) - c.action_penalty(), t.c.stabilization_dv()) * 100)
+			hud.tip("[code][font_size=44]%d%%[/font_size][/code] vs DV%d · TECH + First Aid" % [pct3, t.c.stabilization_dv()], mouse, "// STABILIZE", Hud.GREEN)
 
 
 func _jack_in() -> void:
@@ -1439,8 +1548,10 @@ func _demo_jack() -> void:
 ## each reel shows the effect it is named for.
 func _run_reel() -> void:
 	var g := _nearest_guard()
-	if _reel not in ["move", "jack", "cover"]:
+	if _reel not in ["move", "jack", "cover", "stabilize", "reload"]:
 		_reel_setup_shot(g)
+	if _reel in ["stabilize", "reload"]:
+		_reel_frame(enc.cur)
 	var cell := Vector3i(-1, -1, -1)
 	if _reel == "cover":   # a one-square piece that takes a few shots; the shooter stands 3-5 squares off in sight
 		var best_hp := 0
@@ -1542,9 +1653,95 @@ func _run_reel() -> void:
 		"jack":
 			_demo_jack()
 			await get_tree().create_timer(3.5).timeout
+		"melee":
+			for s in enc.nav.reachable(g.pos, 3, enc.occupied()):
+				if enc.adjacent(s, g.pos):
+					enc.cur.pos = s
+					break
+			_reel_frame(g)
+			await get_tree().create_timer(0.5).timeout
+			for k in 6:
+				enc.turn = TurnState.begin(dice, enc.cur.c)
+				var r := enc.melee(g)
+				await _act()
+				if r.get("hit", false) or g.c.dead:
+					break
+		"suppress":
+			await get_tree().create_timer(0.4).timeout
+			for k in 4:
+				enc.turn = TurnState.begin(dice, enc.cur.c)
+				enc.cur.c.weapons[0].reload()
+				var r := enc.suppress(enc.cur.c.weapons[0])
+				await _act()
+				if not r.get("suppressed", []).is_empty():
+					break
+			for k in 2:   # the pinned guard dives for cover on its turn
+				_on_hud("end_turn", null)
+				await get_tree().create_timer(0.2).timeout
+				while busy:
+					await get_tree().process_frame
+		"shell":
+			var sg := Weapon.from_id("shotgun")
+			enc.cur.c.weapons.insert(0, sg)
+			(unit_nodes[enc.cur.id] as CharModel).set_weapon("shotgun")
+			for s in enc.nav.reachable(g.pos, 4, enc.occupied()):
+				if Vector2(s.x - g.pos.x, s.y - g.pos.y).length() >= 2 and Vector2(s.x - g.pos.x, s.y - g.pos.y).length() <= 2.9 and enc.los.sight(s, g.pos).visible:
+					enc.cur.pos = s
+					break
+			_reel_frame(g)
+			enc.cur.c.skills["shoulder_arms"] = int(enc.cur.c.skills.get("shoulder_arms", 0)) + 10
+			await get_tree().create_timer(0.5).timeout
+			for k in 4:
+				enc.turn = TurnState.begin(dice, enc.cur.c)
+				sg.reload()
+				var r := enc.shotgun_shell(g, sg)
+				await _act()
+				if r.get("hit", false):
+					break
+		"grenade":
+			enc.cur.c.skills["athletics"] = int(enc.cur.c.skills.get("athletics", 0)) + 10
+			await get_tree().create_timer(0.4).timeout
+			enc.turn = TurnState.begin(dice, enc.cur.c)
+			var r := enc.throw_grenade(g.pos)
+			print("reel grenade: ", r.get("ok"), " ", r.get("reason", ""), " dmg ", r.get("damage", 0))
+			await _act()
+			tail = 2.5
+		"stabilize":
+			var ally: Dictionary = enc.alive(0).filter(func(o): return o != enc.cur)[0]
+			for s in enc.nav.reachable(enc.cur.pos, 3, enc.occupied()):
+				if enc.adjacent(s, enc.cur.pos):
+					ally.pos = s
+					break
+			ally.c.hp = 0
+			_refresh()
+			_reel_frame(ally)
+			enc.cur.c.skills["first_aid"] = int(enc.cur.c.skills.get("first_aid", 0)) + 10
+			await get_tree().create_timer(0.8).timeout
+			for k in 4:
+				enc.turn = TurnState.begin(dice, enc.cur.c)
+				var r := enc.stabilize(ally)
+				await _act()
+				if r.get("success", false):
+					break
+		"reload":
+			await get_tree().create_timer(0.4).timeout
+			enc.cur.c.weapons[0].ammo = 2
+			enc.turn = TurnState.begin(dice, enc.cur.c)
+			enc.reload(enc.cur.c.weapons[0])
+			await _act()
 	await get_tree().create_timer(tail).timeout
 	print("reel %s end: target %s" % [_reel, "dead" if g.get("c") and g.c.dead else "alive"])
 	get_tree().quit()
+
+
+func _reel_frame(u: Dictionary) -> void:
+	view_floor = enc.cur.pos.z
+	var a := _body_pos(enc.cur)
+	var b := _body_pos(u)
+	cam_target = Vector3((a.x + b.x) / 2.0, 0, (a.z + b.z) / 2.0)
+	_place_camera()
+	enc.refresh_vision()
+	_refresh()
 
 
 func _act() -> void:
@@ -1668,6 +1865,11 @@ func _play_events() -> void:
 			"attack": await _anim_attack(e)
 			"cover": await _anim_cover(e)
 			"alert": _anim_alert(e)
+			"reload": await _anim_reload(e)
+			"stabilize": await _anim_stabilize(e)
+			"suppress": await _anim_suppress(e)
+			"shell": await _anim_shell(e)
+			"blast": await _anim_blast(e)
 			"death": await _anim_death(e)
 	hud.enemy_phase(false)
 	_focus_unit = -1
@@ -1813,6 +2015,9 @@ func _anim_attack(e: Dictionary) -> void:
 	tn.visible = tn.visible or _seen(tu.pos)
 	await _frame_pair(_body_pos(su), _body_pos(tu))
 	var wid := String(e.get("weapon", "assault_rifle"))
+	if wid == "brawling" or wid.begins_with("martial") or wid.ends_with("_melee"):
+		await _anim_melee(e, su, tu, sn, tn, wid)
+		return
 	sn.set_meta("aim_at", _body_pos(tu) + Vector3(0, 0.95 if String(e.get("location", "body")) == "head" else 0.72, 0))   # before the weapon comes up
 	var d := Vector2(tu.pos.x - su.pos.x, tu.pos.y - su.pos.y)
 	# lean out of cover toward the firing square
@@ -1890,6 +2095,182 @@ func _anim_attack(e: Dictionary) -> void:
 		_update_cut()
 
 
+# --- M5 actions: melee, reload, stabilize, suppressive fire, shotgun shells, grenades -----------
+
+## Melee: a step in, the swing (brawling or blade clip), the outcome on contact, a step back.
+func _anim_melee(e: Dictionary, su: Dictionary, tu: Dictionary, sn: Node3D, tn: Node3D, wid: String) -> void:
+	var d := Vector2(tu.pos.x - su.pos.x, tu.pos.y - su.pos.y)
+	_turn_to(sn, atan2(d.x, d.y), 0.1)
+	_turn_to(tn, atan2(-d.x, -d.y), 0.15)
+	var home := sn.position
+	var lunge := Vector3(d.x, 0, d.y).normalized() * 0.3
+	create_tween().tween_property(sn, "position", home + lunge, 0.18).set_trans(Tween.TRANS_QUAD)
+	(sn as CharModel).play_once("melee_blade" if wid.ends_with("_melee") else "melee", 0.08)
+	await get_tree().create_timer(0.38).timeout
+	var at := _body_pos(tu) + Vector3(0, 0.7, 0)
+	var dir := Vector3(d.x, 0, d.y).normalized()
+	if e.hit and not e.dodged:
+		_outcome(e, su, tu, tn, at, dir)
+		_kick(_screen_dir(at - dir, at), 3.0)
+	else:
+		_float(tu, "BLOCKED" if not e.dodged else "DODGE", Hud.CYAN)
+	await get_tree().create_timer(0.35).timeout
+	create_tween().tween_property(sn, "position", home, 0.2)
+	await get_tree().create_timer(0.3).timeout
+
+
+func _anim_reload(e: Dictionary) -> void:
+	var u: Dictionary = enc.units[e.unit]
+	if not _seen(u.pos):
+		return
+	var n: CharModel = unit_nodes[u.id]
+	_focus_unit = u.id
+	var clip := ("pistol" if n.gun_kind == "pistol" else "rifle") + "_reload"
+	n.play_once(clip, 0.12)
+	_float(u, "RELOAD", Hud.CYAN)
+	await get_tree().create_timer(minf(n.anim.get_animation(clip).length, 2.4) if n.anim.has_animation(clip) else 1.0).timeout
+
+
+func _anim_stabilize(e: Dictionary) -> void:
+	var u: Dictionary = enc.units[e.unit]
+	var t: Dictionary = enc.units[e.target]
+	var n: CharModel = unit_nodes[u.id]
+	_focus_unit = u.id
+	await _pan_to(_body_pos(t), 0.3)
+	var d := Vector2(t.pos.x - u.pos.x, t.pos.y - u.pos.y)
+	_turn_to(n, atan2(d.x, d.y), 0.15)
+	n.perform("medtech", 1.8)
+	await get_tree().create_timer(1.6).timeout
+	_float(t, "STABILIZED" if e.ok else "STABILIZE FAILED", Hud.GREEN if e.ok else Hud.RED)
+	if e.ok:
+		(unit_nodes[t.id] as Node3D).set_meta("slump_goal", 0.0)
+	await get_tree().create_timer(0.5).timeout
+
+
+## Suppressive fire: ten rounds raked across everyone in range; nobody is hurt (p174), the ones
+## who lose the contest are PINNED and will dive for cover on their turn.
+func _anim_suppress(e: Dictionary) -> void:
+	var su: Dictionary = enc.units[e.unit]
+	var sn: Node3D = unit_nodes[su.id]
+	_focus_unit = su.id
+	var targets: Array = (e.targets as Array).map(func(i): return enc.units[i])
+	var c := Vector3.ZERO
+	for t in targets:
+		c += _body_pos(t)
+	c /= maxf(1.0, targets.size())
+	await _frame_pair(_body_pos(su), c)
+	var d := Vector2(c.x - _body_pos(su).x, c.z - _body_pos(su).z)
+	_turn_to(sn, atan2(d.x, d.y), 0.12)
+	sn.set_meta("crouch_goal", 0.0)
+	sn.set_meta("aim_at", c + Vector3(0, 0.7, 0))
+	create_tween().tween_method(func(v: float): sn.set_meta("aim", v), 0.0, 1.0, 0.1)
+	await get_tree().create_timer(0.2).timeout
+	var wid := String(e.weapon)
+	var light := _flash_light(su.id)
+	for i in 10:
+		var t: Dictionary = targets[i % targets.size()]
+		var aim := _body_pos(t) + Vector3(fx.rng.randf_range(-0.6, 0.6), fx.rng.randf_range(0.5, 1.1), fx.rng.randf_range(-0.6, 0.6))
+		sn.set_meta("aim_at", aim)
+		var m0 := _muzzle_of(sn)
+		var dir := (aim - m0).normalized()
+		fx.muzzle(m0, dir, wid, light, fx.rng.randf() > 0.25)
+		fx.brass(m0 - dir * 0.35, dir.cross(Vector3.UP).normalized(), _gy(su.pos))
+		var dest := _miss_point(m0, aim)
+		fx.bullet(m0, dest, wid, func(): fx.burst(dest, Color("ffd27a"), 4, 2.0, 0.035, 0.2, 1.6))
+		_recoil(sn, true)
+		_kick(_screen_dir(m0, aim) * -1.0, 1.0)
+		await get_tree().create_timer(FIRE_GAP.get(wid, 0.085)).timeout
+	await get_tree().create_timer(0.3).timeout
+	for t in targets:
+		_float(t, "PINNED" if t.id in e.suppressed else "HOLDS", Hud.GOLD if t.id in e.suppressed else Hud.DIM)
+	create_tween().tween_method(func(v: float): sn.set_meta("aim", v), 1.0, 0.0, 0.25).set_delay(0.3)
+	await get_tree().create_timer(0.6).timeout
+
+
+## A per-target attack-like dict from an area hit, for _outcome.
+func _area_outcome_event(h: Dictionary) -> Dictionary:
+	var t: Dictionary = enc.units[h.id]
+	return {"damage": h.damage, "sp_before": t.c.sp("body"), "sp_after": t.c.sp("body"), "crit": false, "crit_names": [],
+		"location": "body", "wound_before": h.wound_before, "wound_after": h.wound_after, "killed": h.killed, "dead": h.dead, "hit": true, "dodged": h.dodged}
+
+
+## Shotgun shell: one blast, pellets fanning into the cone, everyone caught reacts together.
+func _anim_shell(e: Dictionary) -> void:
+	var su: Dictionary = enc.units[e.unit]
+	var tu: Dictionary = enc.units[e.target]
+	var sn: Node3D = unit_nodes[su.id]
+	_focus_unit = su.id
+	await _frame_pair(_body_pos(su), _body_pos(tu))
+	var d := Vector2(tu.pos.x - su.pos.x, tu.pos.y - su.pos.y)
+	_turn_to(sn, atan2(d.x, d.y), 0.12)
+	sn.set_meta("crouch_goal", 0.0)
+	sn.set_meta("aim_at", _body_pos(tu) + Vector3(0, 0.7, 0))
+	create_tween().tween_method(func(v: float): sn.set_meta("aim", v), 0.0, 1.0, 0.1)
+	await get_tree().create_timer(0.2).timeout
+	var m0 := _muzzle_of(sn)
+	var dir := (_body_pos(tu) + Vector3(0, 0.7, 0) - m0).normalized()
+	fx.muzzle(m0, dir, "shotgun", _flash_light(su.id))
+	for k in 9:   # the spread: pellets fanning across the cone
+		var spread := dir.rotated(Vector3.UP, fx.rng.randf_range(-0.6, 0.6)).rotated(dir.cross(Vector3.UP).normalized(), fx.rng.randf_range(-0.12, 0.12))
+		var dest := m0 + spread * fx.rng.randf_range(4.0, 6.5)
+		fx.bullet(m0, dest, "medium_pistol")
+	_recoil(sn, false)
+	_kick(_screen_dir(m0, m0 + dir) * -1.0, 3.0)
+	await get_tree().create_timer(0.12).timeout
+	if e.hit:
+		for h in e.hits:
+			var t: Dictionary = enc.units[h.id]
+			if h.dodged:
+				_float(t, "DODGE", Hud.CYAN)
+				continue
+			_outcome(_area_outcome_event(h), su, t, unit_nodes[t.id], _body_pos(t) + Vector3(0, 0.7, 0), (_body_pos(t) - _body_pos(su)).normalized())
+	else:
+		_float(tu, "MISS", Hud.DIM)
+	create_tween().tween_method(func(v: float): sn.set_meta("aim", v), 1.0, 0.0, 0.25).set_delay(0.3)
+	await get_tree().create_timer(0.7).timeout
+
+
+## Grenade: the toss, the arc, the blast (light, fireball, smoke, scorch), damage to everyone caught,
+## and broken cover flying apart.
+func _anim_blast(e: Dictionary) -> void:
+	var su: Dictionary = enc.units[e.unit]
+	var sn: CharModel = unit_nodes[su.id]
+	var center: Vector3i = e.center
+	var at := Vector3(center.x + 0.5, _gy(center), center.y + 0.5)
+	_focus_unit = su.id
+	await _frame_pair(_body_pos(su), at)
+	var d := Vector2(at.x - _body_pos(su).x, at.z - _body_pos(su).z)
+	_turn_to(sn, atan2(d.x, d.y), 0.12)
+	sn.play_once("grenade", 0.1)
+	await get_tree().create_timer(1.15).timeout   # the release in the toss clip
+	var hand := sn.head_point() + Vector3(0, 0.1, 0)
+	var landed := [false]
+	fx.grenade_arc(hand, at + Vector3(0, 0.06, 0), 0.75, func(): landed[0] = true)
+	while not landed[0]:
+		await get_tree().process_frame
+	if not e.hit:
+		_float_at(at + Vector3(0, 0.6, 0), "OFF TARGET", Hud.GOLD)
+	await get_tree().create_timer(0.25).timeout   # it rattles for a moment
+	fx.explosion(at, _gy(center))
+	hud.flash_screen(Color(1.0, 0.75, 0.4, 0.25))
+	_kick(Vector2(1, -1).normalized(), 8.0)
+	_hit_stop(90)
+	for v in e.destroyed:
+		builder.hide_cover(v)
+		var cv: Array = m.cover.filter(func(c): return c.floor == v.z and c.pos == Vector2i(v.x, v.y))
+		fx.shatter(Vector3(v.x + 0.5, v.z * FH + 0.3, v.y + 0.5), String(cv[0].material) if not cv.is_empty() else "wood", Vector3(v.x - center.x, 0, v.y - center.y), v.z * FH, true)
+	_float_at(at + Vector3(0, 1.0, 0), "%d" % int(e.damage), Hud.GOLD)
+	for h in e.hits:
+		var t: Dictionary = enc.units[h.id]
+		var dir := Vector3(t.pos.x - center.x, 0, t.pos.y - center.y)
+		dir = dir.normalized() if dir.length() > 0.01 else Vector3.FORWARD
+		if h.dodged:
+			_float(t, "DIVES CLEAR", Hud.CYAN)
+			continue
+		_outcome(_area_outcome_event(h), su, t, unit_nodes[t.id], _body_pos(t) + Vector3(0, 0.5, 0), dir)
+	await get_tree().create_timer(1.2).timeout
+
+
 ## The result on the target, when the connecting round lands.
 func _outcome(e: Dictionary, su: Dictionary, tu: Dictionary, tn: Node3D, at: Vector3, dir: Vector3) -> void:
 	var dmg := int(e.damage)
@@ -1925,6 +2306,7 @@ func _outcome(e: Dictionary, su: Dictionary, tu: Dictionary, tn: Node3D, at: Vec
 
 
 func _hud_refresh() -> void:
+	hud.tool = tool
 	hud.refresh(enc, mode, cover_mode, "%s  ·  FLOOR %d/%d" % [String(m.params.get("scene", gig.scene)).replace("_", " ").to_upper(), view_floor + 1, m.floors])
 
 
@@ -2107,8 +2489,13 @@ func _float_at(wp: Vector3, text: String, col: Color, offset := Vector2.ZERO) ->
 func _update_hover() -> void:
 	target_ring.visible = false
 	hud.mode_pcts({})
+	if blast_node and tool != "grenade":
+		blast_node.visible = false
 	if not _crew_turn():
 		hud.tip("", mouse)
+		return
+	if tool != "":
+		_tool_hover()
 		return
 	var t := _unit_at(hover)
 	if t.is_empty() or t.team == 0 or enc.cur.c.weapons.is_empty():

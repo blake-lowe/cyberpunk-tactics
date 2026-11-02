@@ -34,6 +34,8 @@ var _bar: PanelContainer
 var _card: VBoxContainer
 var _econ: HBoxContainer
 var _buttons: HBoxContainer
+var _tool_buttons := {}   ## glyph → ActBtn for the M5 actions
+var tool := ""            ## active target-picking tool (set by the view before refresh)
 var _end_btn: Button
 var _log: Label
 var _log_panel: PanelContainer
@@ -354,6 +356,26 @@ class ActBtn extends Button:
 				draw_line(o + Vector2(-r * 0.25, -r * 1.5), o + Vector2(-r * 0.25, -r), c, 2.0)
 				draw_line(o + Vector2(r * 0.25, -r * 1.5), o + Vector2(r * 0.25, -r), c, 2.0)
 				draw_line(o + Vector2(0, r * 0.2), o + Vector2(0, r * 1.2), c, 2.0)
+			"melee":   # a blade
+				draw_colored_polygon(PackedVector2Array([o + Vector2(-r * 1.1, r * 1.1), o + Vector2(r * 0.9, -r * 1.2), o + Vector2(r * 1.2, -r * 0.9), o + Vector2(-r * 0.7, r * 1.2)]), c)
+				draw_line(o + Vector2(-r * 0.2, r * 0.2), o + Vector2(r * 0.3, r * 0.7), c, 3.0)
+			"shell":   # a spread of pellets
+				for i in 5:
+					var a := -0.5 + i * 0.25
+					draw_circle(o + Vector2(-r, r * 0.6) + Vector2(cos(a - 0.6), sin(a - 0.6)) * r * 2.0, 2.5, c)
+				draw_circle(o + Vector2(-r, r * 0.6), 3.0, c)
+			"grenade":
+				draw_arc(o + Vector2(0, r * 0.25), r * 0.85, 0, TAU, 16, c, 2.0)
+				draw_rect(Rect2(o + Vector2(-r * 0.3, -r * 0.95), Vector2(r * 0.6, r * 0.4)), c)
+				draw_arc(o + Vector2(r * 0.55, -r * 0.85), r * 0.3, PI * 0.8, PI * 2.2, 8, c, 1.5)
+			"suppress":   # rounds raking a line
+				for i in 3:
+					var y := o.y - r * 0.8 + i * r * 0.8
+					draw_line(Vector2(o.x - r * 1.3, y), Vector2(o.x + r * 0.6, y), Color(c, 0.6), 1.0)
+					draw_colored_polygon(PackedVector2Array([Vector2(o.x + r * 0.6, y - 3), Vector2(o.x + r * 1.3, y), Vector2(o.x + r * 0.6, y + 3)]), c)
+			"medic":
+				draw_rect(Rect2(o + Vector2(-r * 0.35, -r), Vector2(r * 0.7, r * 2.0)), c)
+				draw_rect(Rect2(o + Vector2(-r, -r * 0.35), Vector2(r * 2.0, r * 0.7)), c)
 			"end":
 				draw_colored_polygon(PackedVector2Array([o + Vector2(-r * 1.2, -r), o + Vector2(r * 0.2, 0), o + Vector2(-r * 1.2, r)]), c)
 				draw_colored_polygon(PackedVector2Array([o + Vector2(0, -r), o + Vector2(r * 1.4, 0), o + Vector2(0, r)]), c)
@@ -399,6 +421,17 @@ func _build_bar() -> void:
 			b2.toggle_mode = true
 		b2.pressed.connect(func(): action.emit(spec[3], null))
 		_buttons.add_child(b2)
+	# M5 actions: target-picking tools (toggle; right-click applies) and instant ones
+	for spec in [["melee", "MELEE", "F", "tool", "melee", CYAN], ["shell", "SHELL", "5", "tool", "shell", CYAN],
+			["grenade", "GRENADE", "G", "tool", "grenade", GOLD], ["suppress", "SUPPRESS", "4", "suppress", null, CYAN],
+			["medic", "STABILIZE", "T", "tool", "stabilize", GREEN]]:
+		var b3 := ActBtn.new(spec[0], spec[1], spec[2], spec[5])
+		b3.toggle_mode = spec[3] == "tool"
+		var arg: Variant = spec[4]
+		var act: String = spec[3]
+		b3.pressed.connect(func(): action.emit(act, arg))
+		_tool_buttons[spec[0]] = b3
+		_buttons.add_child(b3)
 	_end_btn = ActBtn.new("end", "END TURN", "SPC", GOLD, 96, 66)
 	_end_btn.pressed.connect(func(): action.emit("end_turn", null))
 	row.add_child(_end_btn)
@@ -498,6 +531,7 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 			b.disabled = not crew_turn
 			b.queue_redraw()
 	(_buttons.get_child(3) as Button).set_pressed_no_signal(cover_mode)
+	_refresh_tools(enc, crew_turn)
 	var jack := _buttons.get_child(5) as Button
 	jack.visible = not enc.cur.is_empty() and NetRun.interface_rank(enc.cur.c) > 0   # hide role-impossible actions
 	jack.disabled = not crew_turn
@@ -513,6 +547,26 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 	if enc.state != "playing":
 		toast("GIG %s" % ("COMPLETE" if enc.state == "won" else "FAILED"), 1e9)
 	_layout.call_deferred()
+
+
+## Show each M5 action only when it applies to the active unit; reflect the active tool.
+func _refresh_tools(enc: Encounter, crew_turn: bool) -> void:
+	if _tool_buttons.is_empty() or enc.cur.is_empty():
+		return
+	var c: Combatant = enc.cur.c
+	var w: Weapon = c.weapons[0] if not c.weapons.is_empty() else null
+	var near_dying := enc.units.any(func(o): return o.team == enc.cur.team and o != enc.cur and not o.c.dead \
+		and o.c.wound_state() == Combatant.Wound.MORTAL and enc.adjacent(enc.cur.pos, o.pos))
+	var show := {"melee": true, "shell": w != null and w.def.get("shotgun_shell", false),
+		"grenade": c.grenades > 0, "suppress": w != null and w.def.get("suppressive", false), "medic": near_dying}
+	for k in _tool_buttons:
+		var b: ActBtn = _tool_buttons[k]
+		b.visible = show[k]
+		b.disabled = not crew_turn
+		b.set_pressed_no_signal(b.toggle_mode and tool == {"melee": "melee", "shell": "shell", "grenade": "grenade", "medic": "stabilize"}.get(k, "-"))
+		if k == "grenade":
+			b.title = "GRENADE ×%d" % c.grenades
+		b.queue_redraw()
 
 
 func _hp_meter(uid: int, c: Combatant, w: float, h: float) -> Meter:

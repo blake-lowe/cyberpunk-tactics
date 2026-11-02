@@ -52,6 +52,8 @@ var _speed := 0.0
 var _last_hit := 9.0
 var index := 0
 var _duck_until := 0
+var _perform := ""
+var _perform_until := 0
 var hold_state := false   ## review tools: keep the clip they set (no state picking), everything else runs
 var gun: Node3D
 var gun_sign := 1.0
@@ -424,6 +426,8 @@ func _pick(now: bool) -> void:
 	var clip := "%s_idle" % w
 	if float(get_meta("slump_goal", 0.0)) > 0.5:
 		clip = "dying"
+	elif Time.get_ticks_msec() < _perform_until:
+		clip = _perform
 	elif Time.get_ticks_msec() < _duck_until:   # dodge: a snap down into the crouch, rifle still up
 		clip = w + "_crouch"
 	elif get_meta("walk", false):
@@ -479,6 +483,14 @@ func pose_still(clip: String, at: float) -> void:
 	anim.play(clip)
 	anim.seek(at, true)
 	anim.pause()
+
+
+## Hold a (looping) clip for `secs`, e.g. CPR while stabilizing; then back to the state picker.
+func perform(clip: String, secs: float) -> void:
+	if not anim.has_animation(clip):
+		return
+	_perform = clip
+	_perform_until = Time.get_ticks_msec() + int(secs * 1000.0)
 
 
 ## Dodge (owner: the dodging clips read as steps or runs): duck into the crouch for `secs`.
@@ -598,6 +610,24 @@ func place_gun(s: Skeleton3D) -> void:
 	elif gun_kind == "rifle" and state.begins_with("rifle_") and not state.begins_with("rifle_reload"):
 		_ready_rel = chest.affine_inverse() * gun.transform   # the last ordinary two-handed hold, relative to the chest
 		_ready_chest = chest
+
+
+## Swap the carried gun's model (review tools; later, weapon switching).
+func set_weapon(weapon: String) -> void:
+	if gun:
+		for mk in [_support, _grip_mark]:
+			if mk and mk.get_parent() == gun:
+				gun.remove_child(mk)
+		gun.queue_free()
+	_gun_rel = null
+	_anchored = ""
+	_ready_rel = null
+	_add_gun(weapon)
+	for mk in [_support, _grip_mark]:
+		if mk:
+			gun.add_child(mk)
+	if _grip_mark:
+		_grip_mark.position = gun_grip
 
 
 ## Put a dropped gun back in the hands (review tools play deaths and then other clips).

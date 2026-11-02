@@ -3,7 +3,7 @@
 # encode small MP4s. Usage: tools/review_videos.sh OUT_DIR [reel ...]
 set -u
 OUT=${1:?out dir}; shift
-REELS=${*:-"move single auto kill headshot armor pistol cover enemy jack"}
+REELS=${*:-"move single auto kill headshot armor pistol cover enemy jack melee suppress shell grenade stabilize reload"}
 mkdir -p "$OUT"
 cd "$(dirname "$0")/.."
 for r in $REELS; do

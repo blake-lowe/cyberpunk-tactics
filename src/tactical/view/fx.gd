@@ -364,6 +364,108 @@ func shatter(at: Vector3, material: String, dir: Vector3, floor_y: float, big :=
 		_bits.append([c, v, w, floor_y + bm.size.y * 0.5])
 
 
+## A frag grenade: an arc from the hand to the landing point over `secs`, tumbling.
+func grenade_arc(a: Vector3, b: Vector3, secs: float, on_land := Callable()) -> void:
+	var g := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 0.05
+	sm.height = 0.1
+	sm.radial_segments = 6
+	sm.rings = 3
+	var mt := StandardMaterial3D.new()
+	mt.albedo_color = Color("3a4030")
+	sm.material = mt
+	g.mesh = sm
+	add_child(g)
+	var peak := maxf(a.y, b.y) + 0.6 + a.distance_to(b) * 0.18
+	var tw := create_tween()
+	tw.tween_method(func(t: float):
+		var p := a.lerp(b, t)
+		p.y = lerpf(a.y, b.y, t) + (peak - maxf(a.y, b.y)) * 4.0 * t * (1.0 - t) + (maxf(a.y, b.y) - lerpf(a.y, b.y, t)) * 0.0
+		g.global_position = p
+		g.rotation = Vector3(t * 14.0, t * 9.0, 0), 0.0, 1.0, secs)
+	tw.tween_callback(func():
+		g.queue_free()
+		if on_land.is_valid():
+			on_land.call())
+
+
+## Explosion: a white-hot flash and a light pop that lights the whole area, a fireball that
+## swells and cools, debris and grit, smoke that lingers, and a scorch mark that stays.
+func explosion(at: Vector3, floor_y: float, light: OmniLight3D = null) -> void:
+	var l := light
+	if l == null:
+		l = OmniLight3D.new()
+		add_child(l)
+		get_tree().create_timer(0.8).timeout.connect(l.queue_free)
+	l.light_color = Color("ffb060")
+	l.light_cull_mask = 0xFFFFF
+	l.omni_range = 9.0
+	l.global_position = at + Vector3(0, 0.8, 0)
+	l.light_energy = 22.0
+	create_tween().tween_property(l, "light_energy", 0.0, 0.55).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+	var ball := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 0.5
+	sm.height = 1.0
+	sm.radial_segments = 10
+	sm.rings = 6
+	var bm := _add_mat(Color("fff2c0"), 2.2)
+	sm.material = bm
+	ball.mesh = sm
+	add_child(ball)
+	ball.global_position = at + Vector3(0, 0.35, 0)
+	ball.scale = Vector3.ONE * 0.4
+	var tb := create_tween()
+	tb.set_parallel(true)
+	tb.tween_property(ball, "scale", Vector3.ONE * 2.6, 0.18).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUART)
+	tb.tween_property(bm, "albedo_color", Color("ff6a10"), 0.18)
+	tb.chain().tween_property(ball, "scale", Vector3.ONE * 3.0, 0.2)
+	tb.parallel().tween_property(bm, "albedo_color", Color(0.25, 0.08, 0.02, 0.0), 0.2)
+	tb.chain().tween_callback(ball.queue_free)
+	burst(at + Vector3(0, 0.2, 0), Color("ffd27a"), 30, 9.0, 0.05, 0.35, 2.0, -6.0)   # sparks
+	burst(at + Vector3(0, 0.1, 0), Color("4a4440"), 22, 5.0, 0.08, 0.9, 0.0, -9.0)    # grit
+	for k in 8:   # smoke: dark puffs rising and spreading, lingering after the fire
+		var puff := MeshInstance3D.new()
+		var ps := SphereMesh.new()
+		ps.radius = 0.5
+		ps.height = 1.0
+		ps.radial_segments = 7
+		ps.rings = 4
+		var pm := StandardMaterial3D.new()
+		pm.albedo_color = Color(0.16, 0.15, 0.15, 0.6)
+		pm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		pm.roughness = 1.0
+		ps.material = pm
+		puff.mesh = ps
+		add_child(puff)
+		var off := Vector3(rng.randf_range(-0.9, 0.9), rng.randf_range(0.1, 0.5), rng.randf_range(-0.9, 0.9))
+		puff.global_position = at + off
+		puff.scale = Vector3.ONE * 0.5
+		var tp := create_tween().set_parallel(true)
+		tp.tween_property(puff, "global_position", at + off * 1.6 + Vector3(0, rng.randf_range(1.2, 2.2), 0), 2.6).set_delay(0.1)
+		tp.tween_property(puff, "scale", Vector3.ONE * rng.randf_range(1.4, 2.2), 2.6).set_delay(0.1)
+		tp.tween_property(pm, "albedo_color:a", 0.0, 2.6).set_delay(0.3)
+		tp.chain().tween_callback(puff.queue_free)
+	var scorch := MeshInstance3D.new()   # stays
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.5
+	cm.bottom_radius = 0.5
+	cm.height = 0.004
+	cm.radial_segments = 10
+	cm.rings = 1
+	var sc := StandardMaterial3D.new()
+	sc.albedo_color = Color(0.03, 0.025, 0.02, 0.85)
+	sc.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	sc.roughness = 1.0
+	cm.material = sc
+	scorch.mesh = cm
+	add_child(scorch)
+	scorch.global_position = Vector3(at.x, floor_y + 0.011, at.z)
+	scorch.scale = Vector3(2.4, 1, 2.1)
+	scorch.rotation.y = rng.randf() * TAU
+
+
 func _settle_bits(delta: float) -> void:
 	for i in range(_bits.size() - 1, -1, -1):
 		var b: Array = _bits[i]

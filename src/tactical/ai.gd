@@ -13,9 +13,7 @@ static func act(e: Encounter, u: Dictionary) -> void:
 		return
 	var w: Weapon = u.c.weapons[0]
 	if w.uses_ammo() and w.ammo <= 0:
-		if e.turn.use_action():
-			w.reload()
-			e.say("%s reloads." % u.c.display_name)
+		e.reload(w)
 		return
 	if not _shoot(e, u, w):
 		_advance(e, u)
