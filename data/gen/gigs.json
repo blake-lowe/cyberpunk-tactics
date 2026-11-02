@@ -97,7 +97,7 @@
     "heavy": {
       "name": "Heavy security",
       "desc": "They doubled the guard. Opposition one security level up.",
-      "pay": 1.25
+      "pay": 1.5
     },
     "blackout": {
       "name": "Blackout",

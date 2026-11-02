@@ -119,11 +119,12 @@ static func npc(dice: Dice, tier: String, handle: String = "") -> Combatant:
 
 
 ## Opposition for a gig (CPR p399 budget: 1 Mook = 1 Edgerunner, a Lieutenant 2, a Mini Boss 3).
-## The site holds crew_size x (1.5 + security) edgerunners' worth, spread over its posts:
+## The site holds crew_size x (0.5 + security) edgerunners' worth (HOUSE-RULE; was 1.5 + security,
+## which a headless campaign run showed the crew rarely survives), spread over its posts:
 ## security 1 is all Mooks, 2 adds a Lieutenant, 3 adds a Mini Boss. Alerts are local, so the
 ## crew rarely meets the whole budget at once (XCOM-style pods).
 static func opposition(crew_size: int, security: int) -> Array[String]:
-	var budget := int(round(crew_size * (1.5 + security)))
+	var budget := int(round(crew_size * (0.5 + security)))
 	var out: Array[String] = []
 	if security >= 3:
 		out.append("mini_boss")

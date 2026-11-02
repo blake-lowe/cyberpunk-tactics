@@ -28,8 +28,9 @@ func _initialize() -> void:
 			for s in ["handgun", "shoulder_arms", "evasion"]:
 				c.raise_skill(s)
 		var gi := 0
-		for i in camp.board.size():   # the easiest gig
-			if int(camp.board[i].security) < int(camp.board[gi].security):
+		var cost := func(b: Dictionary) -> int: return int(b.security) * 2 + (2 if String(b.get("twist", "")) != "" else 0)
+		for i in camp.board.size():   # the easiest gig, twists counted against it
+			if cost.call(camp.board[i]) < cost.call(camp.board[gi]):
 				gi = i
 		var gig := camp.accept(gi)
 		print("gig %d start: %s sec %d" % [n + 1, gig.scene, int(gig.security)])

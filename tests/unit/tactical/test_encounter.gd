@@ -184,7 +184,7 @@ func test_skirmish_always_has_guards() -> void:
 		var m := SceneGen.generate(seed, "skirmish", {"security": 1})
 		var dice := Dice.new(seed)
 		var e := Encounter.setup(m, dice, _crew(dice))
-		assert_eq(e.units.filter(func(u): return u.team == 1).size(), 5, "3 + 2 per security level, even without posts")
+		assert_eq(e.units.filter(func(u): return u.team == 1).size(), Recruit.opposition(2, 1).size(), "the full budget is placed even without posts")
 
 
 func test_failed_death_save_emits_a_death_event() -> void:
