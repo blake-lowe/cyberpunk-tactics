@@ -10,8 +10,9 @@ Check-ins (🔶) are where work pauses for a user decision or review.
 | M3a | Tactical core, headless: grid pathfinding (stairs, ladders, bridges), line of sight and binary cover (walls, windows, cover pieces), destructible cover, encounter setup (crew at deploy, guards at posts), enemy AI, Netrunner session (jack in within 6 m, NET actions per turn, Black ICE fights), win/lose | ✅ done (headless) | — |
 | M3b | ✅ playtested — Playable greybox in Godot: 3D blockout from TacMap with floor slicing, camera, move grid shown only while planning, hit % and DODGE callouts, initiative bar, unit panel, NET overlay | — | 🔶 user plays locally |
 | M4 | Visual pass: pixel post-process, neon lighting/bloom, VFX, tuning controls. M4a-c: off-grid world builder, cutaway, light field, OKLab palette, stylised HUD, juice, cyberspace styles. M4d: animated characters (Quaternius bodies + Mixamo clips, retargeted), gun handling with IK, deaths, blood, debris; sunset badlands (natural terrain, per-scene light and palette) | ✅ M4d reviewed twice; badlands new | 🔶 motion review round 3 + badlands |
-| M5 | Gameplay depth (owner's "c"): suppressive fire, shotgun shells, melee/brawling, grenades, Medtech stabilisation, reload in play | 🔄 next | 🔶 review videos |
-| M6+ | Gigs/fixers, base & downtime, progression, Tech, reinforcements, cyberpsychosis; equipment models (owner: keep painted clothes for now, add modelled gear later) | — | per feature |
+| M5 | Gameplay depth (owner's "c"): suppressive fire, shotgun shells, melee/brawling, grenades, stabilisation, reload in play; AI uses them; guards from the book's NPC tiers on the p399 budget | ✅ built overnight | 🔶 overnight review page |
+| M6 | Gig loop, first slice: fixer board, gig → encounter → results (pay, rep, IP, injuries, permadeath), rest/treat/train/hire, saves | ✅ first slice built overnight | 🔶 overnight review page |
+| M7+ | Stealth phase (patrols, detection, alarm, reinforcements), base facilities, gear shop and loot, Role skill trees, Tech, more objectives; equipment models (owner: keep painted clothes for now, add modelled gear later); economy tuning | — | per feature |
 
 ## Decisions log
 - Godot 4.7.2, GDScript, Forward+ renderer.
@@ -140,3 +141,15 @@ Check-ins (🔶) are where work pauses for a user decision or review.
   sun, sky, rim, lamp strength, palette), a sunset palette without orange/yellow neon ramps (sunlit rock went
   garish), CC0 Stylized Nature models through the world shader (rocks rising into low cliffs, dead/twisted
   trees, scrub, grass, pebbles as decoration only), buttes on the horizon, off-map ground matched to fog.
+
+
+### Overnight decisions (report to owner)
+- Guards: CPR NPC tiers (Mook/Lieutenant/Mini Boss, p411-415, RULES-UNVERIFIED: read from a garbled
+  extraction) on the p399 budget; balance check: AI crew of 3 beats an equal number of Mooks 12/12.
+- HOUSE-RULES: melee reach covers diagonal neighbours; recruits carry 1-2 frag grenades, a third of
+  Mooks one; failed-gig rescue fee, clinic treatment price, free armour patching, grenade price,
+  hire price (Campaign.ECON) are placeholders.
+- IP rubric for p410's qualitative awards: fail 10, success 30, +10 nobody down, +10 NET objective.
+- Board is the main scene; dev flags still open the tactical view directly.
+- Fresh-eyes review (subagent): fixed four bugs (jack-in range anchor, NET action validation, ICE/strain
+  damage events, all-unconscious hang); its next-step list is on the review page.
