@@ -507,7 +507,7 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 	_round_box.add_child(_text(state, F_DISPLAY, 20, RED if state != "UNDETECTED" else CYAN))
 	_round_box.add_child(_text(objective_text(enc), F_TERM, 18, GOLD))
 	for tw in enc.twists:
-		var nm := String(RulesDB.gen("gigs.json").twists.get(tw, {}).get("name", tw)).to_upper()
+		var nm := String(RulesDB.gen("gigs.json").twists.get(tw, {}).get("name", "IT'S A SETUP" if tw == "setup" else tw)).to_upper()
 		if tw == "shift_change" and enc.alarm < 2:
 			nm += " · ROUND %d" % Encounter.SHIFT_CHANGE_ROUND
 		_round_box.add_child(_text("TWIST · " + nm, F_TERM, 18, RED))

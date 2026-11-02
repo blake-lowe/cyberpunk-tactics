@@ -407,6 +407,8 @@ func _gig_card(i: int) -> PanelContainer:
 	top.add_child(_text("%s eb" % _money(int(g.pay)), Hud.F_TERM, 30, Hud.GREEN))
 	col.add_child(_text("%s (REP %d) · %s · SECURITY %s" % [String(g.fixer).to_upper(), camp.rep_with(String(g.fixer)), String(RulesDB.gen("scenes.json")[g.scene].get("name", g.scene)).to_upper(), "◆".repeat(int(g.security)) + "◇".repeat(3 - int(g.security))], Hud.F_TERM, 20, Hud.CYAN))
 	col.add_child(_text(String(g.blurb), Hud.F_BODY, 20, Color(Hud.TEXT, 0.85), true))
+	if g.get("unique", false):
+		col.add_child(_text("PERSONAL JOB · %s TRUSTS YOU · DOUBLE PAY" % String(g.fixer).to_upper(), Hud.F_TERM, 18, Hud.MAGENTA))
 	var tw := String(g.get("twist", ""))
 	if tw != "":
 		var td: Dictionary = RulesDB.gen("gigs.json").twists[tw]

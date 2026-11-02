@@ -94,9 +94,10 @@ func refresh_board() -> void:
 	var n := 3 + (1 if rep >= 3 else 0) + level("intel")
 	for i in n:
 		var t: Dictionary = g.templates[dice.d(g.templates.size()) - 1]
-		var slots := {"fixer": _pick(g.fixers), "corp": _pick(g.corps), "gang": _pick(g.gangs), "data": _pick(g.data),
+		var willing: Array = g.fixers.filter(func(f): return rep_with(String(f)) >= 0)   # not the ones who sold you out
+		var slots := {"fixer": _pick(willing if not willing.is_empty() else g.fixers), "corp": _pick(g.corps), "gang": _pick(g.gangs), "data": _pick(g.data),
 			"place": _pick(t.get("places", ["site"]))}
-		var frep := rep_with(String(slots.fixer))   # better jobs come from fixers who know you
+		var frep := maxi(0, rep_with(String(slots.fixer)))   # better jobs come from fixers who know you
 		var sec := 1
 		for s in [3, 2]:
 			if frep + level("intel") >= int(g.rep_for_security[str(s)]) and dice.d(10) <= (4 if s == 2 else 3):
@@ -110,7 +111,24 @@ func refresh_board() -> void:
 		var title := _fill(_pick(t.titles), slots)
 		board.append({"id": "%d-%d" % [day, i], "kind": t.kind, "fixer": slots.fixer, "title": title,
 			"blurb": _fill(String(t.blurb), slots), "scene": _pick(t.scenes), "security": sec, "twist": twist,
-			"pay": int(int(g.pay[str(sec)]) * (1.0 + frep * 0.05) * mult), "rep": sec, "seed": dice.rng.randi_range(1, 99999)})
+			"pay": int(int(g.pay[str(sec)]) * (1.0 + frep * 0.05) * mult), "rep": sec, "seed": dice.rng.randi_range(1, 99999),
+			"setup": frep == 0 and dice.rng.randf() < float(g.get("betrayal_chance", 0.0))})
+	_unique_offer(g)
+
+
+## A fixer who trusts the crew (rep >= unique_rep) sometimes has a personal job: security 3, double
+## pay, extra reputation (spec: "occasional unique offers"). At most one on the board.
+func _unique_offer(g: Dictionary) -> void:
+	var trusted: Array = g.fixers.filter(func(f): return rep_with(String(f)) >= int(g.get("unique_rep", 3)))
+	if trusted.is_empty() or dice.d(3) != 1:
+		return
+	var t: Dictionary = g.unique_templates[dice.d(g.unique_templates.size()) - 1]
+	var slots := {"fixer": _pick(trusted), "corp": _pick(g.corps), "gang": _pick(g.gangs), "data": _pick(g.data),
+		"place": _pick(t.get("places", ["site"]))}
+	var sec := int(t.security)
+	board.append({"id": "%d-u" % day, "kind": t.kind, "fixer": slots.fixer, "title": _fill(_pick(t.titles), slots),
+		"blurb": _fill(String(t.blurb), slots), "scene": _pick(t.scenes), "security": sec, "twist": "", "unique": true,
+		"pay": int(int(g.pay[str(sec)]) * float(t.pay_mult)), "rep": int(t.rep), "seed": dice.rng.randi_range(1, 99999), "setup": false})
 
 
 static func objective_for(g: Dictionary) -> String:
@@ -206,7 +224,12 @@ func resolve(e: Encounter) -> Dictionary:
 		c.dsp = c.base_dsp
 		if c.hp < c.max_hp() or not c.injuries.is_empty():
 			report.hurt.append(c.display_name)
-	if won:
+	if won and gig.get("setup", false):   # sold out: no pay, and that fixer is dead to the crew
+		report.rep = 0
+		report.ip = IP_WIN
+		fixer_rep[String(gig.fixer)] = -5
+		say("%s sold you out. No pay; you won't work for them again soon." % gig.fixer)
+	elif won:
 		report.pay = int(gig.get("pay", 0))
 		report.rep = int(gig.get("rep", 1))
 		report.ip = IP_WIN + (10 if not anyone_down else 0) + (10 if e.objective.get("kind", "") == "data" and e.objective.get("done", false) else 0)
@@ -231,7 +254,7 @@ func resolve(e: Encounter) -> Dictionary:
 	heat = clampi(heat + report.heat, 0, 10)
 	rep = maxi(0, rep + report.rep)
 	var fx_name := String(gig.get("fixer", ""))
-	if fx_name != "":
+	if fx_name != "" and not (won and gig.get("setup", false)):
 		fixer_rep[fx_name] = maxi(0, rep_with(fx_name) + report.rep)
 	report.ip += 5 * level("training")
 	for c in crew:

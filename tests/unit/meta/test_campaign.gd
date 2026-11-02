@@ -203,3 +203,31 @@ func test_downtime_episodes_for_low_humanity() -> void:
 	assert_true(solo.display_name in r.episodes)
 	assert_true(other.hp < hp0 or hp0 == 1, "a crewmate got hurt")
 	assert_true(other.hp >= 1)
+
+
+func test_trusted_fixer_offers_personal_jobs() -> void:
+	var c := Campaign.new_game(8)
+	var g := RulesDB.gen("gigs.json")
+	for f in g.fixers:
+		c.fixer_rep[f] = 5
+	var seen := false
+	for k in 12:
+		c.refresh_board()
+		if c.board.any(func(b): return b.get("unique", false)):
+			seen = true
+			var u: Dictionary = c.board.filter(func(b): return b.get("unique", false))[0]
+			assert_eq(int(u.security), 3)
+			break
+	assert_true(seen, "a personal job shows up")
+
+
+func test_setup_pays_nothing_and_burns_the_fixer() -> void:
+	var c := Campaign.new_game(6)
+	c.board[0]["setup"] = true
+	var fixer := String(c.board[0].fixer)
+	var e := _finish(c, true)
+	var eb0 := c.eb
+	var r := c.resolve(e)
+	assert_eq(int(r.pay), 0)
+	assert_true(c.rep_with(fixer) < 0)
+	assert_false(c.board.any(func(b): return String(b.fixer) == fixer), "they don't offer work for now")

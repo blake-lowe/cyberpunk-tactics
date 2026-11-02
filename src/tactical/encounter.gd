@@ -72,7 +72,7 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 			target_sid = st.id
 	var posts := p_map.posts.duplicate()
 	posts.sort_custom(func(a, b): return int(a.structure == target_sid) > int(b.structure == target_sid))
-	var sec := int(p_map.params.get("security", 1)) + (1 if "heavy" in p_twists else 0)
+	var sec := mini(3, int(p_map.params.get("security", 1)) + (1 if "heavy" in p_twists else 0))
 	var roster := Recruit.opposition(crew.size(), sec)   # CPR p399 budget, strongest first (target building posts)
 	var want := roster.size()
 	if posts.size() < want:
@@ -114,6 +114,12 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 		e.objective.merge({"structure": target_sid, "node": best})
 	elif kind == "snatch":
 		e.objective.merge({"cell": e._package_cell(target_sid, cells[0]), "carrier": -1})
+	if "setup" in p_twists:   # HOUSE-RULE: a fixer sold the crew out; the guards are waiting
+		for u in e.units:
+			if u.team == 1:
+				u.alerted = true
+		e.alarm = 1
+		e.say("It's a setup. They knew you were coming.")
 	# M3 playtest verdict: guards only join the initiative order once they're alerted.
 	for u in e.units:
 		if u.alerted:

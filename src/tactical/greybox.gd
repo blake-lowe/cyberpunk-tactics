@@ -476,6 +476,8 @@ func new_gig() -> void:
 	if campaign_gig:
 		kind = Campaign.objective_for(camp.active_gig)
 		tw = [] if String(camp.active_gig.get("twist", "")) == "" else [String(camp.active_gig.twist)]
+		if camp.active_gig.get("setup", false):   # hidden until it springs
+			tw.append_array(["setup", "heavy"])
 	enc = Encounter.setup(m, dice, crew, kind, tw)
 	if campaign_gig:
 		enc.heat = camp.heat
@@ -1253,7 +1255,7 @@ func _draw_watch(show: bool) -> void:
 		qm.size = Vector2(0.92, 0.92)
 		mm.mesh = qm
 		watch_node.multimesh = mm
-		watch_node.material_override = _unlit(Hud.RED, 0.13, 1.0)
+		watch_node.material_override = _unlit(Hud.RED, 0.2, 1.1)
 		watch_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		world.add_child(watch_node)
 	var cells := {}
@@ -1265,7 +1267,7 @@ func _draw_watch(show: bool) -> void:
 	mm2.instance_count = cells.size()
 	var i := 0
 	for v in cells:
-		mm2.set_instance_transform(i, Transform3D(Basis(), Vector3(v.x + 0.5, _gy(v) + 0.06, v.y + 0.5)))
+		mm2.set_instance_transform(i, Transform3D(Basis(), Vector3(v.x + 0.5, v.z * FH + 0.12, v.y + 0.5)))
 		i += 1
 	watch_node.visible = not cells.is_empty()
 
@@ -1672,9 +1674,9 @@ func _demo_jack() -> void:
 ## each reel shows the effect it is named for.
 func _run_reel() -> void:
 	var g := _nearest_guard()
-	if _reel not in ["move", "jack", "cover", "stabilize", "reload"]:
+	if _reel not in ["move", "jack", "cover", "stabilize", "reload", "dose", "rig", "grab", "backup", "watch"]:
 		_reel_setup_shot(g)
-	if _reel in ["stabilize", "reload"]:
+	if _reel in ["stabilize", "reload", "dose", "rig", "grab", "backup"]:
 		_reel_frame(enc.cur)
 	var cell := Vector3i(-1, -1, -1)
 	if _reel == "cover":   # a one-square piece that takes a few shots; the shooter stands 3-5 squares off in sight
@@ -1847,6 +1849,66 @@ func _run_reel() -> void:
 				await _act()
 				if r.get("success", false):
 					break
+		"dose", "rig":
+			var ally2: Dictionary = enc.alive(0).filter(func(o): return o != enc.cur)[0]
+			for s in enc.nav.reachable(enc.cur.pos, 3, enc.occupied()):
+				if enc.adjacent(s, enc.cur.pos):
+					ally2.pos = s
+					break
+			if _reel == "dose":
+				enc.cur.c.role = "medtech"
+				enc.cur.c.medicine = {"pharma": 2}
+				enc.cur.c.doses = 2
+				ally2.c.hp = maxi(1, ally2.c.max_hp() / 3)
+			else:
+				enc.cur.c.maker = {"field": 3}
+				enc.cur.c.skills["basic_tech"] = 10
+				(ally2.c.armor.body as ArmorPiece).sp = 3
+			_refresh()
+			_reel_frame(ally2)
+			await get_tree().create_timer(0.8).timeout
+			enc.turn = TurnState.begin(dice, enc.cur.c)
+			var r2 := enc.dose(ally2, "speedheal") if _reel == "dose" else enc.jury_rig(ally2)
+			print("reel %s: %s" % [_reel, r2])
+			await _act()
+		"grab":
+			var spot := Vector3i(-1, -1, -1)
+			for s in enc.nav.reachable(enc.cur.pos, 3, enc.occupied()):
+				if enc.adjacent(s, enc.cur.pos):
+					spot = s
+					break
+			enc.objective = {"kind": "snatch", "done": false, "cell": spot, "carrier": -1}
+			_refresh()
+			await get_tree().create_timer(1.2).timeout
+			enc.turn = TurnState.begin(dice, enc.cur.c)
+			print("reel grab: ", enc.grab())
+			await _act()
+			var far3 := Vector3i(-1, -1, -1)
+			for v in enc.nav.reachable(enc.cur.pos, enc.turn.squares_available(), enc.occupied()):
+				if far3.x < 0 or Vector3(v - enc.cur.pos).length() > Vector3(far3 - enc.cur.pos).length():
+					far3 = v
+			enc.move_to(far3)
+			await _act()
+		"backup":
+			await get_tree().create_timer(0.4).timeout
+			var gs := enc.alive(1)
+			if not gs.is_empty():
+				enc._call_it_in(gs[0])
+			await _act()
+			var roster: Array[String] = ["mook", "mook", "mook"]
+			enc._spawn_wave(roster, "Backup", "BACKUP")
+			await _act()
+			tail = 2.5
+		"watch":   # the stealth overlay: a guard's watched squares while the crew plans a move
+			fog_on = false
+			var gw := _nearest_guard()
+			if not gw.is_empty():
+				gw.facing = Vector2(enc.cur.pos.x - gw.pos.x, enc.cur.pos.y - gw.pos.y).normalized()
+				view_floor = gw.pos.z
+				cam_target = Vector3(gw.pos.x + 0.5, 0, gw.pos.y + 0.5)
+				_place_camera()
+			_refresh()
+			tail = 3.0
 		"reload":
 			await get_tree().create_timer(0.4).timeout
 			enc.cur.c.weapons[0].ammo = 2

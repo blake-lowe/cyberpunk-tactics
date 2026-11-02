@@ -1,5 +1,5 @@
 {
-  "_doc": "Gig templates for the fixer board (M6). A gig picks a template, a scene from its list, a security level weighted by reputation, and fills the title/blurb slots. Pay and rewards are HOUSE-RULE economy numbers until checked against the book's job rates. Twists (procedural complications, spec Narrative Structure) are HOUSE-RULE content; pay multiplies by the twist's pay.",
+  "_doc": "Gig templates for the fixer board (M6). A gig picks a template, a scene from its list, a security level weighted by reputation, and fills the title/blurb slots. Pay and rewards are HOUSE-RULE economy numbers until checked against the book's job rates. Twists (procedural complications, spec Narrative Structure) are HOUSE-RULE content; pay multiplies by the twist's pay. Unique offers (spec: 'occasional unique offers' from fixers who trust you) appear at unique_rep with that fixer. Betrayal (spec: lowered by betrayals; HOUSE-RULE): a small chance a low-rep fixer's gig is a setup (heavy twist hidden, pay withheld).",
   "fixers": [
     "Rogue's Cousin",
     "Mama Lou",
@@ -110,5 +110,57 @@
       "pay": 1.15
     }
   },
-  "twist_chance": 0.35
+  "twist_chance": 0.35,
+  "unique_templates": [
+    {
+      "kind": "corp_extraction",
+      "titles": [
+        "{fixer}'s personal favour: the {corp} prototype"
+      ],
+      "blurb": "{fixer} doesn't hand this one to just anyone. A {corp} lab is moving a prototype tonight; it never arrives. Double pay, and {fixer} remembers who came through.",
+      "scenes": [
+        "corp_campus",
+        "megablock"
+      ],
+      "security": 3,
+      "pay_mult": 2.0,
+      "rep": 3
+    },
+    {
+      "kind": "gang_hit",
+      "titles": [
+        "{fixer} wants the {gang} gone. All of them."
+      ],
+      "blurb": "The {gang} crossed {fixer} once too often. Their main crew is holed up at the {place}. This one pays like a contract, because it is one.",
+      "scenes": [
+        "shipyard",
+        "rail_yard",
+        "badlands"
+      ],
+      "places": [
+        "warehouse",
+        "depot",
+        "camp"
+      ],
+      "security": 3,
+      "pay_mult": 2.0,
+      "rep": 3
+    },
+    {
+      "kind": "data_theft",
+      "titles": [
+        "{corp}'s black book, for {fixer}'s eyes only"
+      ],
+      "blurb": "{fixer} has a client who'll pay anything for {corp}'s {data}, and won't say why. Deep NET, heavy ICE.",
+      "scenes": [
+        "corp_campus",
+        "lone_building"
+      ],
+      "security": 3,
+      "pay_mult": 2.0,
+      "rep": 3
+    }
+  ],
+  "unique_rep": 3,
+  "betrayal_chance": 0.08
 }
