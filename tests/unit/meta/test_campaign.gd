@@ -107,7 +107,7 @@ func test_buy_gun_becomes_primary_and_sells_extra() -> void:
 	assert_true(c.buy(solo, "shotgun"))
 	assert_eq(solo.weapons[0].id(), "shotgun")
 	assert_eq(solo.weapons.filter(func(w): return not w.is_melee()).size(), Campaign.MAX_GUNS)
-	assert_eq(c.eb, eb0 - 500 + 50, "the heavy pistol sold back at half its 100eb")
+	assert_eq(c.eb, eb0 - 600 + 50, "500eb list via a fixer (+20%), the heavy pistol sold back at half its 100eb")
 
 
 func test_buy_armor_replaces_location_and_cant_overspend() -> void:
@@ -117,3 +117,22 @@ func test_buy_armor_replaces_location_and_cant_overspend() -> void:
 	assert_eq((r.armor.head as ArmorPiece).id, "light_armorjack")
 	c.eb = 10
 	assert_false(c.buy(r, "kevlar", "body"))
+
+
+func test_facilities_upgrade_and_apply() -> void:
+	var c := Campaign.new_game(3)
+	c.eb = 10000
+	var n0 := c.board.size()
+	assert_true(c.upgrade("intel"))
+	assert_eq(c.board.size(), n0 + 1, "fixer network: one more gig")
+	assert_true(c.upgrade("med_bay"))
+	var solo: Combatant = c.crew[0]
+	solo.hp = 1
+	c.rest(1)
+	assert_eq(solo.hp, mini(solo.max_hp(), 1 + solo.raw_stat("BODY") + 2), "med bay: +2 HP a day")
+	assert_true(c.upgrade("med_bay"))
+	assert_false(c.upgrade("med_bay"), "two levels max")
+	assert_eq(c.treat_cost(), int(Campaign.ECON.treat_injury * 0.75))
+	var d := Campaign.from_dict(JSON.parse_string(JSON.stringify(c.to_dict())))
+	assert_eq(d.level("med_bay"), 2)
+	assert_eq(d.level("intel"), 1)

@@ -23,6 +23,19 @@ const ECON := {
 ## a failed gig 10, success 30, success without anyone going down +10, the NET objective +10.
 ## Gig kind → encounter objective (Encounter.setup).
 const OBJECTIVES := {"data_theft": "data", "gang_hit": "eliminate", "corp_extraction": "snatch"}
+## Safehouse facilities (spec: Meta Progression, "a few upgradeable facilities"). HOUSE-RULE content:
+## two levels each, costs per level; effects are read where they apply (rest, restock, board, IP).
+const FACILITIES := {
+	"med_bay": {"name": "Med Bay", "costs": [1500, 4000],
+		"desc": ["Rest heals +2 HP a day per level.", "Level 2: clinic treatment costs a quarter less."]},
+	"armory": {"name": "Armory", "costs": [1000, 3000],
+		"desc": ["Frag grenades restock 10 eb cheaper per level.", "Level 2: everyone carries 3 grenades."]},
+	"intel": {"name": "Fixer Network", "costs": [1500, 4000],
+		"desc": ["+1 gig on the board per level.", "Better-security gigs show up one reputation earlier per level."]},
+	"training": {"name": "Training Room", "costs": [1000, 3000],
+		"desc": ["+5 IP per gig for each survivor per level.", ""]},
+}
+const FIXER_MARKUP := 1.2   ## HOUSE-RULE: spec "items >= 500 eb require a fixer": sourced at +20%
 const IP_FAIL := 10
 const IP_WIN := 30
 
@@ -38,6 +51,7 @@ var fallen: Array[Dictionary] = []   ## {name, role, day, gig}: the wall
 var board: Array[Dictionary] = []    ## gig offers
 var recruits: Array[Combatant] = []  ## for hire
 var active_gig: Dictionary = {}
+var facilities := {}                 ## facility id → level (0 = not built)
 var log: Array[String] = []
 
 
@@ -75,12 +89,12 @@ func alive_crew() -> Array[Combatant]:
 func refresh_board() -> void:
 	var g := RulesDB.gen("gigs.json")
 	board.clear()
-	var n := 3 + (1 if rep >= 3 else 0)
+	var n := 3 + (1 if rep >= 3 else 0) + level("intel")
 	for i in n:
 		var t: Dictionary = g.templates[dice.d(g.templates.size()) - 1]
 		var sec := 1
 		for s in [3, 2]:
-			if rep >= int(g.rep_for_security[str(s)]) and dice.d(10) <= (4 if s == 2 else 3):
+			if rep + level("intel") >= int(g.rep_for_security[str(s)]) and dice.d(10) <= (4 if s == 2 else 3):
 				sec = s
 				break
 		var slots := {"fixer": _pick(g.fixers), "corp": _pick(g.corps), "gang": _pick(g.gangs), "data": _pick(g.data),
@@ -159,6 +173,7 @@ func resolve(e: Encounter) -> Dictionary:
 				report.salvage += int(value * float(ECON.salvage))
 	eb += report.pay - report.fees + report.salvage
 	rep = maxi(0, rep + report.rep)
+	report.ip += 5 * level("training")
 	for c in crew:
 		c.ip += report.ip
 	say("%s: %s. %+d eb, %+d rep, %d IP each%s." % [gig.get("title", "Gig"), "done" if won else "failed",
@@ -175,15 +190,16 @@ func resolve(e: Encounter) -> Dictionary:
 ## refilled; frag grenades restocked to two each if there's cash.
 func rest(days := 1) -> void:
 	for c in crew:
-		c.hp = mini(c.max_hp(), c.hp + c.raw_stat("BODY") * days)
+		c.hp = mini(c.max_hp(), c.hp + (c.raw_stat("BODY") + 2 * level("med_bay")) * days)
 		for loc in c.armor:
 			if c.armor[loc]:
 				(c.armor[loc] as ArmorPiece).repair()
 		for w in c.weapons:
 			w.reload()
-		while c.grenades < 2 and eb >= int(ECON.grenade):
+		var price := int(ECON.grenade) - 10 * level("armory")
+		while c.grenades < (3 if level("armory") >= 2 else 2) and eb >= price:
 			c.grenades += 1
-			eb -= int(ECON.grenade)
+			eb -= price
 	day += days
 	refresh_board()
 	say("Rested %d day%s." % [days, "s" if days > 1 else ""])
@@ -191,11 +207,11 @@ func rest(days := 1) -> void:
 
 ## Clinic price, halved while a Trauma Surgeon is on the crew (HOUSE-RULE perk).
 func treat_cost() -> int:
-	var mult := 1.0
+	var mult := 0.75 if level("med_bay") >= 2 else 1.0
 	for c in alive_crew():
 		var d := float(c.perk_fx("treat_discount"))
 		if d > 0.0:
-			mult = minf(mult, d)
+			mult = minf(mult, d * (0.75 if level("med_bay") >= 2 else 1.0))
 	return int(int(ECON.treat_injury) * mult)
 
 
@@ -250,13 +266,17 @@ func shop_stock() -> Array[Dictionary]:
 		if rep >= int(SHOP_WEAPONS[id]):
 			var d := RulesDB.weapon(id)
 			var info := "%dd6" % int(d.dice) + ("" if d.get("melee", false) else " · ROF %d · %d rds" % [int(d.rof), int(d.mag)])
-			out.append({"id": id, "kind": "weapon", "name": String(d.name), "cost": int(d.cost), "info": info})
+			out.append({"id": id, "kind": "weapon", "name": String(d.name), "cost": _price(int(d.cost)), "info": info, "fixer": int(d.cost) >= 500})
 	for id in SHOP_ARMOR:
 		if rep >= int(SHOP_ARMOR[id]):
 			var a := RulesDB.armor(id)
-			out.append({"id": id, "kind": "armor", "name": String(a.name), "cost": int(a.cost),
+			out.append({"id": id, "kind": "armor", "name": String(a.name), "cost": _price(int(a.cost)), "fixer": int(a.cost) >= 500,
 				"info": "SP %d" % int(a.sp) + (" · -%d REF/DEX/MOVE" % int(a.penalty) if int(a.penalty) > 0 else "")})
 	return out
+
+
+static func _price(list: int) -> int:
+	return int(list * FIXER_MARKUP) if list >= 500 else list
 
 
 ## Buy an item for a crew member. A gun becomes their primary (the oldest extra gun is sold); a melee
@@ -293,12 +313,36 @@ func buy(c: Combatant, id: String, loc := "body") -> bool:
 	return true
 
 
+# --- Safehouse ------------------------------------------------------------------------
+
+func level(facility: String) -> int:
+	return int(facilities.get(facility, 0))
+
+
+## Cost of the next level, or -1 if maxed.
+func upgrade_cost(facility: String) -> int:
+	var costs: Array = FACILITIES[facility].costs
+	return int(costs[level(facility)]) if level(facility) < costs.size() else -1
+
+
+func upgrade(facility: String) -> bool:
+	var cost := upgrade_cost(facility)
+	if cost < 0 or eb < cost:
+		return false
+	eb -= cost
+	facilities[facility] = level(facility) + 1
+	say("Built %s level %d." % [FACILITIES[facility].name, level(facility)])
+	if facility == "intel":
+		refresh_board()
+	return true
+
+
 # --- Save / load ------------------------------------------------------------------
 
 func to_dict() -> Dictionary:
 	return {"version": 1, "seed": seed_value, "eb": eb, "rep": rep, "day": day, "crew": crew.map(func(c): return c.to_dict()),
 		"fallen": fallen, "board": board, "recruits": recruits.map(func(c): return c.to_dict()), "log": log.slice(-50),
-		"rng_state": dice.rng.state}
+		"rng_state": dice.rng.state, "facilities": facilities}
 
 
 static func from_dict(d: Dictionary) -> Campaign:
@@ -317,6 +361,8 @@ static func from_dict(d: Dictionary) -> Campaign:
 		c.board.append(b)
 	for r in d.get("recruits", []):
 		c.recruits.append(Combatant.from_dict(r))
+	for k in d.get("facilities", {}):
+		c.facilities[String(k)] = int(d.facilities[k])
 	for l in d.get("log", []):
 		c.log.append(String(l))
 	return c

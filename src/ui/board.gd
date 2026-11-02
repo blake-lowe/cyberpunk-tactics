@@ -153,6 +153,9 @@ func _build() -> void:
 	acts.add_child(_button("REST 1 DAY", Hud.CYAN, func(): camp.rest(1); _rebuild()))
 	acts.add_child(_button("REST UNTIL HEALED", Hud.CYAN, func(): _rest_full(); _rebuild()))
 	left.add_child(acts)
+	left.add_child(_text("// SAFEHOUSE", Hud.F_PIXEL, 22, Hud.GREEN))
+	for f in Campaign.FACILITIES:
+		left.add_child(_facility(f))
 	if not camp.fallen.is_empty():
 		left.add_child(_text("// FLATLINED", Hud.F_PIXEL, 22, Hud.RED))
 		for f in camp.fallen:
@@ -171,6 +174,28 @@ func _build() -> void:
 	mid.add_child(_text("// LOG", Hud.F_PIXEL, 22, Hud.DIM))
 	for l in camp.log.slice(-6):
 		mid.add_child(_text("> " + l, Hud.F_TERM, 20, Color(Hud.TEXT, 0.7), true))
+
+
+func _facility(f: String) -> PanelContainer:
+	var d: Dictionary = Campaign.FACILITIES[f]
+	var lv := camp.level(f)
+	var p := _panel(Hud.GREEN if lv > 0 else Hud.DIM)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 2)
+	p.add_child(col)
+	var top := HBoxContainer.new()
+	col.add_child(top)
+	var nm := _text(String(d.name).to_upper(), Hud.F_DISPLAY, 22, Hud.TEXT if lv > 0 else Color(Hud.TEXT, 0.6))
+	nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top.add_child(nm)
+	top.add_child(_text("◆".repeat(lv) + "◇".repeat(d.costs.size() - lv), Hud.F_TERM, 20, Hud.GREEN))
+	for i in d.desc.size():
+		if String(d.desc[i]) != "":
+			col.add_child(_text(("✓ " if lv > i else "· ") + String(d.desc[i]), Hud.F_TERM, 17, Color(Hud.TEXT, 0.85 if lv > i else 0.5), true))
+	var cost := camp.upgrade_cost(f)
+	if cost >= 0:
+		col.add_child(_button(("BUILD" if lv == 0 else "UPGRADE") + "  %s eb" % _money(cost), Hud.GREEN, func(): camp.upgrade(f); _rebuild(), camp.eb >= cost))
+	return p
 
 
 ## Night market: pick who you're shopping for, then buy. Guns become the primary weapon; armour
@@ -202,7 +227,7 @@ func _shop() -> VBoxContainer:
 		col.add_theme_constant_override("separation", 2)
 		p.add_child(col)
 		col.add_child(_text(String(it.name).to_upper(), Hud.F_DISPLAY, 20, Hud.TEXT))
-		col.add_child(_text("%s · %s eb" % [it.info, _money(int(it.cost))], Hud.F_TERM, 18, Color(Hud.TEXT, 0.7)))
+		col.add_child(_text("%s · %s eb%s" % [it.info, _money(int(it.cost)), "  (via fixer +20%)" if it.get("fixer", false) else ""], Hud.F_TERM, 18, Color(Hud.TEXT, 0.7), true))
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 6)
 		col.add_child(row)
