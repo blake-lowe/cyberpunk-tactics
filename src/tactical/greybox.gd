@@ -1704,6 +1704,7 @@ func _anim_attack(e: Dictionary) -> void:
 	tn.visible = tn.visible or _seen(tu.pos)
 	await _frame_pair(_body_pos(su), _body_pos(tu))
 	var wid := String(e.get("weapon", "assault_rifle"))
+	sn.set_meta("aim_at", _body_pos(tu) + Vector3(0, 0.95 if String(e.get("location", "body")) == "head" else 0.72, 0))   # before the weapon comes up
 	var d := Vector2(tu.pos.x - su.pos.x, tu.pos.y - su.pos.y)
 	# lean out of cover toward the firing square
 	var home := sn.position
@@ -1716,6 +1717,7 @@ func _anim_attack(e: Dictionary) -> void:
 	create_tween().tween_method(func(v: float): sn.set_meta("aim", v), float(sn.get_meta("aim", 0.0)), 1.0, 0.1)
 	await get_tree().create_timer(0.18).timeout
 	var aim := _body_pos(tu) + Vector3(0, 0.95 if String(e.get("location", "body")) == "head" else 0.72, 0) * 1.0
+	sn.set_meta("aim_at", aim)
 	var rounds: int = int(e.get("rounds", 1)) if int(e.mode) == Attack.Mode.AUTOFIRE else 1
 	var connect: int = (int(e.get("mult", 1)) if int(e.mode) == Attack.Mode.AUTOFIRE else 1) if (e.hit and not e.dodged) else 0
 	var hit_rounds := {}   # which rounds connect: spread through the burst
@@ -1866,6 +1868,7 @@ func _anim_cover(e: Dictionary) -> void:
 	var sn: Node3D = unit_nodes[su.id]
 	var cell: Vector3i = e.cell
 	var at := Vector3(cell.x + 0.5, cell.z * FH + 0.45, cell.y + 0.5)
+	sn.set_meta("aim_at", at)
 	_focus_unit = su.id
 	var d := Vector2(cell.x - su.pos.x, cell.y - su.pos.y)
 	_turn_to(sn, atan2(d.x, d.y), 0.12)

@@ -28,16 +28,16 @@ func _fade_free(n: Node3D, secs: float, prop := "scale", to: Variant = Vector3.Z
 ## size: overall scale (world units); cone: forward plume length factor; prongs: side petals
 ## (muzzle-brake jets) count; wide: cone spread; light: pop energy and range; smoke: puff count.
 const FLASH := {
-	"medium_pistol": {"size": 0.16, "cone": 1.0, "prongs": 4, "wide": 0.5, "light": 3.0, "range": 3.5, "smoke": 1},
-	"heavy_pistol": {"size": 0.2, "cone": 1.1, "prongs": 4, "wide": 0.55, "light": 4.0, "range": 4.0, "smoke": 1},
-	"very_heavy_pistol": {"size": 0.24, "cone": 1.2, "prongs": 5, "wide": 0.6, "light": 5.0, "range": 4.5, "smoke": 2},
-	"smg": {"size": 0.2, "cone": 1.3, "prongs": 3, "wide": 0.4, "light": 3.0, "range": 3.5, "smoke": 1},
-	"heavy_smg": {"size": 0.23, "cone": 1.3, "prongs": 3, "wide": 0.45, "light": 3.5, "range": 4.0, "smoke": 1},
-	"assault_rifle": {"size": 0.3, "cone": 1.6, "prongs": 3, "wide": 0.35, "light": 5.0, "range": 5.0, "smoke": 2},
-	"shotgun": {"size": 0.4, "cone": 1.1, "prongs": 6, "wide": 1.0, "light": 6.5, "range": 5.5, "smoke": 3, "pellets": 9},
-	"sniper_rifle": {"size": 0.45, "cone": 2.0, "prongs": 2, "wide": 0.3, "light": 7.0, "range": 6.0, "smoke": 3, "brake": true},
-	"grenade_launcher": {"size": 0.38, "cone": 0.8, "prongs": 0, "wide": 0.8, "light": 4.0, "range": 4.5, "smoke": 4},
-	"rocket_launcher": {"size": 0.45, "cone": 1.4, "prongs": 0, "wide": 0.7, "light": 6.0, "range": 6.0, "smoke": 6, "backblast": true},
+	"medium_pistol": {"size": 0.27, "cone": 1.0, "prongs": 4, "wide": 0.5, "light": 7.8, "range": 5.95, "smoke": 1},
+	"heavy_pistol": {"size": 0.34, "cone": 1.1, "prongs": 4, "wide": 0.55, "light": 10.4, "range": 6.8, "smoke": 1},
+	"very_heavy_pistol": {"size": 0.41, "cone": 1.2, "prongs": 5, "wide": 0.6, "light": 13, "range": 7.65, "smoke": 2},
+	"smg": {"size": 0.34, "cone": 1.3, "prongs": 3, "wide": 0.4, "light": 7.8, "range": 5.95, "smoke": 1},
+	"heavy_smg": {"size": 0.39, "cone": 1.3, "prongs": 3, "wide": 0.45, "light": 9.1, "range": 6.8, "smoke": 1},
+	"assault_rifle": {"size": 0.51, "cone": 1.6, "prongs": 3, "wide": 0.35, "light": 13, "range": 8.5, "smoke": 2},
+	"shotgun": {"size": 0.68, "cone": 1.1, "prongs": 6, "wide": 1.0, "light": 16.9, "range": 9.35, "smoke": 3, "pellets": 9},
+	"sniper_rifle": {"size": 0.77, "cone": 2.0, "prongs": 2, "wide": 0.3, "light": 18.2, "range": 10.2, "smoke": 3, "brake": true},
+	"grenade_launcher": {"size": 0.65, "cone": 0.8, "prongs": 0, "wide": 0.8, "light": 10.4, "range": 7.65, "smoke": 4},
+	"rocket_launcher": {"size": 0.77, "cone": 1.4, "prongs": 0, "wide": 0.7, "light": 15.6, "range": 10.2, "smoke": 6, "backblast": true},
 }
 const BALLISTIC_SPEED := 70.0   # world units/s: fast enough to read as a streak, not a beam
 
@@ -122,8 +122,8 @@ func muzzle(at: Vector3, dir: Vector3, weapon := "assault_rifle", light: OmniLig
 	l.omni_range = float(p.range)
 	l.global_position = at + dir * (s * 0.4 + 0.3)
 	l.light_energy = float(p.light)
-	var tl := create_tween()
-	tl.tween_property(l, "light_energy", 0.0, 0.045)
+	var tl := create_tween()   # a hard pop, then a short falloff the eye can catch (2-3 frames)
+	tl.tween_property(l, "light_energy", 0.0, 0.1).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
 	for k in int(p.smoke):   # soft grey puffs drifting up and out, lingering after the flash
 		var puff := MeshInstance3D.new()
 		var ps := SphereMesh.new()

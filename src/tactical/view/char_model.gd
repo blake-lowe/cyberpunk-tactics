@@ -498,6 +498,11 @@ func place_gun(s: Skeleton3D) -> void:
 		var b := r.basis.orthonormalized()
 		fwd = (b.y * cos(GRIP_TILT) + b.x * sin(GRIP_TILT)).normalized()
 		up = (b.x * cos(GRIP_TILT) - b.y * sin(GRIP_TILT)).normalized()
+	var aim_w := clampf(float(get_meta("aim", 0.0)), 0.0, 1.0)
+	if aim_w > 0.01 and has_meta("aim_at"):   # while aiming, the barrel points at the aim point, so tracers leave along it
+		var ad := (s.global_transform.affine_inverse() * (get_meta("aim_at") as Vector3) - grip).normalized()
+		fwd = fwd.slerp(ad, aim_w).normalized()
+		up = (Vector3.UP - fwd * fwd.dot(Vector3.UP)).normalized()
 	var right := fwd.cross(up).normalized()
 	up = right.cross(fwd)
 	var gb := Basis(fwd * gun_sign, up, right * gun_sign).scaled(Vector3.ONE * gun_scale)
