@@ -22,10 +22,15 @@ const SKIN_TEX := {"male": Q + "characters/T_Superhero_Male_Ligh.png", "female":
 const HAIR_MESH := {"buzz": "Hair_Buzzed", "mohawk": "Hair_BuzzedFemale", "long": "Hair_Long", "undercut": "Hair_SimpleParted",
 	"bob": "Hair_SimpleParted", "ponytail": "Hair_Buns", "curly": "Hair_Buzzed", "bald": "", "topknot": "Hair_Buns"}
 ## weapon id → [model, length in m, anim set]
-const GUNS := {"medium_pistol": ["Pistol_1", 0.21, "pistol"], "heavy_pistol": ["Pistol_1", 0.24, "pistol"],
-	"very_heavy_pistol": ["Revolver_1", 0.3, "pistol"], "smg": ["SubmachineGun_1", 0.5, "rifle"],
-	"heavy_smg": ["SubmachineGun_1", 0.58, "rifle"], "assault_rifle": ["AssaultRifle_1", 0.9, "rifle"],
-	"shotgun": ["Shotgun_1", 1.0, "rifle"], "sniper_rifle": ["SniperRifle_1", 1.15, "rifle"]}
+## Lengths are a touch under real (owner: guns read too large at this scale).
+const GUNS := {"medium_pistol": ["Pistol_1", 0.17, "pistol"], "heavy_pistol": ["Pistol_1", 0.19, "pistol"],
+	"very_heavy_pistol": ["Revolver_1", 0.24, "pistol"], "smg": ["SubmachineGun_1", 0.38, "rifle"],
+	"heavy_smg": ["SubmachineGun_1", 0.44, "rifle"], "assault_rifle": ["AssaultRifle_1", 0.68, "rifle"],
+	"shotgun": ["Shotgun_1", 0.76, "rifle"], "sniper_rifle": ["SniperRifle_1", 0.88, "rifle"]}
+## Clips where the left hand does its own thing (reloading): the gun holds still in the right hand.
+const ANCHOR_CLIPS := ["rifle_reload", "pistol_reload"]
+## Two-handed pistol clips: the left hand is pulled onto the grip by IK.
+const PISTOL_GRIP_CLIPS := ["pistol_idle", "pistol_aim", "pistol_walk", "pistol_run", "pistol_crouch"]
 ## Region ids painted into the body's vertex colour (see char.gdshader).
 enum R { SKIN, JACKET, SLEEVE, PANTS, BOOTS, GLOVES, BELT, FOREARM }
 
@@ -48,6 +53,12 @@ var gun_sign := 1.0
 var gun_scale := 1.0
 var gun_grip := Vector3.ZERO
 var _gun_rel: Variant = null   ## gun relative to the right hand, frozen at death
+var _anchored := ""            ## anchor clip the gun is currently held still for
+var _anchor_rel := Transform3D.IDENTITY
+var _support: Marker3D         ## pistols: where the left wrist goes (IK target)
+var _ik: TwoBoneIK3D           ## left arm → pistol support
+var _ik_r: TwoBoneIK3D         ## right arm → rifle grip during reloads
+var _grip_mark: Marker3D
 const PALM := Vector3(0.0, 0.08, 0.03)      ## palm centre in hand-bone space (fingers +Y, palm +Z)
 const GRIP_TILT := 0.35                     ## pistol grip angle: barrel above the finger line
 
@@ -153,6 +164,15 @@ func _make(team: int, idx: int, role: String, weapon: String) -> void:
 	var pose := Pose.new()
 	pose.model = self
 	skel.add_child(pose)
+	# IK after Pose, so the hands reach for the gun where Pose just put it: the left hand onto a
+	# pistol grip, the right hand onto a rifle's grip while a reload holds the rifle still
+	_support = Marker3D.new()
+	gun.add_child(_support)
+	_ik = _arm_ik("Left", _support)
+	_grip_mark = Marker3D.new()
+	gun.add_child(_grip_mark)
+	_grip_mark.position = gun_grip
+	_ik_r = _arm_ik("Right", _grip_mark)
 	set_meta("mats", mats)
 	set_meta("outlines", [])
 	_pick(true)
@@ -418,6 +438,18 @@ func ground_speed() -> float:
 	return _speed / (scale.x * SCALE)
 
 
+func _arm_ik(side: String, target: Node3D) -> TwoBoneIK3D:
+	var ik := TwoBoneIK3D.new()
+	ik.setting_count = 1
+	ik.set_root_bone_name(0, side + "UpperArm")
+	ik.set_middle_bone_name(0, side + "LowerArm")
+	ik.set_end_bone_name(0, side + "Hand")
+	skel.add_child(ik)
+	ik.set_target_node(0, ik.get_path_to(target))
+	ik.influence = 0.0
+	return ik
+
+
 ## World position of the middle of the face in the current pose.
 func head_point() -> Vector3:
 	var h := skel.find_bone("Head")
@@ -478,15 +510,31 @@ func _stowed() -> bool:
 func place_gun(s: Skeleton3D) -> void:
 	if gun == null or gun.get_parent() != s:
 		return   # dropped
+	var alive: bool = not get_meta("fallen", false)
+	if _ik:
+		var want := 1.0 if gun_kind == "pistol" and state in PISTOL_GRIP_CLIPS and alive else 0.0
+		_ik.influence = move_toward(_ik.influence, want, 0.15)
+		_support.position = gun_grip + Vector3(0.0, -0.035, -gun_sign * 0.075) / gun_scale   # left wrist: beside and under the grip
+		_ik_r.influence = move_toward(_ik_r.influence, 1.0 if gun_kind == "rifle" and state in ANCHOR_CLIPS and alive else 0.0, 0.15)
+	var rh_pose := s.get_bone_global_pose(s.find_bone("RightHand"))
+	var chest := s.get_bone_global_pose(s.find_bone("UpperChest"))
+	# reloads: a rifle holds still against the chest (the right hand follows it by IK) while the
+	# left hand swaps the magazine; a pistol stays in the right hand
+	var anchor := Transform3D.IDENTITY.interpolate_with(chest, 0.3) if gun_kind == "rifle" else rh_pose   # mostly the body root: steady
+	if state not in ANCHOR_CLIPS:
+		_anchored = ""
 	if _gun_rel != null:
-		gun.transform = s.get_bone_global_pose(s.find_bone("RightHand")) * (_gun_rel as Transform3D)
+		gun.transform = rh_pose * (_gun_rel as Transform3D)
 		return
-	if _stowed():   # hands busy with something else: rifles slung across the back, pistols holstered
+	if _anchored != "":
+		gun.transform = anchor * _anchor_rel
+		return
+	if _stowed():   # hands busy with something else: rifles slung flat across the back, pistols holstered
 		var holder := s.get_bone_global_pose(s.find_bone("UpperChest" if gun_kind == "rifle" else "Hips"))
 		var sf := Vector3(-0.7, 0.71, 0.0).normalized() if gun_kind == "rifle" else Vector3(0, -1, 0.15).normalized()
-		var su := Vector3(0, 0, -1) if gun_kind == "rifle" else Vector3(-1, 0, 0)
+		var su := Vector3(0.71, 0.7, 0.0).normalized() if gun_kind == "rifle" else Vector3(-1, 0, 0)   # side of the gun against the back
 		var sr := sf.cross(su).normalized()
-		var at := Vector3(0.02, -0.08, -0.135) if gun_kind == "rifle" else Vector3(-0.19, -0.02, 0.0)
+		var at := Vector3(0.0, -0.06, -0.15) if gun_kind == "rifle" else Vector3(-0.19, -0.02, 0.0)
 		var lb := Basis(sf * gun_sign, su, sr * gun_sign).scaled(Vector3.ONE * gun_scale)
 		var local := Transform3D(lb, at - lb * gun_grip)
 		gun.transform = holder * local
@@ -502,10 +550,13 @@ func place_gun(s: Skeleton3D) -> void:
 		if d.length() > 0.12 and d.length() < 0.8:
 			fwd = d.normalized()
 			up = (Vector3.UP - fwd * fwd.dot(Vector3.UP)).normalized()
-	if fwd == Vector3.ZERO:
+	if fwd == Vector3.ZERO:   # one hand: the barrel follows the forearm (the fingers curl round the grip)
 		var b := r.basis.orthonormalized()
-		fwd = (b.y * cos(GRIP_TILT) + b.x * sin(GRIP_TILT)).normalized()
-		up = (b.x * cos(GRIP_TILT) - b.y * sin(GRIP_TILT)).normalized()
+		var fore := r.origin - s.get_bone_global_pose(s.find_bone("RightLowerArm")).origin
+		fwd = fore.normalized() if fore.length() > 0.01 else b.y
+		up = (b.x - fwd * fwd.dot(b.x)).normalized()   # top of the gun toward the thumb
+		fwd = fwd.rotated(fwd.cross(up).normalized(), GRIP_TILT * 0.4).normalized()   # muzzle a touch above the wrist line
+		up = (up - fwd * fwd.dot(up)).normalized()
 	var aim_w := clampf(float(get_meta("aim", 0.0)), 0.0, 1.0)
 	if aim_w > 0.01 and has_meta("aim_at"):   # while aiming, the barrel points at the aim point, so tracers leave along it
 		var ad := (s.global_transform.affine_inverse() * (get_meta("aim_at") as Vector3) - grip).normalized()
@@ -515,6 +566,9 @@ func place_gun(s: Skeleton3D) -> void:
 	up = right.cross(fwd)
 	var gb := Basis(fwd * gun_sign, up, right * gun_sign).scaled(Vector3.ONE * gun_scale)
 	gun.transform = Transform3D(gb, grip - gb * gun_grip)
+	if state in ANCHOR_CLIPS:   # first frame of a reload: keep the gun where the hands have it now
+		_anchored = state
+		_anchor_rel = anchor.affine_inverse() * gun.transform
 
 
 ## Procedural layer after the clip: recoil climbs the chest and kicks the arms; hits jolt the

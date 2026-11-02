@@ -25,7 +25,7 @@ const CLIPS := {
 	"pistol_aim": "ual1:Pistol_Aim_Neutral",
 	"pistol_walk": "mx:pistol_walk",
 	"pistol_run": "mx:pistol_run",
-	"pistol_sprint": "mx:pistol_run",
+	"pistol_sprint": "ual1:Sprint",   # owner: was a duplicate of pistol_run; a full sprint, pistol in one hand
 	"pistol_crouch": "mx:pistol_kneel",
 	"pistol_reload": "ual1:Pistol_Reload",
 	"injured_idle": "mx:injured_idle",
