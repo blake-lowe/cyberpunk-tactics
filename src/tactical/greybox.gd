@@ -416,7 +416,7 @@ func _build_world() -> void:
 	target_ring = _decal(Color("ff3b4f"), 1.2, true, 0.0)
 	decals.clear()
 	for u in enc.units:
-		var n := UnitModel.build(u.team, u.id if u.team == 0 else 0)
+		var n := UnitModel.build(u.team, u.id if u.team == 0 else 0, String(u.c.role))
 		decals[u.id] = _decal(Color("05d9e8") if u.team == 0 else Color("ff3b4f"), 0.95, false, 0.0)
 		if u.team == 0:  # crew carry a small light (XCOM-style) so they read at night through the pixel filter
 			var pl := OmniLight3D.new()
@@ -554,7 +554,7 @@ func _refresh() -> void:
 		var seen: bool = u.team == 0 or not fog_on or enc.vision.visible.has(u.pos)
 		n.visible = seen and not _cut_hides(u.pos)
 		n.position = Vector3(u.pos.x + 0.5, u.pos.z * FH, u.pos.y + 0.5)
-		n.scale = Vector3.ONE * 1.3
+		n.scale = Vector3.ONE * 1.5   # a touch larger than life: units must read at ~28 buffer px
 		var dc: MeshInstance3D = decals[u.id]
 		dc.visible = n.visible and not u.c.dead
 		dc.position = n.position + Vector3(0, 0.03, 0)
