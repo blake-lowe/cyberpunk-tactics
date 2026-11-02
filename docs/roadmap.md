@@ -8,8 +8,8 @@ Check-ins (🔶) are where work pauses for a user decision or review.
 | M1 | Rules core (headless): checks, skills, initiative, weapons/ROF/autofire, SP + ablation, aimed shots, damage, Critical Injuries, death saves, Humanity, cyberware, Solo Combat Awareness, recruits | ✅ done (reviewed) | ✅ |
 | M2 | Procedural generation: multi-floor maps, cover, hackables, coupled Net Architectures (+ Netrunner Interface rules); debug renders | ✅ done (reviewed through M2f) | ✅ |
 | M3a | Tactical core, headless: grid pathfinding (stairs, ladders, bridges), line of sight and binary cover (walls, windows, cover pieces), destructible cover, encounter setup (crew at deploy, guards at posts), enemy AI, Netrunner session (jack in within 6 m, NET actions per turn, Black ICE fights), win/lose | ✅ done (headless) | — |
-| M3b | ✅ built, awaiting playtest — Playable greybox in Godot: 3D blockout from TacMap with floor slicing, camera, move grid shown only while planning, hit % and DODGE callouts, initiative bar, unit panel, NET overlay | — | 🔶 user plays locally |
-| M4 | Visual pass: pixel post-process, neon lighting/bloom, VFX, tuning controls | — | 🔶 aesthetic review on user's GPU |
+| M3b | ✅ playtested — Playable greybox in Godot: 3D blockout from TacMap with floor slicing, camera, move grid shown only while planning, hit % and DODGE callouts, initiative bar, unit panel, NET overlay | — | 🔶 user plays locally |
+| M4 | Visual pass: pixel post-process, neon lighting/bloom, VFX, tuning controls. M4a built: pixel/palette post, night + neon lights, fog of war, BG3-style HUD, skirmish map | 🔄 M4a in review | 🔶 aesthetic review on user's GPU |
 | M5+ | Gigs/fixers, base & downtime, progression, Medtech, Tech, reinforcements, cyberpsychosis | — | per feature |
 
 ## Decisions log
@@ -71,3 +71,11 @@ Check-ins (🔶) are where work pauses for a user decision or review.
 - Start M3. (Missing-elements ranking still open: lighting/stealth, civilians, sewers, vehicles, hazards, weather.)
 - M3a decisions: guards carry keys to their own security doors (the crew must hack or shoot them); doors stay open once walked through; rank-and-file guards skip cyberpsychosis episodes; AI steers by walking distance (bucket-queue Dijkstra), ~200 ms per turn on the cloud CPU.
 - M3 playtest page: https://claude.ai/artifact/TYxEY3nRMqu1doZGhq8wQt (verdicts in its db collection `verdicts`, keys m3_*).
+
+### M3 playtest verdicts (user)
+- It runs. Next: visuals first, a huge overhaul per the spec; questions welcome.
+- Guards spawned too far away → test on a much smaller map → `skirmish` scene (30×24), now the greybox default.
+- UI too barebones → aim for Baldur's Gate 3 → view/hud.gd (party portraits, initiative strip, hotbar, tooltip, log, NET panel).
+- Guards not in the turn order until they join the encounter → alert system (sight 15 sq, gunfire 12 sq, shout 8 sq).
+- Show building interiors only when visible to squad members → Vision (cell sight; explored remembered and dimmed; guards drawn only in sight).
+- M4a look review page: https://claude.ai/artifact/918gYH5UnmSbw4vCoovnEm (db collection `verdicts`, keys m4_*).
