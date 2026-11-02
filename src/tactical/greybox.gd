@@ -1723,6 +1723,8 @@ func _anim_move(e: Dictionary) -> void:
 	if u.team == 1 and not _event_visible(e):
 		return
 	_focus_unit = u.id
+	if _reel != "" and OS.has_environment("REEL_DEBUG"):
+		print("move %s: %s" % [u.c.display_name, (path as Array).map(func(v): return "%d,%d,%d:%s%s" % [v.x, v.y, v.z, m.t(v.z, v.x, v.y), "C" if _cut_hides(v) else ""])])
 	var step := 0.22 if e.run else 0.33   # matches the sprint / run clips' stride at unit scale
 	n.set_meta("walk", true)
 	n.set_meta("run", e.run)
@@ -1734,8 +1736,9 @@ func _anim_move(e: Dictionary) -> void:
 		var d := Vector2(b.x - a.x, b.y - a.y)
 		if d.length() > 0.01:
 			_turn_to(n, atan2(d.x, d.y), 0.06)
-		if u.team == 1:
-			n.visible = _seen(a) or _seen(b)
+		# hidden while on a storey above the cutaway (otherwise they float over the cut-away walls
+		# below and seem to walk through them), and guards only where the crew can see
+		n.visible = (u.team == 0 or _seen(a) or _seen(b)) and not (_cut_hides(a) and _cut_hides(b))
 		var to := Vector3(b.x + 0.5, _gy(b), b.y + 0.5)
 		for dv in [a, b]:   # doors open as the walker reaches them, not after the whole playback
 			if m.t(dv.z, dv.x, dv.y) == TacMap.T.DOOR:
