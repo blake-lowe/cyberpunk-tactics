@@ -351,8 +351,8 @@ const AWARE_RANGE := 2.0        ## ...but notices anyone within 2 squares, any d
 const DARK_PENALTY := 4         ## "Task obscured by smoke or darkness" (CPR p? task modifiers)
 const SHIFT_CHANGE_ROUND := 6    ## HOUSE-RULE twist: the next shift arrives and raises the alarm
 const RADIO_RANGE := 20.0       ## HOUSE-RULE: guards a call-in rouses (squares from the caller)
-const BACKUP_ROUNDS := 3        ## HOUSE-RULE: reinforcements arrive 3 rounds after the call
-const NCPD_ROUNDS := 8          ## HOUSE-RULE: still fighting this long after backup arrives, NCPD rolls in
+const BACKUP_ROUNDS := 5        ## HOUSE-RULE: reinforcements arrive 5 rounds after the call (CPR fights run ~10-17 rounds)
+const NCPD_ROUNDS := 12         ## HOUSE-RULE: still fighting this long after backup arrives, NCPD rolls in
 
 
 ## Can guard `g` spot crew member `u` right now? Inside the guard's view (cone or close), in clear
