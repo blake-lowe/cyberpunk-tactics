@@ -583,19 +583,29 @@ func _build_world() -> void:
 	target_ring = _decal(Color("ff3b4f"), 1.2, true, 0.0)
 	decals.clear()
 	for u in enc.units:
-		var n := CharModel.build(u.team, u.c.look_seed if u.c.look_seed >= 0 else u.id, String(u.c.role), u.c.weapons[0].id() if not u.c.weapons.is_empty() else "assault_rifle")
-		decals[u.id] = _decal(Color("05d9e8"), 0.95, false, 0.0)
-		decals[u.id].visible = false   # owner: no glows under units; they blend into the scene
-		var blob := _decal(Color.BLACK, 0.75, false, 0.0, true)   # contact shadow
-		blob.name = "blob"
-		blob.get_parent().remove_child(blob)
-		n.add_child(blob)
-		blob.position = Vector3(0, 0.02, 0)
-		blob.scale = Vector3.ONE / 1.3
-		world.add_child(n)
-		unit_nodes[u.id] = n
+		_unit_node(u)
 	_apply_world_look()
 	_refresh()
+
+
+## A unit's body (built with the world, or when backup arrives mid-gig).
+func _unit_node(u: Dictionary) -> CharModel:
+	if unit_nodes.has(u.id):
+		return unit_nodes[u.id]
+	var n := CharModel.build(u.team, u.c.look_seed if u.c.look_seed >= 0 else u.id, String(u.c.role), u.c.weapons[0].id() if not u.c.weapons.is_empty() else "assault_rifle")
+	decals[u.id] = _decal(Color("05d9e8"), 0.95, false, 0.0)
+	decals[u.id].visible = false   # owner: no glows under units; they blend into the scene
+	var blob := _decal(Color.BLACK, 0.75, false, 0.0, true)   # contact shadow
+	blob.name = "blob"
+	blob.get_parent().remove_child(blob)
+	n.add_child(blob)
+	blob.position = Vector3(0, 0.02, 0)
+	blob.scale = Vector3.ONE / 1.3
+	world.add_child(n)
+	n.position = Vector3(u.pos.x + 0.5, _gy(u.pos), u.pos.y + 0.5)
+	n.scale = Vector3.ONE * 1.3
+	unit_nodes[u.id] = n
+	return n
 
 
 func _apply_world_look() -> void:
@@ -739,6 +749,9 @@ func _refresh() -> void:
 			var foes := enc.alive(1 - u.team).filter(func(o): return o.alerted or u.team == 1)
 			if u.team == 1 and not u.alerted:
 				foes = []
+				var fc: Vector2 = u.get("facing", Vector2.ZERO)   # watching their sector
+				if fc != Vector2.ZERO:
+					n.rotation.y = atan2(fc.x, fc.y)
 			if not foes.is_empty():
 				foes.sort_custom(func(a, b): return Vector3(a.pos - u.pos).length() < Vector3(b.pos - u.pos).length())
 				var d: Vector3i = foes[0].pos - u.pos
@@ -1881,7 +1894,7 @@ func _play_events() -> void:
 	while not enc.events.is_empty():
 		var e: Dictionary = enc.events.pop_front()
 		var u: Dictionary = enc.units[e.unit]
-		if u.team == 1 and not hostile_shown and String(e.type) not in ["alert", "death"] and _event_visible(e):
+		if u.team == 1 and not hostile_shown and String(e.type) not in ["alert", "death"] and not e.get("patrol", false) and _event_visible(e):
 			hostile_shown = true
 			hud.enemy_phase(true)
 			hud.turn_banner("HOSTILE ACTIVITY", Hud.RED)
@@ -1897,6 +1910,11 @@ func _play_events() -> void:
 			"shell": await _anim_shell(e)
 			"blast": await _anim_blast(e)
 			"harm": _anim_harm(e)
+			"alarm":
+				if _seen(u.pos):
+					_float(u, "CALLING IT IN", Hud.RED)
+				hud.toast("ALARM: BACKUP IN %d ROUNDS" % int(e.rounds))
+			"backup": await _anim_backup(e)
 			"death": await _anim_death(e)
 	hud.enemy_phase(false)
 	_focus_unit = -1
@@ -1955,6 +1973,9 @@ func _anim_move(e: Dictionary) -> void:
 	if _reel != "" and OS.has_environment("REEL_DEBUG"):
 		print("move %s: %s" % [u.c.display_name, (path as Array).map(func(v): return "%d,%d,%d:%s%s" % [v.x, v.y, v.z, m.t(v.z, v.x, v.y), "C" if _cut_hides(v) else ""])])
 	var step := 0.22 if e.run else 0.33   # matches the sprint / run clips' stride at unit scale
+	if e.get("patrol", false):
+		step = 0.62   # a patrol strolls (walk clip)
+	n.set_meta("stroll", e.get("patrol", false))
 	n.set_meta("walk", true)
 	n.set_meta("run", e.run)
 	n.set_meta("crouch_goal", 0.0)
@@ -2212,6 +2233,21 @@ func _anim_suppress(e: Dictionary) -> void:
 		_float(t, "PINNED" if t.id in e.suppressed else "HOLDS", Hud.GOLD if t.id in e.suppressed else Hud.DIM)
 	create_tween().tween_method(func(v: float): sn.set_meta("aim", v), 1.0, 0.0, 0.25).set_delay(0.3)
 	await get_tree().create_timer(0.6).timeout
+
+
+## Reinforcements arrive at an entrance: bodies appear there and the camera glances over.
+func _anim_backup(e: Dictionary) -> void:
+	var first: Dictionary = {}
+	for id in e.units:
+		var bu: Dictionary = enc.units[id]
+		var n := _unit_node(bu)
+		n.visible = _seen(bu.pos)
+		if first.is_empty():
+			first = bu
+	hud.toast("BACKUP HAS ARRIVED")
+	if not first.is_empty() and _seen(first.pos):
+		await _pan_to(_body_pos(first), 0.4)
+		await get_tree().create_timer(0.6).timeout
 
 
 ## Damage that isn't an attack (Black ICE brain damage, strained injuries): a number and a flash.

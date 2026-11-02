@@ -118,8 +118,41 @@ func test_unalerted_guards_stay_out_of_initiative() -> void:
 func test_guard_in_sight_joins_initiative() -> void:
 	var e := _corridor_encounter(Vector2i(12, 1))
 	var g: Dictionary = e.units[1]
-	assert_true(g.alerted, "11 squares, clear corridor: spotted at setup")
+	for v in e.m.w:   # light the corridor
+		e.lit[Vector3i(v, 1, 0)] = true
+	g.facing = Vector2(-1, 0)   # looking down the corridor at the crew
+	g.alerted = false
+	var spotted := false
+	for k in 30:   # Perception vs Stealth: a contest, not a certainty
+		if not e.update_alerts().is_empty():
+			spotted = true
+			break
+	assert_true(spotted, "facing the crew in a lit corridor: spotted within a few looks")
 	assert_true(_in_init(e, g))
+	assert_eq(e.alarm, 1)
+
+
+func test_guard_facing_away_or_in_the_dark_is_slower() -> void:
+	var e := _corridor_encounter(Vector2i(12, 1))
+	var g: Dictionary = e.units[1]
+	g.facing = Vector2(1, 0)   # back turned
+	g.alerted = false
+	for k in 30:
+		e.update_alerts()
+	assert_false(g.alerted, "11 squares behind the guard's back: never seen")
+	g.facing = Vector2(-1, 0)
+	e.lit.clear()
+	var hits := 0
+	for k in 200:
+		if e._spots(g, e.units[0]):
+			hits += 1
+	for v in e.m.w:
+		e.lit[Vector3i(v, 1, 0)] = true
+	var lit_hits := 0
+	for k in 200:
+		if e._spots(g, e.units[0]):
+			lit_hits += 1
+	assert_true(lit_hits > hits, "darkness makes the crew harder to spot (-4)")
 
 
 func test_gunfire_alerts_guards_behind_walls() -> void:
@@ -168,3 +201,38 @@ func test_failed_death_save_emits_a_death_event() -> void:
 			break
 	assert_true(died, "the view gets a death event to animate")
 	assert_true(crew[1].dead)
+
+
+func test_alerted_guard_calls_in_backup_which_arrives_rounds_later() -> void:
+	var m := SceneGen.generate(11, "street_block", {"security": 1})
+	var dice := Dice.new(1)
+	var e := Encounter.setup(m, dice, _crew(dice))
+	var before := e.units.size()
+	var g: Dictionary = e.units.filter(func(u): return u.team == 1)[0]
+	e._rouse([g])
+	assert_eq(e.alarm, 1)
+	var arrived := false
+	for k in 60:
+		e.end_turn()
+		e.next_turn()
+		if e.state != "playing":
+			break
+		if e.units.size() > before:
+			arrived = true
+			break
+	assert_true(e.alarm == 2, "the guard called it in")
+	assert_true(arrived, "backup turned up")
+	assert_true(e.units.filter(func(u): return u.c.display_name.begins_with("Backup")).all(func(u): return u.alerted), "backup arrives alerted")
+
+
+func test_patrols_walk_their_route() -> void:
+	var m := SceneGen.generate(11, "street_block", {"security": 2})
+	var dice := Dice.new(4)
+	var e := Encounter.setup(m, dice, _crew(dice))
+	var walkers: Array = e.units.filter(func(u): return u.team == 1 and u.has("patrol") and not u.alerted)
+	assert_false(walkers.is_empty(), "some guards patrol")
+	var w: Dictionary = walkers[0]
+	var start: Vector3i = w.pos
+	e.patrol_step()
+	assert_true(w.alerted or w.pos != start, "a patrol step moves the guard (unless it just spotted someone)")
+	assert_true(e.events.any(func(x): return x.type == "move" and x.get("patrol", false)))

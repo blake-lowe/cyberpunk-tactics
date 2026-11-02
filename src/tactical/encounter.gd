@@ -28,6 +28,10 @@ var vision: Vision                  ## what the crew can see (drives fog and hid
 ## What happened, in order, for the view to animate: {type: move|attack|cover|alert, ...}.
 ## The view drains it; rules code never reads it.
 var events: Array[Dictionary] = []
+var lit := {}                       ## Vector3i → true where a light reaches (darkness: -4 to spot, p? task table)
+var alarm := 0                      ## 0 quiet, 1 a guard is onto the crew, 2 backup called
+var backup_in := -1                 ## rounds until reinforcements arrive (-1 none scheduled)
+var _backup_round := 0
 var jack_pos := {}                  ## runner unit id → the square of the device they jacked in at
 var disabled_devices := {}          ## device id → true (turrets/cameras under the runner's control)
 
@@ -95,6 +99,8 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant]) -> Encoun
 		if u.alerted:
 			e.init.add(u.c)
 	e.vision = Vision.new(p_map, e.los)
+	e._compute_light()
+	e._post_guards()
 	e.refresh_vision()
 	e.update_alerts()
 	return e
@@ -147,8 +153,11 @@ func next_turn() -> void:
 			state = "lost"
 			return
 		cur = unit_of(c)
+		_tick_backup()
 		turn = TurnState.begin(dice, c)
 		net_left = 0
+		if cur.team == 1 and cur.alerted and turn.survived and c.can_act():
+			_call_it_in(cur)
 		if not turn.survived:
 			say("%s fails a Death Save and dies." % c.display_name)
 			events.append({"type": "death", "unit": cur.id})   # so the view plays the death, not a snap
@@ -167,6 +176,8 @@ func next_turn() -> void:
 
 
 func end_turn() -> void:
+	if turn != null and not cur.is_empty() and cur.team == 0 and alarm < 2:
+		patrol_step()
 	if turn != null:
 		var before: int = cur.c.wound_state()
 		var dmg := turn.end()
@@ -198,16 +209,170 @@ func _check_end() -> void:
 func update_alerts() -> Array:
 	var fresh := []
 	for g in units:
-		if g.alerted or g.c.dead:
+		if g.alerted or g.c.dead or g.team != 1:
 			continue
 		for u in alive(0):
-			if u.pos.z == g.pos.z and Vector2(u.pos.x - g.pos.x, u.pos.y - g.pos.y).length() <= SPOT_RANGE \
-					and los.trace(g.pos, u.pos).clear:
+			if _spots(g, u):
 				fresh.append(g)
 				say("%s spots %s!" % [g.c.display_name, u.c.display_name])
 				break
 	_rouse(fresh)
 	return fresh
+
+
+# --- Stealth (M7): facing, light, Perception vs Stealth, patrols, alarm -------------------
+
+const VIEW_HALF_ANGLE := 60.0   ## HOUSE-RULE: a guard watches a 120° cone ahead...
+const AWARE_RANGE := 2.0        ## ...but notices anyone within 2 squares, any direction
+const DARK_PENALTY := 4         ## "Task obscured by smoke or darkness" (CPR p? task modifiers)
+const BACKUP_ROUNDS := 3        ## HOUSE-RULE: reinforcements arrive 3 rounds after the call
+
+
+## Can guard `g` spot crew member `u` right now? Inside the guard's view (cone or close), in clear
+## sight within SPOT_RANGE, the guard's Perception beats the crew member's Stealth (opposed, p? ;
+## Stealth is opposed by Perception, p85), at -4 if the crew member stands in darkness and -2 per
+## 5 squares beyond 5 (HOUSE-RULE: distance).
+func _spots(g: Dictionary, u: Dictionary) -> bool:
+	if u.pos.z != g.pos.z:
+		return false
+	var d := Vector2(u.pos.x - g.pos.x, u.pos.y - g.pos.y)
+	var dist := d.length()
+	if dist > SPOT_RANGE or not los.trace(g.pos, u.pos).clear:
+		return false
+	var facing: Vector2 = g.get("facing", Vector2.ZERO)
+	if dist > AWARE_RANGE and facing != Vector2.ZERO and rad_to_deg(absf(facing.angle_to(d))) > VIEW_HALF_ANGLE:
+		return false
+	var base: int = g.c.skill_base("perception") + g.c.awareness_level("threat_detection") - g.c.action_penalty()
+	if not lit.has(u.pos):
+		base -= DARK_PENALTY
+	base -= 2 * int(maxf(0.0, dist - 5.0) / 5.0)
+	var sneak: int = u.c.skill_base("stealth") - u.c.action_penalty()
+	return Check.opposed(dice, base, sneak).success
+
+
+## Which squares have light: within each light's reach (a little short of its glow) with nothing
+## solid between. Open-sky scenes in daylight (params.daylight) are lit everywhere outdoors.
+func _compute_light() -> void:
+	lit.clear()
+	var day: bool = bool(m.params.get("daylight", false)) or String(m.params.get("scene", "")) == "badlands"
+	for e in LightPlan.plan(m, m.seed_value):
+		var c: Vector3i = e.cell
+		var r := float(e.range) * 0.6
+		for dy in range(-int(r), int(r) + 1):
+			for dx in range(-int(r), int(r) + 1):
+				var v := Vector3i(c.x + dx, c.y + dy, c.z)
+				if Vector2(dx, dy).length() <= r and m.inb(v.x, v.y) and not lit.has(v) and los.trace(c, v).clear:
+					lit[v] = true
+	if day:
+		for y in m.h:
+			for x in m.w:
+				if m.t(0, x, y) == TacMap.T.OUTSIDE and m.label(0, x, y) < 0:
+					lit[Vector3i(x, y, 0)] = true
+
+
+## Unalerted guards face somewhere sensible (into their room, or along the street) and some walk a
+## patrol between their post and a spot a few squares away.
+func _post_guards() -> void:
+	for g in units:
+		if g.team != 1:
+			continue
+		var dirs := [Vector2(1, 0), Vector2(-1, 0), Vector2(0, 1), Vector2(0, -1), Vector2(1, 1).normalized(), Vector2(-1, 1).normalized(), Vector2(1, -1).normalized(), Vector2(-1, -1).normalized()]
+		var l := m.label(g.pos.z, g.pos.x, g.pos.y)
+		if l >= 0:   # face the middle of the room
+			var b: Rect2i = m.rooms[l].bounds
+			var to := Vector2(b.position.x + b.size.x / 2.0 - g.pos.x, b.position.y + b.size.y / 2.0 - g.pos.y)
+			g.facing = to.normalized() if to.length() > 0.5 else dirs[dice.d(8) - 1]
+		else:
+			g.facing = dirs[dice.d(8) - 1]
+		if dice.d(10) <= 4:   # ~40% patrol
+			var reach: Dictionary = _keys(func(): return nav.reachable(g.pos, 9, occupied(g)))
+			var far := []
+			for v in reach:
+				if v.z == g.pos.z and int(reach[v]) >= 4:
+					far.append(v)
+			if not far.is_empty():
+				g.patrol = [g.pos, far[dice.d(far.size()) - 1]]
+				g.patrol_i = 1
+
+
+## Between crew turns, patrolling guards who haven't noticed anything walk up to 3 squares along
+## their route (and look where they're going), then look around.
+func patrol_step() -> void:
+	for g in units:
+		if g.team != 1 or g.alerted or g.c.dead or not g.has("patrol"):
+			continue
+		var goal: Vector3i = g.patrol[g.patrol_i]
+		if g.pos == goal:
+			g.patrol_i = (int(g.patrol_i) + 1) % g.patrol.size()
+			goal = g.patrol[g.patrol_i]
+		var p: Array[Vector3i] = _keys(func(): return nav.path(g.pos, goal, occupied(g)))
+		if p.is_empty():
+			continue
+		var steps: Array = p.slice(0, mini(3, p.size()))
+		var from: Vector3i = g.pos
+		var path: Array = [from]
+		for s in steps:
+			if s.z != from.z:
+				break
+			path.append(s)
+		if path.size() < 2:
+			continue
+		var last: Vector3i = path[-1]
+		g.facing = Vector2(last.x - from.x, last.y - from.y).normalized()
+		g.pos = last
+		events.append({"type": "move", "unit": g.id, "path": path, "run": false, "patrol": true})
+	update_alerts()
+
+
+## A guard who knows the crew is here calls it in; backup arrives a few rounds later at the
+## entrance farthest from the crew (spec: alarm levels, reinforcements).
+func _call_it_in(g: Dictionary) -> void:
+	if alarm >= 2 or g.c.dead:
+		return
+	alarm = 2
+	backup_in = BACKUP_ROUNDS
+	_backup_round = init.round_num
+	say("%s calls it in. Backup in %d rounds." % [g.c.display_name, backup_in])
+	events.append({"type": "alarm", "unit": g.id, "rounds": backup_in})
+
+
+func _tick_backup() -> void:
+	if backup_in < 0 or init.round_num == _backup_round:
+		return
+	_backup_round = init.round_num
+	backup_in -= 1
+	if backup_in > 0:
+		return
+	backup_in = -1
+	var crew_c := Vector2.ZERO
+	for u in alive(0):
+		crew_c += Vector2(u.pos.x, u.pos.y)
+	crew_c /= maxf(1.0, alive(0).size())
+	var spawn := Vector3i(-1, -1, -1)
+	var best := -1.0
+	for en in m.entrances:
+		var v := Vector3i(en.pos.x, en.pos.y, int(en.floor))
+		var dd := Vector2(v.x, v.y).distance_to(crew_c)
+		if en.kind != "deploy" and dd > best and m.walkable(v.z, Vector2i(v.x, v.y)):
+			best = dd
+			spawn = v
+	if spawn.x < 0:
+		return
+	var n := 2 + int(m.params.get("security", 1))
+	var arrived := []
+	var reach: Dictionary = _keys(func(): return nav.reachable(spawn, 6, occupied()))
+	var cells: Array = reach.keys().filter(func(v): return v.z == spawn.z)
+	cells.sort_custom(func(a, b): return int(reach[a]) < int(reach[b]))
+	for i in mini(n, cells.size()):
+		var g := Recruit.npc(dice, "mook", "Backup %d" % (i + 1))
+		g.team = 1
+		_add(g, cells[i], 1)
+		var u: Dictionary = units[-1]
+		u.alerted = true
+		init.add(g)
+		arrived.append(u.id)
+	say("Backup arrives: %d more guards." % arrived.size())
+	events.append({"type": "backup", "units": arrived})
 
 
 ## Gunfire at `at` alerts guards within GUNFIRE_RANGE on any floor.
@@ -227,6 +392,7 @@ func _rouse(fresh: Array) -> void:
 		if g.alerted:
 			continue
 		g.alerted = true
+		alarm = maxi(alarm, 1)
 		init.add(g.c)
 		events.append({"type": "alert", "unit": g.id})
 		for o in units:
@@ -244,8 +410,17 @@ func engaged() -> bool:
 ## Guards carry the keys to their own security doors; the crew needs them hacked or shot open.
 func _with_locks(callable: Callable) -> Variant:
 	var saved := nav.locked
-	if cur.team == 1:
+	if not cur.is_empty() and cur.team == 1:
 		nav.locked = {}
+	var r: Variant = callable.call()
+	nav.locked = saved
+	return r
+
+
+## Paths for guards outside their own turn (patrols, posting): they have the keys.
+func _keys(callable: Callable) -> Variant:
+	var saved := nav.locked
+	nav.locked = {}
 	var r: Variant = callable.call()
 	nav.locked = saved
 	return r

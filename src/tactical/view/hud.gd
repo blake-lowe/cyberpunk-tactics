@@ -484,7 +484,12 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 		_init_strip.add_child(slot)
 	_clear(_round_box)   # round and stealth state: top right corner
 	_round_box.add_child(_text("ROUND %02d" % maxi(1, enc.init.round_num), F_TERM, 20, CYAN))
-	_round_box.add_child(_text("ENGAGED" if enc.engaged() else "UNDETECTED", F_DISPLAY, 20, RED if enc.engaged() else CYAN))
+	var state := "UNDETECTED"
+	if enc.alarm >= 2:
+		state = "ALARM · BACKUP %d" % enc.backup_in if enc.backup_in > 0 else "ALARM"
+	elif enc.engaged():
+		state = "ENGAGED"
+	_round_box.add_child(_text(state, F_DISPLAY, 20, RED if state != "UNDETECTED" else CYAN))
 	_clear(_card)
 	_clear(_econ)
 	var crew_turn: bool = enc.state == "playing" and not enc.cur.is_empty() and enc.cur.team == 0

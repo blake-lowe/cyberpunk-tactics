@@ -431,7 +431,7 @@ func _pick(now: bool) -> void:
 	elif Time.get_ticks_msec() < _duck_until:   # dodge: a snap down into the crouch, rifle still up
 		clip = w + "_crouch"
 	elif get_meta("walk", false):
-		clip = "injured_walk" if serious else w + ("_sprint" if get_meta("run", false) else "_run")
+		clip = "injured_walk" if serious else (w + "_walk" if get_meta("stroll", false) else w + ("_sprint" if get_meta("run", false) else "_run"))
 	elif get_meta("jack", false):
 		clip = "jack"
 	elif float(get_meta("aim", 0.0)) > 0.3:   # always standing: a crouched muzzle would fire into the cover (owner)
