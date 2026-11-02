@@ -344,6 +344,8 @@ func shoot_cover(cell: Vector3i, weapon: Weapon) -> Dictionary:
 		if los.cover_hp[cell] == 0:
 			m.destroy_cover_at(cell.z, Vector2i(cell.x, cell.y))
 			say("Cover destroyed.")
+		events[-1]["left"] = los.cover_hp[cell]
+		events[-1]["is_cover"] = true
 		return {"ok": true, "damage": dmg, "left": los.cover_hp[cell]}
 	var wc := m.wall_cover(cell.z, cell.x, cell.y)
 	if wc.is_empty():
@@ -355,6 +357,7 @@ func shoot_cover(cell: Vector3i, weapon: Weapon) -> Dictionary:
 		m.set_t(cell.z, cell.x, cell.y, TacMap.T.FLOOR if cell.z > 0 or m.label(cell.z, cell.x, cell.y) >= 0 else TacMap.T.OUTSIDE)
 		nav.locked.erase(cell)
 		say("The %s gives way." % wc.material)
+	events[-1]["left"] = hp
 	return {"ok": true, "damage": dmg, "left": hp}
 
 

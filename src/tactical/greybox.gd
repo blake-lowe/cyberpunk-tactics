@@ -1283,7 +1283,6 @@ func _click_attack(at_cover: bool) -> void:
 			r = enc.shoot_cover(hover, w)
 		if r.get("ok", false):
 			hud.toast("%d damage to cover%s" % [r.damage, " — destroyed" if r.left == 0 else " (%d HP left)" % r.left])
-			_rebuild = r.left == 0
 		_after_action()
 		return
 	if t.team == 0:
@@ -1853,11 +1852,17 @@ func _anim_cover(e: Dictionary) -> void:
 	var wid := String(e.get("weapon", "assault_rifle"))
 	fx.muzzle(m0, (at - m0).normalized(), wid, _flash_light(su.id))
 	_recoil(sn, false)
-	var gone: bool = enc.los.cover_hp.get(cell, 1) == 0 or m.t(cell.z, cell.x, cell.y) != TacMap.T.WALL and m.t(cell.z, cell.x, cell.y) != TacMap.T.DOOR and not enc.los.cover_hp.has(cell)
+	var left: int = int(e.get("left", 1))   # HP after this shot (later shots in the same playback don't leak back)
+	var gone: bool = left <= 0
+	var is_cover: bool = e.get("is_cover", false)
 	fx.bullet(m0, at, wid, func():
 		fx.debris(at, gone)
+		if gone:
+			if is_cover:
+				builder.hide_cover(cell)   # the piece goes the moment it breaks
+			else:
+				_rebuild = true            # a wall gave way: rebuild after playback
 		_kick(_screen_dir(m0, at), 4.0 if gone else 1.5)
-		var left: int = enc.los.cover_hp.get(cell, enc.los.wall_hp.get(cell, 0))
 		_float_at(at + Vector3(0, 0.5, 0), "-%d · %s" % [int(e.damage), "DESTROYED" if gone else "%d HP" % left], Hud.GOLD if gone else Hud.TEXT))
 	await get_tree().create_timer(0.45).timeout
 	create_tween().tween_method(func(v: float): sn.set_meta("aim", v), 1.0, 0.0, 0.25)

@@ -76,6 +76,8 @@ var rng := RandomNumberGenerator.new()
 var _mats := {}
 var _shapes := {}
 var _b := {}            ## batches for the floor being built
+var tag: Variant = null ## while set, instances added by put() are recorded under it (cover cells)
+var _tagged := {}       ## Vector3i cell → [[batch, index]] so a destroyed piece can be hidden
 var lightfield: Texture2D   ## set by the greybox after baking (LightField)
 var emitters: Array = []  ## extra light-field sources from dressing: {cell, color, energy, range}
 
@@ -165,6 +167,18 @@ func put(shape: String, mt: Material, xf: Transform3D) -> void:
 	var key := "%d,%d|%s|%d" % [int(xf.origin.x) / CHUNK, int(xf.origin.z) / CHUNK, shape, mt.get_instance_id()]
 	var b: Dictionary = _b.get_or_add(key, {"shape": shape, "mat": mt, "xf": []})
 	b.xf.append(xf)
+	if tag != null:
+		for cell in (tag if tag is Array else [tag]):
+			_tagged.get_or_add(cell, []).append([b, b.xf.size() - 1])
+
+
+## Hide a destroyed cover piece at once (its MultiMesh instances shrink to nothing), without a
+## rebuild. Multi-square props vanish whole when any of their squares is destroyed.
+func hide_cover(cell: Vector3i) -> void:
+	for e in _tagged.get(cell, []):
+		var b: Dictionary = e[0]
+		if b.has("mm"):
+			(b.mm as MultiMesh).set_instance_transform(int(e[1]), Transform3D(Basis.from_scale(Vector3.ZERO), Vector3.ZERO))
 
 
 func box(mt: Material, center: Vector3, size: Vector3, yaw := 0.0) -> void:
@@ -180,6 +194,7 @@ func flush(parent: Node3D) -> void:
 		mesh.material = b.mat
 		mm.mesh = mesh
 		mm.instance_count = b.xf.size()
+		b["mm"] = mm
 		for i in b.xf.size():
 			mm.set_instance_transform(i, b.xf[i])
 		var mi := MultiMeshInstance3D.new()
@@ -677,21 +692,25 @@ func _cover(f: int) -> void:
 	var y0 := f * FH
 	var props := {}   # prop id → [cells]
 	for c in m.cover:
-		if c.floor != f:
+		if c.floor != f or int(c.get("hp", 1)) <= 0:   # destroyed pieces stay gone after a rebuild
 			continue
 		if int(c.get("prop", -1)) >= 0:
 			props.get_or_add(int(c.prop) * 10 + f, []).append(c)
 			continue
 		var h0 := hash(Vector3i(c.pos.x, c.pos.y, f))
 		var p := Vector3(c.pos.x + 0.5 + _jit(h0, 0.08), y0, c.pos.y + 0.5 + _jit(h0 + 1, 0.08))
+		tag = Vector3i(c.pos.x, c.pos.y, f)
 		_piece(String(c.kind), p, _jit(h0 + 2, 0.12), f, h0)
+		tag = null
 	for k in props:
 		var cells: Array = props[k]
+		tag = cells.map(func(c): return Vector3i(c.pos.x, c.pos.y, f))
 		var r := Rect2(cells[0].pos.x, cells[0].pos.y, 1, 1)
 		for c in cells:
 			r = r.expand(Vector2(c.pos.x, c.pos.y)).expand(Vector2(c.pos.x + 1, c.pos.y + 1))
 		var h0 := hash(k)
 		_multi(String(cells[0].kind), r, f, h0)
+		tag = null
 
 
 ## One-square pieces. `p` is the jittered base centre; `yaw` a small deterministic turn.

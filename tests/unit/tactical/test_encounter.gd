@@ -37,6 +37,9 @@ func test_shooting_cover_destroys_it_and_opens_sight() -> void:
 	assert_eq(r.left, 0, "3d6 always beats a 5 HP desk")
 	assert_true(e.los.trace(Vector3i(1, 1, 0), target).clear, "sight opens")
 	assert_true(m.walkable(0, Vector2i(4, 1)), "and so does the path")
+	var ev: Dictionary = e.events.filter(func(x): return x.type == "cover")[-1]
+	assert_eq(int(ev.left), 0, "the event carries the HP left, so playback shows the break on the right shot")
+	assert_true(ev.get("is_cover", false))
 
 
 func test_netrunner_unlocks_doors_and_steals_the_file() -> void:
