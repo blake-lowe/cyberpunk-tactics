@@ -688,3 +688,31 @@ func test_tamper_with_a_camera_by_hand() -> void:
 	assert_true(done)
 	assert_true(e.disabled_devices.has(cam))
 	assert_true(e.camera_in_reach(e.cur).is_empty(), "a dead camera is out of play")
+
+
+func test_crew_pass_through_allies_but_not_stop_on_them() -> void:
+	var m := TacMap.new(12, 1, 1)
+	for x in 12:
+		m.set_t(0, x, 0, TacMap.T.FLOOR)
+	m.entrances.append({"floor": 0, "pos": Vector2i(1, 0), "kind": "deploy", "main": false, "cells": [Vector2i(1, 0), Vector2i(2, 0)]})
+	var dice := Dice.new(4)
+	var crew: Array[Combatant] = [Fixtures.shooter("A"), Fixtures.shooter("B")]
+	var e := Encounter.setup(m, dice, crew)
+	e.next_turn()
+	var me: Dictionary = e.cur
+	var ally: Dictionary = e.units.filter(func(u): return u.team == 0 and u != me)[0]
+	me.pos = Vector3i(1, 0, 0)
+	ally.pos = Vector3i(2, 0, 0)   # a one-square corridor, ally in the way
+	var opts := e.move_options()
+	assert_false(opts.has(ally.pos), "can't stop on an ally")
+	assert_true(opts.has(Vector3i(4, 0, 0)), "but can pass them")
+	assert_true(e.move_to(Vector3i(4, 0, 0)))
+
+
+func test_giant_stays_met_after_throwing_you_out() -> void:
+	var r := _on_ice("giant")
+	var e: Encounter = r[0]
+	var key := (r[2] as NetRun).met_key(r[3])
+	e._ice_effect(r[1], r[2], r[3])
+	assert_false(e.runs.has(r[1].id))
+	assert_true(e._met_memory[r[1].id].has(key), "no re-ambush on the next jack-in")

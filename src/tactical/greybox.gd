@@ -1132,7 +1132,9 @@ func _draw_grid() -> void:
 		move_opts = enc.move_options()
 	if _crew_turn() and enc.turn.action_available:
 		var budget: int = enc.turn.squares_available() + enc.cur.c.stat("MOVE")
-		dash_opts = enc._with_locks(func(): return enc.nav.reachable(enc.cur.pos, budget, enc.occupied(enc.cur)))
+		dash_opts = enc._with_locks(func(): return enc.nav.reachable(enc.cur.pos, budget, enc._blocking(enc.cur)))
+		for v in enc.occupied(enc.cur):
+			dash_opts.erase(v)
 	var data := PackedByteArray()
 	data.resize(m.w * m.h * 2)
 	for v in move_opts:
@@ -1164,7 +1166,7 @@ func _draw_grid() -> void:
 func _draw_path() -> void:
 	var pts: Array[Vector3] = []
 	if move_opts.has(hover) and _crew_turn():
-		var cells: Array[Vector3i] = enc._with_locks(func(): return enc.nav.path(enc.cur.pos, hover, enc.occupied(enc.cur)))
+		var cells: Array[Vector3i] = enc._with_locks(func(): return enc.nav.path(enc.cur.pos, hover, enc._blocking(enc.cur)))
 		cells.push_front(enc.cur.pos)
 		for c in cells:
 			pts.append(Vector3(c.x + 0.5, c.z * FH + 0.12, c.y + 0.5))

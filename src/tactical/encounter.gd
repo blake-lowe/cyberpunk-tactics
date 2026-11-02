@@ -371,14 +371,14 @@ func update_alerts() -> Array:
 	return fresh
 
 
-## The nearest live camera close enough to tamper with (2 squares, same floor, no wall between).
+## The nearest live camera close enough to tamper with (3 squares, same floor, no wall between).
 func camera_in_reach(u: Dictionary) -> Dictionary:
 	var best := {}
 	for d in m.devices:
 		if String(d.type) != "camera" or disabled_devices.has(d.id) or int(d.floor) != u.pos.z:
 			continue
 		var cp := Vector3i(d.pos.x, d.pos.y, d.floor)
-		if maxi(absi(cp.x - u.pos.x), absi(cp.y - u.pos.y)) <= 2 and not _wall_between(u.pos, cp):
+		if maxi(absi(cp.x - u.pos.x), absi(cp.y - u.pos.y)) <= 3 and not _wall_between(u.pos, cp):
 			best = d
 	return best
 
@@ -388,7 +388,7 @@ func camera_in_reach(u: Dictionary) -> Dictionary:
 func tamper_camera() -> Dictionary:
 	var d := camera_in_reach(cur)
 	if d.is_empty():
-		return {"ok": false, "reason": "no live camera within 2 squares"}
+		return {"ok": false, "reason": "no live camera within 3 squares"}
 	if not turn.use_action():
 		return {"ok": false, "reason": "no action left"}
 	var check := Check.vs_dv(dice, cur.c.skill_base("electronics_security_tech") - cur.c.action_penalty(), CAMERA_TAMPER_DV)
@@ -416,9 +416,9 @@ func camera_cells(d: Dictionary) -> Dictionary:
 ## wall between; whoever minds the feed rolls CAMERA_PERCEPTION (-4 in the dark) vs Stealth, once
 ## per camera, crew member and round. A hit rouses the nearest unalerted guard. Holding the
 ## cameras' Control Node in the NET turns them off - the netrunner's job in a stealth gig.
-const CAMERA_RANGE := 8.0
+const CAMERA_RANGE := 6.0   ## HOUSE-RULE (playtest: 8 squares caught every approach)
 const CAMERA_TAMPER_DV := 13   # RULES-UNVERIFIED: Electronics/Security Tech counters devices (p209), DV not given; "everyday" DV13 (p129)
-const CAMERA_PERCEPTION := 10
+const CAMERA_PERCEPTION := 8   ## HOUSE-RULE: a bored guard watching the feeds
 func _camera_spots() -> Dictionary:
 	if alarm >= 2:
 		return {}
@@ -700,14 +700,29 @@ func _keys(callable: Callable) -> Variant:
 
 
 func move_options() -> Dictionary:
-	return _with_locks(func(): return nav.reachable(cur.pos, turn.squares_available(), occupied(cur)))
+	var opts: Dictionary = _with_locks(func(): return nav.reachable(cur.pos, turn.squares_available(), _blocking(cur)))
+	for v in occupied(cur):   # you can pass allies but not stop on them
+		opts.erase(v)
+	return opts
+
+
+## Squares that block movement for `u`: other teams' units. HOUSE-RULE (playtest: a Solo in a
+## doorway stalled the runner): allies can be passed through, though not stopped on.
+func _blocking(u: Dictionary) -> Dictionary:
+	var occ := {}
+	for o in units:
+		if o != u and not o.c.dead and o.team != u.team:
+			occ[o.pos] = true
+	return occ
 
 
 ## Move along the shortest path. With `allow_run`, a path longer than the remaining move may
 ## spend the Action on Run (p127/p169: "Take an additional Move Action"), which in the book
 ## requires a Move Action already taken this turn: the first leg uses it, then Run covers the rest.
 func move_to(dest: Vector3i, allow_run := false) -> bool:
-	var p: Array[Vector3i] = _with_locks(func(): return nav.path(cur.pos, dest, occupied(cur)))
+	if occupied(cur).has(dest):
+		return false
+	var p: Array[Vector3i] = _with_locks(func(): return nav.path(cur.pos, dest, _blocking(cur)))
 	if p.is_empty():
 		return false
 	var cost := nav.cost_of(cur.pos, p)
@@ -1351,7 +1366,7 @@ func _meet_ice(u: Dictionary, run: NetRun) -> void:
 ## Leave the NET: every node the runner held is lost (p199), so turrets, cameras and door locks
 ## go back to the site. An unsafe exit (dumped by range) also suffers every Black ICE met this
 ## session (p198).
-func _drop_run(uid: int, unsafe: bool) -> void:
+func _drop_run(uid: int, unsafe: bool, keep_met := Vector2i(-1, -1)) -> void:
 	var run: NetRun = runs.get(uid)
 	if run == null:
 		return
@@ -1362,6 +1377,8 @@ func _drop_run(uid: int, unsafe: bool) -> void:
 		if dev.type == "door_lock" and not los.open_doors.has(cell) and m.t(cell.z, cell.x, cell.y) == TacMap.T.DOOR:
 			nav.locked[cell] = true
 	_met_memory[uid] = run.met.duplicate()
+	if keep_met.x >= 0:   # a Giant that threw you out stays met (it doesn't re-ambush)
+		_met_memory[uid][keep_met] = true
 	if unsafe:
 		var u: Dictionary = units[uid]
 		for ice in run.arch.ice:
@@ -1440,9 +1457,10 @@ func _ice_effect(u: Dictionary, run: NetRun, ice: Dictionary, from_dump := false
 		say("%s hits %s for %d brain damage." % [kind.capitalize(), u.c.display_name, dmg])
 		events.append({"type": "harm", "unit": u.id, "damage": dmg, "source": kind.to_upper(), "wound_before": before, "wound_after": u.c.wound_state()})
 	if kind == "giant" and not from_dump and runs.has(u.id):   # forced unsafe Jack Out (the Giant itself excepted)
-		run.met.erase(run.met_key(ice))
+		var gk := run.met_key(ice)
+		run.met.erase(gk)   # its own hit is the Effect; the dump suffers the others (p207)
 		say("The Giant throws %s out of the NET." % u.c.display_name)
-		_drop_run(u.id, true)
+		_drop_run(u.id, true, gk)
 
 
 ## Where the runner is physically jacked in (the device they used, not the NET's first port).
