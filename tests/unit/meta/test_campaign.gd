@@ -158,3 +158,20 @@ func test_ripperdoc_foundations_humanity_and_therapy() -> void:
 	assert_true(c.therapy(solo))
 	assert_true(solo.humanity > low and solo.humanity <= solo.max_humanity)
 	assert_eq(c.day, day0 + 7, "therapy takes a week (p230)")
+
+
+func test_cyber_claws_are_never_sold() -> void:
+	var c := Campaign.new_game(5)
+	c.eb = 10000
+	var solo: Combatant = c.crew[0]
+	solo.cyberware.clear()
+	solo.weapons = solo.weapons.filter(func(w): return not w.is_melee())
+	c.install(solo, "cyberarm")
+	c.install(solo, "wolvers")
+	assert_false(c.buy(solo, "light_melee"), "the claws fill the melee slot")
+	c.install(solo, "big_knucks")
+	var melee := solo.weapons.filter(func(w): return w.is_melee())
+	assert_eq(melee.size(), 1)
+	assert_eq(melee[0].id(), "heavy_melee", "keeps the harder-hitting Wolvers")
+	var d := Combatant.from_dict(JSON.parse_string(JSON.stringify(solo.to_dict())))
+	assert_true(d.weapons.any(func(w): return w.builtin))

@@ -744,7 +744,7 @@ func _refresh() -> void:
 		l[0].visible = not _net_cleaned and not ("blackout" in enc.twists) and (l[2] != "room" or not fog_on or enc.vision.explored.has(cell))
 	_build_doors()
 	for u in enc.units:
-		var n: Node3D = unit_nodes[u.id]
+		var n: Node3D = _unit_node(u)
 		var seen: bool = u.team == 0 or not fog_on or enc.vision.visible.has(u.pos)
 		n.visible = seen and not _cut_hides(u.pos)
 		var dc: MeshInstance3D = decals[u.id]
@@ -1576,7 +1576,7 @@ func _tool_hover() -> void:
 			hud.tip("%s · %s · %d doses left" % [drug.to_upper(), what, c.doses], mouse, "// PHARMACEUTICALS", Hud.GREEN)
 		"stabilize":
 			if t.is_empty() or t.team != enc.cur.team or t.c.wound_state() != Combatant.Wound.MORTAL:
-				hud.tip("Pick a neighbouring Mortally Wounded ally", mouse, "// STABILIZE", Hud.GREEN)
+				hud.tip("Pick a Mortally Wounded ally in reach", mouse, "// STABILIZE", Hud.GREEN)
 				return
 			var pct3 := roundi(Check.chance_vs_dv(maxi(c.skill_base("first_aid"), c.skill_base("paramedic")) - c.action_penalty(), t.c.stabilization_dv()) * 100)
 			hud.tip("[code][font_size=44]%d%%[/font_size][/code] vs DV%d · TECH + First Aid" % [pct3, t.c.stabilization_dv()], mouse, "// STABILIZE", Hud.GREEN)
@@ -1589,7 +1589,7 @@ func _jack_in() -> void:
 	if pts.is_empty():
 		hud.toast("No terminal within %d m." % int(Encounter.jack_range(enc.cur.c)))
 	elif enc.jack_in(pts[0]):
-		enc.net_left = NetRun.net_actions(NetRun.interface_rank(enc.cur.c)) - 1
+		enc.net_left = Encounter.net_actions_for(enc.cur.c) - 1
 	_after_action()
 
 
@@ -1626,7 +1626,7 @@ func _demo_jack() -> void:
 	view_floor = best.z
 	var pts := enc.jack_points(runner)
 	if not pts.is_empty() and enc.jack_in(pts[0]):
-		enc.net_left = NetRun.net_actions(NetRun.interface_rank(runner.c)) - 1
+		enc.net_left = Encounter.net_actions_for(runner.c) - 1
 		var run: NetRun = enc.runs[runner.id]
 		for nb in run.arch.neighbors(run.current):   # step one node in so more of the NET shows
 			if run.can_move_to(nb) and run.arch.neighbors(nb).size() > 1:

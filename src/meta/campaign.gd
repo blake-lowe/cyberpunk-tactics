@@ -305,6 +305,8 @@ func buy(c: Combatant, id: String, loc := "body") -> bool:
 	if it.kind == "weapon":
 		var w := Weapon.from_id(id)
 		if w.is_melee():
+			if c.weapons.any(func(x): return x.builtin):
+				return false   # cyberware claws/knuckles already fill the melee slot
 			for old in c.weapons.filter(func(x): return x.is_melee()):
 				refund += int(int(old.def.cost) * RESALE)
 				c.weapons.erase(old)

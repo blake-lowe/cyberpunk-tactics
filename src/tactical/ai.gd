@@ -107,6 +107,8 @@ static func _shoot(e: Encounter, u: Dictionary, w: Weapon) -> bool:
 			var score: float = p.chance * (w.dice() * 3.5 if mode == Attack.Mode.SINGLE else 7.0 * w.autofire_mult() * 0.6)
 			if t.c.wound_state() == Combatant.Wound.MORTAL:
 				score *= 0.5
+			if int(e.objective.get("carrier", -1)) == t.id:
+				score *= 1.6   # stop the package leaving
 			if score > best_score:
 				best_score = score
 				best = t

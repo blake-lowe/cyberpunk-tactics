@@ -348,10 +348,14 @@ func install_cyberware(cyber_id: String, dice: Dice = null, at_creation: bool = 
 			a.max_sp = int(fx["armor_sp"])
 			a.sp = a.max_sp
 			subdermal[loc] = a
-	if fx.has("weapon"):   # built-in melee weapons (Wolvers, Big Knucks...) replace the carried one
-		for old in weapons.filter(func(x): return x.is_melee()):
-			weapons.erase(old)
-		weapons.append(Weapon.from_id(String(fx["weapon"])))
+	if fx.has("weapon"):   # built-in melee weapons (Wolvers, Big Knucks...): keep the hardest-hitting one
+		var nw := Weapon.from_id(String(fx["weapon"]))
+		nw.builtin = true
+		var melee := weapons.filter(func(x): return x.is_melee())
+		if melee.all(func(x): return x.dice() < nw.dice() or not x.builtin):
+			for old in melee:
+				weapons.erase(old)
+			weapons.append(nw)
 	var loss := 0
 	if tracks_humanity and int(d["hl_flat"]) > 0:
 		loss = int(d["hl_flat"]) if at_creation or dice == null else roll_hl(dice, d["hl_dice"])
@@ -550,7 +554,7 @@ func to_dict() -> Dictionary:
 		sub[loc] = _armor_dict(subdermal[loc])
 	return {"id": id, "name": display_name, "team": team, "stats": stats, "skills": skills, "hp": hp, "armor": arm,
 		"subdermal": sub, "injuries": injuries, "base_dsp": base_dsp, "dsp": dsp, "dead": dead, "unconscious": unconscious,
-		"weapons": weapons.map(func(w): return {"id": w.id(), "ammo": w.ammo}), "grenades": grenades, "role": role,
+		"weapons": weapons.map(func(w): return {"id": w.id(), "ammo": w.ammo, "builtin": w.builtin}), "grenades": grenades, "role": role,
 		"role_rank": role_rank, "awareness": awareness, "tracks_humanity": tracks_humanity, "humanity": humanity,
 		"max_humanity": max_humanity, "cyberware": cyberware, "ip": ip, "look_seed": look_seed, "perks": perks, "medicine": medicine}
 
@@ -579,6 +583,7 @@ static func from_dict(d: Dictionary) -> Combatant:
 	for wd in d.weapons:
 		var w := Weapon.from_id(String(wd.id))
 		w.ammo = int(wd.ammo)
+		w.builtin = bool(wd.get("builtin", false))
 		c.weapons.append(w)
 	c.grenades = int(d.grenades)
 	c.role = String(d.role)

@@ -4,6 +4,7 @@ extends RefCounted
 
 var def: Dictionary
 var ammo: int
+var builtin := false   ## part of installed cyberware (Wolvers, Big Knucks): never sold or swapped out
 
 
 static func from_id(weapon_id: String) -> Weapon:

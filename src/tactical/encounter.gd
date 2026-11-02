@@ -39,6 +39,8 @@ var lit := {}                       ## Vector3i → true where a light reaches (
 var alarm := 0                      ## 0 quiet, 1 a guard is onto the crew, 2 backup called
 var backup_in := -1                 ## rounds until reinforcements arrive (-1 none scheduled)
 var _backup_round := 0
+var _patrol_round := -1
+var _spot_rolls := {}               ## [guard id, crew id, round] → result: one stealth roll per pair per round
 var jack_pos := {}                  ## runner unit id → the square of the device they jacked in at
 var disabled_devices := {}          ## device id → true (turrets/cameras under the runner's control)
 
@@ -189,13 +191,14 @@ func next_turn() -> void:
 				end_turn()
 				continue
 			if runs.has(cur.id):
-				net_left = NetRun.net_actions(NetRun.interface_rank(c)) + int(c.perk_fx("net_actions"))
+				net_left = net_actions_for(c)
 			return
 		_check_end()
 
 
 func end_turn() -> void:
-	if turn != null and not cur.is_empty() and cur.team == 0 and alarm < 2:
+	if turn != null and not cur.is_empty() and cur.team == 0 and alarm < 2 and init.round_num != _patrol_round:
+		_patrol_round = init.round_num   # once a round, not once per crew member
 		patrol_step()
 	if turn != null:
 		var before: int = cur.c.wound_state()
@@ -332,7 +335,10 @@ func _spots(g: Dictionary, u: Dictionary) -> bool:
 		base -= DARK_PENALTY
 	base -= 2 * int(maxf(0.0, dist - 5.0) / 5.0)
 	var sneak: int = u.c.skill_base("stealth") - u.c.action_penalty()
-	return Check.opposed(dice, base, sneak).success
+	var key := [g.id, u.id, init.round_num if init else 0]   # HOUSE-RULE: one contest per guard, sneaker and round
+	if not _spot_rolls.has(key):
+		_spot_rolls[key] = Check.opposed(dice, base, sneak).success
+	return _spot_rolls[key]
 
 
 ## Squares an unalerted guard is watching (view-side helper, no dice): within SPOT_RANGE on their
@@ -436,6 +442,7 @@ func _call_it_in(g: Dictionary) -> void:
 		return
 	alarm = 2
 	backup_in = BACKUP_ROUNDS
+	_rouse(units.filter(func(o): return o.team == 1 and not o.alerted and not o.c.dead))   # the radio call reaches everyone
 	_backup_round = init.round_num
 	say("%s calls it in. Backup in %d rounds." % [g.c.display_name, backup_in])
 	events.append({"type": "alarm", "unit": g.id, "rounds": backup_in})
@@ -463,7 +470,7 @@ func _tick_backup() -> void:
 			spawn = v
 	if spawn.x < 0:
 		return
-	var n := 2 + int(m.params.get("security", 1))
+	var n := 2 + int(m.params.get("security", 1)) + (1 if "heavy" in twists else 0)
 	var arrived := []
 	var reach: Dictionary = _keys(func(): return nav.reachable(spawn, 6, occupied()))
 	var cells: Array = reach.keys().filter(func(v): return v.z == spawn.z)
@@ -477,7 +484,8 @@ func _tick_backup() -> void:
 		init.add(g)
 		arrived.append(u.id)
 	say("Backup arrives: %d more guards." % arrived.size())
-	events.append({"type": "backup", "units": arrived})
+	if not arrived.is_empty():
+		events.append({"type": "backup", "unit": arrived[0], "units": arrived})
 
 
 ## Gunfire at `at` alerts guards within GUNFIRE_RANGE on any floor.
@@ -836,7 +844,7 @@ func best_dose(target: Dictionary) -> String:
 func can_reach_to_stabilize(u: Dictionary, target: Dictionary) -> bool:
 	var reach := int(u.c.perk_fx("stabilize_reach"))
 	if reach > 0 and target.pos.z == u.pos.z:
-		return maxi(absi(target.pos.x - u.pos.x), absi(target.pos.y - u.pos.y)) <= reach
+		return maxi(absi(target.pos.x - u.pos.x), absi(target.pos.y - u.pos.y)) <= reach and (los == null or los.trace(u.pos, target.pos).clear)
 	return adjacent(u.pos, target.pos)
 
 
@@ -933,6 +941,11 @@ func shoot_cover(cell: Vector3i, weapon: Weapon) -> Dictionary:
 
 
 # --- NET ---------------------------------------------------------------------------
+
+## NET Actions per turn: by Interface Rank (p197), plus an Overclock perk.
+static func net_actions_for(c: Combatant) -> int:
+	return NetRun.net_actions(NetRun.interface_rank(c)) + int(c.perk_fx("net_actions"))
+
 
 ## Meatspace jack-in range: 6 m (p198), or a Long Leash perk's (HOUSE-RULE).
 static func jack_range(c: Combatant) -> float:

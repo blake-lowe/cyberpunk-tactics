@@ -144,12 +144,14 @@ func test_guard_facing_away_or_in_the_dark_is_slower() -> void:
 	e.lit.clear()
 	var hits := 0
 	for k in 200:
+		e._spot_rolls.clear()
 		if e._spots(g, e.units[0]):
 			hits += 1
 	for v in e.m.w:
 		e.lit[Vector3i(v, 1, 0)] = true
 	var lit_hits := 0
 	for k in 200:
+		e._spot_rolls.clear()
 		if e._spots(g, e.units[0]):
 			lit_hits += 1
 	assert_true(lit_hits > hits, "darkness makes the crew harder to spot (-4)")
@@ -339,3 +341,12 @@ func test_watched_cells_follow_the_cone() -> void:
 	for v in w:
 		var d := Vector2(v.x - g.pos.x, v.y - g.pos.y)
 		assert_true(d.length() <= Encounter.AWARE_RANGE or rad_to_deg(absf(Vector2(1, 0).angle_to(d))) <= Encounter.VIEW_HALF_ANGLE, "inside the cone")
+
+
+func test_spot_roll_is_once_per_round() -> void:
+	var e := _corridor_encounter(Vector2i(6, 1))
+	var g: Dictionary = e.units[1]
+	g.facing = Vector2(-1, 0)
+	var first := e._spots(g, e.units[0])
+	for k in 20:
+		assert_eq(e._spots(g, e.units[0]), first, "no rerolling the same contest within a round")
