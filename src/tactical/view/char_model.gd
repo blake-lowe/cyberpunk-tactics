@@ -425,7 +425,7 @@ func head_point() -> Vector3:
 
 ## Freeze on one frame of a clip (portrait studio).
 func pose_still(clip: String, at: float) -> void:
-	set_process(false)
+	set_process(false)   # call after the model is in the tree
 	state = clip
 	anim.play(clip)
 	anim.seek(at, true)

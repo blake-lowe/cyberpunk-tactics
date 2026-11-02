@@ -167,6 +167,7 @@ void fragment() {
 }"""
 	var vm := ShaderMaterial.new()
 	vm.shader = vs
+	vm.set_shader_parameter("amount", 0.0)   # must exist before it can be tweened
 	_vignette.material = vm
 	add_child(_vignette)
 	_turn_banner = _text("", F_DISPLAY, 30, TEXT)

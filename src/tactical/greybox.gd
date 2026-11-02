@@ -150,6 +150,7 @@ var _inspected := false        ## the Alt inspector card is showing
 var _inspect_cell := Vector3i(-1, -1, -1)
 var _shot_delay := 0.0
 var _demo_ms := 0
+var _reel := ""
 
 
 func _ready() -> void:
@@ -178,6 +179,8 @@ func _ready() -> void:
 				_attack_demo = true
 			"jack":  # review renders: the Netrunner jacks in at the nearest terminal
 				_jack_demo = true
+			"reel":  # review videos: script one combat scene, then quit (record with --write-movie)
+				_reel = kv[1]
 			"inspect":  # review renders: show the Alt inspector card for the hovered square
 				_inspect_demo = true
 			"delay":  # review renders: take the shot this many seconds after the demo action
@@ -228,7 +231,11 @@ func _process(delta: float) -> void:
 			caret.rotation.y = t * 1.5
 	for fl in fires:  # firelight flicker
 		fl.light_energy = fl.get_meta("base", 1.0) * look.lights * (0.85 + 0.15 * sin(Time.get_ticks_msec() * 0.013 + fl.position.x) + randf() * 0.08)
-	if _shot_path != "":
+	if _reel != "":
+		_frames += 1
+		if _frames == 10:
+			_run_reel()
+	elif _shot_path != "":
 		_frames += 1
 		if _frames == 2 and _shot_hover == Vector2i(-2, -2):  # --hover=guard: the nearest guard in sight
 			for u in enc.units:
@@ -1348,6 +1355,120 @@ func _demo_jack() -> void:
 	_frame_unit(runner)
 	_refresh()
 	_demo_ms = Time.get_ticks_msec()
+
+
+## Review videos: one scripted combat beat per reel, recorded with Godot's movie writer
+## (tools/review_videos.sh). Outcomes are forced by setting HP/SP before the roll and retrying, so
+## each reel shows the effect it is named for.
+func _run_reel() -> void:
+	await get_tree().create_timer(0.6).timeout
+	var g := _nearest_guard()
+	match _reel:
+		"move":
+			var far := Vector3i(-1, -1, -1)
+			for v in enc.nav.reachable(enc.cur.pos, enc.turn.squares_available(), enc.occupied()):
+				if far.x < 0 or Vector3(v - enc.cur.pos).length() > Vector3(far - enc.cur.pos).length():
+					far = v
+			enc.move_to(far)
+			await _act()
+			await get_tree().create_timer(0.6).timeout
+			enc.turn.move_left = 0
+			var far2 := Vector3i(-1, -1, -1)
+			for v in enc.nav.reachable(enc.cur.pos, enc.cur.c.stat("MOVE"), enc.occupied()):
+				if far2.x < 0 or Vector3(v - enc.cur.pos).length() > Vector3(far2 - enc.cur.pos).length():
+					far2 = v
+			enc.move_to(far2, true)   # Run action
+			await _act()
+		"single", "auto", "kill", "headshot", "armor", "pistol":
+			_reel_setup_shot(g)
+			await get_tree().create_timer(0.5).timeout
+			var md: int = {"auto": Attack.Mode.AUTOFIRE, "headshot": Attack.Mode.AIMED_HEAD}.get(_reel, Attack.Mode.SINGLE)
+			if _reel in ["kill", "headshot"]:
+				g.c.hp = 1
+			if _reel == "armor":
+				for loc in ["head", "body"]:
+					if g.c.armor[loc]:
+						g.c.armor[loc].sp = 40
+			for k in 8:   # retry until the beat happens (a hit for kill/armor/headshot)
+				enc.turn.action_available = true
+				enc.turn.attacks_left = 0
+				var r := enc.attack(g, enc.cur.c.weapons[0], md)
+				await _act()
+				if _reel in ["single", "auto", "pistol"] or (r.get("hit", false) and not r.get("dodged", false)) or g.c.dead:
+					break
+				await get_tree().create_timer(0.3).timeout
+		"cover":
+			var cell := Vector3i(-1, -1, -1)
+			for v in enc.los.cover_hp:
+				if enc.los.cover_hp[v] > 0 and v.z == enc.cur.pos.z and Vector2(v.x - enc.cur.pos.x, v.y - enc.cur.pos.y).length() < 9 and enc.los.sight(enc.cur.pos, v).visible:
+					cell = v
+					break
+			if cell.x >= 0:
+				cam_target = Vector3((enc.cur.pos.x + cell.x) / 2.0 + 0.5, 0, (enc.cur.pos.y + cell.y) / 2.0 + 0.5)
+				_place_camera()
+				for k in 4:
+					if enc.los.cover_hp.get(cell, 0) <= 0:
+						break
+					enc.turn.action_available = true
+					enc.turn.attacks_left = 0
+					enc.shoot_cover(cell, enc.cur.c.weapons[0])
+					await _act()
+		"enemy":
+			_reel_setup_shot(g)
+			for u in enc.units:
+				if u.team == 1:
+					u.alerted = true
+			enc.update_alerts()
+			_refresh()
+			await get_tree().create_timer(0.4).timeout
+			for k in 6:   # end crew turns until the guards have had a go
+				_on_hud("end_turn", null)
+				await get_tree().create_timer(0.2).timeout
+				while busy:
+					await get_tree().process_frame
+				if enc.cur.team == 0 and k > 0:
+					break
+		"jack":
+			_demo_jack()
+			await get_tree().create_timer(3.5).timeout
+	await get_tree().create_timer(1.6).timeout
+	get_tree().quit()
+
+
+func _act() -> void:
+	_after_action()
+	await get_tree().process_frame
+	while busy:
+		await get_tree().process_frame
+
+
+func _nearest_guard() -> Dictionary:
+	var best := {}
+	for u in enc.units:
+		if u.team == 1 and not u.c.dead and (best.is_empty() or Vector2(u.pos.x - enc.cur.pos.x, u.pos.y - enc.cur.pos.y).length() < Vector2(best.pos.x - enc.cur.pos.x, best.pos.y - enc.cur.pos.y).length()):
+			best = u
+	return best
+
+
+## Put the shooter in sight of the guard, a few squares off, and frame both.
+func _reel_setup_shot(g: Dictionary) -> void:
+	if g.is_empty():
+		return
+	if _reel == "pistol":
+		for u in enc.alive(0):
+			if u.c.weapons[0].id().contains("pistol"):
+				enc.cur = u
+				enc.turn = TurnState.begin(dice, u.c)
+	for v in enc.nav.reachable(g.pos, 6, enc.occupied()):
+		var d := Vector2(v.x - g.pos.x, v.y - g.pos.y).length()
+		if v != g.pos and d >= 3 and d <= 6 and enc.los.sight(v, g.pos).visible:
+			enc.cur.pos = v
+			break
+	view_floor = enc.cur.pos.z
+	cam_target = Vector3((enc.cur.pos.x + g.pos.x) / 2.0 + 0.5, 0, (enc.cur.pos.y + g.pos.y) / 2.0 + 0.5)
+	_place_camera()
+	enc.refresh_vision()
+	_refresh()
 
 
 func _demo_attack() -> void:
