@@ -47,6 +47,7 @@ var _banner: Label
 var _banner_panel: PanelContainer
 var settings: PanelContainer
 var _turn_banner: Label
+var _turn_rule: ColorRect
 var hint: PanelContainer
 var hint_tab: PanelContainer
 var _mode_buttons := {}
@@ -127,12 +128,16 @@ func _ready() -> void:
 	_toast.add_theme_constant_override("shadow_offset_x", 3)
 	_toast.add_theme_constant_override("shadow_offset_y", 0)
 	add_child(_toast)
-	_turn_banner = _text("", F_DISPLAY, 40, TEXT)
+	_turn_banner = _text("", F_DISPLAY, 30, TEXT)
 	_turn_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_turn_banner.add_theme_color_override("font_shadow_color", Color(MAGENTA, 0.7))
 	_turn_banner.add_theme_constant_override("shadow_offset_x", 3)
 	_turn_banner.modulate.a = 0.0
 	add_child(_turn_banner)
+	_turn_rule = ColorRect.new()
+	_turn_rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_turn_rule.modulate.a = 0.0
+	add_child(_turn_rule)
 	_banner = _text("", F_DISPLAY, 20, Color("9fb4c4"))
 	_banner_panel = _panel(CYAN, 0b0100)
 	_banner_panel.add_child(_banner)
@@ -492,18 +497,31 @@ func tip(text: String, at: Vector2, head := "", head_col := CYAN) -> void:
 	_tip.position = (at + Vector2(24, 20)).clamp(Vector2.ZERO, size - _tip.size - Vector2(4, 4))
 
 
-## Turn banner: slides in from the left, holds, fades (juice).
+## Turn banner, tucked under the turn-order strip (owner: less obtrusive, keep the style). It
+## glitches in: the magenta split starts wide and snaps shut while the text slides a few pixels,
+## an underline wipes across in the banner colour, then everything fades.
 func turn_banner(text: String, col: Color) -> void:
 	_turn_banner.text = text
 	_turn_banner.add_theme_color_override("font_color", col)
-	_turn_banner.size = Vector2(size.x, 50)
-	_turn_banner.position = Vector2(-80, size.y * 0.24)
+	_turn_banner.reset_size()
+	var w := _turn_banner.get_minimum_size().x
+	var y := 100.0   # just under the turn-order strip (its size isn't settled yet on a new turn)
+	var x := size.x / 2 - w / 2
+	_turn_banner.position = Vector2(x + 24, y)
 	_turn_banner.modulate.a = 0.0
+	_turn_banner.add_theme_constant_override("shadow_offset_x", 10)
+	_turn_rule.color = col
+	_turn_rule.position = Vector2(x, y + 34)
+	_turn_rule.size = Vector2(0, 2)
+	_turn_rule.modulate.a = 1.0
 	var tw := create_tween()
-	tw.tween_property(_turn_banner, "position:x", 0.0, 0.22).set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
-	tw.parallel().tween_property(_turn_banner, "modulate:a", 1.0, 0.15)
-	tw.tween_interval(0.7)
-	tw.tween_property(_turn_banner, "modulate:a", 0.0, 0.3)
+	tw.tween_property(_turn_banner, "position:x", x, 0.18).set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(_turn_banner, "modulate:a", 1.0, 0.1)
+	tw.parallel().tween_method(func(v: int): _turn_banner.add_theme_constant_override("shadow_offset_x", v), 10, 2, 0.22)
+	tw.parallel().tween_property(_turn_rule, "size:x", w, 0.26).set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
+	tw.tween_interval(0.9)
+	tw.tween_property(_turn_banner, "modulate:a", 0.0, 0.25)
+	tw.parallel().tween_property(_turn_rule, "modulate:a", 0.0, 0.25)
 
 
 func toast(text: String, secs := 2.2) -> void:
