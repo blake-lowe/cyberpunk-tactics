@@ -11,6 +11,7 @@ extends RefCounted
 ## shoulder/elbow/wrist _l/_r, leg/knee/ankle _l/_r, weapon (with a grip_l IK marker). Each joint
 ## stores its rest transform in meta "rest". Looks come from UnitLook (shared with portraits).
 
+const UNIT_SHADER := preload("res://src/tactical/view/unit.gdshader")
 const CREW_JACKETS := UnitLook.CREW_JACKETS
 const CREW_ACCENTS := UnitLook.CREW_ACCENTS
 
@@ -102,9 +103,14 @@ static func build(team: int, index: int, role := "") -> Node3D:
 	var grip := b.joint(gun, "grip_l", Vector3(0, -0.03, 0.18))
 	grip.set_meta("ik", true)
 	# rest transforms, so animation layers offsets on top of the pose
+	var joints := {}
 	for j in root.find_children("*", "Node3D", true, false):
 		j.set_meta("rest", j.transform)
+		if not (j is MeshInstance3D):
+			joints[j.name] = j
+	root.set_meta("j", joints)
 	root.set_meta("ink", b._outline_mat())
+	root.set_meta("mats", b.materials())
 	return root
 
 
@@ -122,22 +128,22 @@ class _Builder:
 		parent.add_child(j)
 		return j
 
-	func _mat(col: Color, glow: float) -> StandardMaterial3D:
+	func _mat(col: Color, glow: float) -> ShaderMaterial:
 		var key := col.to_html() + str(glow)
 		if _mats.has(key):
 			return _mats[key]
-		var mt := StandardMaterial3D.new()
-		mt.albedo_color = col
-		mt.roughness = 0.55
-		mt.rim_enabled = true   # silhouettes read against dark streets
-		mt.rim = 0.7
-		mt.rim_tint = 0.6
+		var mt := ShaderMaterial.new()
+		mt.shader = UNIT_SHADER
+		mt.set_shader_parameter("albedo", col)
 		if glow > 0.0:
-			mt.emission_enabled = true
-			mt.emission = col
-			mt.emission_energy_multiplier = glow
+			mt.set_shader_parameter("emission", col)
+			mt.set_shader_parameter("emission_energy", glow)
 		_mats[key] = mt
 		return mt
+
+	## All body materials (the view sets `flash` on hit).
+	func materials() -> Array:
+		return _mats.values()
 
 	func _outline_mat() -> StandardMaterial3D:
 		if _ink_mat == null:

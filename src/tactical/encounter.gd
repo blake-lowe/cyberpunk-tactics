@@ -26,6 +26,9 @@ var runs := {}                      ## unit id → NetRun
 var net_left := 0                   ## NET Actions left this turn (runner only)
 var objective := {}                 ## {structure, node, done}
 var vision: Vision                  ## what the crew can see (drives fog and hidden guards)
+## What happened, in order, for the view to animate: {type: move|attack|cover|alert, ...}.
+## The view drains it; rules code never reads it.
+var events: Array[Dictionary] = []
 var disabled_devices := {}          ## device id → true (turrets/cameras under the runner's control)
 
 
@@ -49,7 +52,28 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant]) -> Encoun
 	var posts := p_map.posts.duplicate()
 	posts.sort_custom(func(a, b): return int(a.structure == target_sid) > int(b.structure == target_sid))
 	var sec := int(p_map.params.get("security", 1))
-	var n := mini(posts.size(), GUARDS_BASE + sec * 2)
+	var want := GUARDS_BASE + sec * 2
+	if posts.size() < want:
+		# Not enough posts (small sites with no guard rooms or security doors): spread the rest over
+		# the target building, farthest from the deploy zone first, at least 3 squares apart.
+		var origin: Vector2i = cells[0]
+		var cand: Array = []
+		for f in p_map.floors:
+			for y in p_map.h:
+				for x in p_map.w:
+					var l := p_map.label(f, x, y)
+					if l >= 0 and p_map.rooms[l].structure == target_sid and p_map.walkable(f, Vector2i(x, y)) and not p_map.has_cover_at(f, Vector2i(x, y)):
+						cand.append(Vector3i(x, y, f))
+		cand.sort_custom(func(a, b): return Vector2(a.x - origin.x, a.y - origin.y).length() > Vector2(b.x - origin.x, b.y - origin.y).length())
+		var taken: Array = posts.map(func(q): return Vector3i(q.pos.x, q.pos.y, q.floor))
+		for v in cand:
+			if posts.size() >= want:
+				break
+			if taken.any(func(t): return t.z == v.z and Vector2(t.x - v.x, t.y - v.y).length() < 3.0):
+				continue
+			taken.append(v)
+			posts.append({"floor": v.z, "pos": Vector2i(v.x, v.y), "structure": target_sid, "zone": 1, "kind": "patrol"})
+	var n := mini(posts.size(), want)
 	for i in n:
 		var g := Recruit.generate(p_dice, "solo" if p_dice.d(3) > 1 else "lawman", "streetrat", "Guard %d" % (i + 1))
 		g.team = 1
@@ -196,6 +220,7 @@ func _rouse(fresh: Array) -> void:
 			continue
 		g.alerted = true
 		init.add(g.c)
+		events.append({"type": "alert", "unit": g.id})
 		for o in units:
 			if not o.alerted and not o.c.dead and o.team == g.team and o.pos.z == g.pos.z \
 					and Vector2(o.pos.x - g.pos.x, o.pos.y - g.pos.y).length() <= SHOUT_RANGE:
@@ -222,14 +247,34 @@ func move_options() -> Dictionary:
 	return _with_locks(func(): return nav.reachable(cur.pos, turn.squares_available(), occupied(cur)))
 
 
-func move_to(dest: Vector3i) -> bool:
+## Move along the shortest path. With `allow_run`, a path longer than the remaining move may
+## spend the Action on Run (p127/p169: "Take an additional Move Action"), which in the book
+## requires a Move Action already taken this turn: the first leg uses it, then Run covers the rest.
+func move_to(dest: Vector3i, allow_run := false) -> bool:
 	var p: Array[Vector3i] = _with_locks(func(): return nav.path(cur.pos, dest, occupied(cur)))
 	if p.is_empty():
 		return false
 	var cost := nav.cost_of(cur.pos, p)
-	if not turn.move(cost):
+	var ran := false
+	if cost > turn.squares_available():
+		var avail := turn.squares_available()
+		if not allow_run or not turn.action_available or cost > avail + cur.c.stat("MOVE"):
+			return false
+		turn.move(avail)
+		if not turn.run():
+			return false
+		if not turn.move(cost - avail):
+			return false
+		ran = true
+	elif not turn.move(cost):
 		return false
+	var from: Vector3i = cur.pos
 	cur.pos = dest
+	var full: Array = [from]
+	full.append_array(p)
+	events.append({"type": "move", "unit": cur.id, "path": full, "run": ran})
+	if ran:
+		say("%s runs." % cur.c.display_name)
 	for v in p:
 		if m.t(v.z, v.x, v.y) == TacMap.T.DOOR:
 			los.open_doors[v] = true  # doors stay open once someone walks through
@@ -261,7 +306,10 @@ func attack(target: Dictionary, weapon: Weapon, mode: Attack.Mode) -> Dictionary
 	turn.use_attack()
 	_rouse([target])
 	_noise(cur.pos)
+	var hp_before: int = target.c.hp
 	var r := Attack.resolve(dice, cur.c, weapon, target.c, mode, Los.distance_m(p.from, target.pos))
+	events.append({"type": "attack", "unit": cur.id, "target": target.id, "from": p.from, "hit": r.hit, "dodged": r.dodged,
+		"damage": hp_before - target.c.hp, "crit": not r.crits.is_empty(), "mode": mode, "killed": target.c.dead or target.c.wound_state() == Combatant.Wound.MORTAL})
 	var who := "%s → %s" % [cur.c.display_name, target.c.display_name]
 	if r.dodged:
 		say("%s: DODGE" % who)
@@ -280,6 +328,7 @@ func shoot_cover(cell: Vector3i, weapon: Weapon) -> Dictionary:
 	turn.use_attack()
 	_noise(cur.pos)
 	var dmg := dice.roll(weapon.dice(), 6)
+	events.append({"type": "cover", "unit": cur.id, "cell": cell, "damage": dmg})
 	if los.cover_hp.has(cell) and los.cover_hp[cell] > 0:
 		los.cover_hp[cell] = maxi(0, los.cover_hp[cell] - dmg)
 		if los.cover_hp[cell] == 0:

@@ -46,6 +46,7 @@ var _toast: Label
 var _banner: Label
 var _banner_panel: PanelContainer
 var settings: PanelContainer
+var _turn_banner: Label
 var hint: PanelContainer
 var hint_tab: PanelContainer
 var _mode_buttons := {}
@@ -126,6 +127,12 @@ func _ready() -> void:
 	_toast.add_theme_constant_override("shadow_offset_x", 3)
 	_toast.add_theme_constant_override("shadow_offset_y", 0)
 	add_child(_toast)
+	_turn_banner = _text("", F_DISPLAY, 40, TEXT)
+	_turn_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_turn_banner.add_theme_color_override("font_shadow_color", Color(MAGENTA, 0.7))
+	_turn_banner.add_theme_constant_override("shadow_offset_x", 3)
+	_turn_banner.modulate.a = 0.0
+	add_child(_turn_banner)
 	_banner = _text("", F_DISPLAY, 20, Color("9fb4c4"))
 	_banner_panel = _panel(CYAN, 0b0100)
 	_banner_panel.add_child(_banner)
@@ -450,7 +457,7 @@ func _party_card(u: Dictionary, active: bool) -> Control:
 	p.add_child(h)
 	var face := TextureRect.new()
 	face.texture = portraits.tex(u)
-	face.custom_minimum_size = Vector2(64, 64)   # 2x the 32 px art
+	face.custom_minimum_size = Vector2(80, 80)   # 2x the 40 px art
 	face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	face.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -483,6 +490,20 @@ func tip(text: String, at: Vector2, head := "", head_col := CYAN) -> void:
 	_tip_label.text = text
 	_tip.reset_size()
 	_tip.position = (at + Vector2(24, 20)).clamp(Vector2.ZERO, size - _tip.size - Vector2(4, 4))
+
+
+## Turn banner: slides in from the left, holds, fades (juice).
+func turn_banner(text: String, col: Color) -> void:
+	_turn_banner.text = text
+	_turn_banner.add_theme_color_override("font_color", col)
+	_turn_banner.size = Vector2(size.x, 50)
+	_turn_banner.position = Vector2(-80, size.y * 0.24)
+	_turn_banner.modulate.a = 0.0
+	var tw := create_tween()
+	tw.tween_property(_turn_banner, "position:x", 0.0, 0.22).set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(_turn_banner, "modulate:a", 1.0, 0.15)
+	tw.tween_interval(0.7)
+	tw.tween_property(_turn_banner, "modulate:a", 0.0, 0.3)
 
 
 func toast(text: String, secs := 2.2) -> void:

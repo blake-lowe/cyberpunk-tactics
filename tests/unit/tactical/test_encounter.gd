@@ -127,3 +127,22 @@ func test_gunfire_alerts_guards_behind_walls() -> void:
 	e.shoot_cover(Vector3i(3, 1, 0), e.cur.c.weapons[0])
 	assert_true(g.alerted, "a shot 11 squares away is heard")
 	assert_true(_in_init(e, g))
+
+
+func test_run_spends_the_action_for_a_second_move() -> void:
+	var e := _corridor_encounter(Vector2i(28, 0), 26)  # guard walled off at the far end
+	e.next_turn()
+	var mv: int = e.cur.c.stat("MOVE")
+	var far := Vector3i(1 + mv + 2, 1, 0)
+	assert_false(e.move_to(far), "beyond one Move Action without running")
+	assert_true(e.move_to(far, true), "Run covers the rest (p127: an additional Move Action)")
+	assert_false(e.turn.action_available, "running used the Action")
+	assert_eq(e.events.filter(func(x): return x.type == "move").back().run, true)
+
+
+func test_skirmish_always_has_guards() -> void:
+	for seed in [11, 12, 13]:
+		var m := SceneGen.generate(seed, "skirmish", {"security": 1})
+		var dice := Dice.new(seed)
+		var e := Encounter.setup(m, dice, _crew(dice))
+		assert_eq(e.units.filter(func(u): return u.team == 1).size(), 5, "3 + 2 per security level, even without posts")

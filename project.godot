@@ -35,3 +35,11 @@ focus_view={
 "type": "vec4",
 "value": Vector4(0.5, 0.5, 0, 0)
 }
+lf_tex={
+"type": "sampler2D",
+"value": ""
+}
+lf_dims={
+"type": "vec3",
+"value": Vector3(0, 0, 0)
+}
