@@ -138,13 +138,44 @@ static func _advance(e: Encounter, u: Dictionary) -> void:
 		for f in foes:
 			if not sees and absi(cell.x - f.pos.x) + absi(cell.y - f.pos.y) < 30 and e.los.sight(cell, f.pos).visible:
 				sees = true
-		var covered := false
-		for d in MapGen.DIRS:
-			if e.los.blocker(Vector3i(cell.x + d.x, cell.y + d.y, cell.z)) != "":
-				covered = true
-		var score := -dmin + (8.0 if sees else 0.0) + (3.0 if covered else 0.0)
+		var covered := covered_from(e, cell, foes)
+		var exposed := 0   # foes with a clear shot at the square from where they stand
+		for f in foes:
+			if f.pos.z == cell.z and Vector2(cell.x - f.pos.x, cell.y - f.pos.y).length() < 25 and e.los.trace(f.pos, cell).clear and not covered:
+				exposed += 1
+		var score := -dmin + (8.0 if sees else 0.0) + (5.0 if covered else 0.0) - exposed * 2.0
 		if score > best_score:
 			best_score = score
 			best = cell
 	if best != u.pos:
 		e.move_to(best)
+
+
+
+## Cover that faces the threat (the reviewer's catch: any solid square beside us used to count):
+## something solid on the square next to `cell` toward the nearest foe (diagonals check both
+## orthogonal neighbours), the way the crew's cover shields work.
+static func covered_from(e: Encounter, cell: Vector3i, foes: Array) -> bool:
+	var near: Dictionary = {}
+	var nd := INF
+	for f in foes:
+		var d := Vector2(f.pos.x - cell.x, f.pos.y - cell.y).length()
+		if f.pos.z == cell.z and d < nd:
+			nd = d
+			near = f
+	if near.is_empty():
+		return false
+	var sx := signi(near.pos.x - cell.x)
+	var sy := signi(near.pos.y - cell.y)
+	var steps: Array[Vector2i] = []
+	if absi(near.pos.x - cell.x) >= absi(near.pos.y - cell.y) * 2:
+		steps.append(Vector2i(sx, 0))
+	elif absi(near.pos.y - cell.y) >= absi(near.pos.x - cell.x) * 2:
+		steps.append(Vector2i(0, sy))
+	else:
+		steps.append(Vector2i(sx, 0))
+		steps.append(Vector2i(0, sy))
+	for s in steps:
+		if e.los.blocker(Vector3i(cell.x + s.x, cell.y + s.y, cell.z)) != "":
+			return true
+	return false

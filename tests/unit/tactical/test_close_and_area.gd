@@ -158,3 +158,13 @@ func test_stabilized_ally_comes_round_and_an_all_down_crew_loses() -> void:
 	c.wake_in = 0
 	e._check_end()
 	assert_eq(e.state, "lost", "nobody on the crew can act or will wake: the gig is lost, not a stuck loop")
+
+
+func test_ai_cover_must_face_the_threat() -> void:
+	var e := _arena([Vector3i(10, 5, 0)])
+	e.m.set_t(0, 5, 5, TacMap.T.WALL)   # wall east of (4,5): between it and the guard
+	e.m.set_t(0, 3, 4, TacMap.T.WALL)   # wall north-west of (4,5)... behind relative to the guard
+	e.los = Los.new(e.m)
+	var foes := [e.units[1]]
+	assert_true(AI.covered_from(e, Vector3i(4, 5, 0), foes), "wall toward the guard: covered")
+	assert_false(AI.covered_from(e, Vector3i(6, 5, 0), foes), "the wall is behind this square: not covered")
