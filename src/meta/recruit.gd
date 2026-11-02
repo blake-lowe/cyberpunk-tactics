@@ -54,6 +54,9 @@ static func generate(dice: Dice, role: String, method: String = "edgerunner", ha
 	c.armor["head"] = ArmorPiece.from_id("light_armorjack")
 	for w in LOADOUT.get(role, []):
 		c.weapons.append(Weapon.from_id(w))
+	# HOUSE-RULE: pared-down loadouts carry frag grenades (two for Solos, one otherwise) until the
+	# gear/inventory system lands (M6+).
+	c.grenades = 2 if role == "solo" else 1
 	if role == "solo":
 		_default_awareness(c)
 	return c

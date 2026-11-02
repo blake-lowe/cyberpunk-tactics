@@ -20,6 +20,7 @@ func rof() -> int: return int(def["rof"])
 func is_melee() -> bool: return def.get("melee", false)
 func autofire_mult() -> int: return int(def.get("autofire", 0))
 func uses_ammo() -> bool: return not is_melee() and int(def.get("mag", 0)) > 0
+func mag() -> int: return int(def.get("mag", 0))
 
 
 func reload() -> void:

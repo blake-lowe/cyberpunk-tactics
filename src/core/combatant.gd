@@ -22,6 +22,7 @@ var dead := false
 var unconscious := false
 var prone := false
 var weapons: Array[Weapon] = []
+var grenades: int = 0          ## frag grenades carried (thrown: DEX + Athletics, 6d6 blast, p174/p177)
 
 var role: String = ""         ## "solo", "netrunner", "medtech", "tech", ...
 var role_rank: int = 0

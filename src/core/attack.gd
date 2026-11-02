@@ -201,6 +201,12 @@ static func explosion(dice: Dice, attack_total: int, damage_dice: int, targets: 
 	return {"faces": faces, "results": _area_hit(dice, attack_total, faces, targets, true)}
 
 
+## The same with the damage already rolled (the caller needs it first, to decide which cover the
+## blast destroys and so who is still covered, p174).
+static func explosion_rolled(dice: Dice, attack_total: int, faces: PackedInt32Array, targets: Array) -> Array:
+	return _area_hit(dice, attack_total, faces, targets, true)
+
+
 ## Suppressive Fire (p174): every on-foot, uncovered target in LOS within 25 m rolls
 ## WILL + Concentration vs the attacker's REF + Autofire. Losers must move to cover next turn.
 ## Returns the targets who failed. Interpretation: ties go to the defender (general rule, p172).
