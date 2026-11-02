@@ -48,11 +48,16 @@ var _last_pos := Vector3.ZERO
 var _speed := 0.0
 var _last_hit := 9.0
 var index := 0
+var hold_state := false   ## review tools: keep the clip they set (no state picking), everything else runs
 var gun: Node3D
 var gun_sign := 1.0
 var gun_scale := 1.0
 var gun_grip := Vector3.ZERO
 var _gun_rel: Variant = null   ## gun relative to the right hand, frozen at death
+var _death_t := -1.0           ## seconds since a death clip started (the gun lets go at 0.3)
+var _drop_v := Vector3.ZERO    ## falling gun: velocity and spin (world units)
+var _drop_w := Vector3.ZERO
+var _dropping := false
 var _anchored := ""            ## anchor clip the gun is currently held still for
 var _anchor_rel := Transform3D.IDENTITY
 var _support: Marker3D         ## pistols: where the left wrist goes (IK target)
@@ -386,6 +391,7 @@ static func _rel(root: Node3D, n: Node3D) -> Transform3D:
 # --- animation state --------------------------------------------------------------------
 
 func _process(delta: float) -> void:
+	_drop_gun(delta)
 	if anim == null or not is_visible_in_tree():
 		return
 	var p := global_position
@@ -396,7 +402,8 @@ func _process(delta: float) -> void:
 	if ht < _last_hit and float(get_meta("hit_amp", 0.0)) >= 1.0 and not get_meta("fallen", false):
 		play_once("hit_rifle", 0.05)
 	_last_hit = ht
-	_pick(false)
+	if not hold_state:
+		_pick(false)
 
 
 func _pick(now: bool) -> void:
@@ -566,9 +573,57 @@ func place_gun(s: Skeleton3D) -> void:
 	up = right.cross(fwd)
 	var gb := Basis(fwd * gun_sign, up, right * gun_sign).scaled(Vector3.ONE * gun_scale)
 	gun.transform = Transform3D(gb, grip - gb * gun_grip)
+	if state.begins_with("death"):   # first frame of a death: the gun stays as it is in the hand until it falls
+		_gun_rel = rh_pose.affine_inverse() * gun.transform
 	if state in ANCHOR_CLIPS:   # first frame of a reload: keep the gun where the hands have it now
 		_anchored = state
 		_anchor_rel = anchor.affine_inverse() * gun.transform
+
+
+## Put a dropped gun back in the hands (review tools play deaths and then other clips).
+func reset_gun() -> void:
+	if gun and gun.get_parent() != skel:
+		gun.get_parent().remove_child(gun)
+		skel.add_child(gun)
+	_gun_rel = null
+	_dropping = false
+	_death_t = -1.0
+
+
+## Deaths: shortly after the body starts to go, the gun leaves the hand, falls with a little spin
+## and lands on its side by the body (owner: it twisted unnaturally while held).
+func _drop_gun(delta: float) -> void:
+	if gun == null or not is_instance_valid(gun):
+		return
+	if not state.begins_with("death"):
+		_death_t = -1.0
+		return
+	_death_t = maxf(_death_t, 0.0) + delta
+	if _death_t > 0.3 and gun.get_parent() == skel:
+		var gx := gun.global_transform
+		gun.get_parent().remove_child(gun)
+		add_child(gun)
+		gun.global_transform = gx
+		var away := -global_transform.basis.z.normalized()
+		_drop_v = away * 0.25 + Vector3(randf_range(-0.2, 0.2), 0.4, randf_range(-0.2, 0.2))
+		_drop_w = Vector3(randf_range(-6, 6), randf_range(-4, 4), randf_range(-6, 6))
+		_dropping = true
+	if not _dropping:
+		return
+	var floor_y := global_position.y + 0.025
+	var g := gun.global_transform
+	_drop_v.y -= 7.0 * delta
+	g.origin += _drop_v * delta
+	var sc := g.basis.get_scale()
+	var rb := g.basis.orthonormalized()
+	if _drop_w.length() > 0.01:
+		rb = Basis(_drop_w.normalized(), _drop_w.length() * delta) * rb
+	if g.origin.y <= floor_y:   # landed: lie on its side, along the way it was pointing
+		var f := Vector3(rb.x.x, 0, rb.x.z).normalized() if Vector2(rb.x.x, rb.x.z).length() > 0.01 else Vector3.RIGHT
+		rb = Basis(f, Vector3.UP.cross(f), Vector3.UP)
+		g.origin.y = floor_y
+		_dropping = false
+	gun.global_transform = Transform3D(rb.scaled(sc), g.origin)
 
 
 ## Procedural layer after the clip: recoil climbs the chest and kicks the arms; hits jolt the

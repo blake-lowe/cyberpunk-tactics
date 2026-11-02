@@ -83,7 +83,7 @@ func _initialize() -> void:
 
 func _start() -> void:   # first frame: the models are ready now, so their own clip picker can be switched off
 	for c: CharModel in [rifle, pistol]:
-		c.set_process(false)
+		c.hold_state = true
 	_next()
 
 
@@ -96,6 +96,7 @@ func _next() -> void:
 	cur = pistol if clip.begins_with("pistol") else rifle
 	rifle.visible = cur == rifle
 	pistol.visible = cur == pistol
+	cur.reset_gun()
 	cur.state = clip
 	cur.anim.play(clip)
 	cur.anim.seek(0.0, true)

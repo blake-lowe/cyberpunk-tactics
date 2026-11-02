@@ -1963,20 +1963,8 @@ func _die(u: Dictionary, n: Node3D, dir: Vector3, dead: bool, head := false) -> 
 		_float(u, "DYING", Hud.RED)
 		return
 	_float(u, "DOWN", Hud.RED)
-	var flat := Vector3(dir.x, 0, dir.z).normalized()
 	(n as CharModel).die(dir, head)
-	await get_tree().create_timer(0.35).timeout   # the weapon slips from the hands as the body goes
-	var j: Dictionary = n.get_meta("j", {})
-	if j.has("weapon"):
-		var w: Node3D = j.weapon
-		var gp := w.global_transform
-		w.get_parent().remove_child(w)
-		fx.add_child(w)
-		w.global_transform = gp
-		var land := Vector3(gp.origin.x, _gy(u.pos) + 0.03, gp.origin.z) + flat * 0.4
-		var wt := create_tween()
-		wt.tween_property(w, "global_position", land, 0.3).set_ease(Tween.EASE_IN)
-		wt.parallel().tween_property(w, "rotation", w.rotation + Vector3(0, fx.rng.randf_range(2, 5), 1.4), 0.3)
+	await get_tree().create_timer(0.35).timeout   # the model lets the gun fall (CharModel._drop_gun)
 	fx.pool(_body_pos(u))
 	(decals[u.id] as Node3D).visible = false
 
