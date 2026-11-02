@@ -116,6 +116,13 @@ static func objective_for(g: Dictionary) -> String:
 	return String(OBJECTIVES.get(String(g.get("kind", "")), "data"))
 
 
+func _salvage_mult() -> float:
+	var m := 1.0
+	for c in alive_crew():
+		m = maxf(m, float(c.perk_fx("salvage_mult")))
+	return m
+
+
 func rep_with(fixer: String) -> int:
 	return int(fixer_rep.get(fixer, 0))
 
@@ -181,7 +188,7 @@ func resolve(e: Encounter) -> Dictionary:
 				for loc in u.c.armor:
 					if u.c.armor[loc]:
 						value += int(RulesDB.armor((u.c.armor[loc] as ArmorPiece).id).get("cost", 0))
-				report.salvage += int(value * float(ECON.salvage))
+				report.salvage += int(value * float(ECON.salvage) * _salvage_mult())
 	eb += report.pay - report.fees + report.salvage
 	rep = maxi(0, rep + report.rep)
 	var fx_name := String(gig.get("fixer", ""))
@@ -242,7 +249,7 @@ func treat(c: Combatant, injury_index: int) -> bool:
 
 func refresh_recruits() -> void:
 	recruits.clear()
-	for role in ["solo", "netrunner", "medtech"]:
+	for role in ["solo", "netrunner", "medtech", "tech"]:
 		var r := Recruit.generate(dice, role, "edgerunner")
 		r.look_seed = 10 + recruits.size() + day * 3
 		recruits.append(r)
@@ -386,6 +393,48 @@ func therapy(c: Combatant) -> bool:
 	say("%s spends a week in therapy (+%d Humanity)." % [c.display_name, gain])
 	rest(int(THERAPY.days))
 	return true
+
+
+# --- Tech workshop (Upgrade Expertise, p148) ------------------------------------------------
+
+## Days an upgrade takes by price (Maker table p149): Premium a day, Expensive a week...
+static func maker_days(price: int) -> int:
+	if price <= 50: return 1      # Cheap-Costly: hours; we round up to a day of downtime
+	if price <= 100: return 1
+	if price <= 500: return 7
+	if price <= 1000: return 14
+	return 30
+
+
+func best_tech() -> Combatant:
+	var best: Combatant = null
+	for c in alive_crew():
+		if c.role == "tech" and int(c.maker.get("upgrade", 0)) > 0 and (best == null or int(c.maker.upgrade) > int(best.maker.upgrade)):
+			best = c
+	return best
+
+
+## The crew's Tech upgrades an armour piece: +1 SP, once per item (p148). Materials cost the item's
+## price; TECH + Basic Tech + Upgrade rank + 1d10 vs the price's DV; the work takes its time in
+## downtime (the crew rests meanwhile). Failure wastes the time, not the materials (p148).
+## Returns {} if not possible, else {ok, success, days}.
+func upgrade_armor(owner: Combatant, loc: String) -> Dictionary:
+	var t := best_tech()
+	var a: ArmorPiece = owner.armor.get(loc)
+	if t == null or a == null or a.upgraded or eb < a.price():
+		return {}
+	var dv := ArmorPiece.maker_dv(a.price())
+	var check := Check.vs_dv(dice, t.skill_base("basic_tech") + int(t.maker.upgrade) + int(t.perk_fx("upgrade_bonus")), dv)
+	var days := maker_days(a.price())
+	if check.success:
+		eb -= a.price()
+		a.upgraded = true
+		a.max_sp += 1
+		a.sp = a.max_sp
+	say("%s %s %s's %s (%s, %d day%s)." % [t.display_name, "upgrades" if check.success else "fails to upgrade", owner.display_name, a.name,
+		loc, days, "s" if days > 1 else ""])
+	rest(days)
+	return {"ok": true, "success": check.success, "days": days}
 
 
 # --- Safehouse ------------------------------------------------------------------------

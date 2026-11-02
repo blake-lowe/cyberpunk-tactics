@@ -1362,6 +1362,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			KEY_T: _on_hud("tool", "stabilize")
 			KEY_B: _on_hud("grab", null)
 			KEY_Y: _on_hud("tool", "dose")
+			KEY_U: _on_hud("tool", "rig")
 			KEY_L: _on_hud("withdraw", null)
 			KEY_ESCAPE:
 				if tool != "":
@@ -1511,6 +1512,9 @@ func _click_tool() -> void:
 		"stabilize":
 			if not t.is_empty():
 				r = enc.stabilize(t)
+		"rig":
+			if not t.is_empty():
+				r = enc.jury_rig(t)
 		"dose":
 			if not t.is_empty():
 				var drug := enc.best_dose(t)
@@ -1576,6 +1580,17 @@ func _tool_hover() -> void:
 				return
 			var pct2 := roundi(Check.chance_vs_dv(c.skill_base(enc.cur.c.weapons[0].skill()) - c.action_penalty(), Attack.SHOTGUN_SHELL_DV) * 100)
 			hud.tip("[code][font_size=44]%d%%[/font_size][/code] vs DV13 · 3d6 to everyone in the cone" % pct2, mouse, "// SHOTGUN SHELL", Hud.CYAN)
+		"rig":
+			if t.is_empty() or t.team != enc.cur.team:
+				hud.tip("Pick yourself or a neighbouring ally with worn armour", mouse, "// JURY-RIG", Hud.CYAN)
+				return
+			var loc := enc.rig_target_loc(t)
+			if loc == "":
+				hud.tip("No worn armour that hasn't been rigged already", mouse, "// JURY-RIG", Hud.CYAN)
+				return
+			var ap: ArmorPiece = t.c.armor[loc]
+			var pr := roundi(Check.chance_vs_dv(Encounter.rig_base(c), ArmorPiece.maker_dv(ap.price())) * 100)
+			hud.tip("[code][font_size=44]%d%%[/font_size][/code] %s SP %d → %d · TECH + Basic Tech + Field vs DV%d" % [pr, loc.to_upper(), ap.sp, ap.max_sp, ArmorPiece.maker_dv(ap.price())], mouse, "// JURY-RIG", Hud.CYAN)
 		"dose":
 			if t.is_empty() or t.team != enc.cur.team:
 				hud.tip("Pick yourself or a neighbouring ally (%d doses)" % c.doses, mouse, "// PHARMACEUTICALS", Hud.GREEN)
@@ -2062,6 +2077,17 @@ func _play_events() -> void:
 			"alert": _anim_alert(e)
 			"reload": await _anim_reload(e)
 			"stabilize": await _anim_stabilize(e)
+			"rig":
+				var rn: CharModel = unit_nodes[u.id]
+				var rt: Dictionary = enc.units[e.target]
+				_focus_unit = u.id
+				if rt != u:
+					var rd := Vector2(rt.pos.x - u.pos.x, rt.pos.y - u.pos.y)
+					_turn_to(rn, atan2(rd.x, rd.y), 0.15)
+				rn.perform("medtech", 1.0)
+				await get_tree().create_timer(1.0).timeout
+				_float(rt, ("%s ARMOUR RIGGED" % String(e.loc).to_upper()) if e.ok else "RIG FAILED", Hud.CYAN if e.ok else Hud.RED)
+				await get_tree().create_timer(0.4).timeout
 			"dose":
 				var dn: CharModel = unit_nodes[u.id]
 				var dt: Dictionary = enc.units[e.target]

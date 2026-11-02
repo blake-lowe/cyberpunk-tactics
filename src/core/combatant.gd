@@ -33,6 +33,7 @@ var perks: Array[String] = []
 ## Medtech Medicine (p149-150): Specialty points. Pharmaceutical points unlock drugs in order
 ## (Speedheal, Stim); doses per gig = Medical Tech Skill (HOUSE-RULE: synthesized in downtime).
 var medicine := {}               ## {surgery, pharma, cryo} points
+var maker := {}                  ## Tech Maker Specialty ranks (p147): field, upgrade, fabrication, invention
 var doses := 0                   ## Pharmaceutical doses carried this gig
 var stimmed := false             ## Stim: ignore Seriously Wounded penalties (1 hour = the gig)
 var speedhealed := false         ## Speedheal: once per day   ## Role specialisation perks (data/rules/perks.json, HOUSE-RULE)
@@ -217,6 +218,9 @@ func knows_drug(drug: String) -> bool:
 ## Fresh for a gig: doses restocked, once-a-day effects cleared (HOUSE-RULE: a gig is a day).
 func gig_reset() -> void:
 	doses = medical_tech() if role == "medtech" else 0
+	for loc in armor:
+		if armor[loc]:
+			(armor[loc] as ArmorPiece).rigged = false
 	stimmed = false
 	speedhealed = false
 
@@ -230,6 +234,9 @@ func raise_rank() -> bool:
 		return false
 	ip -= rank_raise_cost()
 	role_rank += 1
+	if role == "tech":   # each Maker Rank: +1 in two different Specialties (p147); ours: Field and Upgrade
+		for k in ["field", "upgrade"]:
+			maker[k] = int(maker.get(k, 0)) + 1
 	if role == "medtech":   # each Medicine Rank adds a Specialty point (p149): pharma first, max 5
 		var k := "pharma" if int(medicine.get("pharma", 0)) < 5 else "surgery"
 		medicine[k] = int(medicine.get(k, 0)) + 1
@@ -534,13 +541,16 @@ func stabilize() -> void:
 # --- Save / load (campaign state between gigs) ---------------------------------
 
 static func _armor_dict(a: ArmorPiece) -> Variant:
-	return {"id": a.id, "sp": a.sp} if a else null
+	return {"id": a.id, "sp": a.sp, "upgraded": a.upgraded} if a else null
 
 
 static func _armor_from(d: Variant) -> ArmorPiece:
 	if d == null:
 		return null
 	var a := ArmorPiece.from_id(String(d.id))
+	a.upgraded = bool(d.get("upgraded", false))
+	if a.upgraded:
+		a.max_sp += 1
 	a.sp = int(d.sp)
 	return a
 
@@ -556,7 +566,7 @@ func to_dict() -> Dictionary:
 		"subdermal": sub, "injuries": injuries, "base_dsp": base_dsp, "dsp": dsp, "dead": dead, "unconscious": unconscious,
 		"weapons": weapons.map(func(w): return {"id": w.id(), "ammo": w.ammo, "builtin": w.builtin}), "grenades": grenades, "role": role,
 		"role_rank": role_rank, "awareness": awareness, "tracks_humanity": tracks_humanity, "humanity": humanity,
-		"max_humanity": max_humanity, "cyberware": cyberware, "ip": ip, "look_seed": look_seed, "perks": perks, "medicine": medicine}
+		"max_humanity": max_humanity, "cyberware": cyberware, "ip": ip, "look_seed": look_seed, "perks": perks, "medicine": medicine, "maker": maker}
 
 
 static func from_dict(d: Dictionary) -> Combatant:
@@ -596,6 +606,8 @@ static func from_dict(d: Dictionary) -> Combatant:
 		c.cyberware.append(String(cw))
 	c.ip = int(d.get("ip", 0))
 	c.look_seed = int(d.get("look_seed", -1))
+	for k in d.get("maker", {}):
+		c.maker[String(k)] = int(d.maker[k])
 	for k in d.get("medicine", {}):
 		c.medicine[String(k)] = int(d.medicine[k])
 	for pk in d.get("perks", []):

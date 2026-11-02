@@ -1,25 +1,151 @@
 {
-  "_doc": "Role specialisation perks (spec: Roles & Character Identity, 'short skill tree per Role, XCOM-style branching choices'). HOUSE-RULE game content, not from the core book: two tiers per Role, pick one perk of the two in each tier. Tier 1 costs tier_cost[0] IP; tier 2 costs tier_cost[1] IP, needs a tier-1 perk and Role Rank >= tier2_rank. Effects: skills (flat skill bonuses), net_actions (+NET Actions per turn), jack_range_m (meatspace jack-in range), stabilize_reach (squares), revive (stabilized allies stay conscious at BODY HP), treat_discount (clinic price multiplier).",
-  "tier_cost": [100, 200],
+  "_doc": "Role specialisation perks (spec: Roles & Character Identity, 'short skill tree per Role, XCOM-style branching choices'). HOUSE-RULE game content, not from the core book: two tiers per Role, pick one perk of the two in each tier. Tier 1 costs tier_cost[0] IP; tier 2 costs tier_cost[1] IP, needs a tier-1 perk and Role Rank >= tier2_rank. Effects: skills (flat skill bonuses), net_actions (+NET Actions per turn), jack_range_m (meatspace jack-in range), stabilize_reach (squares), revive (stabilized allies stay conscious at BODY HP), treat_discount (clinic price multiplier), upgrade_bonus (Tech workshop checks), salvage_mult (salvage multiplier).",
+  "tier_cost": [
+    100,
+    200
+  ],
   "tier2_rank": 5,
   "roles": {
     "solo": [
-      [{"id": "gunslinger", "name": "Gunslinger", "desc": "+2 Handgun.", "skills": {"handgun": 2}},
-       {"id": "rifleman", "name": "Rifleman", "desc": "+1 Shoulder Arms and Autofire.", "skills": {"shoulder_arms": 1, "autofire": 1}}],
-      [{"id": "hard_target", "name": "Hard Target", "desc": "+2 Evasion.", "skills": {"evasion": 2}},
-       {"id": "unshakeable", "name": "Unshakeable", "desc": "+4 Concentration: shrugs off suppressive fire.", "skills": {"concentration": 4}}]
+      [
+        {
+          "id": "gunslinger",
+          "name": "Gunslinger",
+          "desc": "+2 Handgun.",
+          "skills": {
+            "handgun": 2
+          }
+        },
+        {
+          "id": "rifleman",
+          "name": "Rifleman",
+          "desc": "+1 Shoulder Arms and Autofire.",
+          "skills": {
+            "shoulder_arms": 1,
+            "autofire": 1
+          }
+        }
+      ],
+      [
+        {
+          "id": "hard_target",
+          "name": "Hard Target",
+          "desc": "+2 Evasion.",
+          "skills": {
+            "evasion": 2
+          }
+        },
+        {
+          "id": "unshakeable",
+          "name": "Unshakeable",
+          "desc": "+4 Concentration: shrugs off suppressive fire.",
+          "skills": {
+            "concentration": 4
+          }
+        }
+      ]
     ],
     "netrunner": [
-      [{"id": "overclock", "name": "Overclock", "desc": "+1 NET Action per turn.", "net_actions": 1},
-       {"id": "ghost", "name": "Ghost", "desc": "+2 Stealth.", "skills": {"stealth": 2}}],
-      [{"id": "long_leash", "name": "Long Leash", "desc": "Jack in and stay connected from 10 m instead of 6.", "jack_range_m": 10},
-       {"id": "street_wired", "name": "Street Wired", "desc": "+2 Evasion and +1 Handgun.", "skills": {"evasion": 2, "handgun": 1}}]
+      [
+        {
+          "id": "overclock",
+          "name": "Overclock",
+          "desc": "+1 NET Action per turn.",
+          "net_actions": 1
+        },
+        {
+          "id": "ghost",
+          "name": "Ghost",
+          "desc": "+2 Stealth.",
+          "skills": {
+            "stealth": 2
+          }
+        }
+      ],
+      [
+        {
+          "id": "long_leash",
+          "name": "Long Leash",
+          "desc": "Jack in and stay connected from 10 m instead of 6.",
+          "jack_range_m": 10
+        },
+        {
+          "id": "street_wired",
+          "name": "Street Wired",
+          "desc": "+2 Evasion and +1 Handgun.",
+          "skills": {
+            "evasion": 2,
+            "handgun": 1
+          }
+        }
+      ]
     ],
     "medtech": [
-      [{"id": "field_medic", "name": "Field Medic", "desc": "+2 First Aid and Paramedic.", "skills": {"first_aid": 2, "paramedic": 2}},
-       {"id": "long_reach", "name": "Triage", "desc": "Stabilize an ally up to 2 squares away.", "stabilize_reach": 2}],
-      [{"id": "revive", "name": "Revive", "desc": "Stabilized allies stay conscious with BODY HP.", "revive": true},
-       {"id": "trauma_surgeon", "name": "Trauma Surgeon", "desc": "Clinic treatment for the crew costs half.", "treat_discount": 0.5}]
+      [
+        {
+          "id": "field_medic",
+          "name": "Field Medic",
+          "desc": "+2 First Aid and Paramedic.",
+          "skills": {
+            "first_aid": 2,
+            "paramedic": 2
+          }
+        },
+        {
+          "id": "long_reach",
+          "name": "Triage",
+          "desc": "Stabilize an ally up to 2 squares away.",
+          "stabilize_reach": 2
+        }
+      ],
+      [
+        {
+          "id": "revive",
+          "name": "Revive",
+          "desc": "Stabilized allies stay conscious with BODY HP.",
+          "revive": true
+        },
+        {
+          "id": "trauma_surgeon",
+          "name": "Trauma Surgeon",
+          "desc": "Clinic treatment for the crew costs half.",
+          "treat_discount": 0.5
+        }
+      ]
+    ],
+    "tech": [
+      [
+        {
+          "id": "field_tech",
+          "name": "Field Tech",
+          "desc": "+2 Basic Tech: jury-rigs land more often.",
+          "skills": {
+            "basic_tech": 2
+          }
+        },
+        {
+          "id": "demolitions",
+          "name": "Demolitions",
+          "desc": "+2 Athletics: grenades land where you throw them.",
+          "skills": {
+            "athletics": 2
+          }
+        }
+      ],
+      [
+        {
+          "id": "armorsmith",
+          "name": "Armorsmith",
+          "desc": "+2 to Upgrade checks in the workshop.",
+          "upgrade_bonus": 2
+        },
+        {
+          "id": "scavenger",
+          "name": "Scavenger",
+          "desc": "Salvage after a won gig is worth half again as much.",
+          "salvage_mult": 1.5
+        }
+      ]
     ]
   }
 }

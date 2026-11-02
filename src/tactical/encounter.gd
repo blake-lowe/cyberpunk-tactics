@@ -837,6 +837,46 @@ func throw_grenade(cell: Vector3i) -> Dictionary:
 	return {"ok": true, "hit": check.success, "center": center, "damage": dmg, "hits": hits}
 
 
+## Tech Field Expertise (p147): jury-rig an ally's (or your own) armour back to full SP as an Action.
+## TECH + Basic Tech + Field rank vs the repair DV for its price (Maker table p149, RULES-UNVERIFIED:
+## the p140 repair sidebar may differ). Lasts 10 minutes per Rank: the rest of the gig. Once per piece
+## until it's properly repaired. Fixes the most-worn location.
+func rig_target_loc(target: Dictionary) -> String:
+	var best := ""
+	var worst := 0
+	for loc in ["body", "head"]:
+		var a: ArmorPiece = target.c.armor.get(loc)
+		if a and not a.rigged and a.max_sp - a.sp > worst:
+			worst = a.max_sp - a.sp
+			best = loc
+	return best
+
+
+func jury_rig(target: Dictionary) -> Dictionary:
+	var c: Combatant = cur.c
+	if int(c.maker.get("field", 0)) < 1:
+		return {"ok": false, "reason": "needs a Tech's Field Expertise"}
+	if target.team != cur.team or target.c.dead or (target != cur and not adjacent(cur.pos, target.pos)):
+		return {"ok": false, "reason": "pick yourself or an ally next to you"}
+	var loc := rig_target_loc(target)
+	if loc == "":
+		return {"ok": false, "reason": "no worn armour to rig"}
+	if not turn.use_action():
+		return {"ok": false, "reason": "no action left"}
+	var a: ArmorPiece = target.c.armor[loc]
+	var check := Check.vs_dv(dice, rig_base(c), ArmorPiece.maker_dv(a.price()))
+	a.rigged = true   # one try per piece
+	if check.success:
+		a.sp = a.max_sp
+	events.append({"type": "rig", "unit": cur.id, "target": target.id, "loc": loc, "ok": check.success})
+	say("%s %s %s's %s armour." % [c.display_name, "jury-rigs" if check.success else "fails to fix", target.c.display_name, loc])
+	return {"ok": true, "success": check.success}
+
+
+static func rig_base(c: Combatant) -> int:
+	return c.skill_base("basic_tech") + int(c.maker.get("field", 0)) - c.action_penalty()
+
+
 ## Medtech Pharmaceuticals (p150): giving a dose is an Action, to an ally next to you (or yourself).
 ## Speedheal: a non-Mortally-Wounded target heals BODY + WILL HP, once per day. Stim: ignore
 ## Seriously Wounded penalties for an hour (the rest of the gig), once per day.

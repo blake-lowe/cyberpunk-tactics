@@ -7,6 +7,18 @@ var name: String
 var max_sp: int
 var sp: int
 var penalty: int  ## Applied to REF, DEX and MOVE; only the worst worn penalty counts (p184).
+var upgraded := false  ## Tech Upgrade Expertise +1 SP (p148): one upgrade per item
+var rigged := false    ## jury-rigged this gig (p147): not again until fully repaired
+
+
+## Repair/upgrade DV by the item's price (Maker table p149, by Price Category).
+static func maker_dv(price: int) -> int:
+	if price <= 20: return 9      # Cheap/Everyday
+	if price <= 50: return 13     # Costly
+	if price <= 100: return 17    # Premium
+	if price <= 500: return 21    # Expensive
+	if price <= 1000: return 24   # Very Expensive
+	return 29                     # Luxury+
 
 
 static func from_id(armor_id: String) -> ArmorPiece:
@@ -26,3 +38,8 @@ func ablate(amount: int = 1) -> void:
 
 func repair() -> void:
 	sp = max_sp
+	rigged = false
+
+
+func price() -> int:
+	return int(RulesDB.armor(id).get("cost", 100)) if RulesDB.load_json("armor.json")["armor"].has(id) else 1000

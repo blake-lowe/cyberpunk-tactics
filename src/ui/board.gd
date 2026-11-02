@@ -320,6 +320,20 @@ func _crew_card(c: Combatant) -> PanelContainer:
 		col.add_child(hr)
 	if not c.cyberware.is_empty():
 		col.add_child(_text("CHROME: " + ", ".join(c.cyberware.map(func(x): return String(RulesDB.cyberware(x).name))), Hud.F_TERM, 17, Color(Hud.VIOLET, 0.9), true))
+	var tech := camp.best_tech()
+	if tech != null:   # the crew's Tech can upgrade armour in the workshop (p148)
+		var wr := HBoxContainer.new()
+		wr.add_theme_constant_override("separation", 6)
+		for loc in ["body", "head"]:
+			var a: ArmorPiece = c.armor.get(loc)
+			if a and not a.upgraded:
+				var l: String = loc
+				var b := _button("UPGRADE %s +1 SP · %d eb · %dd" % [loc.to_upper(), a.price(), Campaign.maker_days(a.price())], Hud.CYAN,
+					func(): camp.upgrade_armor(c, l); _rebuild(), camp.eb >= a.price())
+				b.add_theme_font_size_override("font_size", 15)
+				wr.add_child(b)
+		if wr.get_child_count() > 0:
+			col.add_child(wr)
 	if c.grenades > 0 or not c.weapons.is_empty():
 		col.add_child(_text(", ".join(c.weapons.map(func(w): return String(w.def.name))) + ("  · frag ×%d" % c.grenades if c.grenades > 0 else ""), Hud.F_TERM, 18, Color(Hud.TEXT, 0.7), true))
 	for i in c.injuries.size():
