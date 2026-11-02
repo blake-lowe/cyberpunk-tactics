@@ -35,7 +35,8 @@ const CLIPS := {
 	"hit_a": "mx:hit_1",
 	"hit_b": "mx:hit_2",
 	"hit_rifle": "mx:rifle_hit",
-	"dodge": "mx:dodge",
+	"dodge_l": "mx:dodge_l",   # rifle side-steps (owner cut the stepping "Dodging" clip)
+	"dodge_r": "mx:dodge_r",
 	"death_front": "mx:death_back",   # owner: Mixamo's two are named the other way round from how they read
 	"death_back": "mx:death_front",
 	"death_side": "mx:death_right",
@@ -43,12 +44,10 @@ const CLIPS := {
 	"death_head_back": "mx:death_head_back",
 	"death_crouch": "mx:death_crouch_head",
 	"grenade": "mx:grenade_toss",
-	"typing": "mx:typing",
 	"jack": "mx:kneel_inspect",
 	"medtech": "mx:medtech_cpr",
 	"melee": "mx:melee_jab",
 	"melee_blade": "mx:melee_stab",
-	"idle": "mx:idle",
 	"idle_look": "mx:idle_look",
 	"idle_phone": "mx:idle_phone",
 	"idle_talk": "mx:idle_talk",
@@ -57,8 +56,12 @@ const CLIPS := {
 }
 const LOOP := ["rifle_idle", "rifle_aim", "rifle_crouch", "rifle_crouch_aim", "rifle_walk", "rifle_run", "rifle_sprint",
 	"pistol_idle", "pistol_aim", "pistol_walk", "pistol_run", "pistol_sprint", "pistol_crouch", "injured_idle", "injured_walk",
-	"injured_run", "typing", "jack", "medtech", "idle", "idle_look", "idle_phone", "idle_talk", "idle_shift", "cover_idle", "dying"]
-const IN_PLACE := ["rifle_walk", "rifle_run", "rifle_sprint", "pistol_walk", "pistol_run", "pistol_sprint", "injured_walk", "injured_run"]
+	"injured_run", "jack", "medtech", "idle_look", "idle_phone", "idle_talk", "idle_shift", "cover_idle", "dying"]
+## Sub-ranges of clips, in seconds: the CPR clip loops on its chest compressions only (owner).
+const TRIM := {"medtech": [0.13, 1.47]}
+## Playback rate baked in: the big stagger reads better faster (owner).
+const RATE := {"hit_b": 1.6, "dodge_l": 1.3, "dodge_r": 1.3}
+const IN_PLACE := ["dodge_l", "dodge_r", "rifle_walk", "rifle_run", "rifle_sprint", "pistol_walk", "pistol_run", "pistol_sprint", "injured_walk", "injured_run"]
 const HIPS := "%GeneralSkeleton:Hips"
 
 static var _lib: AnimationLibrary
@@ -82,6 +85,9 @@ static func library() -> AnimationLibrary:
 		a.loop_mode = Animation.LOOP_LINEAR if clip in LOOP else Animation.LOOP_NONE
 		if clip in IN_PLACE:
 			speed[clip] = _make_in_place(a)
+		if clip in TRIM or clip in RATE:
+			var w: Array = TRIM.get(clip, [0.0, a.length])
+			_retime(a, float(w[0]), float(w[1]), float(RATE.get(clip, 1.0)))
 		_lib.add_animation(clip, a)
 	return _lib
 
@@ -122,3 +128,15 @@ static func _make_in_place(a: Animation) -> float:
 		var f := (a.track_get_key_time(t, k) - t0) / (t1 - t0)
 		a.track_set_key_value(t, k, (a.track_get_key_value(t, k) as Vector3) - drift * f)
 	return drift.length() / (t1 - t0)
+
+
+## Keep only keys in [t0, t1], shift them to start at 0 and play `rate` times faster.
+static func _retime(a: Animation, t0: float, t1: float, rate: float) -> void:
+	for tr in a.get_track_count():
+		for k in range(a.track_get_key_count(tr) - 1, -1, -1):
+			var kt := a.track_get_key_time(tr, k)
+			if kt < t0 - 0.001 or kt > t1 + 0.001:
+				a.track_remove_key(tr, k)
+		for k in a.track_get_key_count(tr):
+			a.track_set_key_time(tr, k, (a.track_get_key_time(tr, k) - t0) / rate)
+	a.length = (t1 - t0) / rate

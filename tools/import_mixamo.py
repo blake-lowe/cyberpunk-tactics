@@ -55,7 +55,8 @@ CLIPS = {
 	"hit_1": (None, "Hit Reaction.fbx"),
 	"hit_2": (None, "Hit Reaction (1).fbx"),
 	"hit_3": (None, "Hit Reaction (2).fbx"),
-	"dodge": (None, "Dodging.fbx"),
+	"dodge_l": ("Pro Rifle Pack.zip", "run left.fbx"),    # a quick side-step (owner cut "Dodging")
+	"dodge_r": ("Pro Rifle Pack.zip", "run right.fbx"),
 	"death_alt_front": (None, "Death From Front Headshot.fbx"),
 	# work and NET
 	"typing": (None, "Typing.fbx"),

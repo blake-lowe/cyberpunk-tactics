@@ -19,3 +19,14 @@ func test_locomotion_is_in_place_with_native_speed() -> void:
 		assert_near(Vector2(p1.x - p0.x, p1.z - p0.z).length(), 0.0, 0.001, "%s loops in place" % clip)
 	assert_between(CharAnims.speed["rifle_walk"], 1.0, 3.0, "walk speed in m/s")
 	assert_between(CharAnims.speed["rifle_sprint"], 5.0, 9.0, "sprint speed in m/s")
+
+
+func test_trim_and_rate_retime_clips() -> void:
+	var lib := CharAnims.library()
+	var cpr := lib.get_animation("medtech")
+	var w: Array = CharAnims.TRIM["medtech"]
+	assert_near(cpr.length, float(w[1]) - float(w[0]), 0.01, "CPR loops on the compressions only")
+	var hb := lib.get_animation("hit_b")
+	for tr in hb.get_track_count():
+		if hb.track_get_key_count(tr) > 0:
+			assert_true(hb.track_get_key_time(tr, hb.track_get_key_count(tr) - 1) <= hb.length + 0.001, "keys fit the faster length")

@@ -498,8 +498,8 @@ func die(dir: Vector3, head := false, instant := false) -> void:
 		anim.seek(anim.current_animation_length, true)
 
 
-const STOW_CLIPS := ["idle", "idle_look", "idle_phone", "idle_talk", "idle_shift", "typing", "jack", "medtech",
-	"melee", "melee_blade", "grenade", "injured_idle", "injured_walk", "injured_run", "dying", "hit_a", "hit_b", "dodge"]
+const STOW_CLIPS := ["idle_look", "idle_phone", "idle_talk", "idle_shift", "jack", "medtech",
+	"melee", "melee_blade", "grenade", "injured_idle", "injured_walk", "injured_run", "dying", "hit_a", "hit_b"]
 
 
 func _stowed() -> bool:

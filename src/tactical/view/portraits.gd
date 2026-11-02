@@ -33,7 +33,7 @@ func tex(u: Dictionary, _state := 0) -> Texture2D:
 		(mt as ShaderMaterial).set_shader_parameter("use_field", false)
 	model.rotation.y = deg_to_rad(-18)
 	vp.add_child(model)
-	model.pose_still("idle" if u.team == 0 else "rifle_idle", 0.4)   # a calm frame for the bust
+	model.pose_still("idle_shift" if u.team == 0 else "rifle_idle", 0.4)   # a calm frame for the bust
 	var accent: Color = look.accent
 	# backdrop: plain dark (owner: the bokeh was messy)
 	var cam := Camera3D.new()
