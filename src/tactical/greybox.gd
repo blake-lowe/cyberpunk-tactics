@@ -35,7 +35,8 @@ var hover := Vector3i(-1, -1, -1)
 var mouse := Vector2.ZERO
 var gig := {"scene": "skirmish", "profile": "", "seed": 11, "security": 1}
 var look := {"pixel": 0.0, "palette": 1.0, "levels": 0.0, "dither": 0.3, "contrast": 1.0, "saturation": 1.1, "outline": 0.35,
-	"bloom": 1.2, "ortho": 1.0, "lights": 1.0, "dim": 0.5, "spill": 1.0}
+	"bloom": 1.2, "ortho": 1.0, "lights": 1.0, "dim": 0.5, "spill": 1.0, "net_style": 1.0}
+const NET_STYLES := ["", "POINTILLIST", "OBRA DINN", "WIREFRAME", "BLACKWALL", "GHOST", "STARGATE"]
 
 ## Curated palette (M4b critique: a real limited palette instead of free-floating mids): ink and
 ## navy ramps, warm concrete, cool greys, skin, wood, foliage, and each neon in two steps.
@@ -134,6 +135,11 @@ var _reveal := false
 var _walk := 0
 var _focus := ""
 var _attack_demo := false
+var _jack_demo := false
+var net_overlay: NetOverlay
+var net_view := true          ## N toggles back to the plain world while jacked in
+var _net_pos := {}            ## architecture instance id → [pos, ground]
+var _net_framed := -1
 var _shot_delay := 0.0
 var _demo_ms := 0
 
@@ -162,6 +168,8 @@ func _ready() -> void:
 				_focus = kv[1]
 			"attack":  # review renders: the active crew member fires at the nearest guard
 				_attack_demo = true
+			"jack":  # review renders: the Netrunner jacks in at the nearest terminal
+				_jack_demo = true
 			"delay":  # review renders: take the shot this many seconds after the demo action
 				_shot_delay = float(kv[1])
 			"slow":  # review renders: slow motion so short effects land in a frame (software GL is slow)
@@ -207,7 +215,9 @@ func _process(delta: float) -> void:
 			_update_hover()
 		if _frames == 10 and _attack_demo:
 			_demo_attack()
-		var shoot_now: bool = _frames >= 12 if not _attack_demo else (_demo_ms > 0 and Time.get_ticks_msec() - _demo_ms >= int(_shot_delay * 1000.0 / Engine.time_scale))
+		if _frames == 10 and _jack_demo:
+			_demo_jack()
+		var shoot_now: bool = _frames >= 12 if not (_attack_demo or _jack_demo) else (_demo_ms > 0 and Time.get_ticks_msec() - _demo_ms >= int(_shot_delay * 1000.0 / Engine.time_scale))
 		if shoot_now:
 			get_viewport().get_texture().get_image().save_png(_shot_path)
 			get_tree().quit()
@@ -280,6 +290,11 @@ func _build_view() -> void:
 	hud = Hud.new()
 	layer.add_child(hud)
 	hud.action.connect(_on_hud)
+	net_overlay = NetOverlay.new()
+	net_overlay.visible = false
+	hud.add_child(net_overlay)
+	hud.move_child(net_overlay, 0)
+	net_overlay.to_screen = _to_screen
 	hud.build_hint("WASD  PAN\nWHEEL  ZOOM\nQ / E  ROTATE 90\nMIDDLE-DRAG  ROTATE\nPGUP / PGDN  FLOOR\nC  CUTAWAY   F2  LOOK\nLMB  MOVE   RMB  FIRE\nH  HIDE THIS")
 	hud.build_settings(look, [["pixel", "Pixel scale (0 auto)", 0, 6, 1], ["palette", "Palette", 0, 1, 1], ["levels", "Channel steps", 0, 32, 1], ["dither", "Dither", 0, 1, 0.05], ["spill", "Light spill", 0, 2, 0.05],
 		["contrast", "Contrast", 0.6, 1.6, 0.05], ["saturation", "Saturation", 0, 2, 0.05], ["outline", "Outline", 0, 1, 0.05],
@@ -624,7 +639,112 @@ func _refresh() -> void:
 		ring.position = Vector3(enc.cur.pos.x + 0.5, _gy(enc.cur.pos) + 0.04, enc.cur.pos.y + 0.5)
 	_draw_grid()
 	_hud_refresh()
+	_update_net()
 	_toast_new_log()
+
+
+# --- Cyberspace view ------------------------------------------------------------------------
+
+func _net_active() -> NetRun:
+	if enc == null or enc.cur.is_empty() or enc.cur.team != 0 or not net_view:
+		return null
+	return enc.runs.get(enc.cur.id)
+
+
+## While jacked in: the environment goes to the chosen background style, the NET draws on top.
+func _update_net() -> void:
+	var run := _net_active()
+	post.set_shader_parameter("net_style", int(look.net_style) if run else 0)
+	net_overlay.visible = run != null
+	if run == null:
+		return
+	var key := run.arch.get_instance_id()
+	if not _net_pos.has(key):
+		_net_pos[key] = _net_layout(run.arch)
+	net_overlay.run = run
+	net_overlay.pos = _net_pos[key][0]
+	net_overlay.ground = _net_pos[key][1]
+	net_overlay.visited[run.current] = true
+	if run.current != _net_framed:   # frame the current node and its links
+		_net_framed = run.current
+		var pts: Array = []
+		for id in net_overlay.shown():
+			if net_overlay.pos.has(id):
+				pts.append(net_overlay.pos[id])
+		if not pts.is_empty():
+			var c := Vector3.ZERO
+			var span := 0.0
+			for p in pts:
+				c += p
+			c /= pts.size()
+			for p in pts:
+				span = maxf(span, Vector2(p.x - c.x, p.z - c.z).length())
+			_pan_to(c, 0.35, clampf(span * 3.2 + 10.0, 16.0, 50.0))
+
+
+## Where each node floats: over its device(s); net-only nodes near their linked nodes; deeper
+## security levels higher. Returns [pos, ground] dictionaries.
+func _net_layout(a: NetArchitecture) -> Array:
+	var known := {}
+	var fl := {}
+	for nd in a.nodes:
+		var ids: Array = []
+		if int(nd.get("device", -1)) >= 0:
+			ids = [int(nd.device)]
+		elif nd.has("devices"):
+			ids = nd.devices
+		if ids.is_empty():
+			continue
+		var acc := Vector2.ZERO
+		var f := 0
+		for did in ids:
+			var d: Dictionary = m.devices[did]
+			acc += Vector2(d.pos.x + 0.5, d.pos.y + 0.5)
+			f = d.floor
+		known[nd.id] = acc / ids.size()
+		fl[nd.id] = f
+	for pass_i in 8:   # relax: unplaced nodes sit around their placed neighbours
+		for nd in a.nodes:
+			if known.has(nd.id):
+				continue
+			var acc2 := Vector2.ZERO
+			var k := 0
+			var f2 := 0
+			for nb in a.neighbors(nd.id):
+				if known.has(nb):
+					acc2 += known[nb]
+					f2 = maxi(f2, fl[nb])
+					k += 1
+			if k > 0:
+				var ang: float = float(nd.id) * 2.39996
+				known[nd.id] = acc2 / k + Vector2(cos(ang), sin(ang)) * 1.6
+				fl[nd.id] = f2
+	for nd in a.nodes:   # anything still unplaced goes round the structure centre (below)
+		pass
+	# separate: nodes at least 2.2 squares apart so icons and labels don't pile up
+	var ids := known.keys()
+	for it in 30:
+		for i in ids.size():
+			for j in range(i + 1, ids.size()):
+				var pa: Vector2 = known[ids[i]]
+				var pb: Vector2 = known[ids[j]]
+				var dv := pb - pa
+				var dl := dv.length()
+				if dl < 2.2:
+					var push := (dv / maxf(dl, 0.01) if dl > 0.01 else Vector2(cos(i), sin(i))) * (2.2 - dl) * 0.5
+					known[ids[i]] = pa - push
+					known[ids[j]] = pb + push
+	var st_center := Vector2(m.w / 2.0, m.h / 2.0)
+	if a.structure >= 0 and m.structures[a.structure].has("rect"):
+		st_center = Vector2((m.structures[a.structure].rect as Rect2i).get_center())
+	var pos := {}
+	var ground := {}
+	for nd in a.nodes:
+		var xy: Vector2 = known.get(nd.id, st_center + Vector2(cos(nd.id * 2.4), sin(nd.id * 2.4)) * 2.0)
+		var f3: int = fl.get(nd.id, 0)
+		pos[nd.id] = Vector3(xy.x, f3 * FH + 1.3 + int(nd.zone) * 0.9, xy.y)
+		ground[nd.id] = Vector3(xy.x, f3 * FH, xy.y)
+	return [pos, ground]
 
 
 func _beside_cover(v: Vector3i) -> bool:
@@ -890,6 +1010,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 			cam_yaw = yaw_goal
 			_place_camera()
 		mouse = ev.position
+		if net_overlay.visible:
+			net_overlay.hot = net_overlay.pick(mouse)
 		var h := _pick(ev.position)
 		if h != hover:
 			hover = h
@@ -901,7 +1023,17 @@ func _unhandled_input(ev: InputEvent) -> void:
 		match ev.button_index:
 			MOUSE_BUTTON_WHEEL_UP: cam_dist = maxf(8, cam_dist * 0.9); _place_camera()
 			MOUSE_BUTTON_WHEEL_DOWN: cam_dist = minf(160, cam_dist * 1.1); _place_camera()
-			MOUSE_BUTTON_LEFT: _click_move()
+			MOUSE_BUTTON_LEFT:
+				var run := _net_active()
+				if run:   # in the NET, clicks pick nodes
+					var id := net_overlay.pick(ev.position)
+					if id >= 0 and id != run.current:
+						if run.can_move_to(id):
+							_on_hud("net_move", id)
+						else:
+							hud.toast("Blocked: break the firewall or deal with the ICE first.")
+					return
+				_click_move()
 			MOUSE_BUTTON_RIGHT: _click_attack(ev.shift_pressed or cover_mode)
 	elif ev is InputEventKey and ev.pressed and not ev.echo:
 		match ev.keycode:
@@ -922,6 +1054,11 @@ func _unhandled_input(ev: InputEvent) -> void:
 			KEY_F1: gig.seed += 1; new_gig()
 			KEY_F2: hud.settings.visible = not hud.settings.visible
 			KEY_F3: fog_on = not fog_on; _refresh()
+			KEY_F4:
+				look.net_style = float(int(look.net_style) % 6 + 1)
+				hud.toast("CYBERSPACE STYLE: " + NET_STYLES[int(look.net_style)])
+				_refresh()
+			KEY_N: net_view = not net_view; _refresh()
 
 
 func _on_hud(name: String, arg: Variant) -> void:
@@ -1031,6 +1168,43 @@ func _end_turn() -> void:
 	enc.end_turn()
 	enc.next_turn()
 	_after_action()
+
+
+func _demo_jack() -> void:
+	var runner := {}
+	for u in enc.alive(0):
+		if NetRun.interface_rank(u.c) > 0:
+			runner = u
+	if runner.is_empty():
+		return
+	var best := Vector3i(-1, -1, -1)
+	for sid in m.architectures:
+		var a: NetArchitecture = m.architectures[sid]
+		for ap in a.access_points:
+			var d: Dictionary = m.devices[ap.device]
+			for dy in range(-2, 3):
+				for dx in range(-2, 3):
+					var v := Vector3i(d.pos.x + dx, d.pos.y + dy, d.floor)
+					if best.x < 0 and m.walkable(v.z, Vector2i(v.x, v.y)) and not enc.occupied().has(v) and Los.distance_m(v, Vector3i(d.pos.x, d.pos.y, d.floor)) <= 4.0:
+						best = v
+	if best.x < 0:
+		return
+	runner.pos = best
+	enc.cur = runner
+	enc.turn = TurnState.begin(dice, runner.c)
+	view_floor = best.z
+	var pts := enc.jack_points(runner)
+	if not pts.is_empty() and enc.jack_in(pts[0]):
+		enc.net_left = NetRun.net_actions(NetRun.interface_rank(runner.c)) - 1
+		var run: NetRun = enc.runs[runner.id]
+		for nb in run.arch.neighbors(run.current):   # step one node in so more of the NET shows
+			if run.can_move_to(nb) and run.arch.neighbors(nb).size() > 1:
+				run.move_to(nb)
+				break
+	enc.refresh_vision()
+	_frame_unit(runner)
+	_refresh()
+	_demo_ms = Time.get_ticks_msec()
 
 
 func _demo_attack() -> void:

@@ -251,3 +251,11 @@ func test_sockets_same_level_and_branches_go_down() -> void:
 			var all := a.reach(root, {})
 			for s in a.subnets:
 				assert_true(all.has(s.hub), "subnet %d connected" % s.id)
+
+
+func test_every_net_has_a_way_in() -> void:
+	for scene in ["skirmish", "lone_building", "street_block"]:
+		for seed in [11, 12]:
+			var m := SceneGen.generate(seed, scene, {"security": 1})
+			for sid in m.architectures:
+				assert_false(m.architectures[sid].access_points.is_empty(), "%s seed %d structure %d has a jack-in point" % [scene, seed, sid])

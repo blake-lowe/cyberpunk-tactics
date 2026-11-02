@@ -138,6 +138,20 @@ static func generate(m: TacMap, dice: Dice, sid: int) -> NetArchitecture:
 		a.link(hub, port)
 		a.access_points.append({"device": d.id, "entry_node": port})
 
+	# 4b. Every NET needs a way in: if no terminal qualified (small sites like the skirmish bar),
+	#     the most public device doubles as a jack-in point on an L1 hub.
+	if a.access_points.is_empty() and not devices.is_empty():
+		var pick: Dictionary = devices[0]
+		for d in devices:
+			if int(d.zone) < int(pick.zone) or (int(d.zone) == int(pick.zone) and String(d.type) == "terminal"):
+				pick = d
+		pick["access_point"] = true
+		var l1 := keys.filter(func(kk): return kk.x == keys[0].x)
+		var hub2: int = hub_of[l1[0]] if not l1.is_empty() else hub_of[keys[0]]
+		var port2 := a.add_node({"type": "port", "zone": a.nodes[hub2].zone, "subnet": a.nodes[hub2].subnet, "device": pick.id})
+		a.link(hub2, port2)
+		a.access_points.append({"device": pick.id, "entry_node": port2})
+
 	# 5. Black ICE from the budget.
 	_spend_ice(a, dice, keys, hub_of, float(st.params.get("net_threat", 1.0)), intro)
 	return a
