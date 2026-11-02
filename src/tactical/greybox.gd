@@ -6,7 +6,8 @@ extends Node
 ## Baldur's Gate 3 style HUD (view/hud.gd).
 ##
 ## Controls
-##   WASD / arrows   pan          Mouse wheel   zoom          Q / E   rotate 90°
+##   WASD / arrows   pan          Mouse wheel   zoom
+##   Q / E           rotate 90° (smooth)        Middle-drag   rotate freely        H  controls hint
 ##   PageUp/PageDown change the floor you're viewing (floors above open up around the focus)
 ##   Left click      move (path preview while hovering the move grid)
 ##   Right click     attack the enemy under the cursor (X or Shift: shoot the cover in the way)
@@ -93,6 +94,7 @@ var sun: DirectionalLight3D
 var cam: Camera3D
 var cam_target := Vector3.ZERO
 var cam_yaw := 45.0
+var yaw_goal := 45.0
 var cam_dist := 20.0
 var hud: Hud
 var world: Node3D
@@ -137,7 +139,9 @@ func _ready() -> void:
 			"security": gig.security = int(kv[1])
 			"fog": fog_on = kv[1] != "0"
 			"zoom": cam_dist = float(kv[1])
-			"yaw": cam_yaw = float(kv[1])
+			"yaw":
+				cam_yaw = float(kv[1])
+				yaw_goal = cam_yaw
 			"reveal":  # review renders: everything explored
 				_reveal = true
 			"walk":  # review renders: the crew walks n squares toward the target first
@@ -164,7 +168,10 @@ func _process(delta: float) -> void:
 	if Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT): pan.x -= 1
 	if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT): pan.x += 1
 	if pan != Vector3.ZERO:
-		cam_target += pan.rotated(Vector3.UP, deg_to_rad(-cam_yaw + 45)).normalized() * delta * cam_dist * 0.9
+		cam_target += pan.rotated(Vector3.UP, deg_to_rad(cam_yaw)).normalized() * delta * cam_dist * 0.9
+		_place_camera()
+	if absf(cam_yaw - yaw_goal) > 0.01:   # smooth Q/E turns
+		cam_yaw = yaw_goal if absf(cam_yaw - yaw_goal) < 0.3 else lerpf(cam_yaw, yaw_goal, minf(1.0, delta * 12.0))
 		_place_camera()
 	for fl in fires:  # firelight flicker
 		fl.light_energy = fl.get_meta("base", 1.0) * look.lights * (0.85 + 0.15 * sin(Time.get_ticks_msec() * 0.013 + fl.position.x) + randf() * 0.08)
@@ -248,6 +255,7 @@ func _build_view() -> void:
 	hud = Hud.new()
 	layer.add_child(hud)
 	hud.action.connect(_on_hud)
+	hud.build_hint("WASD  PAN\nWHEEL  ZOOM\nQ / E  ROTATE 90\nMIDDLE-DRAG  ROTATE\nPGUP / PGDN  FLOOR\nC  CUTAWAY   F2  LOOK\nLMB  MOVE   RMB  FIRE\nH  HIDE THIS")
 	hud.build_settings(look, [["pixel", "Pixel scale (0 auto)", 0, 6, 1], ["palette", "Palette", 0, 1, 1], ["levels", "Channel steps", 0, 32, 1], ["dither", "Dither", 0, 1, 0.05], ["spill", "Light spill", 0, 2, 0.05],
 		["contrast", "Contrast", 0.6, 1.6, 0.05], ["saturation", "Saturation", 0, 2, 0.05], ["outline", "Outline", 0, 1, 0.05],
 		["bloom", "Bloom", 0, 2, 0.05], ["lights", "Light level", 0.2, 2, 0.05], ["ortho", "Orthographic", 0, 1, 1]], _apply_look)
@@ -775,6 +783,10 @@ func _to_screen(p: Vector3) -> Vector2:
 
 func _unhandled_input(ev: InputEvent) -> void:
 	if ev is InputEventMouseMotion:
+		if ev.button_mask & MOUSE_BUTTON_MASK_MIDDLE:   # middle-drag: free rotation
+			yaw_goal -= ev.relative.x * 0.35
+			cam_yaw = yaw_goal
+			_place_camera()
 		mouse = ev.position
 		var h := _pick(ev.position)
 		if h != hover:
@@ -789,8 +801,9 @@ func _unhandled_input(ev: InputEvent) -> void:
 			MOUSE_BUTTON_RIGHT: _click_attack(ev.shift_pressed or cover_mode)
 	elif ev is InputEventKey and ev.pressed and not ev.echo:
 		match ev.keycode:
-			KEY_Q: cam_yaw -= 90; _place_camera()
-			KEY_E: cam_yaw += 90; _place_camera()
+			KEY_Q: yaw_goal = snappedf(yaw_goal, 45.0) - 90
+			KEY_E: yaw_goal = snappedf(yaw_goal, 45.0) + 90
+			KEY_H: hud.hint.visible = not hud.hint.visible
 			KEY_PAGEUP: view_floor = mini(view_floor + 1, m.floors - 1); _place_camera(); _refresh()
 			KEY_PAGEDOWN: view_floor = maxi(view_floor - 1, 0); _place_camera(); _refresh()
 			KEY_C: cutaway = not cutaway; _refresh()

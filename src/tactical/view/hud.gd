@@ -46,6 +46,7 @@ var _toast: Label
 var _banner: Label
 var _banner_panel: PanelContainer
 var settings: PanelContainer
+var hint: PanelContainer
 var _mode_buttons := {}
 
 
@@ -332,6 +333,8 @@ func _layout() -> void:
 	_toast.position = Vector2(s.x / 2 - 400, 120)
 	_toast.size = Vector2(800, 40)
 	_banner_panel.position = Vector2(14, 12)
+	if hint:
+		hint.position = Vector2(14, s.y - hint.size.y - 12)
 
 
 func _clear(c: Node) -> void:
@@ -528,6 +531,17 @@ static func _node_label(n: Dictionary) -> String:
 		"control": return "Control: %s" % String(n.group).replace("_", " ")
 		"socket": return "Socket → structure %d" % n.target_structure
 	return "%s (L%d)" % [String(n.type).capitalize(), n.zone]
+
+
+## Controls cheat sheet, bottom left (H toggles).
+func build_hint(text: String) -> void:
+	hint = _panel(CYAN, 0b0010)
+	var v := VBoxContainer.new()
+	hint.add_child(v)
+	v.add_child(_text("CONTROLS", F_DISPLAY, 18, CYAN))
+	v.add_child(_text(text, F_TERM, 18, Color("9fb4c4")))
+	add_child(hint)
+	_layout.call_deferred()
 
 
 # --- Visual settings panel (F2) ---------------------------------------------------
