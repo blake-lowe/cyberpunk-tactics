@@ -283,7 +283,7 @@ func blood(at: Vector3, dir: Vector3 = Vector3.ZERO, scale := 1.0, floor_y := -1
 			var dist := rng.randf_range(0.25, 1.5) * maxf(scale, 0.5)
 			var spot := at + flat * dist + side * rng.randf_range(-0.25, 0.25) * dist
 			spot.y = floor_y + 0.012 + k * 0.0004   # stacked a hair apart so splats don't z-fight
-			var sz := rng.randf_range(0.05, 0.16) * (1.3 - dist / 2.5)
+			var sz := rng.randf_range(0.08, 0.22) * (1.3 - dist / 2.5)
 			get_tree().create_timer(0.08 + dist * 0.12).timeout.connect(_splat.bind(spot, sz, flat))
 
 
@@ -296,7 +296,7 @@ func _splat(at: Vector3, size: float, along: Vector3) -> void:
 	cm.radial_segments = 7
 	cm.rings = 1
 	var mt := StandardMaterial3D.new()
-	mt.albedo_color = Color("4a0610")
+	mt.albedo_color = Color("8a0c1a")   # bright enough to read on dark floors at pixel scale
 	mt.roughness = 0.15
 	cm.material = mt
 	mi.mesh = cm

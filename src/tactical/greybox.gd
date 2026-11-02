@@ -1451,8 +1451,10 @@ func _run_reel() -> void:
 				var r := enc.attack(g, enc.cur.c.weapons[0], md)
 				print("reel %s try %d: %s" % [_reel, k, {"ok": r.get("ok"), "hit": r.get("hit"), "dodged": r.get("dodged"), "damage": r.get("damage"), "through": r.get("through"), "armor": [g.c.armor.head != null, g.c.armor.body != null], "sp": g.c.sp("body"), "reason": r.get("reason"), "dead": g.c.dead}])
 				await _act()
-				if _reel in ["single", "auto", "pistol"] or (r.get("hit", false) and not r.get("dodged", false)) or g.c.dead:
+				if _reel in ["single", "auto", "pistol"] or g.c.dead:
 					break
+				if _reel == "armor" and r.get("hit", false) and not r.get("dodged", false):
+					break   # kill/headshot keep going: 0 HP is Mortally Wounded (DYING) first, then dead
 				await get_tree().create_timer(0.3).timeout
 		"cover":
 			if cell.x >= 0:
