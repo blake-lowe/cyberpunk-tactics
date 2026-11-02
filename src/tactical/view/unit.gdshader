@@ -9,6 +9,7 @@ uniform vec3 emission : source_color = vec3(0.0);
 uniform float emission_energy = 0.0;
 uniform float roughness = 0.55;
 uniform float flash = 0.0;          // hit flash (juice): 0..1 pushes toward white
+uniform bool use_field = true;      // off for the portrait studio (not in the map)
 global uniform sampler2D lf_tex : filter_linear, repeat_disable;
 global uniform vec3 lf_dims;        // map w, h, floors
 
@@ -29,7 +30,7 @@ void fragment() {
 	ALBEDO = mix(albedo.rgb, vec3(1.0), flash);
 	ROUGHNESS = roughness;
 	vec3 emit = emission * emission_energy;
-	if (lf_dims.x > 0.0) {
+	if (use_field && lf_dims.x > 0.0) {
 		float fl = clamp(floor(wpos.y / 1.6 + 0.02), 0.0, lf_dims.z - 1.0);
 		// light at the surface, nudged toward where the surface faces (that side catches more)
 		vec3 here = field(wpos.xz, fl);
@@ -37,11 +38,10 @@ void fragment() {
 		vec3 lf = max(here, faced) * 0.6 + faced * 0.4;
 		float pk = max(lf.r, max(lf.g, lf.b));
 		lf *= 1.0 / (1.0 + pk * 0.6);
-		emit += albedo.rgb * lf * 0.8;
+		emit += albedo.rgb * lf * 0.5;   // match the world's spill so units blend in
 		// neon rim: grazing angles glow in the local light colour
 		float fres = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 3.0);
-		emit += lf / max(max(lf.r, max(lf.g, lf.b)), 0.15) * min(pk, 1.0) * fres * 0.9;
-		emit += vec3(0.12, 0.16, 0.22) * fres * 0.35;   // faint cool rim even in the dark
+		emit += lf / max(max(lf.r, max(lf.g, lf.b)), 0.15) * min(pk, 1.0) * fres * 0.25;   // subtle neon rim
 	}
 	EMISSION = emit + vec3(flash * 0.8);
 }

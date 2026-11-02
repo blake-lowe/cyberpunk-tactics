@@ -51,6 +51,13 @@ var _turn_rule: ColorRect
 var hint: PanelContainer
 var hint_tab: PanelContainer
 var _mode_buttons := {}
+var _hp_seen := {}            ## unit id → last HP fraction shown (for ghost drain)
+var _banner_tw: Tween
+var _flash: ColorRect
+var _vignette: ColorRect
+var _cards := {}
+var _round_tab: PanelContainer
+var _round_box: VBoxContainer              ## unit id → party card (hit shake)
 
 
 static func _fonts() -> void:
@@ -85,6 +92,12 @@ func _ready() -> void:
 	_init_strip.add_theme_constant_override("separation", -6)
 	add_child(_init_strip)
 	_build_bar()
+	_round_tab = PanelContainer.new()
+	_round_tab.add_theme_stylebox_override("panel", CutBox.make(INK, Color(CYAN, 0.5), 8, 0b1000, Color(0, 0, 0, 0), 8))
+	_round_box = VBoxContainer.new()
+	_round_box.add_theme_constant_override("separation", 0)
+	_round_tab.add_child(_round_box)
+	add_child(_round_tab)
 	_log_panel = _panel(CYAN, 0b0100)
 	var lv := VBoxContainer.new()
 	_log_panel.add_child(lv)
@@ -128,6 +141,28 @@ func _ready() -> void:
 	_toast.add_theme_constant_override("shadow_offset_x", 3)
 	_toast.add_theme_constant_override("shadow_offset_y", 0)
 	add_child(_toast)
+	_flash = ColorRect.new()
+	_flash.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_flash.color = Color(1, 1, 1, 0)
+	add_child(_flash)
+	_vignette = ColorRect.new()
+	_vignette.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var vs := Shader.new()
+	vs.code = """shader_type canvas_item;
+uniform vec4 col : source_color = vec4(1.0, 0.15, 0.2, 1.0);
+uniform float amount = 0.0;
+void fragment() {
+	vec2 d = abs(UV - 0.5) * 2.0;
+	float e = smoothstep(0.75, 1.0, max(d.x, d.y));
+	float scan = step(2.0, mod(FRAGCOORD.y, 4.0));
+	COLOR = vec4(col.rgb, e * amount * (0.6 + 0.4 * scan));
+}"""
+	var vm := ShaderMaterial.new()
+	vm.shader = vs
+	_vignette.material = vm
+	add_child(_vignette)
 	_turn_banner = _text("", F_DISPLAY, 30, TEXT)
 	_turn_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_turn_banner.add_theme_color_override("font_shadow_color", Color(MAGENTA, 0.7))
@@ -169,9 +204,17 @@ func _text(s: String, font: Font, size: int, col := TEXT) -> Label:
 ## Segmented, slanted meter (HP, MOVE).
 class Meter extends Control:
 	var frac := 1.0
+	var ghost := -1.0   ## previous value: a pale chunk that holds, then drains (juice)
 	var segs := 10
 	var col := Color.WHITE
 	var label := ""
+	func _ready() -> void:
+		if ghost > frac:
+			var tw := create_tween()
+			tw.tween_interval(0.25)
+			tw.tween_method(func(v: float):
+				ghost = v
+				queue_redraw(), ghost, frac, 0.4).set_ease(Tween.EASE_OUT)
 	func _init(p_frac: float, p_segs: int, p_col: Color, w: float, h: float, p_label := "") -> void:
 		frac = p_frac
 		segs = maxi(1, p_segs)
@@ -185,11 +228,14 @@ class Meter extends Control:
 		var gap := 2.0
 		var sw := (w - gap * (segs - 1) - h * 0.4) / segs
 		var lit := frac * segs
+		var glit := ghost * segs
 		for i in segs:
 			var x := i * (sw + gap)
 			var poly := PackedVector2Array([Vector2(x + h * 0.4, 0), Vector2(x + sw + h * 0.4, 0), Vector2(x + sw, h), Vector2(x, h)])
 			var a := clampf(lit - i, 0.0, 1.0)
 			draw_colored_polygon(poly, Color(col, 0.16))
+			if ghost > frac and clampf(glit - i, 0.0, 1.0) > 0 and a < 1.0:
+				draw_colored_polygon(poly, Color(1, 0.85, 0.85, 0.85))
 			if a > 0:
 				draw_colored_polygon(poly, Color(col, 0.35 + 0.65 * a))
 		pass
@@ -220,8 +266,8 @@ class Slot extends Control:
 		draw_colored_polygon(poly, Color(0.03, 0.04, 0.06, 0.95))
 		if tex:
 			var uvs := PackedVector2Array()
-			for p in poly:
-				uvs.append(Vector2(0.05 + 0.9 * p.x / w, 0.0 + 1.0 * p.y / h))
+			for p in poly:   # square mapping centred on the slot: no stretch whatever its size
+				uvs.append(Vector2(0.5 + (p.x - w / 2.0) / h, p.y / h))
 			draw_colored_polygon(poly, Color(1, 1, 1, 0.35 if dead else 1.0), uvs, tex)
 		draw_colored_polygon(PackedVector2Array([Vector2(sk, 0), Vector2(sk + 18, 0), Vector2(sk + 14, 4), Vector2(sk - 1, 4)]), team_col)
 		var loop := poly.duplicate()
@@ -239,6 +285,7 @@ class ActBtn extends Button:
 	var title := ""
 	var key := ""
 	var tint := Color.WHITE
+	var pct := -1
 	func _init(p_glyph: String, p_title: String, p_key: String, p_tint: Color, w := 66.0, h := 66.0) -> void:
 		glyph = p_glyph
 		title = p_title
@@ -291,6 +338,9 @@ class ActBtn extends Button:
 				draw_colored_polygon(PackedVector2Array([o + Vector2(-r * 1.2, -r), o + Vector2(r * 0.2, 0), o + Vector2(-r * 1.2, r)]), c)
 				draw_colored_polygon(PackedVector2Array([o + Vector2(0, -r), o + Vector2(r * 1.4, 0), o + Vector2(0, r)]), c)
 		draw_string(Hud.F_DISPLAY, Vector2(0, size.y - 7), title, HORIZONTAL_ALIGNMENT_CENTER, w, 18, Color(Hud.TEXT, 0.45 if disabled else 1.0))
+		if pct >= 0 and not disabled:   # live hit chance for this mode on the hovered target
+			var pc := Hud.GREEN if pct >= 65 else (Hud.GOLD if pct >= 35 else Hud.RED)
+			draw_string(Hud.F_TERM, Vector2(5, 19), "%d%%" % pct, HORIZONTAL_ALIGNMENT_LEFT, 40, 20, pc)
 		draw_string(Hud.F_TERM, Vector2(w - 30, 19), key, HORIZONTAL_ALIGNMENT_RIGHT, 26, 20, Color(Hud.TEXT if not disabled else Hud.DIM, 0.85 if not disabled else 0.5))
 
 
@@ -346,6 +396,7 @@ func _layout() -> void:
 	_toast.position = Vector2(s.x / 2 - 400, 120)
 	_toast.size = Vector2(800, 40)
 	_banner_panel.position = Vector2(14, 12)
+	_round_tab.position = Vector2(s.x - _round_tab.size.x - 14, 12)
 	if hint:
 		hint.reset_size()
 		hint.position = Vector2(14, s.y - hint.size.y - 12)
@@ -374,18 +425,13 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 		if c.dead:
 			continue
 		var u := enc.unit_of(c)
-		_init_strip.add_child(Slot.new(portraits.tex(u), _team_col(u), u == enc.cur, float(maxi(c.hp, 0)) / c.max_hp(), c.display_name.to_upper(), c.dead))
-	var tab := PanelContainer.new()
-	tab.add_theme_stylebox_override("panel", CutBox.make(INK, Color(CYAN, 0.5), 6, 0b0100, Color(0, 0, 0, 0), 6))
-	var tv := VBoxContainer.new()
-	tv.add_theme_constant_override("separation", 0)
-	tab.add_child(tv)
-	tv.add_child(_text("RND %02d" % maxi(1, enc.init.round_num), F_TERM, 20, CYAN))
-	tv.add_child(_text("ENGAGED" if enc.engaged() else "UNDETECTED", F_DISPLAY, 20, RED if enc.engaged() else CYAN))
-	var gap := Control.new()
-	gap.custom_minimum_size = Vector2(14, 0)
-	_init_strip.add_child(gap)
-	_init_strip.add_child(tab)
+		var slot := Slot.new(portraits.tex(u), _team_col(u), u == enc.cur, float(maxi(c.hp, 0)) / c.max_hp(), c.display_name.to_upper(), c.dead)
+		slot.material = portraits.material()
+		slot.modulate = Portraits.tint(c.wound_state())
+		_init_strip.add_child(slot)
+	_clear(_round_box)   # round and stealth state: top right corner
+	_round_box.add_child(_text("ROUND %02d" % maxi(1, enc.init.round_num), F_TERM, 20, CYAN))
+	_round_box.add_child(_text("ENGAGED" if enc.engaged() else "UNDETECTED", F_DISPLAY, 20, RED if enc.engaged() else CYAN))
 	_clear(_card)
 	_clear(_econ)
 	var crew_turn: bool = enc.state == "playing" and not enc.cur.is_empty() and enc.cur.team == 0
@@ -402,7 +448,7 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 		var hp := HBoxContainer.new()
 		hp.add_theme_constant_override("separation", 8)
 		hp.alignment = BoxContainer.ALIGNMENT_BEGIN
-		var hm := Meter.new(float(maxi(c.hp, 0)) / c.max_hp(), c.max_hp() / 5, _hp_col(c), 150, 12)
+		var hm := _hp_meter(enc.cur.id, c, 150, 12)
 		hm.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		hp.add_child(hm)
 		hp.add_child(_text("%d/%d HP" % [c.hp, c.max_hp()], F_TERM, 20, _hp_col(c)))
@@ -443,9 +489,20 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 	_banner.text = floor_text
 	_banner.add_theme_color_override("font_color", GOLD if not floor_text.ends_with("1/%s" % floor_text.get_slice("/", 1)) else Color("9fb4c4"))
 	_net_refresh(enc)
+	for u2 in enc.units:   # remember what the bars showed, for the next ghost drain
+		_hp_seen[u2.id] = float(maxi(u2.c.hp, 0)) / u2.c.max_hp()
 	if enc.state != "playing":
 		toast("GIG %s" % ("COMPLETE" if enc.state == "won" else "FAILED"), 1e9)
 	_layout.call_deferred()
+
+
+func _hp_meter(uid: int, c: Combatant, w: float, h: float) -> Meter:
+	var f := float(maxi(c.hp, 0)) / c.max_hp()
+	var mt := Meter.new(f, c.max_hp() / 5, _hp_col(c), w, h)
+	var prev: float = _hp_seen.get(uid, f)
+	if prev > f + 0.001:
+		mt.ghost = prev
+	return mt
 
 
 func _hp_col(c: Combatant) -> Color:
@@ -456,13 +513,16 @@ func _hp_col(c: Combatant) -> Color:
 func _party_card(u: Dictionary, active: bool) -> Control:
 	var c: Combatant = u.c
 	var p := PanelContainer.new()
+	_cards[u.id] = p
 	p.add_theme_stylebox_override("panel", CutBox.make(INK, GOLD if active else Color(_team_col(u), 0.45), 10, 0b0101, GOLD if active else Color(0, 0, 0, 0), 6))
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", 8)
 	p.add_child(h)
 	var face := TextureRect.new()
 	face.texture = portraits.tex(u)
-	face.custom_minimum_size = Vector2(80, 80)   # 2x the 40 px art
+	face.material = portraits.material()
+	face.modulate = Portraits.tint(c.wound_state() if not c.dead else 4)
+	face.custom_minimum_size = Vector2(84, 84)   # 2x the 42 px render
 	face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	face.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -476,7 +536,7 @@ func _party_card(u: Dictionary, active: bool) -> Control:
 	v.add_child(_text(c.role.to_upper(), F_DISPLAY, 20, DIM))
 	var hr := HBoxContainer.new()
 	hr.add_theme_constant_override("separation", 6)
-	var hm := Meter.new(float(maxi(c.hp, 0)) / c.max_hp(), c.max_hp() / 5, _hp_col(c), 80, 9)
+	var hm := _hp_meter(u.id, c, 80, 9)
 	hm.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	hr.add_child(hm)
 	hr.add_child(_text("%d/%d" % [c.hp, c.max_hp()], F_TERM, 20, _hp_col(c)))
@@ -501,6 +561,8 @@ func tip(text: String, at: Vector2, head := "", head_col := CYAN) -> void:
 ## glitches in: the magenta split starts wide and snaps shut while the text slides a few pixels,
 ## an underline wipes across in the banner colour, then everything fades.
 func turn_banner(text: String, col: Color) -> void:
+	if _banner_tw and _banner_tw.is_valid():
+		_banner_tw.kill()
 	_turn_banner.text = text
 	_turn_banner.add_theme_color_override("font_color", col)
 	_turn_banner.reset_size()
@@ -515,6 +577,7 @@ func turn_banner(text: String, col: Color) -> void:
 	_turn_rule.size = Vector2(0, 2)
 	_turn_rule.modulate.a = 1.0
 	var tw := create_tween()
+	_banner_tw = tw
 	tw.tween_property(_turn_banner, "position:x", x, 0.18).set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
 	tw.parallel().tween_property(_turn_banner, "modulate:a", 1.0, 0.1)
 	tw.parallel().tween_method(func(v: int): _turn_banner.add_theme_constant_override("shadow_offset_x", v), 10, 2, 0.22)
@@ -522,6 +585,38 @@ func turn_banner(text: String, col: Color) -> void:
 	tw.tween_interval(0.9)
 	tw.tween_property(_turn_banner, "modulate:a", 0.0, 0.25)
 	tw.parallel().tween_property(_turn_rule, "modulate:a", 0.0, 0.25)
+
+
+## A one-frame-ish full-screen flash (crits, alerts).
+func flash_screen(col: Color) -> void:
+	_flash.color = col
+	create_tween().tween_property(_flash, "color:a", 0.0, 0.18)
+
+
+## Red scanlined edge glow for the whole enemy phase.
+func enemy_phase(on: bool) -> void:
+	create_tween().tween_property(_vignette.material, "shader_parameter/amount", 0.55 if on else 0.0, 0.25)
+
+
+## A unit was hurt: its party card shakes and flashes red.
+func hit_unit(uid: int) -> void:
+	var card: Control = _cards.get(uid)
+	if card == null or not is_instance_valid(card):
+		return
+	var tw := create_tween()
+	for k in 4:
+		tw.tween_property(card, "position:x", card.position.x + (3 if k % 2 == 0 else -3), 0.03)
+	tw.tween_property(card, "position:x", card.position.x, 0.03)
+	card.modulate = Color(1.6, 0.6, 0.6)
+	create_tween().tween_property(card, "modulate", Color.WHITE, 0.18)
+
+
+## Hit chance per fire mode on the hotbar while a target is hovered (empty clears).
+func mode_pcts(pcts: Dictionary) -> void:
+	for k in _mode_buttons:
+		var b: ActBtn = _mode_buttons[k]
+		b.pct = pcts.get(k, -1)
+		b.queue_redraw()
 
 
 func toast(text: String, secs := 2.2) -> void:

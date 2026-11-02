@@ -59,10 +59,16 @@ static func build(team: int, index: int, role := "") -> Node3D:
 
 	# --- head
 	var neck := b.joint(chest, "neck", Vector3(0, 0.17, 0))
-	b.capsule(neck, Vector3(0, 0.03, 0), 0.03, 0.08, skin)
+	b.capsule(neck, Vector3(0, 0.03, 0), 0.042, 0.09, skin.darkened(0.06))
+	b.tapered(chest, Vector3(0, 0.155, 0), 0.05, 0.12, 0.06, Vector3(1.0, 1.0, 0.7), jacket.darkened(0.1))   # trapezius
 	var head := b.joint(neck, "head", Vector3(0, 0.065, 0.005))
-	b.sphere(head, Vector3(0, 0.075, 0), Vector3(0.15, 0.17, 0.155), skin)   # slightly oversized: reads at ~24 px
+	b.sphere(head, Vector3(0, 0.08, 0), Vector3(0.145, 0.185, 0.16), skin)   # slightly oversized: reads at ~24 px
 	b.sphere(head, Vector3(0, 0.02, 0.035), Vector3(0.1, 0.07, 0.1), skin.darkened(0.08))   # jaw
+	# face: ears, nose, mouth (read in portraits; a pixel or two in play)
+	for ex in [-1, 1]:
+		b.sphere(head, Vector3(ex * 0.071, 0.075, -0.005), Vector3(0.014, 0.03, 0.022), skin.darkened(0.12))
+	b.sphere(head, Vector3(0, 0.06, 0.077), Vector3(0.018, 0.03, 0.022), skin.darkened(0.04))
+	b.box(head, Vector3(0, 0.026, 0.07), Vector3(0.035, 0.007, 0.01), skin.darkened(0.45))
 	if team == 1:
 		b.sphere(head, Vector3(0, 0.11, -0.005), Vector3(0.17, 0.13, 0.175), Color("2e333a"))   # helmet
 		b.tapered(head, Vector3(0, 0.08, 0.06), 0.06, 0.06, 0.03, Vector3(1.6, 1.0, 0.4), accent, 1.6)  # red visor
@@ -77,9 +83,11 @@ static func build(team: int, index: int, role := "") -> Node3D:
 			b.torus(head, Vector3(0, 0.085, 0), 0.077, 0.011, Vector3(1.0, 1.0, 1.0), accent, 1.6)
 		elif look.visor:
 			b.tapered(head, Vector3(0, 0.085, 0.066), 0.045, 0.045, 0.022, Vector3(1.6, 1.0, 0.4), accent, 1.6)
-		else:  # eyes: two small glowing optics
+		else:  # eyes (sclera + iris/optic) and brows
 			for ex in [-0.03, 0.03]:
-				b.sphere(head, Vector3(ex, 0.085, 0.07), Vector3(0.025, 0.02, 0.01), accent if look.eye_glow else Color("e8eef2"), 1.4)
+				b.sphere(head, Vector3(ex, 0.085, 0.07), Vector3(0.026, 0.016, 0.012), Color("e8eef2"))
+				b.sphere(head, Vector3(ex, 0.085, 0.075), Vector3(0.012, 0.012, 0.008), accent if look.eye_glow else Color("2a2030"), 1.4 if look.eye_glow else 0.0)
+				b.box(head, Vector3(ex, 0.108, 0.07), Vector3(0.034, 0.008, 0.012), (look.hair as Color).darkened(0.3))
 
 	# --- arms: a two-handed aim, rifle across the chest
 	for side in [-1, 1]:
@@ -109,7 +117,9 @@ static func build(team: int, index: int, role := "") -> Node3D:
 		if not (j is MeshInstance3D):
 			joints[j.name] = j
 	root.set_meta("j", joints)
+	b._outline_mat().albedo_color = Color("f4f6f8")   # white pixel outline for the active unit
 	root.set_meta("ink", b._outline_mat())
+	root.set_meta("outlines", b.outlines)
 	root.set_meta("mats", b.materials())
 	return root
 
@@ -117,6 +127,7 @@ static func build(team: int, index: int, role := "") -> Node3D:
 ## Part factory: caches materials, adds outlines, puts bodies on layers 1+2.
 class _Builder:
 	var ink := Color.BLACK
+	var outlines: Array[MeshInstance3D] = []
 	var _mats := {}
 	var _ink_mat: StandardMaterial3D
 
@@ -160,7 +171,7 @@ class _Builder:
 		mi.position = pos
 		mi.rotation = rot
 		mi.scale = scl
-		mi.layers = 3   # layer 2: the crew's own light only lights bodies
+		mi.layers = 2   # bodies only: the crew light lights them; muzzle-flash pops (mask 1) don't blow them out
 		parent.add_child(mi)
 		if outline and glow <= 0.0:
 			# inverted hull: a slightly larger back-face-only copy in ink
@@ -171,7 +182,9 @@ class _Builder:
 			ol.position = pos
 			ol.rotation = rot
 			ol.scale = scl * 1.13 + Vector3.ONE * 0.012
+			ol.visible = false   # only the active unit shows its outline (white)
 			parent.add_child(ol)
+			outlines.append(ol)
 
 	func sphere(parent: Node3D, pos: Vector3, size: Vector3, col: Color, glow := 0.0) -> void:
 		var s := SphereMesh.new()

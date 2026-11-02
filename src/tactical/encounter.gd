@@ -307,9 +307,19 @@ func attack(target: Dictionary, weapon: Weapon, mode: Attack.Mode) -> Dictionary
 	_rouse([target])
 	_noise(cur.pos)
 	var hp_before: int = target.c.hp
+	var loc := "head" if mode == Attack.Mode.AIMED_HEAD else "body"
+	var sp_before: int = target.c.sp(loc)
+	var wound_before: int = target.c.wound_state()
+	var ammo_before := weapon.ammo
 	var r := Attack.resolve(dice, cur.c, weapon, target.c, mode, Los.distance_m(p.from, target.pos))
+	var mult := 1
+	if mode == Attack.Mode.AUTOFIRE and r.hit and r.check != null:
+		mult = mini(r.check.total - r.check.dv, weapon.autofire_mult())   # rounds that connect (p173)
 	events.append({"type": "attack", "unit": cur.id, "target": target.id, "from": p.from, "hit": r.hit, "dodged": r.dodged,
-		"damage": hp_before - target.c.hp, "crit": not r.crits.is_empty(), "mode": mode, "weapon": weapon.id(), "killed": target.c.dead or target.c.wound_state() == Combatant.Wound.MORTAL})
+		"damage": hp_before - target.c.hp, "through": r.through, "location": r.location, "sp_before": sp_before,
+		"sp_after": target.c.sp(r.location), "crit": not r.crits.is_empty(), "crit_names": r.crits.map(func(c): return String(c.get("name", ""))),
+		"wound_before": wound_before, "wound_after": target.c.wound_state(), "mult": mult, "rounds": maxi(1, ammo_before - weapon.ammo),
+		"mode": mode, "weapon": weapon.id(), "dead": target.c.dead, "killed": target.c.dead or target.c.wound_state() == Combatant.Wound.MORTAL})
 	var who := "%s → %s" % [cur.c.display_name, target.c.display_name]
 	if r.dodged:
 		say("%s: DODGE" % who)

@@ -191,10 +191,7 @@ func _process(delta: float) -> void:
 	if absf(cam_yaw - yaw_goal) > 0.01:   # smooth Q/E turns
 		cam_yaw = yaw_goal if absf(cam_yaw - yaw_goal) < 0.3 else lerpf(cam_yaw, yaw_goal, minf(1.0, delta * 12.0))
 		_place_camera()
-	if fx and fx.shake > 0.002:   # camera shake (juice)
-		_place_camera()
-		cam.position += Vector3(randf_range(-1, 1), randf_range(-0.5, 0.5), randf_range(-1, 1)) * fx.shake
-		fx.shake *= exp(-delta * 12.0)
+	_update_shake(delta)
 	_animate_bodies(delta)
 	for fl in fires:  # firelight flicker
 		fl.light_energy = fl.get_meta("base", 1.0) * look.lights * (0.85 + 0.15 * sin(Time.get_ticks_msec() * 0.013 + fl.position.x) + randf() * 0.08)
@@ -325,6 +322,10 @@ func _apply_look() -> void:
 	post.set_shader_parameter("palette", pal)
 	post.set_shader_parameter("palette_n", pal.size())
 	post.set_shader_parameter("palette_neutral_n", PALETTE_NEUTRALS)
+	if hud and hud.portraits:   # portraits go through the same palette shader
+		hud.portraits.post_shader = POST_SHADER
+		hud.portraits.palette = pal
+		hud.portraits.palette_neutral_n = PALETTE_NEUTRALS
 	post.set_shader_parameter("levels", look.levels)
 	post.set_shader_parameter("dither", look.dither)
 	post.set_shader_parameter("contrast", look.contrast)
@@ -436,7 +437,9 @@ func _build_world() -> void:
 	door_nodes = Node3D.new()
 	world.add_child(door_nodes)
 	fx = Fx.new()
+	fx.rng.seed = gig.seed * 7 + 3
 	world.add_child(fx)
+	_flash_lights.clear()
 	grid_node = MeshInstance3D.new()
 	var pm := PlaneMesh.new()
 	pm.size = Vector2(m.w, m.h)
@@ -457,21 +460,14 @@ func _build_world() -> void:
 	decals.clear()
 	for u in enc.units:
 		var n := UnitModel.build(u.team, u.id if u.team == 0 else 0, String(u.c.role))
-		decals[u.id] = _decal(Color("05d9e8") if u.team == 0 else Color("ff3b4f"), 0.95, false, 0.0)
+		decals[u.id] = _decal(Color("05d9e8"), 0.95, false, 0.0)
+		decals[u.id].visible = false   # owner: no glows under units; they blend into the scene
 		var blob := _decal(Color.BLACK, 0.75, false, 0.0, true)   # contact shadow
 		blob.name = "blob"
 		blob.get_parent().remove_child(blob)
 		n.add_child(blob)
 		blob.position = Vector3(0, 0.02, 0)
 		blob.scale = Vector3.ONE / 1.3
-		if u.team == 0:  # crew carry a small light (XCOM-style) so they read at night through the pixel filter
-			var pl := OmniLight3D.new()
-			pl.light_color = Color("cfe6ff")
-			pl.light_energy = 0.8
-			pl.omni_range = 3.5
-			pl.light_cull_mask = 2   # only the bodies (layer 2), not the pavement
-			pl.position = Vector3(0, 1.1, 0.2)
-			n.add_child(pl)
 		world.add_child(n)
 		unit_nodes[u.id] = n
 	_apply_world_look()
@@ -599,15 +595,21 @@ func _refresh() -> void:
 		var n: Node3D = unit_nodes[u.id]
 		var seen: bool = u.team == 0 or not fog_on or enc.vision.visible.has(u.pos)
 		n.visible = seen and not _cut_hides(u.pos)
+		var dc: MeshInstance3D = decals[u.id]
+		dc.visible = false
+		n.set_meta("wound", u.c.wound_state())
+		if u.c.dead:
+			if not n.get_meta("fallen", false):   # died out of sight: just lie there
+				n.position = Vector3(u.pos.x + 0.5, _gy(u.pos) + 0.08, u.pos.y + 0.5)
+				n.rotation = Vector3(deg_to_rad(-88), n.rotation.y, 0)
+				n.set_meta("fallen", true)
+			continue
 		n.position = Vector3(u.pos.x + 0.5, _gy(u.pos), u.pos.y + 0.5)
 		n.scale = Vector3.ONE * 1.3   # a touch larger than life, still in scale with 1.15-high doors
-		var dc: MeshInstance3D = decals[u.id]
-		dc.visible = n.visible and not u.c.dead
 		dc.position = n.position + Vector3(0, 0.03, 0)
-		if u.c.dead or u.c.wound_state() == Combatant.Wound.MORTAL:
-			n.rotation = Vector3(deg_to_rad(-88), n.rotation.y, 0)
-			n.position.y += 0.08
-		else:
+		n.set_meta("slump_goal", 1.0 if u.c.wound_state() == Combatant.Wound.MORTAL else 0.0)
+		n.set_meta("crouch_goal", 1.0 if _beside_cover(u.pos) else 0.0)   # crouching reads as "in cover"
+		if true:
 			n.rotation.x = 0
 			var foes := enc.alive(1 - u.team).filter(func(o): return o.alerted or u.team == 1)
 			if u.team == 1 and not u.alerted:
@@ -617,11 +619,20 @@ func _refresh() -> void:
 				var d: Vector3i = foes[0].pos - u.pos
 				n.rotation.y = atan2(float(d.x), float(d.y))
 	if not enc.cur.is_empty():
-		ring.visible = enc.cur.team == 0 or enc.vision.visible.has(enc.cur.pos)
+		ring.visible = false   # the white outline marks the active unit now
+		_update_outlines()
 		ring.position = Vector3(enc.cur.pos.x + 0.5, _gy(enc.cur.pos) + 0.04, enc.cur.pos.y + 0.5)
 	_draw_grid()
-	hud.refresh(enc, mode, cover_mode, "%s  ·  FLOOR %d/%d" % [String(m.params.get("scene", gig.scene)).replace("_", " ").to_upper(), view_floor + 1, m.floors])
+	_hud_refresh()
 	_toast_new_log()
+
+
+func _beside_cover(v: Vector3i) -> bool:
+	for d in MapGen.DIRS:
+		var b := enc.los.blocker(Vector3i(v.x + d.x, v.y + d.y, v.z))
+		if b == "cover" or b == "wall":
+			return true
+	return false
 
 
 func _cut_radius() -> float:
@@ -636,7 +647,10 @@ func _update_cut() -> void:
 	if svp and svp.size.y > 0:
 		# the hole follows the active crew member (it exists to keep them visible), else the focus
 		var fp := Vector3(cam_target.x, view_floor * FH, cam_target.z)
-		if enc and not enc.cur.is_empty() and enc.cur.team == 0:
+		if enc and _focus_unit >= 0:
+			var fu: Dictionary = enc.units[_focus_unit]
+			fp = Vector3(fu.pos.x + 0.5, fu.pos.z * FH, fu.pos.y + 0.5)
+		elif enc and not enc.cur.is_empty() and enc.cur.team == 0:
 			fp = Vector3(enc.cur.pos.x + 0.5, enc.cur.pos.z * FH, enc.cur.pos.y + 0.5)
 		var uv := cam.unproject_position(fp) / Vector2(svp.size)
 		var dep := (fp - cam.global_position).dot(-cam.global_transform.basis.z)
@@ -823,7 +837,8 @@ func _place_camera() -> void:
 		var sy := roundf(ly / texel) * texel
 		cam.position += bx * (sx - lx) + by * (sy - ly)
 		shift = Vector2(-(lx - sx), (ly - sy)) / texel * px
-	screen.position = Vector2(-px, -px) + shift
+	_screen_base = Vector2(-px, -px) + shift
+	screen.position = _screen_base + _shake_px.round() * px
 	sun.rotation_degrees = Vector3(-55, cam_yaw + 35, 0)
 	if enc and not unit_nodes.is_empty():
 		_update_outlines()
@@ -843,13 +858,14 @@ func _frame_unit(u: Dictionary) -> void:
 	_place_camera()
 
 
-## Zoomed out, unit outlines switch from ink to team colour so units stay findable.
+## Only the unit whose turn it is gets a white pixel outline; everyone else blends in.
 func _update_outlines() -> void:
 	for u in enc.units:
 		var n: Node3D = unit_nodes.get(u.id)
-		if n and n.has_meta("ink"):
-			var mt: StandardMaterial3D = n.get_meta("ink")
-			mt.albedo_color = (Color("05d9e8") if u.team == 0 else Color("ff3b4f")) if cam_dist > 30.0 else (Color("05060a") if u.team == 0 else Color("2a0406"))
+		if n and n.has_meta("outlines"):
+			var on: bool = not enc.cur.is_empty() and u.id == enc.cur.id and not u.c.dead
+			for ol in n.get_meta("outlines"):
+				(ol as MeshInstance3D).visible = on
 
 
 ## Height of the walkable surface of a square (sidewalks are raised by a kerb).
@@ -1030,6 +1046,7 @@ func _demo_attack() -> void:
 		if v != g.pos and enc.los.sight(v, g.pos).visible and Vector2(v.x - g.pos.x, v.y - g.pos.y).length() >= 3:
 			enc.cur.pos = v
 			break
+	view_floor = enc.cur.pos.z
 	cam_target = Vector3((enc.cur.pos.x + g.pos.x) / 2.0 + 0.5, 0, (enc.cur.pos.y + g.pos.y) / 2.0 + 0.5)
 	_place_camera()
 	enc.refresh_vision()
@@ -1063,6 +1080,20 @@ func _after_action() -> void:
 
 
 # --- Juice: event playback ----------------------------------------------------------
+# Timing rule (game-feel review): every outcome fires when its round arrives; the camera frames
+# who is acting; bodies wind up, recoil and react on the joint rig; HUD drains at impact.
+
+const FIRE_GAP := {"smg": 0.06, "heavy_smg": 0.07, "assault_rifle": 0.085}
+const SAFE := Rect2(260, 110, 0, 0)   # HUD-free area: left edge, top; right/bottom margins below
+const SAFE_BOTTOM := 170.0
+
+var _focus_unit := -1                 ## unit the see-through hole and cutaway follow during playback
+var _shake_px := Vector2.ZERO         ## screen-space shake offset (buffer pixels) and its velocity
+var _shake_vel := Vector2.ZERO
+var _screen_base := Vector2.ZERO
+var _callout_stack := {}              ## unit id → [count, msec] so callouts stack instead of overlapping
+var _flash_lights := {}               ## unit id → pooled muzzle OmniLight3D
+
 
 func _seen(v: Vector3i) -> bool:
 	return not fog_on or enc.vision.visible.has(v)
@@ -1079,13 +1110,16 @@ func _play_events() -> void:
 		var u: Dictionary = enc.units[e.unit]
 		if u.team == 1 and not hostile_shown and String(e.type) != "alert" and _event_visible(e):
 			hostile_shown = true
+			hud.enemy_phase(true)
 			hud.turn_banner("HOSTILE ACTIVITY", Hud.RED)
-			await get_tree().create_timer(0.35).timeout
+			await get_tree().create_timer(0.3).timeout
 		match String(e.type):
 			"move": await _anim_move(e)
 			"attack": await _anim_attack(e)
 			"cover": await _anim_cover(e)
 			"alert": _anim_alert(e)
+	hud.enemy_phase(false)
+	_focus_unit = -1
 
 
 func _event_visible(e: Dictionary) -> bool:
@@ -1097,22 +1131,58 @@ func _event_visible(e: Dictionary) -> bool:
 	return _seen(enc.units[e.unit].pos)
 
 
-## Walk the body along the path, square by square, facing the way it goes.
+## HUD-safe screen rect (outside the panels).
+func _safe_rect() -> Rect2:
+	var vs := get_viewport().get_visible_rect().size
+	return Rect2(SAFE.position, Vector2(vs.x - SAFE.position.x - 40, vs.y - SAFE.position.y - SAFE_BOTTOM))
+
+
+## Smoothly move the camera focus (and optionally zoom) over `secs`.
+func _pan_to(p: Vector3, secs := 0.3, dist := -1.0) -> void:
+	var from := cam_target
+	var d0 := cam_dist
+	var d1 := dist if dist > 0 else cam_dist
+	var tw := create_tween()
+	tw.tween_method(func(t: float):
+		cam_target = from.lerp(Vector3(p.x, 0, p.z), t)
+		cam_dist = lerpf(d0, d1, t)
+		_place_camera(), 0.0, 1.0, secs).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	await tw.finished
+
+
+## Frame two points inside the safe rect, zooming out if they don't fit.
+func _frame_pair(a: Vector3, b: Vector3) -> void:
+	var mid := (a + b) / 2
+	var span := Vector2(a.x - b.x, a.z - b.z).length()
+	var want := maxf(cam_dist, minf(60.0, span * 1.9 + 6.0))
+	var sa := _to_screen(a)
+	var sb := _to_screen(b)
+	var sr := _safe_rect().grow(-40)
+	if sr.has_point(sa) and sr.has_point(sb) and want <= cam_dist + 0.1:
+		return
+	await _pan_to(mid, 0.28, want)
+
+
+## Walk the body along the path, square by square, facing the way it goes; the camera follows
+## softly once the walker leaves the middle of the safe area.
 func _anim_move(e: Dictionary) -> void:
 	var u: Dictionary = enc.units[e.unit]
 	var n: Node3D = unit_nodes[u.id]
 	var path: Array = e.path
 	if u.team == 1 and not _event_visible(e):
 		return
+	_focus_unit = u.id
 	var step := 0.075 if e.run else 0.105
 	n.set_meta("walk", true)
 	n.set_meta("run", e.run)
+	n.set_meta("crouch_goal", 0.0)
+	var inner := _safe_rect().grow_individual(-_safe_rect().size.x * 0.2, -_safe_rect().size.y * 0.2, -_safe_rect().size.x * 0.2, -_safe_rect().size.y * 0.2)
 	for i in range(1, path.size()):
 		var a: Vector3i = path[i - 1]
 		var b: Vector3i = path[i]
 		var d := Vector2(b.x - a.x, b.y - a.y)
 		if d.length() > 0.01:
-			n.rotation.y = atan2(d.x, d.y)
+			_turn_to(n, atan2(d.x, d.y), 0.06)
 		if u.team == 1:
 			n.visible = _seen(a) or _seen(b)
 		var to := Vector3(b.x + 0.5, _gy(b), b.y + 0.5)
@@ -1121,8 +1191,15 @@ func _anim_move(e: Dictionary) -> void:
 		(decals[u.id] as Node3D).position = to + Vector3(0, 0.03, 0)
 		if u == enc.cur:
 			ring.position = to + Vector3(0, 0.04, 0)
+		if n.visible and not inner.has_point(_to_screen(to)):
+			_pan_to(to, 0.35)   # soft follow (not awaited)
 		await tw.finished
 	n.set_meta("walk", false)
+
+
+func _turn_to(n: Node3D, yaw: float, secs := 0.12) -> void:
+	var goal := n.rotation.y + wrapf(yaw - n.rotation.y, -PI, PI)
+	create_tween().tween_property(n, "rotation:y", goal, secs).set_trans(Tween.TRANS_SINE)
 
 
 func _muzzle_of(n: Node3D) -> Vector3:
@@ -1131,7 +1208,33 @@ func _muzzle_of(n: Node3D) -> Vector3:
 	return w.global_transform * Vector3(0, 0.02, 0.42) if w else n.global_position + Vector3(0, 0.8, 0)
 
 
-## Shots: face, muzzle flash + light, tracer, then the outcome on the target.
+func _flash_light(uid: int) -> OmniLight3D:
+	if not _flash_lights.has(uid) or not is_instance_valid(_flash_lights[uid]):
+		var l := OmniLight3D.new()
+		l.light_energy = 0.0
+		fx.add_child(l)
+		_flash_lights[uid] = l
+	return _flash_lights[uid]
+
+
+## Where a missed round ends: offset clear of the body, then on along the line until it meets a
+## wall or the floor.
+func _miss_point(m0: Vector3, aim: Vector3) -> Vector3:
+	var dir := (aim - m0).normalized()
+	var side := dir.cross(Vector3.UP).normalized() * (fx.rng.randf_range(0.4, 0.75) * (1.0 if fx.rng.randf() < 0.5 else -1.0))
+	var p := aim + side + Vector3(0, fx.rng.randf_range(-0.25, 0.45), 0)
+	var d2 := (p - m0).normalized()
+	for k in 48:
+		p += d2 * 0.25
+		var f := clampi(int(floor(p.y / FH)), 0, m.floors - 1)
+		var c := Vector3i(int(floor(p.x)), int(floor(p.z)), f)
+		if not m.inb(c.x, c.y) or p.y <= f * FH + 0.02 or enc.los.blocker(c) == "wall":
+			return p
+	return p
+
+
+## Shots on the rig: lean out, turn and raise, fire round by round (each impact on arrival),
+## recoil with muzzle climb, then the outcome on the last connecting round.
 func _anim_attack(e: Dictionary) -> void:
 	if not _event_visible(e):
 		return
@@ -1139,62 +1242,130 @@ func _anim_attack(e: Dictionary) -> void:
 	var tu: Dictionary = enc.units[e.target]
 	var sn: Node3D = unit_nodes[su.id]
 	var tn: Node3D = unit_nodes[tu.id]
+	_focus_unit = su.id
+	if su.team == 0 and su.pos.z != view_floor:   # follow a crew shooter to their floor (XCOM-style)
+		view_floor = su.pos.z
+		_refresh()
 	sn.visible = sn.visible or _seen(su.pos)
-	var d := Vector2(tu.pos.x - su.pos.x, tu.pos.y - su.pos.y)
-	sn.rotation.y = atan2(d.x, d.y)
-	var aim := _body_pos(tu) + Vector3(0, 0.75, 0)
+	tn.visible = tn.visible or _seen(tu.pos)
+	await _frame_pair(_body_pos(su), _body_pos(tu))
 	var wid := String(e.get("weapon", "assault_rifle"))
-	# autofire: a rattle of rounds (p173: autofire is one check, shown as a burst); else one shot
-	var shots := (7 if wid.contains("smg") else 6) if int(e.mode) == Attack.Mode.AUTOFIRE else 1
-	var gap := 0.045 if shots > 1 else 0.0
-	var j: Dictionary = sn.get_meta("j", {})
-	for i in shots:
+	var d := Vector2(tu.pos.x - su.pos.x, tu.pos.y - su.pos.y)
+	# lean out of cover toward the firing square
+	var home := sn.position
+	var from: Vector3i = e.get("from", su.pos)
+	if from != su.pos:
+		var lean := Vector3(from.x - su.pos.x, 0, from.y - su.pos.y).normalized() * 0.35
+		create_tween().tween_property(sn, "position", home + lean, 0.12)
+	sn.set_meta("crouch_goal", 0.0)
+	_turn_to(sn, atan2(d.x, d.y), 0.12)
+	create_tween().tween_method(func(v: float): sn.set_meta("aim", v), float(sn.get_meta("aim", 0.0)), 1.0, 0.1)
+	await get_tree().create_timer(0.18).timeout
+	var aim := _body_pos(tu) + Vector3(0, 0.95 if String(e.get("location", "body")) == "head" else 0.72, 0) * 1.0
+	var rounds: int = int(e.get("rounds", 1)) if int(e.mode) == Attack.Mode.AUTOFIRE else 1
+	var connect: int = (int(e.get("mult", 1)) if int(e.mode) == Attack.Mode.AUTOFIRE else 1) if (e.hit and not e.dodged) else 0
+	var hit_rounds := {}   # which rounds connect: spread through the burst
+	for k in connect:
+		hit_rounds[int(round(float(k + 1) * rounds / (connect + 1)))] = true
+	var last_hit := -1
+	for k in hit_rounds:
+		last_hit = maxi(last_hit, k)
+	var gap: float = FIRE_GAP.get(wid, 0.0)
+	var light := _flash_light(su.id)
+	if e.dodged:   # the dodge starts before the rounds arrive, so they pass through empty air
+		var side := Vector3(-d.y, 0, d.x).normalized() * 0.32
+		var tw := create_tween()
+		tw.tween_property(tn, "position", tn.position + side, 0.09).set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
+		tw.tween_interval(0.25)
+		tw.tween_property(tn, "position", tn.position, 0.2)
+		_float(tu, "DODGE", Hud.CYAN)
+	var arrived := [0]
+	for i in rounds:
 		var m0 := _muzzle_of(sn)
 		var dir := (aim - m0).normalized()
-		fx.muzzle(m0, dir, wid)
-		if not wid.contains("launcher"):
-			fx.brass(m0 - dir * 0.35, dir.cross(Vector3.UP).normalized() * -1.0)
-		var dest := aim
-		if not e.hit or e.dodged:
-			dest = aim + Vector3(randf_range(-0.6, 0.6), randf_range(-0.3, 0.3), randf_range(-0.6, 0.6)) + dir * 1.5
-		elif shots > 1 and i < shots - 1:
-			dest = aim + Vector3(randf_range(-0.3, 0.3), randf_range(-0.2, 0.2), randf_range(-0.3, 0.3))
-		fx.bullet(m0, dest, wid)
-		if j.has("chest"):   # recoil kick
-			var ch: Node3D = j.chest
-			ch.rotation.x = (ch.get_meta("rest") as Transform3D).basis.get_euler().x - 0.18
-			create_tween().tween_property(ch, "rotation:x", (ch.get_meta("rest") as Transform3D).basis.get_euler().x, 0.12)
-		fx.kick(0.03 if shots > 1 else 0.06)
-		await get_tree().create_timer(gap if shots > 1 else 0.06).timeout
-	if e.dodged:
-		var side := Vector3(-d.y, 0, d.x).normalized() * 0.3
-		var tw := create_tween()
-		tw.tween_property(tn, "position", tn.position + side, 0.08)
-		tw.tween_property(tn, "position", tn.position, 0.18)
-		_float(tu, "DODGE", Hud.CYAN)
-	elif e.hit:
-		fx.sparks(aim)
-		fx.blood(aim, e.crit)
-		_hit_flash(tn)
-		var tw2 := create_tween()   # flinch
-		tw2.tween_property(tn, "rotation:x", -0.25, 0.06)
-		tw2.tween_property(tn, "rotation:x", 0.0, 0.18)
-		_float(tu, "-%d" % int(e.damage), Hud.RED)
-		fx.kick(0.22 if e.crit else 0.09)
-		if e.crit:
-			_float(tu, "CRITICAL", Hud.GOLD, Vector2(0, -34))
-			await get_tree().create_timer(0.12).timeout   # hit-stop
-		if e.killed:
-			await get_tree().create_timer(0.15).timeout
-			var tw3 := create_tween()
-			tw3.tween_property(tn, "rotation:x", deg_to_rad(-88), 0.45).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
-			tw3.parallel().tween_property(tn, "position:y", tn.position.y + 0.08, 0.45)
-			fx.pool(_body_pos(tu))
-			_float(tu, "DOWN", Hud.RED, Vector2(0, -34))
-	else:
-		fx.sparks(aim + Vector3(randf_range(-0.5, 0.5), -0.6, randf_range(-0.5, 0.5)))
+		fx.muzzle(m0, dir, wid, light, rounds == 1 or fx.rng.randf() > 0.25)
+		if not wid.contains("launcher") and not wid.contains("bow"):
+			fx.brass(m0 - dir * 0.35, dir.cross(Vector3.UP).normalized(), _gy(su.pos))
+		var hits: bool = hit_rounds.has(i)
+		var dest := aim + Vector3(fx.rng.randf_range(-0.08, 0.08), fx.rng.randf_range(-0.08, 0.08), fx.rng.randf_range(-0.08, 0.08)) if hits else _miss_point(m0, aim)
+		var is_last := i == last_hit
+		fx.bullet(m0, dest, wid, func():
+			arrived[0] += 1
+			if hits:
+				fx.sparks(dest)
+				if is_last:
+					_outcome(e, su, tu, tn, dest, dir)
+			else:
+				fx.burst(dest, Color("ffd27a"), 5, 2.0, 0.035, 0.2, 1.6)
+				fx.burst(dest, Color("8a8478"), 3, 0.6, 0.12, 0.6, 0.0, 0.4))
+		_recoil(sn, rounds > 1)
+		_kick(_screen_dir(m0, aim) * -1.0, 1.0 if rounds > 1 else 1.5)
+		await get_tree().create_timer(gap + fx.rng.randf_range(0.0015, 0.003) if rounds > 1 else 0.05).timeout
+	# wait for the last round to land, then hold the framing a moment
+	var t0 := Time.get_ticks_msec()
+	while arrived[0] < rounds and Time.get_ticks_msec() - t0 < 600:
+		await get_tree().process_frame
+	if not e.hit and not e.dodged:
 		_float(tu, "MISS", Hud.DIM)
-	await get_tree().create_timer(0.35).timeout
+	create_tween().tween_method(func(v: float): sn.set_meta("aim", v), 1.0, 0.0, 0.25).set_delay(0.3)
+	if from != su.pos:
+		create_tween().tween_property(sn, "position", home, 0.15).set_delay(0.25)
+	await get_tree().create_timer(0.45 if e.hit else 0.3).timeout
+
+
+## The result on the target, when the connecting round lands.
+func _outcome(e: Dictionary, su: Dictionary, tu: Dictionary, tn: Node3D, at: Vector3, dir: Vector3) -> void:
+	var dmg := int(e.damage)
+	if dmg <= 0:   # armour stopped it: sparks and a ricochet, cyan ARMOR and the SP ablation
+		fx.burst(at, Color("fff0b0"), 14, 4.5, 0.04, 0.3, 2.0)
+		fx.bullet(at, at + (Vector3.UP * 0.8 + dir.cross(Vector3.UP) * fx.rng.randf_range(-1.0, 1.0) - dir * 0.3).normalized() * 3.0, "medium_pistol")
+		_float(tu, "ARMOR", Hud.CYAN)
+		_float(tu, "SP %d→%d" % [int(e.sp_before), int(e.sp_after)], Hud.CYAN)
+		_react(tn, dir, 0.4)
+		_kick(_screen_dir(at - dir, at), 1.5)
+		return
+	fx.blood(at, e.crit)
+	_hit_flash(tn)
+	_react(tn, dir, 1.0 if not e.crit else 1.5)
+	_float(tu, "-%d" % dmg, Hud.RED)
+	if String(e.get("location", "body")) == "head":
+		_float(tu, "HEADSHOT", Hud.GOLD)
+	if int(e.sp_after) < int(e.sp_before):
+		_float(tu, "SP %d→%d" % [int(e.sp_before), int(e.sp_after)], Hud.CYAN)
+	_kick(_screen_dir(at - dir, at), 2.0)
+	hud.hit_unit(tu.id)
+	_hud_refresh()   # HP drains at the moment of impact
+	if e.crit:
+		var names: Array = e.get("crit_names", [])
+		_float(tu, "CRITICAL · %s" % (String(names[0]).to_upper() if not names.is_empty() else ""), Hud.GOLD)
+		hud.flash_screen(Color(1, 0.2, 0.2, 0.22))
+		_kick(_screen_dir(at - dir, at), 4.0)
+		_hit_stop(90)
+	if int(e.wound_before) < Combatant.Wound.SERIOUS and int(e.wound_after) == Combatant.Wound.SERIOUS:
+		_float(tu, "SERIOUSLY WOUNDED", Color("ffb000"))
+	if e.killed:
+		_die(tu, tn, dir, bool(e.get("dead", true)))
+
+
+func _hud_refresh() -> void:
+	hud.refresh(enc, mode, cover_mode, "%s  ·  FLOOR %d/%d" % [String(m.params.get("scene", gig.scene)).replace("_", " ").to_upper(), view_floor + 1, m.floors])
+
+
+## Recoil: kick the weapon back and the chest up; autofire climbs, capped; settles with a spring.
+func _recoil(n: Node3D, burst: bool) -> void:
+	var r: float = n.get_meta("recoil", 0.0)
+	n.set_meta("recoil", minf(r + (0.05 if burst else 0.12), 0.24))
+	n.set_meta("recoil_kick", 1.0)
+
+
+## Hit reaction: the upper body snaps away from the shot, then springs back.
+func _react(n: Node3D, dir: Vector3, strength: float) -> void:
+	n.set_meta("hit_dir", dir)
+	n.set_meta("hit_t", 0.0)
+	n.set_meta("hit_amp", strength)
+	var tw := create_tween()   # a small shove along the shot
+	tw.tween_property(n, "position", n.position + Vector3(dir.x, 0, dir.z).normalized() * 0.08 * strength, 0.05)
+	tw.tween_property(n, "position", n.position, 0.22)
 
 
 func _hit_flash(n: Node3D) -> void:
@@ -1206,39 +1377,117 @@ func _hit_flash(n: Node3D) -> void:
 			(mt as ShaderMaterial).set_shader_parameter("flash", v), 1.0, 0.0, 0.25)
 
 
+## Death: knees go, then the body falls along the shot with one small bounce; the weapon drops.
+## Mortally Wounded units slump to their knees instead (they can still be stabilised).
+func _die(u: Dictionary, n: Node3D, dir: Vector3, dead: bool) -> void:
+	n.set_meta("slump_goal", 1.0)
+	if not dead:
+		_float(u, "DYING", Hud.RED)
+		return
+	_float(u, "DOWN", Hud.RED)
+	await get_tree().create_timer(0.15).timeout
+	var flat := Vector3(dir.x, 0, dir.z).normalized()
+	var axis := Vector3.UP.cross(flat).normalized()
+	if axis.length() < 0.5:
+		axis = Vector3.RIGHT
+	var b0 := n.transform.basis
+	var b1 := Basis(axis, deg_to_rad(86)) * b0
+	var q0 := b0.get_rotation_quaternion()
+	var q1 := b1.get_rotation_quaternion()
+	var scl := n.scale
+	var tw := create_tween()
+	tw.tween_method(func(t: float): n.basis = Basis(q0.slerp(q1, t)).scaled(scl), 0.0, 1.0, 0.35).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
+	tw.tween_method(func(t: float): n.basis = Basis(q1.slerp(q0, 0.06 * sin(t * PI))).scaled(scl), 0.0, 1.0, 0.18)
+	n.set_meta("fallen", true)
+	var j: Dictionary = n.get_meta("j", {})
+	if j.has("weapon"):
+		var w: Node3D = j.weapon
+		var gp := w.global_transform
+		w.get_parent().remove_child(w)
+		fx.add_child(w)
+		w.global_transform = gp
+		var land := Vector3(gp.origin.x, _gy(u.pos) + 0.03, gp.origin.z) + flat * 0.4
+		var wt := create_tween()
+		wt.tween_property(w, "global_position", land, 0.3).set_ease(Tween.EASE_IN)
+		wt.parallel().tween_property(w, "rotation", w.rotation + Vector3(0, fx.rng.randf_range(2, 5), 1.4), 0.3)
+	fx.pool(_body_pos(u))
+	(decals[u.id] as Node3D).visible = false
+
+
 func _anim_cover(e: Dictionary) -> void:
 	var su: Dictionary = enc.units[e.unit]
 	var sn: Node3D = unit_nodes[su.id]
 	var cell: Vector3i = e.cell
 	var at := Vector3(cell.x + 0.5, cell.z * FH + 0.45, cell.y + 0.5)
+	_focus_unit = su.id
 	var d := Vector2(cell.x - su.pos.x, cell.y - su.pos.y)
-	sn.rotation.y = atan2(d.x, d.y)
+	_turn_to(sn, atan2(d.x, d.y), 0.12)
+	create_tween().tween_method(func(v: float): sn.set_meta("aim", v), 0.0, 1.0, 0.1)
+	await get_tree().create_timer(0.15).timeout
 	var m0 := _muzzle_of(sn)
 	var wid := String(e.get("weapon", "assault_rifle"))
-	fx.muzzle(m0, (at - m0).normalized(), wid)
-	fx.bullet(m0, at, wid)
-	fx.debris(at)
-	fx.kick(0.06)
+	fx.muzzle(m0, (at - m0).normalized(), wid, _flash_light(su.id))
+	_recoil(sn, false)
 	var gone: bool = enc.los.cover_hp.get(cell, 1) == 0 or m.t(cell.z, cell.x, cell.y) != TacMap.T.WALL and m.t(cell.z, cell.x, cell.y) != TacMap.T.DOOR and not enc.los.cover_hp.has(cell)
-	if gone:
-		fx.debris(at, true)
-		fx.kick(0.18)
-	await get_tree().create_timer(0.3).timeout
+	fx.bullet(m0, at, wid, func():
+		fx.debris(at, gone)
+		_kick(_screen_dir(m0, at), 4.0 if gone else 1.5)
+		var left: int = enc.los.cover_hp.get(cell, enc.los.wall_hp.get(cell, 0))
+		_float_at(at + Vector3(0, 0.5, 0), "-%d · %s" % [int(e.damage), "DESTROYED" if gone else "%d HP" % left], Hud.GOLD if gone else Hud.TEXT))
+	await get_tree().create_timer(0.45).timeout
+	create_tween().tween_method(func(v: float): sn.set_meta("aim", v), 1.0, 0.0, 0.25)
 
 
 func _anim_alert(e: Dictionary) -> void:
 	var u: Dictionary = enc.units[e.unit]
 	if _seen(u.pos):
 		(unit_nodes[u.id] as Node3D).visible = true
-		_float(u, "!", Hud.RED, Vector2(10, -20))
+		_float(u, "!", Hud.RED)
+		hud.flash_screen(Color(1, 0.15, 0.2, 0.12))
+	_hud_refresh()   # the stealth chip flips to ENGAGED now, not after playback
 
 
-## Walk cycle (legs, arms, bob) while moving; breathing and a slight weapon sway at rest.
+# --- Shake and hit-stop (screen space: whole buffer pixels, so the pixel art never crawls) ----
+
+func _screen_dir(a: Vector3, b: Vector3) -> Vector2:
+	var v := cam.unproject_position(b) - cam.unproject_position(a)
+	return v.normalized() if v.length() > 0.01 else Vector2.RIGHT
+
+
+func _kick(dir: Vector2, px: float) -> void:
+	_shake_vel += dir * px * 60.0
+
+
+func _hit_stop(ms: int) -> void:
+	var tws := get_tree().get_processed_tweens()
+	for t in tws:
+		t.pause()
+	fx.process_mode = Node.PROCESS_MODE_DISABLED
+	await get_tree().create_timer(ms / 1000.0, true, false, true).timeout
+	for t in tws:
+		if t.is_valid():
+			t.play()
+	fx.process_mode = Node.PROCESS_MODE_INHERIT
+
+
+func _update_shake(delta: float) -> void:
+	# damped spring back to rest
+	var acc := -_shake_px * 600.0 - _shake_vel * 22.0
+	_shake_vel += acc * delta
+	_shake_px += _shake_vel * delta
+	if _shake_px.length() < 0.05 and _shake_vel.length() < 0.5:
+		_shake_px = Vector2.ZERO
+		_shake_vel = Vector2.ZERO
+	screen.position = _screen_base + _shake_px.round() * _px()
+
+
+# --- Bodies: walk cycle, aim, recoil, hit reactions, idle, crouch, slump -----------------
+
 func _animate_bodies(delta: float) -> void:
 	var t := Time.get_ticks_msec() / 1000.0
 	for id in unit_nodes:
 		var n: Node3D = unit_nodes[id]
-		if not n.visible or not n.has_meta("j"):
+		if not n.visible or not n.has_meta("j") or n.get_meta("fallen", false):
 			continue
 		var j: Dictionary = n.get_meta("j")
 		var walking: bool = n.get_meta("walk", false)
@@ -1248,19 +1497,50 @@ func _animate_bodies(delta: float) -> void:
 			n.set_meta("ph", ph)
 		var sw := sin(ph) if walking else 0.0
 		var amp := 0.7 if n.get_meta("run", false) else 0.5
-		_pose(j, "leg_l", sw * amp)
-		_pose(j, "leg_r", -sw * amp)
-		_pose(j, "knee_l", maxf(0.0, -sw) * 0.8 if walking else 0.0)
-		_pose(j, "knee_r", maxf(0.0, sw) * 0.8 if walking else 0.0)
+		# crouch (beside cover) and slump (Mortally Wounded) ease toward their goals
+		var cr := move_toward(float(n.get_meta("crouch", 0.0)), float(n.get_meta("crouch_goal", 0.0)), delta * 5.0)
+		n.set_meta("crouch", cr)
+		var sl := move_toward(float(n.get_meta("slump", 0.0)), float(n.get_meta("slump_goal", 0.0)), delta * 4.0)
+		n.set_meta("slump", sl)
+		var low := maxf(cr, sl)
+		var limp: float = 1.0 if int(n.get_meta("wound", 0)) >= Combatant.Wound.SERIOUS else 0.0
+		_pose(j, "leg_l", sw * amp - low * 0.6)
+		_pose(j, "leg_r", -sw * amp * (1.0 - 0.4 * limp) - low * 0.6)
+		_pose(j, "knee_l", (maxf(0.0, -sw) * 0.8 if walking else 0.0) + low * 1.1)
+		_pose(j, "knee_r", (maxf(0.0, sw) * 0.8 * (1.0 - 0.5 * limp) if walking else 0.0) + low * 1.1)
 		if j.has("hips"):
 			var hp: Node3D = j.hips
-			hp.position.y = (hp.get_meta("rest") as Transform3D).origin.y + (absf(sw) * 0.025 if walking else 0.0)
+			var rest: Transform3D = hp.get_meta("rest")
+			hp.position = rest.origin + Vector3(0.015 * sin(t * 3.1 + id * 1.7), (absf(sw) * 0.025 if walking else 0.0) - low * 0.13, 0)
+		# aim, recoil and hit reaction on the chest; aim raises the arms and weapon
+		var aim: float = n.get_meta("aim", 0.0)
+		var rc: float = n.get_meta("recoil", 0.0)
+		var kick: float = n.get_meta("recoil_kick", 0.0)
+		n.set_meta("recoil", move_toward(rc, 0.0, delta * 0.9))
+		n.set_meta("recoil_kick", move_toward(kick, 0.0, delta * 14.0))
+		var ht: float = n.get_meta("hit_t", 9.0) + delta
+		n.set_meta("hit_t", ht)
+		var hit_env := exp(-ht * 9.0) * sin(minf(ht * 26.0, PI * 2.5)) * float(n.get_meta("hit_amp", 0.0)) if ht < 0.6 else 0.0
+		var hd: Vector3 = n.get_meta("hit_dir", Vector3.FORWARD)
+		var local_hd := n.global_transform.basis.inverse() * Vector3(hd.x, 0, hd.z).normalized() if hd.length() > 0.01 else Vector3.ZERO
 		if j.has("chest"):
 			var ch: Node3D = j.chest
-			ch.scale = Vector3(1.0, 1.0 + 0.015 * sin(t * 2.3 + id), 1.0)
+			var rest_c: Transform3D = ch.get_meta("rest")
+			var pitch := -rc - kick * 0.06 - sl * 0.5 + local_hd.z * 0.35 * hit_env + (0.0 if walking else 0.012 * sin(t * 2.3 + id))
+			var roll := -local_hd.x * 0.35 * hit_env
+			ch.transform = rest_c * Transform3D(Basis.from_euler(Vector3(pitch, 0, roll)), Vector3.ZERO)
+		if j.has("head"):
+			var hd_n: Node3D = j.head
+			var rest_h: Transform3D = hd_n.get_meta("rest")
+			var scan := 0.6 if (enc and id < enc.units.size() and enc.units[id].team == 1 and not enc.units[id].alerted) else 0.25
+			var yaw := scan * sin(t * 0.45 + id * 2.1) * (1.0 - aim)
+			hd_n.transform = rest_h * Transform3D(Basis.from_euler(Vector3(local_hd.z * 0.5 * hit_env, yaw, 0)), Vector3.ZERO)
+		for side in ["l", "r"]:
+			_pose(j, "shoulder_" + side, -0.25 * aim)
 		if j.has("weapon"):
 			var w: Node3D = j.weapon
-			w.position = (w.get_meta("rest") as Transform3D).origin + Vector3(0, 0.006 * sin(t * 1.7 + id * 2.0) + (0.01 * sw if walking else 0.0), 0)
+			var rest_w: Transform3D = w.get_meta("rest")
+			w.position = rest_w.origin + Vector3(0, 0.05 * aim + 0.006 * sin(t * 1.7 + id * 2.0) + (0.01 * sw if walking else 0.0), -0.03 * kick)
 
 
 func _pose(j: Dictionary, name: String, x: float) -> void:
@@ -1278,26 +1558,43 @@ func _toast_new_log() -> void:
 	_log_seen = enc.log.size()
 
 
-## Floating callout over a unit, drawn on the HUD layer so it stays crisp above the pixel filter.
+## Floating callout over a unit, on the HUD layer so it stays crisp above the pixel filter.
+## Callouts on the same unit stack upward instead of overlapping; all stay inside the safe rect.
 func _float(u: Dictionary, text: String, col: Color, offset := Vector2.ZERO) -> void:
+	var now := Time.get_ticks_msec()
+	var st: Array = _callout_stack.get(u.id, [0, 0])
+	var k: int = st[0] + 1 if now - int(st[1]) < 900 else 0
+	_callout_stack[u.id] = [k, now]
+	var n: Node3D = unit_nodes.get(u.id)
+	var base := n.global_position if n else _body_pos(u)
+	_float_at(base + Vector3(0, 1.4, 0), text, col, offset + Vector2(0, -30 * k))
+
+
+func _float_at(wp: Vector3, text: String, col: Color, offset := Vector2.ZERO) -> void:
 	var l := Label.new()
 	l.text = text
 	l.add_theme_font_override("font", Hud.F_DISPLAY)
-	l.add_theme_font_size_override("font_size", 28)
+	l.add_theme_font_size_override("font_size", 30 if text.length() > 3 else 40)
 	l.add_theme_color_override("font_color", col)
 	l.add_theme_color_override("font_outline_color", Color.BLACK)
 	l.add_theme_constant_override("outline_size", 6)
-	var wp := Vector3(u.pos.x + 0.5, u.pos.z * FH + 1.1, u.pos.y + 0.5)
-	l.position = _to_screen(wp) - Vector2(30, 20) + offset
+	l.add_theme_color_override("font_shadow_color", Color(Hud.MAGENTA, 0.6))
+	l.add_theme_constant_override("shadow_offset_x", 2)
+	var sr := _safe_rect()
+	var p := _to_screen(wp) - Vector2(30, 20) + offset
+	l.position = Vector2(clampf(p.x, sr.position.x, sr.end.x - 200), clampf(p.y, sr.position.y, sr.end.y))
+	l.scale = Vector2(1.25, 1.25)
 	hud.add_child(l)
 	var tw := create_tween()
-	tw.tween_property(l, "position:y", l.position.y - 50, 1.2)
-	tw.parallel().tween_property(l, "modulate:a", 0.0, 1.2).set_delay(0.4)
+	tw.tween_property(l, "scale", Vector2.ONE, 0.12).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(l, "position:y", l.position.y - 46, 1.3).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(l, "modulate:a", 0.0, 0.5).set_delay(0.8)
 	tw.tween_callback(l.queue_free)
 
 
 func _update_hover() -> void:
 	target_ring.visible = false
+	hud.mode_pcts({})
 	if not _crew_turn():
 		hud.tip("", mouse)
 		return
@@ -1307,17 +1604,24 @@ func _update_hover() -> void:
 			hud.tip("[b]%s[/b]" % ("Cover piece · [code]%d HP[/code]" % enc.los.cover_hp[hover] if enc.los.cover_hp.get(hover, 0) > 0 else "Wall / door"), mouse, "// SHOOT COVER", Hud.GOLD)
 		elif move_opts.has(hover):
 			var p: Array[Vector3i] = enc._with_locks(func(): return enc.nav.path(enc.cur.pos, hover, enc.occupied(enc.cur)))
-			hud.tip("[code]%d / %d[/code] squares" % [enc.nav.cost_of(enc.cur.pos, p), enc.turn.squares_available()], mouse, "// MOVE", Color("ffb000"))
+			hud.tip("[code]%d / %d[/code] squares" % [enc.nav.cost_of(enc.cur.pos, p), enc.turn.squares_available()], mouse, "// MOVE", Hud.CYAN)
+		elif dash_opts.has(hover):
+			hud.tip("Uses your [b]Action[/b] as a Run (an extra Move Action)", mouse, "// RUN", Color("ffb000"))
 		else:
 			hud.tip("", mouse)
 		return
-	target_ring.visible = true
+	target_ring.visible = false   # no rings under units (owner)
 	if not busy and unit_nodes.has(enc.cur.id):   # the active unit turns to aim at the hovered target
 		var dd := Vector2(t.pos.x - enc.cur.pos.x, t.pos.y - enc.cur.pos.y)
 		(unit_nodes[enc.cur.id] as Node3D).rotation.y = atan2(dd.x, dd.y)
 	target_ring.position = Vector3(t.pos.x + 0.5, _gy(t.pos) + 0.04, t.pos.y + 0.5)
 	var w: Weapon = enc.cur.c.weapons[0]
 	var p := enc.preview(t, w, mode)
+	var pcts := {}
+	for k in 3:   # hit chance per fire mode, shown on the hotbar buttons
+		var pm := enc.preview(t, w, [Attack.Mode.SINGLE, Attack.Mode.AUTOFIRE, Attack.Mode.AIMED_HEAD][k])
+		pcts[k] = roundi(pm.chance * 100) if pm.ok else -1
+	hud.mode_pcts(pcts)
 	var c: Combatant = t.c
 	var lines := ["[b]%s[/b]  [color=#7d8a96]%s[/color]" % [c.display_name, c.role.capitalize()]]
 	if p.ok:
@@ -1332,4 +1636,9 @@ func _update_hover() -> void:
 		if p.get("blocker", Vector3i(-1, -1, -1)).x >= 0:
 			lines.append("[color=#7d8a96]X: shoot the cover in the way[/color]")
 	lines.append("HP %d/%d · SP head %d body %d" % [c.hp, c.max_hp(), c.sp("head"), c.sp("body")])
+	# CPR armour often stops everything: show what the weapon averages through it
+	var loc := "head" if mode == Attack.Mode.AIMED_HEAD else "body"
+	var avg := w.dice() * 3.5
+	var thru := maxf(0.0, avg - c.sp(loc)) * (2.0 if loc == "head" else 1.0)
+	lines.append("[code]%dd6 vs SP %d: ~%d through[/code]" % [w.dice(), c.sp(loc), roundi(thru)] + ("  [color=#ff3b4f]armor likely stops it[/color]" if thru < 1.0 else ""))
 	hud.tip("\n".join(lines), mouse, "// TARGET · HOSTILE", Hud.RED)
