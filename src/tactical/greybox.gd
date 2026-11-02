@@ -203,6 +203,7 @@ func _ready() -> void:
 			"seed": gig.seed = int(kv[1])
 			"security": gig.security = int(kv[1])
 			"objective": gig["objective"] = kv[1]
+			"twist": gig["twist"] = kv[1]
 			"fog": fog_on = kv[1] != "0"
 			"zoom": cam_dist = float(kv[1])
 			"yaw":
@@ -469,9 +470,11 @@ func new_gig() -> void:
 			if c.can_act():
 				crew.append(c)
 	var kind := gig.get("objective", "data") as String
+	var tw: Array = [] if String(gig.get("twist", "")) == "" else [String(gig.twist)]
 	if campaign_gig:
 		kind = Campaign.objective_for(camp.active_gig)
-	enc = Encounter.setup(m, dice, crew, kind)
+		tw = [] if String(camp.active_gig.get("twist", "")) == "" else [String(camp.active_gig.twist)]
+	enc = Encounter.setup(m, dice, crew, kind, tw)
 	_log_seen = 0
 	var lk := _scene_look()
 	env.ambient_light_color = Color(lk.ambient)
@@ -737,7 +740,7 @@ func _refresh() -> void:
 	_update_objective()
 	for l in lights:  # rooms stay dark until explored, so a reveal reads as lights coming on
 		var cell: Vector3i = l[1]
-		l[0].visible = not _net_cleaned and (l[2] != "room" or not fog_on or enc.vision.explored.has(cell))
+		l[0].visible = not _net_cleaned and not ("blackout" in enc.twists) and (l[2] != "room" or not fog_on or enc.vision.explored.has(cell))
 	_build_doors()
 	for u in enc.units:
 		var n: Node3D = unit_nodes[u.id]

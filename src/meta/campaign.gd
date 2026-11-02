@@ -44,7 +44,8 @@ static var current: Campaign   ## the running campaign (the board and the tactic
 var seed_value := 1
 var dice: Dice
 var eb := 0
-var rep := 0
+var rep := 0                         ## street cred: the overall name (market access, crew size of the board)
+var fixer_rep := {}                  ## fixer name → reputation with them (spec: per-fixer reputation)
 var day := 1
 var crew: Array[Combatant] = []
 var fallen: Array[Dictionary] = []   ## {name, role, day, gig}: the wall
@@ -92,21 +93,31 @@ func refresh_board() -> void:
 	var n := 3 + (1 if rep >= 3 else 0) + level("intel")
 	for i in n:
 		var t: Dictionary = g.templates[dice.d(g.templates.size()) - 1]
-		var sec := 1
-		for s in [3, 2]:
-			if rep + level("intel") >= int(g.rep_for_security[str(s)]) and dice.d(10) <= (4 if s == 2 else 3):
-				sec = s
-				break
 		var slots := {"fixer": _pick(g.fixers), "corp": _pick(g.corps), "gang": _pick(g.gangs), "data": _pick(g.data),
 			"place": _pick(t.get("places", ["site"]))}
+		var frep := rep_with(String(slots.fixer))   # better jobs come from fixers who know you
+		var sec := 1
+		for s in [3, 2]:
+			if frep + level("intel") >= int(g.rep_for_security[str(s)]) and dice.d(10) <= (4 if s == 2 else 3):
+				sec = s
+				break
+		var twist := ""
+		if dice.rng.randf() < float(g.get("twist_chance", 0.0)):
+			var keys: Array = g.twists.keys()
+			twist = keys[dice.d(keys.size()) - 1]
+		var mult := float(g.twists[twist].pay) if twist != "" else 1.0
 		var title := _fill(_pick(t.titles), slots)
 		board.append({"id": "%d-%d" % [day, i], "kind": t.kind, "fixer": slots.fixer, "title": title,
-			"blurb": _fill(String(t.blurb), slots), "scene": _pick(t.scenes), "security": sec,
-			"pay": int(int(g.pay[str(sec)]) * (1.0 + rep * 0.05)), "rep": sec, "seed": dice.rng.randi_range(1, 99999)})
+			"blurb": _fill(String(t.blurb), slots), "scene": _pick(t.scenes), "security": sec, "twist": twist,
+			"pay": int(int(g.pay[str(sec)]) * (1.0 + frep * 0.05) * mult), "rep": sec, "seed": dice.rng.randi_range(1, 99999)})
 
 
 static func objective_for(g: Dictionary) -> String:
 	return String(OBJECTIVES.get(String(g.get("kind", "")), "data"))
+
+
+func rep_with(fixer: String) -> int:
+	return int(fixer_rep.get(fixer, 0))
 
 
 func _pick(a: Array) -> Variant:
@@ -173,6 +184,9 @@ func resolve(e: Encounter) -> Dictionary:
 				report.salvage += int(value * float(ECON.salvage))
 	eb += report.pay - report.fees + report.salvage
 	rep = maxi(0, rep + report.rep)
+	var fx_name := String(gig.get("fixer", ""))
+	if fx_name != "":
+		fixer_rep[fx_name] = maxi(0, rep_with(fx_name) + report.rep)
 	report.ip += 5 * level("training")
 	for c in crew:
 		c.ip += report.ip
@@ -401,7 +415,7 @@ func upgrade(facility: String) -> bool:
 func to_dict() -> Dictionary:
 	return {"version": 1, "seed": seed_value, "eb": eb, "rep": rep, "day": day, "crew": crew.map(func(c): return c.to_dict()),
 		"fallen": fallen, "board": board, "recruits": recruits.map(func(c): return c.to_dict()), "log": log.slice(-50),
-		"rng_state": dice.rng.state, "facilities": facilities}
+		"rng_state": dice.rng.state, "facilities": facilities, "fixer_rep": fixer_rep}
 
 
 static func from_dict(d: Dictionary) -> Campaign:
@@ -420,6 +434,8 @@ static func from_dict(d: Dictionary) -> Campaign:
 		c.board.append(b)
 	for r in d.get("recruits", []):
 		c.recruits.append(Combatant.from_dict(r))
+	for k in d.get("fixer_rep", {}):
+		c.fixer_rep[String(k)] = int(d.fixer_rep[k])
 	for k in d.get("facilities", {}):
 		c.facilities[String(k)] = int(d.facilities[k])
 	for l in d.get("log", []):

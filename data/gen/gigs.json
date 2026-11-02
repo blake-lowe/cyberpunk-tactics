@@ -1,20 +1,114 @@
 {
-  "_doc": "Gig templates for the fixer board (M6). A gig picks a template, a scene from its list, a security level weighted by reputation, and fills the title/blurb slots. Pay and rewards are HOUSE-RULE economy numbers until checked against the book's job rates.",
-  "fixers": ["Rogue's Cousin", "Mama Lou", "Padre", "Hex Kowalski", "Tanaka-san", "Dakota"],
-  "corps": ["Biotechnica", "Petrochem", "Militech", "Zetatech", "Kang Tao", "Trauma Team", "Rocklin Augmentics"],
-  "gangs": ["Maelstrom", "Tyger Claws", "Valentinos", "6th Street", "Wraiths", "Bozos"],
-  "data": ["payroll ledger", "prototype schematics", "blackmail archive", "clinical trial data", "shipping manifests", "black book"],
-  "templates": [
-    {"kind": "data_theft", "titles": ["Lift the {data} from {corp}", "{corp} wants it gone, we want it first: {data}", "Get in, pull the {data}, get out"],
-      "blurb": "{fixer} has a buyer for {corp}'s {data}. Jack in and pull the file, or put the guards down and take it the old way.",
-      "scenes": ["lone_building", "street_block", "corp_campus", "megablock"]},
-    {"kind": "gang_hit", "titles": ["Clear the {gang} out of the {place}", "The {gang} took something that isn't theirs"],
-      "blurb": "The {gang} have dug in at the {place}. {fixer} wants the stash on their network, and nobody standing.",
-      "scenes": ["badlands", "shipyard", "rail_yard", "skirmish"], "places": ["camp", "docks", "yard", "bar"]},
-    {"kind": "corp_extraction", "titles": ["Off-the-books audit at {corp}", "{corp}'s night shift has a leak"],
-      "blurb": "A {corp} insider left a door open for one night. {fixer} wants the {data} drive physically carried out before morning: grab it and get back to the extraction point.",
-      "scenes": ["corp_campus", "lone_building", "megablock"]}
+  "_doc": "Gig templates for the fixer board (M6). A gig picks a template, a scene from its list, a security level weighted by reputation, and fills the title/blurb slots. Pay and rewards are HOUSE-RULE economy numbers until checked against the book's job rates. Twists (procedural complications, spec Narrative Structure) are HOUSE-RULE content; pay multiplies by the twist's pay.",
+  "fixers": [
+    "Rogue's Cousin",
+    "Mama Lou",
+    "Padre",
+    "Hex Kowalski",
+    "Tanaka-san",
+    "Dakota"
   ],
-  "pay": {"1": 1000, "2": 2000, "3": 4000},
-  "rep_for_security": {"1": 0, "2": 2, "3": 5}
+  "corps": [
+    "Biotechnica",
+    "Petrochem",
+    "Militech",
+    "Zetatech",
+    "Kang Tao",
+    "Trauma Team",
+    "Rocklin Augmentics"
+  ],
+  "gangs": [
+    "Maelstrom",
+    "Tyger Claws",
+    "Valentinos",
+    "6th Street",
+    "Wraiths",
+    "Bozos"
+  ],
+  "data": [
+    "payroll ledger",
+    "prototype schematics",
+    "blackmail archive",
+    "clinical trial data",
+    "shipping manifests",
+    "black book"
+  ],
+  "templates": [
+    {
+      "kind": "data_theft",
+      "titles": [
+        "Lift the {data} from {corp}",
+        "{corp} wants it gone, we want it first: {data}",
+        "Get in, pull the {data}, get out"
+      ],
+      "blurb": "{fixer} has a buyer for {corp}'s {data}. Jack in and pull the file, or put the guards down and take it the old way.",
+      "scenes": [
+        "lone_building",
+        "street_block",
+        "corp_campus",
+        "megablock"
+      ]
+    },
+    {
+      "kind": "gang_hit",
+      "titles": [
+        "Clear the {gang} out of the {place}",
+        "The {gang} took something that isn't theirs"
+      ],
+      "blurb": "The {gang} have dug in at the {place}. {fixer} wants the stash on their network, and nobody standing.",
+      "scenes": [
+        "badlands",
+        "shipyard",
+        "rail_yard",
+        "skirmish"
+      ],
+      "places": [
+        "camp",
+        "docks",
+        "yard",
+        "bar"
+      ]
+    },
+    {
+      "kind": "corp_extraction",
+      "titles": [
+        "Off-the-books audit at {corp}",
+        "{corp}'s night shift has a leak"
+      ],
+      "blurb": "A {corp} insider left a door open for one night. {fixer} wants the {data} drive physically carried out before morning: grab it and get back to the extraction point.",
+      "scenes": [
+        "corp_campus",
+        "lone_building",
+        "megablock"
+      ]
+    }
+  ],
+  "pay": {
+    "1": 1000,
+    "2": 2000,
+    "3": 4000
+  },
+  "rep_for_security": {
+    "1": 0,
+    "2": 2,
+    "3": 5
+  },
+  "twists": {
+    "heavy": {
+      "name": "Heavy security",
+      "desc": "They doubled the guard. Opposition one security level up.",
+      "pay": 1.25
+    },
+    "blackout": {
+      "name": "Blackout",
+      "desc": "The grid's down in the area: no lights but the moon. Easier to sneak, harder to see.",
+      "pay": 1.0
+    },
+    "shift_change": {
+      "name": "Shift change",
+      "desc": "The next shift walks in on round 6 and calls it in, quiet or not.",
+      "pay": 1.15
+    }
+  },
+  "twist_chance": 0.35
 }

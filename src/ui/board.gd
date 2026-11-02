@@ -390,8 +390,12 @@ func _gig_card(i: int) -> PanelContainer:
 	var t := _text(String(g.title).to_upper(), Hud.F_DISPLAY, 30, Hud.GOLD, true)
 	top.add_child(t)
 	top.add_child(_text("%s eb" % _money(int(g.pay)), Hud.F_TERM, 30, Hud.GREEN))
-	col.add_child(_text("%s · %s · SECURITY %s" % [String(g.fixer).to_upper(), String(RulesDB.gen("scenes.json")[g.scene].get("name", g.scene)).to_upper(), "◆".repeat(int(g.security)) + "◇".repeat(3 - int(g.security))], Hud.F_TERM, 20, Hud.CYAN))
+	col.add_child(_text("%s (REP %d) · %s · SECURITY %s" % [String(g.fixer).to_upper(), camp.rep_with(String(g.fixer)), String(RulesDB.gen("scenes.json")[g.scene].get("name", g.scene)).to_upper(), "◆".repeat(int(g.security)) + "◇".repeat(3 - int(g.security))], Hud.F_TERM, 20, Hud.CYAN))
 	col.add_child(_text(String(g.blurb), Hud.F_BODY, 20, Color(Hud.TEXT, 0.85), true))
+	var tw := String(g.get("twist", ""))
+	if tw != "":
+		var td: Dictionary = RulesDB.gen("gigs.json").twists[tw]
+		col.add_child(_text("TWIST · %s: %s" % [String(td.name).to_upper(), td.desc], Hud.F_TERM, 18, Hud.RED, true))
 	col.add_child(_text({"data": "OBJECTIVE · PULL THE FILE IN THE NET, OR CLEAR THE SITE", "eliminate": "OBJECTIVE · NOBODY LEFT STANDING, BACKUP INCLUDED",
 		"snatch": "OBJECTIVE · GRAB THE PACKAGE, CARRY IT OUT THE WAY YOU CAME"}[Campaign.objective_for(g)], Hud.F_TERM, 18, Hud.GOLD))
 	var ready := camp.alive_crew().any(func(c): return c.can_act() and c.wound_state() < Combatant.Wound.MORTAL)

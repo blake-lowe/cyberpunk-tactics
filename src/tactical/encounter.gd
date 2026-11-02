@@ -29,6 +29,7 @@ var state := "playing"              ## playing | won | lost
 var runs := {}                      ## unit id → NetRun
 var net_left := 0                   ## NET Actions left this turn (runner only)
 var objective := {}                 ## {kind, done, + data: structure, node | snatch: cell, carrier}
+var twists: Array = []             ## gig complications: heavy, blackout, shift_change (data/gen/gigs.json)
 var extract_cells := {}             ## Vector3i → true: the deploy zone, where a snatch is carried out
 var vision: Vision                  ## what the crew can see (drives fog and hidden guards)
 ## What happened, in order, for the view to animate: {type: move|attack|cover|alert, ...}.
@@ -42,8 +43,9 @@ var jack_pos := {}                  ## runner unit id → the square of the devi
 var disabled_devices := {}          ## device id → true (turrets/cameras under the runner's control)
 
 
-static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "data") -> Encounter:
+static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "data", p_twists: Array = []) -> Encounter:
 	var e := Encounter.new()
+	e.twists = p_twists.duplicate()
 	e.m = p_map
 	e.dice = p_dice
 	e.nav = Nav.new(p_map)
@@ -63,7 +65,7 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 			target_sid = st.id
 	var posts := p_map.posts.duplicate()
 	posts.sort_custom(func(a, b): return int(a.structure == target_sid) > int(b.structure == target_sid))
-	var sec := int(p_map.params.get("security", 1))
+	var sec := int(p_map.params.get("security", 1)) + (1 if "heavy" in p_twists else 0)
 	var roster := Recruit.opposition(crew.size(), sec)   # CPR p399 budget, strongest first (target building posts)
 	var want := roster.size()
 	if posts.size() < want:
@@ -164,6 +166,11 @@ func next_turn() -> void:
 			state = "lost"
 			return
 		cur = unit_of(c)
+		if "shift_change" in twists and init.round_num >= SHIFT_CHANGE_ROUND and alarm < 2:
+			var gs := alive(1)
+			if not gs.is_empty():
+				say("Shift change: the new shift finds the place wrong.")
+				_call_it_in(gs[0])
 		_tick_backup()
 		turn = TurnState.begin(dice, c)
 		net_left = 0
@@ -301,6 +308,7 @@ func update_alerts() -> Array:
 const VIEW_HALF_ANGLE := 60.0   ## HOUSE-RULE: a guard watches a 120° cone ahead...
 const AWARE_RANGE := 2.0        ## ...but notices anyone within 2 squares, any direction
 const DARK_PENALTY := 4         ## "Task obscured by smoke or darkness" (CPR p? task modifiers)
+const SHIFT_CHANGE_ROUND := 6    ## HOUSE-RULE twist: the next shift arrives and raises the alarm
 const BACKUP_ROUNDS := 3        ## HOUSE-RULE: reinforcements arrive 3 rounds after the call
 
 
@@ -331,7 +339,7 @@ func _spots(g: Dictionary, u: Dictionary) -> bool:
 func _compute_light() -> void:
 	lit.clear()
 	var day: bool = bool(m.params.get("daylight", false)) or String(m.params.get("scene", "")) == "badlands"
-	for e in LightPlan.plan(m, m.seed_value):
+	for e in ([] if "blackout" in twists else LightPlan.plan(m, m.seed_value)):
 		var c: Vector3i = e.cell
 		var r := float(e.range) * 0.6
 		for dy in range(-int(r), int(r) + 1):

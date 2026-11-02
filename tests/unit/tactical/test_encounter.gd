@@ -308,3 +308,21 @@ func test_eliminate_ignores_the_file_and_waits_for_backup() -> void:
 	e.backup_in = -1
 	e._check_end()
 	assert_eq(e.state, "won")
+
+
+func test_twists_heavy_blackout_shift_change() -> void:
+	var m := SceneGen.generate(5, "lone_building", {"security": 1})
+	var crew: Array[Combatant] = [Recruit.generate(Dice.new(9), "solo", "edgerunner")]
+	var plain := Encounter.setup(m, Dice.new(9), crew)
+	var crew2: Array[Combatant] = [Recruit.generate(Dice.new(9), "solo", "edgerunner")]
+	var e := Encounter.setup(SceneGen.generate(5, "lone_building", {"security": 1}), Dice.new(9), crew2, "data", ["heavy", "blackout", "shift_change"])
+	assert_true(e.units.any(func(u): return u.team == 1 and u.c.role == "lieutenant"), "heavy: security 2 opposition brings a Lieutenant")
+	assert_false(plain.units.any(func(u): return u.team == 1 and u.c.role == "lieutenant"))
+	assert_true(plain.lit.size() > 0 and e.lit.is_empty(), "blackout: no lights")
+	e.next_turn()
+	var guard := 0
+	while e.init.round_num < Encounter.SHIFT_CHANGE_ROUND and guard < 200:
+		e.end_turn()
+		e.next_turn()
+		guard += 1
+	assert_eq(e.alarm, 2, "shift change calls it in")
