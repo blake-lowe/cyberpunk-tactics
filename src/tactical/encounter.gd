@@ -399,6 +399,33 @@ func tamper_camera() -> Dictionary:
 	return {"ok": true, "success": check.success}
 
 
+var _cam_facing := {}
+
+## Which way a camera points: into the open space around its mount (away from walls).
+func camera_facing(d: Dictionary) -> Vector2:
+	if _cam_facing.has(d.id):
+		return _cam_facing[d.id]
+	var f := Vector2.ZERO
+	for dy in [-1, 0, 1]:
+		for dx in [-1, 0, 1]:
+			if (dx != 0 or dy != 0) and m.inb(d.pos.x + dx, d.pos.y + dy) and m.walkable(int(d.floor), Vector2i(d.pos.x + dx, d.pos.y + dy)):
+				f += Vector2(dx, dy).normalized()
+	_cam_facing[d.id] = f.normalized() if f.length() > 0.3 else Vector2.ZERO
+	return _cam_facing[d.id]
+
+
+## Does camera `d` see square `v` (range, cone, no wall between)?
+func camera_sees(d: Dictionary, v: Vector3i) -> bool:
+	var cp := Vector3i(d.pos.x, d.pos.y, d.floor)
+	var off := Vector2(v.x - cp.x, v.y - cp.y)
+	if v.z != cp.z or off.length() > CAMERA_RANGE or off.length() < 0.5:
+		return false
+	var f := camera_facing(d)
+	if f != Vector2.ZERO and rad_to_deg(absf(f.angle_to(off))) > CAMERA_HALF_ANGLE:
+		return false
+	return not _wall_between(cp, v)
+
+
 ## Squares a live camera watches (for the stealth overlay).
 func camera_cells(d: Dictionary) -> Dictionary:
 	var out := {}
@@ -407,7 +434,7 @@ func camera_cells(d: Dictionary) -> Dictionary:
 	for dy in range(-r, r + 1):
 		for dx in range(-r, r + 1):
 			var v := Vector3i(cp.x + dx, cp.y + dy, cp.z)
-			if Vector2(dx, dy).length() <= CAMERA_RANGE and m.inb(v.x, v.y) and m.walkable(v.z, Vector2i(v.x, v.y)) and not _wall_between(cp, v):
+			if m.inb(v.x, v.y) and m.walkable(v.z, Vector2i(v.x, v.y)) and camera_sees(d, v):
 				out[v] = true
 	return out
 
@@ -418,6 +445,7 @@ func camera_cells(d: Dictionary) -> Dictionary:
 ## cameras' Control Node in the NET turns them off - the netrunner's job in a stealth gig.
 const CAMERA_RANGE := 6.0   ## HOUSE-RULE (playtest: 8 squares caught every approach)
 const CAMERA_TAMPER_DV := 13   # RULES-UNVERIFIED: Electronics/Security Tech counters devices (p209), DV not given; "everyday" DV13 (p129)
+const CAMERA_HALF_ANGLE := 45.0   ## HOUSE-RULE: a 90° view, pointed away from the wall it's mounted on
 const CAMERA_PERCEPTION := 8   ## HOUSE-RULE: a bored guard watching the feeds
 func _camera_spots() -> Dictionary:
 	if alarm >= 2:
@@ -427,7 +455,7 @@ func _camera_spots() -> Dictionary:
 			continue
 		var cp := Vector3i(d.pos.x, d.pos.y, d.floor)
 		for u in alive(0):
-			if u.pos.z != cp.z or Vector2(u.pos.x - cp.x, u.pos.y - cp.y).length() > CAMERA_RANGE or _wall_between(cp, u.pos):
+			if not camera_sees(d, u.pos):
 				continue
 			var key := ["cam", d.id, u.id, init.round_num if init else 0]
 			if not _spot_rolls.has(key):

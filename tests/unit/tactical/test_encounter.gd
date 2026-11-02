@@ -716,3 +716,16 @@ func test_giant_stays_met_after_throwing_you_out() -> void:
 	e._ice_effect(r[1], r[2], r[3])
 	assert_false(e.runs.has(r[1].id))
 	assert_true(e._met_memory[r[1].id].has(key), "no re-ambush on the next jack-in")
+
+
+func test_cameras_face_away_from_their_wall() -> void:
+	var m := TacMap.new(12, 12, 1)
+	for y in 12:
+		for x in 12:
+			m.set_t(0, x, y, TacMap.T.WALL if x == 0 else TacMap.T.FLOOR)
+	m.entrances.append({"floor": 0, "pos": Vector2i(10, 10), "kind": "deploy", "main": false, "cells": [Vector2i(10, 10)]})
+	var e := Encounter.setup(m, Dice.new(2), [Fixtures.shooter("A")] as Array[Combatant])
+	var cam := {"id": 77, "type": "camera", "pos": Vector2i(0, 6), "floor": 0}
+	assert_true(e.camera_facing(cam).x > 0.9, "points into the room")
+	assert_true(e.camera_sees(cam, Vector3i(4, 6, 0)), "ahead")
+	assert_false(e.camera_sees(cam, Vector3i(1, 1, 0)), "beside the mount, outside the 90° cone")
