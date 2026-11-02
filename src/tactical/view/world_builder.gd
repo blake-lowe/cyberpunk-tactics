@@ -28,7 +28,7 @@ const LIB := {
 	"gravel": [Color("3b3833"), Color("2a2824"), 5, 2.0, 0.95, 0.0],
 	"dirt": [Color("3a2f25"), Color("281f18"), 5, 0.8, 0.95, 0.0],
 	"grass": [Color("1d2e1f"), Color("2c3a1c"), 5, 1.1, 0.95, 0.0],
-	"sand": [Color("7a6a52"), Color("5e4e3a"), 5, 0.53, 0.95, 0.0],
+	"sand": [Color("7a6a5e"), Color("5a4c48"), 5, 0.53, 0.95, 0.0],
 	"rail": [Color("2c2724"), Color("1a1715"), 6, 0.9, 0.7, 0.2],
 	"dock": [Color("2f2a25"), Color("1a1714"), 2, 0.8, 0.75, 0.0],
 	"water": [Color("0a1822"), Color("0a1822"), 10, 0.5, 0.05, 0.2],
@@ -52,7 +52,7 @@ const LIB := {
 	"glass": [Color("7fc8e8"), Color("7fc8e8"), 0, 1.0, 0.05, 0.0, {"alpha": 0.24, "glow": 0.25}],
 	"fence": [Color("7a8a7a"), Color("7a8a7a"), 0, 1.0, 0.4, 0.7, {"alpha": 0.3}],
 	"post": [Color("3a4048"), Color("3a4048"), 0, 1.0, 0.4, 0.7],
-	"rock": [Color("4a4038"), Color("332b25"), 5, 1.5, 0.95, 0.0],
+	"rock": [Color("6a5a50"), Color("4a4038"), 5, 1.5, 0.95, 0.0],
 	"unknown": [Color("1c212c"), Color("1c212c"), 0, 1.0, 0.95, 0.0, {"mode": 1, "glow": 0.5, "emit": Color("141a26")}],
 	"wood": [Color("6a4e35"), Color("3e2c1e"), 2, 2.0, 0.8, 0.0],
 	"steel": [Color("56606a"), Color("3a424a"), 0, 1.0, 0.4, 0.55],
@@ -64,7 +64,7 @@ const LIB := {
 	"container": [Color("6a3428"), Color("4a2418"), 8, 1.0, 0.6, 0.4],
 	"tower": [Color("14171c"), Color("0e1014"), 9, 0.55, 0.8, 0.2, {"mode": 2}],
 	"tower_top": [Color("101216"), Color("101216"), 0, 1.0, 0.8, 0.2, {"mode": 2}],
-	"far_ground": [Color("111316"), Color("0b0c0e"), 3, 0.3, 0.6, 0.0, {"mode": 2}],
+	"far_ground": [Color("111316"), Color("0b0c0e"), 0, 0.3, 0.9, 0.0, {"mode": 2}],
 }
 const PAINT := [Color("8a1c2a"), Color("1c3a5a"), Color("c8c8c0"), Color("2a2a2e"), Color("b07a1a"), Color("3a5a2a")]
 const NEON := LightPlan.NEON
@@ -124,7 +124,7 @@ func mat(name: String, f: int, cut := true, over := {}) -> ShaderMaterial:
 	mt.set_shader_parameter("roughness", d[4])
 	mt.set_shader_parameter("metallic", d[5])
 	mt.set_shader_parameter("emission", extra.get("emit", col))
-	mt.set_shader_parameter("emission_energy", extra.get("glow", 0.0))
+	mt.set_shader_parameter("emission_energy", minf(float(extra.get("glow", 0.0)), 1.6))   # keep emitters in hue
 	mt.set_shader_parameter("mode", extra.get("mode", 0))
 	mt.set_shader_parameter("shell", extra.get("shell", false))
 	mt.set_shader_parameter("cuttable", cut)
@@ -863,7 +863,7 @@ func _roof_clutter(f: int) -> void:
 					box(S, p + Vector3(lx, 0.05, 0), Vector3(0.05, 0.1, 0.6))
 			elif roll < 0.1:
 				box(mat("dark", f), p + Vector3(0, 0.45, 0), Vector3(0.03, 0.9, 0.03))
-				box(mat("dark", f, true, {"glow": 4.0, "emit": Color("ff2020")}), p + Vector3(0, 0.92, 0), Vector3(0.05, 0.05, 0.05))
+				box(mat("dark", f, true, {"glow": 1.2, "emit": Color("ff2020")}), p + Vector3(0, 0.92, 0), Vector3(0.06, 0.06, 0.06))
 			elif roll < 0.16:
 				box(S, p + Vector3(0, 0.12, 0), Vector3(0.3, 0.24, 0.3), rng.randf())
 
@@ -941,7 +941,7 @@ func _skyline() -> void:
 		box(T, Vector3(p.x, h / 2 - 0.2, p.y), Vector3(w, h, d))
 		box(top, Vector3(p.x, h - 0.15, p.y), Vector3(w * 0.7, 0.4, d * 0.7))
 		if rng.randf() < 0.35:
-			box(mat("dark", 0, false, {"glow": 4.0, "emit": Color("ff2020"), "mode": 2}), Vector3(p.x, h + 0.3, p.y), Vector3(0.2, 0.2, 0.2))
+			box(mat("dark", 0, false, {"glow": 1.2, "emit": Color("ff2020"), "mode": 2}), Vector3(p.x, h + 0.1, p.y), Vector3(0.08, 0.08, 0.08))
 		if rng.randf() < 0.3:   # a billboard: a big emissive panel on the face toward the map
 			var col: Color = NEON[rng.randi() % NEON.size()]
 			var toward := Vector2(m.w / 2.0, m.h / 2.0) - p

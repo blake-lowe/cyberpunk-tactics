@@ -44,6 +44,7 @@ var _tip_head: Label
 var _tip_label: RichTextLabel
 var _toast: Label
 var _banner: Label
+var _banner_panel: PanelContainer
 var settings: PanelContainer
 var _mode_buttons := {}
 
@@ -123,8 +124,10 @@ func _ready() -> void:
 	_toast.add_theme_constant_override("shadow_offset_x", 3)
 	_toast.add_theme_constant_override("shadow_offset_y", 0)
 	add_child(_toast)
-	_banner = _text("", F_PIXEL, 18, DIM)
-	add_child(_banner)
+	_banner = _text("", F_DISPLAY, 18, Color("9fb4c4"))
+	_banner_panel = _panel(CYAN, 0b0100)
+	_banner_panel.add_child(_banner)
+	add_child(_banner_panel)
 	resized.connect(_layout)
 	_layout()
 
@@ -193,7 +196,7 @@ class Slot extends Control:
 		hp = p_hp
 		tag = p_tag
 		dead = p_dead
-		custom_minimum_size = Vector2(58, 66) if active else Vector2(46, 54)
+		custom_minimum_size = Vector2(76, 76) if active else Vector2(56, 56)
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
 	func _draw() -> void:
 		var w := size.x
@@ -213,7 +216,7 @@ class Slot extends Control:
 		var bw := (w - sk) * clampf(hp, 0, 1)
 		draw_rect(Rect2(0, h + 3, w - sk, 4), Color(team_col, 0.18))
 		draw_rect(Rect2(0, h + 3, bw, 4), Hud.GREEN if hp > 0.6 else (Hud.GOLD if hp > 0.3 else Hud.RED))
-		draw_string(Hud.F_DISPLAY, Vector2(sk + 1, h - 3), tag, HORIZONTAL_ALIGNMENT_LEFT, w - sk, 14, Hud.TEXT)
+		pass
 
 
 ## Hotbar action: chamfered square with a drawn glyph, a pixel-font name and its key.
@@ -273,8 +276,6 @@ class ActBtn extends Button:
 			"end":
 				draw_colored_polygon(PackedVector2Array([o + Vector2(-r * 1.2, -r), o + Vector2(r * 0.2, 0), o + Vector2(-r * 1.2, r)]), c)
 				draw_colored_polygon(PackedVector2Array([o + Vector2(0, -r), o + Vector2(r * 1.4, 0), o + Vector2(0, r)]), c)
-		if disabled:  # locked: full glyph, struck through
-			draw_line(o + Vector2(-r * 1.5, r * 1.3), o + Vector2(r * 1.5, -r * 1.3), Color(Hud.RED, 0.7), 2.0)
 		draw_string(Hud.F_DISPLAY, Vector2(0, size.y - 7), title, HORIZONTAL_ALIGNMENT_CENTER, w, 18, Color(Hud.TEXT, 0.45 if disabled else 1.0))
 		draw_string(Hud.F_TERM, Vector2(w - 30, 19), key, HORIZONTAL_ALIGNMENT_RIGHT, 26, 22, Color(Hud.GOLD if not disabled else Hud.DIM, 1.0 if not disabled else 0.6))
 
@@ -286,7 +287,7 @@ func _build_bar() -> void:
 	row.add_theme_constant_override("separation", 16)
 	_bar.add_child(row)
 	_card = VBoxContainer.new()
-	_card.custom_minimum_size = Vector2(250, 0)
+	_card.custom_minimum_size = Vector2(220, 0)
 	_card.add_theme_constant_override("separation", 3)
 	row.add_child(_card)
 	var sep := ColorRect.new()
@@ -322,17 +323,15 @@ func _build_bar() -> void:
 
 func _layout() -> void:
 	var s := size
-	_party.position = Vector2(14, 104)
+	_party.position = Vector2(14, 70)
 	_init_strip.position = Vector2(s.x / 2 - _init_strip.size.x / 2, 12)
 	_bar.position = Vector2(s.x / 2 - _bar.size.x / 2, s.y - _bar.size.y - 12)
-	var log_y := s.y - _log_panel.size.y - 12
-	if _bar.position.x + _bar.size.x > s.x - _log_panel.size.x - 20:
-		log_y = _bar.position.y - _log_panel.size.y - 8
-	_log_panel.position = Vector2(s.x - _log_panel.size.x - 14, log_y)
+	# log: flush above the hotbar's right end
+	_log_panel.position = Vector2(_bar.position.x + _bar.size.x - _log_panel.size.x, _bar.position.y - _log_panel.size.y - 4)
 	_net_panel.position = Vector2(s.x - _net_panel.size.x - 14, 110)
 	_toast.position = Vector2(s.x / 2 - 400, 120)
 	_toast.size = Vector2(800, 40)
-	_banner.position = Vector2(16, s.y - 22)
+	_banner_panel.position = Vector2(14, 12)
 
 
 func _clear(c: Node) -> void:
@@ -376,12 +375,6 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 		var c: Combatant = enc.cur.c
 		var top := HBoxContainer.new()
 		top.add_theme_constant_override("separation", 10)
-		var face := TextureRect.new()
-		face.texture = portraits.tex(enc.cur)
-		face.custom_minimum_size = Vector2(64, 64)
-		face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		face.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		top.add_child(face)
 		var nv := VBoxContainer.new()
 		nv.add_theme_constant_override("separation", 0)
 		top.add_child(nv)
@@ -425,7 +418,8 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 	_end_btn.disabled = not crew_turn
 	_end_btn.queue_redraw()
 	_log.text = "\n".join(enc.log.slice(maxi(0, enc.log.size() - 4)).map(func(l): return "> " + l))
-	_log.visible = not enc.log.is_empty()
+	_log_panel.visible = not enc.log.is_empty()
+	_log_panel.reset_size()
 	_banner.text = floor_text
 	_net_refresh(enc)
 	if enc.state != "playing":

@@ -72,7 +72,7 @@ static func plan(m: TacMap, seed_value: int) -> Array:
 			if m.label(r.floor, s.x, s.y) != r.id:
 				continue
 			out.append({"kind": "room", "cell": Vector3i(s.x, s.y, r.floor), "out": Vector2i.ZERO,
-				"color": ZONE_LIGHT[clampi(r.zone, 0, 4)], "energy": 1.4 if r.zone < TacMap.Zone.SECURE else 1.8, "range": 7.0})
+				"color": ZONE_LIGHT[clampi(r.zone, 0, 4)], "energy": 2.2 if r.zone < TacMap.Zone.SECURE else 2.6, "range": 7.5})
 	# Hazards glow: electrified transformers blue, explosive barrels a faint orange.
 	for c in m.cover:
 		var hz: String = c.get("hazard", "")
