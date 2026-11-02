@@ -461,10 +461,28 @@ func die(dir: Vector3, head := false, instant := false) -> void:
 		anim.seek(anim.current_animation_length, true)
 
 
+const STOW_CLIPS := ["idle", "idle_look", "idle_phone", "idle_talk", "idle_shift", "typing", "jack", "medtech",
+	"melee", "melee_blade", "grenade", "injured_idle", "injured_walk", "injured_run", "dying", "hit_a", "hit_b", "dodge"]
+
+
+func _stowed() -> bool:
+	return state in STOW_CLIPS and not get_meta("fallen", false)
+
+
 ## Seat the gun for the current pose (called by Pose after the clip and recoil are applied).
 func place_gun(s: Skeleton3D) -> void:
 	if gun == null or gun.get_parent() != s:
 		return   # dropped
+	if _stowed():   # hands busy with something else: rifles slung across the back, pistols holstered
+		var holder := s.get_bone_global_pose(s.find_bone("UpperChest" if gun_kind == "rifle" else "Hips"))
+		var sf := Vector3(-0.7, 0.71, 0.0).normalized() if gun_kind == "rifle" else Vector3(0, -1, 0.15).normalized()
+		var su := Vector3(0, 0, -1) if gun_kind == "rifle" else Vector3(-1, 0, 0)
+		var sr := sf.cross(su).normalized()
+		var at := Vector3(0.02, -0.08, -0.135) if gun_kind == "rifle" else Vector3(-0.19, -0.02, 0.0)
+		var lb := Basis(sf * gun_sign, su, sr * gun_sign).scaled(Vector3.ONE * gun_scale)
+		var local := Transform3D(lb, at - lb * gun_grip)
+		gun.transform = holder * local
+		return
 	var rh := s.find_bone("RightHand")
 	var lh := s.find_bone("LeftHand")
 	var r := s.get_bone_global_pose(rh)

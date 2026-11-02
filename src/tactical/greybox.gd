@@ -1415,19 +1415,17 @@ func _run_reel() -> void:
 					await _act()
 		"enemy":
 			_reel_setup_shot(g)
-			for u in enc.units:
-				if u.team == 1:
-					u.alerted = true
-			enc.update_alerts()
-			_refresh()
 			await get_tree().create_timer(0.4).timeout
-			for k in 6:   # end crew turns until the guards have had a go
+			enc.attack(g, enc.cur.c.weapons[0], Attack.Mode.SINGLE)   # gunfire rouses the guards into initiative
+			await _act()
+			var others: Array = enc.units.filter(func(o): return o.team == 1 and not o.alerted and not o.c.dead)
+			enc._rouse(others.slice(0, 3))
+			await _act()
+			for k in 4:   # end crew turns: the guards act in between (AI turns play out inside _after_action)
 				_on_hud("end_turn", null)
 				await get_tree().create_timer(0.2).timeout
 				while busy:
 					await get_tree().process_frame
-				if enc.cur.team == 0 and k > 0:
-					break
 		"jack":
 			_demo_jack()
 			await get_tree().create_timer(3.5).timeout
