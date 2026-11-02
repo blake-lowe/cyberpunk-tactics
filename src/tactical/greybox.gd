@@ -587,7 +587,7 @@ func _apply_world_look() -> void:
 	if builder:
 		for mt in builder.materials():
 			mt.set_shader_parameter("explored_dim", look.dim)
-			mt.set_shader_parameter("spill", look.spill)
+			mt.set_shader_parameter("spill", 0.0 if _net_cleaned else look.spill)   # cyberspace keeps the spill off
 			mt.set_shader_parameter("lightfield", builder.lightfield)
 
 

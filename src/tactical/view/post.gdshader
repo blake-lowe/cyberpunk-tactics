@@ -31,7 +31,14 @@ float bayer4(vec2 p) {
 
 float luma(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
 float h21(vec2 p) { return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5453); }
-float lum_at(sampler2D t, vec2 uv) { return dot(texture(t, uv).rgb, vec3(0.299, 0.587, 0.114)); }
+// luminance over a 2x2 block: ordered dither (cutaway edges, fades) averages out, so the edge
+// styles trace geometry instead of dotted rings
+float lum_at(sampler2D t, vec2 uv) {
+	vec2 h = 0.5 / src_size;
+	vec3 c = texture(t, uv + vec2(-h.x, -h.y)).rgb + texture(t, uv + vec2(h.x, -h.y)).rgb
+		+ texture(t, uv + vec2(-h.x, h.y)).rgb + texture(t, uv + vec2(h.x, h.y)).rgb;
+	return dot(c * 0.25, vec3(0.299, 0.587, 0.114));
+}
 float edge_at(sampler2D t, vec2 uv, vec2 px) {
 	float l = lum_at(t, uv);
 	return max(max(abs(l - lum_at(t, uv + vec2(px.x, 0.0))), abs(l - lum_at(t, uv + vec2(0.0, px.y)))),
@@ -56,8 +63,8 @@ vec3 cyberspace(sampler2D t, vec2 uv, vec2 px, vec2 cell) {
 		on *= 1.0 - step(0.09, e);
 		return mix(vec3(0.06, 0.065, 0.06), vec3(0.47, 0.5, 0.44), on);
 	} else if (net_style == 3 || net_style == 7) {   // wireframe: white edges on black, a ghost of fill
-		float line = smoothstep(0.06, 0.13, e);   // geometry edges, not soft gradients
-		return vec3(0.02) + vec3(0.035) * l + vec3(0.5) * line;   // dimmer than before so nodes and devices pop (owner)
+		float line = smoothstep(0.035, 0.1, e);   // geometry edges (lamp pools are off in cyberspace, so gradients are rare)
+		return vec3(0.025) + vec3(0.11) * l + vec3(0.52) * line;   // a readable ghost of the scene, still below the NET's brightness
 	} else if (net_style == 8) {   // blueprint: cyan lines on deep navy, a faint drafting grid
 		float line = smoothstep(0.04, 0.1, e);
 		float grid = step(mod(cell.x, 24.0), 0.9) + step(mod(cell.y, 24.0), 0.9);
