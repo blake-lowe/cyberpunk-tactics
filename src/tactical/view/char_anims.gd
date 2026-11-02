@@ -36,8 +36,8 @@ const CLIPS := {
 	"hit_b": "mx:hit_2",
 	"hit_rifle": "mx:rifle_hit",
 	"dodge": "mx:dodge",
-	"death_front": "mx:death_front",
-	"death_back": "mx:death_back",
+	"death_front": "mx:death_back",   # owner: Mixamo's two are named the other way round from how they read
+	"death_back": "mx:death_front",
 	"death_side": "mx:death_right",
 	"death_head": "mx:death_head_front",
 	"death_head_back": "mx:death_head_back",

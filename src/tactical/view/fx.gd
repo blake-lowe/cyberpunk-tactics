@@ -227,8 +227,85 @@ func sparks(at: Vector3) -> void:
 	burst(at, Color("ffd27a"), 14, 4.0, 0.04, 0.3, 2.0)
 
 
-func blood(at: Vector3, heavy := false) -> void:
-	burst(at, Color("8a0f1e"), 18 if heavy else 10, 2.6 if heavy else 1.8, 0.06, 0.5, 0.0)
+## A round that gets through: a spray out of the far side along the shot, a quick red mist, and
+## splats that land on the floor behind the target (they stay for the rest of the gig).
+## `scale` 0.4 for one round of a burst, 1 for the hit that resolves, 1.6 for crits and kills.
+func blood(at: Vector3, dir: Vector3 = Vector3.ZERO, scale := 1.0, floor_y := -1e9) -> void:
+	var flat := Vector3(dir.x, 0, dir.z).normalized() if Vector3(dir.x, 0, dir.z).length() > 0.01 else Vector3.FORWARD
+	var p := CPUParticles3D.new()
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3.ONE * 0.05
+	var mt := StandardMaterial3D.new()
+	mt.albedo_color = Color("7a0a16")
+	mt.roughness = 0.3
+	mesh.material = mt
+	p.mesh = mesh
+	p.amount = int(28 * scale) + 4
+	p.one_shot = true
+	p.explosiveness = 0.9
+	p.lifetime = 0.55
+	p.direction = (flat + Vector3(0, 0.35, 0)).normalized()
+	p.spread = 22.0
+	p.initial_velocity_min = 2.0 * maxf(scale, 0.6)
+	p.initial_velocity_max = 4.5 * maxf(scale, 0.6)
+	p.gravity = Vector3(0, -12, 0)
+	p.scale_amount_min = 0.5
+	p.scale_amount_max = 1.4
+	add_child(p)
+	p.global_position = at
+	p.emitting = true
+	get_tree().create_timer(0.9).timeout.connect(p.queue_free)
+	# mist: a soft red puff that blooms and fades in a quarter second
+	var mist := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 0.5
+	sm.height = 1.0
+	sm.radial_segments = 8
+	sm.rings = 4
+	var mm := StandardMaterial3D.new()
+	mm.albedo_color = Color(0.55, 0.02, 0.06, 0.55)
+	mm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	sm.material = mm
+	mist.mesh = sm
+	add_child(mist)
+	mist.global_position = at + flat * 0.12
+	mist.scale = Vector3.ONE * 0.12 * scale
+	var tm := create_tween().set_parallel()
+	tm.tween_property(mist, "scale", Vector3.ONE * 0.5 * scale, 0.25).set_ease(Tween.EASE_OUT)
+	tm.tween_property(mist, "global_position", mist.global_position + flat * 0.3, 0.25)
+	tm.tween_property(mm, "albedo_color:a", 0.0, 0.25)
+	tm.chain().tween_callback(mist.queue_free)
+	# splats on the floor behind, landing in order of distance
+	if floor_y > -1e8:
+		var side := flat.cross(Vector3.UP)
+		for k in int(3 + 5 * scale):
+			var dist := rng.randf_range(0.25, 1.5) * maxf(scale, 0.5)
+			var spot := at + flat * dist + side * rng.randf_range(-0.25, 0.25) * dist
+			spot.y = floor_y + 0.012 + k * 0.0004   # stacked a hair apart so splats don't z-fight
+			var sz := rng.randf_range(0.05, 0.16) * (1.3 - dist / 2.5)
+			get_tree().create_timer(0.08 + dist * 0.12).timeout.connect(_splat.bind(spot, sz, flat))
+
+
+func _splat(at: Vector3, size: float, along: Vector3) -> void:
+	var mi := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.5
+	cm.bottom_radius = 0.5
+	cm.height = 0.004
+	cm.radial_segments = 7
+	cm.rings = 1
+	var mt := StandardMaterial3D.new()
+	mt.albedo_color = Color("4a0610")
+	mt.roughness = 0.15
+	cm.material = mt
+	mi.mesh = cm
+	add_child(mi)
+	mi.global_position = at
+	mi.rotation.y = atan2(along.x, along.z) + rng.randf_range(-0.3, 0.3)
+	var stretch := rng.randf_range(1.2, 2.2)   # elongated along the spray
+	mi.scale = Vector3(size * 0.4, 1, size * 0.4 * stretch)
+	create_tween().tween_property(mi, "scale", Vector3(size, 1, size * stretch), 0.12).set_ease(Tween.EASE_OUT)
 
 
 func debris(at: Vector3, big := false) -> void:

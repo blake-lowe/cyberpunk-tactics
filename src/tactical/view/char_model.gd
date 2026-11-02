@@ -47,6 +47,7 @@ var gun: Node3D
 var gun_sign := 1.0
 var gun_scale := 1.0
 var gun_grip := Vector3.ZERO
+var _gun_rel: Variant = null   ## gun relative to the right hand, frozen at death
 const PALM := Vector3(0.0, 0.08, 0.03)      ## palm centre in hand-bone space (fingers +Y, palm +Z)
 const GRIP_TILT := 0.35                     ## pistol grip angle: barrel above the finger line
 
@@ -446,17 +447,21 @@ func die(dir: Vector3, head := false, instant := false) -> void:
 	var clip := "death_front"
 	if float(get_meta("crouch", get_meta("crouch_goal", 0.0))) > 0.5:
 		clip = "death_crouch"
-	elif absf(local.x) > absf(local.z) * 1.4:
+	elif local.x > absf(local.z) * 1.4:   # round travelling toward the body's left (+X): shot from the right
 		clip = "death_side"
-	elif local.z > 0.0:   # the round travels the way the body faces: shot from behind
+	elif local.z > 0.0:   # the round travels the way the body faces: shot from behind, falls forward
 		clip = "death_head_back" if head else "death_back"
 	elif head:
 		clip = "death_head"
+	else:
+		clip = "death_front"
+	if gun and gun.get_parent() == skel:   # the gun stays as it was in the hand while the body goes down
+		_gun_rel = skel.get_bone_global_pose(skel.find_bone("RightHand")).affine_inverse() * gun.transform
 	set_meta("fallen", true)
 	_oneshot = clip
 	state = clip
 	anim.speed_scale = 1.0
-	anim.play(clip, 0.0 if instant else 0.06)
+	anim.play(clip, 0.0 if instant else 0.22)   # a longer blend: no jump from the hit pose
 	if instant:
 		anim.seek(anim.current_animation_length, true)
 
@@ -473,6 +478,9 @@ func _stowed() -> bool:
 func place_gun(s: Skeleton3D) -> void:
 	if gun == null or gun.get_parent() != s:
 		return   # dropped
+	if _gun_rel != null:
+		gun.transform = s.get_bone_global_pose(s.find_bone("RightHand")) * (_gun_rel as Transform3D)
+		return
 	if _stowed():   # hands busy with something else: rifles slung across the back, pistols holstered
 		var holder := s.get_bone_global_pose(s.find_bone("UpperChest" if gun_kind == "rifle" else "Hips"))
 		var sf := Vector3(-0.7, 0.71, 0.0).normalized() if gun_kind == "rifle" else Vector3(0, -1, 0.15).normalized()

@@ -1749,7 +1749,10 @@ func _anim_attack(e: Dictionary) -> void:
 		fx.bullet(m0, dest, wid, func():
 			arrived[0] += 1
 			if hits:
-				fx.sparks(dest)
+				if int(e.damage) > 0 and not is_last:   # rounds that get through bleed; armour sparks
+					fx.blood(dest, dir, 0.4, _gy(tu.pos))
+				elif int(e.damage) <= 0:
+					fx.sparks(dest)
 				if is_last:
 					outcome_shown[0] = true
 					_outcome(e, su, tu, tn, dest, dir)
@@ -1784,7 +1787,7 @@ func _outcome(e: Dictionary, su: Dictionary, tu: Dictionary, tn: Node3D, at: Vec
 		_react(tn, dir, 0.4)
 		_kick(_screen_dir(at - dir, at), 1.5)
 		return
-	fx.blood(at, e.crit)
+	fx.blood(at, dir, 1.6 if (e.crit or e.killed) else 1.0, _gy(tu.pos))
 	_hit_flash(tn)
 	_react(tn, dir, 1.0 if not e.crit else 1.5)
 	_float(tu, "-%d" % dmg, Hud.RED)
