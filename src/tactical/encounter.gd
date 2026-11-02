@@ -309,7 +309,7 @@ func attack(target: Dictionary, weapon: Weapon, mode: Attack.Mode) -> Dictionary
 	var hp_before: int = target.c.hp
 	var r := Attack.resolve(dice, cur.c, weapon, target.c, mode, Los.distance_m(p.from, target.pos))
 	events.append({"type": "attack", "unit": cur.id, "target": target.id, "from": p.from, "hit": r.hit, "dodged": r.dodged,
-		"damage": hp_before - target.c.hp, "crit": not r.crits.is_empty(), "mode": mode, "killed": target.c.dead or target.c.wound_state() == Combatant.Wound.MORTAL})
+		"damage": hp_before - target.c.hp, "crit": not r.crits.is_empty(), "mode": mode, "weapon": weapon.id(), "killed": target.c.dead or target.c.wound_state() == Combatant.Wound.MORTAL})
 	var who := "%s → %s" % [cur.c.display_name, target.c.display_name]
 	if r.dodged:
 		say("%s: DODGE" % who)
@@ -328,7 +328,7 @@ func shoot_cover(cell: Vector3i, weapon: Weapon) -> Dictionary:
 	turn.use_attack()
 	_noise(cur.pos)
 	var dmg := dice.roll(weapon.dice(), 6)
-	events.append({"type": "cover", "unit": cur.id, "cell": cell, "damage": dmg})
+	events.append({"type": "cover", "unit": cur.id, "cell": cell, "damage": dmg, "weapon": weapon.id()})
 	if los.cover_hp.has(cell) and los.cover_hp[cell] > 0:
 		los.cover_hp[cell] = maxi(0, los.cover_hp[cell] - dmg)
 		if los.cover_hp[cell] == 0:

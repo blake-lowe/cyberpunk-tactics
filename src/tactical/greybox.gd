@@ -1143,24 +1143,29 @@ func _anim_attack(e: Dictionary) -> void:
 	var d := Vector2(tu.pos.x - su.pos.x, tu.pos.y - su.pos.y)
 	sn.rotation.y = atan2(d.x, d.y)
 	var aim := _body_pos(tu) + Vector3(0, 0.75, 0)
-	var shots := 4 if int(e.mode) == Attack.Mode.AUTOFIRE else 1
+	var wid := String(e.get("weapon", "assault_rifle"))
+	# autofire: a rattle of rounds (p173: autofire is one check, shown as a burst); else one shot
+	var shots := (7 if wid.contains("smg") else 6) if int(e.mode) == Attack.Mode.AUTOFIRE else 1
+	var gap := 0.045 if shots > 1 else 0.0
 	var j: Dictionary = sn.get_meta("j", {})
 	for i in shots:
 		var m0 := _muzzle_of(sn)
 		var dir := (aim - m0).normalized()
-		fx.muzzle(m0, dir)
+		fx.muzzle(m0, dir, wid)
+		if not wid.contains("launcher"):
+			fx.brass(m0 - dir * 0.35, dir.cross(Vector3.UP).normalized() * -1.0)
 		var dest := aim
 		if not e.hit or e.dodged:
 			dest = aim + Vector3(randf_range(-0.6, 0.6), randf_range(-0.3, 0.3), randf_range(-0.6, 0.6)) + dir * 1.5
 		elif shots > 1 and i < shots - 1:
 			dest = aim + Vector3(randf_range(-0.3, 0.3), randf_range(-0.2, 0.2), randf_range(-0.3, 0.3))
-		fx.tracer(m0, dest)
+		fx.bullet(m0, dest, wid)
 		if j.has("chest"):   # recoil kick
 			var ch: Node3D = j.chest
 			ch.rotation.x = (ch.get_meta("rest") as Transform3D).basis.get_euler().x - 0.18
 			create_tween().tween_property(ch, "rotation:x", (ch.get_meta("rest") as Transform3D).basis.get_euler().x, 0.12)
-		fx.kick(0.03)
-		await get_tree().create_timer(0.07).timeout
+		fx.kick(0.03 if shots > 1 else 0.06)
+		await get_tree().create_timer(gap if shots > 1 else 0.06).timeout
 	if e.dodged:
 		var side := Vector3(-d.y, 0, d.x).normalized() * 0.3
 		var tw := create_tween()
@@ -1209,8 +1214,9 @@ func _anim_cover(e: Dictionary) -> void:
 	var d := Vector2(cell.x - su.pos.x, cell.y - su.pos.y)
 	sn.rotation.y = atan2(d.x, d.y)
 	var m0 := _muzzle_of(sn)
-	fx.muzzle(m0, (at - m0).normalized())
-	fx.tracer(m0, at)
+	var wid := String(e.get("weapon", "assault_rifle"))
+	fx.muzzle(m0, (at - m0).normalized(), wid)
+	fx.bullet(m0, at, wid)
 	fx.debris(at)
 	fx.kick(0.06)
 	var gone: bool = enc.los.cover_hp.get(cell, 1) == 0 or m.t(cell.z, cell.x, cell.y) != TacMap.T.WALL and m.t(cell.z, cell.x, cell.y) != TacMap.T.DOOR and not enc.los.cover_hp.has(cell)
