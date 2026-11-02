@@ -348,8 +348,16 @@ static func _link_nets(c: Dictionary) -> void:
 		var ab: NetArchitecture = m.architectures[sb]
 		# Bidirectional (M2e review): a socket on each side, each landing on the other, so you can
 		# see where a crossing comes out.
-		var hubs_a := aa.subnets.filter(func(s): return s.zone < TacMap.Zone.VAULT)
-		var hubs_b := ab.subnets.filter(func(s): return s.zone < TacMap.Zone.VAULT)
+		# M2f review: sockets always join two nodes of the same level (no bypassing).
+		var levels := {}
+		for s1 in aa.subnets:
+			if s1.zone < TacMap.Zone.VAULT and ab.subnets.any(func(s2): return s2.zone == s1.zone):
+				levels[s1.zone] = true
+		if levels.is_empty():
+			continue
+		var z: int = levels.keys()[c.dice.rng.randi_range(0, levels.size() - 1)]
+		var hubs_a := aa.subnets.filter(func(s): return s.zone == z)
+		var hubs_b := ab.subnets.filter(func(s): return s.zone == z)
 		var ha: int = hubs_a[c.dice.rng.randi_range(0, hubs_a.size() - 1)].hub
 		var hb: int = hubs_b[c.dice.rng.randi_range(0, hubs_b.size() - 1)].hub
 		var sock := aa.add_node({"type": "socket", "zone": aa.nodes[ha].zone, "subnet": aa.nodes[ha].subnet, "target_structure": sb})

@@ -226,3 +226,28 @@ func test_every_neighbourhood_profile() -> void:
 								breaches += 1
 			assert_true(breaches > 0, prof + " is visibly ruined")
 	assert_true(sites.size() >= 15, "many establishment types appear (%d)" % sites.size())
+
+
+
+func test_sockets_same_level_and_branches_go_down() -> void:
+	for m in _scenes():
+		for l in m.net_links:
+			var sa: Dictionary = m.architectures[l.a].nodes[l.a_node]
+			var sb: Dictionary = m.architectures[l.b].nodes[l.b_node]
+			assert_eq(int(sa.zone), int(sb.zone), "%s: socket joins the same level" % m.params.scene)
+		for sid in m.architectures:
+			var a: NetArchitecture = m.architectures[sid]
+			for e in a.edges:
+				var na: Dictionary = a.nodes[e.x]
+				var nb: Dictionary = a.nodes[e.y]
+				if na.type == "hub" and nb.type == "hub":
+					assert_true(na.zone != nb.zone, "no sideways hub-to-hub links within a level")
+			for n in a.nodes_of_type("firewall"):
+				var zs := a.neighbors(n.id).map(func(x): return int(a.nodes[x].zone))
+				zs.sort()
+				assert_eq(zs[1] - zs[0], 1, "firewalls lead exactly one level down")
+			# Every subnet connects back to the entry level.
+			var root: int = a.subnets.filter(func(s): return s.zone == TacMap.Zone.PUBLIC)[0].hub
+			var all := a.reach(root, {})
+			for s in a.subnets:
+				assert_true(all.has(s.hub), "subnet %d connected" % s.id)

@@ -16,7 +16,7 @@ extends RefCounted
 ##   getting more; book stats and costs (data/rules/black_ice.json).
 
 const FILES_PER_SUBNET := 1
-const BRANCH_SIZE := 3                       # content nodes per junction (readability)
+const BRANCH_SIZE := 4                       # content nodes per subnet before it branches (readability)
 const COMPLEXITY := [0.0, 0.12, 0.35, 0.6]   # by security level (M2c review: ~1.6x leaner)
 const BUDGET := [3, 10, 24, 44]              # ICE points by security level
 const OWN_ZONE_ENTRY := 0.5                  # chance a port is wired into its own zone
@@ -81,10 +81,20 @@ static func generate(m: TacMap, dice: Dice, sid: int) -> NetArchitecture:
 		if not buckets.keys().any(func(k): return k.x == z):
 			buckets[Vector2i(z, 0)] = []
 
-	# 2. Subnets (M2e review: graphs, not lines or trees, but readable): a hub, and the subnet's
-	#    content split into small branches of up to BRANCH_SIZE behind "junction" nodes. Two or
-	#    more junctions form a ring that touches the hub twice, so every branch has two routes in.
-	var keys := buckets.keys()
+	# 2. Subnets. M2f review: branch *down* a level (Y), never sideways within a level (T). A
+	#    level with more than BRANCH_SIZE items splits into several small subnets ("branches"),
+	#    each entered through its own firewall from a subnet one level up.
+	var branches := {}
+	for k in buckets:
+		var items := _shuffled(dice, buckets[k])
+		# The entry level (L1) is the single trunk; branching starts one level down.
+		var n := 1 if k.x == TacMap.Zone.PUBLIC else maxi(1, ceili(items.size() / float(BRANCH_SIZE)))
+		for b in n:
+			var key := Vector2i(k.x, k.y * 10 + b)
+			branches[key] = []
+		for i in items.size():
+			branches[Vector2i(k.x, k.y * 10 + i % n)].append(items[i])
+	var keys := branches.keys()
 	keys.sort_custom(func(x, y): return x.x < y.x or (x.x == y.x and x.y < y.y))
 	var hub_of := {}
 	for k in keys:
@@ -92,26 +102,10 @@ static func generate(m: TacMap, dice: Dice, sid: int) -> NetArchitecture:
 		var hub := a.add_node({"type": "hub", "zone": k.x, "subnet": snid, "net_only": k.x >= TacMap.Zone.VAULT})
 		a.subnets.append({"id": snid, "zone": k.x, "bfloor": k.y, "hub": hub})
 		hub_of[k] = hub
-		var items := _shuffled(dice, buckets[k])
-		var nj := 0 if items.size() <= BRANCH_SIZE else ceili(items.size() / float(BRANCH_SIZE))
-		var junctions: Array[int] = []
-		for j in nj:
-			junctions.append(a.add_node({"type": "junction", "zone": k.x, "subnet": snid}))
-		if nj == 2:
-			a.link(hub, junctions[0])
-			a.link(hub, junctions[1])
-			a.link(junctions[0], junctions[1])
-		elif nj >= 3:
-			for j in nj:
-				a.link(junctions[j], junctions[(j + 1) % nj])
-			a.link(hub, junctions[0])
-			a.link(hub, junctions[nj / 2])
-		for i in items.size():
-			var item: Dictionary = items[i]
+		for item in branches[k]:
 			item.erase("bfloor")
 			item["subnet"] = snid
-			var id := a.add_node(item)
-			a.link(junctions[i % nj] if nj > 0 else hub, id)
+			a.link(hub, a.add_node(item))
 
 	# 3. Firewalls into each deeper subnet; second routes and lateral links at high complexity.
 	for k in keys:
@@ -123,9 +117,6 @@ static func generate(m: TacMap, dice: Dice, sid: int) -> NetArchitecture:
 			_firewall(a, hub_of[outer[1]], hub_of[k], k.x, dv)
 		elif dice.rng.randf() < 0.35 * a.complexity:
 			_firewall(a, hub_of[outer[0]], hub_of[k], k.x, dv + 2)  # back door with a harder lock
-		for k2 in keys:
-			if k2.x == k.x and k2.y == k.y + 1 and dice.rng.randf() < 0.5 * a.complexity:
-				a.link(hub_of[k], hub_of[k2])
 
 	# 4. Jack-in points: at most one per subnet (M2c review: keep NETs lean); the other terminals
 	#    stay on the map as plain terminals. Each kept one gets its own fixed port node.
@@ -141,8 +132,8 @@ static func generate(m: TacMap, dice: Dice, sid: int) -> NetArchitecture:
 		var z := mini(maxi(int(d.zone), TacMap.Zone.PUBLIC), mini(mz, TacMap.Zone.SECURE))
 		if z > TacMap.Zone.PUBLIC and dice.rng.randf() >= OWN_ZONE_ENTRY:
 			z -= 1
-		var k: Vector2i = key_of.call(z, d.floor)
-		var hub: int = hub_of.get(k, hub_of[Vector2i(TacMap.Zone.PUBLIC, 0)])
+		var level_keys := keys.filter(func(kk): return kk.x == z)
+		var hub: int = hub_of[level_keys[dice.rng.randi_range(0, level_keys.size() - 1)]] if not level_keys.is_empty() else hub_of[keys[0]]
 		var port := a.add_node({"type": "port", "zone": a.nodes[hub].zone, "subnet": a.nodes[hub].subnet, "device": d.id})
 		a.link(hub, port)
 		a.access_points.append({"device": d.id, "entry_node": port})

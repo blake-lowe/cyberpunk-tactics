@@ -6,8 +6,9 @@ Check-ins (🔶) are where work pauses for a user decision or review.
 |---|---|---|---|
 | M0 | Skeleton: project, test runner, conventions | ✅ done | — |
 | M1 | Rules core (headless): checks, skills, initiative, weapons/ROF/autofire, SP + ablation, aimed shots, damage, Critical Injuries, death saves, Humanity, cyberware, Solo Combat Awareness, recruits | ✅ done (reviewed) | ✅ |
-| M2 | Procedural generation: multi-floor maps, cover, hackables, coupled Net Architectures (+ Netrunner Interface rules); debug renders | 🔁 revising per review (M2f) | 🔶 M2f review page (keys m2f_*) |
-| M3 | Playable greybox: Solo vs Netrunner on a generated map, move-only grid, % UI, destructible cover | — | 🔶 user plays locally |
+| M2 | Procedural generation: multi-floor maps, cover, hackables, coupled Net Architectures (+ Netrunner Interface rules); debug renders | ✅ done (reviewed through M2f) | ✅ |
+| M3a | Tactical core, headless: grid pathfinding (stairs, ladders, bridges), line of sight and binary cover (walls, windows, cover pieces), destructible cover, encounter setup (crew at deploy, guards at posts), enemy AI, Netrunner session (jack in within 6 m, NET actions per turn, Black ICE fights), win/lose | ⏳ next | — |
+| M3b | Playable greybox in Godot: 3D blockout from TacMap with floor slicing, camera, move grid shown only while planning, hit % and DODGE callouts, initiative bar, unit panel, NET overlay | — | 🔶 user plays locally |
 | M4 | Visual pass: pixel post-process, neon lighting/bloom, VFX, tuning controls | — | 🔶 aesthetic review on user's GPU |
 | M5+ | Gigs/fixers, base & downtime, progression, Medtech, Tech, reinforcements, cyberpsychosis | — | per feature |
 
@@ -62,3 +63,9 @@ Check-ins (🔶) are where work pauses for a user decision or review.
 - Sockets: make them bidirectional; hard to find → paired sockets, links more frequent.
 - Break grids more, everywhere; think wider about Night City establishments; aim for parameters per neighbourhood → DistrictGen + 8 profiles (data/gen/districts.json), 13 new establishments + outdoor uses, footprint shapes, decay.
 - Windows/deploy/posts/barrels approved. One more pass before M3 (this M2f).
+
+### M2f review verdicts (user)
+- NET branching: branch *down* a level (Y), not sideways within a level (T) → junction rings removed; a level with >4 items splits into small subnets, each behind its own firewall from a subnet one level up; L1 stays a single trunk; no same-level hub links.
+- Sockets: only between nodes of the same level (no bypassing) → enforced.
+- Profiles, establishments approved; shapes right; decay varies by neighbourhood (profile ranges).
+- Start M3. (Missing-elements ranking still open: lighting/stealth, civilians, sewers, vehicles, hazards, weather.)
