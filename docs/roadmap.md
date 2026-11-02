@@ -158,7 +158,7 @@ Check-ins (🔶) are where work pauses for a user decision or review.
 ### Overnight decisions, night 2 (report to owner)
 - Stealth (M7): guards on posts face outward; HOUSE-RULE 120° view cone (VIEW_HALF_ANGLE 60) plus
   2-square all-round awareness; Perception vs Stealth with -4 in darkness ("obscured" task modifier) and
-  -1 per 5 squares past 5; badlands counts as daylight; unalerted guards patrol after each crew turn; a
+  -2 per 5 squares past 5; badlands counts as daylight; unalerted guards patrol after each crew turn; a
   guard who sees the crew and survives a turn calls it in; backup (HOUSE-RULE 3 rounds) enters at the
   entrance farthest from the crew.
 - Objectives by gig kind: data theft = pull the File or clear the site; gang hit = eliminate (not done

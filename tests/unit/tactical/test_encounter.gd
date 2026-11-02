@@ -326,3 +326,16 @@ func test_twists_heavy_blackout_shift_change() -> void:
 		e.next_turn()
 		guard += 1
 	assert_eq(e.alarm, 2, "shift change calls it in")
+
+
+func test_watched_cells_follow_the_cone() -> void:
+	var m := SceneGen.generate(5, "lone_building", {"security": 1})
+	var crew: Array[Combatant] = [Recruit.generate(Dice.new(9), "solo", "edgerunner")]
+	var e := Encounter.setup(m, Dice.new(9), crew)
+	var g: Dictionary = e.units.filter(func(u): return u.team == 1)[0]
+	g.facing = Vector2(1, 0)
+	var w := e.watched_cells(g)
+	assert_true(w.size() > 0)
+	for v in w:
+		var d := Vector2(v.x - g.pos.x, v.y - g.pos.y)
+		assert_true(d.length() <= Encounter.AWARE_RANGE or rad_to_deg(absf(Vector2(1, 0).angle_to(d))) <= Encounter.VIEW_HALF_ANGLE, "inside the cone")

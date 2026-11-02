@@ -334,6 +334,26 @@ func _spots(g: Dictionary, u: Dictionary) -> bool:
 	return Check.opposed(dice, base, sneak).success
 
 
+## Squares an unalerted guard is watching (view-side helper, no dice): within SPOT_RANGE on their
+## floor, inside the view cone or within AWARE_RANGE, with a clear line. Used to draw sight cones.
+func watched_cells(g: Dictionary) -> Dictionary:
+	var out := {}
+	var facing: Vector2 = g.get("facing", Vector2.ZERO)
+	var r := SPOT_RANGE
+	for dy in range(-r, r + 1):
+		for dx in range(-r, r + 1):
+			var d := Vector2(dx, dy)
+			var dist := d.length()
+			if dist > r or (dx == 0 and dy == 0):
+				continue
+			if dist > AWARE_RANGE and facing != Vector2.ZERO and rad_to_deg(absf(facing.angle_to(d))) > VIEW_HALF_ANGLE:
+				continue
+			var v := Vector3i(g.pos.x + dx, g.pos.y + dy, g.pos.z)
+			if m.inb(v.x, v.y) and m.walkable(v.z, Vector2i(v.x, v.y)) and los.trace(g.pos, v).clear:
+				out[v] = true
+	return out
+
+
 ## Which squares have light: within each light's reach (a little short of its glow) with nothing
 ## solid between. Open-sky scenes in daylight (params.daylight) are lit everywhere outdoors.
 func _compute_light() -> void:

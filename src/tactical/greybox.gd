@@ -124,6 +124,7 @@ var floor_nodes: Array[Node3D] = []
 var unit_nodes := {}
 var door_nodes: Node3D
 var grid_node: MeshInstance3D
+var watch_node: MultiMeshInstance3D   ## stealth: squares that visible, unalerted guards are watching
 var path_node: MeshInstance3D
 var range_img: Image
 var range_tex: ImageTexture
@@ -1137,6 +1138,7 @@ func _draw_grid() -> void:
 		if v.z == view_floor:
 			data[(v.y * m.w + v.x) * 2 + 1] = 255
 	grid_node.visible = not (move_opts.is_empty() and dash_opts.is_empty())
+	_draw_watch(grid_node.visible)
 	if grid_node.visible:
 		range_img.set_data(m.w, m.h, false, Image.FORMAT_RG8, data)
 		var big := range_img.duplicate() as Image
@@ -1237,6 +1239,34 @@ func _frame_unit(u: Dictionary) -> void:
 
 ## Units blend in; the one whose turn it is gets an amber downward caret floating above it
 ## (owner: instead of the white outline).
+## While the crew is undetected and planning a move, tint the squares known guards are watching
+## (their view cone, clipped by walls) so sneaking is a readable choice, XCOM-concealment style.
+func _draw_watch(show: bool) -> void:
+	if watch_node == null or not is_instance_valid(watch_node) or watch_node.get_parent() != world:
+		watch_node = MultiMeshInstance3D.new()
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		var qm := PlaneMesh.new()
+		qm.size = Vector2(0.92, 0.92)
+		mm.mesh = qm
+		watch_node.multimesh = mm
+		watch_node.material_override = _unlit(Hud.RED, 0.13, 1.0)
+		watch_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		world.add_child(watch_node)
+	var cells := {}
+	if show and enc.alarm < 2 and not _net_cleaned:
+		for g in enc.units:
+			if g.team == 1 and not g.alerted and g.c.can_act() and g.pos.z == view_floor and (not fog_on or enc.vision.visible.has(g.pos)):
+				cells.merge(enc.watched_cells(g))
+	var mm2 := watch_node.multimesh
+	mm2.instance_count = cells.size()
+	var i := 0
+	for v in cells:
+		mm2.set_instance_transform(i, Transform3D(Basis(), Vector3(v.x + 0.5, _gy(v) + 0.06, v.y + 0.5)))
+		i += 1
+	watch_node.visible = not cells.is_empty()
+
+
 func _update_outlines() -> void:
 	for u in enc.units:
 		var n: Node3D = unit_nodes.get(u.id)
