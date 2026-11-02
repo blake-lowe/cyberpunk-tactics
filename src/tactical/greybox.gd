@@ -13,6 +13,7 @@ extends Node
 ##   Right click     attack the enemy under the cursor (X or Shift: shoot the cover in the way)
 ##   1 / 2 / 3       single shot / autofire / aimed head shot
 ##   R reload    J jack in (Netrunner, within 6 m of a terminal)    Space  end turn
+##   Alt (hold) inspect what's under the cursor    F4 cyberspace style    N peek out of the NET
 ##   C cutaway on/off    F1 new gig    F2 look settings    F3 toggle fog of war
 ## Screenshot mode:  -- --shot=path.png [--scene=x] [--profile=y] [--seed=n] [--pixel=3]
 ##   [--levels=0] [--dither=0.5] [--outline=0.4] [--bloom=0.8] [--contrast=1.1] [--ortho=1]
@@ -35,8 +36,10 @@ var hover := Vector3i(-1, -1, -1)
 var mouse := Vector2.ZERO
 var gig := {"scene": "skirmish", "profile": "", "seed": 11, "security": 1}
 var look := {"pixel": 0.0, "palette": 1.0, "levels": 0.0, "dither": 0.3, "contrast": 1.0, "saturation": 1.1, "outline": 0.35,
-	"bloom": 1.2, "ortho": 1.0, "lights": 1.0, "dim": 0.5, "spill": 1.0, "net_style": 1.0}
-const NET_STYLES := ["", "POINTILLIST", "OBRA DINN", "WIREFRAME", "BLACKWALL", "GHOST", "STARGATE"]
+	"bloom": 1.2, "ortho": 1.0, "lights": 1.0, "dim": 0.5, "spill": 1.0, "net_style": 7.0}
+const NET_STYLES := ["", "POINTILLIST", "OBRA DINN", "WIRE · PIXEL", "BLACKWALL", "GHOST", "STARGATE", "WIRE · CRISP", "WIRE · BLUEPRINT", "WIRE · SCAN"]
+const NET_FULL_RES := [7, 8]   # styles drawn without the pixel filter
+const NET_CYCLE := [7, 8, 9, 3, 1, 2, 4, 5, 6]
 
 ## Curated palette (M4b critique: a real limited palette instead of free-floating mids): ink and
 ## navy ramps, warm concrete, cool greys, skin, wood, foliage, and each neon in two steps.
@@ -122,6 +125,7 @@ var fx: Fx
 var busy := false             ## animating events: input is ignored
 var _rebuild := false         ## cover/wall destroyed during playback: rebuild the world after
 var ring: MeshInstance3D
+var caret: MeshInstance3D
 var target_ring: MeshInstance3D
 var lights: Array = []        ## [OmniLight3D, Vector3i cell, kind]
 var fog_img: Image
@@ -136,10 +140,14 @@ var _walk := 0
 var _focus := ""
 var _attack_demo := false
 var _jack_demo := false
+var _inspect_demo := false
 var net_overlay: NetOverlay
 var net_view := true          ## N toggles back to the plain world while jacked in
 var _net_pos := {}            ## architecture instance id → [pos, ground]
 var _net_framed := -1
+var _net_full_res := false
+var _inspected := false        ## the Alt inspector card is showing
+var _inspect_cell := Vector3i(-1, -1, -1)
 var _shot_delay := 0.0
 var _demo_ms := 0
 
@@ -170,6 +178,8 @@ func _ready() -> void:
 				_attack_demo = true
 			"jack":  # review renders: the Netrunner jacks in at the nearest terminal
 				_jack_demo = true
+			"inspect":  # review renders: show the Alt inspector card for the hovered square
+				_inspect_demo = true
 			"delay":  # review renders: take the shot this many seconds after the demo action
 				_shot_delay = float(kv[1])
 			"slow":  # review renders: slow motion so short effects land in a frame (software GL is slow)
@@ -201,6 +211,22 @@ func _process(delta: float) -> void:
 		_place_camera()
 	_update_shake(delta)
 	_animate_bodies(delta)
+	# hold Alt to inspect what's under the cursor (owner: a dwell timer would be annoying)
+	var alt := Input.is_key_pressed(KEY_ALT) or _inspect_demo
+	if enc and hover.x >= 0 and alt and (not _inspected or hover != _inspect_cell):
+		_inspected = true
+		_inspect_cell = hover
+		_inspect(hover)
+	elif _inspected and not alt:
+		_inspected = false
+		_update_hover()
+	if caret and enc and not enc.cur.is_empty():   # caret follows the active unit, bobbing and turning
+		var cn: Node3D = unit_nodes.get(enc.cur.id)
+		caret.visible = cn != null and cn.visible and enc.cur.team == 0 and enc.state == "playing"
+		if cn:
+			var t := Time.get_ticks_msec() / 1000.0
+			caret.position = cn.global_position + Vector3(0, 1.55 + 0.05 * sin(t * 4.0), 0)
+			caret.rotation.y = t * 1.5
 	for fl in fires:  # firelight flicker
 		fl.light_energy = fl.get_meta("base", 1.0) * look.lights * (0.85 + 0.15 * sin(Time.get_ticks_msec() * 0.013 + fl.position.x) + randf() * 0.08)
 	if _shot_path != "":
@@ -213,6 +239,10 @@ func _process(delta: float) -> void:
 			hover = Vector3i(_shot_hover.x, _shot_hover.y, view_floor)
 			mouse = _to_screen(Vector3(hover.x + 0.5, view_floor * FH, hover.y + 0.5))
 			_update_hover()
+			if _inspect_demo:
+				_inspected = true
+				_inspect_cell = hover
+				_inspect(hover)
 		if _frames == 10 and _attack_demo:
 			_demo_attack()
 		if _frames == 10 and _jack_demo:
@@ -295,7 +325,11 @@ func _build_view() -> void:
 	hud.add_child(net_overlay)
 	hud.move_child(net_overlay, 0)
 	net_overlay.to_screen = _to_screen
-	hud.build_hint("WASD  PAN\nWHEEL  ZOOM\nQ / E  ROTATE 90\nMIDDLE-DRAG  ROTATE\nPGUP / PGDN  FLOOR\nC  CUTAWAY   F2  LOOK\nLMB  MOVE   RMB  FIRE\nH  HIDE THIS")
+	var shields := Hud.Painter.new()
+	shields.fn = _draw_cover_shields
+	hud.add_child(shields)
+	hud.move_child(shields, 0)
+	hud.build_hint("WASD  PAN\nWHEEL  ZOOM\nQ / E  ROTATE 90\nMIDDLE-DRAG  ROTATE\nPGUP / PGDN  FLOOR\nC  CUTAWAY   F2  LOOK\nLMB  MOVE   RMB  FIRE\nALT (HOLD)  INSPECT\nF4  NET STYLE   N  PEEK\nH  HIDE THIS")
 	hud.build_settings(look, [["pixel", "Pixel scale (0 auto)", 0, 6, 1], ["palette", "Palette", 0, 1, 1], ["levels", "Channel steps", 0, 32, 1], ["dither", "Dither", 0, 1, 0.05], ["spill", "Light spill", 0, 2, 0.05],
 		["contrast", "Contrast", 0.6, 1.6, 0.05], ["saturation", "Saturation", 0, 2, 0.05], ["outline", "Outline", 0, 1, 0.05],
 		["bloom", "Bloom", 0, 2, 0.05], ["lights", "Light level", 0.2, 2, 0.05], ["ortho", "Orthographic", 0, 1, 1]], _apply_look)
@@ -318,6 +352,8 @@ static func _oklab(c: Color) -> Vector3:
 
 ## Screen pixels per buffer pixel: set, or auto so the buffer is ~360 lines tall at any window size.
 func _px() -> float:
+	if _net_full_res:
+		return 1.0
 	if look.pixel >= 1.0:
 		return float(look.pixel)
 	return maxf(1.0, roundf(get_viewport().get_visible_rect().size.y / 360.0))
@@ -471,6 +507,7 @@ func _build_world() -> void:
 	path_node = MeshInstance3D.new()
 	world.add_child(path_node)
 	ring = _decal(Color("f9c80e"), 1.1, true, 1.0)
+	caret = _make_caret()
 	target_ring = _decal(Color("ff3b4f"), 1.2, true, 0.0)
 	decals.clear()
 	for u in enc.units:
@@ -655,6 +692,10 @@ func _net_active() -> NetRun:
 func _update_net() -> void:
 	var run := _net_active()
 	post.set_shader_parameter("net_style", int(look.net_style) if run else 0)
+	var full: bool = run != null and int(look.net_style) in NET_FULL_RES
+	if full != _net_full_res:   # crisp styles render the 3D view at full resolution
+		_net_full_res = full
+		_apply_look()
 	net_overlay.visible = run != null
 	if run == null:
 		return
@@ -745,6 +786,92 @@ func _net_layout(a: NetArchitecture) -> Array:
 		pos[nd.id] = Vector3(xy.x, f3 * FH + 1.3 + int(nd.zone) * 0.9, xy.y)
 		ground[nd.id] = Vector3(xy.x, f3 * FH, xy.y)
 	return [pos, ground]
+
+
+# --- Cover shields and the hover inspector ---------------------------------------------------
+
+## XCOM-style: while planning a move, the hovered square shows a holographic shield on each side
+## that has cover (solid: walls and cover pieces; outlined: see-through bulletproof glass).
+func _draw_cover_shields(c: Control) -> void:
+	if busy or not _crew_turn() or not (move_opts.has(hover) or dash_opts.has(hover)):
+		return
+	var t := Time.get_ticks_msec() / 1000.0
+	for d in MapGen.DIRS:
+		var nb := Vector3i(hover.x + d.x, hover.y + d.y, hover.z)
+		var b := enc.los.blocker(nb)
+		if b == "":
+			continue
+		var wp := Vector3(hover.x + 0.5 + d.x * 0.45, _gy(hover) + 0.55, hover.y + 0.5 + d.y * 0.45)
+		var p: Vector2 = _to_screen(wp)
+		var s := 11.0
+		var shape := PackedVector2Array([p + Vector2(-s, -s), p + Vector2(s, -s), p + Vector2(s, s * 0.2), p + Vector2(0, s * 1.3), p + Vector2(-s, s * 0.2), p + Vector2(-s, -s)])
+		var col := Color("05d9e8")
+		var a := 0.85 + 0.15 * sin(t * 6.0)
+		if b != "glass":
+			c.draw_colored_polygon(shape, Color(col, 0.35 * a))
+		c.draw_polyline(shape, Color(col, a), 2.0)
+		c.draw_polyline(PackedVector2Array([p + Vector2(-s * 0.5, -s * 0.2), p + Vector2(0, s * 0.5), p + Vector2(s * 0.5, -s * 0.2)]), Color(col, a), 2.0)
+
+
+## Hold Alt: a card with what's under the cursor and its game stats.
+func _inspect(v: Vector3i) -> void:
+	if not m.inb(v.x, v.y):
+		return
+	var lines: Array[String] = []
+	var head := "// INSPECT"
+	var u := _unit_at(v)
+	if not u.is_empty():
+		var c: Combatant = u.c
+		var w: Weapon = c.weapons[0] if not c.weapons.is_empty() else null
+		lines.append("[b]%s[/b]  [color=#7d8a96]%s[/color]" % [c.display_name, c.role.capitalize()])
+		lines.append("[code]REF %d  DEX %d  BODY %d  MOVE %d[/code]" % [c.stat("REF"), c.stat("DEX"), c.stat("BODY"), c.stat("MOVE")])
+		lines.append("HP %d/%d · %s" % [c.hp, c.max_hp(), ["Unhurt", "Lightly wounded", "Seriously wounded", "Mortally wounded", "Dead"][c.wound_state()]])
+		lines.append("Armor: head SP %d · body SP %d" % [c.sp("head"), c.sp("body")])
+		if w:
+			lines.append("%s · %dd6 · ROF %d%s" % [w.def.name, w.dice(), w.rof(), (" · %d/%d" % [w.ammo, int(w.def.get("mag", 0))]) if w.uses_ammo() else ""])
+		if not c.injuries.is_empty():
+			lines.append("[color=#ff3b4f]%s[/color]" % ", ".join(c.injuries.map(func(i): return String(i.get("name", i.id)))))
+		head = "// INSPECT · " + ("CREW" if u.team == 0 else "HOSTILE")
+	var cover_hp: int = enc.los.cover_hp.get(v, 0)
+	for cv in m.cover:
+		if cv.floor == v.z and cv.pos == Vector2i(v.x, v.y) and cover_hp > 0:
+			lines.append("[b]%s[/b]" % String(cv.kind).replace("_", " ").capitalize())
+			lines.append("Material: %s%s" % [cv.material, " (thick)" if cv.thick else ""])
+			lines.append("Cover · [code]%d / %d HP[/code]" % [cover_hp, int(cv.hp)])
+			if String(cv.get("hazard", "")) != "":
+				lines.append("[color=#ff6b1a]Hazard: %s[/color]" % cv.hazard)
+	var wc := m.wall_cover(v.z, v.x, v.y)
+	if not wc.is_empty():
+		var t := m.t(v.z, v.x, v.y)
+		var hp_left: int = enc.los.wall_hp.get(v, int(wc.hp))
+		lines.append("[b]%s[/b]" % ("Door" if t == TacMap.T.DOOR else "Wall"))
+		lines.append("Material: %s" % String(wc.material))
+		if wc.cover:
+			lines.append("Cover · [code]%d / %d HP[/code]" % [hp_left, int(wc.hp)])
+		lines.append("Sight: %s" % ("blocked" if wc.blocks_los else "see-through"))
+		if t == TacMap.T.DOOR:
+			lines.append("Locked (security)" if enc.nav.locked.has(v) else ("Open" if enc.los.open_doors.has(v) else "Closed"))
+	for d in m.devices:
+		if d.floor == v.z and d.pos == Vector2i(v.x, v.y):
+			var on_net := false
+			for sid in m.architectures:
+				for ap in m.architectures[sid].access_points:
+					if ap.device == d.id:
+						on_net = true
+			lines.append("Device: %s%s%s" % [String(d.type).replace("_", " "), " · jack-in point" if on_net else "", " · under control" if enc.disabled_devices.has(d.id) else ""])
+	if lines.is_empty():
+		var t2 := m.t(v.z, v.x, v.y)
+		var l := m.label(v.z, v.x, v.y)
+		var what := ""
+		if l >= 0 and not m.rooms[l].get("outdoor", false):
+			what = String(m.rooms[l].kind).replace("_", " ").capitalize() + " · L%d" % int(m.rooms[l].zone)
+		else:
+			what = ["", "Asphalt", "Sidewalk", "Gravel", "Dirt", "Concrete", "Rail bed", "Dock", "Grass", "Sand"][int(m.ground[v.y * m.w + v.x])] if t2 == TacMap.T.OUTSIDE else ""
+		if what == "":
+			return
+		lines.append("[b]%s[/b]" % what)
+		lines.append("Floor %d · no cover" % (v.z + 1))
+	hud.tip("\n".join(lines), mouse, head, Hud.GOLD)
 
 
 func _beside_cover(v: Vector3i) -> bool:
@@ -978,14 +1105,29 @@ func _frame_unit(u: Dictionary) -> void:
 	_place_camera()
 
 
-## Only the unit whose turn it is gets a white pixel outline; everyone else blends in.
+## Units blend in; the one whose turn it is gets an amber downward caret floating above it
+## (owner: instead of the white outline).
 func _update_outlines() -> void:
 	for u in enc.units:
 		var n: Node3D = unit_nodes.get(u.id)
 		if n and n.has_meta("outlines"):
-			var on: bool = not enc.cur.is_empty() and u.id == enc.cur.id and not u.c.dead
 			for ol in n.get_meta("outlines"):
-				(ol as MeshInstance3D).visible = on
+				(ol as MeshInstance3D).visible = false
+
+
+func _make_caret() -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var cm := CylinderMesh.new()   # a 4-sided cone, point down: a caret
+	cm.top_radius = 0.13
+	cm.bottom_radius = 0.0
+	cm.height = 0.2
+	cm.radial_segments = 4
+	cm.rings = 1
+	cm.material = _unlit(Color("ffb000"), 1.0, 1.4)
+	mi.mesh = cm
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	world.add_child(mi)
+	return mi
 
 
 ## Height of the walkable surface of a square (sidewalks are raised by a kerb).
@@ -1016,7 +1158,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 		if h != hover:
 			hover = h
 			_draw_path()
-		_update_hover()
+		if not _inspected:
+			_update_hover()
 	elif ev is InputEventMouseButton and ev.pressed:
 		if busy and ev.button_index in [MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT]:
 			return
@@ -1055,7 +1198,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			KEY_F2: hud.settings.visible = not hud.settings.visible
 			KEY_F3: fog_on = not fog_on; _refresh()
 			KEY_F4:
-				look.net_style = float(int(look.net_style) % 6 + 1)
+				look.net_style = float(NET_CYCLE[(NET_CYCLE.find(int(look.net_style)) + 1) % NET_CYCLE.size()])
 				hud.toast("CYBERSPACE STYLE: " + NET_STYLES[int(look.net_style)])
 				_refresh()
 			KEY_N: net_view = not net_view; _refresh()

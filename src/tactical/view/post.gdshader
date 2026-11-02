@@ -17,7 +17,8 @@ uniform vec2 src_size = vec2(640.0, 360.0);
 // Cyberspace view (while a Netrunner is jacked in): the environment is pushed into the background
 // in one of several styles; the NET itself is drawn on top, crisp and bright (NetOverlay).
 // 0 off, 1 pointillist, 2 Obra Dinn 1-bit, 3 wireframe, 4 Blackwall, 5 Ghost in the Shell,
-// 6 2001 stargate (slit-scan)
+// 6 2001 stargate (slit-scan); wireframe variants: 7 crisp (full res), 8 blueprint (full res),
+// 9 scan sweep. Owner picked wireframe; the others stay for transitions and effects.
 uniform int net_style = 0;
 
 float bayer4(vec2 p) {
@@ -54,9 +55,19 @@ vec3 cyberspace(sampler2D t, vec2 uv, vec2 px, vec2 cell) {
 		float on = step(0.5, l * 0.9 + b * 0.9);
 		on *= 1.0 - step(0.09, e);
 		return mix(vec3(0.06, 0.065, 0.06), vec3(0.47, 0.5, 0.44), on);
-	} else if (net_style == 3) {   // wireframe: white edges on black, a ghost of fill
+	} else if (net_style == 3 || net_style == 7) {   // wireframe: white edges on black, a ghost of fill
 		float line = smoothstep(0.04, 0.1, e);
 		return vec3(0.03) + vec3(0.06) * l + vec3(0.62) * line;
+	} else if (net_style == 8) {   // blueprint: cyan lines on deep navy, a faint drafting grid
+		float line = smoothstep(0.04, 0.1, e);
+		float grid = step(mod(cell.x, 24.0), 0.9) + step(mod(cell.y, 24.0), 0.9);
+		return vec3(0.02, 0.05, 0.1) + vec3(0.02, 0.06, 0.1) * min(grid, 1.0) + vec3(0.1, 0.12, 0.16) * l * 0.4 + vec3(0.35, 0.8, 1.0) * line * 0.75;
+	} else if (net_style == 9) {   // scan: lines brighten as a slow sweep passes, then fade
+		float line = smoothstep(0.04, 0.1, e);
+		float sweep = fract(TIME * 0.25);
+		float dist = fract(sweep - uv.y);
+		float glow = exp(-dist * 6.0);
+		return vec3(0.02) + vec3(0.05) * l + vec3(0.25, 0.32, 0.36) * line + vec3(0.6, 0.9, 1.0) * line * glow + vec3(0.02, 0.05, 0.06) * glow;
 	} else if (net_style == 4) {   // Blackwall: red-black, tearing rows, chromatic split
 		float row = floor(cell.y / 5.0);
 		float tear = step(0.94, h21(vec2(row, floor(TIME * 7.0))));

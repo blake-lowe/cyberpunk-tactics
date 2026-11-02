@@ -59,11 +59,12 @@ static func build(team: int, index: int, role := "") -> Node3D:
 
 	# --- head
 	var neck := b.joint(chest, "neck", Vector3(0, 0.17, 0))
-	b.capsule(neck, Vector3(0, 0.03, 0), 0.042, 0.09, skin.darkened(0.06))
+	b.capsule(neck, Vector3(0, 0.02, 0), 0.042, 0.06, skin.darkened(0.06))   # short neck (owner)
 	b.tapered(chest, Vector3(0, 0.155, 0), 0.05, 0.12, 0.06, Vector3(1.0, 1.0, 0.7), jacket.darkened(0.1))   # trapezius
-	var head := b.joint(neck, "head", Vector3(0, 0.065, 0.005))
-	b.sphere(head, Vector3(0, 0.08, 0), Vector3(0.145, 0.185, 0.16), skin)   # slightly oversized: reads at ~24 px
-	b.sphere(head, Vector3(0, 0.02, 0.035), Vector3(0.1, 0.07, 0.1), skin.darkened(0.08))   # jaw
+	var head := b.joint(neck, "head", Vector3(0, 0.045, 0.005))
+	var hs: Vector3 = look.get("head", Vector3(0.145, 0.185, 0.16))
+	b.sphere(head, Vector3(0, 0.08, 0), hs, skin)   # head shape varies per character
+	b.sphere(head, Vector3(0, 0.022, 0.03), Vector3(0.1 * float(look.get("jaw", 1.0)), 0.07, 0.1), skin.darkened(0.06))   # jaw
 	# face: ears, nose, mouth (read in portraits; a pixel or two in play)
 	for ex in [-1, 1]:
 		b.sphere(head, Vector3(ex * 0.071, 0.075, -0.005), Vector3(0.014, 0.03, 0.022), skin.darkened(0.12))
@@ -79,6 +80,22 @@ static func build(team: int, index: int, role := "") -> Node3D:
 			"long": b.sphere(head, Vector3(0, 0.1, -0.03), Vector3(0.16, 0.15, 0.15), hair)
 			"mohawk": b.capsule(head, Vector3(0, 0.15, -0.01), 0.022, 0.16, hair, Vector3(deg_to_rad(90), 0, 0))
 			"undercut": b.sphere(head, Vector3(-0.02, 0.125, -0.005), Vector3(0.13, 0.09, 0.16), hair)
+			"bob":
+				b.sphere(head, Vector3(0, 0.11, -0.01), Vector3(hs.x + 0.02, 0.13, hs.z + 0.015), hair)
+				b.sphere(head, Vector3(0, 0.06, -0.025), Vector3(hs.x + 0.03, 0.1, hs.z - 0.01), hair)
+			"ponytail":
+				b.sphere(head, Vector3(0, 0.12, -0.012), Vector3(hs.x + 0.01, 0.1, hs.z + 0.005), hair)
+				b.capsule(head, Vector3(0, 0.07, -0.1), 0.022, 0.13, hair, Vector3(deg_to_rad(-20), 0, 0))
+			"curly":
+				for k in 6:
+					var a := k * TAU / 6
+					b.sphere(head, Vector3(cos(a) * 0.05, 0.14 + sin(a * 2.0) * 0.01, sin(a) * 0.05 - 0.01), Vector3(0.08, 0.075, 0.08), hair)
+				b.sphere(head, Vector3(0, 0.16, -0.01), Vector3(0.12, 0.08, 0.12), hair)
+			"bald":
+				pass
+			"topknot":
+				b.sphere(head, Vector3(0, 0.12, -0.012), Vector3(hs.x + 0.005, 0.095, hs.z + 0.004), hair)
+				b.sphere(head, Vector3(0, 0.19, -0.04), Vector3(0.06, 0.06, 0.06), hair)
 		if is_runner:  # interface band glowing in the crew colour
 			b.torus(head, Vector3(0, 0.085, 0), 0.077, 0.011, Vector3(1.0, 1.0, 1.0), accent, 1.6)
 		elif look.visor:

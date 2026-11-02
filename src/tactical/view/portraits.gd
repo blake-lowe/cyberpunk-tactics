@@ -1,14 +1,14 @@
 class_name Portraits
 extends Node
 ## Portraits v3 (owner: "more realistically lit 3D, processed with our pixel shader"): each
-## character's actual 3D model, head and shoulders, rendered at pixel-art resolution (42×42, shown 2x) in a
+## character's actual 3D model, head and shoulders, rendered at pixel-art resolution (32×32, shown 2x; small hides imperfections) in a
 ## small studio: a warm key light from the front left, a strong rim in the team accent from behind,
 ## a cool fill, and out-of-focus neon "bokeh" behind. The HUD draws the texture nearest-upscaled
 ## through the same palette post shader as the world (see `material()`), so portraits and the scene
 ## share one pixel and colour language. Gear and looks come from UnitModel/UnitLook, so they match.
 ## Rendered once (UPDATE_ONCE); wound states are applied by the HUD as tints.
 
-const S := 42
+const S := 32
 
 var post_shader: Shader            ## set by the view: the world's palette post shader
 var palette: PackedVector3Array    ## and its palette (OKLab)
@@ -34,54 +34,38 @@ func tex(u: Dictionary, _state := 0) -> Texture2D:
 	model.rotation.y = deg_to_rad(-18)
 	vp.add_child(model)
 	var accent: Color = look.accent
-	# backdrop: dark, with soft neon discs far behind (pixelated bokeh)
-	var rng := RandomNumberGenerator.new()
-	rng.seed = u.id * 977 + 5
-	for k in 7:
-		var disc := MeshInstance3D.new()
-		var sm := SphereMesh.new()
-		sm.radius = 0.5
-		sm.height = 1.0
-		var mt2 := StandardMaterial3D.new()
-		mt2.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		var c: Color = [accent, Color("ffb070"), Color("05d9e8"), Color("ff2a6d")][rng.randi() % 4]
-		mt2.albedo_color = c.darkened(rng.randf_range(0.45, 0.75))
-		sm.material = mt2
-		disc.mesh = sm
-		disc.scale = Vector3.ONE * rng.randf_range(0.12, 0.3)
-		disc.position = Vector3(rng.randf_range(-0.55, 0.55), rng.randf_range(0.55, 1.25), -1.6)
-		vp.add_child(disc)
+	# backdrop: plain dark (owner: the bokeh was messy)
 	var cam := Camera3D.new()
 	cam.fov = 26
 	vp.add_child(cam)
-	cam.look_at_from_position(Vector3(0.02, 0.92, 0.74), Vector3(0, 0.85, 0))
+	cam.look_at_from_position(Vector3(0.02, 0.9, 0.72), Vector3(0, 0.83, 0))
 	var key := DirectionalLight3D.new()
 	key.rotation_degrees = Vector3(-30, -40, 0)
-	key.light_energy = 1.25
+	key.light_energy = 0.8   # softer (owner: lighting too harsh)
 	key.light_color = Color("ffe2c4")
 	key.light_cull_mask = 0xFFFFF
 	vp.add_child(key)
 	var rim := OmniLight3D.new()
 	rim.position = Vector3(0.35, 1.05, -0.45)
 	rim.omni_range = 1.6
-	rim.light_energy = 5.0
+	rim.light_energy = 2.2
 	rim.light_color = accent if u.team == 0 else Color("ff3030")
 	rim.light_cull_mask = 0xFFFFF
 	vp.add_child(rim)
 	var fill := OmniLight3D.new()
 	fill.position = Vector3(-0.6, 0.8, 0.4)
 	fill.omni_range = 2.0
-	fill.light_energy = 0.6
+	fill.light_energy = 1.0
 	fill.light_color = Color("6a80c0")
 	fill.light_cull_mask = 0xFFFFF
 	vp.add_child(fill)
 	var we := WorldEnvironment.new()
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color("0b0e16")
+	env.background_color = Color("141a26")
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color("2a3248")
-	env.ambient_light_energy = 0.5
+	env.ambient_light_energy = 0.75
 	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
 	we.environment = env
 	vp.add_child(we)

@@ -57,6 +57,8 @@ var _flash: ColorRect
 var _vignette: ColorRect
 var _cards := {}
 var _round_tab: PanelContainer
+var _log_lines: Array = []
+var _log_open := false
 var _round_box: VBoxContainer              ## unit id → party card (hit shake)
 
 
@@ -103,10 +105,14 @@ func _ready() -> void:
 	_log_panel.add_child(lv)
 	lv.add_child(_text("// COMBAT LOG", F_PIXEL, 20, DIM))
 	_log = _text("", F_TERM, 20, Color("9fb4c4"))
-	_log.custom_minimum_size = Vector2(340, 0)
+	_log.custom_minimum_size = Vector2(320, 0)
 	_log.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lv.add_child(_log)
 	add_child(_log_panel)
+	# top right, left of the round tab; hovering expands it to more history (owner)
+	_log_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	_log_panel.mouse_entered.connect(func(): _log_open = true; _show_log())
+	_log_panel.mouse_exited.connect(func(): _log_open = false; _show_log())
 	_net_panel = _panel(VIOLET, 0b0101)
 	_net_box = VBoxContainer.new()
 	_net_box.add_theme_constant_override("separation", 3)
@@ -199,6 +205,19 @@ func _text(s: String, font: Font, size: int, col := TEXT) -> Label:
 	l.add_theme_constant_override("outline_size", 2 if font != F_PIXEL else 0)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return l
+
+
+## A layer that draws with a callable (world-anchored HUD bits: cover shields).
+class Painter extends Control:
+	var fn: Callable
+	func _ready() -> void:
+		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+	func _process(_d: float) -> void:
+		queue_redraw()
+	func _draw() -> void:
+		if fn.is_valid():
+			fn.call(self)
 
 
 ## Segmented, slanted meter (HP, MOVE).
@@ -391,7 +410,7 @@ func _layout() -> void:
 	_init_strip.position = Vector2(s.x / 2 - _init_strip.size.x / 2, 12)
 	_bar.position = Vector2(s.x / 2 - _bar.size.x / 2, s.y - _bar.size.y - 12)
 	# log: flush above the hotbar's right end
-	_log_panel.position = Vector2(_bar.position.x + _bar.size.x - _log_panel.size.x, _bar.position.y - _log_panel.size.y - 4)
+	_log_panel.position = Vector2(s.x - _round_tab.size.x - _log_panel.size.x - 22, 12)
 	_net_panel.position = Vector2(s.x - _net_panel.size.x - 14, 110)
 	_toast.position = Vector2(s.x / 2 - 400, 120)
 	_toast.size = Vector2(800, 40)
@@ -483,9 +502,8 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 	jack.disabled = not crew_turn
 	_end_btn.disabled = not crew_turn
 	_end_btn.queue_redraw()
-	_log.text = "\n".join(enc.log.slice(maxi(0, enc.log.size() - 4)).map(func(l): return "> " + l))
-	_log_panel.visible = not enc.log.is_empty()
-	_log_panel.reset_size()
+	_log_lines = enc.log.duplicate()
+	_show_log()
 	_banner.text = floor_text
 	_banner.add_theme_color_override("font_color", GOLD if not floor_text.ends_with("1/%s" % floor_text.get_slice("/", 1)) else Color("9fb4c4"))
 	_net_refresh(enc)
@@ -522,7 +540,7 @@ func _party_card(u: Dictionary, active: bool) -> Control:
 	face.texture = portraits.tex(u)
 	face.material = portraits.material()
 	face.modulate = Portraits.tint(c.wound_state() if not c.dead else 4)
-	face.custom_minimum_size = Vector2(84, 84)   # 2x the 42 px render
+	face.custom_minimum_size = Vector2(64, 64)   # 2x the 32 px render
 	face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	face.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -585,6 +603,14 @@ func turn_banner(text: String, col: Color) -> void:
 	tw.tween_interval(0.9)
 	tw.tween_property(_turn_banner, "modulate:a", 0.0, 0.25)
 	tw.parallel().tween_property(_turn_rule, "modulate:a", 0.0, 0.25)
+
+
+func _show_log() -> void:
+	var n := 14 if _log_open else 3
+	_log.text = "\n".join(_log_lines.slice(maxi(0, _log_lines.size() - n)).map(func(l): return "> " + l))
+	_log_panel.visible = not _log_lines.is_empty()
+	_log_panel.reset_size()
+	_layout.call_deferred()
 
 
 ## A one-frame-ish full-screen flash (crits, alerts).
