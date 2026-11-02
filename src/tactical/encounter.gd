@@ -28,6 +28,7 @@ var log: Array[String] = []
 var state := "playing"              ## playing | won | lost
 var runs := {}                      ## unit id → NetRun
 var net_left := 0                   ## NET Actions left this turn (runner only)
+var _netting := false               ## this turn went to the NET (the meat Action is forgone, p197)
 var objective := {}                 ## {kind, done, + data: structure, node | snatch: cell, carrier}
 var twists: Array = []             ## gig complications: heavy, blackout, shift_change (data/gen/gigs.json)
 var extract_cells := {}             ## Vector3i → true: the deploy zone, where a snatch is carried out
@@ -187,6 +188,7 @@ func next_turn() -> void:
 		_tick_backup()
 		turn = TurnState.begin(dice, c)
 		net_left = 0
+		_netting = false
 		if cur.team == 1 and cur.alerted and turn.survived and c.can_act():
 			_call_it_in(cur)
 		if not turn.survived:
@@ -636,7 +638,7 @@ func move_to(dest: Vector3i, allow_run := false) -> bool:
 	update_alerts()
 	if runs.has(cur.id) and Los.distance_m(dest, _ap_pos(runs[cur.id])) > jack_range(cur.c):
 		say("%s moves out of range and is dumped from the NET." % cur.c.display_name)
-		runs.erase(cur.id)
+		_drop_run(cur.id, true)
 	_check_end()   # a carrier reaching the extraction point
 	return true
 
@@ -1065,8 +1067,11 @@ func jack_points(u: Dictionary) -> Array:
 
 
 func jack_in(point: Dictionary) -> bool:
-	if NetRun.interface_rank(cur.c) <= 0 or not turn.use_action():
+	if NetRun.interface_rank(cur.c) <= 0 or (not _netting and not turn.action_available):
 		return false
+	turn.action_available = false   # the turn goes to the NET (p197); jacking in is its first NET Action
+	_netting = true
+	net_left = net_actions_for(cur.c) - 1
 	var run := NetRun.new(m.architectures[point.structure], cur.c)
 	run.nets = m.architectures
 	run.jack_in(point.index)
@@ -1081,14 +1086,26 @@ func jack_in(point: Dictionary) -> bool:
 ## nodes is free (run.move_to). A turn spent in the NET forgoes the meat Action (p197).
 func net_action(kind: String, arg: int = -1) -> Dictionary:
 	var run: NetRun = runs.get(cur.id)
+	if kind not in ["backdoor", "control", "eye_dee", "zap", "cross", "jack_out"]:
+		return {"ok": false, "reason": "unknown action"}
 	if run == null or net_left <= 0:
 		return {"ok": false, "reason": "no NET Actions left"}
+	if not _netting and not turn.action_available:   # the meat Action is spent: no NET this turn (p197)
+		return {"ok": false, "reason": "your Action is spent"}
+	var why := run.action_block(kind)
+	if why != "":
+		return {"ok": false, "reason": why}
 	if kind == "zap" and run.arch.ice_at(run.current).is_empty():   # check before spending anything
 		return {"ok": false, "reason": "no ICE here"}
 	if kind == "cross" and (run.current < 0 or String(run.cur_node().type) != "socket" or not run.nets.has(run.cur_node().get("target_structure", -1))):
 		return {"ok": false, "reason": "no socket here"}
 	turn.action_available = false
+	_netting = true
 	net_left -= 1
+	if kind == "jack_out":   # a safe Jack Out is a NET Action (p198)
+		_drop_run(cur.id, false)
+		say("%s jacks out." % cur.c.display_name)
+		return {"ok": true}
 	var n := run.cur_node()
 	match kind:
 		"backdoor":
@@ -1126,11 +1143,28 @@ func net_action(kind: String, arg: int = -1) -> Dictionary:
 			return {"ok": true, "success": hit.success}
 		"cross":
 			return {"ok": run.cross()}
-		"jack_out":
-			runs.erase(cur.id)
-			say("%s jacks out." % cur.c.display_name)
-			return {"ok": true}
 	return {"ok": false, "reason": "unknown"}
+
+
+## Leave the NET: every node the runner held is lost (p199), so turrets, cameras and door locks
+## go back to the site. An unsafe exit (dumped by range) also suffers every Black ICE met this
+## session (p198).
+func _drop_run(uid: int, unsafe: bool) -> void:
+	var run: NetRun = runs.get(uid)
+	if run == null:
+		return
+	for did in run.controlled_devices():
+		disabled_devices.erase(did)
+		var dev: Dictionary = m.devices[did]
+		var cell := Vector3i(dev.pos.x, dev.pos.y, dev.floor)
+		if dev.type == "door_lock" and not los.open_doors.has(cell) and m.t(cell.z, cell.x, cell.y) == TacMap.T.DOOR:
+			nav.locked[cell] = true
+	if unsafe:
+		var u: Dictionary = units[uid]
+		for ice in run.arch.ice:
+			if run.met.has(ice.id) and not ice.get("derezzed", false):
+				_ice_attack(u, run, ice, true)
+	runs.erase(uid)
 
 
 ## Black ICE on the runner's node attacks at the start of their turn: ATK + 1d10 vs Interface +
@@ -1140,15 +1174,20 @@ func _ice_turn(u: Dictionary) -> void:
 	if run == null:
 		return
 	for ice in run.arch.ice_at(run.current):
-		var stats: Dictionary = RulesDB.load_json("black_ice.json")["ice"][ice.kind]
-		var hit := Check.opposed(dice, int(stats.atk), run.rank())
-		if hit.success and String(stats.brain) != "":
-			var parts := String(stats.brain).split("d")
-			var dmg := dice.roll(int(parts[0]), int(parts[1]))
-			var before: int = u.c.wound_state()
-			u.c.hp -= dmg
-			say("%s hits %s for %d brain damage." % [ice.kind, u.c.display_name, dmg])
-			events.append({"type": "harm", "unit": u.id, "damage": dmg, "source": String(ice.kind).to_upper(), "wound_before": before, "wound_after": u.c.wound_state()})
+		_ice_attack(u, run, ice)
+
+
+## `auto`: the Effect lands without a roll (an unsafe jack-out "suffers" every ICE met, p198).
+func _ice_attack(u: Dictionary, run: NetRun, ice: Dictionary, auto := false) -> void:
+	var stats: Dictionary = RulesDB.load_json("black_ice.json")["ice"][ice.kind]
+	var hit := auto or Check.opposed(dice, int(stats.atk), run.rank()).success
+	if hit and String(stats.brain) != "":
+		var parts := String(stats.brain).split("d")
+		var dmg := dice.roll(int(parts[0]), int(parts[1]))
+		var before: int = u.c.wound_state()
+		u.c.hp -= dmg
+		say("%s hits %s for %d brain damage." % [ice.kind, u.c.display_name, dmg])
+		events.append({"type": "harm", "unit": u.id, "damage": dmg, "source": String(ice.kind).to_upper(), "wound_before": before, "wound_after": u.c.wound_state()})
 
 
 ## Where the runner is physically jacked in (the device they used, not the NET's first port).

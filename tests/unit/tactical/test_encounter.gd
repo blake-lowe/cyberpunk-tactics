@@ -404,3 +404,82 @@ func test_low_security_low_heat_brings_no_ncpd() -> void:
 	e._backup_round = -5
 	e.next_turn()
 	assert_eq(e.ncpd_in, -1, "no NCPD clock for a quiet security-1 site")
+
+
+func _jacked() -> Array:
+	var m := SceneGen.generate(11, "lone_building", {"site": "corp_office", "security": 1})
+	var dice := Dice.new(9)
+	var e := Encounter.setup(m, dice, _crew(dice))
+	var runner: Dictionary = e.units[1]
+	var a: NetArchitecture = m.architecture
+	var ap_dev: Dictionary = m.devices[a.access_points[0].device]
+	runner.pos = Vector3i(ap_dev.pos.x, ap_dev.pos.y, ap_dev.floor)
+	e.cur = runner
+	e.turn = TurnState.begin(dice, runner.c)
+	e.jack_in(e.jack_points(runner)[0])
+	return [e, runner, e.runs[runner.id]]
+
+
+func test_jack_in_is_the_first_net_action_and_forgoes_the_meat_action() -> void:
+	var r := _jacked()
+	var e: Encounter = r[0]
+	assert_eq(e.net_left, Encounter.net_actions_for(r[1].c) - 1, "p198: Jack In is a NET Action")
+	assert_false(e.turn.action_available, "p197: a turn in the NET forgoes the meat Action")
+
+
+func test_wrong_node_actions_cost_nothing() -> void:
+	var r := _jacked()
+	var e: Encounter = r[0]
+	var left := e.net_left
+	var res := e.net_action("control")   # standing on the port
+	assert_false(res.ok)
+	assert_eq(e.net_left, left, "refused before spending")
+	assert_false(e.net_action("pathfinder_typo").ok)
+	assert_eq(e.net_left, left)
+
+
+func test_no_net_after_the_meat_action() -> void:
+	var r := _jacked()
+	var e: Encounter = r[0]
+	e.turn = TurnState.begin(e.dice, r[1].c)   # a new turn, still jacked in
+	e.net_left = 3
+	e._netting = false
+	e.turn.action_available = false   # e.g. they shot someone
+	assert_false(e.net_action("backdoor").ok, "p197")
+
+
+func test_jack_out_loses_held_nodes_and_relocks_doors() -> void:
+	var r := _jacked()
+	var e: Encounter = r[0]
+	var run: NetRun = r[2]
+	var ctl := -1
+	for n in run.arch.nodes_of_type("control"):
+		for did in n.devices:
+			if e.m.devices[did].type == "door_lock":
+				ctl = n.id
+	if ctl < 0:
+		return   # no lock on this map; covered elsewhere
+	run.held[ctl] = true
+	var lock: Dictionary = {}
+	for did in run.arch.nodes[ctl].devices:
+		e.disabled_devices[did] = true
+		if e.m.devices[did].type == "door_lock":
+			lock = e.m.devices[did]
+	var cell := Vector3i(lock.pos.x, lock.pos.y, lock.floor)
+	e.nav.locked.erase(cell)
+	e.net_action("jack_out")
+	assert_true(e.disabled_devices.is_empty(), "p199: held nodes are lost")
+	assert_true(e.nav.locked.has(cell), "the door locks again")
+
+
+func test_dumped_by_range_suffers_the_ice_met() -> void:
+	var r := _jacked()
+	var e: Encounter = r[0]
+	var run: NetRun = r[2]
+	var ice := {"id": 999, "kind": "hellhound", "node": run.current, "patrol": false}
+	run.arch.ice.append(ice)
+	run.met[999] = true
+	var hp0: int = r[1].c.hp
+	e._drop_run(r[1].id, true)
+	assert_true(r[1].c.hp < hp0, "p198: an unsafe jack-out suffers the ICE met, no roll")
+	assert_false(e.runs.has(r[1].id))

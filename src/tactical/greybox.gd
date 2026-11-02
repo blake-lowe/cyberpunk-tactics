@@ -1623,8 +1623,8 @@ func _jack_in() -> void:
 	var pts := enc.jack_points(enc.cur)
 	if pts.is_empty():
 		hud.toast("No terminal within %d m." % int(Encounter.jack_range(enc.cur.c)))
-	elif enc.jack_in(pts[0]):
-		enc.net_left = Encounter.net_actions_for(enc.cur.c) - 1
+	elif not enc.jack_in(pts[0]):
+		hud.toast("Your Action is spent this turn.")
 	_after_action()
 
 
@@ -1660,8 +1660,8 @@ func _demo_jack() -> void:
 	enc.turn = TurnState.begin(dice, runner.c)
 	view_floor = best.z
 	var pts := enc.jack_points(runner)
-	if not pts.is_empty() and enc.jack_in(pts[0]):
-		enc.net_left = Encounter.net_actions_for(runner.c) - 1
+	if not pts.is_empty():
+		enc.jack_in(pts[0])
 		var run: NetRun = enc.runs[runner.id]
 		for nb in run.arch.neighbors(run.current):   # step one node in so more of the NET shows
 			if run.can_move_to(nb) and run.arch.neighbors(nb).size() > 1:

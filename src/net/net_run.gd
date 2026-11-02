@@ -15,6 +15,7 @@ var revealed := {}   ## node id → true
 var broken := {}     ## firewalls Backdoored
 var held := {}       ## control nodes taken
 var identified := {} ## files Eye-Dee'd
+var met := {}        ## Black ICE ids encountered this session (an unsafe jack-out suffers them all, p198)
 
 
 static func interface_rank(c: Combatant) -> int:
@@ -43,6 +44,7 @@ func rank() -> int:
 func jack_in(access_point: int) -> void:
 	current = int(arch.access_points[access_point].entry_node)
 	revealed[current] = true
+	_meet()
 
 
 func jack_out() -> void:
@@ -86,7 +88,30 @@ func move_to(id: int) -> bool:
 		return false
 	current = id
 	revealed[id] = true
+	for nb in arch.neighbors(id):   # you can see the doors out of where you stand
+		revealed[nb] = true
+	_meet()
 	return true
+
+
+func _meet() -> void:
+	for i in arch.ice_at(current):
+		met[i.id] = true
+
+
+## What each NET Action needs from the node the runner is on ("" = fine).
+func action_block(kind: String) -> String:
+	if current < 0:
+		return "not jacked in"
+	var t := String(cur_node().type)
+	match kind:
+		"backdoor":
+			return "" if t == "firewall" and not broken.has(current) else ("already open" if t == "firewall" else "not a firewall")
+		"control":
+			return "" if t == "control" and not held.has(current) else ("already held" if t == "control" else "not a control node")
+		"eye_dee":
+			return "" if t == "file" and not identified.has(current) else ("already identified" if t == "file" else "not a file")
+	return ""
 
 
 func chance(dv: int) -> float:

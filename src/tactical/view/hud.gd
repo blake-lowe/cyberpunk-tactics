@@ -583,7 +583,7 @@ static func objective_text(enc: Encounter) -> String:
 			return "OBJ · EXTRACT THE PACKAGE" if int(o.get("carrier", -1)) >= 0 else "OBJ · GRAB THE PACKAGE"
 		"eliminate":
 			return "OBJ · NOBODY STANDING (%d LEFT)" % enc.alive(1).size()
-	return "OBJ · PULL THE FILE OR CLEAR OUT" if o.has("node") else "OBJ · CLEAR OUT"
+	return "OBJ · PULL THE FILE OR CLEAR OUT" if int(o.get("node", -1)) >= 0 else "OBJ · CLEAR OUT"
 
 
 ## Show each M5 action only when it applies to the active unit; reflect the active tool.

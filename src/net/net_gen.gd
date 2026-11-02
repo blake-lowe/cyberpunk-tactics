@@ -77,6 +77,10 @@ static func generate(m: TacMap, dice: Dice, sid: int) -> NetArchitecture:
 		buckets.get_or_add(deepest, []).append({"type": "control", "dv": dv + 2, "group": "master_cameras", "devices": cams, "zone": mz, "net_only": true})
 	if sec >= 2 and not intro:
 		buckets.get_or_add(deepest, []).append({"type": "file", "dv": dv + 2, "device": -1, "value": 4, "zone": mz, "net_only": true, "label": "offsite backup"})
+	# Every NET holds at least one File, so a data gig always has something to pull (playtest: a site
+	# of only cameras and locks left the objective empty).
+	if not buckets.values().any(func(b): return b.any(func(x): return x.type == "file")):
+		buckets.get_or_add(deepest, []).append({"type": "file", "dv": dv, "device": -1, "value": 2, "zone": mz, "net_only": true, "label": "records"})
 	for z in range(TacMap.Zone.PUBLIC, mz + 1):  # every zone gets a subnet, even if empty
 		if not buckets.keys().any(func(k): return k.x == z):
 			buckets[Vector2i(z, 0)] = []
