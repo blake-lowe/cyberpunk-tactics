@@ -168,7 +168,7 @@ func _shafts(m: TacMap, rng: RandomNumberGenerator) -> void:
 	mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mt.cull_mode = BaseMaterial3D.CULL_DISABLED
 	mt.no_depth_test = false
-	mt.albedo_color = Color(1.0, 0.97, 0.94, 0.07)
+	mt.albedo_color = Color(1.0, 0.97, 0.94, 0.035)   # r7 review: shafts read as glass slabs at 0.07
 	for i in maxi(4, m.w * m.h / 900):
 		var mi := MeshInstance3D.new()
 		var bm := BoxMesh.new()

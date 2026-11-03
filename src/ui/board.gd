@@ -71,6 +71,9 @@ func _text(s: String, font: Font, size: int, col := Hud.TEXT, wrap := false) -> 
 	if (font == Hud.F_DISPLAY or font == Hud.F_PIXEL) and s != s.to_upper():   # the pixel face is for caps only
 		font = Hud.F_TERM
 		size = Hud.ts(size)
+	elif (font == Hud.F_DISPLAY or font == Hud.F_PIXEL) and size < 30:   # r7 review: small pixel text drops columns ("UNDERQTY")
+		font = Hud.F_BOLD
+		size = Hud.ts(size)
 	var l := Label.new()
 	l.text = s
 	l.add_theme_font_override("font", font)
@@ -97,8 +100,8 @@ func _button(label: String, col: Color, cb: Callable, enabled := true) -> Button
 	b.disabled = not enabled
 	# short caps labels in the pixel face; sentences (downtime, perks) in the body face
 	var prose := label.length() > 22 or label != label.to_upper()
-	b.add_theme_font_override("font", Hud.F_TERM if prose else Hud.F_DISPLAY)
-	b.add_theme_font_size_override("font_size", Hud.ts(19) if prose else 20)
+	b.add_theme_font_override("font", Hud.F_TERM if prose else Hud.F_BOLD)
+	b.add_theme_font_size_override("font_size", Hud.ts(19) if prose else Hud.ts(20))
 	b.add_theme_color_override("font_color", col)
 	b.add_theme_stylebox_override("normal", CutBox.make(Color(0.03, 0.045, 0.06, 0.95), Color(col, 0.5), 7, 0b0101))
 	b.add_theme_stylebox_override("hover", CutBox.make(Color(col.r * 0.15, col.g * 0.15, col.b * 0.15, 0.97), col, 7, 0b0101))

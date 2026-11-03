@@ -682,6 +682,9 @@ func _text(s: String, font: Font, size: int, col := Hud.TEXT) -> Label:
 	if (font == Hud.F_DISPLAY or font == Hud.F_PIXEL) and s != s.to_upper():   # the pixel face is for caps only
 		font = Hud.F_TERM
 		size = Hud.ts(size)
+	elif (font == Hud.F_DISPLAY or font == Hud.F_PIXEL) and size < 30:   # r7 review: small pixel text drops columns ("UNDERQTY")
+		font = Hud.F_BOLD
+		size = Hud.ts(size)
 	var l := Label.new()
 	l.text = s
 	l.add_theme_font_override("font", font)

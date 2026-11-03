@@ -26,8 +26,8 @@ const LIB := {
 	"sidewalk": [Color("3b3e43"), Color("25272b"), 4, 1.6, 0.7, 0.0],
 	"concrete": [Color("33363a"), Color("232528"), 1, 0.37, 0.8, 0.0],
 	"gravel": [Color("3b3833"), Color("2a2824"), 5, 2.0, 0.95, 0.0],
-	"dirt": [Color("3a2f25"), Color("281f18"), 5, 0.8, 0.95, 0.0],
-	"grass": [Color("1d2e1f"), Color("2c3a1c"), 5, 1.1, 0.95, 0.0],
+	"dirt": [Color("5a4836"), Color("3e3226"), 5, 0.8, 0.95, 0.0],   # r7 review: lots read as voids when darker
+	"grass": [Color("2c4630"), Color("3a4a28"), 5, 1.1, 0.95, 0.0],
 	"sand": [Color("8e7c68"), Color("766452"), 5, 0.7, 0.95, 0.0],
 	"rail": [Color("2c2724"), Color("1a1715"), 6, 0.9, 0.7, 0.2],
 	"dock": [Color("2f2a25"), Color("1a1714"), 2, 0.8, 0.75, 0.0],
@@ -39,7 +39,7 @@ const LIB := {
 	"floor_carpet": [Color("2a2233"), Color("2a2233"), 0, 4.0, 0.95, 0.0],
 	"floor_metal": [Color("2a3038"), Color("181c21"), 6, 1.4, 0.45, 0.5],
 	"floor_vault": [Color("2c2228"), Color("15101a"), 1, 0.9, 0.35, 0.3],
-	"roof": [Color("3a4252"), Color("232833"), 4, 0.5, 0.85, 0.0, {"shell": true}],
+	"roof": [Color("3a4252"), Color("232833"), 4, 0.5, 0.85, 0.0, {"shell": true, "dry": true}],
 	"stairs": [Color("4a5058"), Color("2a2e33"), 6, 3.0, 0.5, 0.3],
 	"wall_concrete": [Color("5a5f66"), Color("34373c"), 7, 1.0, 0.85, 0.0],
 	"wall_plaster": [Color("6e675d"), Color("47423b"), 7, 1.0, 0.9, 0.0],
@@ -153,6 +153,7 @@ func mat(name: String, f: int, cut := true, over := {}) -> ShaderMaterial:
 	mt.set_shader_parameter("flat_shade", extra.get("flat", false))
 	mt.set_shader_parameter("offmap", extra.get("offmap", false))
 	mt.set_shader_parameter("near_fade", extra.get("near_fade", false))
+	mt.set_shader_parameter("dry", extra.get("dry", false))
 	mt.set_shader_parameter("cuttable", cut)
 	if extra.has("tex"):
 		mt.set_shader_parameter("tex", extra.tex)
@@ -1101,14 +1102,14 @@ func _roof_clutter(f: int) -> void:
 				continue
 			if roll < 0.05:
 				pass   # (rooftop tanks are real cover pieces now)
-			elif roll < 0.1:
+			elif roll < 0.056:   # aerial masts: a rare red-tipped few, not dozens
 				box(mat("dark", f), p + Vector3(0, 0.45, 0), Vector3(0.03, 0.9, 0.03))
 				box(mat("dark", f, true, {"glow": 1.2, "emit": Color("ff2020")}), p + Vector3(0, 0.92, 0), Vector3(0.06, 0.06, 0.06))
 			elif roll < 0.16:
 				box(S, p + Vector3(0, 0.12, 0), Vector3(0.3, 0.24, 0.3), rng.randf())
 			elif roll < 0.172:   # skylight glowing from the room below (sparse: they read as noise in numbers)
-				var sk: Color = [Color("ffc890"), Color("aaf6ff")][rng.randi() % 2]
-				box(mat("dark", f, true, {"glow": 1.2, "emit": sk}), Vector3(x + 0.5, y0 + 0.03, y + 0.5), Vector3(0.6, 0.05, 0.6))
+				var sk: Color = [Color("ffc890"), Color("ffb070")][rng.randi() % 2]
+				box(mat("dark", f, true, {"glow": 0.45, "emit": sk}), Vector3(x + 0.5, y0 + 0.03, y + 0.5), Vector3(0.6, 0.05, 0.6))
 				emitters.append({"cell": Vector3i(x, y, f), "color": sk, "energy": 0.8, "range": 2.5, "out": Vector2i.ZERO})
 
 
