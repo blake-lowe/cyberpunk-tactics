@@ -1171,7 +1171,8 @@
    }
   ]
  },
- "courtyard": {
+ "terrace": {"furniture": [["planter", "scatter", 18], ["seat", "scatter", 30], ["ac_unit", "scatter", 40]], "devices": []},
+  "courtyard": {
   "furniture": [
    [
     "planter",
@@ -1236,16 +1237,11 @@
  },
  "roof": {
   "furniture": [
-   [
-    "ac_unit",
-    "scatter",
-    26
-   ],
-   [
-    "vent",
-    "scatter",
-    45
-   ]
+   ["ac_unit", "scatter", 40],
+   ["vent", "scatter", 70],
+   ["water_tank", "scatter", 110],
+   ["solar", "scatter", 90],
+   ["roof_hut", "scatter", 230]
   ],
   "devices": [
    {

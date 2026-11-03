@@ -84,6 +84,7 @@ var natural := false     ## open-country scene: modelled rocks, plants, mesas in
 var tag: Variant = null ## while set, instances added by put() are recorded under it (cover cells)
 var _tagged := {}       ## Vector3i cell → [[batch, index]] so a destroyed piece can be hidden
 var lightfield: Texture2D   ## set by the greybox after baking (LightField)
+var _sid_grid := PackedInt32Array()   ## building structure id per square (-1 none): per-building looks
 var neon: Array = []    ## this scene's sign colours (SceneTheme), for facade dressing and the skyline
 var emitters: Array = []  ## extra light-field sources from dressing: {cell, color, energy, range}
 
@@ -140,9 +141,9 @@ func mat(name: String, f: int, cut := true, over := {}) -> ShaderMaterial:
 		mt.shader = SHADER
 	var col: Color = extra.get("color", d[0])
 	mt.set_shader_parameter("albedo", Color(col, extra.get("alpha", 1.0)))
-	mt.set_shader_parameter("albedo2", d[1])
-	mt.set_shader_parameter("pattern", d[2])
-	mt.set_shader_parameter("pattern_scale", d[3])
+	mt.set_shader_parameter("albedo2", extra.get("color2", d[1]))
+	mt.set_shader_parameter("pattern", extra.get("pattern", d[2]))
+	mt.set_shader_parameter("pattern_scale", extra.get("scale", d[3]))
 	mt.set_shader_parameter("roughness", d[4])
 	mt.set_shader_parameter("metallic", d[5])
 	mt.set_shader_parameter("emission", extra.get("emit", col))
@@ -287,6 +288,15 @@ func flush(parent: Node3D) -> void:
 ## Builds everything under `root`; returns per-floor nodes.
 func build(root: Node3D) -> Array[Node3D]:
 	rng.seed = m.seed_value * 31 + 7
+	_sid_grid.resize(m.w * m.h)
+	_sid_grid.fill(-1)
+	for st in m.structures:
+		if st.get("kind", "") != "building" or not st.has("rect"):
+			continue
+		var r: Rect2i = st.rect
+		for y in range(maxi(r.position.y, 0), mini(r.end.y, m.h)):
+			for x in range(maxi(r.position.x, 0), mini(r.end.x, m.w)):
+				_sid_grid[y * m.w + x] = int(st.id)
 	natural = String(m.params.get("scene", "")) == "badlands"
 	var out: Array[Node3D] = []
 	for f in m.floors:
@@ -330,6 +340,46 @@ func build(root: Node3D) -> Array[Node3D]:
 
 
 # --- Floors and ground -------------------------------------------------------------
+
+## Neighbouring buildings get their own roof (owner round 6: every roof was the same grey):
+## membrane, tar, gravel, pavers, a green coat or rusted sheet; corrugated on industrial sites,
+## pavers on corp ones. Themed scenes keep their own roof material.
+const ROOF_LOOKS := [
+	{"color": Color("3a4252"), "color2": Color("232833"), "pattern": 4},
+	{"color": Color("1c1e22"), "color2": Color("101113"), "pattern": 0},
+	{"color": Color("625c50"), "color2": Color("44403a"), "pattern": 5, "scale": 1.6},
+	{"color": Color("585c64"), "color2": Color("383b40"), "pattern": 1, "scale": 0.6},
+	{"color": Color("2e4a3e"), "color2": Color("1c2e26"), "pattern": 4},
+	{"color": Color("62402c"), "color2": Color("3a261a"), "pattern": 8, "scale": 1.2},
+]
+const WALL_LOOKS := {
+	"wall_plaster": [Color("6e675d"), Color("5e6870"), Color("7a6252"), Color("5c6656"), Color("6c5e6e"), Color("7a7462")],
+	"wall_concrete": [Color("5a5f66"), Color("4c535a"), Color("64645e"), Color("545a52"), Color("5e5660")],
+}
+
+
+func _site_of(sid: int) -> String:
+	return String(m.structures[sid].get("site", "")) if sid >= 0 and sid < m.structures.size() else ""
+
+
+func _roof_look(sid: int) -> Dictionary:
+	if sid < 0 or SceneTheme.of(m).get("mats", {}).has("roof"):
+		return {}
+	var site := _site_of(sid)
+	if site in ["warehouse", "factory", "chop_shop"]:
+		return {"color": Color("4c5056"), "color2": Color("2e3236"), "pattern": 8, "scale": 1.3}
+	if site in ["corp_office", "corp_hq", "data_center"]:
+		return ROOF_LOOKS[3]
+	return ROOF_LOOKS[posmod(hash(sid * 2654435761 + m.seed_value), ROOF_LOOKS.size())]
+
+
+func _wall_look(name: String, sid: int) -> Dictionary:
+	if sid < 0 or not WALL_LOOKS.has(name) or SceneTheme.of(m).get("mats", {}).has(name):
+		return {}
+	var list: Array = WALL_LOOKS[name]
+	var col: Color = list[posmod(hash(sid * 40503 + m.seed_value * 7), list.size())]
+	return {"color": col, "color2": col.darkened(0.42)}
+
 
 func _floor_key(f: int, x: int, y: int) -> String:
 	var t := m.t(f, x, y)
@@ -417,7 +467,8 @@ func _floors(f: int) -> void:
 			var top := y0
 			if k == "sidewalk":
 				top += 0.07   # raised kerb
-			box(mat(k, f, f > 0), Vector3(r.get_center().x, top - thick / 2, r.get_center().y), Vector3(r.size.x, thick, r.size.y))
+			var look := _roof_look(_sid_grid[y * m.w + x]) if k == "roof" else {}
+			box(mat(k, f, f > 0, look), Vector3(r.get_center().x, top - thick / 2, r.get_center().y), Vector3(r.size.x, thick, r.size.y))
 	# A dark slab under every built cell (including walls) so no seam ever shows the void.
 	if f > 0:
 		for y in m.h:
@@ -693,6 +744,9 @@ func _run(f: int, horiz: bool, a: int, b0: int, b1: int, glass: bool, k: int) ->
 	var sh := {"shell": true} if ext else {}
 	if ext:
 		name = ["wall_plaster", "wall_concrete", "wall_steel", "wall_concrete", "wall_concrete", "wall_concrete", "wall_concrete"][k]
+		var cx: int = x0 if horiz else a
+		var cy: int = a if horiz else b0
+		sh.merge(_wall_look(name, _sid_grid[clampi(cy, 0, m.h - 1) * m.w + clampi(cx, 0, m.w - 1)]))
 	box(mat(name, f, true, sh), c + Vector3(0, y0 + FH / 2, 0), size.call(FH, t))
 	box(mat("skirt", f, true, sh), c + Vector3(0, y0 + 0.06, 0), size.call(0.12, t + 0.04))
 	if ext:
@@ -904,6 +958,11 @@ func _piece(kind: String, p: Vector3, yaw: float, f: int, h0: int) -> void:
 			box(D, p + Vector3(0, 0.63, -0.02), Vector3(0.92, 0.04, 0.64), yaw + 0.1)
 		"crane_leg":
 			box(mat("steel", f, false, {"color": Color("b08020")}), p + Vector3(0, 2.0, 0), Vector3(0.5, 4.0, 0.5))
+		"stack":   # industrial exhaust: a tall banded flue with a warning light
+			put("cyl", mat("steel", f, false, {"color": Color("5a5650")}), Transform3D(Basis.from_scale(Vector3(0.5, 2.2, 0.5)), p + Vector3(0, 1.1, 0)))
+			for hb in [0.6, 1.5]:
+				put("cyl", mat("steel", f, false, {"color": Color("8a3a22")}), Transform3D(Basis.from_scale(Vector3(0.54, 0.14, 0.54)), p + Vector3(0, hb, 0)))
+			box(mat("dark", f, false, {"glow": 2.5, "emit": Color("ff2020")}), p + Vector3(0, 2.25, 0), Vector3(0.08, 0.08, 0.08))
 		_:
 			box(mat("concrete_prop", f, false), p + Vector3(0, 0.25, 0), Vector3(0.7, 0.5, 0.7), yaw)
 
@@ -932,6 +991,26 @@ func _multi(kind: String, r: Rect2, f: int, h0: int) -> void:
 				for s in [-1, 1]:
 					box(mat("dark", f, false, {"glow": 3.0, "emit": Color("ff2030")}), c + Vector3(-len2 / 2, 0.27, s * Wd * 0.28).rotated(Vector3.UP, yaw), Vector3(0.02, 0.05, 0.1), yaw)
 					box(mat("dark", f, false, {"glow": 2.0, "emit": Color("fff0d0")}), c + Vector3(len2 / 2, 0.25, s * Wd * 0.28).rotated(Vector3.UP, yaw), Vector3(0.02, 0.05, 0.1), yaw)
+		"water_tank":   # a timber-hooped tank on a steel frame, conical cap
+			var tc := mat("wood", f, false, {"color": Color("5a4430")}) if h0 % 2 == 0 else mat("steel", f, false, {"color": Color("6a6e70")})
+			for s in [-1, 1]:
+				for e in [-1, 1]:
+					box(mat("steel", f, false, {"color": Color("2a2c30")}), c + Vector3(e * Wd * 0.3, 0.3, s * Wd * 0.3), Vector3(0.08, 0.6, 0.08))
+			box(mat("steel", f, false, {"color": Color("2a2c30")}), c + Vector3(0, 0.6, 0), Vector3(Wd * 0.75, 0.08, Wd * 0.75))
+			put("cyl", tc, Transform3D(Basis.from_scale(Vector3(Wd * 0.78, 1.0, Wd * 0.78)), c + Vector3(0, 1.15, 0)))
+			for hb in [0.85, 1.15, 1.45]:
+				put("cyl", mat("dark", f, false), Transform3D(Basis.from_scale(Vector3(Wd * 0.8, 0.04, Wd * 0.8)), c + Vector3(0, hb, 0)))
+			put("cyl", mat("steel", f, false, {"color": Color("3a3c40")}), Transform3D(Basis.from_scale(Vector3(Wd * 0.82, 0.12, Wd * 0.82)), c + Vector3(0, 1.71, 0)))
+		"roof_hut":   # a corrugated shed with a lit door
+			var hc: Color = [Color("4a5058"), Color("5a4a3a"), Color("3a4a44"), Color("5a3a3a")][h0 % 4]
+			box(mat("steel", f, false, {"color": hc, "pattern": 8, "color2": hc.darkened(0.4)}), c + Vector3(0, 0.6, 0), Vector3(L * 0.9, 1.2, Wd * 0.88), yaw)
+			box(mat("steel", f, false, {"color": hc.darkened(0.35)}), c + Vector3(0, 1.24, 0), Vector3(L * 0.98, 0.08, Wd * 0.96), yaw)
+			box(mat("dark", f, false, {"glow": 1.6, "emit": Color("ffc890")}), c + Vector3(0, 0.5, Wd * 0.45).rotated(Vector3.UP, yaw), Vector3(0.45, 0.85, 0.02), yaw)
+			emitters.append({"cell": Vector3i(int(c.x), int(c.z), f), "color": Color("ffc890"), "energy": 0.6, "range": 2.5, "out": Vector2i.ZERO})
+		"solar":
+			box(mat("steel", f, false, {"color": Color("2a2c30")}), c + Vector3(0, 0.2, 0), Vector3(L * 0.85, 0.06, Wd * 0.2), yaw)
+			var pb := Basis(Vector3.UP, yaw) * Basis(Vector3.RIGHT if long_x else Vector3.FORWARD, 0.45)
+			put("box", mat("glass", f, false, {"color": Color("1a2a4a"), "alpha": 0.95, "glow": 0.25, "emit": Color("2a4a7a")}), Transform3D(pb.scaled_local(Vector3(L * 0.9 if long_x else Wd * 0.85, 0.05, Wd * 0.85 if long_x else L * 0.9)), c + Vector3(0, 0.38, 0)))
 		"container", "freight_car":
 			var col: Color = [Color("6a3428"), Color("284a6a"), Color("6a6028"), Color("2a5a3a"), Color("5a5a5e")][h0 % 5]
 			var h := 1.25 if kind == "container" else 1.3
@@ -992,6 +1071,7 @@ func _roof_clutter(f: int) -> void:
 	var y0 := f * FH
 	var S := mat("steel", f)
 	_billboards(f)
+	_roof_marks(f)
 	for y in m.h:
 		for x in m.w:
 			if m.t(f, x, y) != TacMap.T.ROOF:
@@ -1007,9 +1087,7 @@ func _roof_clutter(f: int) -> void:
 			if m.has_cover_at(f, Vector2i(x, y)):
 				continue
 			if roll < 0.05:
-				put("cyl", S, Transform3D(Basis.from_scale(Vector3(0.7, 0.8, 0.7)), p + Vector3(0, 0.5, 0)))
-				for lx in [-0.2, 0.2]:
-					box(S, p + Vector3(lx, 0.05, 0), Vector3(0.05, 0.1, 0.6))
+				pass   # (rooftop tanks are real cover pieces now)
 			elif roll < 0.1:
 				box(mat("dark", f), p + Vector3(0, 0.45, 0), Vector3(0.03, 0.9, 0.03))
 				box(mat("dark", f, true, {"glow": 1.2, "emit": Color("ff2020")}), p + Vector3(0, 0.92, 0), Vector3(0.06, 0.06, 0.06))
@@ -1019,6 +1097,43 @@ func _roof_clutter(f: int) -> void:
 				var sk: Color = [Color("ffc890"), Color("aaf6ff")][rng.randi() % 2]
 				box(mat("dark", f, true, {"glow": 1.2, "emit": sk}), Vector3(x + 0.5, y0 + 0.03, y + 0.5), Vector3(0.6, 0.05, 0.6))
 				emitters.append({"cell": Vector3i(x, y, f), "color": sk, "energy": 0.8, "range": 2.5, "out": Vector2i.ZERO})
+
+
+## Painted roof markings by site: a lit helipad on corp towers, skylight strips glowing from the
+## hall below on industrial roofs. Flat, so nothing on the roof is blocked.
+func _roof_marks(f: int) -> void:
+	var y0 := f * FH
+	var boxes := {}   # structure → its roof squares' bounds on this level
+	for y in m.h:
+		for x in m.w:
+			if m.t(f, x, y) == TacMap.T.ROOF and _sid_grid[y * m.w + x] >= 0 and f > 0 and m.t(f - 1, x, y) != TacMap.T.ROOF:
+				var sid := _sid_grid[y * m.w + x]
+				boxes[sid] = Rect2i(x, y, 1, 1) if not boxes.has(sid) else (boxes[sid] as Rect2i).expand(Vector2i(x, y)).expand(Vector2i(x + 1, y + 1))
+	for sid in boxes:
+		var r: Rect2i = boxes[sid]
+		var site := _site_of(sid)
+		if site in ["corp_hq", "corp_office"] and mini(r.size.x, r.size.y) >= 8 and f + 1 >= m.floors:
+			var c := Vector3(r.get_center().x, y0 + 0.02, r.get_center().y)
+			var paint := mat("dark", f, true, {"color": Color("d8d4c8"), "glow": 0.3, "emit": Color("d8d4c8")})
+			for i in 16:   # the ring
+				var a := TAU * i / 16.0
+				box(paint, c + Vector3(cos(a), 0, sin(a)) * 2.2, Vector3(0.18, 0.02, 0.9), -a)
+			box(paint, c + Vector3(-0.55, 0, 0), Vector3(0.18, 0.02, 1.6))
+			box(paint, c + Vector3(0.55, 0, 0), Vector3(0.18, 0.02, 1.6))
+			box(paint, c, Vector3(1.1, 0.02, 0.18))
+			for i in 8:   # edge lights
+				var a2 := TAU * i / 8.0
+				box(mat("dark", f, true, {"glow": 2.5, "emit": Color("ffc040")}), c + Vector3(cos(a2), 0.04, sin(a2)) * 3.0, Vector3(0.1, 0.06, 0.1))
+			emitters.append({"cell": Vector3i(int(c.x), int(c.z), f), "color": Color("ffc040"), "energy": 0.8, "range": 4.0, "out": Vector2i.ZERO})
+		elif site in ["warehouse", "factory"]:
+			var along_x := r.size.x >= r.size.y
+			var n := maxi(1, (r.size.y if along_x else r.size.x) / 4)
+			for i in n:
+				var off := (i + 0.5) * (r.size.y if along_x else r.size.x) / float(n)
+				var sk := Vector3(r.get_center().x, y0 + 0.03, r.position.y + off) if along_x else Vector3(r.position.x + off, y0 + 0.03, r.get_center().y)
+				var ln := (r.size.x if along_x else r.size.y) - 3.0
+				box(mat("dark", f, true, {"glow": 0.9, "emit": Color("ffd8a0")}), sk, Vector3(ln, 0.04, 0.5) if along_x else Vector3(0.5, 0.04, ln))
+				box(mat("frame", f), sk + Vector3(0, 0.03, 0), Vector3(ln, 0.03, 0.06) if along_x else Vector3(0.06, 0.03, ln))
 
 
 ## One rooftop billboard per structure: two posts and a big neon panel, with light spill.

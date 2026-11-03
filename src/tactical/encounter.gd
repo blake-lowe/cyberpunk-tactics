@@ -689,11 +689,14 @@ func _outer_patrols(deploy: Vector2i) -> void:
 	for p in pairs:
 		var anchor: Vector3i = cand[dice.d(cand.size()) - 1]
 		for k in 2:
-			var spot := anchor + Vector3i(k, 0, 0)
-			if not m.walkable(spot.z, Vector2i(spot.x, spot.y)) or spot in taken:
-				spot = anchor
-				if spot in taken:
-					continue
+			var spot := Vector3i(-1, -1, -1)
+			for d in ([Vector2i.ZERO] if k == 0 else MapGen.DIRS + [Vector2i(1, 1), Vector2i(-1, 1), Vector2i(1, -1), Vector2i(-1, -1)]):
+				var s2 := anchor + Vector3i(d.x, d.y, 0)
+				if m.inb(s2.x, s2.y) and m.walkable(s2.z, Vector2i(s2.x, s2.y)) and not (s2 in taken):
+					spot = s2
+					break
+			if spot.x < 0:
+				continue
 			n += 1
 			var g := Recruit.npc(dice, "mook", "Patrol %d" % n)
 			g.team = 1

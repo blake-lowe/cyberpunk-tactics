@@ -1,6 +1,6 @@
 {
- "_doc": "Building site types for BuildingGen. layout: room-partition algorithm + params. zones: room kinds per security zone \u2014 entrance (room at the main door), small (\u226416 cells), large (\u226560 cells), rotation (by size rank), and layout-kind mappings (e.g. living/bedroom from corridor_units). density: default cover density. exterior: wall material index (0 plaster, 1 concrete, 2 steel). enter_corridor: put the main door on a corridor. networked: false = no NET even with devices. no_corridors: never relabel long thin rooms as corridors. levels: how many security levels (L1..L4) the building uses, counted from its base level. net_chance: chance a non-target building of this type has a NET (targets always do). windows: chance per eligible exterior wall square of a window. shapes: weights for footprint shapes (rect, L, U, T, chamfer, courtyard). decay: default ruin level 0-1.",
- "corp_office": {
+ "_doc": "massing: weights for upper-floor shapes (podium: tower on a base, step: set back on one or two sides, wing: a low part beside a taller block, none). Building site types for BuildingGen. layout: room-partition algorithm + params. zones: room kinds per security zone \u2014 entrance (room at the main door), small (\u226416 cells), large (\u226560 cells), rotation (by size rank), and layout-kind mappings (e.g. living/bedroom from corridor_units). density: default cover density. exterior: wall material index (0 plaster, 1 concrete, 2 steel). enter_corridor: put the main door on a corridor. networked: false = no NET even with devices. no_corridors: never relabel long thin rooms as corridors. levels: how many security levels (L1..L4) the building uses, counted from its base level. net_chance: chance a non-target building of this type has a NET (targets always do). windows: chance per eligible exterior wall square of a window. shapes: weights for footprint shapes (rect, L, U, T, chamfer, courtyard). decay: default ruin level 0-1.",
+ "corp_office": {"massing": {"podium": 2, "step": 2, "none": 2}, 
   "name": "Corporate office",
   "layout": {
    "algorithm": "treemap"
@@ -105,7 +105,7 @@
    "courtyard": 1
   }
  },
- "gang_hideout": {
+ "gang_hideout": {"massing": {"wing": 1, "step": 1, "none": 2}, 
   "name": "Gang hideout",
   "layout": {
    "algorithm": "growth"
@@ -156,7 +156,7 @@
    "courtyard": 1
   }
  },
- "apartments": {
+ "apartments": {"massing": {"step": 2, "wing": 2, "none": 2}, 
   "name": "Apartment block",
   "layout": {
    "algorithm": "corridor_units",
@@ -212,7 +212,7 @@
    "courtyard": 2
   }
  },
- "club": {
+ "club": {"massing": {"wing": 1, "step": 1, "none": 2}, 
   "name": "Club",
   "layout": {
    "algorithm": "growth"
@@ -262,7 +262,7 @@
    "courtyard": 1
   }
  },
- "shop": {
+ "shop": {"massing": {"wing": 2, "step": 1, "none": 2}, 
   "name": "Shop",
   "layout": {
    "algorithm": "bsp",
@@ -530,7 +530,7 @@
    "rect": 1
   }
  },
- "corp_hq": {
+ "corp_hq": {"massing": {"podium": 3, "step": 1, "none": 1}, 
   "name": "Corporate HQ",
   "layout": {
    "algorithm": "treemap",
@@ -584,7 +584,7 @@
    "courtyard": 2
   }
  },
- "clinic": {
+ "clinic": {"massing": {"step": 1, "wing": 1, "none": 2}, 
   "name": "Ripperdoc clinic",
   "layout": {
    "algorithm": "bsp",
@@ -626,7 +626,7 @@
    "courtyard": 1
   }
  },
- "bar": {
+ "bar": {"massing": {"wing": 2, "step": 1, "none": 2}, 
   "name": "Bar",
   "layout": {
    "algorithm": "growth"
@@ -663,7 +663,7 @@
    "courtyard": 1
   }
  },
- "bd_parlor": {
+ "bd_parlor": {"massing": {"wing": 1, "step": 1, "none": 2}, 
   "name": "Braindance parlour",
   "layout": {
    "algorithm": "corridor_units",
@@ -709,7 +709,7 @@
    "courtyard": 1
   }
  },
- "capsule_hotel": {
+ "capsule_hotel": {"massing": {"step": 1, "wing": 2, "none": 1}, 
   "name": "Capsule hotel",
   "layout": {
    "algorithm": "corridor_units",
@@ -749,7 +749,7 @@
    "courtyard": 1
   }
  },
- "ncpd_precinct": {
+ "ncpd_precinct": {"massing": {"step": 1, "podium": 1, "none": 2}, 
   "name": "NCPD precinct",
   "layout": {
    "algorithm": "treemap"
@@ -842,7 +842,7 @@
    "courtyard": 1
   }
  },
- "data_center": {
+ "data_center": {"massing": {"step": 1, "none": 3}, 
   "name": "Data centre",
   "layout": {
    "algorithm": "treemap"
@@ -888,7 +888,7 @@
    "courtyard": 1
   }
  },
- "temple": {
+ "temple": {"massing": {"podium": 1, "none": 2}, 
   "name": "Temple",
   "layout": {
    "algorithm": "growth"
@@ -922,7 +922,7 @@
    "courtyard": 2
   }
  },
- "villa": {
+ "villa": {"massing": {"step": 2, "wing": 1, "none": 1}, 
   "name": "Villa",
   "layout": {
    "algorithm": "growth"
@@ -968,7 +968,7 @@
    "courtyard": 2
   }
  },
- "chop_shop": {
+ "chop_shop": {"massing": {"wing": 1, "none": 2}, 
   "name": "Chop shop",
   "layout": {
    "algorithm": "bsp",
@@ -1011,7 +1011,7 @@
    "courtyard": 1
   }
  },
- "gun_shop": {
+ "gun_shop": {"massing": {"wing": 2, "none": 2}, 
   "name": "Gun shop",
   "layout": {
    "algorithm": "bsp",
@@ -1053,7 +1053,7 @@
    "courtyard": 1
   }
  },
- "squat": {
+ "squat": {"massing": {"wing": 2, "step": 1, "none": 1}, 
   "name": "Squat",
   "layout": {
    "algorithm": "growth"

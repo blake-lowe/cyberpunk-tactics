@@ -514,7 +514,8 @@ static func _ensure_public_access(m: TacMap) -> void:
 			for dy in range(-3, 4):
 				for dx in range(-3, 4):
 					var v := Vector3i(d.pos.x + dx, d.pos.y + dy, d.floor)
-					if field.has(v) and Los.distance_m(v, dp) <= 6.0 and not Los.ray(v, dp).any(func(r): return m.t(r.z, r.x, r.y) == TacMap.T.WALL):
+					# the jack-in rule (Encounter._wall_between): walls and closed doors block the line
+					if field.has(v) and Los.distance_m(v, dp) <= 6.0 and not Los.ray(v, dp).any(func(r): return m.t(r.z, r.x, r.y) in [TacMap.T.WALL, TacMap.T.DOOR]):
 						reachable = true
 		if reachable:
 			continue
@@ -639,9 +640,9 @@ static func _skirmish(c: Dictionary) -> void:
 	ground(c, Rect2i(0, 0, m.w, m.h - 6), G.CONCRETE)
 	ground(c, Rect2i(0, 0, 3, m.h - 6), G.GRAVEL)
 	building(c, Rect2i(3, 1, m.w - 6, m.h - 8), String(c.p.get("site", "bar")), int(c.p.floors), int(c.p.security), true, TacMap.Zone.PUBLIC, "S")
-	props(c, Rect2i(0, m.h - 6, m.w, 6), "dumpster", 2)
+	props(c, Rect2i(3, m.h - 6, m.w - 6, 6), "dumpster", 2)
 	for i in 3:
-		var v := Vector2i(c.dice.rng.randi_range(1, m.w - 2), c.dice.rng.randi_range(m.h - 5, m.h - 2))
+		var v := Vector2i(c.dice.rng.randi_range(3, m.w - 4), c.dice.rng.randi_range(m.h - 5, m.h - 2))   # clear of the spawns
 		if m.t(0, v.x, v.y) == TacMap.T.OUTSIDE and not m.has_cover_at(0, v):
 			m.add_cover(Furnish.cover_entry("crate", 0, v, -1))
 	spawn(c, Vector2i(0, m.h - 2))

@@ -240,6 +240,9 @@ static func _fill_lots(c: Dictionary, prof: Dictionary, lots: Array) -> void:
 		if YARDS.has(use) or mini(bb.size.x, bb.size.y) < 7:
 			_yard_lot(c, piece, use if YARDS.has(use) else "plaza")
 			continue
+		if not is_target and not use in BIG_SITES and maxi(bb.size.x, bb.size.y) >= 15 and c.dice.rng.randf() < float(prof.get("cluster", 0.0)):
+			_cluster(c, prof, piece, bb, names, wts, fl, blds)
+			continue
 		var mask: Dictionary = {} if piece.size() == bb.get_area() else piece
 		var floors: int = fl if is_target else c.dice.rng.randi_range(int(prof.floors[0]), mini(int(prof.floors[1]), fl))
 		var sec: int = int(c.p.security) if is_target else c.dice.rng.randi_range(int(prof.security[0]), int(prof.security[1]))
@@ -253,6 +256,61 @@ static func _fill_lots(c: Dictionary, prof: Dictionary, lots: Array) -> void:
 			if bridges < maxi(1, blds.size() / 5) and c.dice.rng.randf() < 0.5 and SceneGen.skybridge(c, blds[i], blds[j]):
 				bridges += 1
 				SceneGen.related(c, blds[i].id, blds[j].id, 0.7)
+
+
+## Sites that keep one big building per lot (owner: corp and industrial stay big).
+const BIG_SITES := ["corp_office", "corp_hq", "warehouse", "factory", "data_center", "station"]
+
+
+## A lot of small buildings (owner round 6: big flat blocks were dull): the lot is cut into plots
+## of 7-12 squares with 1-2 square gravel passages between, each plot its own building, each a
+## different height from the one before. Plots too small or too clipped stay open ground.
+static func _cluster(c: Dictionary, prof: Dictionary, piece: Dictionary, bb: Rect2i, names: Array, wts: PackedFloat32Array, fl: int, blds: Array) -> void:
+	var plots: Array[Rect2i] = []
+	_cut(c, piece, bb, plots)
+	var last_floors := -1
+	for r in plots:
+		var mask := {}
+		for y in range(r.position.y, r.end.y):
+			for x in range(r.position.x, r.end.x):
+				if piece.has(Vector2i(x, y)):
+					mask[Vector2i(x, y)] = true
+		if mask.size() < 40 or mini(r.size.x, r.size.y) < 7:
+			continue
+		var use := "shop"
+		for k in 8:
+			var u: String = names[c.dice.rng.rand_weighted(wts)]
+			if not YARDS.has(u) and not u in BIG_SITES:
+				use = u
+				break
+		var lo := int(prof.floors[0])
+		var hi := mini(int(prof.floors[1]), fl)
+		var floors: int = c.dice.rng.randi_range(lo, hi)
+		if floors == last_floors and hi > lo:   # neighbours differ: a broken skyline
+			floors = lo + (floors - lo + 1 + c.dice.rng.randi_range(0, hi - lo - 1)) % (hi - lo + 1)
+		last_floors = floors
+		var sec: int = c.dice.rng.randi_range(int(prof.security[0]), int(prof.security[1]))
+		c["decay"] = c.dice.rng.randf_range(float(prof.decay[0]), float(prof.decay[1]))
+		blds.append(SceneGen.building(c, r, use, floors, sec, false, TacMap.Zone.PUBLIC, "", {} if mask.size() == r.get_area() else mask))
+		c.erase("decay")
+
+
+static func _cut(c: Dictionary, piece: Dictionary, r: Rect2i, out: Array[Rect2i]) -> void:
+	var vertical := r.size.x >= r.size.y
+	var span := r.size.x if vertical else r.size.y
+	var gap := 1 if c.dice.rng.randf() < 0.6 else 2
+	if (r.size.x <= 12 and r.size.y <= 12) or span - gap < 14:
+		out.append(r)
+		return
+	var cut: int = c.dice.rng.randi_range(7, span - 7 - gap)
+	var g := Rect2i(r.position.x + cut, r.position.y, gap, r.size.y) if vertical else Rect2i(r.position.x, r.position.y + cut, r.size.x, gap)
+	for y in range(g.position.y, g.end.y):
+		for x in range(g.position.x, g.end.x):
+			if piece.has(Vector2i(x, y)):
+				c.m.set_ground(x, y, G.GRAVEL)
+	_cut(c, piece, Rect2i(r.position, Vector2i(cut, r.size.y)) if vertical else Rect2i(r.position, Vector2i(r.size.x, cut)), out)
+	_cut(c, piece, Rect2i(r.position.x + cut + gap, r.position.y, r.size.x - cut - gap, r.size.y) if vertical
+		else Rect2i(r.position.x, r.position.y + cut + gap, r.size.x, r.size.y - cut - gap), out)
 
 
 static func _yard_lot(c: Dictionary, cells: Dictionary, use: String) -> void:

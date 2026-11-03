@@ -566,6 +566,8 @@ func test_meeting_ice_rolls_speed_and_may_strike_first() -> void:
 		var r := _jacked()
 		var e: Encounter = r[0]
 		var run: NetRun = r[2]
+		for i in k * 3:   # _jacked() reseeds: move each trial to different rolls
+			e.dice.d(10)
 		var ice := {"id": 901 + k, "kind": "hellhound", "node": run.current, "patrol": false}
 		run.arch.ice.append(ice)
 		var hp0: int = r[1].c.hp
