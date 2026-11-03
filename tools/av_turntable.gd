@@ -42,17 +42,17 @@ func _run() -> void:
 	for i in 2:
 		var av := AVModel.make(["trauma", "maxtac"][i])
 		w.add_child(av)
-		av.position = Vector3(-3.2 + i * 6.4, 0.45, 0)
+		av.position = Vector3(-4.0 + i * 8.0, AVModel.HOVER, 0)
 		av._set_tilt(0.0)
 		avs.append(av)
 	var cam := Camera3D.new()
 	cam.fov = 32
 	w.add_child(cam)
 	var views := {
-		"iso": [Vector3(0, 0.8, 0), 45.0, 50.0, 22.0],
-		"side": [Vector3(0, 1.0, 0), 0.0, 12.0, 20.0],
-		"front": [Vector3(0, 1.0, 0), 0.0, 14.0, 20.0],
-		"rear": [Vector3(0, 1.0, 0), 200.0, 30.0, 20.0],
+		"iso": [Vector3(0, 1.0, 0), 45.0, 50.0, 28.0],
+		"side": [Vector3(0, 1.2, 0), 0.0, 12.0, 28.0],
+		"front": [Vector3(0, 1.2, 0), 0.0, 14.0, 26.0],
+		"rear": [Vector3(0, 1.2, 0), 200.0, 30.0, 26.0],
 	}
 	for name in views:
 		var v: Array = views[name]
@@ -69,8 +69,8 @@ func _run() -> void:
 	for av in avs:   # forward flight: nacelles tilted, higher
 		av.rotation.y = 0.0
 		av._set_tilt(AVModel.TILT_FLY)
-		av.position.y = 2.5
-	cam.position = Vector3(14, 9, 14)
+		av.position.y = 3.0
+	cam.position = Vector3(18, 11, 18)
 	cam.look_at(Vector3(0, 2.0, 0))
 	for f in 6:
 		await process_frame

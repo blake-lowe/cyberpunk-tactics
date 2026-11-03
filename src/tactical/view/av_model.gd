@@ -1,14 +1,18 @@
 class_name AVModel
 extends Node3D
-## An AV (aerodyne, CPR's AV-4 class): a short, bulbous armoured lifting body on four ducted-fan
-## nacelles at its corners, with a wraparound cockpit, a light bar, a chin gun and a rear ramp.
-## The nacelles tilt for forward flight and swing level to hover. Two liveries:
-##   trauma: white and pale grey, teal-blue panels, a red asterisk on the roof and doors.
-##   maxtac: matte black and gunmetal, blue running lights, a red/blue police bar, heavier guns.
-## Thrust glows blue-white from the fan exits. Decoration only (no rules), built from lofted
-## rounded-rectangle sections so it reads as one rounded hull rather than a stack of boxes.
+## An AV (aerodyne, CPR's AV-4 class): a bus-sized armoured lifting body on four thruster pods
+## set out on pylons at its corners, with a framed windscreen, a light bar, a ribbed roof spine,
+## a chin gun, side doors between the pods and a rear ramp. The pods tilt for forward flight and
+## swing level to hover. Faceted (chamfered, flat-shaded) so it keeps clean tones under the pixel
+## post-process. Two liveries:
+##   trauma: white and pale grey, teal pod tops and panels, a red asterisk on the roof and doors.
+##   maxtac: dark gunmetal with harder chamfers, blue edge lights, a red/blue police bar, a roof
+##           turret and twin guns under the front pods.
+## Thrust glows blue-white from the fan exits; a soft shadow sits on the ground beneath.
+## Decoration only (no rules).
 
 const TILT_FLY := 0.65   ## nacelle tilt (radians, exhaust aft) in forward flight
+const HOVER := 0.9       ## height of the hull origin above the ground once landed
 
 var kind := "trauma"
 var _body: Node3D             ## everything visible; bobs while hovering
@@ -18,6 +22,8 @@ var _flames: Array[MeshInstance3D] = []
 var _light: SpotLight3D
 var _t := 0.0
 var _hover := false
+var _shadow: MeshInstance3D
+var ground_y := 0.0      ## where the contact shadow lies
 
 
 static func make(p_kind: String) -> AVModel:
@@ -67,9 +73,10 @@ func _cyl(r_top: float, r_bot: float, h: float, pos: Vector3, m: Material, paren
 
 
 ## A closed tube through rounded-rectangle sections along z: each section is
-## [z, half_width, bottom_y, top_y, corner_radius]. Sides are smooth-shaded, end caps flat.
-func _loft(secs: Array, m: Material, parent: Node3D, pos := Vector3.ZERO, rot := Vector3.ZERO) -> MeshInstance3D:
-	const SEG := 4
+## [z, half_width, bottom_y, top_y, corner_radius]. `seg` is arc steps per corner (1 = a single
+## chamfer); `flat` shades the sides flat instead of smooth. End caps are always flat.
+func _loft(secs: Array, m: Material, parent: Node3D, seg := 4, flat := false) -> MeshInstance3D:
+	var SEG := seg
 	var rings: Array = []
 	for s in secs:
 		var z: float = s[0]
@@ -88,7 +95,7 @@ func _loft(secs: Array, m: Material, parent: Node3D, pos := Vector3.ZERO, rot :=
 		rings.append(ring)
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	st.set_smooth_group(1)
+	st.set_smooth_group(0xFFFFFFFF if flat else 1)
 	var n: int = (rings[0] as Array).size()
 	for i in rings.size() - 1:
 		for j in n:
@@ -115,8 +122,6 @@ func _loft(secs: Array, m: Material, parent: Node3D, pos := Vector3.ZERO, rot :=
 	var mi := MeshInstance3D.new()
 	mi.mesh = st.commit()
 	mi.material_override = m
-	mi.position = pos
-	mi.rotation = rot
 	parent.add_child(mi)
 	return mi
 
@@ -157,108 +162,127 @@ func _build() -> void:
 	add_child(_body)
 	var b := _body
 	# palette
-	var hull := _mat(Color("eceef0") if tt else Color("141619"), 0.25, 0.35 if tt else 0.75)
-	var hull2 := _mat(Color("a9b1b8") if tt else Color("2a2e34"), 0.5, 0.5)     # lower hull, nacelles' inner faces
-	var mech := _mat(Color("2a2e34") if tt else Color("0c0d10"), 0.6, 0.45)     # louvres, fans, guns, belly
-	var accent := _mat(Color("1f9fd8") if tt else Color("2a6aff"), 0.2, 0.4, 0.0 if tt else 1.6)
-	var glass := _mat(Color("0e2a3c") if tt else Color("0e1218"), 0.6, 0.08, 0.35 if tt else 0.2)
-	glass.emission = Color("4ab8ff") if tt else Color("3a5a8a")
+	var hull := _mat(Color("eceef0") if tt else Color("1d2025"), 0.25 if tt else 0.55, 0.35 if tt else 0.4)
+	var hull2 := _mat(Color("a9b1b8") if tt else Color("353a42"), 0.5, 0.45)    # lower flank, pods (MaxTac), roof spine
+	var mech := _mat(Color("2a2e34") if tt else Color("0c0d10"), 0.6, 0.45)     # ribs, pylons, fans, guns, belly
+	var accent := _mat(Color("169aa6") if tt else Color("2a6aff"), 0.2, 0.4, 0.0 if tt else 1.6)
+	var glass := _mat(Color("0e2a3c") if tt else Color("0e1218"), 0.6, 0.08, 0.35 if tt else 0.25)
+	glass.emission = Color("4ab8ff") if tt else Color("3a6aff")
 	var mark := _mat(Color("e2302a"), 0.1, 0.4, 0.5)
-	var plate := _mat(Color("d8dcdf"), 0.2, 0.4)
+	var plate := _mat(Color("f2f4f5"), 0.2, 0.4)
+	var r := 0.3 if tt else 0.14   # chamfer: Trauma's hull softer, MaxTac's harder armour
 
-	# --- hull: a rounded lifting body, blunt tail, sloped nose -----------------------------
+	# --- hull: a bus-sized lifting body, faceted so it holds three tones under the pixel filter --
 	_loft([
-		[-2.55, 1.05, 0.42, 1.55, 0.35],
-		[-2.35, 1.28, 0.25, 1.78, 0.45],
-		[0.9, 1.3, 0.25, 1.8, 0.45],
-		[1.7, 1.25, 0.3, 1.6, 0.45],
-		[2.3, 1.05, 0.4, 1.2, 0.4],
-		[2.6, 0.75, 0.5, 0.95, 0.22],
-	], hull, b)
-	_box(Vector3(2.3, 0.08, 4.5), Vector3(0, 0.24, 0.0), mech, b)                     # belly plate
+		[-3.2, 1.05, 0.45, 1.95, r],
+		[-3.0, 1.3, 0.3, 2.2, r],
+		[1.2, 1.32, 0.3, 2.2, r],
+		[2.1, 1.25, 0.35, 1.9, r],
+		[2.8, 1.05, 0.45, 1.35, r],
+		[3.1, 0.75, 0.55, 1.0, r * 0.6],
+	], hull, b, 1, true)
+	_box(Vector3(2.3, 0.08, 4.6), Vector3(0, 0.28, -0.7), mech, b)                       # belly plate
 	for sx in [-1, 1]:   # two-tone: grey lower flank under a livery stripe
-		_box(Vector3(0.03, 0.42, 4.2), Vector3(sx * 1.305, 0.55, -0.6), hull2, b)
-		_box(Vector3(0.03, 0.12, 4.2), Vector3(sx * 1.31, 0.82, -0.6), accent, b)
-	# wraparound canopy over the nose, with a frame (centre post, brow, A-pillars)
-	_loft([
-		[1.15, 1.315, 1.0, 1.805, 0.45],
-		[1.7, 1.27, 0.95, 1.62, 0.45],
-		[2.3, 1.07, 0.85, 1.22, 0.4],
-		[2.47, 0.93, 0.8, 1.09, 0.33],
-	], glass, b)
-	_box(Vector3(0.12, 0.06, 1.45), Vector3(0, 1.58, 1.8), hull, b, Vector3(deg_to_rad(-22), 0, 0))
-	_box(Vector3(2.5, 0.08, 0.14), Vector3(0, 1.79, 1.18), hull, b)
+		_box(Vector3(0.03, 0.4, 4.0), Vector3(sx * 1.33, 0.8 if tt else 0.66, -0.9), hull2, b)
+		_box(Vector3(0.03, 0.1, 4.0), Vector3(sx * 1.335, 1.05 if tt else 0.9, -0.9), accent, b)
+	# canopy: Trauma's windscreen runs up onto the roof; MaxTac's is a visor on the nose slope
+	if tt:
+		_loft([
+			[1.5, 1.32, 1.25, 2.125, r],
+			[2.1, 1.27, 1.15, 1.92, r],
+			[2.8, 1.07, 0.95, 1.37, r],
+			[2.95, 0.93, 0.9, 1.2, r * 0.8],
+		], glass, b, 1, true)
+		_box(Vector3(1.9, 0.07, 0.16), Vector3(0, 2.16, 1.5), hull, b)                         # brow
+		_box(Vector3(0.14, 0.05, 0.64), Vector3(0, 2.06, 1.8), hull, b, Vector3(deg_to_rad(18.9), 0, 0))   # centre post
+	else:
+		_loft([
+			[2.1, 1.27, 1.55, 1.92, r],
+			[2.8, 1.07, 1.05, 1.37, r],
+			[2.95, 0.93, 0.95, 1.2, r * 0.8],
+		], glass, b, 1, true)
+	_box(Vector3(0.14, 0.05, 0.9), Vector3(0, 1.685, 2.45), hull, b, Vector3(deg_to_rad(38.2), 0, 0))       # centre post
+	# side doors (sliding, between the pods) and the rear ramp
 	for sx in [-1, 1]:
-		_box(Vector3(0.06, 0.6, 0.12), Vector3(sx * 1.29, 1.38, 1.72), hull, b, Vector3(deg_to_rad(-25), 0, 0))
-		_box(Vector3(0.05, 0.3, 0.9), Vector3(sx * 1.305, 1.4, 0.35), glass, b)        # cabin side window
-	# side doors (sliding, recessed) and the rear ramp
+		_box(Vector3(0.03, 1.35, 1.3), Vector3(sx * 1.335, 1.18 if tt else 1.24, -0.2), mech, b)
+		_box(Vector3(0.035, 1.2, 0.05), Vector3(sx * 1.34, 1.18 if tt else 1.24, 0.5), hull2, b)  # door rail
+	_box(Vector3(1.9, 1.3, 0.04), Vector3(0, 1.15, -3.21), mech, b)
 	for sx in [-1, 1]:
-		_box(Vector3(0.03, 0.95, 1.25), Vector3(sx * 1.31, 1.02, -0.85), mech, b)
-		_box(Vector3(0.035, 0.85, 0.05), Vector3(sx * 1.315, 1.02, -0.2), hull2, b)    # door rail
-	_box(Vector3(1.7, 1.0, 0.04), Vector3(0, 0.95, -2.56), mech, b)
-	for sx in [-1, 1]:
-		_box(Vector3(0.22, 0.1, 0.04), Vector3(sx * 0.7, 1.35, -2.57), _mat(Color("ff2020"), 0.0, 0.4, 2.5), b)   # tail lights
-		_box(Vector3(0.18, 0.08, 0.04), Vector3(sx * 0.42, 0.6, 2.61), _mat(Color("f4f8ff"), 0.0, 0.3, 3.0), b)   # headlights
-	# roof: light bar behind the canopy, a hatch, antennae
+		_box(Vector3(0.22, 0.1, 0.04), Vector3(sx * 0.75, 1.75, -3.22), _mat(Color("ff2020"), 0.0, 0.4, 2.5), b)   # tail lights
+		_box(Vector3(0.18, 0.08, 0.04), Vector3(sx * 0.42, 0.66, 3.11), _mat(Color("f4f8ff"), 0.0, 0.3, 3.0), b)    # headlights
+	# roof: a wide light bar at the front, a raised spine with slats, sensors, antennae
 	var bar_cols: Array = [Color("ff2a2a"), Color("f4f4f4")] if tt else [Color("ff2020"), Color("2a6aff")]
-	_box(Vector3(1.3, 0.1, 0.24), Vector3(0, 1.84, 0.95), mech, b)
+	_box(Vector3(1.8, 0.1, 0.26), Vector3(0, 2.25, 1.05), mech, b)
 	for i in 2:
-		_beacons.append(_box(Vector3(0.6, 0.11, 0.2), Vector3(-0.32 + i * 0.64, 1.9, 0.95), _mat(bar_cols[i], 0.0, 0.3, 3.0), b))
-	_box(Vector3(0.8, 0.08, 0.55), Vector3(0, 1.82, -1.9), hull2, b)
+		_beacons.append(_box(Vector3(0.86, 0.11, 0.22), Vector3(-0.44 + i * 0.88, 2.31, 1.05), _mat(bar_cols[i], 0.0, 0.3, 1.8), b))
+	var spine_z := -2.0 if tt else -2.3
+	var spine_l := 1.6 if tt else 1.3
+	_box(Vector3(1.1, 0.18, spine_l), Vector3(0, 2.29, spine_z), hull2, b)
+	for k in 4:
+		_box(Vector3(1.0, 0.04, 0.08), Vector3(0, 2.4, spine_z - spine_l * 0.375 + k * spine_l * 0.25), mech, b)
 	for sx in [-1, 1]:
-		_box(Vector3(0.03, 0.5, 0.03), Vector3(sx * 0.55, 2.05, -2.15), mech, b, Vector3(deg_to_rad(-15), 0, 0))
-	if tt:   # the red asterisk on the roof and the doors; teal roof band
-		_asterisk(Vector3(0, 1.815, -0.45), 0.95, mark, b)
-		_box(Vector3(2.0, 0.02, 0.22), Vector3(0, 1.81, 0.55), accent, b)
-		_label("TRAUMA TEAM", Vector3(0, 1.825, -1.22), 0.24, b, Vector3(-PI / 2.0, 0, 0), 0.0, Color("2a3036"))
+		_box(Vector3(0.03, 0.55, 0.03), Vector3(sx * 0.7, 2.47, -2.9), mech, b, Vector3(deg_to_rad(-15), 0, 0))
+	if tt:   # the red asterisk on white on the roof and on the door plates; a teal band
+		_asterisk(Vector3(0, 2.215, -0.3), 1.3, mark, b)
+		_box(Vector3(1.95, 0.02, 0.26), Vector3(0, 2.21, 0.72), accent, b)
+		_box(Vector3(0.4, 0.2, 0.3), Vector3(0.55, 2.3, 0.35), mech, b)                       # sensor box
 		for sx in [-1, 1]:
-			_box(Vector3(0.02, 0.62, 0.62), Vector3(sx * 1.325, 1.12, -0.85), plate, b)
-			_asterisk(Vector3(sx * 1.34, 1.12, -0.85), 0.5, mark, b, "x")
-	else:    # blue running lights down the roof, a grey unit number plate on the doors
+			_box(Vector3(0.02, 0.72, 0.72), Vector3(sx * 1.355, 1.35, -0.2), plate, b)
+			_asterisk(Vector3(sx * 1.37, 1.35, -0.2), 0.58, mark, b, "x")
+	else:    # roof turret, blue running lights, lettering on the roof and the doors
+		_box(Vector3(0.55, 0.22, 0.5), Vector3(0, 2.31, 0.65), mech, b)
+		_cyl(0.045, 0.045, 0.7, Vector3(0, 2.36, 1.1), mech, b, Vector3(PI / 2.0, 0, 0))
 		for sx in [-1, 1]:
-			_box(Vector3(0.06, 0.02, 3.2), Vector3(sx * 0.95, 1.81, -0.7), accent, b)
-			_label("MAX-TAC", Vector3(sx * 1.33, 1.3, -0.85), 0.2, b, Vector3(0, sx * PI / 2.0, 0))
-		_label("MAXTAC", Vector3(0, 1.825, -0.55), 0.42, b, Vector3(-PI / 2.0, 0, 0), PI / 2.0)
+			_box(Vector3(0.06, 0.02, 4.0), Vector3(sx * 1.05, 2.21, -0.9), accent, b)
+			_label("MAX-TAC", Vector3(sx * 1.36, 1.62, -0.2), 0.22, b, Vector3(0, sx * PI / 2.0, 0))
+		_label("MAXTAC", Vector3(0, 2.215, -0.85), 0.46, b, Vector3(-PI / 2.0, 0, 0), PI / 2.0)
 	# chin gun under the nose (MaxTac: twin heavy barrels)
-	_box(Vector3(0.5, 0.26, 0.55), Vector3(0, 0.12, 1.75), mech, b)
+	_box(Vector3(0.5, 0.26, 0.55), Vector3(0, 0.3, 2.2), mech, b)
 	for gx in ([-0.1, 0.1] if not tt else [0.0]):
-		_cyl(0.045, 0.045, 0.75 if not tt else 0.5, Vector3(gx, 0.1, 2.25 if not tt else 2.15), mech, b, Vector3(PI / 2.0, 0, 0))
+		_cyl(0.045, 0.045, 0.75 if not tt else 0.5, Vector3(gx, 0.28, 2.7 if not tt else 2.6), mech, b, Vector3(PI / 2.0, 0, 0))
 
-	# --- four ducted-fan nacelles on pylons at the corners ----------------------------------
+	# --- four thruster pods on pylons, set out from the hull, hanging below the belly ----------
+	var pod_r := 0.16 if tt else 0.1
 	for sx in [-1, 1]:
 		for sz in [-1, 1]:
 			var piv := Node3D.new()
-			piv.position = Vector3(sx * 1.72, 0.85, 1.25 if sz > 0 else -1.65)
+			piv.position = Vector3(sx * 1.98, 0.95, 2.0 if sz > 0 else -2.3)
 			b.add_child(piv)
 			_pivots.append(piv)
-			_box(Vector3(0.3, 0.3, 0.7), Vector3(-sx * 0.42, 0.15, 0), hull2, piv)           # pylon
+			_box(Vector3(0.5, 0.35, 0.9), Vector3(-sx * 0.6, 0.2, 0), mech, piv)              # pylon
 			_loft([
-				[-0.95, 0.3, -0.42, 0.4, 0.08],
-				[-0.78, 0.4, -0.62, 0.6, 0.12],
-				[0.7, 0.4, -0.62, 0.6, 0.12],
-				[0.95, 0.28, -0.32, 0.46, 0.08],
-			], hull if tt else hull2, piv)
-			_cyl(0.3, 0.3, 0.04, Vector3(0, 0.6, -0.05), mech, piv)                            # fan intake
-			_cyl(0.08, 0.08, 0.06, Vector3(0, 0.62, -0.05), hull2 if tt else hull, piv)        # hub
-			for k in 2:   # struts across the intake
-				_box(Vector3(0.6, 0.03, 0.05), Vector3(0, 0.625, -0.05), hull2 if tt else hull, piv, Vector3(0, PI / 4.0 + k * PI / 2.0, 0))
-			_box(Vector3(0.035, 0.5, 1.2), Vector3(sx * 0.405, -0.25, 0), accent if tt else mech, piv)   # outer panel
-			for k in 4:   # vertical vents on the outer face
-				_box(Vector3(0.03, 0.42, 0.06), Vector3(sx * 0.42, 0.25, -0.45 + k * 0.3), mech, piv)
-			_cyl(0.34, 0.34, 0.06, Vector3(0, -0.6, 0), mech, piv)                             # fan exit
+				[-1.05, 0.34, -0.7, 0.38, pod_r * 0.6],
+				[-0.85, 0.48, -0.95, 0.55, pod_r],
+				[0.7, 0.48, -0.95, 0.55, pod_r],
+				[1.0, 0.36, -0.6, 0.4, pod_r * 0.75],
+			], hull if tt else hull2, piv, 1, true)
+			if tt:   # teal pod tops and lower outer panels
+				_box(Vector3(0.6, 0.02, 1.4), Vector3(0, 0.56, -0.05), accent, piv)
+				_box(Vector3(0.03, 0.45, 1.4), Vector3(sx * 0.485, -0.6, -0.05), accent, piv)
+			else:    # blue edge lights along the top
+				_box(Vector3(0.04, 0.03, 1.4), Vector3(sx * 0.36, 0.57, -0.05), accent, piv)
+			for k in 3:   # lengthwise intake slats on top
+				_box(Vector3(0.06, 0.04, 1.1), Vector3(-0.2 + k * 0.2, 0.58, -0.05), mech, piv)
+			for k in 5:   # deep vertical ribs on the outer face
+				_box(Vector3(0.12, 0.9, 0.08), Vector3(sx * 0.53, -0.2, -0.6 + k * 0.3), mech, piv)
+			if not tt and sz > 0:   # MaxTac: twin guns under the front pods
+				_box(Vector3(0.3, 0.2, 0.5), Vector3(0, -1.03, 0.45), mech, piv)
+				for gx in [-0.08, 0.08]:
+					_cyl(0.04, 0.04, 0.8, Vector3(gx, -1.05, 0.95), mech, piv, Vector3(PI / 2.0, 0, 0))
+			_cyl(0.42, 0.42, 0.06, Vector3(0, -0.96, -0.05), mech, piv)                        # fan exit
 			var ring := MeshInstance3D.new()
 			var tm := TorusMesh.new()
-			tm.inner_radius = 0.27
-			tm.outer_radius = 0.34
+			tm.inner_radius = 0.32
+			tm.outer_radius = 0.42
 			ring.mesh = tm
 			ring.material_override = _mat(Color("9ad8ff"), 0.0, 0.4, 3.5)
-			ring.position = Vector3(0, -0.63, 0)
+			ring.position = Vector3(0, -0.99, -0.05)
 			piv.add_child(ring)
 			var flame := MeshInstance3D.new()
 			var fm := CylinderMesh.new()
-			fm.top_radius = 0.26
+			fm.top_radius = 0.34
 			fm.bottom_radius = 0.06
-			fm.height = 0.55
+			fm.height = 0.9
 			flame.mesh = fm
 			var fmat := StandardMaterial3D.new()
 			fmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -266,24 +290,43 @@ func _build() -> void:
 			fmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 			fmat.albedo_color = Color(0.5, 0.8, 1.0, 0.55)
 			flame.material_override = fmat
-			flame.position = Vector3(0, -0.93, 0)
+			flame.position = Vector3(0, -1.47, -0.05)
 			piv.add_child(flame)
 			_flames.append(flame)
 	var glow := OmniLight3D.new()   # thrust wash on the ground
 	glow.light_color = Color("8ac8ff")
-	glow.omni_range = 5.5
-	glow.light_energy = 2.2
-	glow.position = Vector3(0, -0.4, 0)
+	glow.omni_range = 6.5
+	glow.light_energy = 2.4
+	glow.position = Vector3(0, -0.6, 0)
 	b.add_child(glow)
 	_light = SpotLight3D.new()   # the searchlight under the nose, sweeping the ground
 	_light.light_color = Color("e8f4ff") if tt else Color("f0f4ff")
 	_light.light_energy = 6.0
 	_light.spot_range = 22.0
 	_light.spot_angle = 16.0
-	_light.position = Vector3(0, 0.1, 2.0)
+	_light.position = Vector3(0, 0.15, 2.5)
 	_light.rotation = Vector3(deg_to_rad(-70), 0, 0)
 	b.add_child(_light)
-	scale = Vector3.ONE * 0.85
+	_shadow = MeshInstance3D.new()   # soft contact shadow, kept on the ground under the craft
+	var pm := PlaneMesh.new()
+	pm.size = Vector2(5.5, 7.5)
+	_shadow.mesh = pm
+	var gt := GradientTexture2D.new()
+	gt.fill = GradientTexture2D.FILL_RADIAL
+	gt.fill_from = Vector2(0.5, 0.5)
+	gt.fill_to = Vector2(0.5, 0.0)
+	var g := Gradient.new()
+	g.set_color(0, Color(0, 0, 0, 0.6))
+	g.set_color(1, Color(0, 0, 0, 0.0))
+	gt.gradient = g
+	var sm := StandardMaterial3D.new()
+	sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	sm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	sm.albedo_texture = gt
+	sm.albedo_color = Color(1, 1, 1, 0.0)
+	_shadow.material_override = sm
+	_shadow.top_level = true
+	add_child(_shadow)
 	_set_tilt(TILT_FLY)
 
 
@@ -301,17 +344,23 @@ func _process(delta: float) -> void:
 	if _light:
 		_light.rotation.y = sin(_t * 0.7) * 0.5
 	_body.position.y = sin(_t * 2.1) * 0.05 if _hover else 0.0
+	if _shadow and is_inside_tree():   # darker the closer the craft is to the ground
+		var h := global_position.y - ground_y
+		_shadow.global_position = Vector3(global_position.x, ground_y + 0.03, global_position.z)
+		_shadow.global_rotation = Vector3(0, global_rotation.y, 0)
+		(_shadow.material_override as StandardMaterial3D).albedo_color.a = clampf(1.0 - (h - 0.9) / 8.0, 0.0, 1.0)
 
 
 ## Come down from the sky onto `at` (ground point), the nacelles swinging level as it slows,
-## and hover a little above it at the end.
+## and hover just above it at the end.
 func land(at: Vector3, secs := 2.6) -> Tween:
-	position = at + Vector3(-10, 16, -6)
-	rotation.y = atan2(10.0, 6.0)
+	ground_y = at.y
+	position = at + Vector3(-5, 9, -3)
+	rotation.y = atan2(5.0, 3.0)
 	_hover = false
 	_set_tilt(TILT_FLY)
 	var tw := create_tween()
-	tw.tween_property(self, "position", at + Vector3(0, 0.45, 0), secs).set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
+	tw.tween_property(self, "position", at + Vector3(0, HOVER, 0), secs).set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
 	tw.parallel().tween_method(_set_tilt, TILT_FLY, 0.0, secs * 0.8).set_delay(secs * 0.2).set_trans(Tween.TRANS_SINE)
 	tw.tween_callback(func(): _hover = true)
 	return tw

@@ -732,10 +732,10 @@ func _maxtac_drop() -> void:
 ## An open landing spot for an AV: a street square with a clear 3x3 around it, between `lo` and
 ## `hi` squares from `near`, the nearest one to `near` past `lo`.
 ## Where an AV sets down: the open ground nearest `near` (between lo and hi squares away), clear
-## for two squares around so the craft isn't buried in an alley, else for one. Spots with a
+## for three squares around (the craft is ~6 m by 5 m) so it isn't buried in an alley, else less. Spots with a
 ## multi-storey building toward the default camera (+x +y, greybox cam_yaw 45°) count as farther, so the landing is seen.
 func av_spot(near: Vector3i, lo: int, hi: int) -> Vector3i:
-	for r in [2, 1]:
+	for r in [3, 2, 1]:
 		var v := _av_clearing(near, lo, hi, r)
 		if v.x >= 0:
 			return v
