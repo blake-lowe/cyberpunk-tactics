@@ -211,6 +211,7 @@ var _walk := 0
 var _focus := ""
 var _attack_demo := false
 var _jack_demo := false
+var _av_demo := ""
 var _inspect_demo := false
 var net_overlay: NetOverlay
 var net_view := true          ## N toggles back to the plain world while jacked in
@@ -276,6 +277,8 @@ func _ready() -> void:
 				_attack_demo = true
 			"jack":  # review renders: the Netrunner jacks in at the nearest terminal
 				_jack_demo = true
+			"av":  # review renders: an AV lands (trauma | maxtac); --shot-delay sets when to capture
+				_av_demo = kv[1]
 			"reel":  # review videos: script one combat scene, then quit (record with --write-movie)
 				_reel = kv[1]
 			"inspect":  # review renders: show the Alt inspector card for the hovered square
@@ -364,7 +367,9 @@ func _process(delta: float) -> void:
 			_demo_attack()
 		if _frames == 10 and _jack_demo:
 			_demo_jack()
-		var shoot_now: bool = _frames >= 12 if not (_attack_demo or _jack_demo) else (_demo_ms > 0 and Time.get_ticks_msec() - _demo_ms >= int(_shot_delay * 1000.0 / Engine.time_scale))
+		if _frames == 10 and _av_demo != "":
+			_demo_av()
+		var shoot_now: bool = _frames >= 12 if not (_attack_demo or _jack_demo or _av_demo != "") else (_demo_ms > 0 and Time.get_ticks_msec() - _demo_ms >= int(_shot_delay * 1000.0 / Engine.time_scale))
 		if shoot_now:
 			get_viewport().get_texture().get_image().save_png(_shot_path)
 			get_tree().quit()
@@ -612,6 +617,17 @@ func new_gig() -> void:
 			var oc: Vector3i = enc.objective.cell
 			fc = Vector2(oc.x, oc.y)
 			view_floor = oc.z
+		elif _focus == "civ":   # review renders: the bystander nearest the crew
+			var best := INF
+			for u in enc.units:
+				if u.team == Encounter.CIV_TEAM:
+					var d := Vector2(u.pos.x - enc.cur.pos.x, u.pos.y - enc.cur.pos.y).length()
+					if m.t(u.pos.z, u.pos.x, u.pos.y) != TacMap.T.OUTSIDE:
+						d += 1000.0   # indoors: hidden under the roof in a promo render
+					if d < best:
+						best = d
+						fc = Vector2(u.pos.x, u.pos.y)
+						view_floor = u.pos.z
 		elif _focus == "center":
 			for st in m.structures:
 				if st.target and st.has("rect"):
@@ -708,8 +724,17 @@ func _build_world() -> void:
 func _unit_node(u: Dictionary) -> CharModel:
 	if unit_nodes.has(u.id):
 		return unit_nodes[u.id]
-	var look_team: int = 0 if u.team == 2 else u.team
-	var n := CharModel.build(look_team, u.c.look_seed if u.c.look_seed >= 0 else u.id, "exec" if u.get("vip", false) else String(u.c.role), u.c.weapons[0].id() if not u.c.weapons.is_empty() else "heavy_pistol")
+	var look_team: int = 0 if u.team in [2, 3] else (1 if u.team == 4 else u.team)
+	var look_role := String(u.c.role)
+	if u.get("vip", false):
+		look_role = "exec"
+	elif u.get("civ", false):
+		look_role = "civilian"
+	elif u.get("tt", false):
+		look_role = "trauma"
+	elif u.get("maxtac", false):
+		look_role = "maxtac"
+	var n := CharModel.build(look_team, u.c.look_seed if u.c.look_seed >= 0 else u.id, look_role, u.c.weapons[0].id() if not u.c.weapons.is_empty() else "heavy_pistol")
 	if u.c.weapons.is_empty() and n.gun:   # the unarmed (captives) carry nothing
 		n.gun.visible = false
 	decals[u.id] = _decal(Color("05d9e8"), 0.95, false, 0.0)
@@ -877,7 +902,9 @@ func _refresh() -> void:
 	for u in enc.units:
 		var n: Node3D = _unit_node(u)
 		var seen: bool = u.team == 0 or not fog_on or enc.vision.visible.has(u.pos)
-		n.visible = seen and not _cut_hides(u.pos)
+		n.visible = seen and not _cut_hides(u.pos) and not u.get("fled", false) and not u.get("carried", false) and not n.get_meta("arriving", false)
+		if u.get("fled", false) or u.get("carried", false):
+			continue
 		var dc: MeshInstance3D = decals[u.id]
 		dc.visible = false
 		n.set_meta("wound", u.c.wound_state())
@@ -1054,6 +1081,72 @@ func _net_layout(a: NetArchitecture) -> Array:
 ## Where the objective is: world points with a label and colour (the view draws a chevron over each,
 ## or an arrow at the screen edge with the distance when it's off screen).
 var _charge_node: Node3D
+var _avs := {}   ## kind → AVModel on the ground
+
+
+## An AV comes down onto its landing spot; the team it carries jumps out once it's down.
+func _anim_av_land(e: Dictionary) -> void:
+	var cell: Vector3i = e.cell
+	var at := Vector3(cell.x + 0.5, _gy(cell), cell.y + 0.5)
+	for id in e.units:   # hidden until they step out
+		var nn: Node3D = _unit_node(enc.units[id])
+		nn.set_meta("arriving", true)
+		nn.visible = false
+	var av := AVModel.make(String(e.kind))
+	world.add_child(av)
+	_avs[String(e.kind)] = av
+	await _pan_to(at, 0.5)
+	hud.toast("MAXTAC" if e.kind == "maxtac" else "TRAUMA TEAM", 2.0)
+	_snd("sfx_jack_in", at, -2.0, 0.0, 0)
+	var tw := av.land(at)
+	await tw.finished
+	fx.burst(at + Vector3(0, 0.1, 0), Color("8a8070"), 30, 3.5, 0.12, 0.9, 0.0, -2.0)   # downwash dust
+	_kick(Vector2(0, 1), 4.0)
+	_snd("sfx_door", at, 0.0, 0.0, 0)
+	for id in e.units:
+		var nn2: CharModel = _unit_node(enc.units[id])
+		nn2.set_meta("arriving", false)
+		var dest := Vector3(enc.units[id].pos.x + 0.5, _gy(enc.units[id].pos), enc.units[id].pos.y + 0.5)
+		nn2.position = at + Vector3(0, 0.4, 0)
+		nn2.visible = true
+		create_tween().tween_property(nn2, "position", dest, 0.35).set_trans(Tween.TRANS_QUAD)
+		await get_tree().create_timer(0.18).timeout
+	_float(enc.units[e.units[0]], "MAXTAC" if e.kind == "maxtac" else "TRAUMA TEAM", Hud.RED if e.kind == "maxtac" else Color("2a8cff"))
+	await get_tree().create_timer(0.5).timeout
+
+
+func _demo_av() -> void:
+	_demo_ms = Time.get_ticks_msec()
+	if _av_demo == "maxtac":
+		enc._maxtac_drop()
+	else:   # down the first guard, give them a card, call the team and fast-forward to the landing
+		for g in enc.units:
+			if g.team == 1:
+				g["trauma_card"] = true
+				g.c.hp = 0
+				g.c.unconscious = true
+				break
+		enc._check_end()
+		enc.init.round_num += Encounter.TT_ROUNDS
+		enc._tick_trauma()
+	for ev in enc.events:   # frame the landing for the capture
+		if ev.type == "av_land":
+			cam_target = Vector3(ev.cell.x + 0.5, 0, ev.cell.y + 0.5)
+			_place_camera()
+	_play_events()
+
+
+func _anim_av_leave(e: Dictionary) -> void:
+	var av: AVModel = _avs.get(String(e.kind))
+	for u in enc.units:
+		if u.get("tt", false):
+			(unit_nodes[u.id] as Node3D).visible = false
+	if av and is_instance_valid(av):
+		await _pan_to(av.position, 0.4)
+		var tw := av.lift_off()
+		await get_tree().create_timer(1.2).timeout
+	_avs.erase(String(e.kind))
+	hud.toast("THE TRAUMA TEAM AV LIFTS OFF")
 
 
 ## The planted charge: a dark brick on the machine with a red light blinking faster as it runs down.
@@ -2618,7 +2711,7 @@ func _play_events() -> void:
 	while not enc.events.is_empty():
 		var e: Dictionary = enc.events.pop_front()
 		var u: Dictionary = enc.units[e.unit]
-		if u.team == 1 and not hostile_shown and String(e.type) not in ["alert", "death", "camera"] and not e.get("patrol", false) and _event_visible(e):
+		if u.team == 1 and not hostile_shown and String(e.type) not in ["alert", "death", "camera", "tt_call", "av_land", "av_leave", "tt_pickup", "panic", "civ_gone"] and not e.get("patrol", false) and _event_visible(e):
 			hostile_shown = true
 			hud.enemy_phase(true)
 			hud.turn_banner("HOSTILE ACTIVITY", Hud.RED)
@@ -2733,6 +2826,29 @@ func _play_events() -> void:
 				_float(u, "CHARGE SET", Hud.RED)
 				hud.toast("%d ROUNDS · GET CLEAR OF THE BLAST" % Encounter.CHARGE_FUSE_ROUNDS)
 				await get_tree().create_timer(0.4).timeout
+			"panic":
+				var shown := 0
+				for pid in e.units:
+					var pu: Dictionary = enc.units[pid]
+					if _seen(pu.pos) and shown < 3:
+						_float(pu, "SCREAMS", Color("ffd0a0"))
+						shown += 1
+				if shown > 0:
+					hud.toast("BYSTANDERS SCATTER")
+			"civ_gone":
+				(unit_nodes[u.id] as Node3D).visible = false
+			"tt_call":
+				if _seen(u.pos):
+					_float(u, "TRAUMA CARD", Color("2a8cff"))
+				hud.toast("TRAUMA TEAM INBOUND · %d ROUNDS" % Encounter.TT_ROUNDS)
+				_ui_snd("sfx_beep", -4.0)
+			"av_land": await _anim_av_land(e)
+			"tt_pickup":
+				var tu2: Dictionary = enc.units[e.target]
+				_float(u, "PATIENT SECURED", Color("2a8cff"))
+				(unit_nodes[tu2.id] as Node3D).visible = false
+				await get_tree().create_timer(0.4).timeout
+			"av_leave": await _anim_av_leave(e)
 			"target_down":
 				_float(u, "TARGET DOWN", Hud.GOLD)
 				_ui_snd("sfx_ui_confirm", -6.0)
@@ -2793,7 +2909,7 @@ func _anim_move(e: Dictionary) -> void:
 	var u: Dictionary = enc.units[e.unit]
 	var n: Node3D = unit_nodes[u.id]
 	var path: Array = e.path
-	if u.team == 1 and not _event_visible(e):
+	if u.team != 0 and not _event_visible(e):
 		return
 	_focus_unit = u.id
 	if _reel != "" and OS.has_environment("REEL_DEBUG"):

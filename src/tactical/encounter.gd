@@ -139,6 +139,8 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 	e._outer_patrols(cells[0])
 	e._post_guards()
 	e._hand_out_keycards()
+	e._trauma_cards()
+	e._place_civilians(cells[0])
 	e.refresh_vision()
 	e.update_alerts()
 	return e
@@ -201,6 +203,10 @@ func next_turn() -> void:
 				_call_it_in(gs[0])
 		_tick_backup()
 		_tick_fuse()
+		if init.round_num != _civ_round:
+			_civ_round = init.round_num
+			_civilians_tick()
+			_tick_trauma()
 		if state != "playing":
 			return
 		turn = TurnState.begin(dice, c)
@@ -216,6 +222,10 @@ func next_turn() -> void:
 			_ice_turn(cur)
 			if cur.has("suppressed_by"):
 				_take_cover(cur)
+			if cur.team == TT_TEAM:
+				AI.trauma(self, cur)
+				end_turn()
+				continue
 			if cur.get("captive", false):   # a freed captive follows the crew on their own
 				AI.follow(self, cur)
 				end_turn()
@@ -261,6 +271,13 @@ func end_turn() -> void:
 func _check_end() -> void:
 	if state != "playing":
 		return
+	_count_civ_harm()
+	_watch_cardholders()
+	if int(tt.get("carrier", -1)) >= 0 and not units[int(tt.carrier)].c.can_act():   # the carrier went down: the patient drops
+		var pt: Dictionary = units[int(tt.patient)]
+		pt.erase("carried")
+		pt.pos = units[int(tt.carrier)].pos
+		tt.carrier = -1
 	if objective.get("kind", "data") == "snatch":
 		_drop_package()
 	if units.filter(func(u): return u.team == 0 and u.c.can_act()).is_empty() \
@@ -502,6 +519,247 @@ func _vip_escapes(u: Dictionary) -> void:
 	u["escaped"] = true
 	say("%s gets away." % objective.name)
 	state = "lost"
+
+
+# --- Civilians, Trauma Team, MaxTac ---------------------------------------------------------
+
+const CIV_TEAM := 3
+const TT_TEAM := 4
+const MAXTAC_HEAT := 7            ## HOUSE-RULE: at heat 7+ the escalation is MaxTac, not NCPD
+const TT_ROUNDS := 2              ## HOUSE-RULE: Trauma Team lands two rounds after a cardholder goes down
+const CORP_SITES := ["corp_office", "corp_hq", "data_center", "clinic"]
+var civ_casualties := 0
+var tt_hostile := false             ## someone on the crew shot at Trauma Team: they shoot back
+var tt := {}                        ## the Trauma Team call: {patient, round, av, units, carrier, state}
+var _civ_round := -1
+var _counted := {}
+
+
+## Civilians (HOUSE-RULE): bystanders in the public rooms and on the street, more where people
+## gather (bars, clubs, markets), few in the badlands or the tunnels. They take no turns: each round
+## the ones that have panicked run for the map edge. Hurting one costs the crew rep and heat.
+func _place_civilians(deploy: Vector2i) -> void:
+	var scene := String(m.params.get("scene", ""))
+	if scene in ["badlands", "undercity"]:
+		return
+	var cand: Array = []
+	for y in m.h:
+		for x in m.w:
+			var v := Vector3i(x, y, 0)
+			if not m.walkable(0, Vector2i(x, y)) or occupied().has(v) or Vector2(x - deploy.x, y - deploy.y).length() < 10:
+				continue
+			var l := m.label(0, x, y)
+			var ok := false
+			if l >= 0:
+				var r: Dictionary = m.rooms[l]
+				ok = int(r.zone) == TacMap.Zone.PUBLIC and String(r.kind) not in ["roof", "corridor"]
+			else:
+				ok = m.t(0, x, y) == TacMap.T.OUTSIDE and m.ground[y * m.w + x] == TacMap.G.SIDEWALK
+			if ok:
+				cand.append(v)
+	if cand.is_empty():
+		return
+	var n := clampi(int(m.w * m.h / 650.0) + (3 if scene == "arcology" else 0), 3, 12)
+	var placed: Array = []
+	for k in n * 6:
+		if placed.size() >= n:
+			break
+		var v: Vector3i = cand[dice.d(cand.size()) - 1]
+		if placed.any(func(q): return Vector2(q.x - v.x, q.y - v.y).length() < 4.0):
+			continue
+		var c := Recruit.generate(dice, ["media", "fixer", "exec", "rockerboy", "tech"][dice.d(5) - 1], "edgerunner", "Bystander")
+		c.weapons.clear()
+		c.grenades = 0
+		_add(c, v, CIV_TEAM)
+		var u: Dictionary = units[-1]
+		u.alerted = false
+		u["civ"] = true
+		u["panic"] = false
+		placed.append(v)
+
+
+func _panic_near(at: Vector3i) -> void:
+	var fresh := []
+	for u in units:
+		if u.get("civ", false) and not u.panic and not u.c.dead and Vector2(at.x - u.pos.x, at.y - u.pos.y).length() <= GUNFIRE_RANGE:
+			u.panic = true
+			fresh.append(u.id)
+	if not fresh.is_empty():
+		events.append({"type": "panic", "unit": fresh[0], "units": fresh})
+
+
+## Panicked bystanders run (up to 10 squares a round) for the nearest map exit and are gone there.
+func _civilians_tick() -> void:
+	var exits: Array = []
+	for en in m.entrances:
+		if m.walkable(int(en.get("floor", 0)), en.pos):
+			exits.append(Vector3i(en.pos.x, en.pos.y, int(en.get("floor", 0))))
+	if exits.is_empty():
+		return
+	var field: Dictionary = nav.distance_field(exits, {}, 4000)
+	for u in units:
+		if not u.get("civ", false) or not u.panic or u.c.dead or not u.c.can_act():
+			continue
+		var reach: Dictionary = nav.reachable(u.pos, 10, occupied(u))
+		var best: Vector3i = u.pos
+		for cell in reach:
+			if int(field.get(cell, 9999)) < int(field.get(best, 9999)) and not occupied(u).has(cell):
+				best = cell
+		if best != u.pos:
+			var path: Array[Vector3i] = nav.path(u.pos, best, occupied(u))
+			var full: Array = [u.pos]
+			full.append_array(path)
+			u.pos = best
+			events.append({"type": "move", "unit": u.id, "path": full, "run": true})
+		if int(field.get(u.pos, 9999)) == 0:
+			u.c.dead = true   # gone off the map, unharmed
+			u["fled"] = true
+			events.append({"type": "civ_gone", "unit": u.id})
+
+
+func _count_civ_harm() -> void:
+	for u in units:
+		if u.get("civ", false) and not u.get("fled", false) and not _counted.has(u.id) and (u.c.dead or not u.c.can_act()):
+			_counted[u.id] = true
+			civ_casualties += 1
+			say("A bystander is down. That will cost you.")
+
+
+## Trauma Team subscribers: the mark on an assassination, and a Lieutenant or Mini Boss at corp sites
+## half the time (HOUSE-RULE).
+func _trauma_cards() -> void:
+	var site := ""
+	for st in m.structures:
+		if st.target:
+			site = String(st.get("site", ""))
+	var corp: bool = site in CORP_SITES or String(m.params.get("scene", "")) in ["arcology", "corp_campus"]
+	for u in units:
+		if u.team != 1:
+			continue
+		if u.get("vip", false) and corp:
+			u["trauma_card"] = true
+		elif corp and (String(u.c.display_name).begins_with("Lieutenant") or String(u.c.display_name).begins_with("Mini")):
+			u["trauma_card"] = dice.d(2) == 1
+
+
+## A cardholder going down (alive) calls Trauma Team, who land TT_ROUNDS rounds later.
+func _watch_cardholders() -> void:
+	if not tt.is_empty():
+		return
+	for u in units:
+		if u.get("trauma_card", false) and not u.c.dead and not u.c.can_act():
+			tt = {"patient": u.id, "round": init.round_num + TT_ROUNDS, "state": "called"}
+			events.append({"type": "tt_call", "unit": u.id})
+			say("%s's Trauma Team card pings. An AV is on its way." % u.c.display_name)
+			return
+
+
+func _tick_trauma() -> void:
+	if tt.get("state", "") != "called" or init.round_num < int(tt.round):
+		return
+	var patient: Dictionary = units[int(tt.patient)]
+	if patient.c.dead:
+		tt.state = "cancelled"
+		return
+	var spot := av_spot(patient.pos, 2, 30)
+	if spot.x < 0:
+		tt.state = "cancelled"
+		return
+	var ids := []
+	var cells := _around(spot, 3)
+	for i in mini(3, cells.size()):
+		var g := Recruit.npc(dice, "lieutenant", "Trauma Team %d" % (i + 1))
+		g.armor["body"] = ArmorPiece.from_id("heavy_armorjack")
+		g.armor["head"] = ArmorPiece.from_id("heavy_armorjack")
+		_add(g, cells[i], TT_TEAM)
+		var u: Dictionary = units[-1]
+		u.alerted = true
+		u["tt"] = true
+		init.add(g)
+		ids.append(u.id)
+	tt.merge({"state": "landed", "av": spot, "units": ids, "carrier": -1}, true)
+	events.append({"type": "av_land", "unit": ids[0] if not ids.is_empty() else 0, "kind": "trauma", "cell": spot, "units": ids})
+	say("Trauma Team lands. Stay out of their way.")
+
+
+## Trauma Team got the patient aboard: everyone climbs in and the AV lifts off.
+func tt_depart() -> void:
+	for id in tt.get("units", []):
+		units[id].c.dead = true
+		units[id]["fled"] = true
+	var patient: Dictionary = units[int(tt.patient)]
+	patient.c.dead = true
+	patient["fled"] = true
+	patient["extracted"] = true
+	tt.state = "gone"
+	events.append({"type": "av_leave", "unit": int(tt.patient), "kind": "trauma", "cell": tt.av})
+	say("The Trauma Team AV lifts off with %s." % patient.c.display_name)
+	if objective.get("kind", "") == "assassinate" and int(objective.target) == int(tt.patient):
+		objective.done = false
+		objective.escaped = true
+		state = "lost"
+		say("Trauma Team saved %s. The job's blown." % objective.name)
+
+
+## MaxTac (HOUSE-RULE stats, RULES-UNVERIFIED against the book's MaxTac block): four operatives,
+## Mini Boss stats, heavy armour and assault rifles, dropped by AV near the crew.
+func _maxtac_drop() -> void:
+	var crew := alive(0)
+	if crew.is_empty():
+		return
+	var spot := av_spot(crew[0].pos, 6, 40)
+	if spot.x < 0:
+		var waves: Array[String] = ["lieutenant", "mook", "mook"]
+		_spawn_wave(waves, "NCPD Officer", "NCPD")
+		return
+	var ids := []
+	var cells := _around(spot, 3)
+	for i in mini(4, cells.size()):
+		var g := Recruit.npc(dice, "mini_boss", "MaxTac %d" % (i + 1))
+		g.team = 1
+		g.armor["body"] = ArmorPiece.from_id("metalgear")
+		g.armor["head"] = ArmorPiece.from_id("metalgear")
+		_add(g, cells[i], 1)
+		var u: Dictionary = units[-1]
+		u.alerted = true
+		u["maxtac"] = true
+		init.add(g)
+		ids.append(u.id)
+	events.append({"type": "av_land", "unit": ids[0] if not ids.is_empty() else 0, "kind": "maxtac", "cell": spot, "units": ids})
+	say("MaxTac drops in. This just became a very bad night.")
+
+
+## An open landing spot for an AV: a street square with a clear 3x3 around it, between `lo` and
+## `hi` squares from `near`, the nearest one to `near` past `lo`.
+func av_spot(near: Vector3i, lo: int, hi: int) -> Vector3i:
+	var best := Vector3i(-1, -1, -1)
+	var bd := INF
+	for y in range(1, m.h - 1):
+		for x in range(1, m.w - 1):
+			var d := Vector2(x - near.x, y - near.y).length()
+			if d < lo or d > hi or d >= bd:
+				continue
+			var ok := true
+			for dy in range(-1, 2):
+				for dx in range(-1, 2):
+					var v := Vector2i(x + dx, y + dy)
+					if m.t(0, v.x, v.y) != TacMap.T.OUTSIDE or m.label(0, v.x, v.y) >= 0 or not m.walkable(0, v) or occupied().has(Vector3i(v.x, v.y, 0)):
+						ok = false
+			if ok:
+				bd = d
+				best = Vector3i(x, y, 0)
+	return best
+
+
+func _around(c: Vector3i, n: int) -> Array:
+	var out: Array = []
+	for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 1), Vector2i(-1, -1), Vector2i(1, -1), Vector2i(-1, 1)]:
+		var v := c + Vector3i(d.x, d.y, 0)
+		if m.walkable(0, Vector2i(v.x, v.y)) and not occupied().has(v):
+			out.append(v)
+		if out.size() >= n + 1:
+			break
+	return out
 
 
 # --- Sabotage ----------------------------------------------------------------------------
@@ -1012,8 +1270,11 @@ func _tick_backup() -> void:
 		ncpd_in -= 1
 		if ncpd_in == 0:
 			ncpd_in = -2   # once per gig
-			var waves: Array[String] = ["lieutenant", "mook", "mook"]
-			_spawn_wave(waves, "NCPD Officer", "NCPD")
+			if heat >= MAXTAC_HEAT:
+				_maxtac_drop()
+			else:
+				var waves: Array[String] = ["lieutenant", "mook", "mook"]
+				_spawn_wave(waves, "NCPD Officer", "NCPD")
 	if backup_in < 0 or init.round_num == _backup_round:
 		return
 	_backup_round = init.round_num
@@ -1027,7 +1288,7 @@ func _tick_backup() -> void:
 	_spawn_wave(roster, "Backup", "BACKUP")
 	# Escalation: keep fighting and the city notices, if the site matters or the crew is already wanted
 	# (HOUSE-RULE: a low-security scuffle doesn't bring NCPD unless heat >= 3).
-	if ncpd_in == -1 and (int(m.params.get("security", 1)) >= 2 or "heavy" in twists or heat >= 3):
+	if ncpd_in == -1 and (int(m.params.get("security", 1)) >= 2 or "heavy" in twists or heat >= 3):   # (heat >= MAXTAC_HEAT sends MaxTac instead)
 		ncpd_in = maxi(2, NCPD_ROUNDS - heat / 2)
 		_ncpd_round = init.round_num
 
@@ -1067,6 +1328,7 @@ func _spawn_wave(roster: Array[String], prefix: String, label: String) -> void:
 
 ## Gunfire at `at` alerts guards within GUNFIRE_RANGE on any floor.
 func _noise(at: Vector3i) -> void:
+	_panic_near(at)
 	var fresh := []
 	for g in units:
 		if not g.alerted and not g.c.dead and Vector2(at.x - g.pos.x, at.y - g.pos.y).length() <= GUNFIRE_RANGE \
@@ -1196,6 +1458,8 @@ func attack(target: Dictionary, weapon: Weapon, mode: Attack.Mode) -> Dictionary
 	if turn.attacks_left <= 0 and not turn.start_attack(weapon, mode != Attack.Mode.SINGLE or weapon.rof() < 2):
 		return {"ok": false, "reason": "no action left"}
 	turn.use_attack()
+	if int(target.team) == TT_TEAM and cur.team == 0:
+		tt_hostile = true
 	_rouse([target])
 	_noise(cur.pos)
 	var hp_before: int = target.c.hp

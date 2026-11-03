@@ -152,3 +152,74 @@ func test_sabotage_plant_fuse_and_blast() -> void:
 	assert_false(e.m.has_cover_at(tc.z, Vector2i(tc.x, tc.y)), "nothing left of it")
 	assert_true(e.events.any(func(ev): return ev.type == "blast" and ev.get("charge", false)), "a charge blast event")
 	assert_true(solo.c.hp < hp0 or e.events.any(func(ev): return ev.type == "blast" and ev.hits.any(func(h): return h.id == solo.id and h.dodged)), "standing next to it hurts")
+
+
+func test_civilians_scatter_on_gunfire_and_count_as_collateral() -> void:
+	var m := SceneGen.generate(7, "neighborhood", {"security": 1, "profile": "market_streets"})
+	var dice := Dice.new(4)
+	var e := Encounter.setup(m, dice, _crew(dice), "eliminate")
+	var civs := e.units.filter(func(u): return u.get("civ", false))
+	assert_true(civs.size() >= 3, "bystanders in a market (%d)" % civs.size())
+	var c0: Dictionary = civs[0]
+	e._noise(c0.pos)
+	assert_true(c0.panic, "gunfire panics them")
+	var p0: Vector3i = c0.pos
+	e._civilians_tick()
+	assert_true(c0.pos != p0 or c0.get("fled", false), "and they run")
+	var c1: Dictionary = civs[1]
+	c1.c.hp = -5
+	c1.c.dead = true
+	e._check_end()
+	assert_eq(e.civ_casualties, 1, "a hurt bystander counts")
+	assert_true(Campaign.gig_heat(e) >= 1, "and brings heat")
+
+
+func test_trauma_team_lands_for_a_downed_cardholder_and_lifts_them() -> void:
+	var m := SceneGen.generate(11, "lone_building", {"security": 2, "site": "corp_office"})
+	var dice := Dice.new(7)
+	var e := Encounter.setup(m, dice, _crew(dice), "assassinate")
+	var vip: Dictionary = e.units[int(e.objective.target)]
+	assert_true(vip.get("trauma_card", false), "a corp mark has a Trauma Team card")
+	for u in e.units:   # the crew is inside, not at the extraction zone
+		if u.team == 0:
+			u.pos = vip.pos
+	vip.c.hp = 0
+	vip.c.unconscious = true
+	e._check_end()
+	assert_false(e.tt.is_empty(), "the card pings")
+	e.init.round_num += Encounter.TT_ROUNDS
+	e._tick_trauma()
+	assert_eq(String(e.tt.state), "landed", "the AV lands")
+	var team := e.units.filter(func(u): return u.get("tt", false))
+	assert_eq(team.size(), 3)
+	assert_true(e.events.any(func(ev): return ev.type == "av_land" and ev.kind == "trauma"))
+	# a medic beside the patient picks them up, carries them to the AV, and they're gone
+	var medic: Dictionary = team[0]
+	for d in MapGen.DIRS:   # (a bodyguard may stand there: fine for this test)
+		var v: Vector3i = vip.pos + Vector3i(d.x, d.y, 0)
+		if e.m.walkable(v.z, Vector2i(v.x, v.y)):
+			medic.pos = v
+			break
+	e.cur = medic
+	e.turn = TurnState.begin(e.dice, medic.c)
+	AI.trauma(e, medic)
+	assert_eq(int(e.tt.carrier), medic.id, "patient secured")
+	medic.pos = e.tt.av
+	e.turn = TurnState.begin(e.dice, medic.c)
+	AI.trauma(e, medic)
+	assert_eq(String(e.tt.state), "gone", "they lift off")
+	assert_eq(e.state, "lost", "Trauma Team saved the mark: the hit failed")
+
+
+func test_maxtac_answers_at_high_heat() -> void:
+	var m := SceneGen.generate(7, "street_block", {"security": 2})
+	var dice := Dice.new(5)
+	var e := Encounter.setup(m, dice, _crew(dice), "eliminate")
+	e.heat = 8
+	e.ncpd_in = 1
+	e._ncpd_round = -5
+	e._tick_backup()
+	var mt := e.units.filter(func(u): return u.get("maxtac", false))
+	assert_true(mt.size() >= 3, "a MaxTac squad (%d)" % mt.size())
+	assert_true(mt.all(func(u): return u.team == 1 and u.c.sp("body") >= 18), "hostile, in heavy armour")
+	assert_true(e.events.any(func(ev): return ev.type == "av_land" and ev.kind == "maxtac"), "arriving by AV")

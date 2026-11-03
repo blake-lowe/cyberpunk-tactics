@@ -248,3 +248,56 @@ static func follow(e: Encounter, u: Dictionary) -> void:
 			best = cell
 	if best != u.pos:
 		e.move_to(best)
+
+
+
+## Trauma Team: get to the patient, carry them back to the AV, lift off. They ignore the fight
+## unless someone on the crew shoots at them (then they shoot back, still doing the job).
+static func trauma(e: Encounter, u: Dictionary) -> void:
+	var tt: Dictionary = e.tt
+	if tt.get("state", "") != "landed":
+		return
+	var patient: Dictionary = e.units[int(tt.patient)]
+	if e.tt_hostile and not u.c.weapons.is_empty():
+		var w: Weapon = u.c.weapons[0]
+		var best: Dictionary = {}
+		var bc := 0.0
+		for t in e.alive(0):
+			var p := e.preview(t, w, Attack.Mode.SINGLE)
+			if p.ok and p.chance > bc:
+				bc = p.chance
+				best = t
+		if not best.is_empty() and bc >= MIN_CHANCE:
+			e.attack(best, w, Attack.Mode.SINGLE)
+	var carrier: int = int(tt.get("carrier", -1))
+	if carrier < 0 and not patient.c.dead:
+		if e.adjacent(u.pos, patient.pos) or u.pos == patient.pos:
+			tt.carrier = u.id
+			patient["carried"] = true
+			e.events.append({"type": "tt_pickup", "unit": u.id, "target": patient.id})
+			e.say("Trauma Team has %s." % patient.c.display_name)
+			return
+		_go_toward(e, u, patient.pos)
+	elif carrier == u.id:
+		_go_toward(e, u, tt.av)
+		patient.pos = u.pos
+		if Vector2(u.pos.x - tt.av.x, u.pos.y - tt.av.y).length() <= 1.5:
+			e.tt_depart()
+	elif patient.c.dead:
+		_go_toward(e, u, tt.av)   # nothing to save: back to the AV
+		if Vector2(u.pos.x - tt.av.x, u.pos.y - tt.av.y).length() <= 1.5 and e.units.filter(func(o): return o.get("tt", false) and not o.c.dead).all(func(o): return Vector2(o.pos.x - tt.av.x, o.pos.y - tt.av.y).length() <= 1.5):
+			e.tt_depart()
+
+
+static func _go_toward(e: Encounter, u: Dictionary, goal: Vector3i) -> void:
+	if not e.turn.can_move():
+		return
+	var field: Dictionary = e._with_locks(func(): return e.nav.distance_field([goal], {}, 4000))
+	var budget: int = e.turn.squares_available() + (u.c.stat("MOVE") if e.turn.action_available else 0)
+	var opts: Dictionary = e._with_locks(func(): return e.nav.reachable(u.pos, budget, e._blocking(u)))
+	var best: Vector3i = u.pos
+	for cell in opts:
+		if int(field.get(cell, 9999)) < int(field.get(best, 9999)) and not e.occupied(u).has(cell):
+			best = cell
+	if best != u.pos:
+		e.move_to(best, true)

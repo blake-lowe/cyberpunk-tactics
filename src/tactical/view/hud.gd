@@ -645,9 +645,13 @@ static func objective_text(enc: Encounter) -> String:
 			return "OBJECTIVE · ELIMINATE ALL HOSTILES (%d LEFT)" % enc.alive(1).size()
 		"assassinate":
 			if o.get("done", false):
+				if not enc.tt.is_empty() and String(enc.tt.state) in ["called", "landed"]:
+					return "OBJECTIVE · %s IS DOWN, NOT DEAD\nTRAUMA TEAM INBOUND: FINISH IT" % String(o.name).to_upper()
 				return "OBJECTIVE · %s IS DOWN\nGET TO THE EXTRACTION ZONE" % String(o.name).to_upper()
 			var vip: Dictionary = enc.units[int(o.target)]
 			var run := " · RUNNING FOR AN EXIT" if (vip.alerted or enc.alarm >= 1) else ""
+			if not enc.tt.is_empty() and int(enc.tt.patient) == vip.id and String(enc.tt.state) in ["called", "landed"]:
+				run = " · TRAUMA TEAM INBOUND: FINISH IT"
 			return "OBJECTIVE · TAKE DOWN %s%s" % [String(o.name).to_upper(), run]
 		"sabotage":
 			if o.get("done", false):

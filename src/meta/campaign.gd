@@ -186,6 +186,7 @@ static func gig_heat(e: Encounter) -> int:
 		h += 1
 	var bodies := e.units.filter(func(u): return u.team == 1 and u.c.dead).size()
 	h += bodies / 4
+	h += e.civ_casualties   # HOUSE-RULE: every bystander hurt is a headline
 	return h
 
 
@@ -302,6 +303,10 @@ func resolve(e: Encounter) -> Dictionary:
 	eb += report.pay - report.fees + report.salvage
 	report.episodes = _downtime_episodes()
 	report.heat = gig_heat(e) + report.episodes.size()
+	if e.civ_casualties > 0:   # HOUSE-RULE: fixers don't like collateral (spec: lowered by excessive collateral)
+		report.rep -= e.civ_casualties
+		report["civilians"] = e.civ_casualties
+		say("%d bystander%s hurt. %s won't forget it." % [e.civ_casualties, "" if e.civ_casualties == 1 else "s", gig.fixer])
 	heat = clampi(heat + report.heat, 0, 10)
 	rep = maxi(0, rep + report.rep)
 	var fx_name := String(gig.get("fixer", ""))

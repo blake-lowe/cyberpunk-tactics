@@ -26,7 +26,19 @@ static func make(id: int, team: int, role: String) -> Dictionary:
 		"head_w": 6 + rng.randi() % 2,
 		"style": STYLES[rng.randi() % STYLES.size()],
 	}
-	look["visor"] = role == "netrunner" or rng.randf() < 0.4
+	# factions with their own clothes: bystanders in street colours, Trauma Team in white and
+	# medical blue, MaxTac in black with hazard yellow
+	match role:
+		"civilian":
+			look.jacket = [Color("6a5a4a"), Color("4a5a6a"), Color("7a6a5a"), Color("5a4a5a"), Color("3a4a3a"), Color("8a7a6a"), Color("6a3a3a")][rng.randi() % 7]
+			look.accent = look.jacket.lightened(0.3)
+		"trauma":
+			look.jacket = Color("dfe6ea")
+			look.accent = Color("2a8cff")
+		"maxtac":
+			look.jacket = Color("17191e")
+			look.accent = Color("ffcc00")
+	look["visor"] = role in ["netrunner", "trauma", "maxtac"] or (role != "civilian" and rng.randf() < 0.4)
 	look["eye_glow"] = rng.randf() < 0.5
 	look["cyber"] = rng.randi() % 3   # 0 chrome jaw, 1 cheek port, 2 none
 	look["head"] = HEADS[rng.randi() % HEADS.size()]
