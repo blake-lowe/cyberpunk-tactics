@@ -132,6 +132,8 @@ var range_tex: ImageTexture
 var fires: Array[OmniLight3D] = []
 var decals := {}              ## unit id → ground glow MeshInstance3D
 var _withdraw_ask := -10000    ## withdrawal needs a second press within 3 s
+var devices: DeviceView      ## meatspace devices with status lights
+var keycard_nodes := {}        ## unit id → glinting keycard over a downed carrier
 var obj_node: Node3D           ## snatch objective: the package (a case on a gold beacon) and the extraction squares
 var dash_opts := {}           ## squares reachable by also spending the Action on a Run (amber contour)
 var rim: DirectionalLight3D
@@ -244,6 +246,8 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if devices and not keycard_nodes.is_empty():
+		_update_keycards()
 	if obj_node and is_instance_valid(obj_node) and int(enc.objective.get("carrier", -1)) >= 0:   # the diamond follows the carrier
 		var tag := obj_node.get_node("tag") as Node3D
 		tag.position = (unit_nodes[int(enc.objective.carrier)] as Node3D).position + Vector3(0, 2.75, 0)
@@ -379,6 +383,10 @@ func _build_view() -> void:
 	hud.add_child(net_overlay)
 	hud.move_child(net_overlay, 0)
 	net_overlay.to_screen = _to_screen
+	var markers := Hud.Painter.new()   # objective markers, edge arrows when off screen
+	markers.fn = _draw_markers
+	hud.add_child(markers)
+	hud.move_child(markers, 0)
 	var shields := Hud.Painter.new()
 	shields.fn = _draw_cover_shields
 	hud.add_child(shields)
@@ -574,6 +582,10 @@ func _build_world() -> void:
 	for s in builder.surfaces():
 		floor_nodes[int(s.get_meta("floor", 0))].add_child(s)
 	builder.lightfield = LightField.bake(m, enc.los, LightPlan.plan(m, m.seed_value) + builder.emitters)
+	devices = DeviceView.new()
+	world.add_child(devices)
+	devices.build(m, func(v: Vector3i) -> float: return _gy(v))
+	keycard_nodes.clear()
 	RenderingServer.global_shader_parameter_set("lf_tex", builder.lightfield)   # units read it too
 	_lf_dims = Vector3(m.w, m.h, m.floors)
 	RenderingServer.global_shader_parameter_set("lf_dims", _lf_dims)
@@ -748,6 +760,9 @@ func _refresh() -> void:
 	_update_fog()
 	_update_cut()
 	_update_objective()
+	if devices:
+		devices.refresh(enc)
+		_update_keycards()
 	for l in lights:  # rooms stay dark until explored, so a reveal reads as lights coming on
 		var cell: Vector3i = l[1]
 		l[0].visible = not _net_cleaned and not ("blackout" in enc.twists) and (l[2] != "room" or not fog_on or enc.vision.explored.has(cell))
@@ -927,6 +942,79 @@ func _net_layout(a: NetArchitecture) -> Array:
 
 ## XCOM-style: while planning a move, the hovered square shows a holographic shield on each side
 ## that has cover (solid: walls and cover pieces; outlined: see-through bulletproof glass).
+## Where the objective is: world points with a label and colour (the view draws a chevron over each,
+## or an arrow at the screen edge with the distance when it's off screen).
+func objective_marks() -> Array:
+	var out := []
+	if enc == null or enc.state != "playing" or _net_cleaned:
+		return out
+	var o := enc.objective
+	match String(o.get("kind", "")):
+		"snatch":
+			if int(o.get("carrier", -1)) < 0:
+				var pc: Vector3i = o.cell
+				out.append([Vector3(pc.x + 0.5, _gy(pc) + 0.4, pc.y + 0.5), "PACKAGE", Hud.GOLD, pc])
+			else:
+				var acc := Vector2.ZERO
+				for c2 in enc.extract_cells:
+					acc += Vector2(c2.x + 0.5, c2.y + 0.5)
+				acc /= maxf(1.0, enc.extract_cells.size())
+				out.append([Vector3(acc.x, 0.3, acc.y), "EXTRACT", Hud.GOLD, Vector3i(int(acc.x), int(acc.y), 0)])
+		"data":
+			if int(o.get("node", -1)) >= 0 and not enc.runs.has(_runner_id()):
+				var a: NetArchitecture = m.architectures[int(o.structure)]
+				var best: Variant = null
+				var bd := INF
+				var from: Vector3i = enc.cur.pos if not enc.cur.is_empty() else enc.units[0].pos
+				for ap in a.access_points:
+					var d: Dictionary = m.devices[ap.device]
+					var dp := Vector3i(d.pos.x, d.pos.y, d.floor)
+					var dist := Vector3(dp - from).length()
+					if dist < bd:
+						bd = dist
+						best = dp
+				if best != null:
+					out.append([Vector3(best.x + 0.5, _gy(best) + 0.7, best.y + 0.5), "JACK POINT", Hud.CYAN, best])
+	return out
+
+
+func _runner_id() -> int:
+	for u in enc.units:
+		if u.team == 0 and NetRun.interface_rank(u.c) > 0:
+			return u.id
+	return -1
+
+
+func _draw_markers(c: Control) -> void:
+	var r := _safe_rect()
+	var from: Vector3i = enc.cur.pos if enc and not enc.cur.is_empty() else Vector3i.ZERO
+	var t := Time.get_ticks_msec() / 1000.0
+	for mk in objective_marks():
+		var wp: Vector3 = mk[0]
+		var col: Color = mk[2]
+		var sp := _to_screen(wp)
+		var behind := cam.is_position_behind(wp)
+		var dist := int(round(Vector3(Vector3i(mk[3]) - from).length() * 2.0))   # squares are 2 m
+		if r.has_point(sp) and not behind:
+			var y := sp.y - 18.0 - 4.0 * sin(t * 3.0)
+			c.draw_colored_polygon(PackedVector2Array([Vector2(sp.x - 9, y - 12), Vector2(sp.x + 9, y - 12), Vector2(sp.x, y)]), col)
+			c.draw_polyline(PackedVector2Array([Vector2(sp.x - 13, y - 16), Vector2(sp.x + 13, y - 16), Vector2(sp.x, y + 4), Vector2(sp.x - 13, y - 16)]), Color(col, 0.5), 1.5)
+			c.draw_string(Hud.F_PIXEL, Vector2(sp.x - 60, y - 22), mk[1], HORIZONTAL_ALIGNMENT_CENTER, 120, 16, col)
+		else:
+			var ctr := r.get_center()
+			var dir := (sp - ctr).normalized() if not behind else (ctr - sp).normalized()
+			# where the ray from the centre leaves the safe rect
+			var k := INF
+			if absf(dir.x) > 0.001:
+				k = minf(k, (r.size.x / 2 - 24) / absf(dir.x))
+			if absf(dir.y) > 0.001:
+				k = minf(k, (r.size.y / 2 - 24) / absf(dir.y))
+			var p := ctr + dir * k
+			var side := Vector2(-dir.y, dir.x)
+			c.draw_colored_polygon(PackedVector2Array([p + dir * 14, p - dir * 6 + side * 10, p - dir * 6 - side * 10]), col)
+			c.draw_string(Hud.F_PIXEL, p - dir * 34 - Vector2(60, -6), "%s %dm" % [mk[1], dist], HORIZONTAL_ALIGNMENT_CENTER, 120, 16, col)
+
+
 func _draw_cover_shields(c: Control) -> void:
 	if busy or not _crew_turn() or not (move_opts.has(hover) or dash_opts.has(hover)):
 		return
@@ -1378,6 +1466,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 			KEY_Y: _on_hud("tool", "dose")
 			KEY_U: _on_hud("tool", "rig")
 			KEY_L: _on_hud("withdraw", null)
+			KEY_V: _on_hud("bypass", null)
+			KEY_P: _on_hud("keycard", null)
 			KEY_K: _on_hud("tamper", null)
 			KEY_ESCAPE:
 				if tool != "":
@@ -1415,6 +1505,18 @@ func _on_hud(name: String, arg: Variant) -> void:
 				var r := enc.grab()
 				if not r.get("ok", false):
 					hud.toast(String(r.get("reason", "can't")))
+				_after_action()
+		"bypass":
+			if _crew_turn():
+				var rb := enc.bypass_lock()
+				if not rb.get("ok", false):
+					hud.toast(String(rb.get("reason", "can't")))
+				_after_action()
+		"keycard":
+			if _crew_turn():
+				var rk := enc.loot_keycard()
+				if not rk.get("ok", false):
+					hud.toast(String(rk.get("reason", "can't")))
 				_after_action()
 		"tamper":
 			if _crew_turn():
@@ -2039,6 +2141,31 @@ func _after_action() -> void:
 		_finish_gig()
 
 
+## Downed guards still carrying a keycard: a small gold card turning over the body, so the crew
+## knows it's worth going over.
+func _update_keycards() -> void:
+	for u in enc.units:
+		var down: bool = u.has("keycard") and (u.c.dead or u.c.unconscious or u.c.wound_state() == Combatant.Wound.MORTAL)
+		var seen: bool = not fog_on or enc.vision.visible.has(u.pos)
+		if down and seen and not keycard_nodes.has(u.id):
+			var card := MeshInstance3D.new()
+			var bm := BoxMesh.new()
+			bm.size = Vector3(0.16, 0.22, 0.02)
+			card.mesh = bm
+			card.material_override = _unlit(Hud.GOLD, 1.0, 1.6)
+			card.position = Vector3(u.pos.x + 0.5, _gy(u.pos) + 0.75, u.pos.y + 0.5)
+			world.add_child(card)
+			keycard_nodes[u.id] = card
+		elif not down and keycard_nodes.has(u.id):
+			(keycard_nodes[u.id] as Node3D).queue_free()
+			keycard_nodes.erase(u.id)
+	var t := Time.get_ticks_msec() / 1000.0
+	for id in keycard_nodes:
+		var n: Node3D = keycard_nodes[id]
+		n.rotation.y = t * 2.0
+		n.position.y = _gy(enc.units[id].pos) + 0.72 + 0.05 * sin(t * 3.0)
+
+
 ## Snatch gigs: the package sits on a gold beacon until someone carries it (then a gold diamond
 ## floats over the carrier), and the deploy squares glow as the extraction point.
 func _update_objective() -> void:
@@ -2060,9 +2187,9 @@ func _update_objective() -> void:
 		obj_node.add_child(case)
 		var beacon := MeshInstance3D.new()
 		var cy := CylinderMesh.new()
-		cy.top_radius = 0.42
+		cy.top_radius = 0.3   # a tall shaft of light so it reads from across the map
 		cy.bottom_radius = 0.42
-		cy.height = 2.2
+		cy.height = 4.5
 		cy.cap_top = false
 		cy.cap_bottom = false
 		beacon.mesh = cy
@@ -2102,7 +2229,7 @@ func _update_objective() -> void:
 		var cell: Vector3i = enc.objective.cell
 		var p := Vector3(cell.x + 0.5, _gy(cell), cell.y + 0.5)
 		case_n.position = p + Vector3(0, 0.08, 0)
-		beacon_n.position = p + Vector3(0, 1.1, 0)
+		beacon_n.position = p + Vector3(0, 2.25, 0)
 		case_n.visible = not _cut_hides(cell)
 		beacon_n.visible = case_n.visible
 		tag_n.visible = false
@@ -2197,6 +2324,31 @@ func _play_events() -> void:
 					_float(u, "CALLING IT IN", Hud.RED)
 				hud.toast("ALARM: BACKUP IN %d ROUNDS" % int(e.rounds))
 			"backup": await _anim_backup(e)
+			"bypass":
+				_focus_unit = u.id
+				var bn: CharModel = unit_nodes[u.id]
+				var bc: Vector3i = e.cell
+				var bd := Vector2(bc.x - u.pos.x, bc.y - u.pos.y)
+				_turn_to(bn, atan2(bd.x, bd.y), 0.15)
+				bn.perform("medtech", 1.2)
+				var lockp := Vector3(bc.x + 0.5, _gy(bc) + 0.62, bc.y + 0.5)
+				for k in 3:
+					await get_tree().create_timer(0.3).timeout
+					fx.lock_crackle(lockp, e.ok or k < 2)
+				_float(u, "LOCK BYPASSED" if e.ok else ("BUZZER!" if e.loud else "BYPASS FAILED"), Hud.CYAN if e.ok else Hud.RED)
+				if e.ok:
+					hud.flash_screen(Color(0.2, 0.9, 1.0, 0.06))
+				await get_tree().create_timer(0.4).timeout
+			"keycard":
+				_focus_unit = u.id
+				var kn: CharModel = unit_nodes[u.id]
+				kn.duck(0.6)
+				await get_tree().create_timer(0.35).timeout
+				var fu: Dictionary = enc.units[e.from]
+				fx.glint(Vector3(fu.pos.x + 0.5, _gy(fu.pos) + 0.4, fu.pos.y + 0.5))
+				_float(u, "%s KEYCARD" % TacMap.ZONE_NAMES[int(e.zone)].to_upper(), Hud.GOLD)
+				hud.toast("%d DOOR%s UNLOCKED" % [int(e.opened), "" if int(e.opened) == 1 else "S"])
+				await get_tree().create_timer(0.5).timeout
 			"tamper":
 				_focus_unit = u.id
 				(unit_nodes[u.id] as CharModel).perform("idle_shift", 0.8)

@@ -38,6 +38,7 @@ static func generate(seed_value: int, scene: String, overrides: Dictionary = {})
 		_: push_error("unknown scene " + scene)
 	_link_nets(c)
 	_deploy_zone(c)
+	_ensure_public_access(m)
 	_guard_posts(m)
 	for st in m.structures:
 		if st.target and m.architectures.has(st.id):
@@ -488,6 +489,68 @@ static func _unlabel(m: TacMap, room: Dictionary, cells: Dictionary) -> void:
 
 ## Crew deployment: the street spawn farthest from the target's main door becomes the player's
 ## insertion zone (the 6 nearest open squares); the other spawns stay reinforcement entry points.
+## Every target NET must be reachable on foot (procgen survey: single-terminal sites behind locked
+## doors left data gigs unplayable). If no access point can be stood near from the deploy zone
+## without breaching, a public maintenance junction box goes on a reachable wall inside (or
+## against) the target building, wired to its shallowest hub.
+static func _ensure_public_access(m: TacMap) -> void:
+	var deploy := m.entrances.filter(func(e): return e.kind == "deploy")
+	if deploy.is_empty():
+		return
+	var nav := Nav.new(m)
+	var origin: Vector2i = deploy[0].pos
+	var field: Dictionary = nav.distance_field([Vector3i(origin.x, origin.y, 0)], {}, 3000)
+	for st in m.structures:
+		if not st.target or not m.architectures.has(st.id):
+			continue
+		var a: NetArchitecture = m.architectures[st.id]
+		var reachable := false
+		for ap in a.access_points:
+			var d: Dictionary = m.devices[ap.device]
+			var dp := Vector3i(d.pos.x, d.pos.y, d.floor)
+			for dy in range(-3, 4):
+				for dx in range(-3, 4):
+					var v := Vector3i(d.pos.x + dx, d.pos.y + dy, d.floor)
+					if field.has(v) and Los.distance_m(v, dp) <= 6.0 and not Los.ray(v, dp).any(func(r): return m.t(r.z, r.x, r.y) == TacMap.T.WALL):
+						reachable = true
+		if reachable:
+			continue
+		# the reachable floor cell beside a wall of the target that's closest to the deploy zone
+		var best := Vector3i(-1, -1, -1)
+		var best_d := INF
+		for cell in field:
+			var l := m.label(cell.z, cell.x, cell.y)
+			var inside: bool = l >= 0 and m.rooms[l].structure == st.id
+			var beside := MapGen.DIRS.any(func(dd): return m.inb(cell.x + dd.x, cell.y + dd.y) and m.t(cell.z, cell.x + dd.x, cell.y + dd.y) == TacMap.T.WALL \
+				and m.label(cell.z, cell.x + dd.x * 2, cell.y + dd.y * 2) >= 0 and m.rooms[m.label(cell.z, cell.x + dd.x * 2, cell.y + dd.y * 2)].structure == st.id)
+			if (inside or beside) and not m.has_cover_at(cell.z, Vector2i(cell.x, cell.y)) and m.devices.all(func(o): return not (o.floor == cell.z and o.pos == Vector2i(cell.x, cell.y))):
+				var dd2 := float(field[cell]) + (0.0 if inside else 6.0)
+				if dd2 < best_d:
+					best_d = dd2
+					best = cell
+		if best.x < 0:   # fenced or walled-off sites: a field relay on the reachable square nearest the target
+			var tc := Vector2((st.rect as Rect2i).get_center()) if st.has("rect") else Vector2(m.w / 2.0, m.h / 2.0)
+			for cell in field:
+				var dd3: float = Vector2(cell.x, cell.y).distance_to(tc) + cell.z * 4.0
+				if dd3 < best_d and not m.has_cover_at(cell.z, Vector2i(cell.x, cell.y)):
+					best_d = dd3
+					best = cell
+		if best.x < 0:
+			continue
+		var dev := {"id": m.devices.size(), "type": "junction", "floor": best.z, "pos": Vector2i(best.x, best.y),
+			"room": m.label(best.z, best.x, best.y), "zone": TacMap.Zone.PUBLIC, "group": "", "structure": st.id, "access_point": true}
+		m.devices.append(dev)
+		var hub := -1
+		for n in a.nodes:
+			if n.type == "hub" and (hub < 0 or int(n.zone) < int(a.nodes[hub].zone)):
+				hub = n.id
+		if hub < 0:
+			continue
+		var port := a.add_node({"type": "port", "zone": a.nodes[hub].zone, "subnet": a.nodes[hub].subnet, "device": dev.id})
+		a.link(hub, port)
+		a.access_points.append({"device": dev.id, "entry_node": port})
+
+
 static func _deploy_zone(c: Dictionary) -> void:
 	var m: TacMap = c.m
 	var door := Vector2i(m.w / 2, m.h / 2)

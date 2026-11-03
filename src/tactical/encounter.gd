@@ -131,6 +131,7 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 	e.vision = Vision.new(p_map, e.los)
 	e._compute_light()
 	e._post_guards()
+	e._hand_out_keycards()
 	e.refresh_vision()
 	e.update_alerts()
 	return e
@@ -267,6 +268,117 @@ func _check_end() -> void:
 	elif objective.get("done", false):
 		state = "won"
 		say("The data is yours.")
+
+
+# --- Locks: bypass and keycards -----------------------------------------------------------
+
+## Electronics/Security Tech vs the lock (CPR p209: devices off the NET are countered with the
+## skill; DVs by the site's security are ours, RULES-UNVERIFIED). Missing by 5+ makes noise.
+const BYPASS_DV := {0: 13, 1: 13, 2: 15, 3: 17}
+var keycards := {}                  ## lock zone → true: the crew holds that zone's keycard
+
+
+## A locked door next to `u` (same floor, including diagonals), or (-1,-1,-1).
+func lock_in_reach(u: Dictionary) -> Vector3i:
+	for cell in nav.locked:
+		if cell.z == u.pos.z and maxi(absi(cell.x - u.pos.x), absi(cell.y - u.pos.y)) <= 1:
+			return cell
+	return Vector3i(-1, -1, -1)
+
+
+func bypass_dv(cell: Vector3i) -> int:
+	var sec := 1
+	for d in m.devices:
+		if String(d.type) == "door_lock" and d.floor == cell.z and d.pos == Vector2i(cell.x, cell.y):
+			sec = int(m.structures[int(d.structure)].security) if int(d.get("structure", -1)) >= 0 else 1
+	return int(BYPASS_DV.get(clampi(sec, 0, 3), 15))
+
+
+func bypass_base(c: Combatant) -> int:
+	return c.skill_base("electronics_security_tech") + int(c.maker.get("field", 0)) - c.action_penalty()
+
+
+func bypass_lock() -> Dictionary:
+	var cell := lock_in_reach(cur)
+	if cell.x < 0:
+		return {"ok": false, "reason": "no locked door next to you"}
+	if not turn.use_action():
+		return {"ok": false, "reason": "no action left"}
+	var dv := bypass_dv(cell)
+	var check := Check.vs_dv(dice, bypass_base(cur.c), dv)
+	var loud := not check.success and check.total <= dv - 5
+	if check.success:
+		_unlock(cell)
+	elif loud:
+		_noise(cur.pos)
+	events.append({"type": "bypass", "unit": cur.id, "cell": cell, "ok": check.success, "loud": loud})
+	say("%s %s the lock%s." % [cur.c.display_name, "bypasses" if check.success else "fails to bypass", " and sets off a buzzer" if loud else ""])
+	return {"ok": true, "success": check.success, "loud": loud}
+
+
+func _unlock(cell: Vector3i) -> void:
+	nav.locked.erase(cell)
+	for d in m.devices:
+		if String(d.type) == "door_lock" and d.floor == cell.z and d.pos == Vector2i(cell.x, cell.y):
+			disabled_devices[d.id] = true
+
+
+## One guard per locked zone carries its keycard: the highest-tier guard posted in that zone's
+## building, else any guard.
+func _hand_out_keycards() -> void:
+	var zones := {}
+	for d in m.devices:
+		if String(d.type) == "door_lock":
+			zones[int(d.zone)] = int(d.get("structure", -1))
+	var given := {}
+	var rank := {"mini_boss": 3, "lieutenant": 2, "mook": 1}
+	for z in zones:
+		var best: Dictionary = {}
+		for g in units:
+			if g.team != 1 or given.has(g.id):
+				continue
+			var l := m.label(g.pos.z, g.pos.x, g.pos.y)
+			var here: bool = l >= 0 and m.rooms[l].structure == zones[z]
+			var score: int = int(rank.get(g.c.role, 1)) * 10 + (5 if here else 0)
+			if best.is_empty() or score > int(best.get("_score", -1)):
+				best = g
+				best["_score"] = score
+		if not best.is_empty():
+			best.erase("_score")
+			best["keycard"] = maxi(int(best.get("keycard", -1)), z)
+			given[best.id] = true
+	for g in units:
+		g.erase("_score")
+
+
+## A downed guard next to `u` still holding a keycard.
+func keycard_in_reach(u: Dictionary) -> Dictionary:
+	for g in units:
+		if g.has("keycard") and (g.c.dead or g.c.unconscious or g.c.wound_state() == Combatant.Wound.MORTAL) and adjacent(u.pos, g.pos) and g.pos.z == u.pos.z:
+			return g
+	return {}
+
+
+## Take a keycard off a downed guard (an Action): every lock of that zone or below opens.
+func loot_keycard() -> Dictionary:
+	var g := keycard_in_reach(cur)
+	if g.is_empty():
+		return {"ok": false, "reason": "no keycard on anyone next to you"}
+	if not turn.use_action():
+		return {"ok": false, "reason": "no action left"}
+	var z: int = g.keycard
+	g.erase("keycard")
+	keycards[z] = true
+	var opened := 0
+	for d in m.devices:
+		if String(d.type) == "door_lock" and int(d.zone) <= z:
+			var cell := Vector3i(d.pos.x, d.pos.y, d.floor)
+			if nav.locked.has(cell):
+				_unlock(cell)
+				opened += 1
+	events.append({"type": "keycard", "unit": cur.id, "from": g.id, "zone": z, "opened": opened})
+	say("%s takes a %s keycard: %d door%s unlocked." % [cur.c.display_name, TacMap.ZONE_NAMES[z], opened, "" if opened == 1 else "s"])
+	return {"ok": true, "opened": opened}
 
 
 # --- Withdrawal ------------------------------------------------------------------------

@@ -729,3 +729,63 @@ func test_cameras_face_away_from_their_wall() -> void:
 	assert_true(e.camera_facing(cam).x > 0.9, "points into the room")
 	assert_true(e.camera_sees(cam, Vector3i(4, 6, 0)), "ahead")
 	assert_false(e.camera_sees(cam, Vector3i(1, 1, 0)), "beside the mount, outside the 90° cone")
+
+
+func test_every_data_gig_has_a_terminal_reachable_on_foot() -> void:
+	for sc in ["shipyard", "badlands"]:
+		for sd in [1, 2]:
+			var m := SceneGen.generate(sd * 13 + 2, sc, {"security": 2})
+			var e := Encounter.setup(m, Dice.new(3), [Recruit.generate(Dice.new(1), "netrunner", "edgerunner")] as Array[Combatant])
+			var field: Dictionary = e.nav.distance_field([e.units[0].pos], {}, 3000)
+			var ok := false
+			for sid in m.architectures:
+				if not m.structures[sid].target:
+					continue
+				for ap in (m.architectures[sid] as NetArchitecture).access_points:
+					var d: Dictionary = m.devices[ap.device]
+					var dp := Vector3i(d.pos.x, d.pos.y, d.floor)
+					for cell in field:
+						if cell.z == dp.z and Los.distance_m(cell, dp) <= 6.0 and not e._wall_between(cell, dp):
+							ok = true
+							break
+			assert_true(ok, "%s seed %d: a jack point reachable without breaching" % [sc, sd])
+
+
+func test_bypass_a_lock_and_loot_a_keycard() -> void:
+	var m := SceneGen.generate(17, "lone_building", {"security": 2})
+	var dice := Dice.new(5)
+	var e := Encounter.setup(m, dice, _crew(dice))
+	if e.nav.locked.is_empty():
+		return
+	e.next_turn()
+	while e.cur.team != 0:
+		e.end_turn()
+		e.next_turn()
+	var cell: Vector3i = e.nav.locked.keys()[0]
+	e.cur.pos = Vector3i(cell.x, cell.y, cell.z) + Vector3i(1, 0, 0)
+	assert_eq(e.lock_in_reach(e.cur), cell)
+	e.cur.c.skills["electronics_security_tech"] = 10
+	var opened := false
+	for k in 12:
+		e.turn.action_available = true
+		var r := e.bypass_lock()
+		assert_true(r.ok)
+		if r.success:
+			opened = true
+			break
+	assert_true(opened)
+	assert_false(e.nav.locked.has(cell), "bypassed doors stop blocking")
+	# keycards: someone carries one; downed, it can be taken
+	var carrier: Array = e.units.filter(func(u): return u.has("keycard"))
+	assert_false(carrier.is_empty(), "a guard carries the keycard")
+	var g: Dictionary = carrier[0]
+	g.c.dead = true
+	g.pos = e.cur.pos + Vector3i(0, 1, 0)
+	e.turn.action_available = true
+	var r2 := e.loot_keycard()
+	assert_true(r2.ok)
+	assert_false(g.has("keycard"))
+	for d in m.devices:
+		if String(d.type) == "door_lock" and int(d.zone) <= int(r2.get("zone", 99)):
+			pass
+	assert_true(e.keycards.size() > 0)

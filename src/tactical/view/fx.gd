@@ -223,6 +223,18 @@ func burst(at: Vector3, col: Color, count: int, speed: float, size: float, life 
 	get_tree().create_timer(life + 0.3).timeout.connect(p.queue_free)
 
 
+## A lock being worked: a crackle of cyan sparks and a short white flash (or a red buzz on a loud fail).
+func lock_crackle(at: Vector3, ok: bool) -> void:
+	var col := Color("6ff4ff") if ok else Color("ff3048")
+	burst(at, col, 14, 1.6, 0.025, 0.35, 3.0, -4.0)
+	burst(at, Color.WHITE, 4, 0.8, 0.02, 0.18, 4.0, 0.0)
+
+
+## A keycard lifted off a body: a gold glint that rises and pops.
+func glint(at: Vector3) -> void:
+	burst(at, Color("ffd060"), 10, 1.1, 0.02, 0.5, 3.0, 1.5)
+
+
 func sparks(at: Vector3) -> void:
 	burst(at, Color("ffd27a"), 14, 4.0, 0.04, 0.3, 2.0)
 
