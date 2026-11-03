@@ -107,6 +107,9 @@ func _ready() -> void:
 	add_child(portraits)
 	_build_view()
 	_build_world()
+	for a in OS.get_cmdline_user_args():   # review shots: --crew=n selects crew member n
+		if a.begins_with("--crew=") and int(a.get_slice("=", 1)) < camp.alive_crew().size():
+			sel_crew = camp.alive_crew()[int(a.get_slice("=", 1))]
 	_build_ui()
 	_frame_selection(true)
 	_place_camera()
@@ -849,7 +852,9 @@ func _crew_panel(col: VBoxContainer, c: Combatant) -> void:
 		var key: String = k
 		var on: bool = c.downtime == key
 		var b := _button(("● " if on else "○ ") + String(Campaign.DOWNTIME[key].name).to_upper(), Hud.GOLD if on else Hud.CYAN,
-			func(): _set_downtime(c, key), not on, 18)
+			func(): if c.downtime != key: _set_downtime(c, key), true, 18)
+		if on:   # the current job is highlighted, not greyed out
+			b.add_theme_stylebox_override("normal", CutBox.make(Color(0.14, 0.11, 0.02, 0.97), Hud.GOLD, 7, 0b0101))
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		col.add_child(b)
 		col.add_child(_wrap(String(Campaign.DOWNTIME[key].desc), 16, Color(Hud.TEXT, 0.7)))
