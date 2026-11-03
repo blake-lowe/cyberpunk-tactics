@@ -88,6 +88,26 @@
         "hideout",
         "basement"
       ]
+    },
+    {
+      "kind": "sabotage",
+      "titles": [
+        "Sabotage: {corp}",
+        "Blow {corp}'s {target}",
+        "Lights out at the {place}"
+      ],
+      "blurb": "{fixer} wants {corp}'s {target} wrecked before morning. Get to it, plant the charge, and be somewhere else when it goes.",
+      "places": [
+        "plant",
+        "depot",
+        "tower",
+        "yard"
+      ],
+      "targets": [
+        "server core",
+        "backup generator",
+        "substation"
+      ]
     }
   ],
   "pay": {
@@ -279,6 +299,10 @@
       "industrial",
       "residential",
       "corp"
+    ],
+    "sabotage": [
+      "corp",
+      "industrial"
     ]
   },
   "raid_sites": {
@@ -316,6 +340,12 @@
       "clinic",
       "chop_shop",
       "squat"
+    ],
+    "sabotage": [
+      "data_center",
+      "factory",
+      "warehouse",
+      "corp_office"
     ]
   },
   "raid_chance": 0.3

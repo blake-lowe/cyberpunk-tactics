@@ -947,6 +947,17 @@ func _piece(kind: String, p: Vector3, yaw: float, f: int, h0: int) -> void:
 			for i in 3:
 				rng.seed = h0 + i
 				put("rock", mat("rock", f, false), Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled_local(Vector3(rng.randf_range(0.5, 0.9), rng.randf_range(0.4, 0.7), rng.randf_range(0.5, 0.9))), p + Vector3(rng.randf_range(-0.2, 0.2), 0.2, rng.randf_range(-0.2, 0.2))))
+		"server_core":   # a tall rack tower, status lights racing up the front
+			box(mat("steel", f, false, {"color": Color("1e2228")}), p + Vector3(0, 0.75, 0), Vector3(0.85, 1.5, 0.85), yaw)
+			for i in 7:
+				var lc: Color = [Color("39f0a0"), Color("05d9e8"), Color("ff3b4f")][(i + h0) % 3]
+				box(mat("dark", f, false, {"glow": 1.8, "emit": lc}), p + Vector3(-0.2 + (i % 2) * 0.4, 0.25 + i * 0.18, 0.43).rotated(Vector3.UP, yaw), Vector3(0.28, 0.03, 0.01), yaw)
+			box(mat("dark", f, false, {"glow": 1.2, "emit": Color("05d9e8")}), p + Vector3(0, 1.52, 0), Vector3(0.7, 0.03, 0.7), yaw)
+		"generator":   # a diesel genset: housing, exhaust, warning stripes
+			box(mat("steel", f, false, {"color": Color("8a6a1a")}), p + Vector3(0, 0.45, 0), Vector3(0.9, 0.9, 0.7), yaw)
+			box(mat("steel", f, false, {"color": Color("2a2a2a")}), p + Vector3(0, 0.1, 0), Vector3(0.95, 0.2, 0.75), yaw)
+			put("cyl", mat("steel", f, false, {"color": Color("4a4a4a")}), Transform3D(Basis.from_scale(Vector3(0.14, 0.7, 0.14)), p + Vector3(0.3, 1.1, 0.2)))
+			box(mat("dark", f, false, {"glow": 2.0, "emit": Color("ffb02e")}), p + Vector3(0, 0.75, 0.36).rotated(Vector3.UP, yaw), Vector3(0.2, 0.08, 0.01), yaw)
 		"transformer":
 			box(S, p + Vector3(0, 0.4, 0), Vector3(0.7, 0.8, 0.6), yaw)
 			for i in 4:

@@ -22,7 +22,7 @@ const ECON := {
 ## IP per gig (p410: the GM awards 10-80; AMBIGUITY: the tiers are qualitative). Our rubric:
 ## a failed gig 10, success 30, success without anyone going down +10, the NET objective +10.
 ## Gig kind → encounter objective (Encounter.setup).
-const OBJECTIVES := {"data_theft": "data", "gang_hit": "eliminate", "corp_extraction": "snatch", "assassination": "assassinate", "rescue": "rescue"}
+const OBJECTIVES := {"data_theft": "data", "gang_hit": "eliminate", "corp_extraction": "snatch", "assassination": "assassinate", "rescue": "rescue", "sabotage": "sabotage"}
 ## Safehouse facilities (spec: Meta Progression, "a few upgradeable facilities"). HOUSE-RULE content:
 ## two levels each, costs per level; effects are read where they apply (rest, restock, board, IP).
 const FACILITIES := {
@@ -113,7 +113,7 @@ func refresh_board() -> void:
 		var t: Dictionary = g.templates[dice.d(g.templates.size()) - 1]
 		var willing: Array = g.fixers.filter(func(f): return rep_with(String(f)) >= 0)   # not the ones who sold you out
 		var slots := {"fixer": _pick(willing if not willing.is_empty() else g.fixers), "corp": _pick(g.corps), "gang": _pick(g.gangs), "data": _pick(g.data),
-			"place": _pick(t.get("places", ["site"]))}
+			"place": _pick(t.get("places", ["site"])), "target": _pick(t.get("targets", ["target"]))}
 		var frep := maxi(0, rep_with(String(slots.fixer)))   # better jobs come from fixers who know you
 		var sec := 1
 		for s in [3, 2]:

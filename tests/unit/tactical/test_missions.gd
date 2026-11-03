@@ -125,3 +125,30 @@ func test_new_gig_kinds_on_the_board() -> void:
 	assert_eq(Campaign.objective_for({"kind": "rescue"}), "rescue")
 	var g := RulesDB.gen("gigs.json")
 	assert_true(g.templates.any(func(t): return t.kind == "assassination") and g.templates.any(func(t): return t.kind == "rescue"))
+
+
+func test_sabotage_plant_fuse_and_blast() -> void:
+	var e := _enc("sabotage")
+	var tc: Vector3i = e.objective.cell
+	assert_true(e.m.has_cover_at(tc.z, Vector2i(tc.x, tc.y)), "the machine stands in the most secure room")
+	assert_true(e.objective.target_kind in Encounter.SAB_TARGETS, "a known machine")
+	var solo: Dictionary = e.units[0]
+	e.cur = solo
+	e.turn = TurnState.begin(e.dice, solo.c)
+	assert_false(e.can_plant(), "not from the deploy zone")
+	for d in MapGen.DIRS:
+		var v: Vector3i = tc + Vector3i(d.x, d.y, 0)
+		if e.m.walkable(v.z, Vector2i(v.x, v.y)) and not e.occupied(solo).has(v):
+			solo.pos = v
+			break
+	assert_true(e.can_plant())
+	assert_true(e.plant_charge().ok)
+	assert_eq(e.fuse_left(), Encounter.CHARGE_FUSE_ROUNDS)
+	# the planter stays put: the blast catches them, wrecks the machine
+	e.init.round_num += Encounter.CHARGE_FUSE_ROUNDS
+	var hp0: int = solo.c.hp
+	e._tick_fuse()
+	assert_true(e.objective.done, "the machine is wrecked")
+	assert_false(e.m.has_cover_at(tc.z, Vector2i(tc.x, tc.y)), "nothing left of it")
+	assert_true(e.events.any(func(ev): return ev.type == "blast" and ev.get("charge", false)), "a charge blast event")
+	assert_true(solo.c.hp < hp0 or e.events.any(func(ev): return ev.type == "blast" and ev.hits.any(func(h): return h.id == solo.id and h.dodged)), "standing next to it hurts")

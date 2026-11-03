@@ -436,6 +436,10 @@ class ActBtn extends Button:
 				draw_line(o + Vector2(-r * 1.2, 0), o + Vector2(r * 0.9, 0), c, 3.0)
 				draw_colored_polygon(PackedVector2Array([o + Vector2(r * 1.3, 0), o + Vector2(r * 0.5, -r * 0.6), o + Vector2(r * 0.5, r * 0.6)]), c)
 				draw_rect(Rect2(o + Vector2(-r * 1.4, -r), Vector2(r * 0.3, r * 2.0)), c)
+			"plant":   # a charge: a block with a timer
+				draw_rect(Rect2(o + Vector2(-r * 1.1, -r * 0.5), Vector2(r * 2.2, r * 1.2)), c, false, 2.0)
+				draw_rect(Rect2(o + Vector2(-r * 0.5, -r * 0.25), Vector2(r * 1.0, r * 0.6)), Color(Hud.RED, c.a))
+				draw_line(o + Vector2(r * 0.6, -r * 0.5), o + Vector2(r * 1.0, -r * 1.1), c, 2.0)
 			"free":   # a broken shackle
 				draw_arc(o + Vector2(-r * 0.6, 0), r * 0.55, 0.0, TAU, 12, c, 2.0)
 				draw_arc(o + Vector2(r * 0.6, 0), r * 0.55, PI * 0.25, PI * 1.75, 12, c, 2.0)
@@ -495,7 +499,7 @@ func _build_bar() -> void:
 	# M5 actions: target-picking tools (toggle; right-click applies) and instant ones
 	for spec in [["melee", "MELEE", "F", "tool", "melee", CYAN], ["shell", "SHELL", "5", "tool", "shell", CYAN],
 			["grenade", "FRAG", "G", "tool", "grenade", GOLD], ["suppress", "SUPPRESS", "4", "suppress", null, CYAN],
-			["medic", "STABILIZE", "T", "tool", "stabilize", GREEN], ["grab", "GRAB", "B", "grab", null, GOLD], ["free", "FREE", "B", "free", null, GOLD], ["dose", "DOSE", "Y", "tool", "dose", GREEN], ["rig", "RIG", "U", "tool", "rig", CYAN], ["tamper", "CAMERA", "K", "tamper", null, CYAN], ["bypass", "BYPASS", "V", "bypass", null, CYAN], ["keycard", "KEYCARD", "P", "keycard", null, GOLD], ["withdraw", "WITHDRAW", "L", "withdraw", null, RED]]:
+			["medic", "STABILIZE", "T", "tool", "stabilize", GREEN], ["grab", "GRAB", "B", "grab", null, GOLD], ["free", "FREE", "B", "free", null, GOLD], ["plant", "PLANT", "B", "plant", null, RED], ["dose", "DOSE", "Y", "tool", "dose", GREEN], ["rig", "RIG", "U", "tool", "rig", CYAN], ["tamper", "CAMERA", "K", "tamper", null, CYAN], ["bypass", "BYPASS", "V", "bypass", null, CYAN], ["keycard", "KEYCARD", "P", "keycard", null, GOLD], ["withdraw", "WITHDRAW", "L", "withdraw", null, RED]]:
 		var b3 := ActBtn.new(spec[0], spec[1], spec[2], spec[5])
 		b3.toggle_mode = spec[3] == "tool"
 		var arg: Variant = spec[4]
@@ -645,6 +649,12 @@ static func objective_text(enc: Encounter) -> String:
 			var vip: Dictionary = enc.units[int(o.target)]
 			var run := " · RUNNING FOR AN EXIT" if (vip.alerted or enc.alarm >= 1) else ""
 			return "OBJECTIVE · TAKE DOWN %s%s" % [String(o.name).to_upper(), run]
+		"sabotage":
+			if o.get("done", false):
+				return "OBJECTIVE · %s IS WRECKED\nGET TO THE EXTRACTION ZONE" % String(o.name).to_upper()
+			if o.get("planted", false):
+				return "CHARGE SET · %d ROUND%s · GET CLEAR" % [enc.fuse_left(), "" if enc.fuse_left() == 1 else "S"]
+			return "OBJECTIVE · PLANT A CHARGE ON %s" % String(o.name).to_upper()
 		"rescue":
 			var cap: Dictionary = enc.units[int(o.captive)]
 			if o.get("freed", false):
@@ -666,7 +676,7 @@ func _refresh_tools(enc: Encounter, crew_turn: bool) -> void:
 		and o.c.wound_state() == Combatant.Wound.MORTAL and enc.can_reach_to_stabilize(enc.cur, o))
 	var show := {"melee": true, "shell": w != null and w.def.get("shotgun_shell", false),
 		"grenade": c.grenades > 0, "suppress": w != null and w.def.get("suppressive", false), "medic": near_dying,
-		"grab": enc.can_grab(), "free": enc.can_free(), "dose": c.role == "medtech" and c.doses > 0, "rig": int(c.maker.get("field", 0)) > 0, "withdraw": enc.can_withdraw(), "tamper": not enc.camera_in_reach(enc.cur).is_empty(),
+		"grab": enc.can_grab(), "free": enc.can_free(), "plant": enc.can_plant(), "dose": c.role == "medtech" and c.doses > 0, "rig": int(c.maker.get("field", 0)) > 0, "withdraw": enc.can_withdraw(), "tamper": not enc.camera_in_reach(enc.cur).is_empty(),
 		"bypass": enc.lock_in_reach(enc.cur).x >= 0, "keycard": not enc.keycard_in_reach(enc.cur).is_empty()}
 	for k in _tool_buttons:
 		var b: ActBtn = _tool_buttons[k]

@@ -122,6 +122,8 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 		e._place_vip(target_sid, cells[0], sec)
 	elif kind == "rescue":
 		e._place_captive(target_sid, cells[0])
+	elif kind == "sabotage":
+		e._place_sab_target(target_sid, cells[0])
 	if "setup" in p_twists:   # HOUSE-RULE: a fixer sold the crew out; the guards are waiting
 		for u in e.units:
 			if u.team == 1:
@@ -198,6 +200,9 @@ func next_turn() -> void:
 				say("Shift change: the new shift finds the place wrong.")
 				_call_it_in(gs[0])
 		_tick_backup()
+		_tick_fuse()
+		if state != "playing":
+			return
 		turn = TurnState.begin(dice, c)
 		net_left = 0
 		_netting = false
@@ -268,6 +273,11 @@ func _check_end() -> void:
 			objective.done = true
 			events.append({"type": "target_down", "unit": vip.id})
 			say("%s is down. Get out." % objective.name)
+		if objective.done and (alive(1).is_empty() or _crew_out()):
+			state = "won"
+			say("The crew gets clear. The job's done.")
+		return
+	if objective.get("kind", "") == "sabotage":
 		if objective.done and (alive(1).is_empty() or _crew_out()):
 			state = "won"
 			say("The crew gets clear. The job's done.")
@@ -434,7 +444,7 @@ func withdraw() -> bool:
 			continue
 		u.c.dead = true
 		say("%s is left behind." % u.c.display_name)
-	if objective.get("kind", "") == "assassinate" and objective.done:
+	if objective.get("kind", "") in ["assassinate", "sabotage"] and objective.done:
 		state = "won"   # the hit is done: leaving is the rest of the job
 		say("The crew pulls out. The job's done.")
 		return true
@@ -492,6 +502,99 @@ func _vip_escapes(u: Dictionary) -> void:
 	u["escaped"] = true
 	say("%s gets away." % objective.name)
 	state = "lost"
+
+
+# --- Sabotage ----------------------------------------------------------------------------
+
+const SAB_TARGETS := {"server_core": "the server core", "generator": "the backup generator", "transformer": "the substation transformer"}
+const CHARGE_FUSE_ROUNDS := 3     ## HOUSE-RULE: a timed charge goes off 3 rounds after it's planted
+const CHARGE_DICE := 8            ## HOUSE-RULE: 8d6, 7x7 squares (a breaching charge, bigger than a frag)
+const CHARGE_HALF := 3
+
+
+## The machine to wreck: a big piece of hardware (cover) in the target building's most secure room.
+func _place_sab_target(target_sid: int, origin: Vector2i) -> void:
+	var cell := _package_cell(target_sid, origin)
+	var kinds := SAB_TARGETS.keys()
+	var kind: String = kinds[dice.d(kinds.size()) - 1]
+	var entry := Furnish.cover_entry("machine", cell.z, Vector2i(cell.x, cell.y), m.label(cell.z, cell.x, cell.y))
+	entry.kind = kind
+	m.add_cover(entry)
+	los.cover_hp[cell] = int(entry.hp)
+	objective.merge({"cell": cell, "target_kind": kind, "name": SAB_TARGETS[kind], "planted": false, "boom_round": -1})
+
+
+func can_plant() -> bool:
+	if objective.get("kind", "") != "sabotage" or objective.planted or objective.done or cur.is_empty() or cur.team != 0:
+		return false
+	return adjacent(cur.pos, objective.cell)
+
+
+## Set the charge on the machine (an Action, next to it): it goes off CHARGE_FUSE_ROUNDS rounds later.
+func plant_charge() -> Dictionary:
+	if not can_plant():
+		return {"ok": false, "reason": "get next to the target"}
+	if not turn.use_action():
+		return {"ok": false, "reason": "no action left"}
+	objective.planted = true
+	objective.boom_round = init.round_num + CHARGE_FUSE_ROUNDS
+	objective["planter"] = cur.id
+	events.append({"type": "plant", "unit": cur.id, "cell": objective.cell})
+	say("%s sets the charge on %s. %d rounds. Move." % [cur.c.display_name, objective.name, CHARGE_FUSE_ROUNDS])
+	return {"ok": true}
+
+
+func fuse_left() -> int:
+	return int(objective.boom_round) - init.round_num if objective.get("planted", false) and not objective.done else -1
+
+
+func _tick_fuse() -> void:
+	if objective.get("kind", "") != "sabotage" or not objective.planted or objective.done or init.round_num < int(objective.boom_round):
+		return
+	_detonate(objective.cell, CHARGE_HALF, CHARGE_DICE, int(objective.get("planter", 0)))
+	objective.done = true
+	say("%s goes up." % String(objective.name).capitalize())
+	alarm = maxi(alarm, 1)
+	_check_end()
+
+
+## A big explosion at `center`: cover in the square breaks first, then everyone in it with a line to
+## the blast takes the damage (dodge as for grenades, against a fixed DV-like total: HOUSE-RULE 17).
+func _detonate(center: Vector3i, half: int, n_dice: int, by: int) -> void:
+	var faces := dice.roll_each(n_dice, 6)
+	var dmg := 0
+	for f in faces:
+		dmg += f
+	var destroyed: Array = []
+	for dy in range(-half, half + 1):
+		for dx in range(-half, half + 1):
+			var v := center + Vector3i(dx, dy, 0)
+			if los.cover_hp.get(v, 0) > 0:
+				los.cover_hp[v] = maxi(0, los.cover_hp[v] - dmg)
+				if los.cover_hp[v] == 0 or v == center:
+					los.cover_hp[v] = 0
+					m.destroy_cover_at(v.z, Vector2i(v.x, v.y))
+					destroyed.append(v)
+	var caught: Array = []
+	for o in units:
+		if o.c.dead or o.pos.z != center.z or maxi(absi(o.pos.x - center.x), absi(o.pos.y - center.y)) > half:
+			continue
+		if o.pos != center and not los.trace(center, o.pos).clear and maxi(absi(o.pos.x - center.x), absi(o.pos.y - center.y)) > 1:
+			continue
+		caught.append(o)
+	var before := {}
+	for o in caught:
+		before[o.id] = [o.c.hp, o.c.wound_state()]
+	var results := Attack.explosion_rolled(dice, 17, faces, caught.map(func(o): return o.c))
+	_rouse(caught.filter(func(o): return o.team == 1))
+	_noise(center)
+	var hits: Array = []
+	for res in results:
+		var u := unit_of(res.target)
+		hits.append({"id": u.id, "dodged": res.dodged, "damage": int(before[u.id][0]) - u.c.hp, "dead": u.c.dead,
+			"killed": u.c.dead or u.c.wound_state() == Combatant.Wound.MORTAL, "wound_before": before[u.id][1], "wound_after": u.c.wound_state()})
+	events.append({"type": "blast", "unit": by, "cell": center, "center": center, "hit": true, "damage": dmg, "hits": hits,
+		"destroyed": destroyed, "charge": true, "half": half})
 
 
 # --- Rescue ------------------------------------------------------------------------------

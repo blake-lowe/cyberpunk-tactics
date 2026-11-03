@@ -300,6 +300,11 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if _promo:
 		_hide_overlays()
+	if _charge_node and is_instance_valid(_charge_node) and enc:   # blink faster as the fuse runs down
+		var rate := 2.0 + 3.0 * float(Encounter.CHARGE_FUSE_ROUNDS - maxi(enc.fuse_left(), 0))
+		var on := fmod(Time.get_ticks_msec() / 1000.0 * rate, 1.0) < 0.5
+		(_charge_node.get_node("led") as Node3D).visible = on
+		(_charge_node.get_node("glow") as OmniLight3D).visible = on
 	if devices and not keycard_nodes.is_empty():
 		_update_keycards()
 	if obj_node and is_instance_valid(obj_node) and int(enc.objective.get("carrier", -1)) >= 0:   # the diamond follows the carrier
@@ -1048,6 +1053,38 @@ func _net_layout(a: NetArchitecture) -> Array:
 ## that has cover (solid: walls and cover pieces; outlined: see-through bulletproof glass).
 ## Where the objective is: world points with a label and colour (the view draws a chevron over each,
 ## or an arrow at the screen edge with the distance when it's off screen).
+var _charge_node: Node3D
+
+
+## The planted charge: a dark brick on the machine with a red light blinking faster as it runs down.
+func _make_charge(at: Vector3) -> void:
+	_charge_node = Node3D.new()
+	world.add_child(_charge_node)
+	_charge_node.position = at + Vector3(0, 0.9, 0.46)
+	var brick := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.34, 0.2, 0.1)
+	brick.mesh = bm
+	var mt := StandardMaterial3D.new()
+	mt.albedo_color = Color("2a2a22")
+	brick.material_override = mt
+	_charge_node.add_child(brick)
+	var led := MeshInstance3D.new()
+	var lm := BoxMesh.new()
+	lm.size = Vector3(0.07, 0.07, 0.02)
+	led.mesh = lm
+	led.material_override = _unlit(Hud.RED, 1.0, 2.5)
+	led.position = Vector3(0.09, 0.03, 0.06)
+	led.name = "led"
+	_charge_node.add_child(led)
+	var gl := OmniLight3D.new()
+	gl.light_color = Hud.RED
+	gl.omni_range = 2.0
+	gl.light_energy = 1.5
+	gl.name = "glow"
+	_charge_node.add_child(gl)
+
+
 func _extract_mark() -> Array:
 	var acc := Vector2.ZERO
 	for c2 in enc.extract_cells:
@@ -1078,6 +1115,14 @@ func objective_marks() -> Array:
 				out.append([Vector3(vip.pos.x + 0.5, _gy(vip.pos) + 1.6, vip.pos.y + 0.5), "TARGET", Hud.RED, vip.pos])
 			elif o.get("done", false):
 				out.append(_extract_mark())
+		"sabotage":
+			var sc: Vector3i = o.cell
+			if o.get("done", false):
+				out.append(_extract_mark())
+			elif o.get("planted", false):
+				out.append([Vector3(sc.x + 0.5, _gy(sc) + 1.8, sc.y + 0.5), "CHARGE · %d" % enc.fuse_left(), Hud.RED, sc])
+			else:
+				out.append([Vector3(sc.x + 0.5, _gy(sc) + 1.8, sc.y + 0.5), "TARGET", Hud.RED, sc])
 		"rescue":
 			var cap: Dictionary = enc.units[int(o.captive)]
 			if not o.get("freed", false):
@@ -1739,7 +1784,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			KEY_5: _on_hud("tool", "shell")
 			KEY_4: _on_hud("suppress", null)
 			KEY_T: _on_hud("tool", "stabilize")
-			KEY_B: _on_hud("free" if enc and enc.can_free() else "grab", null)
+			KEY_B: _on_hud("free" if enc and enc.can_free() else ("plant" if enc and enc.can_plant() else "grab"), null)
 			KEY_Y: _on_hud("tool", "dose")
 			KEY_U: _on_hud("tool", "rig")
 			KEY_L: _on_hud("withdraw", null)
@@ -1777,6 +1822,12 @@ func _on_hud(name: String, arg: Variant) -> void:
 			cover_mode = false
 			_refresh(); _update_hover()
 		"suppress": _suppress()
+		"plant":
+			if _crew_turn():
+				var rp: Dictionary = enc.plant_charge()
+				if not rp.ok:
+					hud.toast(String(rp.reason).to_upper())
+				_after_action()
 		"free":
 			if _crew_turn():
 				var r: Dictionary = enc.free_captive()
@@ -2671,6 +2722,17 @@ func _play_events() -> void:
 				_ui_snd("sfx_ui_confirm", -6.0)
 				hud.toast("GET %s TO THE EXTRACTION ZONE" % ct.c.display_name.to_upper())
 				await get_tree().create_timer(0.5).timeout
+			"plant":
+				var pn: CharModel = unit_nodes[u.id]
+				_focus_unit = u.id
+				pn.perform("medtech", 1.0)
+				await get_tree().create_timer(0.8).timeout
+				var pc: Vector3i = e.cell
+				_make_charge(Vector3(pc.x + 0.5, _gy(pc), pc.y + 0.5))
+				_snd("sfx_beep", _body_pos(u), 0.0)
+				_float(u, "CHARGE SET", Hud.RED)
+				hud.toast("%d ROUNDS · GET CLEAR OF THE BLAST" % Encounter.CHARGE_FUSE_ROUNDS)
+				await get_tree().create_timer(0.4).timeout
 			"target_down":
 				_float(u, "TARGET DOWN", Hud.GOLD)
 				_ui_snd("sfx_ui_confirm", -6.0)
@@ -3084,6 +3146,33 @@ func _anim_blast(e: Dictionary) -> void:
 	var sn: CharModel = unit_nodes[su.id]
 	var center: Vector3i = e.center
 	var at := Vector3(center.x + 0.5, _gy(center), center.y + 0.5)
+	if e.get("charge", false):   # sabotage: the planted charge goes off (no throw)
+		await _pan_to(at, 0.4)
+		for k in 3:   # the last beeps
+			_snd("sfx_beep", at, -2.0 + k * 2.0, 0.0, 0)
+			await get_tree().create_timer(0.22).timeout
+		if _charge_node and is_instance_valid(_charge_node):
+			_charge_node.queue_free()
+		fx.explosion(at, _gy(center))
+		fx.explosion(at + Vector3(0.6, 0.3, -0.4), _gy(center))
+		fx.explosion(at + Vector3(-0.5, 0.2, 0.5), _gy(center))
+		hud.flash_screen(Color(1.0, 0.7, 0.35, 0.45))
+		_kick(Vector2(1, -1).normalized(), 16.0)
+		_hit_stop(140)
+		for v in e.destroyed:
+			builder.hide_cover(v)
+			fx.shatter(Vector3(v.x + 0.5, v.z * FH + 0.4, v.y + 0.5), "steel", Vector3(v.x - center.x, 0, v.y - center.y), v.z * FH, true)
+		_float_at(at + Vector3(0, 1.6, 0), "%s DESTROYED" % String(enc.objective.get("name", "TARGET")).to_upper(), Hud.GOLD)
+		for h in e.hits:
+			var t: Dictionary = enc.units[h.id]
+			var dir := Vector3(t.pos.x - center.x, 0, t.pos.y - center.y)
+			dir = dir.normalized() if dir.length() > 0.01 else Vector3.FORWARD
+			if h.dodged:
+				_float(t, "DIVES CLEAR", Hud.CYAN)
+				continue
+			_outcome(_area_outcome_event(h), su, t, unit_nodes[t.id], _body_pos(t) + Vector3(0, 0.5, 0), dir)
+		await get_tree().create_timer(1.4).timeout
+		return
 	_focus_unit = su.id
 	await _frame_pair(_body_pos(su), at)
 	var d := Vector2(at.x - _body_pos(su).x, at.z - _body_pos(su).z)
