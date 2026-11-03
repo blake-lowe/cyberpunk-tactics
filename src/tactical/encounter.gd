@@ -731,17 +731,45 @@ func _maxtac_drop() -> void:
 
 ## An open landing spot for an AV: a street square with a clear 3x3 around it, between `lo` and
 ## `hi` squares from `near`, the nearest one to `near` past `lo`.
+## Where an AV sets down: the open ground nearest `near` (between lo and hi squares away), clear
+## for two squares around so the craft isn't buried in an alley, else for one. Spots with a
+## multi-storey building toward the default camera (+x +y, greybox cam_yaw 45°) count as farther, so the landing is seen.
 func av_spot(near: Vector3i, lo: int, hi: int) -> Vector3i:
+	for r in [2, 1]:
+		var v := _av_clearing(near, lo, hi, r)
+		if v.x >= 0:
+			return v
+	return Vector3i(-1, -1, -1)
+
+
+const AV_HIDDEN_COST := 25.0           ## squares a hidden landing counts as farther
+
+
+func _av_hidden(x: int, y: int) -> bool:
+	if m.floors < 2:
+		return false
+	for k in range(2, 9):   # a wedge toward the camera, about 25° either side
+		for c in [Vector2i(x + k, y + k), Vector2i(x + k, y + k / 2), Vector2i(x + k / 2, y + k)]:
+			if m.inb(c.x, c.y) and m.t(1, c.x, c.y) in [TacMap.T.FLOOR, TacMap.T.WALL, TacMap.T.DOOR, TacMap.T.STAIRS]:   # a second storey
+				return true
+	return false
+
+
+func _av_clearing(near: Vector3i, lo: int, hi: int, r: int) -> Vector3i:
 	var best := Vector3i(-1, -1, -1)
 	var bd := INF
-	for y in range(1, m.h - 1):
-		for x in range(1, m.w - 1):
+	for y in range(r, m.h - r):
+		for x in range(r, m.w - r):
 			var d := Vector2(x - near.x, y - near.y).length()
 			if d < lo or d > hi or d >= bd:
 				continue
+			if _av_hidden(x, y):
+				d += AV_HIDDEN_COST
+				if d >= bd:
+					continue
 			var ok := true
-			for dy in range(-1, 2):
-				for dx in range(-1, 2):
+			for dy in range(-r, r + 1):
+				for dx in range(-r, r + 1):
 					var v := Vector2i(x + dx, y + dy)
 					if m.t(0, v.x, v.y) != TacMap.T.OUTSIDE or m.label(0, v.x, v.y) >= 0 or not m.walkable(0, v) or occupied().has(Vector3i(v.x, v.y, 0)):
 						ok = false
