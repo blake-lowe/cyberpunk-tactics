@@ -73,6 +73,10 @@ var _scenes := {}
 
 
 func _ready() -> void:
+	var ad := AudioDirector.get_or_make(get_tree())
+	ad.music("explore")
+	ad.ambience("amb_safehouse")
+	ad.set_space(0.3, 0.1)
 	UiScale.watch(get_window())
 	var dev := false
 	var stay := false

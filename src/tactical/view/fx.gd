@@ -52,6 +52,7 @@ func _add_mat(col: Color, glow: float) -> StandardMaterial3D:
 ## A flash that exists for two or three frames: a white-hot core, a forward plume (cone), side
 ## petals at a random roll, scaled and jittered per shot; a strong, short light pop; then smoke.
 func muzzle(at: Vector3, dir: Vector3, weapon := "assault_rifle", light: OmniLight3D = null, core_on := true) -> void:
+	_snd(_shot_sound(weapon), at, 0.0, 0.05, 30)
 	var p: Dictionary = FLASH.get(weapon, {})
 	if p.is_empty():
 		return   # bows, melee: no flash
@@ -151,6 +152,7 @@ func muzzle(at: Vector3, dir: Vector3, weapon := "assault_rifle", light: OmniLig
 
 ## Spent casing flicked out of the ejection port.
 func brass(at: Vector3, right: Vector3, floor_y := -1e9) -> void:
+	_snd("sfx_brass", at, -16.0, 0.15, 60)
 	var c := MeshInstance3D.new()
 	var bm := BoxMesh.new()
 	bm.size = Vector3(0.025, 0.025, 0.05)
@@ -225,6 +227,7 @@ func burst(at: Vector3, col: Color, count: int, speed: float, size: float, life 
 
 ## A lock being worked: a crackle of cyan sparks and a short white flash (or a red buzz on a loud fail).
 func lock_crackle(at: Vector3, ok: bool) -> void:
+	_snd("sfx_zap", at, -4.0)
 	var col := Color("6ff4ff") if ok else Color("ff3048")
 	burst(at, col, 14, 1.6, 0.025, 0.35, 3.0, -4.0)
 	burst(at, Color.WHITE, 4, 0.8, 0.02, 0.18, 4.0, 0.0)
@@ -232,10 +235,12 @@ func lock_crackle(at: Vector3, ok: bool) -> void:
 
 ## A keycard lifted off a body: a gold glint that rises and pops.
 func glint(at: Vector3) -> void:
+	_snd("sfx_beep", at, -2.0)
 	burst(at, Color("ffd060"), 10, 1.1, 0.02, 0.5, 3.0, 1.5)
 
 
 func sparks(at: Vector3) -> void:
+	_snd("sfx_ricochet", at, -7.0, 0.15, 80)
 	burst(at, Color("ffd27a"), 14, 4.0, 0.04, 0.3, 2.0)
 
 
@@ -243,6 +248,7 @@ func sparks(at: Vector3) -> void:
 ## splats that land on the floor behind the target (they stay for the rest of the gig).
 ## `scale` 0.4 for one round of a burst, 1 for the hit that resolves, 1.6 for crits and kills.
 func blood(at: Vector3, dir: Vector3 = Vector3.ZERO, scale := 1.0, floor_y := -1e9) -> void:
+	_snd("sfx_hit_flesh", at, -2.0, 0.1, 40)
 	var flat := Vector3(dir.x, 0, dir.z).normalized() if Vector3(dir.x, 0, dir.z).length() > 0.01 else Vector3.FORWARD
 	var p := CPUParticles3D.new()
 	var mesh := BoxMesh.new()
@@ -321,6 +327,7 @@ func _splat(at: Vector3, size: float, along: Vector3) -> void:
 
 
 func debris(at: Vector3, big := false) -> void:
+	_snd("sfx_debris", at, -6.0 if not big else 0.0, 0.1, 80)
 	burst(at, Color("6a6e73"), 24 if big else 10, 3.5 if big else 2.2, 0.09 if big else 0.06, 0.7, 0.0)
 	burst(at + Vector3(0, 0.1, 0), Color("8a8478"), 12 if big else 5, 0.8, 0.22, 1.1, 0.0, 0.6)   # dust puffs
 
@@ -356,6 +363,7 @@ var _bits: Array = []   ## falling chunks: [node, velocity, spin, floor y]
 
 
 func shatter(at: Vector3, material: String, dir: Vector3, floor_y: float, big := false) -> void:
+	_snd("sfx_glass_break" if material.contains("glass") else "sfx_debris", at, -2.0, 0.1, 80)
 	var col: Color = MATERIAL_COL.get(material, Color("6a6e73"))
 	var mt := StandardMaterial3D.new()
 	mt.albedo_color = col
@@ -378,6 +386,7 @@ func shatter(at: Vector3, material: String, dir: Vector3, floor_y: float, big :=
 
 ## A frag grenade: an arc from the hand to the landing point over `secs`, tumbling.
 func grenade_arc(a: Vector3, b: Vector3, secs: float, on_land := Callable()) -> void:
+	_snd("sfx_throw", a, -3.0)
 	var g := MeshInstance3D.new()
 	var sm := SphereMesh.new()
 	sm.radius = 0.05
@@ -405,6 +414,7 @@ func grenade_arc(a: Vector3, b: Vector3, secs: float, on_land := Callable()) -> 
 ## Explosion: a white-hot flash and a light pop that lights the whole area, a fireball that
 ## swells and cools, debris and grit, smoke that lingers, and a scorch mark that stays.
 func explosion(at: Vector3, floor_y: float, light: OmniLight3D = null) -> void:
+	_snd("sfx_explosion", at, 2.0, 0.05, 100)
 	var l := light
 	if l == null:
 		l = OmniLight3D.new()
@@ -515,3 +525,19 @@ func _process(_delta: float) -> void:
 		elif age >= 3:
 			_flashes.erase(f)
 			f.queue_free()
+
+
+## Sound for an effect (AudioDirector; silent when there is none, e.g. headless tests).
+func _snd(name: String, at: Vector3, vol := 0.0, pitch_var := 0.06, gap := 25) -> void:
+	if AudioDirector.I and is_instance_valid(AudioDirector.I):
+		AudioDirector.I.sfx(name, at, vol, pitch_var, gap)
+
+
+static func _shot_sound(weapon: String) -> String:
+	if weapon.contains("shotgun"):
+		return "sfx_shot_shotgun"
+	if weapon.contains("smg"):
+		return "sfx_shot_smg"
+	if weapon.contains("pistol") or weapon.contains("revolver"):
+		return "sfx_shot_pistol"
+	return "sfx_shot_rifle"

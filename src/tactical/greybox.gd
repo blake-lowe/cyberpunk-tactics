@@ -234,6 +234,7 @@ func _swing_door(v: Vector3i) -> void:
 	var mi: MeshInstance3D = _door_leaves.get(v)
 	if mi == null or not is_instance_valid(mi) or absf(mi.rotation.y) > 0.1:
 		return
+	_snd("sfx_door", Vector3(v.x + 0.5, v.z * FH + 0.6, v.y + 0.5), -6.0)
 	var tw := create_tween().set_parallel()
 	tw.tween_property(mi, "rotation:y", PI / 2, 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	tw.tween_property(mi, "position", mi.get_meta("open_at"), 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
@@ -241,6 +242,7 @@ func _swing_door(v: Vector3i) -> void:
 
 func _ready() -> void:
 	UiScale.watch(get_window())
+	AudioDirector.get_or_make(get_tree()).screen_of = func(p: Vector3) -> Vector2: return _to_screen(p) if cam else Vector2.ZERO
 	for a in OS.get_cmdline_user_args():
 		var kv := a.trim_prefix("--").split("=")
 		if kv.size() != 2:
@@ -894,6 +896,7 @@ func _refresh() -> void:
 		_update_outlines()
 		ring.position = Vector3(enc.cur.pos.x + 0.5, _gy(enc.cur.pos) + 0.04, enc.cur.pos.y + 0.5)
 	_update_xray()
+	_update_audio()
 	_draw_grid()
 	_hud_refresh()
 	_update_net()
@@ -1978,6 +1981,8 @@ func _jack_in() -> void:
 		hud.toast("No terminal within %d m." % int(Encounter.jack_range(enc.cur.c)))
 	elif not enc.jack_in(pts[0]):
 		hud.toast("Your Action is spent this turn.")
+	else:
+		_ui_snd("sfx_jack_in", -3.0)
 	_after_action()
 
 
@@ -2368,6 +2373,7 @@ func _after_action() -> void:
 	_update_hover()
 	if new_turn and enc.state == "playing":
 		hud.turn_banner("%s  ·  YOUR MOVE" % enc.cur.c.display_name.to_upper(), Hud.GOLD)
+		_ui_snd("sfx_turn", -6.0)
 	if enc.state != "playing" and Campaign.current and not Campaign.current.active_gig.is_empty():
 		_finish_gig()
 
@@ -2516,6 +2522,7 @@ func _play_events() -> void:
 			hostile_shown = true
 			hud.enemy_phase(true)
 			hud.turn_banner("HOSTILE ACTIVITY", Hud.RED)
+			_ui_snd("sfx_ui_error", -10.0)
 			await get_tree().create_timer(0.3).timeout
 		match String(e.type):
 			"move": await _anim_move(e)
@@ -2545,6 +2552,7 @@ func _play_events() -> void:
 				dn.duck(0.4)
 				await get_tree().create_timer(0.35).timeout
 				_float(dt, ("SPEEDHEAL +%d" % int(e.healed)) if e.drug == "speedheal" else "STIMMED", Hud.GREEN)
+				_snd("sfx_inject", _body_pos(dt), -4.0)
 				await get_tree().create_timer(0.5).timeout
 			"suppress": await _anim_suppress(e)
 			"shell": await _anim_shell(e)
@@ -2554,6 +2562,7 @@ func _play_events() -> void:
 				if _seen(u.pos):
 					_float(u, "CALLING IT IN", Hud.RED)
 				hud.toast("ALARM: BACKUP IN %d ROUNDS" % int(e.rounds))
+				_snd("sfx_alarm", _body_pos(u), -6.0, 0.0, 500)
 			"backup": await _anim_backup(e)
 			"bypass":
 				_focus_unit = u.id
@@ -2597,6 +2606,7 @@ func _play_events() -> void:
 				gn.duck(0.6)
 				await get_tree().create_timer(0.4).timeout
 				_float(u, "PACKAGE RECOVERED", Hud.GOLD)
+				_ui_snd("sfx_ui_confirm", -6.0)
 				hud.toast("CARRY IT TO THE EXTRACTION ZONE")
 				await get_tree().create_timer(0.5).timeout
 			"drop":
@@ -2680,6 +2690,8 @@ func _anim_move(e: Dictionary) -> void:
 				_swing_door(dv)
 		var tw := create_tween()
 		tw.tween_property(n, "position", to, step * (1.0 if d.length() < 1.2 else 1.4))
+		if n.visible:
+			_snd("sfx_step", to, -10.0 if u.team == 0 else -12.0, 0.18, 60)
 		(decals[u.id] as Node3D).position = to + Vector3(0, 0.03, 0)
 		if u == enc.cur:
 			ring.position = to + Vector3(0, 0.04, 0)
@@ -2783,6 +2795,7 @@ func _anim_attack(e: Dictionary) -> void:
 		tw.tween_interval(0.25)
 		tw.tween_property(tn, "position", tn.position, 0.2)
 		_float(tu, "DODGE", Hud.CYAN)
+		_snd("sfx_dodge", _body_pos(tu), -4.0)
 	var arrived := [0]
 	var outcome_shown := [false]
 	for i in rounds:
@@ -2839,7 +2852,10 @@ func _anim_melee(e: Dictionary, su: Dictionary, tu: Dictionary, sn: Node3D, tn: 
 	var lunge := Vector3(d.x, 0, d.y).normalized() * 0.3
 	create_tween().tween_property(sn, "position", home + lunge, 0.18).set_trans(Tween.TRANS_QUAD)
 	(sn as CharModel).play_once("melee_blade" if wid.ends_with("_melee") else "melee", 0.08)
+	_snd("sfx_swing", _body_pos(su), -4.0)
 	await get_tree().create_timer(0.38).timeout
+	if e.hit and not e.dodged:
+		_snd("sfx_melee_hit", _body_pos(tu), 0.0)
 	var at := _body_pos(tu) + Vector3(0, 0.7, 0)
 	var dir := Vector3(d.x, 0, d.y).normalized()
 	if e.hit and not e.dodged:
@@ -2861,6 +2877,7 @@ func _anim_reload(e: Dictionary) -> void:
 	var clip := ("pistol" if n.gun_kind == "pistol" else "rifle") + "_reload"
 	n.play_once(clip, 0.12)
 	_float(u, "RELOAD", Hud.CYAN)
+	_snd("sfx_reload", _body_pos(u), 4.0)
 	await get_tree().create_timer(minf(n.anim.get_animation(clip).length, 2.4) if n.anim.has_animation(clip) else 1.0).timeout
 
 
@@ -3039,6 +3056,7 @@ func _outcome(e: Dictionary, su: Dictionary, tu: Dictionary, tn: Node3D, at: Vec
 		fx.burst(at, Color("fff0b0"), 14, 4.5, 0.04, 0.3, 2.0)
 		fx.bullet(at, at + (Vector3.UP * 0.8 + dir.cross(Vector3.UP) * fx.rng.randf_range(-1.0, 1.0) - dir * 0.3).normalized() * 3.0, "medium_pistol")
 		_float(tu, "ARMOR", Hud.CYAN)
+		_snd("sfx_hit_armor", _body_pos(tu), -4.0, 0.1, 60)
 		_float(tu, "SP %d→%d" % [int(e.sp_before), int(e.sp_after)], Hud.CYAN)
 		_react(tn, dir, 0.4)
 		_kick(_screen_dir(at - dir, at), 1.5)
@@ -3152,6 +3170,7 @@ func _anim_death(e: Dictionary) -> void:
 	var n: Node3D = unit_nodes[u.id]
 	if not _seen(u.pos) or n.get_meta("fallen", false):
 		return
+	get_tree().create_timer(0.55).timeout.connect(func(): _snd("sfx_death", _body_pos(u), -2.0))
 	_focus_unit = u.id
 	await _pan_to(_body_pos(u), 0.3)
 	_float(u, "DEATH SAVE FAILED", Hud.RED)
@@ -3258,6 +3277,32 @@ func _hide_overlays() -> void:
 	for n in [grid_node, path_node, watch_node, caret, ring, target_ring, obj_node]:
 		if n and is_instance_valid(n):
 			(n as Node3D).visible = false
+
+
+func _snd(name: String, at: Vector3, vol := 0.0, pitch_var := 0.06, gap := 25) -> void:
+	if AudioDirector.I and is_instance_valid(AudioDirector.I):
+		AudioDirector.I.sfx(name, at, vol, pitch_var, gap)
+
+
+func _ui_snd(name: String, vol := 0.0) -> void:
+	if AudioDirector.I and is_instance_valid(AudioDirector.I):
+		AudioDirector.I.ui(name, vol)
+
+
+const AMBIENCE := {"undercity": ["amb_undercity", 0.8, 0.3], "arcology": ["amb_arcology", 0.7, 0.2], "warzone": ["amb_warzone", 0.5, 0.12],
+	"badlands": ["amb_badlands", 0.2, 0.04]}
+
+
+## The scene's ambience and room sound, and calm or combat music by the encounter's state.
+func _update_audio() -> void:
+	var ad := AudioDirector.I
+	if ad == null or not is_instance_valid(ad) or enc == null:
+		return
+	var a: Array = AMBIENCE.get(String(m.params.get("scene", "")), ["amb_city", 0.45, 0.12])
+	ad.ambience(String(a[0]))
+	ad.set_space(float(a[1]), float(a[2]))
+	var fighting: bool = enc.alarm >= 1 or enc.units.any(func(g): return g.team == 1 and g.alerted and not g.c.dead)
+	ad.music("" if enc.state != "playing" else ("combat" if fighting else "explore"))
 
 
 func _on_hover_changed() -> void:

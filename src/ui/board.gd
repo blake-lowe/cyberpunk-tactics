@@ -24,6 +24,10 @@ const TRAIN_COMMON := ["handgun", "shoulder_arms", "evasion", "stealth", "percep
 
 
 func _ready() -> void:
+	var ad := AudioDirector.get_or_make(get_tree())
+	ad.music("explore")
+	ad.ambience("amb_safehouse")
+	ad.set_space(0.3, 0.1)
 	UiScale.watch(get_window(), 0.8)   # a dense menu: a little less than the in-game HUD
 	var dev := false
 	var board_shot := false
