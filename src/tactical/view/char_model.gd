@@ -248,6 +248,39 @@ static func _region(b: String) -> int:
 	return R.JACKET
 
 
+## Seen through a closed building: a flat, rim-lit silhouette drawn over the roof (a second pass
+## without depth test), so a guard spotted through a window still reads where they are.
+const XRAY := """
+shader_type spatial;
+render_mode unshaded, blend_mix, depth_test_disabled, depth_draw_never, cull_back, shadows_disabled;
+uniform vec4 col : source_color = vec4(1.0, 0.23, 0.31, 1.0);
+void fragment() {
+	float rim = 1.0 - clamp(abs(dot(NORMAL, VIEW)), 0.0, 1.0);
+	ALBEDO = col.rgb * (0.55 + 0.6 * rim);
+	ALPHA = 0.32 + 0.5 * rim;
+}
+"""
+static var _xray_shader: Shader
+var _xray: ShaderMaterial
+var _xray_on := false
+
+
+func set_xray(on: bool, col := Color("ff3b4f")) -> void:
+	if on == _xray_on and (not on or _xray.get_shader_parameter("col") == col):
+		return
+	_xray_on = on
+	if on and _xray == null:
+		if _xray_shader == null:
+			_xray_shader = Shader.new()
+			_xray_shader.code = XRAY
+		_xray = ShaderMaterial.new()
+		_xray.shader = _xray_shader
+	if on:
+		_xray.set_shader_parameter("col", col)
+	for mt in mats:
+		mt.next_pass = _xray if on else null
+
+
 func _mat(mode: int, col: Color, src: Material) -> ShaderMaterial:
 	var m := ShaderMaterial.new()
 	m.shader = SHADER

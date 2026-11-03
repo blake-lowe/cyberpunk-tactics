@@ -14,7 +14,8 @@ extends Node
 ##   1 / 2 / 3       single shot / autofire / aimed head shot
 ##   R reload    J jack in (Netrunner, within 6 m of a terminal)    Space  end turn
 ##   Alt (hold) inspect what's under the cursor    F4 cyberspace style    N peek out of the NET
-##   C cutaway on/off    F1 new gig    F2 look settings    F3 toggle fog of war
+##   C cutaway auto / all seen rooms / off    Z guard sight lines near your move / always / off
+##   F1 new gig    F2 look settings    F3 toggle fog of war
 ## Screenshot mode:  -- --shot=path.png [--scene=x] [--profile=y] [--seed=n] [--pixel=3]
 ##   [--levels=0] [--dither=0.5] [--outline=0.4] [--bloom=0.8] [--contrast=1.1] [--ortho=1]
 ##   [--fog=0] [--zoom=24] [--yaw=45] [--lights=1] [--hover=x,y]
@@ -28,6 +29,8 @@ var enc: Encounter
 var dice: Dice
 var view_floor := 0
 var cutaway := true
+var cut_all := false   ## C cycles: AUTO (buildings open only with crew inside or pointed into) → ALL SEEN → OFF
+var sight_mode := 0    ## Z cycles guards' sight lines: 0 near the hovered move / hovered guard, 1 always, 2 off
 var fog_on := true
 var mode := Attack.Mode.SINGLE
 var cover_mode := false
@@ -122,6 +125,26 @@ void fragment() {
 }
 """
 
+## Guards' sight lines: a thin dashed red contour round the watched ground and a faint moving
+## hatch inside (no tiles); G marks the stretch of the hovered path that would be seen, brighter.
+const WATCH := """
+shader_type spatial;
+render_mode unshaded, blend_add, depth_draw_never, cull_disabled, shadows_disabled;
+uniform sampler2D mask : filter_linear, repeat_disable;
+uniform vec4 col : source_color = vec4(1.0, 0.23, 0.31, 1.0);
+varying vec3 wpos;
+void vertex() { wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
+void fragment() {
+	vec2 v = texture(mask, UV).rg;
+	float edge = smoothstep(0.4, 0.5, v.r) - smoothstep(0.5, 0.6, v.r);
+	float inside = smoothstep(0.45, 0.55, v.r);
+	float dash = step(0.45, fract((wpos.x - wpos.z) * 1.1 + TIME * 0.4));
+	float hatch = step(0.86, fract((wpos.x + wpos.z) * 1.6 - TIME * 0.25));
+	float hot = smoothstep(0.35, 0.6, v.g);
+	ALBEDO = col.rgb * (edge * (0.35 + 0.45 * dash) + inside * hatch * 0.16 + hot * (0.22 + 0.2 * hatch));
+}
+"""
+
 var svp: SubViewport
 var screen: TextureRect
 var post: ShaderMaterial
@@ -138,7 +161,11 @@ var floor_nodes: Array[Node3D] = []
 var unit_nodes := {}
 var door_nodes: Node3D
 var grid_node: MeshInstance3D
-var watch_node: MultiMeshInstance3D   ## stealth: squares that visible, unalerted guards are watching
+var watch_node: MeshInstance3D   ## stealth: ground that visible, unalerted guards and cameras watch
+var watch_img: Image
+var watch_tex: ImageTexture
+var _watchers := {}           ## "g<id>" / "c<id>" → watched squares, rebuilt each time the grid is
+var _path_cells: Array[Vector3i] = []   ## the hovered move's squares
 var path_node: MeshInstance3D
 var range_img: Image
 var range_tex: ImageTexture
@@ -160,6 +187,8 @@ func _scene_look() -> Dictionary:
 		return LOOKS["default"]
 	return LOOKS.get(String(m.params.get("scene", "")), LOOKS["default"])
 var open_cells := {}             ## Vector2i squares the cutaway may open (seen-into rooms + walls)
+var struct_rooms := {}           ## structure id → {room label: true}, indoor rooms only
+var _hover_sid := -1             ## building the pointer is planning into (opens it in AUTO)
 var room_xy := {}                ## room label → its squares, for opening rooms
 const KERB := 0.07               # sidewalk height (WorldBuilder raises sidewalks)
 var _last_cur := -1
@@ -224,6 +253,10 @@ func _ready() -> void:
 			"objective": gig["objective"] = kv[1]
 			"twist": gig["twist"] = kv[1]
 			"fog": fog_on = kv[1] != "0"
+			"cut":   # review renders: auto | all | off
+				cutaway = kv[1] != "off"
+				cut_all = kv[1] == "all"
+			"sight": sight_mode = int(kv[1])
 			"zoom": cam_dist = float(kv[1])
 			"yaw":
 				cam_yaw = float(kv[1])
@@ -309,6 +342,7 @@ func _process(delta: float) -> void:
 		if _frames == 3 and _shot_hover.x >= 0:
 			hover = Vector3i(_shot_hover.x, _shot_hover.y, view_floor)
 			mouse = _to_screen(Vector3(hover.x + 0.5, view_floor * FH, hover.y + 0.5))
+			_on_hover_changed()
 			_update_hover()
 			if _inspect_demo:
 				_inspected = true
@@ -405,7 +439,7 @@ func _build_view() -> void:
 	shields.fn = _draw_cover_shields
 	hud.add_child(shields)
 	hud.move_child(shields, 0)
-	hud.build_hint("WASD  PAN\nWHEEL  ZOOM\nQ / E  ROTATE 90\nMIDDLE-DRAG  ROTATE\nPGUP / PGDN  FLOOR\nC  CUTAWAY   F2  LOOK\nLMB  MOVE   RMB  FIRE\nALT (HOLD)  INSPECT\nF4  NET STYLE   N  PEEK\nH  HIDE THIS")
+	hud.build_hint("WASD  PAN\nWHEEL  ZOOM\nQ / E  ROTATE 90\nMIDDLE-DRAG  ROTATE\nPGUP / PGDN  FLOOR\nC  CUTAWAY   F2  LOOK\nZ  GUARD SIGHT LINES\nLMB  MOVE   RMB  FIRE\nALT (HOLD)  INSPECT\nF4  NET STYLE   N  PEEK\nH  HIDE THIS")
 	hud.build_settings(look, [["pixel", "Pixel scale (0 auto)", 0, 6, 1], ["palette", "Palette", 0, 1, 1], ["levels", "Channel steps", 0, 32, 1], ["dither", "Dither", 0, 1, 0.05], ["spill", "Light spill", 0, 2, 0.05],
 		["contrast", "Contrast", 0.6, 1.6, 0.05], ["saturation", "Saturation", 0, 2, 0.05], ["outline", "Outline", 0, 1, 0.05],
 		["bloom", "Bloom", 0, 2, 0.05], ["lights", "Light level", 0.2, 2, 0.05], ["ortho", "Orthographic", 0, 1, 1]], _apply_look)
@@ -594,12 +628,16 @@ func _build_world() -> void:
 	fog_tex = ImageTexture.create_from_image(fog_img)
 	_update_fog()
 	room_xy.clear()
+	struct_rooms.clear()
+	_hover_sid = -1
 	for f in m.floors:
 		for y in m.h:
 			for x in m.w:
 				var l := m.label(f, x, y)
 				if l >= 0:
 					room_xy.get_or_add(l, []).append(Vector2i(x, y))
+					if not m.rooms[l].get("outdoor", false):
+						struct_rooms.get_or_add(int(m.rooms[l].structure), {})[l] = true
 	builder = WorldBuilder.new(m, enc.vision, fog_tex)
 	floor_nodes = builder.build(world)
 	for s in builder.surfaces():
@@ -850,6 +888,7 @@ func _refresh() -> void:
 		ring.visible = false   # the white outline marks the active unit now
 		_update_outlines()
 		ring.position = Vector3(enc.cur.pos.x + 0.5, _gy(enc.cur.pos) + 0.04, enc.cur.pos.y + 0.5)
+	_update_xray()
 	_draw_grid()
 	_hud_refresh()
 	_update_net()
@@ -1188,11 +1227,23 @@ func _cut_hides(v: Vector3i) -> bool:
 func _update_fog() -> void:
 	open_cells.clear()
 	var open_rooms := {}
-	for u in enc.alive(0):
+	if cutaway and not cut_all:   # AUTO: whole buildings, only where the crew is or is heading
+		var open_s := {}
+		for u in enc.alive(0):
+			open_s[_indoor_structure(u.pos)] = true
+		open_s[_hover_sid] = true
+		if _focus_unit >= 0 and _focus_unit < enc.units.size():   # playback: the unit being followed, if seen
+			var fu: Dictionary = enc.units[_focus_unit]
+			if fu.team == 0 or not fog_on or enc.vision.visible.has(fu.pos):
+				open_s[_indoor_structure(fu.pos)] = true
+		for sid in open_s:
+			for l in struct_rooms.get(sid, {}):
+				open_rooms[l] = true
+	for u in ([] if not cut_all else enc.alive(0)):
 		var l := m.label(u.pos.z, u.pos.x, u.pos.y)
 		if l >= 0 and not m.rooms[l].get("outdoor", false):
 			open_rooms[l] = true
-	for v in enc.vision.explored:
+	for v in (enc.vision.explored if cut_all else {}):
 		var l2 := m.label(v.z, v.x, v.y)
 		if l2 >= 0 and v.z <= view_floor and not m.rooms[l2].get("outdoor", false):
 			open_rooms[l2] = true
@@ -1201,7 +1252,7 @@ func _update_fog() -> void:
 			for dy in range(-1, 2):
 				for dx in range(-1, 2):
 					open_cells[Vector2i(c.x + dx, c.y + dy)] = true
-	if not fog_on:
+	if not fog_on and cut_all:
 		for st in m.structures:
 			if st.has("rect"):
 				var r: Rect2i = (st.rect as Rect2i).grow(1)
@@ -1221,6 +1272,33 @@ func _update_fog() -> void:
 				data[((f * m.h + c.y) * m.w + c.x) * 2 + 1] = 255
 	fog_img.set_data(m.w, m.h * m.floors, false, Image.FORMAT_RG8, data)
 	fog_tex.update(fog_img)
+	_update_xray()
+
+
+## The building (structure id) whose indoor room holds square v, or -1 outdoors.
+func _indoor_structure(v: Vector3i) -> int:
+	if not m.inb(v.x, v.y) or v.z < 0 or v.z >= m.floors:
+		return -1
+	var l := m.label(v.z, v.x, v.y)
+	if l < 0 or m.rooms[l].get("outdoor", false):
+		return -1
+	return int(m.rooms[l].structure)
+
+
+## Units the crew can see inside a building that is still closed (roof on) show as a silhouette
+## through it: guards red, crew cyan.
+func _update_xray() -> void:
+	if enc == null:
+		return
+	for u in enc.units:
+		var n = unit_nodes.get(u.id)
+		if not (n is CharModel) or u.c.dead:
+			if n is CharModel:
+				(n as CharModel).set_xray(false)
+			continue
+		var seen: bool = u.team == 0 or not fog_on or enc.vision.visible.has(u.pos)
+		var closed := _indoor_structure(u.pos) >= 0 and not (cutaway and open_cells.has(Vector2i(u.pos.x, u.pos.y)))
+		(n as CharModel).set_xray(seen and closed, Hud.CYAN if u.team == 0 else Hud.RED)
 
 
 ## Door leaves: closed in the wall line, or swung open 90° on the hinge; a lock light on the frame.
@@ -1285,7 +1363,7 @@ func _draw_grid() -> void:
 		if v.z == view_floor:
 			data[(v.y * m.w + v.x) * 2 + 1] = 255
 	grid_node.visible = not (move_opts.is_empty() and dash_opts.is_empty())
-	_draw_watch(grid_node.visible)
+	_watchers.clear()
 	if grid_node.visible:
 		range_img.set_data(m.w, m.h, false, Image.FORMAT_RG8, data)
 		var big := range_img.duplicate() as Image
@@ -1297,13 +1375,16 @@ func _draw_grid() -> void:
 		(grid_node.material_override as ShaderMaterial).set_shader_parameter("mask", range_tex)
 		grid_node.position.y = view_floor * FH + 0.1
 	_draw_path()
+	_draw_watch(grid_node.visible)
 
 
 func _draw_path() -> void:
 	var pts: Array[Vector3] = []
+	_path_cells.clear()
 	if move_opts.has(hover) and _crew_turn():
 		var cells: Array[Vector3i] = enc._with_locks(func(): return enc.nav.path(enc.cur.pos, hover, enc._blocking(enc.cur)))
 		cells.push_front(enc.cur.pos)
+		_path_cells = cells
 		for c in cells:
 			pts.append(Vector3(c.x + 0.5, c.z * FH + 0.12, c.y + 0.5))
 	if pts.size() < 2:
@@ -1333,7 +1414,8 @@ func _draw_path() -> void:
 	for v in [e + Vector3(-0.2, 0, 0), e + Vector3(0, 0, -0.2), e + Vector3(0.2, 0, 0), e + Vector3(-0.2, 0, 0), e + Vector3(0.2, 0, 0), e + Vector3(0, 0, 0.2)]:
 		st.add_vertex(v)
 	var mesh := st.commit()
-	var mt := _unlit(Color("f9c80e"), 1.0, 1.0)
+	var ws := _watch_status()   # the ribbon warns: red through watched ground, amber at its edge
+	var mt := _unlit(Hud.RED if ws.seen > 0 else (Color("ff8a24") if ws.near else Color("f9c80e")), 1.0, 1.0)
 	mt.cull_mode = BaseMaterial3D.CULL_DISABLED
 	mesh.surface_set_material(0, mt)
 	path_node.mesh = mesh
@@ -1384,38 +1466,118 @@ func _frame_unit(u: Dictionary) -> void:
 	_place_camera()
 
 
-## Units blend in; the one whose turn it is gets an amber downward caret floating above it
-## (owner: instead of the white outline).
-## While the crew is undetected and planning a move, tint the squares known guards are watching
-## (their view cone, clipped by walls) so sneaking is a readable choice, XCOM-concealment style.
+## Guards' sight lines (XCOM concealment, owner round 5: the old red tiles were loud). While the
+## crew is undetected and planning, the watched ground is drawn as a dashed contour with a faint
+## hatch: by default only for the guards and cameras that would see the hovered move (or are within
+## two squares of it), and for a hovered guard; Z shows all of them, or none.
 func _draw_watch(show: bool) -> void:
 	if watch_node == null or not is_instance_valid(watch_node) or watch_node.get_parent() != world:
-		watch_node = MultiMeshInstance3D.new()
-		var mm := MultiMesh.new()
-		mm.transform_format = MultiMesh.TRANSFORM_3D
-		var qm := PlaneMesh.new()
-		qm.size = Vector2(0.92, 0.92)
-		mm.mesh = qm
-		watch_node.multimesh = mm
-		watch_node.material_override = _unlit(Hud.RED, 0.2, 1.1)
+		watch_node = MeshInstance3D.new()
+		var pm := PlaneMesh.new()
+		pm.size = Vector2(m.w, m.h)
+		watch_node.mesh = pm
+		watch_node.position = Vector3(m.w / 2.0, 0, m.h / 2.0)
+		var sh := Shader.new()
+		sh.code = WATCH
+		var mt := ShaderMaterial.new()
+		mt.shader = sh
+		mt.set_shader_parameter("col", Hud.RED)
+		watch_node.material_override = mt
 		watch_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		watch_img = Image.create(m.w, m.h, false, Image.FORMAT_RG8)
+		watch_tex = null
 		world.add_child(watch_node)
 	var cells := {}
-	if show and enc.alarm < 2 and not _net_cleaned:
-		for g in enc.units:
-			if g.team == 1 and not g.alerted and g.c.can_act() and g.pos.z == view_floor and (not fog_on or enc.vision.visible.has(g.pos)):
-				cells.merge(enc.watched_cells(g))
-		for d in m.devices:   # live cameras the crew has seen watch their floor too
-			var cp := Vector3i(d.pos.x, d.pos.y, d.floor)
-			if String(d.type) == "camera" and not enc.disabled_devices.has(d.id) and cp.z == view_floor and (not fog_on or enc.vision.explored.has(cp)):
-				cells.merge(enc.camera_cells(d))
-	var mm2 := watch_node.multimesh
-	mm2.instance_count = cells.size()
-	var i := 0
-	for v in cells:
-		mm2.set_instance_transform(i, Transform3D(Basis(), Vector3(v.x + 0.5, v.z * FH + 0.12, v.y + 0.5)))
-		i += 1
+	if show and sight_mode != 2 and enc.alarm < 2 and not _net_cleaned:
+		var w := _watch_map()
+		if sight_mode == 1:
+			for k in w:
+				cells.merge(w[k])
+		else:
+			for k in _relevant_watchers():
+				cells.merge(w[k])
 	watch_node.visible = not cells.is_empty()
+	if cells.is_empty():
+		return
+	var data := PackedByteArray()
+	data.resize(m.w * m.h * 2)
+	for v in cells:
+		data[(v.y * m.w + v.x) * 2] = 255
+	for v in _path_cells:
+		if cells.has(v):
+			data[(v.y * m.w + v.x) * 2 + 1] = 255
+	watch_img.set_data(m.w, m.h, false, Image.FORMAT_RG8, data)
+	var big := watch_img.duplicate() as Image
+	big.resize(m.w * 4, m.h * 4, Image.INTERPOLATE_CUBIC)
+	if watch_tex == null:
+		watch_tex = ImageTexture.create_from_image(big)
+	else:
+		watch_tex.update(big)
+	(watch_node.material_override as ShaderMaterial).set_shader_parameter("mask", watch_tex)
+	watch_node.position.y = view_floor * FH + 0.11
+
+
+## Every live watcher the crew knows about on this floor → the squares it watches (cached until
+## the grid is redrawn).
+func _watch_map() -> Dictionary:
+	if not _watchers.is_empty() or enc.alarm >= 2:
+		return _watchers
+	for g in enc.units:
+		if g.team == 1 and not g.alerted and g.c.can_act() and g.pos.z == view_floor and (not fog_on or enc.vision.visible.has(g.pos)):
+			_watchers["g%d" % g.id] = enc.watched_cells(g)
+	for d in m.devices:   # live cameras the crew has seen watch their floor too
+		var cp := Vector3i(d.pos.x, d.pos.y, d.floor)
+		if String(d.type) == "camera" and not enc.disabled_devices.has(d.id) and cp.z == view_floor and (not fog_on or enc.vision.explored.has(cp)):
+			_watchers["c%d" % d.id] = enc.camera_cells(d)
+	return _watchers
+
+
+## Watchers worth showing right now: those that see the hovered path or come within two squares of
+## its end, and a hovered guard.
+func _relevant_watchers() -> Array:
+	var out := []
+	if not _crew_turn():
+		return out
+	var w := _watch_map()
+	var hu := _unit_at(hover)
+	if not hu.is_empty() and hu.team == 1 and w.has("g%d" % hu.id):
+		out.append("g%d" % hu.id)
+	var dest := hover if (move_opts.has(hover) or dash_opts.has(hover)) else Vector3i(-1, -1, -1)
+	if dest.x < 0:
+		return out
+	for k in w:
+		if k in out:
+			continue
+		var cs: Dictionary = w[k]
+		var hit := _path_cells.any(func(v): return cs.has(v)) or cs.has(dest)
+		if not hit:
+			for dy in range(-2, 3):
+				for dx in range(-2, 3):
+					if cs.has(dest + Vector3i(dx, dy, 0)):
+						hit = true
+		if hit:
+			out.append(k)
+	return out
+
+
+## How exposed the hovered move is: watchers that would see a square of it, and whether its end is
+## within two squares of watched ground (the edge of someone's sight).
+func _watch_status() -> Dictionary:
+	var res := {"seen": 0, "near": false}
+	if not _crew_turn() or enc.alarm >= 2 or _path_cells.is_empty():
+		return res
+	var dest: Vector3i = _path_cells[-1]
+	var w := _watch_map()
+	for k in w:
+		var cs: Dictionary = w[k]
+		if _path_cells.slice(1).any(func(v): return cs.has(v)):
+			res.seen += 1
+			continue
+		for dy in range(-2, 3):
+			for dx in range(-2, 3):
+				if cs.has(dest + Vector3i(dx, dy, 0)):
+					res.near = true
+	return res
 
 
 func _update_outlines() -> void:
@@ -1468,7 +1630,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 		var h := _pick(ev.position)
 		if h != hover:
 			hover = h
-			_draw_path()
+			_on_hover_changed()
 		if not _inspected:
 			_update_hover()
 	elif ev is InputEventMouseButton and ev.pressed:
@@ -1500,7 +1662,20 @@ func _unhandled_input(ev: InputEvent) -> void:
 			KEY_H: hud.toggle_hint()
 			KEY_PAGEUP: view_floor = mini(view_floor + 1, m.floors - 1); _place_camera(); _refresh()
 			KEY_PAGEDOWN: view_floor = maxi(view_floor - 1, 0); _place_camera(); _refresh()
-			KEY_C: cutaway = not cutaway; _refresh()
+			KEY_C:
+				if not cutaway:
+					cutaway = true
+					cut_all = false
+				elif not cut_all:
+					cut_all = true
+				else:
+					cutaway = false
+				hud.toast("CUTAWAY: " + ("OFF" if not cutaway else ("ALL SEEN ROOMS" if cut_all else "AUTO")))
+				_refresh()
+			KEY_Z:
+				sight_mode = (sight_mode + 1) % 3
+				hud.toast("GUARD SIGHT LINES: " + ["NEAR YOUR MOVE", "ALWAYS", "OFF"][sight_mode])
+				_draw_grid()
 			KEY_1: _on_hud("mode", 0)
 			KEY_2: _on_hud("mode", 1)
 			KEY_3: _on_hud("mode", 2)
@@ -3064,6 +3239,20 @@ func _float_at(wp: Vector3, text: String, col: Color, offset := Vector2.ZERO) ->
 	tw.tween_callback(l.queue_free)
 
 
+## The pointer moved to another square: the path ribbon, the sight lines that matter for it, and
+## the building it points into (AUTO cutaway opens it).
+func _on_hover_changed() -> void:
+	_draw_path()
+	_draw_watch(grid_node != null and grid_node.visible)
+	var hs := -1
+	var hu := _unit_at(hover)
+	if _crew_turn() and (move_opts.has(hover) or dash_opts.has(hover) or (not hu.is_empty() and hu.team == 1)):
+		hs = _indoor_structure(hover)
+	if hs != _hover_sid:
+		_hover_sid = hs
+		_update_fog()
+
+
 func _update_hover() -> void:
 	target_ring.visible = false
 	hud.mode_pcts({})
@@ -3081,7 +3270,13 @@ func _update_hover() -> void:
 			hud.tip("[b]%s[/b]" % ("Cover piece · [code]%d HP[/code]" % enc.los.cover_hp[hover] if enc.los.cover_hp.get(hover, 0) > 0 else "Wall / door"), mouse, "// SHOOT COVER", Hud.GOLD)
 		elif move_opts.has(hover):
 			var p: Array[Vector3i] = enc._with_locks(func(): return enc.nav.path(enc.cur.pos, hover, enc.occupied(enc.cur)))
-			hud.tip("[code]%d / %d[/code] squares" % [enc.nav.cost_of(enc.cur.pos, p), enc.turn.squares_available()], mouse, "// MOVE", Hud.CYAN)
+			var ws := _watch_status()
+			var warn := ""
+			if ws.seen > 0:
+				warn = "\n[color=#ff3b4f]In sight of %d watcher%s on the way[/color]" % [ws.seen, "" if ws.seen == 1 else "s"]
+			elif ws.near:
+				warn = "\n[color=#ff8a24]Ends at the edge of a guard's sight[/color]"
+			hud.tip("[code]%d / %d[/code] squares%s" % [enc.nav.cost_of(enc.cur.pos, p), enc.turn.squares_available(), warn], mouse, "// MOVE", Hud.CYAN)
 		elif dash_opts.has(hover):
 			hud.tip("Uses your [b]Action[/b] as a Run (an extra Move Action)", mouse, "// RUN", Color("ffb000"))
 		else:
