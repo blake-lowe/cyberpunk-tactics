@@ -32,7 +32,7 @@ var _slid_this_turn := false
 var _ice_round := -1
 var _met_memory := {}               ## unit id → ICE met this gig: re-jacking doesn't re-ambush (playtest Giant loop)
 var _netting := false               ## this turn went to the NET (the meat Action is forgone, p197)
-var objective := {}                 ## {kind, done, + data: structure, node | snatch: cell, carrier}
+var objective := {}                 ## {kind, done, + data: structure, node | snatch: cell, carrier | assassinate: target, name, exits, escaped | rescue: captive, freed}
 var twists: Array = []             ## gig complications: heavy, blackout, shift_change (data/gen/gigs.json)
 var extract_cells := {}             ## Vector3i → true: the deploy zone, where a snatch is carried out
 var vision: Vision                  ## what the crew can see (drives fog and hidden guards)
@@ -118,6 +118,10 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 		e.objective.merge({"structure": target_sid, "node": best})
 	elif kind == "snatch":
 		e.objective.merge({"cell": e._package_cell(target_sid, cells[0]), "carrier": -1})
+	elif kind == "assassinate":
+		e._place_vip(target_sid, cells[0], sec)
+	elif kind == "rescue":
+		e._place_captive(target_sid, cells[0])
 	if "setup" in p_twists:   # HOUSE-RULE: a fixer sold the crew out; the guards are waiting
 		for u in e.units:
 			if u.team == 1:
@@ -207,6 +211,10 @@ func next_turn() -> void:
 			_ice_turn(cur)
 			if cur.has("suppressed_by"):
 				_take_cover(cur)
+			if cur.get("captive", false):   # a freed captive follows the crew on their own
+				AI.follow(self, cur)
+				end_turn()
+				continue
 			if cur.team == 1 or turn.psychotic:
 				AI.act(self, cur)
 				end_turn()
@@ -253,6 +261,26 @@ func _check_end() -> void:
 	if units.filter(func(u): return u.team == 0 and u.c.can_act()).is_empty() \
 			and units.filter(func(u): return u.team == 0 and not u.c.dead and u.c.wake_in > 0).is_empty():
 		state = "lost"   # nobody on the crew can act or will wake up (the loop would otherwise spin)
+		return
+	if objective.get("kind", "") == "assassinate":
+		var vip: Dictionary = units[int(objective.target)]
+		if not objective.done and not vip.c.can_act():
+			objective.done = true
+			events.append({"type": "target_down", "unit": vip.id})
+			say("%s is down. Get out." % objective.name)
+		if objective.done and (alive(1).is_empty() or _crew_out()):
+			state = "won"
+			say("The crew gets clear. The job's done.")
+		return
+	if objective.get("kind", "") == "rescue":
+		var cap: Dictionary = units[int(objective.captive)]
+		if cap.c.dead:
+			state = "lost"
+			say("%s is dead. The job's over." % cap.c.display_name)
+		elif objective.freed and extract_cells.has(cap.pos) and cap.c.can_act():
+			objective.done = true
+			state = "won"
+			say("%s is out." % cap.c.display_name)
 		return
 	if objective.get("kind", "data") == "snatch":
 		var carrier: int = objective.carrier
@@ -402,11 +430,115 @@ func withdraw() -> bool:
 	if not can_withdraw():
 		return false
 	for u in left_behind():
+		if u.get("captive", false):
+			continue
 		u.c.dead = true
 		say("%s is left behind." % u.c.display_name)
+	if objective.get("kind", "") == "assassinate" and objective.done:
+		state = "won"   # the hit is done: leaving is the rest of the job
+		say("The crew pulls out. The job's done.")
+		return true
 	state = "fled"
 	say("The crew pulls out.")
 	return true
+
+
+# --- Assassination -----------------------------------------------------------------------
+
+const VIP_NAMES := ["Rhyne Castell", "Mara Voss", "Tobias Kade", "Lena Okafor", "Silas Mott", "Yuki Brandt", "Dario Kesh", "Ines Vale",
+	"Oren Haldane", "Petra Szabo", "Marcus Ilunga", "Sable Ferro"]
+
+
+## The mark: a Lieutenant (a Mini Boss at security 2+) in the target building's most secure room,
+## with two bodyguards beside them. Exits: the map's entrances other than the crew's deploy zone,
+## where the mark runs once the alarm goes up (reaching one = the job fails).
+func _place_vip(target_sid: int, origin: Vector2i, sec: int) -> void:
+	var cell := _package_cell(target_sid, origin)
+	var name: String = VIP_NAMES[dice.d(VIP_NAMES.size()) - 1]
+	var vip := Recruit.npc(dice, "mini_boss" if sec >= 2 else "lieutenant", name)
+	vip.team = 1
+	_add(vip, cell, 1)
+	var vu: Dictionary = units[-1]
+	vu["vip"] = true
+	var guards := 0
+	for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 1), Vector2i(-1, -1), Vector2i(1, -1), Vector2i(-1, 1)]:
+		if guards >= 2:
+			break
+		var v := cell + Vector3i(d.x, d.y, 0)
+		if m.walkable(v.z, Vector2i(v.x, v.y)) and not occupied().has(v) and m.label(v.z, v.x, v.y) >= 0:
+			var g := Recruit.npc(dice, "lieutenant" if sec >= 3 else "mook", "Bodyguard %d" % (guards + 1))
+			g.team = 1
+			_add(g, v, 1)
+			units[-1]["bodyguard"] = true
+			guards += 1
+	var exits: Array = []
+	for en in m.entrances:
+		if en.kind != "deploy" and m.walkable(int(en.get("floor", 0)), en.pos):
+			exits.append(Vector3i(en.pos.x, en.pos.y, int(en.get("floor", 0))))
+	objective.merge({"target": vu.id, "name": name, "exits": exits, "escaped": false})
+
+
+## Every crew member still standing is in the extraction zone.
+func _crew_out() -> bool:
+	var up := units.filter(func(u): return u.team == 0 and not u.get("captive", false) and u.c.can_act())
+	return not up.is_empty() and up.all(func(u): return extract_cells.has(u.pos))
+
+
+## The mark reached an exit: gone, and the job with them.
+func _vip_escapes(u: Dictionary) -> void:
+	objective.escaped = true
+	events.append({"type": "escape", "unit": u.id})
+	u.c.dead = true   # off the map (not killed: the log says so)
+	u["escaped"] = true
+	say("%s gets away." % objective.name)
+	state = "lost"
+
+
+# --- Rescue ------------------------------------------------------------------------------
+
+const CAPTIVE_NAMES := ["Jun Reyes", "Abby Kowal", "Teo Marsh", "Nadia Faris", "Ezra Quill", "Mina Sato", "Luka Brenner", "Zoe Adair"]
+
+
+## The captive: held in the target building's most secure room, unarmed and hurt. Neutral (team 2)
+## until freed, so they neither see for the crew nor draw fire; freed, they join the crew's side and
+## the initiative order and follow the crew on their own turns.
+func _place_captive(target_sid: int, origin: Vector2i) -> void:
+	var cell := _package_cell(target_sid, origin)
+	var c := Recruit.generate(dice, ["media", "netrunner", "tech", "fixer"][dice.d(4) - 1], "edgerunner", CAPTIVE_NAMES[dice.d(CAPTIVE_NAMES.size()) - 1])
+	c.weapons.clear()
+	c.grenades = 0
+	c.hp = maxi(1, c.max_hp() / 2)   # roughed up
+	_add(c, cell, 2)
+	var cu: Dictionary = units[-1]
+	cu["captive"] = true
+	cu.alerted = false
+	objective.merge({"captive": cu.id, "freed": false})
+
+
+func can_free() -> bool:
+	if objective.get("kind", "") != "rescue" or objective.freed or cur.is_empty() or cur.team != 0:
+		return false
+	var cap: Dictionary = units[int(objective.captive)]
+	return cur.pos == cap.pos or adjacent(cur.pos, cap.pos)
+
+
+## Cut the captive loose (an Action, next to them).
+func free_captive() -> Dictionary:
+	if not can_free():
+		return {"ok": false, "reason": "get next to the captive"}
+	if not turn.use_action():
+		return {"ok": false, "reason": "no action left"}
+	var cap: Dictionary = units[int(objective.captive)]
+	cap.team = 0
+	cap.c.team = 0
+	cap.alerted = true
+	init.add(cap.c)
+	objective.freed = true
+	events.append({"type": "free", "unit": cur.id, "target": cap.id})
+	say("%s cuts %s loose. Get them to the extraction zone." % [cur.c.display_name, cap.c.display_name])
+	refresh_vision()
+	_check_end()
+	return {"ok": true}
 
 
 # --- Snatch objective ------------------------------------------------------------------

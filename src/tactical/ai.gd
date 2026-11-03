@@ -9,6 +9,9 @@ const MIN_CHANCE := 0.15
 
 
 static func act(e: Encounter, u: Dictionary) -> void:
+	if u.get("vip", false):
+		_vip(e, u)
+		return
 	if u.c.weapons.is_empty():
 		return
 	var w: Weapon = u.c.weapons[0]
@@ -196,3 +199,52 @@ static func covered_from(e: Encounter, cell: Vector3i, foes: Array) -> bool:
 		if e.los.blocker(Vector3i(cell.x + s.x, cell.y + s.y, cell.z)) != "":
 			return true
 	return false
+
+
+
+## The mark: stays put while it's quiet; once they or the site are alerted, runs (Move and a Run)
+## for the nearest exit, and is gone on reaching it. Bodyguards fight normally.
+static func _vip(e: Encounter, u: Dictionary) -> void:
+	if not (u.alerted or e.alarm >= 1):
+		return
+	var exits: Array = e.objective.get("exits", [])
+	if exits.is_empty():
+		return
+	var field: Dictionary = e._with_locks(func(): return e.nav.distance_field(exits, {}, 4000))
+	if int(field.get(u.pos, 999)) == 0:
+		e._vip_escapes(u)
+		return
+	var budget: int = e.turn.squares_available() + (u.c.stat("MOVE") if e.turn.action_available else 0)
+	var opts: Dictionary = e._with_locks(func(): return e.nav.reachable(u.pos, budget, e._blocking(u)))
+	var best: Vector3i = u.pos
+	for cell in opts:
+		if int(field.get(cell, 999)) < int(field.get(best, 999)) and not e.occupied(u).has(cell):
+			best = cell
+	if best != u.pos and e.move_to(best, true) and int(field.get(best, 999)) == 0:
+		e._vip_escapes(u)
+
+
+## A freed captive: keep beside the crew member nearest to the extraction zone; step into the zone
+## when they're there. Unarmed, so that's all.
+static func follow(e: Encounter, u: Dictionary) -> void:
+	var crew := e.units.filter(func(o): return o.team == 0 and o != u and not o.get("captive", false) and o.c.can_act())
+	if crew.is_empty() or not e.turn.can_move():
+		return
+	var ex: Array = e.extract_cells.keys()
+	var to_ex: Dictionary = e._with_locks(func(): return e.nav.distance_field(ex, {}, 4000))
+	crew.sort_custom(func(a, b): return int(to_ex.get(a.pos, 9999)) < int(to_ex.get(b.pos, 9999)))
+	var lead: Dictionary = crew[0]
+	var opts := e.move_options()
+	var best: Vector3i = u.pos
+	var best_s := INF
+	var lead_out: bool = e.extract_cells.has(lead.pos)
+	for cell in opts.keys() + [u.pos]:
+		var d := Vector2(cell.x - lead.pos.x, cell.y - lead.pos.y).length() + absi(cell.z - lead.pos.z) * 4.0
+		var sc := maxf(d - 1.5, 0.0) * 2.0 + float(to_ex.get(cell, 999)) * 0.15
+		if lead_out and e.extract_cells.has(cell):
+			sc -= 50.0
+		if sc < best_s:
+			best_s = sc
+			best = cell
+	if best != u.pos:
+		e.move_to(best)

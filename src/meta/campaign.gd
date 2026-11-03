@@ -22,7 +22,7 @@ const ECON := {
 ## IP per gig (p410: the GM awards 10-80; AMBIGUITY: the tiers are qualitative). Our rubric:
 ## a failed gig 10, success 30, success without anyone going down +10, the NET objective +10.
 ## Gig kind → encounter objective (Encounter.setup).
-const OBJECTIVES := {"data_theft": "data", "gang_hit": "eliminate", "corp_extraction": "snatch"}
+const OBJECTIVES := {"data_theft": "data", "gang_hit": "eliminate", "corp_extraction": "snatch", "assassination": "assassinate", "rescue": "rescue"}
 ## Safehouse facilities (spec: Meta Progression, "a few upgradeable facilities"). HOUSE-RULE content:
 ## two levels each, costs per level; effects are read where they apply (rest, restock, board, IP).
 const FACILITIES := {

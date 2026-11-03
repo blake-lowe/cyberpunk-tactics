@@ -698,7 +698,10 @@ func _build_world() -> void:
 func _unit_node(u: Dictionary) -> CharModel:
 	if unit_nodes.has(u.id):
 		return unit_nodes[u.id]
-	var n := CharModel.build(u.team, u.c.look_seed if u.c.look_seed >= 0 else u.id, String(u.c.role), u.c.weapons[0].id() if not u.c.weapons.is_empty() else "assault_rifle")
+	var look_team: int = 0 if u.team == 2 else u.team
+	var n := CharModel.build(look_team, u.c.look_seed if u.c.look_seed >= 0 else u.id, "exec" if u.get("vip", false) else String(u.c.role), u.c.weapons[0].id() if not u.c.weapons.is_empty() else "heavy_pistol")
+	if u.c.weapons.is_empty() and n.gun:   # the unarmed (captives) carry nothing
+		n.gun.visible = false
 	decals[u.id] = _decal(Color("05d9e8"), 0.95, false, 0.0)
 	decals[u.id].visible = false   # owner: no glows under units; they blend into the scene
 	var blob := _decal(Color.BLACK, 0.75, false, 0.0, true)   # contact shadow
@@ -878,7 +881,7 @@ func _refresh() -> void:
 		n.scale = Vector3.ONE * 1.3   # a touch larger than life, still in scale with 1.15-high doors
 		dc.position = n.position + Vector3(0, 0.03, 0)
 		n.set_meta("slump_goal", 1.0 if u.c.wound_state() == Combatant.Wound.MORTAL else 0.0)
-		n.set_meta("crouch_goal", 1.0 if _beside_cover(u.pos) else 0.0)   # crouching reads as "in cover"
+		n.set_meta("crouch_goal", 1.0 if _beside_cover(u.pos) or u.team == 2 else 0.0)   # crouching reads as "in cover"; captives kneel
 		if true:
 			n.rotation.x = 0
 			var foes := enc.alive(1 - u.team).filter(func(o): return o.alerted or u.team == 1)
@@ -1039,6 +1042,14 @@ func _net_layout(a: NetArchitecture) -> Array:
 ## that has cover (solid: walls and cover pieces; outlined: see-through bulletproof glass).
 ## Where the objective is: world points with a label and colour (the view draws a chevron over each,
 ## or an arrow at the screen edge with the distance when it's off screen).
+func _extract_mark() -> Array:
+	var acc := Vector2.ZERO
+	for c2 in enc.extract_cells:
+		acc += Vector2(c2.x + 0.5, c2.y + 0.5)
+	acc /= maxf(1.0, enc.extract_cells.size())
+	return [Vector3(acc.x, 0.3, acc.y), "EXTRACT", Hud.GOLD, Vector3i(int(acc.x), int(acc.y), 0)]
+
+
 func objective_marks() -> Array:
 	var out := []
 	if enc == null or enc.state != "playing" or _net_cleaned:
@@ -1055,6 +1066,18 @@ func objective_marks() -> Array:
 					acc += Vector2(c2.x + 0.5, c2.y + 0.5)
 				acc /= maxf(1.0, enc.extract_cells.size())
 				out.append([Vector3(acc.x, 0.3, acc.y), "EXTRACT", Hud.GOLD, Vector3i(int(acc.x), int(acc.y), 0)])
+		"assassinate":
+			var vip: Dictionary = enc.units[int(o.target)]
+			if not o.get("done", false) and not vip.c.dead and (not fog_on or enc.vision.visible.has(vip.pos) or enc.vision.explored.has(vip.pos)):
+				out.append([Vector3(vip.pos.x + 0.5, _gy(vip.pos) + 1.6, vip.pos.y + 0.5), "TARGET", Hud.RED, vip.pos])
+			elif o.get("done", false):
+				out.append(_extract_mark())
+		"rescue":
+			var cap: Dictionary = enc.units[int(o.captive)]
+			if not o.get("freed", false):
+				out.append([Vector3(cap.pos.x + 0.5, _gy(cap.pos) + 1.4, cap.pos.y + 0.5), "CAPTIVE", Hud.GOLD, cap.pos])
+			else:
+				out.append(_extract_mark())
 		"data":
 			if int(o.get("node", -1)) >= 0 and not enc.runs.has(_runner_id()):
 				var a: NetArchitecture = m.architectures[int(o.structure)]
@@ -1696,7 +1719,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			KEY_5: _on_hud("tool", "shell")
 			KEY_4: _on_hud("suppress", null)
 			KEY_T: _on_hud("tool", "stabilize")
-			KEY_B: _on_hud("grab", null)
+			KEY_B: _on_hud("free" if enc and enc.can_free() else "grab", null)
 			KEY_Y: _on_hud("tool", "dose")
 			KEY_U: _on_hud("tool", "rig")
 			KEY_L: _on_hud("withdraw", null)
@@ -1734,6 +1757,12 @@ func _on_hud(name: String, arg: Variant) -> void:
 			cover_mode = false
 			_refresh(); _update_hover()
 		"suppress": _suppress()
+		"free":
+			if _crew_turn():
+				var r: Dictionary = enc.free_captive()
+				if not r.ok:
+					hud.toast(String(r.reason).to_upper())
+				_after_action()
 		"grab":
 			if _crew_turn():
 				var r := enc.grab()
@@ -2611,6 +2640,26 @@ func _play_events() -> void:
 				await get_tree().create_timer(0.5).timeout
 			"drop":
 				_float(u, "PACKAGE DROPPED", Hud.RED)
+			"free":
+				var fnode: CharModel = unit_nodes[u.id]
+				var ct: Dictionary = enc.units[e.target]
+				_focus_unit = u.id
+				fnode.duck(0.6)
+				_snd("sfx_zap", _body_pos(ct), -10.0)
+				await get_tree().create_timer(0.4).timeout
+				_float(ct, "FREED", Hud.GOLD)
+				_ui_snd("sfx_ui_confirm", -6.0)
+				hud.toast("GET %s TO THE EXTRACTION ZONE" % ct.c.display_name.to_upper())
+				await get_tree().create_timer(0.5).timeout
+			"target_down":
+				_float(u, "TARGET DOWN", Hud.GOLD)
+				_ui_snd("sfx_ui_confirm", -6.0)
+				hud.toast("THE MARK IS DOWN · GET TO THE EXTRACTION ZONE OR WITHDRAW")
+			"escape":
+				if _seen(u.pos):
+					_float(u, "TARGET ESCAPED", Hud.RED)
+				(unit_nodes[u.id] as Node3D).visible = false
+				hud.toast("%s GOT AWAY" % String(enc.objective.get("name", "THE MARK")).to_upper())
 	hud.enemy_phase(false)
 	_focus_unit = -1
 

@@ -64,6 +64,30 @@
         "Steal the {data} drive from {corp}"
       ],
       "blurb": "A {corp} insider will leave a door open tonight. Find the {data} drive inside and carry it back to where you came in."
+    },
+    {
+      "kind": "assassination",
+      "titles": [
+        "Wetwork: {gang}",
+        "Retire a {corp} manager",
+        "Take down the {gang}'s lieutenant"
+      ],
+      "blurb": "{fixer} has a name and an address. The mark is inside with bodyguards. Put them down before they bolt for an exit, then get out."
+    },
+    {
+      "kind": "rescue",
+      "titles": [
+        "Extraction: someone {fixer} owes",
+        "Get them out of the {place}",
+        "Hostage pull from the {gang}"
+      ],
+      "blurb": "Someone {fixer} cares about is being held inside. Find them, cut them loose and walk them out alive.",
+      "places": [
+        "warehouse",
+        "clinic",
+        "hideout",
+        "basement"
+      ]
     }
   ],
   "pay": {
@@ -244,6 +268,17 @@
     "corp_extraction": [
       "corp",
       "industrial"
+    ],
+    "assassination": [
+      "gang",
+      "corp",
+      "wild"
+    ],
+    "rescue": [
+      "gang",
+      "industrial",
+      "residential",
+      "corp"
     ]
   },
   "raid_sites": {
@@ -267,6 +302,20 @@
       "clinic",
       "villa",
       "factory"
+    ],
+    "assassination": [
+      "gang_hideout",
+      "club",
+      "villa",
+      "corp_office",
+      "bar"
+    ],
+    "rescue": [
+      "gang_hideout",
+      "warehouse",
+      "clinic",
+      "chop_shop",
+      "squat"
     ]
   },
   "raid_chance": 0.3

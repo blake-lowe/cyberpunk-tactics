@@ -434,7 +434,9 @@ func _gig_card(i: int) -> PanelContainer:
 		col.add_child(_text("TWIST · %s: %s" % [String(td.name).to_upper(), td.desc], Hud.F_TERM, Hud.ts(18), Hud.RED, true))
 	col.add_child(_text("OBJECTIVE · " + {"data": "Download the target file, or eliminate all hostiles",
 		"eliminate": "Eliminate all hostiles, including reinforcements",
-		"snatch": "Recover the package and carry it to the extraction zone"}[Campaign.objective_for(g)].to_upper(), Hud.F_TERM, Hud.ts(18), Hud.GOLD))
+		"snatch": "Recover the package and carry it to the extraction zone",
+		"assassinate": "Down the mark before they reach an exit, then get out",
+		"rescue": "Free the captive and walk them to the extraction zone"}[Campaign.objective_for(g)].to_upper(), Hud.F_TERM, Hud.ts(18), Hud.GOLD))
 	var ready := camp.alive_crew().any(func(c): return c.can_act() and c.wound_state() < Combatant.Wound.MORTAL)
 	col.add_child(_button("TAKE THE GIG", Hud.GOLD, func(): _take(i), ready))
 	return p
