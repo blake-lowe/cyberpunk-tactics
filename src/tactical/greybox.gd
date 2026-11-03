@@ -598,7 +598,12 @@ func new_gig() -> void:
 		_frame_unit(enc.cur)
 	if _focus != "":
 		var fc := Vector2(m.w / 2.0, m.h / 2.0)
-		if _focus == "objective" and enc.objective.has("cell"):   # review renders: the snatch package
+		var o_unit: int = int(enc.objective.get("target", enc.objective.get("captive", -1)))
+		if _focus == "objective" and o_unit >= 0:   # review renders: the mark or the captive
+			var ou: Vector3i = enc.units[o_unit].pos
+			fc = Vector2(ou.x, ou.y)
+			view_floor = ou.z
+		elif _focus == "objective" and enc.objective.has("cell"):   # review renders: the snatch package
 			var oc: Vector3i = enc.objective.cell
 			fc = Vector2(oc.x, oc.y)
 			view_floor = oc.z
@@ -1117,8 +1122,8 @@ func _draw_markers(c: Control) -> void:
 			var y := sp.y - 18.0 - 4.0 * sin(t * 3.0)
 			c.draw_colored_polygon(PackedVector2Array([Vector2(sp.x - 9, y - 12), Vector2(sp.x + 9, y - 12), Vector2(sp.x, y)]), col)
 			c.draw_polyline(PackedVector2Array([Vector2(sp.x - 13, y - 16), Vector2(sp.x + 13, y - 16), Vector2(sp.x, y + 4), Vector2(sp.x - 13, y - 16)]), Color(col, 0.5), 1.5)
-			c.draw_string_outline(Hud.F_PIXEL, Vector2(sp.x - 80, y - 22), mk[1], HORIZONTAL_ALIGNMENT_CENTER, 160, 18, 5, Color(0, 0, 0, 0.85))
-			c.draw_string(Hud.F_PIXEL, Vector2(sp.x - 80, y - 22), mk[1], HORIZONTAL_ALIGNMENT_CENTER, 160, 18, col)
+			c.draw_string_outline(Hud.F_BOLD, Vector2(sp.x - 80, y - 22), mk[1], HORIZONTAL_ALIGNMENT_CENTER, 160, 16, 5, Color(0, 0, 0, 0.85))
+			c.draw_string(Hud.F_BOLD, Vector2(sp.x - 80, y - 22), mk[1], HORIZONTAL_ALIGNMENT_CENTER, 160, 16, col)
 		else:
 			var ctr := r.get_center()
 			var dir := (sp - ctr).normalized() if not behind else (ctr - sp).normalized()
@@ -1132,8 +1137,8 @@ func _draw_markers(c: Control) -> void:
 			var side := Vector2(-dir.y, dir.x)
 			c.draw_colored_polygon(PackedVector2Array([p + dir * 14, p - dir * 6 + side * 10, p - dir * 6 - side * 10]), col)
 			var tag := "%s %dM" % [mk[1], dist]
-			c.draw_string_outline(Hud.F_PIXEL, p - dir * 34 - Vector2(80, -6), tag, HORIZONTAL_ALIGNMENT_CENTER, 160, 18, 5, Color(0, 0, 0, 0.85))
-			c.draw_string(Hud.F_PIXEL, p - dir * 34 - Vector2(80, -6), tag, HORIZONTAL_ALIGNMENT_CENTER, 160, 18, col)
+			c.draw_string_outline(Hud.F_BOLD, p - dir * 34 - Vector2(80, -6), tag, HORIZONTAL_ALIGNMENT_CENTER, 160, 16, 5, Color(0, 0, 0, 0.85))
+			c.draw_string(Hud.F_BOLD, p - dir * 34 - Vector2(80, -6), tag, HORIZONTAL_ALIGNMENT_CENTER, 160, 16, col)
 
 
 func _draw_cover_shields(c: Control) -> void:

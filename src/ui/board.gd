@@ -75,7 +75,7 @@ func _text(s: String, font: Font, size: int, col := Hud.TEXT, wrap := false) -> 
 		font = Hud.F_BOLD
 		size = Hud.ts(size)
 	var l := Label.new()
-	l.text = s
+	l.text = _plain(s)
 	l.add_theme_font_override("font", font)
 	l.add_theme_font_size_override("font_size", size)
 	l.add_theme_color_override("font_color", col)
@@ -93,9 +93,15 @@ func _panel(accent: Color) -> PanelContainer:
 	return p
 
 
+## Rules citations like "(p223)" belong in the code, not the player's UI (r8 review).
+static func _plain(s: String) -> String:
+	var re := RegEx.create_from_string("\\s*\\(p\\d+[^)]*\\)")
+	return re.sub(s, "", true)
+
+
 func _button(label: String, col: Color, cb: Callable, enabled := true) -> Button:
 	var b := Button.new()
-	b.text = label
+	b.text = _plain(label)
 	b.focus_mode = Control.FOCUS_NONE
 	b.disabled = not enabled
 	# short caps labels in the pixel face; sentences (downtime, perks) in the body face

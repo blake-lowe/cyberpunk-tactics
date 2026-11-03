@@ -126,8 +126,8 @@ void fragment() {
 		float aa = 1.0 - smoothstep(0.4, 0.9, fwidth(p.x) * 10.0);
 		float speck = hash(floor(p * 10.0)) * aa;
 		base *= 0.85 + n * 0.3 + speck * 0.08;
-		float pud = smoothstep(0.68, 0.73, fbm(p * 0.9 + 7.0)) * (dry ? 0.0 : 1.0);   // r7 review: 1-2 square puddles
-		rough = mix(rough, 0.32, pud);
+		float pud = smoothstep(0.72, 0.76, fbm(p * 0.9 + 7.0)) * (dry ? 0.0 : 1.0);   // r7 review: 1-2 square puddles
+		rough = mix(rough, 0.45, pud);
 		wet = pud;
 	} else if (pattern == 4) {            // slabs (sidewalk, roof membrane), offset rows
 		vec2 q = vec2(p.x + floor(p.y) * 0.5, p.y);
@@ -135,7 +135,7 @@ void fragment() {
 		base *= 0.9 + hash(floor(q)) * 0.15 + n * 0.08;
 		base = mix(base, albedo2.rgb, g);
 		float pud = smoothstep(0.75, 0.78, fbm(p * 1.1 + 3.0)) * (dry ? 0.0 : 1.0);
-		rough = mix(rough, 0.35, pud);
+		rough = mix(rough, 0.45, pud);
 		wet = pud;
 	} else if (pattern == 5) {            // earth / grass / sand: two-colour noise
 		base = mix(albedo.rgb, albedo2.rgb, smoothstep(0.45, 0.6, fbm(p * 1.3)));
@@ -163,10 +163,10 @@ void fragment() {
 		emit += wc * win * lit * 0.6 * (up ? 0.0 : 1.0);
 	} else if (pattern == 10) {           // water: dark, glossy, slow ripples
 		float r = noise(p * 2.0 + vec2(TIME * 0.15, TIME * 0.1));
-		base *= 0.8 + r * 0.3;
+		base *= 0.9 + r * 0.12;
 		rough = 0.22 + r * 0.1;
 		float caust = smoothstep(0.6, 0.82, noise(p * vec2(5.5, 7.0) - vec2(TIME * 0.3, TIME * 0.08)));   // glowing water: brighter ripples
-		emit *= 0.55 + r * 0.3 + caust * 0.45;
+		emit *= 0.6 + r * 0.15 + caust * 0.22;
 	}
 	if (tex_mix > 0.0) base = mix(base, texture(tex, UV).rgb * albedo.rgb, tex_mix);
 	// --- grounding: contact darkening at wall/prop bases, a light edge on top faces
@@ -195,9 +195,9 @@ void fragment() {
 	float lq = floor(pk * 4.0 + 0.5 + bay * 0.6) / 4.0;   // hard pixel-art light bands
 	lf *= lq / max(pk, 1e-3);
 	pk = lq;
-	base *= 1.0 - 0.15 * wet;   // puddles: a little darker, a thin saturated reflection (no ink holes)
+	base *= 1.0 - 0.12 * wet;   // puddles: a little darker, a thin saturated reflection (no ink holes)
 	vec3 sb = max(base, vec3(0.045));   // spill must show on near-black asphalt too
-	emit += sb * lf * spill * (1.0 - wet * 0.6) + (lf / max(pk, 1e-3)) * min(pk, 0.6) * wet * 0.12;
+	emit += sb * lf * spill * (1.0 - wet * 0.25) + (lf / max(pk, 1e-3)) * min(pk, 0.6) * wet * 0.12;
 	if (lq >= 0.75) emit += (lf / max(pk, 1e-3)) * 0.12;   // hot core: pools have a coloured centre
 	if (k < 1.0) {
 		float l = dot(base, vec3(0.3, 0.59, 0.11));

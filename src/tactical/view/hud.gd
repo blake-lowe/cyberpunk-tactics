@@ -447,7 +447,10 @@ class ActBtn extends Button:
 			"end":
 				draw_colored_polygon(PackedVector2Array([o + Vector2(-r * 1.2, -r), o + Vector2(r * 0.2, 0), o + Vector2(-r * 1.2, r)]), c)
 				draw_colored_polygon(PackedVector2Array([o + Vector2(0, -r), o + Vector2(r * 1.4, 0), o + Vector2(0, r)]), c)
-		draw_string(Hud.F_DISPLAY, Vector2(0, size.y - 7), title, HORIZONTAL_ALIGNMENT_CENTER, w, 18, Color(Hud.TEXT, 0.45 if disabled else 1.0))
+		var fs := Hud.ts(17)   # shrink to fit long titles (WITHDRAW, SUPPRESS)
+		while fs > 10 and Hud.F_BOLD.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > w - 6:
+			fs -= 1
+		draw_string(Hud.F_BOLD, Vector2(0, size.y - 7), title, HORIZONTAL_ALIGNMENT_CENTER, w, fs, Color(Hud.TEXT, 0.45 if disabled else 1.0))
 		if pct >= 0 and not disabled:   # live hit chance for this mode on the hovered target
 			var pc := Hud.GREEN if pct >= 65 else (Hud.GOLD if pct >= 35 else Hud.RED)
 			draw_string(Hud.F_BOLD, Vector2(4, 16), "%d%%" % pct, HORIZONTAL_ALIGNMENT_LEFT, 40, 14, pc)

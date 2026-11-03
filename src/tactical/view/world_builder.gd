@@ -18,6 +18,7 @@ const FH := 1.6
 const CHUNK := 8
 const EXT_T := 0.42       # exterior wall thickness
 const INT_T := 0.24       # interior wall thickness
+const WALL_GAP := 0.012   # walls stop just under the next floor: tops at the floor's own height z-fought (r8 review: white roof dashes)
 const SHADER := preload("res://src/tactical/view/world.gdshader")
 
 ## name → [albedo, albedo2, pattern, scale, rough, metal, extra{}]
@@ -678,7 +679,7 @@ func _walls(f: int) -> void:
 				continue  # rock: _rocks()
 			elif not _connects(f, x, y, true) and not _connects(f, x, y, false):
 				var mt := mat("wall_concrete", f)
-				box(mt, Vector3(x + 0.5, y0 + FH / 2, y + 0.5), Vector3(EXT_T + 0.1, FH, EXT_T + 0.1))
+				box(mt, Vector3(x + 0.5, y0 + (FH - WALL_GAP) / 2, y + 0.5), Vector3(EXT_T + 0.1, FH - WALL_GAP, EXT_T + 0.1))
 	for d in m.doors:
 		if d.floor == f and m.t(f, d.pos.x, d.pos.y) == TacMap.T.DOOR:
 			_door_frame(f, d.pos)
@@ -715,7 +716,7 @@ func _run(f: int, horiz: bool, a: int, b0: int, b1: int, glass: bool, k: int) ->
 		var lintel := 1.32
 		var gsh := {"shell": true} if ext else {}
 		box(mat("wall_concrete" if ext else "wall_int", f, true, gsh), c + Vector3(0, y0 + sill / 2, 0), size.call(sill, t))
-		box(mat("wall_concrete" if ext else "wall_int", f, true, gsh), c + Vector3(0, y0 + (lintel + FH) / 2, 0), size.call(FH - lintel, t))
+		box(mat("wall_concrete" if ext else "wall_int", f, true, gsh), c + Vector3(0, y0 + (lintel + FH - WALL_GAP) / 2, 0), size.call(FH - lintel - WALL_GAP, t))
 		box(mat("glass", f, true, gsh), c + Vector3(0, y0 + (sill + lintel) / 2, 0), size.call(lintel - sill, 0.05))
 		box(mat("frame", f, true, gsh), c + Vector3(0, y0 + sill + 0.02, 0), size.call(0.04, t + 0.06))
 		var n := maxi(1, roundi(length / 0.62))
@@ -748,10 +749,10 @@ func _run(f: int, horiz: bool, a: int, b0: int, b1: int, glass: bool, k: int) ->
 		var cx: int = x0 if horiz else a
 		var cy: int = a if horiz else b0
 		sh.merge(_wall_look(name, _sid_grid[clampi(cy, 0, m.h - 1) * m.w + clampi(cx, 0, m.w - 1)]))
-	box(mat(name, f, true, sh), c + Vector3(0, y0 + FH / 2, 0), size.call(FH, t))
+	box(mat(name, f, true, sh), c + Vector3(0, y0 + (FH - WALL_GAP) / 2, 0), size.call(FH - WALL_GAP, t))
 	box(mat("skirt", f, true, sh), c + Vector3(0, y0 + 0.06, 0), size.call(0.12, t + 0.04))
 	if ext:
-		box(mat("cornice", f, true, sh), c + Vector3(0, y0 + FH - 0.04, 0), size.call(0.08, t + 0.1))
+		box(mat("cornice", f, true, sh), c + Vector3(0, y0 + FH - 0.04 - WALL_GAP, 0), size.call(0.08, t + 0.1))
 
 
 func _door_frame(f: int, p: Vector2i) -> void:
