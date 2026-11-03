@@ -240,6 +240,7 @@ func _swing_door(v: Vector3i) -> void:
 
 
 func _ready() -> void:
+	UiScale.watch(get_window())
 	for a in OS.get_cmdline_user_args():
 		var kv := a.trim_prefix("--").split("=")
 		if kv.size() != 2:
@@ -1086,7 +1087,8 @@ func _draw_markers(c: Control) -> void:
 			var y := sp.y - 18.0 - 4.0 * sin(t * 3.0)
 			c.draw_colored_polygon(PackedVector2Array([Vector2(sp.x - 9, y - 12), Vector2(sp.x + 9, y - 12), Vector2(sp.x, y)]), col)
 			c.draw_polyline(PackedVector2Array([Vector2(sp.x - 13, y - 16), Vector2(sp.x + 13, y - 16), Vector2(sp.x, y + 4), Vector2(sp.x - 13, y - 16)]), Color(col, 0.5), 1.5)
-			c.draw_string(Hud.F_PIXEL, Vector2(sp.x - 60, y - 22), mk[1], HORIZONTAL_ALIGNMENT_CENTER, 120, 16, col)
+			c.draw_string_outline(Hud.F_PIXEL, Vector2(sp.x - 80, y - 22), mk[1], HORIZONTAL_ALIGNMENT_CENTER, 160, 18, 5, Color(0, 0, 0, 0.85))
+			c.draw_string(Hud.F_PIXEL, Vector2(sp.x - 80, y - 22), mk[1], HORIZONTAL_ALIGNMENT_CENTER, 160, 18, col)
 		else:
 			var ctr := r.get_center()
 			var dir := (sp - ctr).normalized() if not behind else (ctr - sp).normalized()
@@ -1099,7 +1101,9 @@ func _draw_markers(c: Control) -> void:
 			var p := ctr + dir * k
 			var side := Vector2(-dir.y, dir.x)
 			c.draw_colored_polygon(PackedVector2Array([p + dir * 14, p - dir * 6 + side * 10, p - dir * 6 - side * 10]), col)
-			c.draw_string(Hud.F_PIXEL, p - dir * 34 - Vector2(60, -6), "%s %dm" % [mk[1], dist], HORIZONTAL_ALIGNMENT_CENTER, 120, 16, col)
+			var tag := "%s %dM" % [mk[1], dist]
+			c.draw_string_outline(Hud.F_PIXEL, p - dir * 34 - Vector2(80, -6), tag, HORIZONTAL_ALIGNMENT_CENTER, 160, 18, 5, Color(0, 0, 0, 0.85))
+			c.draw_string(Hud.F_PIXEL, p - dir * 34 - Vector2(80, -6), tag, HORIZONTAL_ALIGNMENT_CENTER, 160, 18, col)
 
 
 func _draw_cover_shields(c: Control) -> void:

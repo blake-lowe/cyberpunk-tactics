@@ -2,13 +2,13 @@
 
 importer="font_data_dynamic"
 type="FontFile"
-uid="uid://j51uyqx2owqh"
-path="res://.godot/imported/Silkscreen-Bold.ttf-c5bfe206a7f26b7a826f144afbfe2747.fontdata"
+uid="uid://crbnx114i56vm"
+path="res://.godot/imported/ChakraPetch-SemiBold.ttf-87a6da42122dc6ad3132f6ee6c79d8d9.fontdata"
 
 [deps]
 
-source_file="res://assets/fonts/Silkscreen-Bold.ttf"
-dest_files=["res://.godot/imported/Silkscreen-Bold.ttf-c5bfe206a7f26b7a826f144afbfe2747.fontdata"]
+source_file="res://assets/fonts/ChakraPetch-SemiBold.ttf"
+dest_files=["res://.godot/imported/ChakraPetch-SemiBold.ttf-87a6da42122dc6ad3132f6ee6c79d8d9.fontdata"]
 
 [params]
 

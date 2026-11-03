@@ -2,13 +2,13 @@
 
 importer="font_data_dynamic"
 type="FontFile"
-uid="uid://djfncfmjdm0ln"
-path="res://.godot/imported/Silkscreen-Regular.ttf-0088f200f2f1c02c371962cb8d277333.fontdata"
+uid="uid://d4nvnvdakw3cq"
+path="res://.godot/imported/UiSymbols-Chakra.ttf-e635fc74be05014de8376dd994d77410.fontdata"
 
 [deps]
 
-source_file="res://assets/fonts/Silkscreen-Regular.ttf"
-dest_files=["res://.godot/imported/Silkscreen-Regular.ttf-0088f200f2f1c02c371962cb8d277333.fontdata"]
+source_file="res://assets/fonts/UiSymbols-Chakra.ttf"
+dest_files=["res://.godot/imported/UiSymbols-Chakra.ttf-e635fc74be05014de8376dd994d77410.fontdata"]
 
 [params]
 

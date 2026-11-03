@@ -73,6 +73,7 @@ var _scenes := {}
 
 
 func _ready() -> void:
+	UiScale.watch(get_window())
 	var dev := false
 	var stay := false
 	for a in OS.get_cmdline_user_args():
@@ -641,7 +642,7 @@ static func _activity(n: CharModel, room: String) -> void:
 
 
 func _crew_label(c: Combatant) -> Label:
-	var l := _text(c.display_name.to_upper(), Hud.F_TERM, 16, Hud.TEXT)
+	var l := _text(c.display_name.to_upper(), Hud.F_TERM, Hud.ts(16), Hud.TEXT)
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.9))
 	l.add_theme_constant_override("shadow_offset_x", 2)
@@ -674,6 +675,9 @@ func _update_outline() -> void:
 # --- UI -------------------------------------------------------------------------------------
 
 func _text(s: String, font: Font, size: int, col := Hud.TEXT) -> Label:
+	if (font == Hud.F_DISPLAY or font == Hud.F_PIXEL) and s != s.to_upper():   # the pixel face is for caps only
+		font = Hud.F_TERM
+		size = Hud.ts(size)
 	var l := Label.new()
 	l.text = s
 	l.add_theme_font_override("font", font)
@@ -684,7 +688,7 @@ func _text(s: String, font: Font, size: int, col := Hud.TEXT) -> Label:
 
 
 func _wrap(s: String, size: int, col: Color, width := 340.0) -> Label:
-	var l := _text(s, Hud.F_TERM, size, col)
+	var l := _text(s, Hud.F_TERM, Hud.ts(size), col)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	l.custom_minimum_size.x = width
 	return l
@@ -734,7 +738,7 @@ func _build_ui() -> void:
 	hb.add_theme_constant_override("separation", 18)
 	head.add_child(hb)
 	hb.add_child(_text("SAFEHOUSE", Hud.F_DISPLAY, 34, Hud.GOLD))
-	_money = _text("", Hud.F_TERM, 24, Hud.TEXT)
+	_money = _text("", Hud.F_TERM, Hud.ts(24), Hud.TEXT)
 	_money.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	hb.add_child(_money)
 	# crew roster, left
@@ -755,7 +759,7 @@ func _build_ui() -> void:
 	acts.add_child(rest)
 	rest.add_child(_button("REST 1 DAY", Hud.CYAN, func(): camp.rest(1); camp.save(); _rebuild(), true, 16))
 	rest.add_child(_button("UNTIL HEALED", Hud.CYAN, func(): _rest_full(); camp.save(); _rebuild(), true, 16))
-	var hint := _text("CLICK A ROOM TO UPGRADE IT · CLICK SOMEONE TO SET THEIR DOWNTIME · Q/E ROTATE · WHEEL ZOOM", Hud.F_TERM, 16, Hud.DIM)
+	var hint := _text("CLICK A ROOM TO UPGRADE IT · CLICK SOMEONE TO SET THEIR DOWNTIME · Q/E ROTATE · WHEEL ZOOM", Hud.F_TERM, Hud.ts(16), Hud.DIM)
 	hint.name = "hint"
 	ui.add_child(hint)
 	panel = _panel(Hud.CYAN)
@@ -834,19 +838,19 @@ func _build_roster() -> void:
 		row.add_child(v)
 		v.add_child(_text(c.display_name.to_upper(), Hud.F_DISPLAY, 22, Hud.TEXT))
 		var hpc := Hud.GREEN if c.hp >= c.max_hp() else (Hud.GOLD if c.wound_state() < Combatant.Wound.SERIOUS else Hud.RED)
-		v.add_child(_text("%s · HP %d/%d" % [c.role.to_upper(), c.hp, c.max_hp()], Hud.F_TERM, 16, hpc))
-		v.add_child(_text("DOWNTIME: " + String(Campaign.DOWNTIME[c.downtime].name).to_upper(), Hud.F_TERM, 16, Hud.CYAN))
+		v.add_child(_text("%s · HP %d/%d" % [c.role.to_upper(), c.hp, c.max_hp()], Hud.F_TERM, Hud.ts(16), hpc))
+		v.add_child(_text("DOWNTIME: " + String(Campaign.DOWNTIME[c.downtime].name).to_upper(), Hud.F_TERM, Hud.ts(16), Hud.CYAN))
 		card.custom_minimum_size = Vector2(250, 0)
 		roster.add_child(card)
 
 
 func _crew_panel(col: VBoxContainer, c: Combatant) -> void:
 	col.add_child(_text(c.display_name.to_upper(), Hud.F_DISPLAY, 32, Hud.GOLD))
-	col.add_child(_text("%s · RANK %d · %d IP" % [c.role.to_upper(), c.role_rank, c.ip], Hud.F_TERM, 18, Hud.CYAN))
+	col.add_child(_text("%s · RANK %d · %d IP" % [c.role.to_upper(), c.role_rank, c.ip], Hud.F_TERM, Hud.ts(18), Hud.CYAN))
 	col.add_child(_text("HP %d/%d · SP %d/%d%s" % [c.hp, c.max_hp(), c.sp("head"), c.sp("body"),
-		(" · HUM %d/%d" % [c.humanity, c.max_humanity]) if c.tracks_humanity else ""], Hud.F_TERM, 18, Hud.TEXT))
+		(" · HUM %d/%d" % [c.humanity, c.max_humanity]) if c.tracks_humanity else ""], Hud.F_TERM, Hud.ts(18), Hud.TEXT))
 	for inj in c.injuries:
-		col.add_child(_text("! " + String(inj.get("name", "injury")).to_upper(), Hud.F_TERM, 18, Hud.RED))
+		col.add_child(_text("! " + String(inj.get("name", "injury")).to_upper(), Hud.F_TERM, Hud.ts(18), Hud.RED))
 	col.add_child(_text("DOWNTIME JOB", Hud.F_PIXEL, 18, Hud.DIM))
 	for k in Campaign.DOWNTIME:
 		var key: String = k
@@ -867,7 +871,7 @@ func _room_panel(col: VBoxContainer, id: String) -> void:
 	if Campaign.FACILITIES.has(id):
 		var d: Dictionary = Campaign.FACILITIES[id]
 		var lv := camp.level(id)
-		col.add_child(_text("LEVEL %d OF %d" % [lv, d.costs.size()], Hud.F_TERM, 18, Hud.CYAN))
+		col.add_child(_text("LEVEL %d OF %d" % [lv, d.costs.size()], Hud.F_TERM, Hud.ts(18), Hud.CYAN))
 		for i in d.desc.size():
 			if String(d.desc[i]) != "":
 				col.add_child(_wrap(("✓ " if lv > i else "· ") + String(d.desc[i]), 18, Color(Hud.TEXT, 0.9 if lv > i else 0.55)))
@@ -876,14 +880,14 @@ func _room_panel(col: VBoxContainer, id: String) -> void:
 			col.add_child(_button(("BUILD" if lv == 0 else "UPGRADE") + "  %s eb" % Board._money(cost), Hud.GREEN,
 				func(): camp.upgrade(id); camp.save(); _rebuild(), camp.eb >= cost))
 		else:
-			col.add_child(_text("FULLY UPGRADED", Hud.F_TERM, 18, Hud.GREEN))
+			col.add_child(_text("FULLY UPGRADED", Hud.F_TERM, Hud.ts(18), Hud.GREEN))
 	else:
 		var why := {"workshop": "Opens when a Tech joins the crew: armour upgrades between gigs (on the fixer board's crew cards).",
 			"bunks": "Where the crew sleeps, and where anyone recovering rests up when there's no med bay."}
 		col.add_child(_wrap(String(why.get(id, "")), 18, Hud.TEXT))
 	var here := camp.alive_crew().filter(func(c): return _room_for(c) == id)
 	if not here.is_empty():
-		col.add_child(_text("HERE: " + ", ".join(here.map(func(c): return c.display_name.to_upper())), Hud.F_TERM, 18, Hud.CYAN))
+		col.add_child(_text("HERE: " + ", ".join(here.map(func(c): return c.display_name.to_upper())), Hud.F_TERM, Hud.ts(18), Hud.CYAN))
 
 
 func _set_downtime(c: Combatant, job: String) -> void:

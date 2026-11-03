@@ -68,7 +68,7 @@ func _hex(c: Vector2, r: float) -> PackedVector2Array:
 func _draw() -> void:
 	if run == null or run.current < 0:
 		return
-	var font := Hud.F_TERM
+	var font := Hud.F_MONO   # the NET's own readouts keep the terminal face
 	var flick := 0.85 + 0.15 * sin(_t * 31.0) * sin(_t * 7.3)
 	var sh := shown()
 	# ghosts of visited nodes and the links between them

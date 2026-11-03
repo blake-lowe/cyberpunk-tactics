@@ -2,13 +2,13 @@
 
 importer="font_data_dynamic"
 type="FontFile"
-uid="uid://lsqpg1v5h8s1"
-path="res://.godot/imported/ChakraPetch-Medium.ttf-78a016a08515eee6e20491208eeba7e4.fontdata"
+uid="uid://dlhg1ri8ddirv"
+path="res://.godot/imported/UiSymbols-Noto.ttf-c0215c1898c9696506cf2cf06939823c.fontdata"
 
 [deps]
 
-source_file="res://assets/fonts/ChakraPetch-Medium.ttf"
-dest_files=["res://.godot/imported/ChakraPetch-Medium.ttf-78a016a08515eee6e20491208eeba7e4.fontdata"]
+source_file="res://assets/fonts/UiSymbols-Noto.ttf"
+dest_files=["res://.godot/imported/UiSymbols-Noto.ttf-c0215c1898c9696506cf2cf06939823c.fontdata"]
 
 [params]
 

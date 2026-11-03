@@ -19,13 +19,21 @@ const GOLD := Color("f9c80e")
 const RED := Color("ff3b4f")
 const GREEN := Color("39f0a0")
 const VIOLET := Color("b537f2")
-const DIM := Color("6f7d8a")
+const DIM := Color("8796a4")   # secondary text: ~6.7:1 on the panel ink (was 6f7d8a, ~4.8:1)
 const TEXT := Color("e8eef2")
 
 static var F_DISPLAY: FontFile
 static var F_BODY: FontFile
 static var F_PIXEL: FontVariation
 static var F_TERM: FontFile
+static var F_BOLD: FontFile
+static var F_MONO: FontFile
+
+
+## Body-text size for a size written for the old terminal face (VT323 ran ~15% smaller), never
+## below 15 logical px (22 screen px at 1080p).
+static func ts(s: int) -> int:
+	return maxi(15, roundi(s * 0.85))
 
 var portraits: Portraits
 var _party: VBoxContainer
@@ -73,10 +81,31 @@ static func _fonts() -> void:
 	F_PIXEL = FontVariation.new()
 	F_PIXEL.base_font = F_DISPLAY
 	F_PIXEL.spacing_glyph = 1
+	# Body and data text (owner round 6: legibility): Chakra Petch SemiBold, a squared-off tech sans
+	# with open counters and clear figures, antialiased so it holds up at any UI scale. Jersey10
+	# stays the pixel display face for names, buttons and banners. VT323 is kept for the NET's
+	# terminal readouts only (F_MONO).
 	F_TERM = FontFile.new()
-	F_TERM.load_dynamic_font("res://assets/fonts/VT323-Regular.ttf")
-	F_TERM.antialiasing = TextServer.FONT_ANTIALIASING_NONE
+	F_TERM.load_dynamic_font("res://assets/fonts/ChakraPetch-SemiBold.ttf")
+	F_TERM.hinting = TextServer.HINTING_LIGHT
+	F_TERM.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_DISABLED
 	F_BODY = F_TERM
+	F_BOLD = FontFile.new()
+	F_BOLD.load_dynamic_font("res://assets/fonts/ChakraPetch-Bold.ttf")
+	F_BOLD.hinting = TextServer.HINTING_LIGHT
+	F_MONO = FontFile.new()
+	F_MONO.load_dynamic_font("res://assets/fonts/VT323-Regular.ttf")
+	F_MONO.antialiasing = TextServer.FONT_ANTIALIASING_NONE
+	# Symbols the faces lack (★ ◇ ○ ● ⚠ ✓, and arrows/≤≥ in Jersey10) come from explicit fallbacks
+	# instead of whatever the OS has.
+	# They are subsets with short line metrics (tools/make_ui_symbols.py) so they never make a line taller.
+	var sym := FontFile.new()
+	sym.load_dynamic_font("res://assets/fonts/UiSymbols-Noto.ttf")
+	var sym2 := FontFile.new()
+	sym2.load_dynamic_font("res://assets/fonts/UiSymbols-Chakra.ttf")
+	for f in [F_TERM, F_BOLD, F_MONO]:
+		f.fallbacks = [sym]
+	F_DISPLAY.fallbacks = [sym2, sym]
 
 
 func _ready() -> void:
@@ -85,7 +114,7 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var th := Theme.new()
 	th.default_font = F_BODY
-	th.default_font_size = 20
+	th.default_font_size = ts(20)
 	theme = th
 	portraits = Portraits.new()
 	add_child(portraits)
@@ -106,7 +135,7 @@ func _ready() -> void:
 	var lv := VBoxContainer.new()
 	_log_panel.add_child(lv)
 	lv.add_child(_text("// COMBAT LOG", F_PIXEL, 20, DIM))
-	_log = _text("", F_TERM, 20, Color("9fb4c4"))
+	_log = _text("", F_TERM, Hud.ts(20), Color("9fb4c4"))
 	_log.custom_minimum_size = Vector2(320, 0)
 	_log.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lv.add_child(_log)
@@ -131,13 +160,13 @@ func _ready() -> void:
 	_tip_label.bbcode_enabled = true
 	_tip_label.fit_content = true
 	_tip_label.scroll_active = false
-	_tip_label.custom_minimum_size = Vector2(240, 0)
+	_tip_label.custom_minimum_size = Vector2(290, 0)
 	_tip_label.add_theme_font_override("normal_font", F_BODY)
 	_tip_label.add_theme_font_override("bold_font", F_DISPLAY)
 	_tip_label.add_theme_font_override("mono_font", F_TERM)
-	_tip_label.add_theme_font_size_override("normal_font_size", 20)
+	_tip_label.add_theme_font_size_override("normal_font_size", ts(20))
 	_tip_label.add_theme_font_size_override("bold_font_size", 30)
-	_tip_label.add_theme_font_size_override("mono_font_size", 20)
+	_tip_label.add_theme_font_size_override("mono_font_size", ts(20))
 	_tip_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tv.add_child(_tip_label)
 	_tip.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -199,6 +228,9 @@ func _panel(edge := CYAN, corners := 0b0101, accent := Color(0, 0, 0, 0)) -> Pan
 
 
 func _text(s: String, font: Font, size: int, col := TEXT) -> Label:
+	if (font == Hud.F_DISPLAY or font == Hud.F_PIXEL) and s != s.to_upper():   # the pixel face is for caps only
+		font = Hud.F_TERM
+		size = Hud.ts(size)
 	var l := Label.new()
 	l.text = s
 	l.add_theme_font_override("font", font)
@@ -411,8 +443,8 @@ class ActBtn extends Button:
 		draw_string(Hud.F_DISPLAY, Vector2(0, size.y - 7), title, HORIZONTAL_ALIGNMENT_CENTER, w, 18, Color(Hud.TEXT, 0.45 if disabled else 1.0))
 		if pct >= 0 and not disabled:   # live hit chance for this mode on the hovered target
 			var pc := Hud.GREEN if pct >= 65 else (Hud.GOLD if pct >= 35 else Hud.RED)
-			draw_string(Hud.F_TERM, Vector2(5, 19), "%d%%" % pct, HORIZONTAL_ALIGNMENT_LEFT, 40, 20, pc)
-		draw_string(Hud.F_TERM, Vector2(w - 30, 19), key, HORIZONTAL_ALIGNMENT_RIGHT, 26, 20, Color(Hud.TEXT if not disabled else Hud.DIM, 0.85 if not disabled else 0.5))
+			draw_string(Hud.F_BOLD, Vector2(4, 16), "%d%%" % pct, HORIZONTAL_ALIGNMENT_LEFT, 40, 14, pc)
+		draw_string(Hud.F_TERM, Vector2(w - 42, 16), key, HORIZONTAL_ALIGNMENT_RIGHT, 38, 14, Color(Hud.TEXT if not disabled else Hud.DIM, 0.85 if not disabled else 0.5))
 
 
 func _build_bar() -> void:
@@ -512,19 +544,19 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 		slot.modulate = Portraits.tint(c.wound_state())
 		_init_strip.add_child(slot)
 	_clear(_round_box)   # round and stealth state: top right corner
-	_round_box.add_child(_text("ROUND %02d" % maxi(1, enc.init.round_num), F_TERM, 20, CYAN))
+	_round_box.add_child(_text("ROUND %02d" % maxi(1, enc.init.round_num), F_TERM, Hud.ts(20), CYAN))
 	var state := "UNDETECTED"
 	if enc.alarm >= 2:
 		state = "ALARM · BACKUP %d" % enc.backup_in if enc.backup_in > 0 else ("ALARM · NCPD %d" % enc.ncpd_in if enc.ncpd_in > 0 else "ALARM")
 	elif enc.engaged():
 		state = "ENGAGED"
 	_round_box.add_child(_text(state, F_DISPLAY, 20, RED if state != "UNDETECTED" else CYAN))
-	_round_box.add_child(_text(objective_text(enc), F_TERM, 18, GOLD))
+	_round_box.add_child(_text(objective_text(enc), F_TERM, Hud.ts(18), GOLD))
 	for tw in enc.twists:
 		var nm := String(RulesDB.gen("gigs.json").twists.get(tw, {}).get("name", "IT'S A SETUP" if tw == "setup" else tw)).to_upper()
 		if tw == "shift_change" and enc.alarm < 2:
 			nm += " · ROUND %d" % Encounter.SHIFT_CHANGE_ROUND
-		_round_box.add_child(_text("TWIST · " + nm, F_TERM, 18, RED))
+		_round_box.add_child(_text("TWIST · " + nm, F_TERM, Hud.ts(18), RED))
 	_clear(_card)
 	_clear(_econ)
 	var crew_turn: bool = enc.state == "playing" and not enc.cur.is_empty() and enc.cur.team == 0
@@ -544,11 +576,11 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 		var hm := _hp_meter(enc.cur.id, c, 150, 12)
 		hm.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		hp.add_child(hm)
-		hp.add_child(_text("%d/%d HP" % [c.hp, c.max_hp()], F_TERM, 20, _hp_col(c)))
+		hp.add_child(_text("%d/%d HP" % [c.hp, c.max_hp()], F_TERM, Hud.ts(20), _hp_col(c)))
 		_card.add_child(hp)
-		_card.add_child(_text("ARMOR  [HEAD %d]  [BODY %d]" % [c.sp("head"), c.sp("body")], F_TERM, 20, TEXT))
+		_card.add_child(_text("ARMOR  [HEAD %d]  [BODY %d]" % [c.sp("head"), c.sp("body")], F_TERM, Hud.ts(20), TEXT))
 		if not c.injuries.is_empty():
-			_card.add_child(_text("! " + ", ".join(c.injuries.map(func(i): return String(i.get("name", i.id)))).to_upper(), F_TERM, 20, RED))
+			_card.add_child(_text("! " + ", ".join(c.injuries.map(func(i): return String(i.get("name", i.id)))).to_upper(), F_TERM, Hud.ts(20), RED))
 		var t := enc.turn
 		var act := t.action_available or t.attacks_left > 0
 		_econ.add_child(_text("◆ ACTION" if act else "◇ ACTION", F_DISPLAY, 20, CYAN if act else Color(DIM, 0.6)))
@@ -561,7 +593,7 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 		var exhausted := not act and mv == 0
 		(_end_btn as ActBtn).tint = GOLD if exhausted else Color("8a96a0")
 		var w: Weapon = c.weapons[0] if not c.weapons.is_empty() else null
-		_econ.add_child(_text(("%s  %s" % [String(w.def.name).to_upper(), ("%02d/%02d" % [w.ammo, int(w.def.get("mag", 0))]) if w.uses_ammo() else ""]) if w else "UNARMED", F_TERM, 20, TEXT))
+		_econ.add_child(_text(("%s  %s" % [String(w.def.name).to_upper(), ("%02d/%02d" % [w.ammo, int(w.def.get("mag", 0))]) if w.uses_ammo() else ""]) if w else "UNARMED", F_TERM, Hud.ts(20), TEXT))
 		if enc.runs.has(enc.cur.id):
 			_econ.add_child(_text("◆ NET %d" % enc.net_left, F_PIXEL, 20, Color("d68cff")))
 	for k in _mode_buttons:
@@ -675,7 +707,7 @@ func _party_card(u: Dictionary, active: bool) -> Control:
 	var hm := _hp_meter(u.id, c, 80, 9)
 	hm.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	hr.add_child(hm)
-	hr.add_child(_text("%d/%d" % [c.hp, c.max_hp()], F_TERM, 20, _hp_col(c)))
+	hr.add_child(_text("%d/%d" % [c.hp, c.max_hp()], F_TERM, Hud.ts(20), _hp_col(c)))
 	v.add_child(hr)
 	return p
 
@@ -776,7 +808,7 @@ func _net_button(text: String, cb: Callable, w: float, h: float, disabled := fal
 	b.focus_mode = Control.FOCUS_NONE
 	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	b.add_theme_font_override("font", F_TERM)
-	b.add_theme_font_size_override("font_size", 18)
+	b.add_theme_font_size_override("font_size", ts(18))
 	b.add_theme_color_override("font_color", Color("e2c8ff"))
 	b.add_theme_color_override("font_disabled_color", Color(DIM, 0.5))
 	b.add_theme_stylebox_override("normal", CutBox.make(Color(0.06, 0.02, 0.08, 0.9), Color(VIOLET, 0.4), 6, 0b0100, Color(0, 0, 0, 0), 6))
@@ -812,12 +844,12 @@ func _net_refresh(enc: Encounter) -> void:
 	if run.rank() < NetRun.interface_rank(run.runner):
 		status.append("WOUNDED -%d" % (NetRun.interface_rank(run.runner) - run.rank()))
 	if not status.is_empty():
-		_net_box.add_child(_text(" · ".join(status), F_TERM, 18, GOLD))
+		_net_box.add_child(_text(" · ".join(status), F_TERM, Hud.ts(18), GOLD))
 	var ice := run.arch.ice_at(run.current)
 	for i in ice:
 		var st: Dictionary = ice_db[i.kind]
-		_net_box.add_child(_text("!! %s  ATK %d DEF %d PER %d · REZ %d/%d" % [String(i.kind).to_upper(), int(st.atk), int(st.def), int(st.per), int(i.get("rez", st.rez)), int(st.rez)], F_TERM, 18, RED))
-		_net_box.add_child(_text("   " + String(st.get("effect", "")), F_TERM, 16, Color(RED, 0.75)))
+		_net_box.add_child(_text("!! %s  ATK %d DEF %d PER %d · REZ %d/%d" % [String(i.kind).to_upper(), int(st.atk), int(st.def), int(st.per), int(i.get("rez", st.rez)), int(st.rez)], F_TERM, Hud.ts(18), RED))
+		_net_box.add_child(_text("   " + String(st.get("effect", "")), F_TERM, Hud.ts(16), Color(RED, 0.75)))
 	# Only the actions that apply here, each with its odds.
 	var acts := GridContainer.new()
 	acts.columns = 2
@@ -903,7 +935,7 @@ func build_hint(text: String) -> void:
 	var v := VBoxContainer.new()
 	hint.add_child(v)
 	v.add_child(_text("CONTROLS", F_DISPLAY, 20, CYAN))
-	v.add_child(_text(text, F_TERM, 20, Color("9fb4c4")))
+	v.add_child(_text(text, F_TERM, Hud.ts(20), Color("9fb4c4")))
 	hint.visible = false
 	add_child(hint)
 	hint_tab = _panel(CYAN, 0b0010)
@@ -936,7 +968,7 @@ func build_settings(vals: Dictionary, specs: Array, changed: Callable) -> void:
 		sl.step = s[4]
 		sl.value = float(vals[s[0]])
 		sl.custom_minimum_size = Vector2(160, 18)
-		var val := _text(str(vals[s[0]]), F_TERM, 20, CYAN)
+		var val := _text(str(vals[s[0]]), F_TERM, Hud.ts(20), CYAN)
 		sl.value_changed.connect(func(x):
 			vals[s[0]] = x
 			val.text = str(snappedf(x, 0.01))

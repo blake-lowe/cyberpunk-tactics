@@ -24,6 +24,7 @@ const TRAIN_COMMON := ["handgun", "shoulder_arms", "evasion", "stealth", "percep
 
 
 func _ready() -> void:
+	UiScale.watch(get_window(), 0.8)   # a dense menu: a little less than the in-game HUD
 	var dev := false
 	var board_shot := false
 	for a in OS.get_cmdline_user_args():
@@ -63,6 +64,9 @@ func _process(_d: float) -> void:
 
 
 func _text(s: String, font: Font, size: int, col := Hud.TEXT, wrap := false) -> Label:
+	if (font == Hud.F_DISPLAY or font == Hud.F_PIXEL) and s != s.to_upper():   # the pixel face is for caps only
+		font = Hud.F_TERM
+		size = Hud.ts(size)
 	var l := Label.new()
 	l.text = s
 	l.add_theme_font_override("font", font)
@@ -71,6 +75,8 @@ func _text(s: String, font: Font, size: int, col := Hud.TEXT, wrap := false) -> 
 	if wrap:   # only in vertical stacks: in a row a wrapping label collapses to one letter per line
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		if font == Hud.F_DISPLAY:   # caps in the pixel face: its line box leaves a gap fit for descenders
+			l.add_theme_constant_override("line_spacing", -size / 4)
 	return l
 
 
@@ -85,8 +91,10 @@ func _button(label: String, col: Color, cb: Callable, enabled := true) -> Button
 	b.text = label
 	b.focus_mode = Control.FOCUS_NONE
 	b.disabled = not enabled
-	b.add_theme_font_override("font", Hud.F_DISPLAY)
-	b.add_theme_font_size_override("font_size", 20)
+	# short caps labels in the pixel face; sentences (downtime, perks) in the body face
+	var prose := label.length() > 22 or label != label.to_upper()
+	b.add_theme_font_override("font", Hud.F_TERM if prose else Hud.F_DISPLAY)
+	b.add_theme_font_size_override("font_size", Hud.ts(19) if prose else 20)
 	b.add_theme_color_override("font_color", col)
 	b.add_theme_stylebox_override("normal", CutBox.make(Color(0.03, 0.045, 0.06, 0.95), Color(col, 0.5), 7, 0b0101))
 	b.add_theme_stylebox_override("hover", CutBox.make(Color(col.r * 0.15, col.g * 0.15, col.b * 0.15, 0.97), col, 7, 0b0101))
@@ -125,7 +133,7 @@ func _build() -> void:
 	head.add_child(title)
 	for s in [["DAY %d" % camp.day, Hud.CYAN], ["%s eb" % _money(camp.eb), Hud.GREEN], ["REP %d" % camp.rep, Hud.MAGENTA],
 			["HEAT %d" % camp.heat, Hud.RED if camp.heat >= 5 else (Hud.GOLD if camp.heat > 0 else Hud.DIM)]]:
-		var l := _text(s[0], Hud.F_TERM, 34, s[1])
+		var l := _text(s[0], Hud.F_TERM, Hud.ts(34), s[1])
 		l.size_flags_vertical = Control.SIZE_SHRINK_END
 		head.add_child(l)
 	var sh := _button("‹  SAFEHOUSE", Hud.GREEN, func(): camp.save(); get_tree().change_scene_to_file("res://scenes/base.tscn"))
@@ -158,7 +166,7 @@ func _build() -> void:
 	if not camp.fallen.is_empty():
 		left.add_child(_text("// FLATLINED", Hud.F_PIXEL, 22, Hud.RED))
 		for f in camp.fallen:
-			left.add_child(_text("%s · %s · day %d · %s" % [String(f.name).to_upper(), String(f.role).capitalize(), int(f.day), f.gig], Hud.F_TERM, 20, Color(Hud.RED, 0.8), true))
+			left.add_child(_text("%s · %s · day %d · %s" % [String(f.name).to_upper(), String(f.role).capitalize(), int(f.day), f.gig], Hud.F_TERM, Hud.ts(20), Color(Hud.RED, 0.8), true))
 	mid.add_child(_text("// FIXER BOARD", Hud.F_PIXEL, 22, Hud.GOLD))
 	for i in camp.board.size():
 		mid.add_child(_gig_card(i))
@@ -173,7 +181,7 @@ func _build() -> void:
 		mid.add_child(_ripperdoc())
 	mid.add_child(_text("// LOG", Hud.F_PIXEL, 22, Hud.DIM))
 	for l in camp.log.slice(-6):
-		mid.add_child(_text("> " + l, Hud.F_TERM, 20, Color(Hud.TEXT, 0.7), true))
+		mid.add_child(_text("> " + l, Hud.F_TERM, Hud.ts(20), Color(Hud.TEXT, 0.7), true))
 
 
 func _facility(f: String) -> PanelContainer:
@@ -188,10 +196,10 @@ func _facility(f: String) -> PanelContainer:
 	var nm := _text(String(d.name).to_upper(), Hud.F_DISPLAY, 22, Hud.TEXT if lv > 0 else Color(Hud.TEXT, 0.6))
 	nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(nm)
-	top.add_child(_text("◆".repeat(lv) + "◇".repeat(d.costs.size() - lv), Hud.F_TERM, 20, Hud.GREEN))
+	top.add_child(_text("◆".repeat(lv) + "◇".repeat(d.costs.size() - lv), Hud.F_TERM, Hud.ts(20), Hud.GREEN))
 	for i in d.desc.size():
 		if String(d.desc[i]) != "":
-			col.add_child(_text(("✓ " if lv > i else "· ") + String(d.desc[i]), Hud.F_TERM, 17, Color(Hud.TEXT, 0.85 if lv > i else 0.5), true))
+			col.add_child(_text(("✓ " if lv > i else "· ") + String(d.desc[i]), Hud.F_TERM, Hud.ts(17), Color(Hud.TEXT, 0.85 if lv > i else 0.5), true))
 	var cost := camp.upgrade_cost(f)
 	if cost >= 0:
 		col.add_child(_button(("BUILD" if lv == 0 else "UPGRADE") + "  %s eb" % _money(cost), Hud.GREEN, func(): camp.upgrade(f); _rebuild(), camp.eb >= cost))
@@ -209,7 +217,7 @@ func _shop() -> VBoxContainer:
 	var who := HBoxContainer.new()
 	who.add_theme_constant_override("separation", 8)
 	box.add_child(who)
-	who.add_child(_text("BUYING FOR", Hud.F_TERM, 20, Hud.DIM))
+	who.add_child(_text("BUYING FOR", Hud.F_TERM, Hud.ts(20), Hud.DIM))
 	for i in camp.crew.size():
 		var idx := i
 		var b := _button(camp.crew[i].display_name.to_upper(), Hud.GOLD if i == _shop_for else Hud.CYAN, func(): _shop_for = idx; _rebuild())
@@ -227,7 +235,7 @@ func _shop() -> VBoxContainer:
 		col.add_theme_constant_override("separation", 2)
 		p.add_child(col)
 		col.add_child(_text(String(it.name).to_upper(), Hud.F_DISPLAY, 20, Hud.TEXT))
-		col.add_child(_text("%s · %s eb%s" % [it.info, _money(int(it.cost)), "  (via fixer +20%)" if it.get("fixer", false) else ""], Hud.F_TERM, 18, Color(Hud.TEXT, 0.7), true))
+		col.add_child(_text("%s · %s eb%s" % [it.info, _money(int(it.cost)), "  (via fixer +20%)" if it.get("fixer", false) else ""], Hud.F_TERM, Hud.ts(18), Color(Hud.TEXT, 0.7), true))
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 6)
 		col.add_child(row)
@@ -264,8 +272,8 @@ func _ripperdoc() -> VBoxContainer:
 		col.add_theme_constant_override("separation", 2)
 		p.add_child(col)
 		col.add_child(_text(String(d.name).to_upper(), Hud.F_DISPLAY, 20, Hud.TEXT))
-		col.add_child(_text(String(Campaign.RIPPERDOC[id][1]), Hud.F_TERM, 17, Color(Hud.TEXT, 0.8), true))
-		col.add_child(_text("%s eb · HL %s%s" % [_money(int(d.cost)), d.hl_dice, " · %s" % String(d.install).to_upper()], Hud.F_TERM, 17, Color(Hud.TEXT, 0.6)))
+		col.add_child(_text(String(Campaign.RIPPERDOC[id][1]), Hud.F_TERM, Hud.ts(17), Color(Hud.TEXT, 0.8), true))
+		col.add_child(_text("%s eb · HL %s%s" % [_money(int(d.cost)), d.hl_dice, " · %s" % String(d.install).to_upper()], Hud.F_TERM, Hud.ts(17), Color(Hud.TEXT, 0.6)))
 		var why := camp.install_block(c, id)
 		var cid: String = id
 		col.add_child(_button("INSTALL" if why == "" else why.to_upper(), Hud.VIOLET, func(): camp.install(c, cid); _rebuild(), why == ""))
@@ -306,19 +314,19 @@ func _crew_card(c: Combatant) -> PanelContainer:
 	col.add_theme_constant_override("separation", 2)
 	row.add_child(col)
 	col.add_child(_text(c.display_name.to_upper(), Hud.F_DISPLAY, 30, Hud.TEXT))
-	col.add_child(_text("%s · RANK %d · %d IP" % [c.role.to_upper(), c.role_rank, c.ip], Hud.F_TERM, 20, Hud.CYAN))
+	col.add_child(_text("%s · RANK %d · %d IP" % [c.role.to_upper(), c.role_rank, c.ip], Hud.F_TERM, Hud.ts(20), Hud.CYAN))
 	var hpcol := Hud.GREEN if c.hp >= c.max_hp() else (Hud.GOLD if c.wound_state() < Combatant.Wound.SERIOUS else Hud.RED)
-	col.add_child(_text("HP %d/%d   SP %d/%d" % [c.hp, c.max_hp(), c.sp("head"), c.sp("body")], Hud.F_TERM, 20, hpcol))
+	col.add_child(_text("HP %d/%d   SP %d/%d" % [c.hp, c.max_hp(), c.sp("head"), c.sp("body")], Hud.F_TERM, Hud.ts(20), hpcol))
 	if c.tracks_humanity:
 		var hum_col := Hud.GREEN if c.psychosis_tier() == 0 else (Hud.GOLD if c.psychosis_tier() == 1 else Hud.RED)
 		var hr := HBoxContainer.new()
 		hr.add_theme_constant_override("separation", 8)
-		hr.add_child(_text("HUM %d/%d  EMP %d" % [c.humanity, c.max_humanity, c.raw_stat("EMP")], Hud.F_TERM, 20, hum_col))
+		hr.add_child(_text("HUM %d/%d  EMP %d" % [c.humanity, c.max_humanity, c.raw_stat("EMP")], Hud.F_TERM, Hud.ts(20), hum_col))
 		if c.humanity < c.max_humanity:
 			hr.add_child(_button("THERAPY %d eb · 1 WEEK" % int(Campaign.THERAPY.cost), Hud.GREEN, func(): camp.therapy(c); _rebuild(), camp.eb >= int(Campaign.THERAPY.cost)))
 		col.add_child(hr)
 	if not c.cyberware.is_empty():
-		col.add_child(_text("CHROME: " + ", ".join(c.cyberware.map(func(x): return String(RulesDB.cyberware(x).name))), Hud.F_TERM, 17, Color(Hud.VIOLET, 0.9), true))
+		col.add_child(_text("CHROME: " + ", ".join(c.cyberware.map(func(x): return String(RulesDB.cyberware(x).name))), Hud.F_TERM, Hud.ts(19), Hud.VIOLET.lightened(0.35), true))
 	var tech := camp.best_tech()
 	if tech != null:   # the crew's Tech can upgrade armour in the workshop (p148)
 		var wr := HBoxContainer.new()
@@ -334,11 +342,11 @@ func _crew_card(c: Combatant) -> PanelContainer:
 		if wr.get_child_count() > 0:
 			col.add_child(wr)
 	if c.grenades > 0 or not c.weapons.is_empty():
-		col.add_child(_text(", ".join(c.weapons.map(func(w): return String(w.def.name))) + ("  · frag ×%d" % c.grenades if c.grenades > 0 else ""), Hud.F_TERM, 18, Color(Hud.TEXT, 0.7), true))
+		col.add_child(_text(", ".join(c.weapons.map(func(w): return String(w.def.name))) + ("  · frag ×%d" % c.grenades if c.grenades > 0 else ""), Hud.F_TERM, Hud.ts(18), Color(Hud.TEXT, 0.7), true))
 	for i in c.injuries.size():
 		var inj: Dictionary = c.injuries[i]
 		var r := HBoxContainer.new()
-		r.add_child(_text("! " + String(inj.get("name", "injury")).to_upper(), Hud.F_TERM, 20, Hud.RED))
+		r.add_child(_text("! " + String(inj.get("name", "injury")).to_upper(), Hud.F_TERM, Hud.ts(20), Hud.RED))
 		var idx := i
 		r.add_child(_button("TREAT %d eb" % camp.treat_cost(), Hud.GREEN, func(): camp.treat(c, idx); _rebuild(), camp.eb >= camp.treat_cost()))
 		col.add_child(r)
@@ -364,7 +372,7 @@ func _training(c: Combatant) -> VBoxContainer:
 		func(): c.raise_rank(); _rebuild(), c.ip >= c.rank_raise_cost() and c.role_rank < 10))
 	var tree := Combatant.perk_tree(c.role)
 	for t in tree.size():
-		box.add_child(_text("TIER %d PERK%s" % [t + 1, "  · needs Rank %d" % int(RulesDB.load_json("perks.json").tier2_rank) if t > 0 else ""], Hud.F_TERM, 18, Hud.DIM))
+		box.add_child(_text("TIER %d PERK%s" % [t + 1, "  · needs Rank %d" % int(RulesDB.load_json("perks.json").tier2_rank) if t > 0 else ""], Hud.F_TERM, Hud.ts(18), Hud.DIM))
 		for pk in tree[t]:
 			var id: String = pk.id
 			var taken: bool = id in c.perks
@@ -373,11 +381,11 @@ func _training(c: Combatant) -> VBoxContainer:
 				Hud.GREEN if taken else Hud.CYAN, func(): c.take_perk(id); _rebuild(), why == "" and not taken)
 			b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 			b.add_theme_font_override("font", Hud.F_TERM)
-			b.add_theme_font_size_override("font_size", 17)
+			b.add_theme_font_size_override("font_size", Hud.ts(17))
 			b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			b.custom_minimum_size.x = 260
 			box.add_child(b)
-	box.add_child(_text("SKILLS", Hud.F_TERM, 18, Hud.DIM))
+	box.add_child(_text("SKILLS", Hud.F_TERM, Hud.ts(18), Hud.DIM))
 	var grid := GridContainer.new()
 	grid.columns = 2
 	box.add_child(grid)
@@ -408,18 +416,18 @@ func _gig_card(i: int) -> PanelContainer:
 	col.add_child(top)
 	var t := _text(String(g.title).to_upper(), Hud.F_DISPLAY, 30, Hud.GOLD, true)
 	top.add_child(t)
-	top.add_child(_text("%s eb" % _money(int(g.pay)), Hud.F_TERM, 30, Hud.GREEN))
-	col.add_child(_text("%s (REP %d) · %s · SECURITY %s" % [String(g.fixer).to_upper(), camp.rep_with(String(g.fixer)), Campaign.place_name(g).to_upper(), "◆".repeat(int(g.security)) + "◇".repeat(3 - int(g.security))], Hud.F_TERM, 20, Hud.CYAN))
+	top.add_child(_text("%s eb" % _money(int(g.pay)), Hud.F_TERM, Hud.ts(30), Hud.GREEN))
+	col.add_child(_text("%s (REP %d) · %s · SECURITY %s" % [String(g.fixer).to_upper(), camp.rep_with(String(g.fixer)), Campaign.place_name(g).to_upper(), "◆".repeat(int(g.security)) + "◇".repeat(3 - int(g.security))], Hud.F_TERM, Hud.ts(20), Hud.CYAN))
 	col.add_child(_text(String(g.blurb), Hud.F_BODY, 20, Color(Hud.TEXT, 0.85), true))
 	if g.get("unique", false):
-		col.add_child(_text("PERSONAL JOB · %s TRUSTS YOU · DOUBLE PAY" % String(g.fixer).to_upper(), Hud.F_TERM, 18, Hud.MAGENTA))
+		col.add_child(_text("PERSONAL JOB · %s TRUSTS YOU · DOUBLE PAY" % String(g.fixer).to_upper(), Hud.F_TERM, Hud.ts(18), Hud.MAGENTA))
 	var tw := String(g.get("twist", ""))
 	if tw != "":
 		var td: Dictionary = RulesDB.gen("gigs.json").twists[tw]
-		col.add_child(_text("TWIST · %s: %s" % [String(td.name).to_upper(), td.desc], Hud.F_TERM, 18, Hud.RED, true))
+		col.add_child(_text("TWIST · %s: %s" % [String(td.name).to_upper(), td.desc], Hud.F_TERM, Hud.ts(18), Hud.RED, true))
 	col.add_child(_text("OBJECTIVE · " + {"data": "Download the target file, or eliminate all hostiles",
 		"eliminate": "Eliminate all hostiles, including reinforcements",
-		"snatch": "Recover the package and carry it to the extraction zone"}[Campaign.objective_for(g)].to_upper(), Hud.F_TERM, 18, Hud.GOLD))
+		"snatch": "Recover the package and carry it to the extraction zone"}[Campaign.objective_for(g)].to_upper(), Hud.F_TERM, Hud.ts(18), Hud.GOLD))
 	var ready := camp.alive_crew().any(func(c): return c.can_act() and c.wound_state() < Combatant.Wound.MORTAL)
 	col.add_child(_button("TAKE THE GIG", Hud.GOLD, func(): _take(i), ready))
 	return p
@@ -431,7 +439,7 @@ func _recruit_card(i: int) -> PanelContainer:
 	var col := VBoxContainer.new()
 	p.add_child(col)
 	col.add_child(_text(r.display_name.to_upper(), Hud.F_DISPLAY, 26, Hud.TEXT))
-	col.add_child(_text(r.role.to_upper(), Hud.F_TERM, 20, Hud.GREEN))
+	col.add_child(_text(r.role.to_upper(), Hud.F_TERM, Hud.ts(20), Hud.GREEN))
 	col.add_child(_button("HIRE", Hud.GREEN, func(): camp.hire(i); _rebuild(), camp.eb >= int(Campaign.ECON.hire) and camp.crew.size() < 4))
 	return p
 
@@ -449,11 +457,11 @@ func _report_panel() -> PanelContainer:
 		parts.append("%+d heat" % int(report.heat))
 	if int(report.get("salvage", 0)) > 0:
 		parts.insert(1, "+%d eb salvage" % int(report.salvage))
-	col.add_child(_text("   ".join(parts), Hud.F_TERM, 26, Hud.TEXT))
+	col.add_child(_text("   ".join(parts), Hud.F_TERM, Hud.ts(26), Hud.TEXT))
 	if not report.dead.is_empty():
-		col.add_child(_text("FLATLINED: " + ", ".join(report.dead).to_upper(), Hud.F_TERM, 24, Hud.RED))
+		col.add_child(_text("FLATLINED: " + ", ".join(report.dead).to_upper(), Hud.F_TERM, Hud.ts(24), Hud.RED))
 	if not report.hurt.is_empty():
-		col.add_child(_text("Hurt: " + ", ".join(report.hurt) + " (rest to heal; clinics treat Critical Injuries)", Hud.F_TERM, 20, Hud.GOLD, true))
+		col.add_child(_text("Hurt: " + ", ".join(report.hurt) + " (rest to heal; clinics treat Critical Injuries)", Hud.F_TERM, Hud.ts(20), Hud.GOLD, true))
 	return p
 
 
