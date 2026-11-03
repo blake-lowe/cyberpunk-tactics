@@ -86,7 +86,7 @@ const LOOKS := {
 		"fog_dim": 0.62, "fog_sat": 0.55, "fog_cool": 0.0},
 	# Arcology: bright, cold, shadowless light from the atrium roof; a faint red rim.
 	"arcology": {"ambient": "8a98b0", "amb_e": 0.45, "key": "eef2fa", "key_e": 0.55, "fog": "b8c2d0", "fog_d": 0.0015,
-		"sun": [-62.0, 200.0], "sky": ["98a4b4", "c8d0da", "e6eaee"], "rim": ["ff5060", 0.22], "lights": 0.5, "spill": 0.3,
+		"sun": [-62.0, 200.0], "sky": ["98a4b4", "c8d0da", "e6eaee"], "rim": ["ff5060", 0.22], "lights": 0.5, "spill": 0.3, "soft_light": true,
 		"fog_dim": 0.82, "fog_sat": 0.7, "fog_cool": 0.0},
 	# Warzone: dusk under a sky lit by the fires; ember key low in the west, heavy brown smoke haze.
 	"warzone": {"ambient": "3a3038", "amb_e": 0.62, "key": "ff8a50", "key_e": 0.5, "fog": "3a2420", "fog_d": 0.0045,
@@ -729,6 +729,7 @@ func _apply_world_look() -> void:
 			mt.set_shader_parameter("explored_dim", float(lk.get("fog_dim", look.dim)))
 			mt.set_shader_parameter("fog_sat", float(lk.get("fog_sat", 0.3)))
 			mt.set_shader_parameter("fog_cool", float(lk.get("fog_cool", 1.0)))
+			mt.set_shader_parameter("soft_light", bool(lk.get("soft_light", false)))
 			mt.set_shader_parameter("spill", 0.0 if _net_cleaned else look.spill * float(lk.get("spill", 1.0)))   # cyberspace keeps the spill off
 			mt.set_shader_parameter("lightfield", builder.lightfield)
 
@@ -1466,6 +1467,20 @@ func _draw_path() -> void:
 func _place_camera() -> void:
 	var fy := view_floor * FH
 	var pitch := deg_to_rad(lerpf(36.0, 62.0, clampf(inverse_lerp(12.0, 70.0, cam_dist), 0.0, 1.0)))
+	if _promo and m:   # beauty renders: keep the frame on the map (r8 review: half the frame was off-map void)
+		var half_h := cam_dist * 0.62 / 2.0 / sin(pitch)
+		var vs := get_viewport().get_visible_rect().size
+		var half_w := cam_dist * 0.62 / 2.0 * (vs.x / maxf(vs.y, 1.0))
+		var yr := deg_to_rad(cam_yaw)
+		var right := Vector2(cos(yr), -sin(yr))
+		var fwd := Vector2(sin(yr), cos(yr))
+		var ex := 0.0
+		var ez := 0.0
+		for c in [right * half_w + fwd * half_h, right * half_w - fwd * half_h]:
+			ex = maxf(ex, absf(c.x))
+			ez = maxf(ez, absf(c.y))
+		cam_target.x = m.w / 2.0 if m.w < ex * 2.0 else clampf(cam_target.x, ex, m.w - ex)
+		cam_target.z = m.h / 2.0 if m.h < ez * 2.0 else clampf(cam_target.z, ez, m.h - ez)
 	var off := Vector3(0, sin(pitch), cos(pitch)).rotated(Vector3.UP, deg_to_rad(cam_yaw)) * cam_dist
 	var focus := cam_target + Vector3(0, fy, 0)
 	cam.position = focus + off

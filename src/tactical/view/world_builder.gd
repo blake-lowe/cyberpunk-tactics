@@ -29,7 +29,7 @@ const LIB := {
 	"gravel": [Color("3b3833"), Color("2a2824"), 5, 2.0, 0.95, 0.0],
 	"dirt": [Color("5a4836"), Color("3e3226"), 5, 0.8, 0.95, 0.0],   # r7 review: lots read as voids when darker
 	"grass": [Color("2c4630"), Color("3a4a28"), 5, 1.1, 0.95, 0.0],
-	"sand": [Color("8e7c68"), Color("766452"), 5, 0.7, 0.95, 0.0],
+	"sand": [Color("9a8670"), Color("6a5644"), 5, 0.7, 0.95, 0.0],   # r8 review: wider tone gap so the badlands floor isn't one flat colour
 	"rail": [Color("2c2724"), Color("1a1715"), 6, 0.9, 0.7, 0.2],
 	"dock": [Color("2f2a25"), Color("1a1714"), 2, 0.8, 0.75, 0.0],
 	"water": [Color("0a1822"), Color("0a1822"), 10, 0.5, 0.05, 0.2],
@@ -583,7 +583,7 @@ func _ground_organic() -> void:
 		lift += 0.004
 		var tris := marching(func(x: int, y: int) -> bool:
 			return m.inb(x, y) and m.t(0, x, y) != TacMap.T.VOID and int(m.ground[y * m.w + x]) == g and m.label(0, x, y) < 0 or \
-				(m.inb(x, y) and int(m.ground[y * m.w + x]) == g and m.label(0, x, y) >= 0 and m.rooms[m.label(0, x, y)].get("outdoor", false)), m.w, m.h, 0.22, g)
+				(m.inb(x, y) and int(m.ground[y * m.w + x]) == g and m.label(0, x, y) >= 0 and m.rooms[m.label(0, x, y)].get("outdoor", false)), m.w, m.h, 0.1, g)   # less jitter: no floating shards
 		var s := _surface(tris, -0.02 + lift, mat(gtypes[g], 0, false))
 		if s:
 			s.set_meta("floor", 0)
@@ -1110,7 +1110,9 @@ func _roof_clutter(f: int) -> void:
 				box(S, p + Vector3(0, 0.12, 0), Vector3(0.3, 0.24, 0.3), rng.randf())
 			elif roll < 0.172:   # skylight glowing from the room below (sparse: they read as noise in numbers)
 				var sk: Color = [Color("ffc890"), Color("ffb070")][rng.randi() % 2]
-				box(mat("dark", f, true, {"glow": 0.45, "emit": sk}), Vector3(x + 0.5, y0 + 0.03, y + 0.5), Vector3(0.6, 0.05, 0.6))
+				box(mat("frame", f), Vector3(x + 0.5, y0 + 0.03, y + 0.5), Vector3(0.66, 0.06, 0.66))
+				for q in [Vector2(-0.14, -0.14), Vector2(0.14, -0.14), Vector2(-0.14, 0.14), Vector2(0.14, 0.14)]:   # four panes in a frame
+					box(mat("dark", f, true, {"glow": 0.45, "emit": sk}), Vector3(x + 0.5 + q.x, y0 + 0.065, y + 0.5 + q.y), Vector3(0.22, 0.02, 0.22))
 				emitters.append({"cell": Vector3i(x, y, f), "color": sk, "energy": 0.8, "range": 2.5, "out": Vector2i.ZERO})
 
 

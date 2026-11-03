@@ -38,7 +38,8 @@ global uniform vec4 focus_view;     // focus in screen UV (xy), its view depth (
 uniform bool flat_shade = false;    // faceted lighting (rocks)
 uniform bool offmap = false;        // ground beyond the map: fades out with distance
 uniform bool near_fade = false;
-uniform bool dry = false;           // no puddles (roofs: their specular read as white streaks)     // tall surroundings on every side (arcology walls) dissolve on the camera side
+uniform bool dry = false;
+uniform bool soft_light = false;    // bright scenes (arcology): no hard banding of light pools           // no puddles (roofs: their specular read as white streaks)     // tall surroundings on every side (arcology walls) dissolve on the camera side
 uniform sampler2D tex : source_color, filter_linear_mipmap, repeat_enable;   // imported models (nature kit)
 uniform float tex_mix = 0.0;        // 1: the model's own texture (tinted by albedo) replaces the pattern
 
@@ -78,7 +79,7 @@ void fragment() {
 	// camera-side skyline dissolves entirely above street level
 	if (mode == 2 && dot(wpos.xz - cut_center.xz, cut_dir) < -4.0 && wpos.y > 1.2 && (near_fade || (wpos.x > -0.5 && wpos.x < map_size.x + 80.0))) {
 		float far = smoothstep(4.0, 9.0, -dot(wpos.xz - cut_center.xz, cut_dir));
-		if (far > bay + 0.5) discard;
+		if (far > (emission_energy > 0.9 ? 0.35 : bay + 0.5)) discard;   // glowing strips go cleanly (dithered they left dotted lines)
 	}
 	if ((mode == 2 || (shell && fogv.g < 0.5)) && focus_view.w > 0.0 && wpos.y > cut_center.y * 1.6 + 0.9 && -VERTEX.z < focus_view.z - 1.5) {
 		float r = length((SCREEN_UV - focus_view.xy) * vec2(VIEWPORT_SIZE.x / VIEWPORT_SIZE.y, 1.0)) / focus_view.w;
@@ -139,6 +140,7 @@ void fragment() {
 		wet = pud;
 	} else if (pattern == 5) {            // earth / grass / sand: two-colour noise
 		base = mix(albedo.rgb, albedo2.rgb, smoothstep(0.45, 0.6, fbm(p * 1.3)));
+		base *= 0.82 + 0.36 * noise(p * 0.12 + 11.0);   // broad drifts of lighter and darker ground
 		float aa5 = 1.0 - smoothstep(0.4, 0.9, fwidth(p.x) * 25.0);
 		base *= 0.9 + hash(floor(p * 25.0)) * 0.15 * aa5;
 	} else if (pattern == 6) {            // grating
@@ -192,7 +194,7 @@ void fragment() {
 	float pk = max(lf.r, max(lf.g, lf.b));
 	lf *= 1.0 / (1.0 + pk * 0.6);   // soft knee: pools keep their hue instead of clipping white
 	pk = max(lf.r, max(lf.g, lf.b));
-	float lq = floor(pk * 4.0 + 0.5 + bay * 0.6) / 4.0;   // hard pixel-art light bands
+	float lq = soft_light ? pk : floor(pk * 4.0 + 0.5 + bay * 0.6) / 4.0;   // hard pixel-art light bands (soft on bright scenes: bands read as cut-outs)
 	lf *= lq / max(pk, 1e-3);
 	pk = lq;
 	base *= 1.0 - 0.12 * wet;   // puddles: a little darker, a thin saturated reflection (no ink holes)
