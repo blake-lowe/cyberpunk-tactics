@@ -218,6 +218,17 @@
     "neighborhood:pacifica": [
       "gang",
       "residential"
+    ],
+    "undercity": [
+      "gang",
+      "industrial"
+    ],
+    "arcology": [
+      "corp"
+    ],
+    "warzone": [
+      "gang",
+      "wild"
     ]
   },
   "kind_tags": {

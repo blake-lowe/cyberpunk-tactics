@@ -76,6 +76,19 @@ const LOOKS := {
 	"badlands": {"ambient": "4c4c90", "amb_e": 0.75, "key": "ffc898", "key_e": 1.15, "fog": "a86a58", "fog_d": 0.0025,
 		"sun": [-17.0, 235.0], "sky": ["1c2050", "9a4466", "ff8c3c"], "palette": "sunset", "rim": ["6a5aa0", 0.35], "lights": 0.55,
 		"fog_dim": 0.78, "fog_sat": 0.9, "fog_cool": 0.0},
+	# Undercity: no sky, no moon. Dim green-black ambient; the work lamps and the glowing runoff
+	# do the lighting. Unseen tunnels stay green-dark rather than going blue.
+	"undercity": {"ambient": "2a4034", "amb_e": 0.7, "key": "6a8a70", "key_e": 0.22, "fog": "0a1a10", "fog_d": 0.006,
+		"sky": ["020403", "040806", "0a140c"], "rim": ["3a6a4a", 0.2], "lights": 1.15,
+		"fog_dim": 0.62, "fog_sat": 0.55, "fog_cool": 0.0},
+	# Arcology: bright, cold, shadowless light from the atrium roof; a faint red rim.
+	"arcology": {"ambient": "8a98b0", "amb_e": 0.45, "key": "eef2fa", "key_e": 0.55, "fog": "b8c2d0", "fog_d": 0.0015,
+		"sun": [-62.0, 200.0], "sky": ["98a4b4", "c8d0da", "e6eaee"], "rim": ["ff5060", 0.22], "lights": 0.5, "spill": 0.3,
+		"fog_dim": 0.82, "fog_sat": 0.7, "fog_cool": 0.0},
+	# Warzone: dusk under a sky lit by the fires; ember key low in the west, heavy brown smoke haze.
+	"warzone": {"ambient": "3a3038", "amb_e": 0.62, "key": "ffc0a0", "key_e": 0.7, "fog": "3a2420", "fog_d": 0.0045,
+		"sun": [-12.0, 250.0], "sky": ["120a0c", "4a1a14", "c8501a"], "rim": ["ff6a2a", 0.3], "lights": 0.85,
+		"fog_dim": 0.7, "fog_sat": 0.75, "fog_cool": 0.0},
 }
 const DECAL := """
 shader_type spatial;
@@ -133,6 +146,7 @@ var fires: Array[OmniLight3D] = []
 var decals := {}              ## unit id → ground glow MeshInstance3D
 var _withdraw_ask := -10000    ## withdrawal needs a second press within 3 s
 var devices: DeviceView      ## meatspace devices with status lights
+var ambient: AmbientFx       ## scene ambience: embers, flames and smoke, steam, drips, light shafts
 var keycard_nodes := {}        ## unit id → glinting keycard over a downed carrier
 var obj_node: Node3D           ## snatch objective: the package (a case on a gold beacon) and the extraction squares
 var dash_opts := {}           ## squares reachable by also spending the Action on a Run (amber contour)
@@ -429,11 +443,18 @@ func _apply_look() -> void:
 	screen.size = Vector2(svp.size) * px
 	post.set_shader_parameter("src_size", Vector2(svp.size))
 	post.set_shader_parameter("palette_on", look.palette > 0.5)
-	var sunset := String(_scene_look().get("palette", "")) == "sunset"
+	var pname := String(_scene_look().get("palette", SceneTheme.of(m).get("palette", "")))
+	var hexes: Array = PALETTE
+	var nn := PALETTE_NEUTRALS
+	if pname == "sunset":
+		hexes = PALETTE_SUNSET
+		nn = PALETTE_SUNSET_NEUTRALS
+	elif SceneTheme.PALETTES.has(pname):
+		nn = int(SceneTheme.PALETTES[pname][0])
+		hexes = SceneTheme.PALETTES[pname][1]
 	var pal := PackedVector3Array()
-	for h in (PALETTE_SUNSET if sunset else PALETTE):
+	for h in hexes:
 		pal.append(_oklab(Color(h)))
-	var nn := PALETTE_SUNSET_NEUTRALS if sunset else PALETTE_NEUTRALS
 	post.set_shader_parameter("palette", pal)
 	post.set_shader_parameter("palette_n", pal.size())
 	post.set_shader_parameter("palette_neutral_n", nn)
@@ -593,6 +614,9 @@ func _build_world() -> void:
 	RenderingServer.global_shader_parameter_set("lf_dims", _lf_dims)
 	unit_nodes.clear()
 	lights.clear()
+	ambient = AmbientFx.new()
+	world.add_child(ambient)
+	ambient.build(m, SceneTheme.of(m).get("ambient", []), m.seed_value)
 	_build_lights()
 	door_nodes = Node3D.new()
 	world.add_child(door_nodes)
@@ -652,7 +676,7 @@ func _apply_world_look() -> void:
 			mt.set_shader_parameter("explored_dim", float(lk.get("fog_dim", look.dim)))
 			mt.set_shader_parameter("fog_sat", float(lk.get("fog_sat", 0.3)))
 			mt.set_shader_parameter("fog_cool", float(lk.get("fog_cool", 1.0)))
-			mt.set_shader_parameter("spill", 0.0 if _net_cleaned else look.spill)   # cyberspace keeps the spill off
+			mt.set_shader_parameter("spill", 0.0 if _net_cleaned else look.spill * float(lk.get("spill", 1.0)))   # cyberspace keeps the spill off
 			mt.set_shader_parameter("lightfield", builder.lightfield)
 
 
@@ -698,6 +722,24 @@ func _build_lights() -> void:
 				sign.mesh = bm
 				sign.position = base + out * 0.55 + Vector3(0, 1.3, 0)
 				fn.add_child(sign)
+			"lamp" when e.out != Vector2i.ZERO:   # bulkhead: a caged work lamp on the wall
+				var outv := Vector3(e.out.x, 0, e.out.y)
+				var wallp := base - outv * 0.5
+				var hous := MeshInstance3D.new()
+				var hb2 := BoxMesh.new()
+				hb2.size = Vector3(0.2, 0.14, 0.12) if e.out.y != 0 else Vector3(0.12, 0.14, 0.2)
+				hb2.material = builder.mat("steel", 0, false, {"color": Color("2a2e2a")})
+				hous.mesh = hb2
+				hous.position = wallp + outv * 0.26 + Vector3(0, 1.18, 0)
+				fn.add_child(hous)
+				var lens := MeshInstance3D.new()
+				var lb := BoxMesh.new()
+				lb.size = Vector3(0.15, 0.09, 0.02) if e.out.y != 0 else Vector3(0.02, 0.09, 0.15)
+				lb.material = _unlit(e.color, 1.0, 1.6)
+				lens.mesh = lb
+				lens.position = hous.position + outv * 0.07
+				fn.add_child(lens)
+				l.position = lens.position + outv * 0.25 - Vector3(0, 0.1, 0)
 			"lamp":
 				l.position = base + Vector3(0, 1.45, 0)
 				var pole := MeshInstance3D.new()
@@ -748,6 +790,10 @@ func _build_lights() -> void:
 				flame.mesh = fm
 				flame.position = base + Vector3(0, 0.2, 0)
 				fn.add_child(flame)
+				fires.append(l)
+			"blaze":   # a burning wreck: flames, sparks and a smoke column (AmbientFx)
+				l.position = base + Vector3(0, 0.9, 0)
+				ambient.flame(base + Vector3(0, 0.25, 0), 1.3, true)
 				fires.append(l)
 			"hazard":
 				l.position = base + Vector3(0, 0.6, 0)

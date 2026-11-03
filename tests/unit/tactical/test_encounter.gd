@@ -735,7 +735,7 @@ func test_cameras_face_away_from_their_wall() -> void:
 
 
 func test_every_data_gig_has_a_terminal_reachable_on_foot() -> void:
-	for sc in ["shipyard", "badlands"]:
+	for sc in ["shipyard", "badlands", "undercity", "arcology"]:
 		for sd in [1, 2]:
 			var m := SceneGen.generate(sd * 13 + 2, sc, {"security": 2})
 			var e := Encounter.setup(m, Dice.new(3), [Recruit.generate(Dice.new(1), "netrunner", "edgerunner")] as Array[Combatant])

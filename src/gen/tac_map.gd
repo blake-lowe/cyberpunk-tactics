@@ -111,6 +111,19 @@ func destroy_cover_at(f: int, p: Vector2i) -> void:
 		_cover_index.erase(key)
 
 
+## Take a cover piece out entirely (generation only: later indices shift, so the index is rebuilt).
+func remove_cover_at(f: int, p: Vector2i) -> void:
+	var key := Vector3i(p.x, p.y, f)
+	if not _cover_index.has(key):
+		return
+	cover.remove_at(_cover_index[key])
+	_cover_index.clear()
+	for i in cover.size():
+		var c: Dictionary = cover[i]
+		if int(c.get("hp", 1)) > 0:
+			_cover_index[Vector3i(c.pos.x, c.pos.y, c.floor)] = i
+
+
 func pop_cover() -> void:
 	var c: Dictionary = cover.pop_back()
 	_cover_index.erase(Vector3i(c.pos.x, c.pos.y, c.floor))

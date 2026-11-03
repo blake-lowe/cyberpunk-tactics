@@ -37,6 +37,7 @@ global uniform vec2 cut_dir;        // camera forward on the ground plane
 global uniform vec4 focus_view;     // focus in screen UV (xy), its view depth (z), hole radius (w)
 uniform bool flat_shade = false;    // faceted lighting (rocks)
 uniform bool offmap = false;        // ground beyond the map: fades out with distance
+uniform bool near_fade = false;     // tall surroundings on every side (arcology walls) dissolve on the camera side
 uniform sampler2D tex : source_color, filter_linear_mipmap, repeat_enable;   // imported models (nature kit)
 uniform float tex_mix = 0.0;        // 1: the model's own texture (tinted by albedo) replaces the pattern
 
@@ -74,7 +75,7 @@ void fragment() {
 	// --- see-through hole: tall things between the camera and the focus (skyline, buildings that
 	// haven't been opened) dissolve in a dithered disc around the focus (BG3/Divinity style)
 	// camera-side skyline dissolves entirely above street level
-	if (mode == 2 && dot(wpos.xz - cut_center.xz, cut_dir) < -4.0 && wpos.y > 1.2 && wpos.x > -0.5 && wpos.x < map_size.x + 80.0) {
+	if (mode == 2 && dot(wpos.xz - cut_center.xz, cut_dir) < -4.0 && wpos.y > 1.2 && (near_fade || (wpos.x > -0.5 && wpos.x < map_size.x + 80.0))) {
 		float far = smoothstep(4.0, 9.0, -dot(wpos.xz - cut_center.xz, cut_dir));
 		if (far > bay + 0.5) discard;
 	}
@@ -163,6 +164,8 @@ void fragment() {
 		float r = noise(p * 2.0 + vec2(TIME * 0.15, TIME * 0.1));
 		base *= 0.8 + r * 0.3;
 		rough = 0.22 + r * 0.1;
+		float caust = smoothstep(0.6, 0.82, noise(p * vec2(5.5, 7.0) - vec2(TIME * 0.3, TIME * 0.08)));   // glowing water: brighter ripples
+		emit *= 0.55 + r * 0.3 + caust * 0.45;
 	}
 	if (tex_mix > 0.0) base = mix(base, texture(tex, UV).rgb * albedo.rgb, tex_mix);
 	// --- grounding: contact darkening at wall/prop bases, a light edge on top faces

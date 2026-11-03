@@ -67,6 +67,8 @@ const LIB := {
 	"tower": [Color("14171c"), Color("0e1014"), 9, 0.55, 0.8, 0.2, {"mode": 2}],
 	"tower_top": [Color("101216"), Color("101216"), 0, 1.0, 0.8, 0.2, {"mode": 2}],
 	"far_ground": [Color("111316"), Color("0b0c0e"), 0, 0.3, 0.9, 0.0, {"mode": 2}],
+	"bedrock": [Color("16181a"), Color("0d0e10"), 5, 0.6, 0.95, 0.0, {"shell": true}],   # undercity: the solid ground between tunnels
+	"atrium": [Color("e8e8e4"), Color("d0d0cc"), 0, 1.0, 0.3, 0.0, {"mode": 2}],          # arcology: the walls around the concourse
 }
 const PAINT := [Color("8a1c2a"), Color("1c3a5a"), Color("9a9a92"), Color("2a2a2e"), Color("b07a1a"), Color("3a5a2a")]
 const NEON := LightPlan.NEON
@@ -82,11 +84,13 @@ var natural := false     ## open-country scene: modelled rocks, plants, mesas in
 var tag: Variant = null ## while set, instances added by put() are recorded under it (cover cells)
 var _tagged := {}       ## Vector3i cell → [[batch, index]] so a destroyed piece can be hidden
 var lightfield: Texture2D   ## set by the greybox after baking (LightField)
+var neon: Array = []    ## this scene's sign colours (SceneTheme), for facade dressing and the skyline
 var emitters: Array = []  ## extra light-field sources from dressing: {cell, color, energy, range}
 
 
 func _init(p_map: TacMap, p_vision: Vision, p_fog: Texture2D) -> void:
 	m = p_map
+	neon = SceneTheme.colors(m, "neon", NEON)
 	vision = p_vision
 	fog_tex = p_fog
 	var box := BoxMesh.new()
@@ -124,7 +128,7 @@ func mat(name: String, f: int, cut := true, over := {}) -> ShaderMaterial:
 	var key := "%s|%d|%s|%s" % [name, f, cut, str(over)]
 	if _mats.has(key):
 		return _mats[key]
-	var d: Array = LIB[name]
+	var d: Array = SceneTheme.lib_entry(m, name, LIB[name])
 	var extra: Dictionary = (d[6] if d.size() > 6 else {}).duplicate()
 	extra.merge(over, true)
 	var mt := ShaderMaterial.new()
@@ -147,6 +151,7 @@ func mat(name: String, f: int, cut := true, over := {}) -> ShaderMaterial:
 	mt.set_shader_parameter("shell", extra.get("shell", false))
 	mt.set_shader_parameter("flat_shade", extra.get("flat", false))
 	mt.set_shader_parameter("offmap", extra.get("offmap", false))
+	mt.set_shader_parameter("near_fade", extra.get("near_fade", false))
 	mt.set_shader_parameter("cuttable", cut)
 	if extra.has("tex"):
 		mt.set_shader_parameter("tex", extra.tex)
@@ -295,6 +300,8 @@ func build(root: Node3D) -> Array[Node3D]:
 		_cover(f)
 		_stairs(f)
 		if f == 0:
+			if _surround() == "bedrock":
+				_bedrock()
 			_ground_organic()
 			_rocks()
 			_street_clutter()
@@ -306,11 +313,18 @@ func build(root: Node3D) -> Array[Node3D]:
 	var sky := Node3D.new()
 	sky.name = "skyline"
 	root.add_child(sky)
-	if not natural:
-		_skyline()
-	else:
-		box(mat("sand", 0, false, {"mode": 2, "offmap": true}), Vector3(m.w / 2.0, -0.2, m.h / 2.0), Vector3(m.w + 260, 0.1, m.h + 260))
-		_mesas()
+	match _surround():
+		"desert":
+			_frame(mat("sand", 0, false, {"mode": 2, "offmap": true}), 130.0)
+			_mesas()
+		"bedrock":
+			_bedrock_ring()
+		"atrium":
+			_atrium()
+		"ruins":
+			_skyline(true)
+		_:
+			_skyline()
 	flush(sky)
 	return out
 
@@ -521,8 +535,18 @@ func _ground_organic() -> void:
 		if s:
 			s.set_meta("floor", 0)
 			_surfaces.append(s)
+	var water := mat("water", 0, false)
+	if float(SceneTheme.of(m).get("mats", {}).get("water", {}).get("glow", 0.0)) > 0.0:
+		# glowing water (the undercity's runoff) is drawn as boxes: marching-squares surfaces
+		# lose their emission in the world shader
+		for y in m.h:
+			for x in m.w:
+				if m.t(0, x, y) == TacMap.T.WATER:
+					box(water, Vector3(x + 0.5, -0.3, y + 0.5), Vector3(1, 0.1, 1))
+					box(mat("dark", 0, false), Vector3(x + 0.5, -0.6, y + 0.5), Vector3(1, 0.1, 1))
+		return
 	var wt := marching(func(x: int, y: int) -> bool: return m.inb(x, y) and m.t(0, x, y) == TacMap.T.WATER, m.w, m.h, 0.15, 99)
-	var ws := _surface(wt, -0.35, mat("water", 0, false))
+	var ws := _surface(wt, -0.35, water)
 	if ws:
 		ws.set_meta("floor", 0)
 		_surfaces.append(ws)
@@ -803,7 +827,7 @@ func _piece(kind: String, p: Vector3, yaw: float, f: int, h0: int) -> void:
 			if kind == "reception" or kind == "kiosk" or kind == "stall":
 				box(W, p + Vector3(0, top / 2, 0), Vector3(0.78, top, 0.5), yaw)
 				if kind == "stall":
-					box(mat("fabric", f, false, {"color": NEON[h0 % NEON.size()].darkened(0.5)}), p + Vector3(0, 0.95, 0), Vector3(0.95, 0.04, 0.8), yaw)
+					box(mat("fabric", f, false, {"color": neon[h0 % neon.size()].darkened(0.5)}), p + Vector3(0, 0.95, 0), Vector3(0.95, 0.04, 0.8), yaw)
 			else:
 				for sx in [-0.35, 0.35]:
 					for sz in [-0.22, 0.22]:
@@ -832,7 +856,7 @@ func _piece(kind: String, p: Vector3, yaw: float, f: int, h0: int) -> void:
 					box(mat("dark", f, false, {"glow": 1.5, "emit": [Color("39f0a0"), Color("4fd8ff")][i % 2]}), p + Vector3(0, 0.2 + i * 0.2, 0.23).rotated(Vector3.UP, yaw), Vector3(0.5, 0.02, 0.01), yaw)
 		"vending":
 			box(S, p + Vector3(0, 0.45, 0), Vector3(0.6, 0.9, 0.45), yaw)
-			box(mat("dark", f, false, {"glow": 2.0, "emit": NEON[h0 % NEON.size()]}), p + Vector3(0, 0.5, 0.23).rotated(Vector3.UP, yaw), Vector3(0.5, 0.6, 0.01), yaw)
+			box(mat("dark", f, false, {"glow": 2.0, "emit": neon[h0 % neon.size()]}), p + Vector3(0, 0.5, 0.23).rotated(Vector3.UP, yaw), Vector3(0.5, 0.6, 0.01), yaw)
 		"console":
 			box(S, p + Vector3(0, 0.22, 0), Vector3(0.75, 0.44, 0.45), yaw)
 			box(mat("dark", f, false, {"glow": 1.8, "emit": Color("4fd8ff")}), p + Vector3(0, 0.46, 0), Vector3(0.6, 0.02, 0.35), yaw)
@@ -1020,7 +1044,7 @@ func _billboards(f: int) -> void:
 				done[sid] = true
 				continue
 			done[sid] = true
-			var col: Color = NEON[rng.randi() % NEON.size()]
+			var col: Color = neon[rng.randi() % neon.size()]
 			var c := Vector3(x + 0.5, f * FH, y + 0.5) - Vector3(face.x, 0, face.y) * 0.1
 			var along := Vector3(0.9, 0, 0) if face.x == 0 else Vector3(0, 0, 0.9)
 			for sgn in [-1, 1]:
@@ -1060,11 +1084,11 @@ func _facade_dressing(f: int) -> void:
 				if roll < 0.06 and f > 0 or (roll < 0.03):
 					box(mat("steel", f, true, {"shell": true}), face + out * 0.14 + Vector3(0, rng.randf_range(0.8, 1.3), 0), Vector3(0.36, 0.26, 0.26))
 				elif roll < 0.1:
-					var col: Color = NEON[rng.randi() % NEON.size()]
+					var col: Color = neon[rng.randi() % neon.size()]
 					box(mat("dark", f, true, {"glow": 0.9, "emit": col.darkened(0.3), "color": col.darkened(0.6), "shell": true}), face + out * 0.005 + Vector3(0, rng.randf_range(0.4, 0.8), 0), Vector3(0.36 if d.x == 0 else 0.01, 0.46, 0.01 if d.x == 0 else 0.36))
 				elif roll < 0.15:
 					# blade sign sticking out of the facade, with light spill
-					var col2: Color = NEON[rng.randi() % NEON.size()]
+					var col2: Color = neon[rng.randi() % neon.size()]
 					var bl := Vector3(0.42, FH * 0.75, 0.06) if d.x != 0 else Vector3(0.06, FH * 0.75, 0.42)
 					box(mat("dark", f, true, {"glow": 5.0, "emit": col2, "shell": true}), face + out * 0.3 + Vector3(0, FH * 0.55 + 0.2, 0), bl)
 					emitters.append({"cell": Vector3i(n.x, n.y, 0), "color": col2, "energy": 1.4, "range": 5.0, "out": Vector2i.ZERO})
@@ -1072,7 +1096,7 @@ func _facade_dressing(f: int) -> void:
 					# awning over a lit shop window
 					var col3: Color = [Color("ffb070"), Color("ff6b9a"), Color("70e0ff")][rng.randi() % 3]
 					var wide := Vector3(0.95, 0.04, 0.5) if d.x == 0 else Vector3(0.5, 0.04, 0.95)
-					box(mat("fabric", f, true, {"color": NEON[rng.randi() % NEON.size()].darkened(0.55), "shell": true}), face + out * 0.25 + Vector3(0, 1.22, 0), wide)
+					box(mat("fabric", f, true, {"color": neon[rng.randi() % neon.size()].darkened(0.55), "shell": true}), face + out * 0.25 + Vector3(0, 1.22, 0), wide)
 					box(mat("dark", f, true, {"glow": 4.0, "emit": col3, "shell": true}), face + out * 0.48 + Vector3(0, 1.2, 0), Vector3(0.95, 0.02, 0.02) if d.x == 0 else Vector3(0.02, 0.02, 0.95))
 					box(mat("dark", f, true, {"glow": 1.6, "emit": col3, "shell": true}), face + out * 0.01 + Vector3(0, 0.62, 0), Vector3(0.7, 0.6, 0.01) if d.x == 0 else Vector3(0.01, 0.6, 0.7))
 					emitters.append({"cell": Vector3i(n.x, n.y, 0), "color": col3, "energy": 1.1, "range": 4.0, "out": Vector2i.ZERO})
@@ -1083,13 +1107,131 @@ func _facade_dressing(f: int) -> void:
 # --- Skyline -----------------------------------------------------------------------------
 
 ## Towers beyond the map edges with lit windows, rooftop beacons, and a far ground plane.
-func _skyline() -> void:
+## Ground beyond the map edge, as a frame (a single slab under the map would hide its water,
+## which sits below street level).
+func _frame(mt: Material, margin: float) -> void:
+	var y := -0.2
+	box(mt, Vector3(m.w / 2.0, y, -margin / 2), Vector3(m.w + margin * 2, 0.1, margin))
+	box(mt, Vector3(m.w / 2.0, y, m.h + margin / 2), Vector3(m.w + margin * 2, 0.1, margin))
+	box(mt, Vector3(-margin / 2, y, m.h / 2.0), Vector3(margin, 0.1, m.h))
+	box(mt, Vector3(m.w + margin / 2, y, m.h / 2.0), Vector3(margin, 0.1, m.h))
+
+
+## What surrounds the map (SceneTheme): lit towers by default, desert for open country.
+func _surround() -> String:
+	return String(SceneTheme.of(m).get("surround", "desert" if natural else "skyline"))
+
+
+## Undercity: the solid ground between the tunnels, a block up to wall height over every VOID
+## square on the ground floor (greedy rectangles), so the tunnel network reads as cut into rock.
+func _bedrock() -> void:
+	var mt := mat("bedrock", 0)
+	var done := {}
+	for y in m.h:
+		for x in m.w:
+			if done.has(Vector2i(x, y)) or m.t(0, x, y) != TacMap.T.VOID:
+				continue
+			var w := 1
+			while x + w < m.w and m.t(0, x + w, y) == TacMap.T.VOID and not done.has(Vector2i(x + w, y)):
+				w += 1
+			var h := 1
+			var grow := true
+			while grow and y + h < m.h:
+				for xx in range(x, x + w):
+					if m.t(0, xx, y + h) != TacMap.T.VOID or done.has(Vector2i(xx, y + h)):
+						grow = false
+						break
+				if grow:
+					h += 1
+			for yy in range(y, y + h):
+				for xx in range(x, x + w):
+					done[Vector2i(xx, yy)] = true
+			box(mt, Vector3(x + w / 2.0, FH / 2, y + h / 2.0), Vector3(w, FH, h))
+	# pipes and conduit along the tunnel walls, in runs: the city's plumbing overhead
+	var pipe := mat("steel", 0, true, {"color": Color("3a4a40")})
+	var rust := mat("steel", 0, true, {"color": Color("6a3e24")})
+	var conduit := mat("dark", 0, true, {"color": Color("1a1e1a")})
+	for y in m.h:
+		for x in m.w:
+			if m.t(0, x, y) != TacMap.T.WALL:
+				continue
+			for d in [Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0), Vector2i(-1, 0)]:
+				var o: Vector2i = Vector2i(x, y) + d
+				if not m.inb(o.x, o.y) or m.t(0, o.x, o.y) != TacMap.T.OUTSIDE:
+					continue
+				var horiz: bool = d.y != 0   # the wall runs along x
+				var line := y if horiz else x
+				var seg := (x if horiz else y) / 7
+				var hv := hash(Vector3i(line * 4 + d.x + 2 * d.y + 3, seg, m.seed_value)) % 5
+				if hv >= 3:
+					continue
+				var off := Vector3(d.x, 0, d.y) * 0.3
+				var b := Basis(Vector3.FORWARD, PI / 2) if horiz else Basis(Vector3.RIGHT, PI / 2)
+				var c := Vector3(x + 0.5, 0, y + 0.5) + off
+				put("cyl", rust if hv == 0 else pipe, Transform3D(b.scaled_local(Vector3(0.13, 1.0, 0.13)), c + Vector3(0, FH * 0.78, 0)))
+				if hv == 1:
+					put("cyl", conduit, Transform3D(b.scaled_local(Vector3(0.06, 1.0, 0.06)), c + Vector3(0, FH * 0.64, 0) + off * 0.2))
+
+
+## Beyond the undercity map: more rock at wall height, and a dark floor under it.
+func _bedrock_ring() -> void:
+	var r := mat("bedrock", 0, false, {"mode": 2})
+	_frame(mat("far_ground", 0, false, {"color": Color("0a0c0a")}), 60.0)
+	var ring := 40.0
+	box(r, Vector3(m.w / 2.0, FH / 2, -ring / 2), Vector3(m.w + ring * 2, FH, ring))
+	box(r, Vector3(m.w / 2.0, FH / 2, m.h + ring / 2), Vector3(m.w + ring * 2, FH, ring))
+	box(r, Vector3(-ring / 2, FH / 2, m.h / 2.0), Vector3(ring, FH, m.h))
+	box(r, Vector3(m.w + ring / 2, FH / 2, m.h / 2.0), Vector3(ring, FH, m.h))
+
+
+## Arcology: the concourse sits at the bottom of a huge white atrium. The walls around the map
+## rise in tiers (balcony bands of dark glass), cut by red light strips; light pours from above.
+func _atrium() -> void:
+	rng.seed = m.seed_value * 13 + 1
+	var floor_m := mat("atrium", 0, false, {"color": Color("c8c8c4")})
+	_frame(floor_m, 60.0)
+	var wall := mat("atrium", 0, false, {"near_fade": true})
+	var band := mat("dark", 0, false, {"mode": 2, "near_fade": true, "color": Color("1a2028"), "glow": 0.5, "emit": Color("4a6a88")})
+	var red := mat("dark", 0, false, {"mode": 2, "near_fade": true, "glow": 1.6, "emit": Color("ff2030")})
+	var white := mat("dark", 0, false, {"mode": 2, "near_fade": true, "glow": 1.4, "emit": Color("f0f6ff")})
+	var gap := 12.0
+	var H := 14.0
+	var sides := [[Vector3(m.w / 2.0, 0, -gap - 2), Vector3(m.w + gap * 2 + 8, 0, 4), true],
+		[Vector3(m.w / 2.0, 0, m.h + gap + 2), Vector3(m.w + gap * 2 + 8, 0, 4), true],
+		[Vector3(-gap - 2, 0, m.h / 2.0), Vector3(4, 0, m.h + gap * 2), false],
+		[Vector3(m.w + gap + 2, 0, m.h / 2.0), Vector3(4, 0, m.h + gap * 2), false]]
+	for sd in sides:
+		var c: Vector3 = sd[0]
+		var sz: Vector3 = sd[1]
+		var horiz: bool = sd[2]
+		box(wall, c + Vector3(0, H / 2, 0), Vector3(sz.x, H, sz.z))
+		var inward := Vector3(0, 0, 1 if c.z < 0 else -1) if horiz else Vector3(1 if c.x < 0 else -1, 0, 0)
+		var face := c + inward * 2.05
+		for lv in [2.6, 5.4, 8.2, 11.0]:   # balcony tiers: dark glass with a lit soffit
+			box(band, face + Vector3(0, lv, 0), Vector3(sz.x, 1.1, 0.1) if horiz else Vector3(0.1, 1.1, sz.z))
+			box(white, face + inward * 0.06 + Vector3(0, lv - 0.62, 0), Vector3(sz.x, 0.06, 0.06) if horiz else Vector3(0.06, 0.06, sz.z))
+		var span := sz.x if horiz else sz.z
+		var n := int(span / 11.0)
+		for i in n + 1:   # red light strips and columns
+			var t := -span / 2 + span * i / maxf(1, n)
+			var p := face + (Vector3(t, 0, 0) if horiz else Vector3(0, 0, t))
+			box(wall, p + inward * 0.4 + Vector3(0, H / 2, 0), Vector3(1.2, H, 0.8) if horiz else Vector3(0.8, H, 1.2))
+			box(red, p + inward * 0.82 + Vector3(0, H / 2, 0), Vector3(0.14, H, 0.04) if horiz else Vector3(0.04, H, 0.14))
+		# a corporate banner or two hanging in the void
+		for k in 2:
+			var t2 := rng.randf_range(-span / 3, span / 3)
+			var bp := face + inward * 0.2 + (Vector3(t2, 0, 0) if horiz else Vector3(0, 0, t2))
+			box(mat("dark", 0, false, {"mode": 2, "near_fade": true, "color": Color("8a0a1c"), "glow": 0.5, "emit": Color("c8102e")}), bp + Vector3(0, 8.0, 0), Vector3(2.4, 5.0, 0.05) if horiz else Vector3(0.05, 5.0, 2.4))
+			box(white, bp + inward * 0.04 + Vector3(0, 9.4, 0), Vector3(1.2, 1.2, 0.03) if horiz else Vector3(0.03, 1.2, 1.2))
+
+
+func _skyline(ruins := false) -> void:
 	rng.seed = m.seed_value * 13 + 1
 	var far := mat("far_ground", 0, false)
 	var margin := 60.0
-	box(far, Vector3(m.w / 2.0, -0.2, m.h / 2.0), Vector3(m.w + margin * 2, 0.1, m.h + margin * 2))
-	var T := mat("tower", 0, false)
-	var top := mat("tower_top", 0, false)
+	_frame(far, margin)
+	var T := mat("tower", 0, false, {"near_fade": true} if ruins else {})
+	var top := mat("tower_top", 0, false, {"near_fade": true} if ruins else {})
 	var placed: Array[Rect2] = []
 	for i in 140:
 		var side := rng.randi() % 4
@@ -1111,13 +1253,28 @@ func _skyline() -> void:
 		box(T, Vector3(p.x, h / 2 - 0.2, p.y), Vector3(w, h, d))
 		box(top, Vector3(p.x, h - 0.15, p.y), Vector3(w * 0.7, 0.4, d * 0.7))
 		box(mat("cornice", 0, false, {"mode": 2, "color": Color("2a3040")}), Vector3(p.x, h - 0.2, p.y), Vector3(w + 0.15, 0.12, d + 0.15))
+		if ruins:   # gutted towers: broken tops, burning floors, no neon
+			for k in rng.randi_range(1, 3):   # broken stumps on the roof, inside the height limit
+				var bw := minf(w * rng.randf_range(0.2, 0.5), h * 0.4)
+				box(T, Vector3(p.x + rng.randf_range(-w, w) * 0.3, h - bw * 0.2, p.y + rng.randf_range(-d, d) * 0.3), Vector3(bw, bw * 0.8, bw))
+			if rng.randf() < 0.45 and dist > 14.0:   # burning floors, on the farther towers only
+				var fl := rng.randf_range(0.3, 0.85) * h
+				var toward2 := Vector2(m.w / 2.0, m.h / 2.0) - p
+				var face2 := Vector3(signf(toward2.x) * (w / 2 + 0.05), 0, 0) if absf(toward2.x) > absf(toward2.y) else Vector3(0, 0, signf(toward2.y) * (d / 2 + 0.05))
+				var fc: Color = [Color("ff6b1a"), Color("ff8a30"), Color("ffb040")][rng.randi() % 3]
+				var span2 := (d if face2.x != 0 else w) * rng.randf_range(0.3, 0.8)
+				box(mat("dark", 0, false, {"glow": 1.6, "emit": fc, "mode": 2, "near_fade": true}), Vector3(p.x, fl, p.y) + face2,
+					Vector3(0.05, rng.randf_range(0.8, 2.4), span2) if face2.x != 0 else Vector3(span2, rng.randf_range(0.8, 2.4), 0.05))
+			if rng.randf() < 0.2 and dist > 14.0:
+				box(mat("dark", 0, false, {"glow": 1.6, "emit": Color("ff7a24"), "mode": 2, "near_fade": true}), Vector3(p.x, h + 0.1, p.y), Vector3(w * 0.5, 0.3, d * 0.5))
+			continue
 		if rng.randf() < 0.25:   # a vertical neon edge so the mass has an outline
-			var sc: Color = NEON[rng.randi() % NEON.size()]
+			var sc: Color = neon[rng.randi() % neon.size()]
 			box(mat("dark", 0, false, {"glow": 1.4, "emit": sc, "mode": 2}), Vector3(p.x + w / 2, h / 2, p.y + d / 2), Vector3(0.12, h, 0.12))
 		if rng.randf() < 0.35:
 			box(mat("dark", 0, false, {"glow": 1.2, "emit": Color("ff2020"), "mode": 2}), Vector3(p.x, h + 0.1, p.y), Vector3(0.08, 0.08, 0.08))
 		if rng.randf() < 0.3:   # a billboard: a big emissive panel on the face toward the map
-			var col: Color = NEON[rng.randi() % NEON.size()]
+			var col: Color = neon[rng.randi() % neon.size()]
 			var toward := Vector2(m.w / 2.0, m.h / 2.0) - p
 			var face := Vector3(signf(toward.x) * (w / 2 + 0.05), 0, 0) if absf(toward.x) > absf(toward.y) else Vector3(0, 0, signf(toward.y) * (d / 2 + 0.05))
 			var bw := minf(w, d) * 0.6

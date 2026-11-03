@@ -95,5 +95,33 @@
    "floors": 3,
    "profile": "market_streets"
   }
+ },
+ "undercity": {
+  "name": "Undercity",
+  "desc": "Storm drains and maintenance tunnels under the city: runoff channels with plank crossings, a cistern, pump rooms and service tunnels, and the target sealed in a vault chamber at the far end. Sodium work lamps and a sick green glow.",
+  "params": {
+   "w": 72,
+   "h": 52,
+   "floors": 1
+  }
+ },
+ "arcology": {
+  "name": "Arcology concourse",
+  "desc": "The floor of a corporate arcology's atrium: white stone promenade round a reflecting pool, boutiques and a clinic on both sides, a service lane in, and the corp's offices behind a security line. Cold light, corporate red.",
+  "params": {
+   "w": 84,
+   "h": 60,
+   "floors": 3
+  }
+ },
+ "warzone": {
+  "name": "Burning combat zone",
+  "desc": "A combat zone at dusk with the fighting still going: ruined blocks, burning wrecks and buildings, smoke over the streets, the power out.",
+  "params": {
+   "w": 96,
+   "h": 72,
+   "floors": 3,
+   "profile": "burning_zone"
+  }
  }
 }
