@@ -18,7 +18,7 @@ extends Node
 ##   F1 new gig    F2 look settings    F3 toggle fog of war
 ## Screenshot mode:  -- --shot=path.png [--scene=x] [--profile=y] [--seed=n] [--pixel=3]
 ##   [--levels=0] [--dither=0.5] [--outline=0.4] [--bloom=0.8] [--contrast=1.1] [--ortho=1]
-##   [--fog=0] [--zoom=24] [--yaw=45] [--lights=1] [--hover=x,y]
+##   [--fog=0] [--zoom=24] [--yaw=45] [--lights=1] [--hover=x,y] [--promo=1] [--cut=auto|all|off]
 
 const FH := 1.6           # floor height in squares (3.2 m)
 const POST_SHADER := preload("res://src/tactical/view/post.gdshader")
@@ -258,6 +258,8 @@ func _ready() -> void:
 				cutaway = kv[1] != "off"
 				cut_all = kv[1] == "all"
 			"sight": sight_mode = int(kv[1])
+			"promo":   # beauty renders: the world and the characters only (no HUD, grid, markers)
+				_promo = kv[1] != "0"
 			"zoom": cam_dist = float(kv[1])
 			"yaw":
 				cam_yaw = float(kv[1])
@@ -294,6 +296,8 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if _promo:
+		_hide_overlays()
 	if devices and not keycard_nodes.is_empty():
 		_update_keycards()
 	if obj_node and is_instance_valid(obj_node) and int(enc.objective.get("carrier", -1)) >= 0:   # the diamond follows the carrier
@@ -1302,7 +1306,7 @@ func _update_xray() -> void:
 			continue
 		var seen: bool = u.team == 0 or not fog_on or enc.vision.visible.has(u.pos)
 		var closed := _indoor_structure(u.pos) >= 0 and not (cutaway and open_cells.has(Vector2i(u.pos.x, u.pos.y)))
-		(n as CharModel).set_xray(seen and closed, Hud.CYAN if u.team == 0 else Hud.RED)
+		(n as CharModel).set_xray(seen and closed and not _promo, Hud.CYAN if u.team == 0 else Hud.RED)
 
 
 ## Door leaves: closed in the wall line, or swung open 90° on the hinge; a lock light on the frame.
@@ -3245,6 +3249,17 @@ func _float_at(wp: Vector3, text: String, col: Color, offset := Vector2.ZERO) ->
 
 ## The pointer moved to another square: the path ribbon, the sight lines that matter for it, and
 ## the building it points into (AUTO cutaway opens it).
+var _promo := false
+
+
+func _hide_overlays() -> void:
+	if hud:
+		hud.visible = false
+	for n in [grid_node, path_node, watch_node, caret, ring, target_ring, obj_node]:
+		if n and is_instance_valid(n):
+			(n as Node3D).visible = false
+
+
 func _on_hover_changed() -> void:
 	_draw_path()
 	_draw_watch(grid_node != null and grid_node.visible)
