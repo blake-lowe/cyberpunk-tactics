@@ -11,7 +11,10 @@ func test_setup_places_crew_and_guards() -> void:
 	var dice := Dice.new(1)
 	var e := Encounter.setup(m, dice, _crew(dice))
 	assert_eq(e.units.filter(func(u): return u.team == 0).size(), 2)
-	assert_eq(e.units.filter(func(u): return u.team == 1).size(), Recruit.opposition(2, 2).size(), "the p399 budget for 2 crew at security 2")
+	assert_eq(e.units.filter(func(u): return u.team == 1 and not u.get("outer", false)).size(), Recruit.opposition(2, 2).size(), "the p399 budget for 2 crew at security 2")
+	var outer := e.units.filter(func(u): return u.get("outer", false))
+	assert_eq(outer.size(), 2 * clampi(int((m.w * m.h - 1500) / 2500), 0, 4), "a street block gets patrol pairs outside the target")
+	assert_true(outer.all(func(u): return u.has("patrol")), "outer pairs walk a beat")
 	assert_true(e.units.any(func(u): return u.team == 1 and u.c.role == "lieutenant"), "security 2 brings a Lieutenant")
 	for u in e.units:
 		assert_true(m.walkable(u.pos.z, Vector2i(u.pos.x, u.pos.y)), "%s placed on open ground" % u.c.display_name)

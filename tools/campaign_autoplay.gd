@@ -34,7 +34,7 @@ func _initialize() -> void:
 				gi = i
 		var gig := camp.accept(gi)
 		print("gig %d start: %s sec %d" % [n + 1, gig.scene, int(gig.security)])
-		var m := SceneGen.generate(int(gig.seed), String(gig.scene), {"security": int(gig.security)})
+		var m := SceneGen.generate(int(gig.seed), String(gig.scene), Campaign.scene_opts(gig))
 		var crew: Array[Combatant] = []
 		for c in camp.alive_crew():
 			if c.can_act():

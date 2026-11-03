@@ -4,7 +4,7 @@ extends TestCase
 
 func _finish(c: Campaign, won: bool) -> Encounter:
 	var gig: Dictionary = c.accept(0)
-	var m := SceneGen.generate(int(gig.seed), String(gig.scene), {"security": int(gig.security)})
+	var m := SceneGen.generate(int(gig.seed), String(gig.scene), Campaign.scene_opts(gig))
 	var e := Encounter.setup(m, c.dice, c.alive_crew())
 	e.state = "won" if won else "lost"
 	return e

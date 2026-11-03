@@ -127,9 +127,10 @@ func refresh_board() -> void:
 		var mult := float(g.twists[twist].pay) if twist != "" else 1.0
 		var title := _fill(_pick(t.titles), slots)
 		board.append({"id": "%d-%d" % [day, i], "kind": t.kind, "fixer": slots.fixer, "title": title,
-			"blurb": _fill(String(t.blurb), slots), "scene": _pick(t.scenes), "security": sec, "twist": twist,
+			"blurb": _fill(String(t.blurb), slots), "security": sec, "twist": twist,
 			"pay": int(int(g.pay[str(sec)]) * (1.0 + frep * 0.05) * mult), "rep": sec, "seed": dice.rng.randi_range(1, 99999),
 			"setup": frep == 0 and dice.rng.randf() < float(g.get("betrayal_chance", 0.0))})
+		board[-1].merge(_place_for(String(t.kind), g))
 	_unique_offer(g)
 
 
@@ -144,8 +145,9 @@ func _unique_offer(g: Dictionary) -> void:
 		"place": _pick(t.get("places", ["site"]))}
 	var sec := int(t.security)
 	board.append({"id": "%d-u" % day, "kind": t.kind, "fixer": slots.fixer, "title": _fill(_pick(t.titles), slots),
-		"blurb": _fill(String(t.blurb), slots), "scene": _pick(t.scenes), "security": sec, "twist": "", "unique": true,
+		"blurb": _fill(String(t.blurb), slots), "security": sec, "twist": "", "unique": true,
 		"pay": int(int(g.pay[str(sec)]) * float(t.pay_mult)), "rep": int(t.rep), "seed": dice.rng.randi_range(1, 99999), "setup": false})
+	board[-1].merge(_place_for(String(t.kind), g))
 
 
 static func objective_for(g: Dictionary) -> String:
@@ -192,6 +194,38 @@ func _salvage_mult() -> float:
 	for c in alive_crew():
 		m = maxf(m, float(c.perk_fx("salvage_mult")))
 	return m
+
+
+## Where a gig happens: any scene whose tags fit the job (gigs.json scene_tags / kind_tags), or
+## (raid_chance) a raid on a single site picked for the job. Returns {scene, profile, site}.
+func _place_for(kind: String, g: Dictionary) -> Dictionary:
+	if dice.rng.randf() < float(g.get("raid_chance", 0.0)) and g.raid_sites.has(kind):
+		return {"scene": "lone_building", "profile": "", "site": _pick(g.raid_sites[kind])}
+	var want: Array = g.kind_tags.get(kind, [])
+	var fits: Array = g.scene_tags.keys().filter(func(sc): return (g.scene_tags[sc] as Array).any(func(t): return t in want))
+	var pick: String = _pick(fits) if not fits.is_empty() else "lone_building"
+	if pick.begins_with("neighborhood:"):
+		return {"scene": "neighborhood", "profile": pick.get_slice(":", 1), "site": ""}
+	return {"scene": pick, "profile": "", "site": ""}
+
+
+## The gig's place as the board shows it: a site, a neighbourhood or a scene.
+static func place_name(gig: Dictionary) -> String:
+	if String(gig.get("site", "")) != "":
+		return String(RulesDB.gen("sites.json").get(gig.site, {}).get("name", String(gig.site).replace("_", " ")))
+	if String(gig.get("profile", "")) != "":
+		return String(RulesDB.gen("districts.json").get("profiles", RulesDB.gen("districts.json")).get(gig.profile, {}).get("name", String(gig.profile).replace("_", " ")))
+	return String(RulesDB.gen("scenes.json").get(gig.get("scene", ""), {}).get("name", gig.get("scene", "")))
+
+
+## SceneGen options for a gig dict.
+static func scene_opts(gig: Dictionary) -> Dictionary:
+	var o := {"security": int(gig.get("security", 1))}
+	if String(gig.get("profile", "")) != "":
+		o["profile"] = gig.profile
+	if String(gig.get("site", "")) != "":
+		o["site"] = gig.site
+	return o
 
 
 func rep_with(fixer: String) -> int:

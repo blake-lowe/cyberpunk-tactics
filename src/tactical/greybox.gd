@@ -471,8 +471,10 @@ func new_gig() -> void:
 		gig.seed = int(camp.active_gig.seed)
 		gig.security = int(camp.active_gig.security)
 		gig.profile = ""
-		o = {"security": gig.security}
+		o = Campaign.scene_opts(camp.active_gig)
 	m = SceneGen.generate(gig.seed, "neighborhood" if gig.profile != "" else gig.scene, o)
+	if campaign_gig and String(camp.active_gig.get("profile", "")) != "":
+		m.params["scene"] = "neighborhood"
 	dice = Dice.new(gig.seed + 1)
 	var crew: Array[Combatant] = [Recruit.generate(dice, "solo", "edgerunner", "Vex"), Recruit.generate(dice, "netrunner", "edgerunner", "Patch")]
 	if campaign_gig:

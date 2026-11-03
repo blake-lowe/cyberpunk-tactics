@@ -130,6 +130,7 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 			e.init.add(u.c)
 	e.vision = Vision.new(p_map, e.los)
 	e._compute_light()
+	e._outer_patrols(cells[0])
 	e._post_guards()
 	e._hand_out_keycards()
 	e.refresh_vision()
@@ -663,6 +664,44 @@ func _compute_light() -> void:
 
 ## Unalerted guards face somewhere sensible (into their room, or along the street) and some walk a
 ## patrol between their post and a spot a few squares away.
+## Big maps get patrol pairs outside the target building (HOUSE-RULE, owner-approved after the
+## procgen survey: the guard budget was the same on a 30x24 skirmish and a 220x170 district, so big
+## maps were empty walks). One pair per ~2500 squares past the first 1500, up to four; Mooks,
+## posted far from the deploy zone, every one walking a beat.
+func _outer_patrols(deploy: Vector2i) -> void:
+	var pairs := clampi(int((m.w * m.h - 1500) / 2500), 0, 4)
+	if pairs == 0:
+		return
+	var tsid := -1
+	for st in m.structures:
+		if st.target:
+			tsid = st.id
+	var field: Dictionary = _keys(func(): return nav.distance_field([Vector3i(deploy.x, deploy.y, 0)], {}, 4000))
+	var cand: Array = []
+	for v in field:
+		var l := m.label(v.z, v.x, v.y)
+		if v.z == 0 and int(field[v]) > 16 and (l < 0 or m.rooms[l].structure != tsid) and not m.has_cover_at(0, Vector2i(v.x, v.y)):
+			cand.append(v)
+	if cand.is_empty():
+		return
+	var taken: Array = units.map(func(u): return u.pos)
+	var n := 0
+	for p in pairs:
+		var anchor: Vector3i = cand[dice.d(cand.size()) - 1]
+		for k in 2:
+			var spot := anchor + Vector3i(k, 0, 0)
+			if not m.walkable(spot.z, Vector2i(spot.x, spot.y)) or spot in taken:
+				spot = anchor
+				if spot in taken:
+					continue
+			n += 1
+			var g := Recruit.npc(dice, "mook", "Patrol %d" % n)
+			g.team = 1
+			_add(g, spot, 1)
+			taken.append(spot)
+			units[-1]["outer"] = true
+
+
 func _post_guards() -> void:
 	for g in units:
 		if g.team != 1:
@@ -675,7 +714,7 @@ func _post_guards() -> void:
 			g.facing = to.normalized() if to.length() > 0.5 else dirs[dice.d(8) - 1]
 		else:
 			g.facing = dirs[dice.d(8) - 1]
-		if dice.d(10) <= 4:   # ~40% patrol
+		if dice.d(10) <= 4 or g.get("outer", false):   # ~40% patrol; outer pairs always walk a beat
 			var reach: Dictionary = _keys(func(): return nav.reachable(g.pos, 9, occupied(g)))
 			var far := []
 			for v in reach:

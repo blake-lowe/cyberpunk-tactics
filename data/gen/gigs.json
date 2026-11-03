@@ -1,5 +1,5 @@
 {
-  "_doc": "Gig templates for the fixer board (M6). A gig picks a template, a scene from its list, a security level weighted by reputation, and fills the title/blurb slots. Pay and rewards are HOUSE-RULE economy numbers until checked against the book's job rates. Twists (procedural complications, spec Narrative Structure) are HOUSE-RULE content; pay multiplies by the twist's pay. Unique offers (spec: 'occasional unique offers' from fixers who trust you) appear at unique_rep with that fixer. Betrayal (spec: lowered by betrayals; HOUSE-RULE): a small chance a low-rep fixer's gig is a setup (heavy twist hidden, pay withheld).",
+  "_doc": "Gig templates for the fixer board (M6). A gig picks a template, a scene from its list, a security level weighted by reputation, and fills the title/blurb slots. Pay and rewards are HOUSE-RULE economy numbers until checked against the book's job rates. Twists (procedural complications, spec Narrative Structure) are HOUSE-RULE content; pay multiplies by the twist's pay. Unique offers (spec: 'occasional unique offers' from fixers who trust you) appear at unique_rep with that fixer. Betrayal (spec: lowered by betrayals; HOUSE-RULE): a small chance a low-rep fixer's gig is a setup (heavy twist hidden, pay withheld). Scenes for a gig come from scene_tags matching kind_tags (owner-approved: objectives work on every map type); raid_chance of gigs are a single-site raid (lone_building with a site from raid_sites).",
   "fixers": [
     "Rogue's Cousin",
     "Mama Lou",
@@ -41,13 +41,7 @@
         "Steal {corp}'s {data}",
         "Download the {data}"
       ],
-      "blurb": "{fixer} has a buyer for {corp}'s {data}. Download it through their NET, or clear the building and take it by hand.",
-      "scenes": [
-        "lone_building",
-        "street_block",
-        "corp_campus",
-        "megablock"
-      ]
+      "blurb": "{fixer} has a buyer for {corp}'s {data}. Download it through their NET, or clear the building and take it by hand."
     },
     {
       "kind": "gang_hit",
@@ -56,12 +50,6 @@
         "Clear the {gang} out of the {place}"
       ],
       "blurb": "The {gang} have taken over a {place}. {fixer} wants them gone, along with anyone they call for help.",
-      "scenes": [
-        "badlands",
-        "shipyard",
-        "rail_yard",
-        "skirmish"
-      ],
       "places": [
         "camp",
         "docks",
@@ -75,12 +63,7 @@
         "Package job: {corp}",
         "Steal the {data} drive from {corp}"
       ],
-      "blurb": "A {corp} insider will leave a door open tonight. Find the {data} drive inside and carry it back to where you came in.",
-      "scenes": [
-        "corp_campus",
-        "lone_building",
-        "megablock"
-      ]
+      "blurb": "A {corp} insider will leave a door open tonight. Find the {data} drive inside and carry it back to where you came in."
     }
   ],
   "pay": {
@@ -124,7 +107,11 @@
       ],
       "security": 3,
       "pay_mult": 2.0,
-      "rep": 3
+      "rep": 3,
+      "tags": [
+        "corp",
+        "industrial"
+      ]
     },
     {
       "kind": "gang_hit",
@@ -144,7 +131,11 @@
       ],
       "security": 3,
       "pay_mult": 2.0,
-      "rep": 3
+      "rep": 3,
+      "tags": [
+        "gang",
+        "wild"
+      ]
     },
     {
       "kind": "data_theft",
@@ -158,9 +149,114 @@
       ],
       "security": 3,
       "pay_mult": 2.0,
-      "rep": 3
+      "rep": 3,
+      "tags": [
+        "corp",
+        "industrial",
+        "residential"
+      ]
     }
   ],
   "unique_rep": 3,
-  "betrayal_chance": 0.08
+  "betrayal_chance": 0.08,
+  "scene_tags": {
+    "skirmish": [
+      "gang",
+      "residential"
+    ],
+    "lone_building": [
+      "corp",
+      "residential",
+      "gang",
+      "industrial"
+    ],
+    "street_block": [
+      "residential",
+      "gang"
+    ],
+    "megablock": [
+      "residential"
+    ],
+    "shipyard": [
+      "industrial",
+      "gang"
+    ],
+    "badlands": [
+      "wild",
+      "gang"
+    ],
+    "rail_yard": [
+      "industrial",
+      "gang"
+    ],
+    "corp_campus": [
+      "corp"
+    ],
+    "neighborhood:corporate_center": [
+      "corp"
+    ],
+    "neighborhood:executive_zone": [
+      "corp"
+    ],
+    "neighborhood:market_streets": [
+      "residential",
+      "gang"
+    ],
+    "neighborhood:mixed_residential": [
+      "residential"
+    ],
+    "neighborhood:combat_zone": [
+      "gang"
+    ],
+    "neighborhood:hot_zone": [
+      "gang",
+      "wild"
+    ],
+    "neighborhood:industrial": [
+      "industrial"
+    ],
+    "neighborhood:pacifica": [
+      "gang",
+      "residential"
+    ]
+  },
+  "kind_tags": {
+    "data_theft": [
+      "corp",
+      "industrial",
+      "residential"
+    ],
+    "gang_hit": [
+      "gang",
+      "wild"
+    ],
+    "corp_extraction": [
+      "corp",
+      "industrial"
+    ]
+  },
+  "raid_sites": {
+    "data_theft": [
+      "corp_office",
+      "data_center",
+      "clinic",
+      "corp_hq"
+    ],
+    "gang_hit": [
+      "gang_hideout",
+      "bar",
+      "club",
+      "chop_shop",
+      "bd_parlor",
+      "squat"
+    ],
+    "corp_extraction": [
+      "corp_office",
+      "warehouse",
+      "clinic",
+      "villa",
+      "factory"
+    ]
+  },
+  "raid_chance": 0.3
 }
