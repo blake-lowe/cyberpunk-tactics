@@ -56,6 +56,21 @@ static func plan(m: TacMap, seed_value: int) -> Array:
 			if rng.randf() > lamp_keep:   # the power's out in a burning district
 				continue
 			out.append({"kind": "lamp", "cell": Vector3i(x, y, 0), "out": face, "color": lamp_col, "energy": 1.1 if bulkhead else 0.9, "range": 6.0 if bulkhead else 7.0})
+	# Outdoor lots get a lamp of their own (owner round 6: empty dark lots): a work light on a
+	# construction site, park and plaza lamps, a sodium lamp over parking.
+	const LOT_LIGHT := {"construction_site": "ffc860", "park": "c8ffd8", "plaza": "ffd8a8", "parking_lot": "ffb070", "market": "ffc890"}
+	for r in m.rooms:
+		if not r.get("outdoor", false) or r.floor != 0 or not LOT_LIGHT.has(String(r.kind)) or r.cells < 12:
+			continue
+		var b: Rect2i = r.bounds
+		var spot := Vector2i(-1, -1)
+		for k in 30:   # a free square of the lot, toward its middle
+			var v := b.get_center() + Vector2i(rng.randi_range(-b.size.x / 4, b.size.x / 4), rng.randi_range(-b.size.y / 4, b.size.y / 4))
+			if m.inb(v.x, v.y) and m.label(0, v.x, v.y) == r.id and not m.has_cover_at(0, v):
+				spot = v
+				break
+		if spot.x >= 0 and rng.randf() < lamp_keep:
+			out.append({"kind": "lamp", "cell": Vector3i(spot.x, spot.y, 0), "out": Vector2i.ZERO, "color": Color(LOT_LIGHT[String(r.kind)]), "energy": 1.2, "range": 8.0})
 	# Outside the city (few lamps): a few burning barrels / fire pits near cover, for warm pools.
 	if out.filter(func(x): return x.kind == "lamp").size() < 2:
 		var spots: Array[Vector2i] = []

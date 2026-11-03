@@ -89,7 +89,7 @@ const LOOKS := {
 		"sun": [-62.0, 200.0], "sky": ["98a4b4", "c8d0da", "e6eaee"], "rim": ["ff5060", 0.22], "lights": 0.5, "spill": 0.3,
 		"fog_dim": 0.82, "fog_sat": 0.7, "fog_cool": 0.0},
 	# Warzone: dusk under a sky lit by the fires; ember key low in the west, heavy brown smoke haze.
-	"warzone": {"ambient": "3a3038", "amb_e": 0.62, "key": "ffc0a0", "key_e": 0.7, "fog": "3a2420", "fog_d": 0.0045,
+	"warzone": {"ambient": "3a3038", "amb_e": 0.62, "key": "ff8a50", "key_e": 0.5, "fog": "3a2420", "fog_d": 0.0045,
 		"sun": [-12.0, 250.0], "sky": ["120a0c", "4a1a14", "c8501a"], "rim": ["ff6a2a", 0.3], "lights": 0.85,
 		"fog_dim": 0.7, "fog_sat": 0.75, "fog_cool": 0.0},
 }

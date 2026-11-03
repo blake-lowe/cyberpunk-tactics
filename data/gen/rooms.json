@@ -1171,7 +1171,8 @@
    }
   ]
  },
- "terrace": {"furniture": [["planter", "scatter", 18], ["seat", "scatter", 30], ["ac_unit", "scatter", 40]], "devices": []},
+ "construction_site": {"furniture": [["scaffold", "scatter", 26], ["pallet", "scatter", 22], ["crate", "scatter", 30], ["container", "scatter", 120], ["barrier", "wall", 50]], "devices": [{"t": "floodlight", "group": "site:floodlights", "p": 0.5}]},
+  "terrace": {"furniture": [["planter", "scatter", 18], ["seat", "scatter", 30], ["ac_unit", "scatter", 40]], "devices": []},
   "courtyard": {
   "furniture": [
    [

@@ -8,7 +8,8 @@ extends RefCounted
 
 const G := TacMap.G
 const YARDS := {"market": [G.CONCRETE, "market"], "park": [G.GRASS, "park"], "plaza": [G.CONCRETE, "plaza"],
-	"parking_lot": [G.ASPHALT, "parking_lot"], "rubble_field": [G.DIRT, "rubble_field"], "substation": [G.GRAVEL, "substation_yard"]}
+	"parking_lot": [G.ASPHALT, "parking_lot"], "rubble_field": [G.DIRT, "rubble_field"], "substation": [G.GRAVEL, "substation_yard"],
+	"construction": [G.DIRT, "construction_site"]}
 
 
 static func generate(c: Dictionary, profile_name: String) -> void:
@@ -25,6 +26,7 @@ static func generate(c: Dictionary, profile_name: String) -> void:
 	_fill_lots(c, prof, lots)
 	_footbridges(c, lines)
 	_parked(c, prof, roads)
+	_street_furniture(c)
 	_edge_spawns(c)
 
 
@@ -238,7 +240,9 @@ static func _fill_lots(c: Dictionary, prof: Dictionary, lots: Array) -> void:
 			use = target_site
 			target_done = true
 		if YARDS.has(use) or mini(bb.size.x, bb.size.y) < 7:
-			_yard_lot(c, piece, use if YARDS.has(use) else "plaza")
+			# leftover small lots: a pocket park, a bit of parking or a paved square, not bare ground
+			var small: String = ["park", "plaza", "parking_lot", "park"][c.dice.rng.randi() % 4] if mini(bb.size.x, bb.size.y) >= 5 else "park"
+			_yard_lot(c, piece, use if YARDS.has(use) else small)
 			continue
 		if not is_target and not use in BIG_SITES and maxi(bb.size.x, bb.size.y) >= 15 and c.dice.rng.randf() < float(prof.get("cluster", 0.0)):
 			_cluster(c, prof, piece, bb, names, wts, fl, blds)
@@ -411,6 +415,30 @@ static func _parked(c: Dictionary, prof: Dictionary, roads: Dictionary) -> void:
 					fp = Vector2i(2, 2)
 				Furnish.try_prop(m, 0, Rect2i(v, fp), piece, -1, {}, c.reserved)
 				break
+
+
+## Street furniture against building fronts (owner round 6: empty lots and pavements): vending
+## machines, benches and the odd kiosk, spaced out and clear of doors. Small cover on the street.
+static func _street_furniture(c: Dictionary) -> void:
+	var m: TacMap = c.m
+	var placed: Array[Vector2i] = []
+	for y in range(1, m.h - 1):
+		for x in range(1, m.w - 1):
+			var v := Vector2i(x, y)
+			if m.t(0, x, y) != TacMap.T.OUTSIDE or m.label(0, x, y) >= 0 or c.reserved.has(v) or m.has_cover_at(0, v):
+				continue
+			if not MapGen.DIRS.any(func(d): return m.t(0, x + d.x, y + d.y) == TacMap.T.WALL and int(m.wall_mat[0][(y + d.y) * m.w + x + d.x]) in [0, 1, 2]):
+				continue
+			var near_door := false
+			for dy in range(-2, 3):
+				for dx in range(-2, 3):
+					if m.inb(x + dx, y + dy) and m.t(0, x + dx, y + dy) == TacMap.T.DOOR:
+						near_door = true
+			if near_door or c.dice.rng.randf() > 0.05 or placed.any(func(q): return q.distance_squared_to(v) < 36):
+				continue
+			var piece: String = ["vending", "vending", "bench", "kiosk", "barrel"][c.dice.rng.randi() % 5]
+			if Furnish.try_prop(m, 0, Rect2i(v, Vector2i.ONE), piece, -1, {}, c.reserved):
+				placed.append(v)
 
 
 ## Reinforcement spawns where roads leave the map, spread around the edge.

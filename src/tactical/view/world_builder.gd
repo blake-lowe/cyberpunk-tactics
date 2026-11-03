@@ -991,6 +991,19 @@ func _multi(kind: String, r: Rect2, f: int, h0: int) -> void:
 				for s in [-1, 1]:
 					box(mat("dark", f, false, {"glow": 3.0, "emit": Color("ff2030")}), c + Vector3(-len2 / 2, 0.27, s * Wd * 0.28).rotated(Vector3.UP, yaw), Vector3(0.02, 0.05, 0.1), yaw)
 					box(mat("dark", f, false, {"glow": 2.0, "emit": Color("fff0d0")}), c + Vector3(len2 / 2, 0.25, s * Wd * 0.28).rotated(Vector3.UP, yaw), Vector3(0.02, 0.05, 0.1), yaw)
+		"scaffold":   # construction scaffolding: tubes, two plank decks, braces and green netting
+			var tube := mat("steel", f, false, {"color": Color("8a7a5a")})
+			var along := Vector3(cos(yaw), 0, -sin(yaw))
+			var across := Vector3(sin(yaw), 0, cos(yaw))
+			for i in 3:
+				for s in [-1, 1]:
+					var pp: Vector3 = c + along * (L * (i / 2.0 - 0.5) * 0.9) + across * (s * Wd * 0.35)
+					box(tube, pp + Vector3(0, 1.3, 0), Vector3(0.05, 2.6, 0.05))
+			for lv in [0.9, 1.8]:
+				box(mat("wood", f, false), c + Vector3(0, lv, 0), Vector3(L * 0.92, 0.05, Wd * 0.7), yaw)
+				box(tube, c + across * (Wd * 0.35) + Vector3(0, lv + 0.45, 0), Vector3(L * 0.92, 0.04, 0.04), yaw)
+			box(tube, c + across * (-Wd * 0.35) + Vector3(0, 1.3, 0), Vector3(L * 0.95, 0.04, 0.04), yaw + 0.0)
+			box(mat("fabric", f, false, {"color": Color("2a5a3a"), "alpha": 0.75}), c + across * (Wd * 0.38) + Vector3(0, 1.4, 0), Vector3(L * 0.9, 2.2, 0.02), yaw)
 		"water_tank":   # a timber-hooped tank on a steel frame, conical cap
 			var tc := mat("wood", f, false, {"color": Color("5a4430")}) if h0 % 2 == 0 else mat("steel", f, false, {"color": Color("6a6e70")})
 			for s in [-1, 1]:
@@ -1093,7 +1106,7 @@ func _roof_clutter(f: int) -> void:
 				box(mat("dark", f, true, {"glow": 1.2, "emit": Color("ff2020")}), p + Vector3(0, 0.92, 0), Vector3(0.06, 0.06, 0.06))
 			elif roll < 0.16:
 				box(S, p + Vector3(0, 0.12, 0), Vector3(0.3, 0.24, 0.3), rng.randf())
-			elif roll < 0.19:   # skylight glowing from the room below
+			elif roll < 0.172:   # skylight glowing from the room below (sparse: they read as noise in numbers)
 				var sk: Color = [Color("ffc890"), Color("aaf6ff")][rng.randi() % 2]
 				box(mat("dark", f, true, {"glow": 1.2, "emit": sk}), Vector3(x + 0.5, y0 + 0.03, y + 0.5), Vector3(0.6, 0.05, 0.6))
 				emitters.append({"cell": Vector3i(x, y, f), "color": sk, "energy": 0.8, "range": 2.5, "out": Vector2i.ZERO})
@@ -1176,8 +1189,113 @@ func _structure_at(f: int, x: int, y: int) -> int:
 	return -1
 
 
+const HOMES := ["apartments", "capsule_hotel", "squat", "villa", "gang_hideout", "bar", "shop", "bd_parlor"]
+
+
+## Residential upper floors: a slab balcony with a railing outside some of the windows.
+func _balconies(f: int) -> void:
+	if f == 0:
+		return
+	var y0 := f * FH
+	var slab := mat("concrete_prop", f, true, {"shell": true})
+	var rail := mat("steel", f, true, {"color": Color("2a2e34"), "shell": true})
+	for y in m.h:
+		for x in m.w:
+			var k := _wall_kind(f, x, y)
+			if not (k in [5, 6]) or not (_site_of(_sid_grid[y * m.w + x]) in HOMES):
+				continue
+			if posmod(hash(Vector3i(x, y, f * 7 + 3)), 5) > 1:
+				continue
+			for d in MapGen.DIRS:
+				var n: Vector2i = Vector2i(x, y) + d
+				if not m.inb(n.x, n.y) or m.t(f, n.x, n.y) != TacMap.T.VOID:
+					continue
+				var out := Vector3(d.x, 0, d.y)
+				var horiz := d.y != 0
+				var c := Vector3(x + 0.5, y0, y + 0.5) + out * (EXT_T / 2 + 0.24)
+				box(slab, c + Vector3(0, 0.03, 0), Vector3(1.1, 0.07, 0.5) if horiz else Vector3(0.5, 0.07, 1.1))
+				box(rail, c + out * 0.23 + Vector3(0, 0.42, 0), Vector3(1.1, 0.03, 0.03) if horiz else Vector3(0.03, 0.03, 1.1))
+				for sgn in [-1, 1]:
+					var side: Vector3 = Vector3(-d.y, 0, d.x) * 0.53 * sgn
+					box(rail, c + side + Vector3(0, 0.22, 0), Vector3(0.03, 0.4, 0.5) if horiz else Vector3(0.5, 0.4, 0.03))
+				for i in 4:
+					var off := Vector3(-d.y, 0, d.x) * (-0.45 + i * 0.3)
+					box(rail, c + out * 0.23 + off + Vector3(0, 0.22, 0), Vector3(0.02, 0.4, 0.02))
+
+
+var _escapes := {}   ## structure id → [cell, along, out, floors]: one fire escape per tall home
+
+
+## A steel fire escape zig-zagging up one blank street-facing wall of residential buildings:
+## a grated landing at each upper floor, a flight up to the next, a drop ladder at the bottom.
+## Decoration (the climbable ladders are the rules' connectors).
+func _fire_escape(f: int) -> void:
+	if f == 0:
+		_plan_escapes()
+		return
+	var y0 := f * FH
+	var steel := mat("steel", f, true, {"color": Color("30343a"), "shell": true})
+	var grate := mat("floor_metal", f, true, {"color": Color("3a3e44"), "shell": true})
+	for sid in _escapes:
+		var e: Array = _escapes[sid]
+		var floors: int = e[3]
+		if f >= floors:
+			continue
+		var cell: Vector2i = e[0]
+		var along: Vector3 = e[1]
+		var out: Vector3 = e[2]
+		var base := Vector3(cell.x + 0.5, y0, cell.y + 0.5) + out * (EXT_T / 2 + 0.38)
+		var horiz := absf(along.x) > 0.5
+		box(grate, base + Vector3(0, 0.02, 0), Vector3(2.8, 0.05, 0.7) if horiz else Vector3(0.7, 0.05, 2.8))
+		box(steel, base + out * 0.34 + Vector3(0, 0.45, 0), Vector3(2.8, 0.03, 0.03) if horiz else Vector3(0.03, 0.03, 2.8))
+		for i in 5:
+			box(steel, base + out * 0.34 + along * (-1.35 + i * 0.675) + Vector3(0, 0.23, 0), Vector3(0.025, 0.44, 0.025))
+		for sgn in [-1, 1]:   # brackets into the wall
+			box(steel, base + along * (1.2 * sgn) - out * 0.2 + Vector3(0, -0.12, 0), Vector3(0.04, 0.24, 0.04) if horiz else Vector3(0.04, 0.24, 0.04))
+		var dir := 1.0 if f % 2 == 0 else -1.0
+		if f + 1 < floors:   # flight up to the next landing
+			var x_dir := (along * dir * 2.0 + Vector3(0, FH, 0)).normalized()
+			var ln := Vector2(2.0, FH).length()
+			var z := out
+			var yv := z.cross(x_dir).normalized()
+			put("box", grate, Transform3D(Basis(x_dir * ln, yv * 0.05, z * 0.5), base + Vector3(0, FH / 2, 0) + out * 0.02))
+		if f == 1:   # drop ladder, hanging short of the street
+			for sgn in [-1, 1]:
+				box(steel, base + along * (-1.1 * dir) + along * (0.18 * sgn) + Vector3(0, -0.75, 0), Vector3(0.025, 1.0, 0.025))
+			for i in 5:
+				box(steel, base + along * (-1.1 * dir) + Vector3(0, -0.3 - i * 0.2, 0), Vector3(0.36, 0.02, 0.02) if horiz else Vector3(0.02, 0.02, 0.36))
+
+
+func _plan_escapes() -> void:
+	_escapes.clear()
+	var best := {}   # sid → [score, cell, d]
+	for y in range(1, m.h - 1):
+		for x in range(1, m.w - 1):
+			var sid := _sid_grid[y * m.w + x]
+			if sid < 0 or not (_site_of(sid) in ["apartments", "squat", "capsule_hotel", "gang_hideout"]) or int(m.structures[sid].floors) < 2:
+				continue
+			for d in MapGen.DIRS:
+				var along := Vector2i(-d.y, d.x)
+				var ok := true
+				for k in range(-1, 2):   # three blank wall squares on floor 1, the street below
+					var w: Vector2i = Vector2i(x, y) + along * k
+					if _wall_kind(1, w.x, w.y) in [-1, 3, 4, 5, 6] or m.t(1, w.x + d.x, w.y + d.y) != TacMap.T.VOID \
+							or m.t(0, w.x + d.x, w.y + d.y) != TacMap.T.OUTSIDE or m.t(0, w.x, w.y) == TacMap.T.DOOR:
+						ok = false
+				if not ok:
+					continue
+				var score := posmod(hash(Vector3i(x, y, sid)), 1000)
+				if not best.has(sid) or score > int(best[sid][0]):
+					best[sid] = [score, Vector2i(x, y), d]
+	for sid in best:
+		var d: Vector2i = best[sid][2]
+		_escapes[sid] = [best[sid][1], Vector3(-d.y, 0, d.x), Vector3(d.x, 0, d.y), int(m.structures[sid].floors)]
+
+
 ## Facades: AC units and pipes on exterior walls, posters, and tall vertical neon boards.
 func _facade_dressing(f: int) -> void:
+	_balconies(f)
+	_fire_escape(f)
 	var y0 := f * FH
 	for y in m.h:
 		for x in m.w:

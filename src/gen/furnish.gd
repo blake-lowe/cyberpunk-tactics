@@ -26,6 +26,7 @@ const PIECES := {
 	"rubble": ["concrete", false], "transformer": ["steel", true], "chair": ["steel", false], "lift": ["steel", false],
 	# rooftops
 	"water_tank": ["steel", true], "roof_hut": ["steel", true], "solar": ["steel", false], "stack": ["steel", true],
+	"scaffold": ["steel", false],
 }
 
 ## Pieces that are also hazards (explosive: blows up when destroyed; resolved in M3).
@@ -33,7 +34,7 @@ const HAZARDS := {"fuel_barrel": "explosive", "transformer": "electrified"}
 
 ## Multi-cell props: piece → [w, h] footprint in squares (rotated at random).
 const PROP_SIZES := {"car": [1, 2], "wreck": [2, 2], "container": [1, 3], "freight_car": [2, 7], "dumpster": [1, 1],
-	"water_tank": [2, 2], "roof_hut": [2, 2], "solar": [1, 2]}
+	"water_tank": [2, 2], "roof_hut": [2, 2], "solar": [1, 2], "scaffold": [1, 3]}
 
 
 static func run_structure(m: TacMap, dice: Dice, sid: int) -> void:
