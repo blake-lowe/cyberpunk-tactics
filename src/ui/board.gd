@@ -417,8 +417,9 @@ func _gig_card(i: int) -> PanelContainer:
 	if tw != "":
 		var td: Dictionary = RulesDB.gen("gigs.json").twists[tw]
 		col.add_child(_text("TWIST · %s: %s" % [String(td.name).to_upper(), td.desc], Hud.F_TERM, 18, Hud.RED, true))
-	col.add_child(_text({"data": "OBJECTIVE · PULL THE FILE IN THE NET, OR CLEAR THE SITE", "eliminate": "OBJECTIVE · NOBODY LEFT STANDING, BACKUP INCLUDED",
-		"snatch": "OBJECTIVE · GRAB THE PACKAGE, CARRY IT OUT THE WAY YOU CAME"}[Campaign.objective_for(g)], Hud.F_TERM, 18, Hud.GOLD))
+	col.add_child(_text("OBJECTIVE · " + {"data": "Download the target file, or eliminate all hostiles",
+		"eliminate": "Eliminate all hostiles, including reinforcements",
+		"snatch": "Recover the package and carry it to the extraction zone"}[Campaign.objective_for(g)].to_upper(), Hud.F_TERM, 18, Hud.GOLD))
 	var ready := camp.alive_crew().any(func(c): return c.can_act() and c.wound_state() < Combatant.Wound.MORTAL)
 	col.add_child(_button("TAKE THE GIG", Hud.GOLD, func(): _take(i), ready))
 	return p

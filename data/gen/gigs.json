@@ -37,11 +37,11 @@
     {
       "kind": "data_theft",
       "titles": [
-        "Lift the {data} from {corp}",
-        "{corp} wants it gone, we want it first: {data}",
-        "Get in, pull the {data}, get out"
+        "Data theft: {corp}",
+        "Steal {corp}'s {data}",
+        "Download the {data}"
       ],
-      "blurb": "{fixer} has a buyer for {corp}'s {data}. Jack in and pull the file, or put the guards down and take it the old way.",
+      "blurb": "{fixer} has a buyer for {corp}'s {data}. Download it through their NET, or clear the building and take it by hand.",
       "scenes": [
         "lone_building",
         "street_block",
@@ -52,10 +52,10 @@
     {
       "kind": "gang_hit",
       "titles": [
-        "Clear the {gang} out of the {place}",
-        "The {gang} took something that isn't theirs"
+        "Gang hit: {gang}",
+        "Clear the {gang} out of the {place}"
       ],
-      "blurb": "The {gang} have dug in at the {place}. {fixer} wants the stash on their network, and nobody standing.",
+      "blurb": "The {gang} have taken over a {place}. {fixer} wants them gone, along with anyone they call for help.",
       "scenes": [
         "badlands",
         "shipyard",
@@ -72,10 +72,10 @@
     {
       "kind": "corp_extraction",
       "titles": [
-        "Off-the-books audit at {corp}",
-        "{corp}'s night shift has a leak"
+        "Package job: {corp}",
+        "Steal the {data} drive from {corp}"
       ],
-      "blurb": "A {corp} insider left a door open for one night. {fixer} wants the {data} drive physically carried out before morning: grab it and get back to the extraction point.",
+      "blurb": "A {corp} insider will leave a door open tonight. Find the {data} drive inside and carry it back to where you came in.",
       "scenes": [
         "corp_campus",
         "lone_building",
@@ -115,9 +115,9 @@
     {
       "kind": "corp_extraction",
       "titles": [
-        "{fixer}'s personal favour: the {corp} prototype"
+        "Personal job: {corp} prototype"
       ],
-      "blurb": "{fixer} doesn't hand this one to just anyone. A {corp} lab is moving a prototype tonight; it never arrives. Double pay, and {fixer} remembers who came through.",
+      "blurb": "{fixer} trusts you with this one. A {corp} prototype is in storage tonight; bring it back. Double pay.",
       "scenes": [
         "corp_campus",
         "megablock"
@@ -129,9 +129,9 @@
     {
       "kind": "gang_hit",
       "titles": [
-        "{fixer} wants the {gang} gone. All of them."
+        "Personal job: wipe out the {gang}"
       ],
-      "blurb": "The {gang} crossed {fixer} once too often. Their main crew is holed up at the {place}. This one pays like a contract, because it is one.",
+      "blurb": "{fixer} wants the {gang} gone for good. Their main crew is at the {place}. Double pay.",
       "scenes": [
         "shipyard",
         "rail_yard",
@@ -149,9 +149,9 @@
     {
       "kind": "data_theft",
       "titles": [
-        "{corp}'s black book, for {fixer}'s eyes only"
+        "Personal job: {corp}'s {data}"
       ],
-      "blurb": "{fixer} has a client who'll pay anything for {corp}'s {data}, and won't say why. Deep NET, heavy ICE.",
+      "blurb": "{fixer}'s client wants {corp}'s {data}. Expect a deep NET and heavy Black ICE. Double pay.",
       "scenes": [
         "corp_campus",
         "lone_building"

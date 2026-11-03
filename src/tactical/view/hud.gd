@@ -584,13 +584,13 @@ static func objective_text(enc: Encounter) -> String:
 	var o := enc.objective
 	match String(o.get("kind", "data")):
 		"snatch":
-			return "OBJ · EXTRACT THE PACKAGE" if int(o.get("carrier", -1)) >= 0 else "OBJ · GRAB THE PACKAGE"
+			return "OBJECTIVE · CARRY THE PACKAGE TO THE EXTRACTION ZONE" if int(o.get("carrier", -1)) >= 0 else "OBJECTIVE · RECOVER THE PACKAGE"
 		"eliminate":
-			return "OBJ · NOBODY STANDING (%d LEFT)" % enc.alive(1).size()
+			return "OBJECTIVE · ELIMINATE ALL HOSTILES (%d LEFT)" % enc.alive(1).size()
 	if int(o.get("node", -1)) >= 0 and enc.m.architectures.has(int(o.structure)):
 		var fn: Dictionary = (enc.m.architectures[int(o.structure)] as NetArchitecture).nodes[int(o.node)]
-		return "OBJ · PULL THE ★ FILE (NET L%d) OR CLEAR OUT" % int(fn.zone)
-	return "OBJ · CLEAR OUT"
+		return "OBJECTIVE · DOWNLOAD THE ★ FILE (NET LEVEL %d)\nOR ELIMINATE ALL HOSTILES" % int(fn.zone)
+	return "OBJECTIVE · ELIMINATE ALL HOSTILES"
 
 
 ## Show each M5 action only when it applies to the active unit; reflect the active tool.

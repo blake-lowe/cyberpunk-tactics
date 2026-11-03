@@ -328,7 +328,7 @@ func grab() -> Dictionary:
 		return {"ok": false, "reason": "no action left"}
 	objective.carrier = cur.id
 	events.append({"type": "grab", "unit": cur.id, "cell": cell})
-	say("%s grabs the package. Get it to the extraction point." % cur.c.display_name)
+	say("%s has the package. Carry it to the extraction zone." % cur.c.display_name)
 	_check_end()
 	return {"ok": true}
 

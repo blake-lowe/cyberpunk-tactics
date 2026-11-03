@@ -2213,8 +2213,8 @@ func _play_events() -> void:
 				_focus_unit = u.id
 				gn.duck(0.6)
 				await get_tree().create_timer(0.4).timeout
-				_float(u, "PACKAGE SECURED", Hud.GOLD)
-				hud.toast("GET IT TO THE EXTRACTION POINT")
+				_float(u, "PACKAGE RECOVERED", Hud.GOLD)
+				hud.toast("CARRY IT TO THE EXTRACTION ZONE")
 				await get_tree().create_timer(0.5).timeout
 			"drop":
 				_float(u, "PACKAGE DROPPED", Hud.RED)
