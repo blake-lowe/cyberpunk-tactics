@@ -99,6 +99,21 @@ static func npc(dice: Dice, id: String, tier: String, n: int, rank_override := "
 		gear["armor"] = roster.armor[tier]
 	var name := "%s %d" % [rank_override if rank_override != "" else rank(id, tier), n]
 	var c := Recruit.npc(dice, tier, name, gear)
+	var q: Variant = (roster.get("quality", {}) as Dictionary).get(tier, "standard")
+	var picked := "standard"
+	if q is String:
+		picked = q
+	elif q is Dictionary:   # chances: {"poor": 0.6} (the rest standard)
+		var roll := dice.rng.randf()
+		for k in q:
+			roll -= float(q[k])
+			if roll < 0.0:
+				picked = String(k)
+				break
+	if picked != "standard":
+		for i in c.weapons.size():
+			if Weapon.can_have_quality(c.weapons[i].id(), picked):
+				c.weapons[i] = Weapon.from_id(c.weapons[i].id(), picked)
 	c.faction = faction(id).id
 	return c
 

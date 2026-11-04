@@ -333,7 +333,7 @@ func resolve(e: Encounter) -> Dictionary:
 			if e.is_guard(u) and e.hostile(int(u.team), Encounter.CREW) and (u.c.dead or u.c.wound_state() >= Combatant.Wound.MORTAL or u.c.unconscious):
 				var value := 0
 				for w in u.c.weapons:
-					value += int(w.def.get("cost", 0))
+					value += w.cost()
 				for loc in u.c.armor:
 					if u.c.armor[loc]:
 						value += int(RulesDB.armor((u.c.armor[loc] as ArmorPiece).id).get("cost", 0))
@@ -444,6 +444,8 @@ func hire(index: int) -> bool:
 ## What the market stocks: every weapon and armour whose data carries "shop_rep", the reputation
 ## it takes to get it (HOUSE-RULE: availability by reputation stands in for the book's Night Market
 ## rolls, p337). Prices are the book's list prices (data/rules weapons.json / armor.json).
+## Reputation a quality needs beyond the weapon's own shop_rep (HOUSE-RULE).
+const QUALITY_SHOP := {"poor": 0, "standard": 0, "excellent": 1}
 const RESALE := 0.5   ## HOUSE-RULE: replaced gear sells back at half price
 const MAX_GUNS := 2   ## HOUSE-RULE: a primary and a sidearm (plus one melee weapon)
 
@@ -453,10 +455,17 @@ func shop_stock() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	var wdb: Dictionary = RulesDB.load_json("weapons.json")["weapons"]
 	for id in wdb:
-		if wdb[id].has("shop_rep") and rep >= int(wdb[id].shop_rep):
-			var d := RulesDB.weapon(id)
+		if not wdb[id].has("shop_rep"):
+			continue
+		for q in QUALITY_SHOP:   # every quality the book prices (p.342); Excellent needs a better name
+			if rep < int(wdb[id].shop_rep) + int(QUALITY_SHOP[q]) or not Weapon.can_have_quality(id, q):
+				continue
+			var w := Weapon.from_id(id, q)
+			var d := w.def
 			var info := "%dd6" % int(d.dice) + ("" if d.get("melee", false) else " · ROF %d · %d rds" % [int(d.rof), int(d.mag)])
-			out.append({"id": id, "kind": "weapon", "name": String(d.name), "cost": _price(int(d.cost)), "info": info, "fixer": int(d.cost) >= 500})
+			info += {"poor": " · jams on a 1", "excellent": " · +1 to hit"}.get(q, "")
+			out.append({"id": id if q == "standard" else "%s@%s" % [id, q], "kind": "weapon", "name": w.display_name(),
+				"cost": _price(w.cost()), "info": info, "fixer": w.cost() >= 500})
 	var adb: Dictionary = RulesDB.load_json("armor.json")["armor"]
 	for id in adb:
 		if adb[id].has("shop_rep") and rep >= int(adb[id].shop_rep):
@@ -480,12 +489,12 @@ func buy(c: Combatant, id: String, loc := "body") -> bool:
 	var it: Dictionary = entry[0]
 	var refund := 0
 	if it.kind == "weapon":
-		var w := Weapon.from_id(id)
+		var w := Weapon.from_id(id.get_slice("@", 0), id.get_slice("@", 1) if id.contains("@") else "standard")
 		if w.is_melee():
 			if c.weapons.any(func(x): return x.builtin):
 				return false   # cyberware claws/knuckles already fill the melee slot
 			for old in c.weapons.filter(func(x): return x.is_melee()):
-				refund += int(int(old.def.cost) * RESALE)
+				refund += int(old.cost() * RESALE)
 				c.weapons.erase(old)
 			c.weapons.append(w)
 		else:
@@ -493,7 +502,7 @@ func buy(c: Combatant, id: String, loc := "body") -> bool:
 			var guns := c.weapons.filter(func(x): return not x.is_melee())
 			while guns.size() > MAX_GUNS:
 				var old: Weapon = guns.pop_back()
-				refund += int(int(old.def.cost) * RESALE)
+				refund += int(old.cost() * RESALE)
 				c.weapons.erase(old)
 	else:
 		var old_a: ArmorPiece = c.armor.get(loc)

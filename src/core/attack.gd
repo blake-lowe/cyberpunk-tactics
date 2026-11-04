@@ -23,6 +23,7 @@ static func attack_base(attacker: Combatant, weapon: Weapon, mode: Mode) -> int:
 		base -= AIMED_PENALTY
 		base += attacker.cyber_fx_sum("aimed_bonus")  # Targeting Scope
 	base += attacker.awareness_level("precision_attack")  # Solo (p146)
+	base += weapon.attack_bonus()   # Excellent Quality +1 (p.342), exotic builds
 	return base
 
 
@@ -75,6 +76,7 @@ static func resolve(dice: Dice, attacker: Combatant, weapon: Weapon, defender: C
 	else:
 		check = Check.vs_dv(dice, p.base, p.dv, nf)
 	r.check = check
+	_maybe_jam(weapon, check, r)
 	r.hit = check.success
 	r.dodged = p.defense_base >= 0 and not weapon.is_melee() and not r.hit  # for the "DODGE" callout
 	if not r.hit:
@@ -140,11 +142,21 @@ static func apply_damage(dice: Dice, defender: Combatant, r: Dictionary, halve_s
 		defender.dsp += 1
 
 
+## A Poor Quality weapon jams when the Attack Check's die shows a 1 (p.342). The attack still
+## resolves (a natural 1 is a Critical Failure: it almost always misses anyway).
+static func _maybe_jam(weapon: Weapon, check: Check, r: Dictionary) -> void:
+	if check != null and weapon.jams_on_fumble() and check.natural == 1:
+		weapon.jammed = true
+		r["jammed"] = true
+
+
 static func _range_key(weapon: Weapon, mode: Mode) -> String:
 	return weapon.def["autofire_range"] if mode == Mode.AUTOFIRE else weapon.def["range"]
 
 
 static func _illegal_reason(weapon: Weapon, mode: Mode, distance_m: float) -> String:
+	if weapon.jammed:
+		return "jammed"
 	if weapon.is_melee():
 		if mode == Mode.AUTOFIRE:
 			return "no autofire"
@@ -186,6 +198,7 @@ static func shotgun_shell(dice: Dice, attacker: Combatant, weapon: Weapon, targe
 	var check := Check.vs_dv(dice, attack_base(attacker, weapon, Mode.SINGLE), SHOTGUN_SHELL_DV,
 		attacker.awareness_level("fumble_recovery") > 0)
 	out.check = check
+	_maybe_jam(weapon, check, out)
 	out.hit = check.success
 	if out.hit:
 		out.faces = dice.roll_each(SHOTGUN_SHELL_DICE, 6)
@@ -214,6 +227,9 @@ static func suppressive_fire(dice: Dice, attacker: Combatant, weapon: Weapon, ta
 	var out := {"ok": false, "reason": "", "suppressed": []}
 	if not weapon.def.get("suppressive", false):
 		out.reason = "no suppressive fire"
+		return out
+	if weapon.jammed:
+		out.reason = "jammed"
 		return out
 	if weapon.ammo < AUTOFIRE_AMMO:
 		out.reason = "need 10 rounds"

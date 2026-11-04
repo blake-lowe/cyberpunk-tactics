@@ -34,6 +34,11 @@ func test_every_faction_resolves_against_the_rules_data() -> void:
 					assert_true(weapons.has(w), "%s: kit weapon %s exists" % [id, w])
 		for tier in roster.get("armor", {}):
 			assert_true(armor.has(roster.armor[tier]), "%s: armour %s exists" % [id, roster.armor[tier]])
+		var quals: Dictionary = RulesDB.load_json("weapons.json")["quality"]
+		for tier in roster.get("quality", {}):
+			var q: Variant = roster.quality[tier]
+			for name in ([q] if q is String else (q as Dictionary).keys()):
+				assert_true(quals.has(String(name)), "%s: quality %s for %s exists" % [id, name, tier])
 		var r: Dictionary = roster.get("responder", {})
 		if r.has("armor"):
 			assert_true(armor.has(r.armor), "%s: responder armour exists" % id)

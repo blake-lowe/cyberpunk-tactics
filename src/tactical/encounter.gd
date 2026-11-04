@@ -1480,7 +1480,10 @@ func attack(target: Dictionary, weapon: Weapon, mode: Attack.Mode) -> Dictionary
 		"damage": hp_before - target.c.hp, "through": r.through, "location": r.location, "sp_before": sp_before,
 		"sp_after": target.c.sp(r.location), "crit": not r.crits.is_empty(), "crit_names": r.crits.map(func(c): return String(c.get("name", ""))),
 		"wound_before": wound_before, "wound_after": target.c.wound_state(), "mult": mult, "rounds": maxi(1, ammo_before - weapon.ammo),
-		"mode": mode, "weapon": weapon.id(), "dead": target.c.dead, "killed": target.c.dead or target.c.wound_state() == Combatant.Wound.MORTAL})
+		"mode": mode, "weapon": weapon.id(), "dead": target.c.dead, "killed": target.c.dead or target.c.wound_state() == Combatant.Wound.MORTAL,
+		"jammed": r.get("jammed", false)})
+	if r.get("jammed", false):
+		say("%s's %s jams." % [cur.c.display_name, weapon.display_name()])
 	var who := "%s → %s" % [cur.c.display_name, target.c.display_name]
 	if r.dodged:
 		say("%s: DODGE" % who)
@@ -1803,8 +1806,16 @@ func _take_cover(u: Dictionary) -> void:
 		move_to(dest, true)
 
 
-## Reload (an Action, p169) as an event, so the view can play it.
+## Reload (an Action, p169) as an event, so the view can play it. A jammed Poor Quality weapon
+## is cleared instead (an Action, no Check, p.342).
 func reload(weapon: Weapon) -> bool:
+	if weapon.jammed:
+		if not turn.use_action():
+			return false
+		weapon.jammed = false
+		events.append({"type": "reload", "unit": cur.id, "weapon": weapon.id(), "unjam": true})
+		say("%s clears the jam." % cur.c.display_name)
+		return true
 	if not weapon.uses_ammo() or weapon.ammo >= weapon.mag() or not turn.use_action():
 		return false
 	weapon.reload()

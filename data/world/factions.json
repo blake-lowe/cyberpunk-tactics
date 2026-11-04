@@ -196,7 +196,11 @@
 				"armor": {
 					"mook": "medium_armorjack"
 				},
-				"grenade_chance": 0.5
+				"grenade_chance": 0.5,
+				"quality": {
+					"lieutenant": "excellent",
+					"mini_boss": "excellent"
+				}
 			},
 			"look": {
 				"jacket": "3a4232",
@@ -260,6 +264,9 @@
 							"heavy_pistol"
 						]
 					]
+				},
+				"quality": {
+					"mini_boss": "excellent"
 				}
 			},
 			"look": {
@@ -317,6 +324,10 @@
 					"count": 3,
 					"rank": "Trauma Team",
 					"armor": "heavy_armorjack"
+				},
+				"quality": {
+					"lieutenant": "excellent",
+					"mini_boss": "excellent"
 				}
 			},
 			"look": {
@@ -414,6 +425,11 @@
 				},
 				"armor": {
 					"mook": "leathers"
+				},
+				"quality": {
+					"mook": {
+						"poor": 0.3
+					}
 				}
 			},
 			"look": {
@@ -504,6 +520,11 @@
 				},
 				"armor": {
 					"mook": "kevlar"
+				},
+				"quality": {
+					"mook": {
+						"poor": 0.3
+					}
 				}
 			},
 			"look": {
@@ -591,6 +612,11 @@
 				},
 				"armor": {
 					"mook": "leathers"
+				},
+				"quality": {
+					"mook": {
+						"poor": 0.5
+					}
 				}
 			},
 			"look": {
@@ -635,6 +661,11 @@
 				},
 				"armor": {
 					"mook": "leathers"
+				},
+				"quality": {
+					"mook": {
+						"poor": 0.6
+					}
 				}
 			},
 			"look": {

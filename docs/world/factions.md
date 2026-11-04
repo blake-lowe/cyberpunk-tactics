@@ -10,6 +10,12 @@ Status: everything below is **RULES-UNVERIFIED**: Time of the Red common knowled
 "Factions of Night City (World.faction). The gig's target faction fields the guards; others appear as third parties (bystanders, Trauma Team, NCPD, MaxTac, rival crews). kind sets defaults; relations are symmetric and resolved most-hostile-wins between kind defaults and per-faction overrides. roster: ranks name the NPC tiers (npcs.json), kits/armor override a tier's gear, grenade_chance is for mooks. look: what the view dresses them in (jacket/accent/pants colours, vest/helmet/gloves). gigs: the gig kinds (gigs.json templates) this faction can be the target of. doctrine: security style (data/world/security.json, task 41). Names follow CPR's Time of the Red; anything not checked against the book is RULES-UNVERIFIED until the Night City 2047 pass."
 ```
 
+## Weapon quality in rosters
+
+`roster.quality` per NPC tier: a quality (`"excellent"`) or chances (`{"poor": 0.6}`). HOUSE-RULE
+choices: street gangs carry cheap printed guns (Poor Quality pistols are common on the street,
+CPR core p.321; jams on a 1, p.342), corporate and Trauma Team officers carry Excellent ones.
+
 ## Relations between kinds
 
 Defaults by kind, symmetric (most hostile wins); a faction's own `relations` override replaces them.
@@ -260,7 +266,11 @@ Arms maker with a private army: more troopers, better kit, grenades. *RULES-UNVE
 		"armor": {
 			"mook": "medium_armorjack"
 		},
-		"grenade_chance": 0.5
+		"grenade_chance": 0.5,
+		"quality": {
+			"lieutenant": "excellent",
+			"mini_boss": "excellent"
+		}
 	},
 	"look": {
 		"jacket": "3a4232",
@@ -338,6 +348,9 @@ Smart-weapons maker. *RULES-UNVERIFIED.*
 					"heavy_pistol"
 				]
 			]
+		},
+		"quality": {
+			"mini_boss": "excellent"
 		}
 	},
 	"look": {
@@ -409,6 +422,10 @@ Armed paramedics on subscription. As responders they land by AV for a downed car
 			"count": 3,
 			"rank": "Trauma Team",
 			"armor": "heavy_armorjack"
+		},
+		"quality": {
+			"lieutenant": "excellent",
+			"mini_boss": "excellent"
 		}
 	},
 	"look": {
@@ -527,6 +544,11 @@ Heavy-chrome gang; hostile to every other gang. *RULES-UNVERIFIED.*
 		},
 		"armor": {
 			"mook": "leathers"
+		},
+		"quality": {
+			"mook": {
+				"poor": 0.3
+			}
 		}
 	},
 	"look": {
@@ -631,6 +653,11 @@ Pistol-heavy gang. *RULES-UNVERIFIED.*
 		},
 		"armor": {
 			"mook": "kevlar"
+		},
+		"quality": {
+			"mook": {
+				"poor": 0.3
+			}
 		}
 	},
 	"look": {
@@ -732,6 +759,11 @@ Nomad-style raiders on the city's edge. *RULES-UNVERIFIED.*
 		},
 		"armor": {
 			"mook": "leathers"
+		},
+		"quality": {
+			"mook": {
+				"poor": 0.5
+			}
 		}
 	},
 	"look": {
@@ -783,6 +815,11 @@ Clown-themed gang; melee and cheap guns. *RULES-UNVERIFIED.*
 		},
 		"armor": {
 			"mook": "leathers"
+		},
+		"quality": {
+			"mook": {
+				"poor": 0.6
+			}
 		}
 	},
 	"look": {

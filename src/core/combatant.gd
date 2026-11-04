@@ -575,7 +575,7 @@ func to_dict() -> Dictionary:
 		sub[loc] = _armor_dict(subdermal[loc])
 	return {"id": id, "name": display_name, "team": team, "faction": faction, "stats": stats, "skills": skills, "hp": hp, "armor": arm,
 		"subdermal": sub, "injuries": injuries, "base_dsp": base_dsp, "dsp": dsp, "dead": dead, "unconscious": unconscious,
-		"weapons": weapons.map(func(w): return {"id": w.id(), "ammo": w.ammo, "builtin": w.builtin}), "grenades": grenades, "role": role,
+		"weapons": weapons.map(func(w): return {"id": w.id(), "ammo": w.ammo, "builtin": w.builtin, "quality": w.quality}), "grenades": grenades, "role": role,
 		"role_rank": role_rank, "awareness": awareness, "tracks_humanity": tracks_humanity, "humanity": humanity,
 		"max_humanity": max_humanity, "cyberware": cyberware, "ip": ip, "look_seed": look_seed, "perks": perks, "medicine": medicine, "maker": maker, "downtime": downtime, "programs": programs}
 
@@ -603,7 +603,7 @@ static func from_dict(d: Dictionary) -> Combatant:
 	c.dead = bool(d.dead)
 	c.unconscious = bool(d.unconscious)
 	for wd in d.weapons:
-		var w := Weapon.from_id(String(wd.id))
+		var w := Weapon.from_id(String(wd.id), String(wd.get("quality", "standard")))
 		w.ammo = int(wd.ammo)
 		w.builtin = bool(wd.get("builtin", false))
 		c.weapons.append(w)

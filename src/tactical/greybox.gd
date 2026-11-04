@@ -3058,6 +3058,8 @@ func _anim_attack(e: Dictionary) -> void:
 		_update_fog()
 		_update_cut()
 	sn.visible = sn.visible or _seen(su.pos)
+	if e.get("jammed", false) and _seen(su.pos):   # a Poor Quality gun rolled a 1 (p.342)
+		_float(su, "JAMMED", Hud.GOLD)
 	tn.visible = tn.visible or _seen(tu.pos)
 	await _frame_pair(_body_pos(su), _body_pos(tu))
 	var wid := String(e.get("weapon", "assault_rifle"))

@@ -15,7 +15,7 @@ static func act(e: Encounter, u: Dictionary) -> void:
 	if u.c.weapons.is_empty():
 		return
 	var w: Weapon = u.c.weapons[0]
-	if w.uses_ammo() and w.ammo <= 0:
+	if w.jammed or (w.uses_ammo() and w.ammo <= 0):
 		for f in _enemies(e, u):   # empty with an enemy in reach: hit them rather than reload
 			if e.adjacent(u.pos, f.pos):
 				e.melee(f)

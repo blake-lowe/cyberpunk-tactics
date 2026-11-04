@@ -610,7 +610,7 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 		var exhausted := not act and mv == 0
 		(_end_btn as ActBtn).tint = GOLD if exhausted else Color("8a96a0")
 		var w: Weapon = c.weapons[0] if not c.weapons.is_empty() else null
-		_econ.add_child(_text(("%s  %s" % [String(w.def.name).to_upper(), ("%02d/%02d" % [w.ammo, int(w.def.get("mag", 0))]) if w.uses_ammo() else ""]) if w else "UNARMED", F_TERM, Hud.ts(20), TEXT))
+		_econ.add_child(_text(("%s  %s" % [w.display_name().to_upper(), "JAMMED · R TO CLEAR" if w.jammed else (("%02d/%02d" % [w.ammo, int(w.def.get("mag", 0))]) if w.uses_ammo() else "")]) if w else "UNARMED", F_TERM, Hud.ts(20), TEXT))
 		if enc.runs.has(enc.cur.id):
 			_econ.add_child(_text("◆ NET %d" % enc.net_left, F_PIXEL, 20, Color("d68cff")))
 	for k in _mode_buttons:
