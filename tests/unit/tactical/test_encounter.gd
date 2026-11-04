@@ -345,7 +345,7 @@ func test_ncpd_follows_backup_if_the_fight_goes_on() -> void:
 	# The site's own people always answer (code 11), and so does the district's NCPD.
 	var e := Encounter.setup(m, dice, _crew(dice), "data", {"security_code": {"n": 11, "faction": "", "intensity": "medium", "hardened": false},
 		"district_code": {"n": 11, "faction": "ncpd", "intensity": "medium", "hardened": true}})
-	e._call_it_in(e.units.filter(func(u): return u.team == Encounter.OPFOR)[0])
+	e.call_it_in(e.units.filter(func(u): return u.team == Encounter.OPFOR)[0])
 	assert_true(e.backup_in >= 2, "backup is on its way")
 	assert_true(e.ncpd_in > e.backup_in, "the street response comes after the site's (NC2045 p.7)")
 	assert_eq(e.ncpd_label, "NCPD")
@@ -388,7 +388,7 @@ func test_a_failed_code_roll_brings_nobody() -> void:
 	var never := {"n": 1, "faction": "ncpd", "intensity": "medium", "hardened": false}   # 1d10 is never under 1
 	var e := Encounter.setup(m, dice, _crew(dice), "data", {"security_code": never, "district_code": never})
 	var before := e.units.size()
-	e._call_it_in(e.units.filter(func(u): return u.team == Encounter.OPFOR)[0])
+	e.call_it_in(e.units.filter(func(u): return u.team == Encounter.OPFOR)[0])
 	assert_eq(e.alarm, 2, "the call still goes out")
 	assert_eq(e.backup_in, -1, "nobody answers the site's code")
 	assert_eq(e.ncpd_in, -1, "nor the street's")

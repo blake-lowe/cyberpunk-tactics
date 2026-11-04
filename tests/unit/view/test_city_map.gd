@@ -64,10 +64,36 @@ func test_offers_are_pinned_and_picked() -> void:
 
 
 func test_code_colours_and_short_names() -> void:
-	assert_true(CityMap.code_colour(2).r > CityMap.code_colour(2).b, "low codes are hot")
-	assert_true(CityMap.code_colour(9).b > CityMap.code_colour(9).r, "high codes are cool")
+	assert_true(CityMap.code_colour(2).b > CityMap.code_colour(2).r, "low codes are cool: help rarely comes")
+	assert_true(CityMap.code_colour(9).r > CityMap.code_colour(9).b, "high codes are hot: it nearly always does")
 	assert_eq(CityMap.short_faction("eri"), "ERI")
 	assert_eq(CityMap.short_faction("ncpd"), "NCPD")
+	assert_eq(CityMap.short_code({"n": 6, "faction": "ncpd", "intensity": "medium", "hardened": true}), "6 · NCPD · H-MED")
+	assert_eq(CityMap.short_code({"n": 7, "faction": "thelas_marines", "intensity": "heavy", "hardened": false}), "7 · THELAS · HVY")
+	assert_eq(CityTab.utility_text(6), "Power, water, CitiNet: each out 50% of the time")
+	assert_eq(SecurityCode.chance(11), 100)
+	assert_eq(SecurityCode.chance(1), 0)
+
+
+func test_callout_leaders_neither_cross_nor_run_through_labels() -> void:
+	var camp := DemoState.make()
+	for sz in SIZES:
+		var m := _map(camp, sz)
+		var ids: Array = m.labels.keys().filter(func(id): return bool(m.labels[id].callout))
+		for i in ids.size():
+			var L: Dictionary = m.labels[ids[i]]
+			var li := CityMap.leader(L.rect, int(L.align), L.anchor, L.via)
+			assert_true(Geometry2D.is_point_in_polygon(L.anchor, m._polys[ids[i]]), "%s's leader ends in the district" % ids[i])
+			for j in range(i + 1, ids.size()):
+				var M: Dictionary = m.labels[ids[j]]
+				if int(M.align) == int(L.align):
+					assert_false(CityMap._leaders_cross(li, CityMap.leader(M.rect, int(M.align), M.anchor, M.via)),
+						"leaders of %s and %s cross at %s" % [ids[i], ids[j], sz])
+			for id in m.labels:
+				if id != ids[i] and not bool(m.labels[id].callout):
+					for k in range(1, li.size() - 1):
+						assert_false(CityMap._seg_hits_rect(li[k], li[k + 1], m.labels[id].rect), "%s's leader runs through %s's label at %s" % [ids[i], id, sz])
+		m.free()
 
 
 func test_city_tab_builds_and_a_pin_opens_the_job() -> void:

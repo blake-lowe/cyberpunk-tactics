@@ -31,6 +31,14 @@ const STREET_FALLBACK := {"n": 6, "faction": "ncpd", "intensity": "medium", "har
 ## HOUSE-RULE: utilities for a gig with no district yet: 3, the most common district Utility Code
 ## on the NC2045 p.8 cheatsheet (a 20% chance each utility is out).
 const UTILITY_FALLBACK := 3
+## guarded_by: faction kinds that sell protection (factions.json `kind`).
+const PROVIDER_KINDS := ["police", "corp"]
+## guarded_by: the public police, whose code at a private place is the city's interest in it.
+const PUBLIC_POLICE := ["ncpd", "maxtac"]
+## guarded_by: owners whose places the public police guard themselves.
+const CITY_OWNERS := ["city_government"]
+## utilities_happen: one gig in this many rolls its Utility Code (HOUSE-RULE pacing).
+const UTILITY_CHANCE_IN := 3
 ## CPR core p.399 encounter costs in Edgerunners' worth.
 const COST := {"mook": 1, "lieutenant": 2, "mini_boss": 3}
 
@@ -100,8 +108,10 @@ static func response_rounds(dice: Dice, p_quick: bool) -> int:
 	return dice.d(6 if p_quick else 10) * ROUNDS_PER_MINUTE
 
 
-## The crew size to budget against (NC2045 p.7 intensity table, on the CPR p.399 budget): Light
-## treats the crew as 1-2 smaller (1d2, at least 1), Medium as it is, Heavy as at least 1 larger.
+## The crew size to budget a response against (NC2045 p.7 intensity table, on the CPR p.399
+## budget): Light treats the crew as 1-2 smaller (1d2, at least 1), Medium as it is, Heavy as at
+## least 1 larger. Responses only: the guards on the posts get a code's intensity through the
+## gig's security level instead (Campaign.location_levels), so it isn't counted twice.
 static func budget_crew_size(crew_size: int, intensity: String, dice: Dice) -> int:
 	match intensity:
 		"light":
@@ -170,14 +180,19 @@ static func pool_from(roster: Dictionary, npcs: Dictionary, tier: String, harden
 ## Returns {security_code, utility_code, district_code, source: location|district|fallback}:
 ## district_code is the street-level code that can send a second response (the district's when
 ## the site code came from a location; none when the site code is the district's own; the
-## STREET_FALLBACK otherwise). Utility: the location's override, else the district's, else
-## UTILITY_FALLBACK.
+## STREET_FALLBACK otherwise). A location's code replaces its district's for that place (NC2045
+## p.7: it is the on-site protection, or the district authority's own interest in the place), so
+## when both name the same faction there is no street roll: that faction answers once.
+## Utility: the location's override, else the district's, else UTILITY_FALLBACK.
 static func for_gig(location: Dictionary, district: Dictionary, p_level: int, faction := "") -> Dictionary:
 	var loc := normalise(location.get("security_code"))
 	var dist := normalise(district.get("security_code"))
 	var out := {}
 	if not loc.is_empty():
-		out = {"security_code": loc, "district_code": dist if not dist.is_empty() else STREET_FALLBACK.duplicate(), "source": "location"}
+		var street: Dictionary = dist if not dist.is_empty() else STREET_FALLBACK.duplicate()
+		if String(street.faction) == String(loc.faction):
+			street = {}
+		out = {"security_code": loc, "district_code": street, "source": "location"}
 	elif not dist.is_empty():
 		out = {"security_code": dist, "district_code": {}, "source": "district"}
 	else:
@@ -188,6 +203,53 @@ static func for_gig(location: Dictionary, district: Dictionary, p_level: int, fa
 			u = int(src)
 	out["utility_code"] = clampi(u, 0, 10)
 	return out
+
+
+## Who holds the posts at a site under `code` (NC2045 p.7: a location's code is either its on-site
+## protection or the authorities' interest in it). `site` is the gig's target (whose place it is
+## for the job), `owner` the location's owner ("" for none):
+## - the code's faction is the target's own (or the code names nobody): the target's people;
+## - the code's faction is a security provider (a police- or corp-kind faction) and the place has an
+##   owner: that contractor guards it for the owner (Lazarus at Night Corp HQ, NC2045 p.61);
+## - otherwise (the city's police, a gang, a bar's patrons): "" — the code is an outside
+##   authority's interest; it only decides who answers a call, and the target's people hold the
+##   posts at their ordinary strength.
+## HOUSE-RULE: the book doesn't say which codes are a contractor's; we read a private provider at an
+## owned place as one, and the public police (PUBLIC_POLICE) as the authority except on the city's
+## own property (CITY_OWNERS: City Hall, the Hall of Justice), which they guard themselves.
+static func guarded_by(code: Dictionary, site: String, owner := "") -> String:
+	var c := normalise(code)
+	if c.is_empty():
+		return ""
+	var fid := String(c.faction)
+	if fid == "" or fid == site:
+		return site
+	if owner == "" or not World.has_faction(fid) or not World.kind(fid) in PROVIDER_KINDS:
+		return ""
+	if fid in PUBLIC_POLICE and not owner in CITY_OWNERS:
+		return ""
+	return fid
+
+
+## The chance in percent that a code's roll comes up (1d10 under n, NC2045 p.7-8): 10 x (n - 1),
+## 0 to 100. The same sum reads a Security Code (a response) and a Utility Code (each utility out).
+static func chance(n: int) -> int:
+	return clampi((n - 1) * 10, 0, 100)
+
+
+## Intensity for a map label: "LGT", "MED", "HVY", with "H-" for Hardened ("H-MED").
+static func short_intensity(code: Dictionary) -> String:
+	var c := normalise(code)
+	if c.is_empty():
+		return ""
+	return ("H-" if bool(c.hardened) else "") + String({"light": "LGT", "medium": "MED", "heavy": "HVY"}[String(c.intensity)])
+
+
+## Does this gig roll its Utility Code? NC2045 p.8 offers utilities as an extra complication to
+## raise a job's challenge, not a standing rule. HOUSE-RULE pacing: one gig in UTILITY_CHANCE_IN,
+## as for the book's complications (Complication.CHANCE_IN).
+static func utilities_happen(dice: Dice) -> bool:
+	return dice.d(UTILITY_CHANCE_IN) == 1
 
 
 ## Which utilities are out: 1d10 per utility, under the code (NC2045 p.8). A code of 1 or less

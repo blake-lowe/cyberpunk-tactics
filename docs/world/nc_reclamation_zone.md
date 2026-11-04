@@ -309,7 +309,7 @@ A favourite local hangout: cheap ammo, rifles and wings, Saturday sharpshooting 
 
 ## Personalities
 
-- Chapel "Titan" Suluku (Solo 4/Tech 2): leader of Los Perros Guardianes and their dogs; pays for intel on Kill Krasher raids (p.164).
+- Chapel "Titan" Suluku (Solo 4/Tech 2): runs Los Perros Guardianes and their dogs; pays for intel on Kill Krasher raids (p.164).
 - Mason Dorado (Tech 2): Santos' grandson, a poor junkyard manager who wants to be a metal sculptor in Upper Marina (p.164).
 - Phoebe "Deadeye" Baro (Fixer 6): range owner and the district's most cunning fixer (p.164).
 - Quinn Simone (Exec 4): the Dorados' head accountant and racing fanatic who knows every fast driver (p.164).

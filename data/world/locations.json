@@ -5592,7 +5592,7 @@
 			"npcs": [],
 			"hooks": [],
 			"gigs": [],
-			"interior": "Fortified gatehouse with a small visitor lot where MPs check credentials; the only entry for outsiders. Other gates are kept shut and guarded; Militech has its own gates on Mary E. Walker Street and Norton Drive.",
+			"interior": "Fortified gatehouse with a small visitor lot where MPs check credentials; the only entry for outsiders. Other gates are kept shut and guarded; Militech keeps separate gates of its own (Mary E. Walker Street, Norton Drive).",
 			"cite": "NC2045 p.182"
 		},
 		"norcal_military_base_6": {
@@ -7012,7 +7012,7 @@
 			"npcs": [],
 			"hooks": [
 				{
-					"text": "Unknown people leave body parts in the gazebo as tributes to \"The Claw\", a cyberpsycho serial killer who used to stage his victims there.",
+					"text": "Unknown people leave body parts in the gazebo as offerings to \"The Claw\", a cyberpsychotic killer who once posed his victims there.",
 					"gigs": []
 				}
 			],
@@ -11694,7 +11694,7 @@
 					]
 				},
 				{
-					"text": "The cheap guns may be part of a plot to push people into violence and the Enhanced's cyberpsychosis creed.",
+					"text": "The cheap guns could be a scheme to stir up violence and win converts to the Enhanced's cult of cyberpsychosis.",
 					"gigs": [
 						"data_theft",
 						"sabotage"

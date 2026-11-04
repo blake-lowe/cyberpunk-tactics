@@ -154,9 +154,11 @@ func _city_offer(g: Dictionary, t: Dictionary, sec: int, known: int, used: Dicti
 	used[lid] = true
 	var l := World.location(lid)
 	var did := String(l.get("district", ""))
-	var rng: Array = l.get("security", [sec, sec])
-	var level := clampi(sec, int(rng[0]), int(rng[1]))   # the place's own range (its code's intensity)
 	var fid := _target_for(l, kind)
+	var rng: Array = location_levels(l, fid)
+	if rng.size() < 2:
+		rng = [sec, sec]
+	var level := clampi(sec, int(rng[0]), int(rng[1]))   # the place's own range (its code's intensity, if it guards the place)
 	var fx := _pick_fixer(did, kind, known)
 	var hook := _hook_for(l, kind)
 	var slots := _target_slots(kind)
@@ -218,8 +220,8 @@ func _pick_location(kind: String, sec: int, known: int, used: Dictionary) -> Str
 				w = 1.0
 			if w <= 0.0:
 				continue
-			var l := World.location(String(id))   # its 1-3 level, derived from its code's intensity
-			var rng: Array = l.get("security", [])
+			var rng: Array = location_levels(World.location(String(id)))   # its 1-3 levels
+
 			if rng.size() < 2 or lv < int(rng[0]) or lv > int(rng[1]):
 				continue
 			var code := SecurityCode.normalise(raw.get("security_code"))
@@ -302,11 +304,34 @@ func _weighted(ws: Array) -> int:
 	return ws.size() - 1
 
 
-## A gig at a named location keeps to that place's security range.
+## A gig at a named location keeps to that place's security range (location_levels).
 static func _fit_location_security(gig: Dictionary) -> void:
-	var l := World.location(String(gig.get("location", "")))
-	if l.has("security"):
-		gig.security = clampi(int(gig.security), int(l.security[0]), int(l.security[1]))
+	var rng := location_levels(World.location(String(gig.get("location", ""))), String(gig.get("faction", "")))
+	if rng.size() >= 2:
+		gig.security = clampi(int(gig.security), int(rng[0]), int(rng[1]))
+
+
+## The 1-3 security levels a gig at location `l` against `target` can have: the entry's own
+## `security` if it names one; else its Security Code's intensity (SecurityCode.level: Light 1,
+## Medium 2, Heavy 3) when the code's faction guards the place (SecurityCode.guarded_by: the
+## target's own people, or a contractor guarding it for the owner); else any level, because an
+## outside authority's code (NCPD's interest in a private shop, NC2045 p.7) decides who answers a
+## call, not how the place is guarded. With no target, the owner (else the code's faction) stands
+## in. [] for a location with neither. This level is the one way a code's intensity reaches the
+## guards on the posts (Encounter.setup): the crew-size shift sizes responses only.
+static func location_levels(l: Dictionary, target := "") -> Array:
+	var raw: Dictionary = World.locations().get(String(l.get("id", "")), {})
+	if raw.has("security"):
+		return raw.security
+	var code := SecurityCode.normalise(l.get("security_code"))
+	if code.is_empty():
+		return l.get("security", [])
+	var owner := String(l.get("owner", ""))
+	var site := target if target != "" else (owner if owner != "" else String(code.faction))
+	if SecurityCode.guarded_by(code, site, owner) == "":
+		return [1, 3]
+	var lv := SecurityCode.level(code)
+	return [lv, lv]
 
 
 ## The gig's Night City 2045 codes (NC2045 p.7-8): its district (the location's, else one whose
@@ -338,15 +363,21 @@ static func code_label(gig: Dictionary) -> String:
 	return SecurityCode.label(c, String(gig.get("faction", "")))
 
 
-## Encounter.setup options for a gig: its target faction and its codes, and a roll for one of the
-## book's complications at the start (Complication; never known on the board).
+## Encounter.setup options for a gig: its target faction and its codes, who holds the posts under
+## the site code (SecurityCode.guarded_by, with the location's owner), and rolls at the start for
+## one of the book's complications (Complication; never known on the board) and for whether the
+## Utility Code comes into play (SecurityCode.utilities_happen).
 static func encounter_opts(gig: Dictionary) -> Dictionary:
-	var o := {"complications": true}
+	var o := {"complications": true, "utilities": true}
 	if String(gig.get("faction", "")) != "":
 		o["faction"] = String(gig.faction)
 	for k in ["security_code", "district_code", "utility_code"]:
 		if gig.has(k):
 			o[k] = gig[k]
+	var code := SecurityCode.normalise(gig.get("security_code"))
+	if not code.is_empty():
+		var owner := String(World.location(String(gig.get("location", ""))).get("owner", ""))
+		o["guards"] = SecurityCode.guarded_by(code, String(gig.get("faction", World.DEFAULT_OPFOR)), owner)
 	return o
 
 
@@ -1260,7 +1291,7 @@ static func from_dict(raw: Dictionary) -> Campaign:
 	for f in d.fallen:
 		c.fallen.append(f)
 	for b in d.board:
-		c.board.append(b)
+		c.board.append(code_loaded_gig(b))
 	for r in d.get("recruits", []):
 		c.recruits.append(Combatant.from_dict(r))
 	for k in d.get("stash", {}):
@@ -1277,6 +1308,16 @@ static func from_dict(raw: Dictionary) -> Campaign:
 			c.debrief.append(m)
 	c.update_market()   # a save from before markets (v5) gets one now
 	return c
+
+
+## A loaded offer with its Night City 2045 codes: one saved before v8 has none, so it gets them
+## now from the city data (codes_for: its location's own code and district, else the fallback for
+## its 1-3 security level and target). Offers that have codes are returned as they are.
+static func code_loaded_gig(g: Variant) -> Variant:
+	if g is Dictionary and not (g as Dictionary).has("security_code"):
+		var did := String(World.location(String(g.get("location", ""))).get("district", ""))
+		(g as Dictionary).merge(codes_for(g, did), true)
+	return g
 
 
 func save(path := SAVE_PATH) -> bool:

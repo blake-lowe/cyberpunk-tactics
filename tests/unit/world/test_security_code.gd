@@ -162,8 +162,8 @@ func test_citinet_out_doubles_the_response_time() -> void:
 	var a := _enc(6, opts)
 	var b := _enc(6, opts)
 	b.outages = ["citinet"] as Array[String]
-	a._call_it_in(a.units.filter(func(u): return u.team == Encounter.OPFOR)[0])
-	b._call_it_in(b.units.filter(func(u): return u.team == Encounter.OPFOR)[0])
+	a.call_it_in(a.units.filter(func(u): return u.team == Encounter.OPFOR)[0])
+	b.call_it_in(b.units.filter(func(u): return u.team == Encounter.OPFOR)[0])
 	assert_true(a.backup_in > 0)
 	assert_eq(b.backup_in, 2 * a.backup_in, "CitiNet out: twice as long")
 	assert_eq(a.ncpd_in, -1, "no district code, no street roll")
@@ -171,19 +171,115 @@ func test_citinet_out_doubles_the_response_time() -> void:
 
 # --- Encounters --------------------------------------------------------------------------------
 
-func test_intensity_sizes_the_guards_on_site() -> void:
-	var count := func(e: Encounter) -> int: return e.units.filter(func(u): return u.team == Encounter.OPFOR and not u.get("outer", false)).size()
+func _posts(e: Encounter) -> Array:
+	return e.units.filter(func(u): return u.team == Encounter.OPFOR and not u.get("outer", false) and String(u.c.display_name).find("Patrol") < 0)
+
+
+func _hardened(u: Dictionary) -> bool:
+	return bool((RulesDB.load_json("npcs.json").blocks.get(String(u.c.block), {}) as Dictionary).get("hardened", false))
+
+
+func test_the_security_level_sizes_the_guards_on_site_once() -> void:
+	# The level (Light 1 .. Heavy 3, from the code via the campaign) is the one channel: the code's
+	# intensity no longer also shifts the crew size for the posts.
 	var light := 0
 	var heavy := 0
 	for s in range(1, 7):
-		light += count.call(_enc(s, {"security_code": {"n": 5, "faction": "", "intensity": "light", "hardened": false}}))
-		heavy += count.call(_enc(s, {"security_code": {"n": 5, "faction": "", "intensity": "heavy", "hardened": false}}))
-	assert_true(heavy > light, "Heavy brings more guards than Light (%d vs %d)" % [heavy, light])
+		light += _posts(_enc(s, {"security_code": {"n": 5, "faction": "", "intensity": "light", "hardened": false}}, "corp_office", 1)).size()
+		heavy += _posts(_enc(s, {"security_code": {"n": 5, "faction": "", "intensity": "heavy", "hardened": false}}, "corp_office", 3)).size()
+	assert_true(heavy > light, "a Heavy place (level 3) has more guards than a Light one (%d vs %d)" % [heavy, light])
+	for s in range(1, 5):
+		var a := _posts(_enc(s, {"security_code": {"n": 5, "faction": "", "intensity": "light", "hardened": false}})).size()
+		var b := _posts(_enc(s, {"security_code": {"n": 5, "faction": "", "intensity": "heavy", "hardened": false}})).size()
+		assert_eq(a, b, "seed %d: at the same level the intensity doesn't count again" % s)
+
+
+func test_an_outside_authoritys_code_neither_sizes_nor_hardens_the_posts() -> void:
+	# NCPD's interest in a Militech office (NC2045 p.7): NCPD answers the call; Militech's own people
+	# hold the posts at their ordinary strength, not Hardened.
+	var ncpd := {"n": 11, "faction": "ncpd", "intensity": "heavy", "hardened": true}
+	var own := {"n": 11, "faction": "militech", "intensity": "heavy", "hardened": true}
+	var e := _enc(5, {"faction": "militech", "security_code": ncpd, "district_code": {}})
+	var posts := _posts(e)
+	assert_false(posts.is_empty())
+	assert_eq(e.post_faction, "militech")
+	assert_true(posts.all(func(u): return String(u.c.faction) == "militech"), "the target's people on the posts")
+	assert_false(posts.any(_hardened), "an outside Hardened code doesn't harden them")
+	var mine := _enc(5, {"faction": "militech", "security_code": own, "district_code": {}})
+	assert_true(_posts(mine).any(_hardened), "their own Hardened code does")
+	assert_eq(_posts(mine).size(), posts.size(), "same level, same budget: the code's intensity isn't added on top")
+	e.call_it_in(posts[0])
+	assert_eq(e.backup_label, "NCPD", "the authority still answers")
+
+
+func test_a_contractor_holds_the_posts_of_the_place_it_guards() -> void:
+	# Night Corp HQ: Security Code 10, Lazarus, Hardened Heavy (NC2045 p.61). Lazarus is at the
+	# door; Night Corp is the target.
+	var hq := World.location("little_europe_15")
+	assert_eq(String(hq.owner), "night_corp")
+	assert_eq(String(SecurityCode.normalise(hq.security_code).faction), "lazarus")
+	var gig := {"faction": "night_corp", "location": "little_europe_15", "security": 3}
+	Campaign._fit_location_security(gig)
+	assert_eq(int(gig.security), 3, "a Heavy contractor's code keeps the place at level 3")
+	gig.merge(Campaign.codes_for(gig, "little_europe"), true)
+	var opts := Campaign.encounter_opts(gig)
+	assert_eq(String(opts.guards), "lazarus")
+	opts.erase("complications")
+	var e := _enc(2, opts, "corp_office", 3)
+	assert_eq(e.opfor_faction, "night_corp", "the job is still against Night Corp")
+	assert_eq(e.post_faction, "lazarus")
+	var posts := _posts(e)
+	assert_false(posts.is_empty())
+	assert_true(posts.all(func(u): return String(u.c.faction) == "lazarus"), "Lazarus on every post")
+	assert_true(posts.any(_hardened), "Hardened, as the code says")
+	assert_eq(String(e.doctrine.id), String(World.faction("lazarus").get("doctrine", "default")), "guarding Lazarus's way")
+	e.code.n = 11
+	e.call_it_in(posts[0])
+	assert_eq(e.backup_label, "BACKUP", "Lazarus's own backup comes on the posts' side")
+
+
+func test_who_guards_a_place_under_its_code() -> void:
+	var c := func(f: String) -> Dictionary: return {"n": 7, "faction": f, "intensity": "medium", "hardened": true}
+	assert_eq(SecurityCode.guarded_by(c.call("militech"), "militech", "militech"), "militech", "its own")
+	assert_eq(SecurityCode.guarded_by(c.call(""), "maelstrom"), "maelstrom", "a code naming nobody is the site's own")
+	assert_eq(SecurityCode.guarded_by(c.call("lazarus"), "night_corp", "night_corp"), "lazarus", "a contractor")
+	assert_eq(SecurityCode.guarded_by(c.call("kimen_gumi"), "sanroo", "sanroo"), "kimen_gumi", "a district provider guarding a corp")
+	assert_eq(SecurityCode.guarded_by(c.call("ncpd"), "digital_divinity", "digital_divinity"), "", "NCPD's interest in a private firm")
+	assert_eq(SecurityCode.guarded_by(c.call("ncpd"), "city_government", "city_government"), "ncpd", "NCPD guards City Hall")
+	assert_eq(SecurityCode.guarded_by(c.call("6th_street"), "americar", "americar"), "", "a gang is no contractor")
+	assert_eq(SecurityCode.guarded_by(c.call("lazarus"), "maelstrom", ""), "", "nobody owns it to hire anyone")
+	assert_eq(SecurityCode.guarded_by({}, "militech"), "")
+	# The levels a gig at the place can be played at follow the same split.
+	assert_eq(Campaign.location_levels(World.location("little_europe_15"), "night_corp"), [3, 3], "Lazarus Heavy at Night Corp HQ")
+	assert_eq(Campaign.location_levels(World.location("upper_marina_11"), "digital_divinity"), [1, 3], "NCPD's interest: the target's own level")
+
+
+# --- The street roll -----------------------------------------------------------------------------
+
+func test_the_street_is_not_rolled_for_the_faction_that_already_answered() -> void:
+	var ncpd7 := {"security_code": {"n": 7, "faction": "ncpd", "intensity": "medium", "hardened": true}}
+	var killzone := {"security_code": {"n": 6, "faction": "ncpd", "intensity": "medium", "hardened": true}}
+	assert_true(SecurityCode.for_gig(killzone, ncpd7, 1).district_code.is_empty(), "NCPD's place in NCPD's district: one roll (NC2045 p.7)")
+	var other := {"security_code": {"n": 6, "faction": "militech", "intensity": "medium", "hardened": true}}
+	assert_eq(String(SecurityCode.for_gig(other, ncpd7, 1).district_code.faction), "ncpd", "another faction's place keeps the street roll")
+	# The data: no location gig pairs a code with a street code of the same faction.
+	for id in World.locations():
+		var l := World.location(String(id))
+		var g := SecurityCode.for_gig(l, World.district(String(l.get("district", ""))), 1)
+		if not (g.district_code as Dictionary).is_empty():
+			assert_true(String(g.district_code.faction) != String(g.security_code.faction), "%s: one roll per faction" % id)
+	# An old offer carrying both: the encounter still rolls the faction once.
+	var both := {"faction": "maelstrom", "security_code": {"n": 11, "faction": "ncpd", "intensity": "light", "hardened": false},
+		"district_code": {"n": 11, "faction": "ncpd", "intensity": "medium", "hardened": true}}
+	var e := _enc(3, both, "gang_hideout")
+	e.call_it_in(e.units.filter(func(u): return u.team == Encounter.OPFOR)[0])
+	assert_true(e.backup_in > 0, "the site code answers")
+	assert_eq(e.ncpd_in, -1, "no second NCPD wave")
 
 
 func test_a_response_from_another_faction_comes_on_its_own_side() -> void:
 	var e := _enc(3, {"faction": "maelstrom", "security_code": {"n": 11, "faction": "ncpd", "intensity": "light", "hardened": true}, "district_code": {}}, "gang_hideout")
-	e._call_it_in(e.units.filter(func(u): return u.team == Encounter.OPFOR)[0])
+	e.call_it_in(e.units.filter(func(u): return u.team == Encounter.OPFOR)[0])
 	assert_eq(e.backup_label, "NCPD")
 	assert_true(e.backup_in >= 2 and e.backup_in <= 12, "code 11 is quick: 1d6 minutes")
 	var before := e.units.size()
@@ -198,7 +294,7 @@ func test_a_response_from_another_faction_comes_on_its_own_side() -> void:
 
 func test_an_unknown_responder_turns_up_as_security_under_its_name() -> void:
 	var e := _enc(3, {"faction": "militech", "security_code": {"n": 11, "faction": "acme_guards", "intensity": "medium", "hardened": false}, "district_code": {}})
-	e._call_it_in(e.units.filter(func(u): return u.team == Encounter.OPFOR)[0])
+	e.call_it_in(e.units.filter(func(u): return u.team == Encounter.OPFOR)[0])
 	assert_eq(e.backup_label, "ACME GUARDS")
 	var before := e.units.size()
 	e.backup_in = 1
@@ -275,19 +371,43 @@ func test_board_gigs_save_their_codes() -> void:
 	for i in camp.board.size():
 		assert_eq(SecurityCode.normalise(back.board[i].security_code), SecurityCode.normalise(camp.board[i].security_code), "offer %d's code survives a save" % i)
 		assert_eq(Campaign.code_label(back.board[i]), Campaign.code_label(camp.board[i]))
-		assert_eq(Campaign.encounter_opts(back.board[i]).keys().size(), 5, "faction, three codes and the complication roll reach the encounter")
+		assert_eq(Campaign.encounter_opts(back.board[i]).keys().size(), 7,
+			"faction, three codes, who guards, and the complication and utility rolls reach the encounter")
 
 
 func test_a_v7_board_gets_codes_on_load() -> void:
 	var d := Campaign.new_game(4).to_dict()
 	d["version"] = 7
-	for g in d.board:
-		for k in ["security_code", "district_code", "utility_code", "district"]:
-			g.erase(k)
-	var c := Campaign.from_dict(JSON.parse_string(JSON.stringify(d)))
+	# An offer at Night Corp HQ and one with no place at all, as v7 saved them (no codes yet).
+	d["board"] = [{"id": "1-0", "kind": "data_theft", "fixer": "Mr. Blue", "faction": "night_corp", "location": "little_europe_15",
+			"scene": "lone_building", "site": "corp_hq", "profile": "", "title": "t", "blurb": "b", "security": 3, "pay": 3000, "seed": 4},
+		{"id": "1-1", "kind": "gang_hit", "fixer": "Mr. Blue", "faction": "maelstrom", "scene": "skirmish", "site": "", "profile": "",
+			"title": "t", "blurb": "b", "security": 2, "pay": 1500, "seed": 5}]
+	var raw: Dictionary = JSON.parse_string(JSON.stringify(d))
+	var migrated := SaveMigrations.migrate(raw.duplicate(true))
+	assert_eq(int(migrated.version), SaveMigrations.CURRENT)
+	assert_false((migrated.board[0] as Dictionary).has("security_code"), "the migration is a pure dict step: it reads no city data")
+	var c := Campaign.from_dict(raw)
 	assert_true(c != null)
-	for g in c.board:   # a code from its place, its district or (with neither) its old level
-		var code := SecurityCode.normalise(g.security_code)
-		assert_false(code.is_empty(), "every migrated gig has a Security Code")
-		assert_between(float(code.n), 0.0, 11.0)
-		assert_between(float(g.utility_code), 0.0, 11.0)
+	var hq: Dictionary = c.board[0]
+	assert_eq(SecurityCode.normalise(hq.security_code), SecurityCode.normalise(World.location("little_europe_15").security_code), "the location's own code (Lazarus 10)")
+	assert_eq(String(hq.district), "little_europe")
+	assert_eq(String(hq.district_code.faction), "ncpd", "Little Europe's street")
+	assert_eq(int(hq.utility_code), 2, "Night Corp HQ's own Utility Code")
+	var anywhere: Dictionary = c.board[1]
+	assert_eq(SecurityCode.normalise(anywhere.security_code), SecurityCode.from_level(2, "maelstrom"), "no place: the fallback for its level, the target's own people")
+	assert_eq(anywhere.district_code, SecurityCode.STREET_FALLBACK)
+	var again := Campaign.from_dict(JSON.parse_string(JSON.stringify(c.to_dict())))
+	assert_eq(SecurityCode.normalise(again.board[0].security_code), SecurityCode.normalise(hq.security_code), "and they're saved from then on")
+
+
+func test_utilities_come_into_play_on_one_gig_in_three() -> void:
+	# NC2045 p.8: an optional complication. With the roll on (the campaign's gigs), utility code 11
+	# puts everything out on about a third of gigs and nothing out on the rest.
+	var hits := 0
+	for s in range(1, 31):
+		var e := _enc(s, {"utility_code": 11, "utilities": true})
+		assert_true(e.outages.is_empty() or e.outages.size() == 3)
+		hits += int(not e.outages.is_empty())
+	assert_between(hits, 4, 17, "about 1 in %d (%d of 30)" % [SecurityCode.UTILITY_CHANCE_IN, hits])
+	assert_true(bool(Campaign.encounter_opts({"faction": "militech"}).get("utilities", false)), "campaign gigs roll for it")

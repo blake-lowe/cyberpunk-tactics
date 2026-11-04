@@ -98,7 +98,7 @@ func _overview(v: VBoxContainer) -> void:
 	for k in CityMap.LINES:
 		f.add_child(_swatch(Color(String(CityMap.LINES[k][1])), String(CityMap.LINES[k][0])))
 	v.add_child(f)
-	v.add_child(UiKit.body("Security Code: how fast and how hard the district's security answers trouble (NC2045 p.7). Low codes are open ground; high codes are fast, armed and watching.", 13, Hud.DIM))
+	v.add_child(UiKit.body("Security Code (NC2045 p.7): the chance someone answers trouble, and who. At 2 help rarely comes; at 10 it nearly always does, and fast. H- means Hardened responders; LGT, MED, HVY how many. Utility Code (p.8): the chance each of power, water and CitiNet is out.", 13, Hud.DIM))
 
 
 func _district(v: VBoxContainer, id: String) -> void:
@@ -115,13 +115,14 @@ func _district(v: VBoxContainer, id: String) -> void:
 	if m is Dictionary and String(m.get("name", "")) != "":
 		who = String(m.name) + ((" (%s)" % String(m.role)) if String(m.get("role", "")) != "" else "")
 	v.add_child(UiKit.label("%s · %s" % [String(d.get("region", "")), ("Manager " + who) if who != "" else "No manager"], 13, Hud.CYAN))
-	# the codes, big
-	var codes := UiKit.hbox(14)
+	# the codes, big, one above the other so their lines don't wrap; each says what its number means
+	var codes := UiKit.vbox(6)
 	v.add_child(codes)
-	codes.add_child(_code_box("SECURITY", n, col, "%s · %s%s" % [SecurityCode.faction_name(String(c.get("faction", ""))),
+	codes.add_child(_code_box("SECURITY · RESPONDS %d%%" % SecurityCode.chance(n), n, col, "%s · %s%s" % [CityMap.short_faction(String(c.get("faction", ""))),
 		"Hardened " if bool(c.get("hardened", false)) else "", String(c.get("intensity", "")).capitalize()]))
 	var u: Variant = d.get("utility_code")
-	codes.add_child(_code_box("UTILITY", int(u) if u != null else -1, Hud.TEXT, SecurityCode.faction_name(String(d.get("provider", "")))))
+	var un := int(u) if (u is int or u is float) else -1
+	codes.add_child(_code_box("UTILITY", un, CityMap.code_colour(un) if un >= 0 else Hud.DIM, utility_text(un)))
 	if String(d.get("population", "")) != "":
 		v.add_child(UiKit.body(String(d.population).left(1).to_upper() + String(d.population).substr(1) + ".", 13, Color(Hud.TEXT, 0.8)))
 	var gangs: Array = d.get("gangs", [])
@@ -179,10 +180,7 @@ func _job(v: VBoxContainer, i: int) -> void:
 	var did := String(g.get("district", ""))
 	if did != "":
 		v.add_child(UiKit.label(String(World.district(did).get("name", did)), 13, Hud.DIM))
-	var sc := UiKit.label(Campaign.code_label(g), 13, CityMap.code_colour(int(SecurityCode.normalise(g.get("security_code")).get("n", 5))))
-	sc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	sc.custom_minimum_size.x = 100
-	v.add_child(sc)
+	v.add_child(code_block(g, 15, 12))
 	v.add_child(UiKit.body(String(g.get("blurb", "")), 14))
 	var obj := String(FixerScreen.OBJECTIVE_TEXT.get(Campaign.objective_for(g), ""))
 	if obj != "":
@@ -200,6 +198,29 @@ static func location_counts(id: String) -> Dictionary:
 			var t := String(l.get("type", "other"))
 			out[t] = int(out.get(t, 0)) + 1
 	return out
+
+
+## What a Utility Code means (NC2045 p.8: 1d10 per utility, under the code it's out): "Power, water,
+## CitiNet: each out 50% of the time". -1 for the book's "Variable" (the Outskirts).
+static func utility_text(n: int) -> String:
+	if n < 0:
+		return "Power, water, CitiNet: varies place to place"
+	return "Power, water, CitiNet: each out %d%% of the time" % SecurityCode.chance(n)
+
+
+## A gig's Security Code in two lines, coloured like the map: "SECURITY 4" over
+## "GOLD DRAGONS · HARDENED LIGHT" (the site's own people when the code names nobody).
+static func code_block(gig: Dictionary, big: int, small: int) -> Control:
+	var c := SecurityCode.normalise(gig.get("security_code"))
+	if c.is_empty():
+		c = SecurityCode.from_level(int(gig.get("security", 1)), String(gig.get("faction", "")))
+	var who := String(c.faction) if String(c.faction) != "" else String(gig.get("faction", ""))
+	var col := CityMap.code_colour(int(c.n))
+	var v := UiKit.vbox(0)
+	v.add_child(UiKit.label("SECURITY %d" % int(c.n), big, col))
+	var how := ("HARDENED " if bool(c.hardened) else "") + String(c.intensity).to_upper()
+	v.add_child(UiKit.label("%s · %s" % [CityMap.short_faction(who), how] if who != "" else how, small, col.lightened(0.25)))
+	return v
 
 
 func _code_box(name: String, n: int, col: Color, sub: String) -> Control:

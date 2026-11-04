@@ -78,7 +78,8 @@ func test_offers_come_from_district_fixers_at_canon_locations() -> void:
 				assert_true(String(g.blurb).ends_with(String(g.hook).substr(1)), "the hook is the pitch")
 				assert_false(String(g.hook).contains("(p."), "no page cite in the pitch")
 				assert_true((l.hooks as Array).any(func(h): return String(g.kind) in h.gigs), "a hook naming the job")
-			assert_eq(int(g.security), int(l.security[0]), "the place's own level")
+			var rng := Campaign.location_levels(l, String(g.faction))   # the code's level when it guards the place
+			assert_between(float(g.security), float(rng[0]), float(rng[1]), "the place's own level")
 			assert_eq(int(g.pay), int(RulesDB.gen("gigs.json").pay[str(int(g.security))]))
 			assert_true(World.has_faction(String(g.faction)) and String(g.kind) in World.targets_for_any(String(g.faction)), "a target that takes the job")
 			assert_eq(SecurityCode.normalise(g.security_code), SecurityCode.normalise(l.security_code), "the location's code")

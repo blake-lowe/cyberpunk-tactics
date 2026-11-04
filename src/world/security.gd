@@ -9,8 +9,8 @@ const CORP_SITES := ["corp_office", "corp_hq", "data_center", "clinic", "bank", 
 const CORP_SCENES := ["arcology", "corp_campus"]
 
 
-## A doctrine with the defaults filled in (one level deep: a doctrine's "backup" block replaces
-## only the keys it names).
+## A doctrine with the defaults filled in, one level deep: a doctrine's block (budget, alarm,
+## outer_patrols, ...) replaces only the keys it names.
 static func doctrine(id: String) -> Dictionary:
 	var all: Dictionary = RulesDB.world("security.json")["doctrines"]
 	var out: Dictionary = (all["default"] as Dictionary).duplicate(true)

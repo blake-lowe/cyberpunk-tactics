@@ -124,7 +124,7 @@ func test_an_unknown_faction_falls_back_to_private_security() -> void:
 
 func test_police_answering_a_gang_job_fight_the_gang_too() -> void:
 	var e := _enc("voodoo_boys")
-	e._ncpd_wave()
+	e._arrive(e._plan_response({"n": 11, "faction": "ncpd", "intensity": "medium", "hardened": false}))   # the NCPD answers the call
 	var cops := e.units.filter(func(u): return e.faction_of(u) == "ncpd")
 	assert_false(cops.is_empty(), "the NCPD turns up")
 	var t: int = cops[0].team
@@ -137,7 +137,7 @@ func test_police_answering_a_gang_job_fight_the_gang_too() -> void:
 
 func test_police_answering_a_corp_job_leave_the_guards_alone() -> void:
 	var e := _enc("militech")
-	e._ncpd_wave()
+	e._arrive(e._plan_response({"n": 11, "faction": "ncpd", "intensity": "medium", "hardened": false}))   # the NCPD answers the call
 	var cops := e.units.filter(func(u): return e.faction_of(u) == "ncpd")
 	assert_false(cops.is_empty())
 	assert_false(e.hostile(cops[0].team, Encounter.OPFOR), "corp security and the NCPD don't trade shots")

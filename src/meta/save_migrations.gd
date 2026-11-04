@@ -25,8 +25,9 @@ extends RefCounted
 ##     it can't turn into a free piece. Installed chrome stays installed. Debrief entries gain "lost"
 ##     (what a fallen member had on them): v6 entries list their lost kit there.
 ## v8: Night City 2045 Security and Utility Codes (NC2045 p.7-8). Board gigs carry `district`,
-##     `security_code`, `district_code` and `utility_code`; older offers get them from their
-##     location, else the fallback for their 1-3 security level (Campaign.codes_for), which stays.
+##     `security_code`, `district_code` and `utility_code`. Older offers get them on load, outside
+##     the migration (it would have to read the city data): Campaign.from_dict → code_loaded_gig,
+##     from their location, else the fallback for their 1-3 security level, which stays.
 ## v9: the book's complication tables replace our gig twists and fixer setups (M9). Board offers lose
 ##     `twist` and `setup` (an offer that was a setup becomes an honest job); new offers carry
 ##     `fixer_id`, `hook` and `district` from Night City's fixers and locations, which older offers
@@ -160,11 +161,10 @@ static func _v6_to_v7(d: Dictionary) -> void:
 			m["lost"] = (m.get("kit", []) as Array).duplicate() if m.get("dead", false) else []
 
 
-static func _v7_to_v8(d: Dictionary) -> void:
-	for g in d.get("board", []):
-		if g is Dictionary and not (g as Dictionary).has("security_code"):
-			var did := String(World.location(String(g.get("location", ""))).get("district", ""))
-			(g as Dictionary).merge(Campaign.codes_for(g, did), true)
+## The codes come from the city data, which a migration doesn't read: Campaign.from_dict gives any
+## offer without a `security_code` its codes on load (Campaign.code_loaded_gig). Nothing to edit.
+static func _v7_to_v8(_d: Dictionary) -> void:
+	pass
 
 
 static func _v8_to_v9(d: Dictionary) -> void:

@@ -2473,7 +2473,7 @@ func _run_reel() -> void:
 			await get_tree().create_timer(0.4).timeout
 			var gs := enc.opfor()
 			if not gs.is_empty():
-				enc._call_it_in(gs[0])
+				enc.call_it_in(gs[0])
 			await _act()
 			var roster: Array[String] = ["mook", "mook", "mook"]
 			enc._spawn_wave(roster, "BACKUP", Encounter.OPFOR, enc.opfor_faction, "Backup")

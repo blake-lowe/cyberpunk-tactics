@@ -693,7 +693,7 @@ Looks like a repair garage but is the home and office of Woodchipper, the fixer 
 - Izzy Lobo (Nomad 10) — reluctant boss of the Aldecaldo Camp, appointed by Santiago to protect the nomads in the city.
 - Jorgito Arañas (Tech 4) — breeder of cat-sized tarantulas he pitches, unsuccessfully, as food animals.
 - Killjoy (??) — unknown tagger (person or group) behind obscene and inspiring graffiti alike.
-- La Llorona (Solo 7) and El Sombrerón (Solo 7) — 'El Norte's Butchers', sibling assassins guarding Valentino, loyalty in doubt.
+- Sibling assassins La Llorona and El Sombrerón (both Solo 7), 'El Norte's Butchers': Valentino's guards, their loyalty in doubt.
 - Lupita "Loba" Garza (Medtech 4) — edgerunner medic who helps run María's between patch-up jobs.
 - Mario "Corona" Fernandez (Solo 2) — Rat Kings founder, a lazy man who can't help organising.
 - Rubén Meza (Exec 5) — nervous numbers man running El Norte's Night City expansion.

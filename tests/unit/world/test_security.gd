@@ -61,7 +61,7 @@ func test_the_radio_range_still_comes_from_the_doctrine() -> void:
 	var e := _enc("militech")
 	assert_eq(float(e.doctrine.alarm.radio_range), 30.0, "Militech's wider radio net")
 	var g: Dictionary = e.units.filter(func(u): return u.team == Encounter.OPFOR)[0]
-	e._call_it_in(g)
+	e.call_it_in(g)
 	assert_eq(e.alarm, 2)
 	var near := e.units.filter(func(u): return u.team == Encounter.OPFOR and Vector2(u.pos.x - g.pos.x, u.pos.y - g.pos.y).length() <= 30.0)
 	assert_true(near.all(func(u): return u.alerted), "the call rouses the guards within the radio range")

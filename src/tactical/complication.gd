@@ -271,12 +271,12 @@ static func spawn(e: Encounter, batch: Dictionary, now: bool) -> Array:
 	var posts: Array = e.units.filter(func(u): return int(u.team) == Encounter.OPFOR and not u.c.dead).map(func(u): return u.pos)
 	var ids := []
 	for i in mini(int(batch.n), cells.size()):
-		var g := World.npc(e.dice, e.opfor_faction, String(batch.tier), e.units.size() + 1, "", e._hardened_posts)
+		var g := World.npc(e.dice, e.post_faction, String(batch.tier), e.units.size() + 1, "", e._hardened_posts)
 		if String(batch.unit) == "different_type":   # another block of the tier than those fielded
 			for k in 6:
 				if not String(g.block) in existing:
 					break
-				g = World.npc(e.dice, e.opfor_faction, String(batch.tier), e.units.size() + 1, "", e._hardened_posts)
+				g = World.npc(e.dice, e.post_faction, String(batch.tier), e.units.size() + 1, "", e._hardened_posts)
 		if String(batch.crit) != "":
 			var table := RulesDB.crit_table(String(batch.crit))
 			g.add_injury(table[str(e.dice.roll(2, 6))], String(batch.crit), false)

@@ -185,7 +185,7 @@ Security Code number is printed as "1-" (most likely 10); recorded as 10.
 	"npcs": [],
 	"hooks": [
 		{"text": "Rumour has the Enhanced meeting in the back warehouse.", "gigs": ["data_theft"]},
-		{"text": "The cheap guns may be part of a plot to push people into violence and the Enhanced's cyberpsychosis creed.", "gigs": ["data_theft", "sabotage"]}
+		{"text": "The cheap guns could be a scheme to stir up violence and win converts to the Enhanced's cult of cyberpsychosis.", "gigs": ["data_theft", "sabotage"]}
 	],
 	"gigs": ["data_theft", "sabotage"],
 	"interior": "Front aisles of guns and ammo by category, FBC guards and chromed cashiers; cavernous back warehouse of crated weapons awaiting shipment (made at the Heywood Industrial Zone factory).",

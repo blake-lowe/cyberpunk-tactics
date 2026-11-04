@@ -171,7 +171,7 @@ The base's single public entrance on Sir Frances Drake Avenue, where every visit
 	"npcs": [],
 	"hooks": [],
 	"gigs": [],
-	"interior": "Fortified gatehouse with a small visitor lot where MPs check credentials; the only entry for outsiders. Other gates are kept shut and guarded; Militech has its own gates on Mary E. Walker Street and Norton Drive.",
+	"interior": "Fortified gatehouse with a small visitor lot where MPs check credentials; the only entry for outsiders. Other gates are kept shut and guarded; Militech keeps separate gates of its own (Mary E. Walker Street, Norton Drive).",
 	"cite": "NC2045 p.182"
 }
 ```

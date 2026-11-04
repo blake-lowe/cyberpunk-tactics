@@ -163,7 +163,7 @@ the nearest thing the district has to a playground.
 	"utility_code": null,
 	"npcs": [],
 	"hooks": [
-		{"text": "Unknown people leave body parts in the gazebo as tributes to \"The Claw\", a cyberpsycho serial killer who used to stage his victims there.", "gigs": []}
+		{"text": "Unknown people leave body parts in the gazebo as offerings to \"The Claw\", a cyberpsychotic killer who once posed his victims there.", "gigs": []}
 	],
 	"gigs": [],
 	"interior": "",
