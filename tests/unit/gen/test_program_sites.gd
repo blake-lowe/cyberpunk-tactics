@@ -11,7 +11,7 @@ func _maps() -> Array[TacMap]:
 	if _cache.is_empty():
 		for site in SITES:
 			for s in 3:
-				var o := {"site": site, "security": (s * 2 + SITES.find(site)) % 4}
+				var o := {"site": site, "security": (s * 2 + SITES.find(site)) % 4, "basement_storeys": 0}   # above grade: basements are test_basements.gd's
 				if s == 2:   # the tallest building of each (a hotel's suite floor, a bank's second storey)
 					o["floors"] = int(RulesDB.gen("sites.json")[site].floors[1])
 				_cache.append(SceneGen.generate(4100 + s * 31 + SITES.find(site), "lone_building", o))

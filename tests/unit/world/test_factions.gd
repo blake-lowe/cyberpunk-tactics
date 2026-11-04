@@ -73,7 +73,7 @@ func test_the_city_names_only_real_factions() -> void:
 	var n := {}
 	for id in World.factions():
 		n[World.kind(id)] = int(n.get(World.kind(id), 0)) + 1
-	assert_true(int(n.get("gang", 0)) >= 44 and int(n.get("crime", 0)) == 6, "the book's 44 gangs and 6 syndicates (%s)" % n)
+	assert_true(int(n.get("gang", 0)) >= 44 and int(n.get("criminal", 0)) == 6, "the book's 44 gangs and 6 syndicates (%s)" % n)
 	assert_eq(World.relation("iron_sights", "red_chrome_legion"), "hostile", "an eternal war (NC2045 p.41)")
 	assert_eq(World.relation("kimen_gumi", "tyger_claws"), "ally", "every Kimen-Gumi is a Tyger Claw (p.50)")
 	assert_eq(World.relation("ncpd", "kimen_gumi"), "ally", "deputized district police")

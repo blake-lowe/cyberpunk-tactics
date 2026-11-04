@@ -58,14 +58,26 @@ func _part(m: TacMap, part: String) -> Dictionary:
 	return {}
 
 
+## Ordinary buildings may now dig down (sites.json below_grade, rolled on a Dice of their own): a
+## golden map whose target rolls a basement (corp_campus/12: its HQ tower) is checked with that
+## roll switched off (BasementGen.ordinary_off), which must give the old map byte for byte; every
+## other golden map rolls no basement and must match as it is.
 func test_maps_without_basements_are_byte_identical() -> void:
+	var fired := []
 	for key in GOLDEN:
 		var k := String(key).split("/")
 		var o := {"setpiece": k[2]} if k[2] != "" else {}
 		var m := SceneGen.generate(int(k[1]), k[0], o)
+		if m.basements > 0:
+			assert_eq(k[2], "", "%s: only an ordinary building's roll may add one" % key)
+			fired.append(key)
+			BasementGen.ordinary_off = true
+			m = SceneGen.generate(int(k[1]), k[0], o)
+			BasementGen.ordinary_off = false
 		assert_eq(m.basements, 0, "%s: no basements" % key)
 		assert_eq(m.street, 0, "%s: street level is floor 0" % key)
 		assert_eq(JSON.stringify(m.to_dict()).sha256_text(), GOLDEN[key], "%s: to_dict unchanged" % key)
+	assert_true(fired.size() < GOLDEN.size() / 3, "most golden maps roll no basement (%s)" % [fired])
 
 
 func test_floor_names_and_hud_label() -> void:
@@ -332,3 +344,81 @@ func test_embers_rise_from_the_street() -> void:
 	assert_near(p.position.y - p.emission_box_extents.y, gy, 0.001, "the emission box sits on the street")
 	fx.free()
 
+
+# --- Ordinary buildings (HOUSE-RULE, owner ruling 2026-11-04: some maps, not all) -----------------
+
+## Program room kinds a site's below_grade brief names (for checking what was built).
+func _brief_kinds(bg: Dictionary) -> Dictionary:
+	var out := {"corridor": true, "stair_hall": true}
+	var walk := func(items: Array, me: Callable) -> void:
+		for it in items:
+			if it.has("room"):
+				out[String(it.room)] = true
+			for k in ["rooms", "stack"]:
+				if it.has(k):
+					me.call(it[k], me)
+	for key in bg.program:
+		for band in bg.program[key]:
+			walk.call(band.rooms, walk)
+	return out
+
+
+func test_some_ordinary_buildings_dig_down_and_most_do_not() -> void:
+	var sites := RulesDB.gen("sites.json")
+	var with: Array = sites.keys().filter(func(k): return not String(k).begins_with("_") and sites[k].has("below_grade"))
+	assert_true(with.size() >= 8, "banks, clubs, offices, blocks, hotels ... (%s)" % [with])
+	for k in ["bank", "club", "corp_office", "apartments", "hotel"]:
+		assert_true(k in with, "%s can have a basement" % k)
+	for k in with:
+		assert_between(float(sites[k].below_grade.chance), 0.05, 0.75, "%s: some, not all" % k)
+	var fired := 0
+	for s in 24:
+		var m := SceneGen.generate(400 + s, "lone_building", {"site": "corp_office", "security": 2})
+		fired += int(m.basements > 0)
+		var target: Dictionary = m.structures.filter(func(st): return st.target)[0]
+		assert_eq(int(target.get("basements", 0)), m.basements, "only the target building digs down")
+	assert_between(float(fired), 3.0, 17.0, "about the data's 40%% of offices (%d of 24)" % fired)
+	assert_eq(SceneGen.generate(400, "lone_building", {"site": "corp_office", "basement_storeys": 0}).basements, 0, "a scene can rule it out")
+	assert_eq(SceneGen.generate(400, "lone_building", {"site": "squat", "basement_storeys": 2}).basements, 0, "a site with no brief never digs")
+
+
+func test_ordinary_basements_follow_their_brief_and_are_reachable() -> void:
+	var sites := RulesDB.gen("sites.json")
+	for k in ["bank", "club", "corp_office", "apartments", "hotel", "ncpd_precinct"]:
+		var bg: Dictionary = sites[k].below_grade
+		var kinds := _brief_kinds(bg)
+		for s in [3, 41]:
+			var m := SceneGen.generate(s, "lone_building", {"site": k, "security": 3, "basement_storeys": int(bg.storeys[1])})
+			var tag := "%s seed %d" % [k, s]
+			assert_eq(m.basements, int(bg.storeys[1]), "%s: forced storeys" % tag)
+			var nav := Nav.new(m)
+			nav.locked.clear()   # security doors are hacked or breached in play: this is about the stairs
+			var field := nav.distance_field([_deploy(m)], {}, 6000)
+			var below := m.rooms.filter(func(r): return r.cells > 0 and int(r.floor) < m.street)
+			assert_true(below.size() >= 3, "%s: rooms below the street (%d)" % [tag, below.size()])
+			for r in below:
+				assert_true(kinds.has(String(r.kind)), "%s: %s is in the brief" % [tag, r.kind])
+				assert_true(r.get("below", false), "%s: %s is below grade" % [tag, r.kind])
+				assert_true(Furnish.room_cells(m, r).any(func(c): return field.has(Vector3i(c.x, c.y, r.floor))), "%s: %s on B%d reachable" % [tag, r.kind, m.street - int(r.floor)])
+			for e in m.entrances:
+				assert_eq(int(e.floor), m.street, "%s: entrances at street level" % tag)
+
+
+func test_objectives_anchor_in_an_ordinary_basement() -> void:
+	# The package goes to the farthest, most secure room the crew can reach (Encounter.secure_cell):
+	# a block's storage cages, a club's back office, an office's basement store. (A bank's vaults
+	# below are behind security doors, so its package stays where the crew can get at it.)
+	var below := 0
+	for site in ["club", "apartments", "corp_office"]:
+		for s in [5, 9, 13]:
+			var m := SceneGen.generate(s, "lone_building", {"site": site, "security": 2, "basement_storeys": 1})
+			var dice := Dice.new(s)
+			var e := Encounter.setup(m, dice, _crew(dice), "snatch", {"faction": "militech"})
+			var cell: Vector3i = e.objective.cell
+			if cell.z < m.street:
+				below += 1
+				var l := m.label(cell.z, cell.x, cell.y)
+				assert_true(m.rooms[l].get("below", false), "%s seed %d: in a basement room (%s)" % [site, s, m.rooms[l].kind])
+			e.next_turn()
+			assert_eq(e.state, "playing", "%s seed %d: playable" % [site, s])
+	assert_true(below >= 3, "the package sits below the street on some maps (%d of 9)" % below)

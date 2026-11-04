@@ -166,7 +166,7 @@ func test_deploy_zone_and_posts() -> void:
 			continue
 		var reach := m.reachable(_spawn0(m) if _spawn0(m).x >= 0 else Vector3i(deploys[0].pos.x, deploys[0].pos.y, 0))
 		for c in deploys[0].cells:
-			assert_true(m.walkable(0, c), "deploy cell open")
+			assert_true(m.walkable(m.street, c), "deploy cell open")
 		for p in m.posts:
 			assert_true(m.walkable(p.floor, p.pos), "%s: post on open ground" % m.params.scene)
 

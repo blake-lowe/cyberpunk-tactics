@@ -1107,6 +1107,7 @@
 			"security_code": {
 				"n": 10,
 				"faction": "locals",
+				"responder": "patrons",
 				"intensity": "heavy",
 				"hardened": false
 			},
@@ -2665,6 +2666,7 @@
 			"security_code": {
 				"n": 11,
 				"faction": "locals",
+				"responder": "unknown",
 				"intensity": "heavy",
 				"hardened": true
 			},
@@ -2833,6 +2835,7 @@
 			"security_code": {
 				"n": 8,
 				"faction": "locals",
+				"responder": "patrons",
 				"intensity": "light",
 				"hardened": true
 			},
@@ -3370,6 +3373,7 @@
 			"security_code": {
 				"n": 10,
 				"faction": "kimen_gumi",
+				"or_faction": "g3",
 				"intensity": "heavy",
 				"hardened": true
 			},
@@ -3479,6 +3483,7 @@
 			"security_code": {
 				"n": 10,
 				"faction": "locals",
+				"responder": "staff",
 				"intensity": "heavy",
 				"hardened": false
 			},
@@ -3934,6 +3939,7 @@
 			"security_code": {
 				"n": 3,
 				"faction": "locals",
+				"responder": "residents",
 				"intensity": "heavy",
 				"hardened": true
 			},
@@ -4669,6 +4675,7 @@
 			"security_code": {
 				"n": 9,
 				"faction": "locals",
+				"responder": "patrons",
 				"intensity": "medium",
 				"hardened": false
 			},
@@ -5329,6 +5336,7 @@
 			"security_code": {
 				"n": 4,
 				"faction": "locals",
+				"responder": "various",
 				"intensity": "light",
 				"hardened": true
 			},
@@ -5481,6 +5489,7 @@
 			"security_code": {
 				"n": 8,
 				"faction": "locals",
+				"responder": "staff",
 				"intensity": "light",
 				"hardened": true
 			},
@@ -6082,6 +6091,7 @@
 			"security_code": {
 				"n": 10,
 				"faction": "locals",
+				"responder": "patrons",
 				"intensity": "heavy",
 				"hardened": true
 			},
@@ -7087,6 +7097,7 @@
 			"security_code": {
 				"n": 10,
 				"faction": "locals",
+				"responder": "staff",
 				"intensity": "medium",
 				"hardened": true
 			},
@@ -7688,6 +7699,7 @@
 			"security_code": {
 				"n": 8,
 				"faction": "petrochem",
+				"or_faction": "sovoil",
 				"intensity": "medium",
 				"hardened": false
 			},
@@ -7818,6 +7830,7 @@
 			"security_code": {
 				"n": 9,
 				"faction": "petrochem",
+				"or_faction": "sovoil",
 				"intensity": "heavy",
 				"hardened": false
 			},
@@ -8022,6 +8035,7 @@
 			"security_code": {
 				"n": 7,
 				"faction": "locals",
+				"responder": "staff",
 				"intensity": "medium",
 				"hardened": false
 			},
@@ -10022,6 +10036,7 @@
 			"security_code": {
 				"n": 5,
 				"faction": "locals",
+				"responder": "gangs",
 				"intensity": "medium",
 				"hardened": false
 			},
@@ -10119,6 +10134,7 @@
 			"security_code": {
 				"n": 5,
 				"faction": "locals",
+				"responder": "gangs",
 				"intensity": "medium",
 				"hardened": false
 			},
@@ -10474,6 +10490,7 @@
 			"security_code": {
 				"n": 10,
 				"faction": "locals",
+				"responder": "residents",
 				"intensity": "medium",
 				"hardened": false
 			},
@@ -11155,6 +11172,7 @@
 			"security_code": {
 				"n": 10,
 				"faction": "locals",
+				"responder": "residents",
 				"intensity": "medium",
 				"hardened": false
 			},
@@ -11288,6 +11306,7 @@
 			"security_code": {
 				"n": 8,
 				"faction": "locals",
+				"responder": "patrons",
 				"intensity": "heavy",
 				"hardened": false
 			},
@@ -11906,6 +11925,7 @@
 			"security_code": {
 				"n": 9,
 				"faction": "tyger_claws",
+				"or_faction": "kanzaki_family",
 				"intensity": "light",
 				"hardened": true
 			},
@@ -11960,6 +11980,7 @@
 			"security_code": {
 				"n": 10,
 				"faction": "locals",
+				"responder": "patrons",
 				"intensity": "medium",
 				"hardened": true
 			},
@@ -12921,6 +12942,7 @@
 			"security_code": {
 				"n": 10,
 				"faction": "locals",
+				"responder": "residents",
 				"intensity": "heavy",
 				"hardened": false
 			},
@@ -13460,6 +13482,7 @@
 			"security_code": {
 				"n": 11,
 				"faction": "locals",
+				"responder": "patrons",
 				"intensity": "heavy",
 				"hardened": true
 			},
@@ -15052,6 +15075,7 @@
 			"security_code": {
 				"n": 7,
 				"faction": "locals",
+				"responder": "patrons",
 				"intensity": "medium",
 				"hardened": true
 			},
@@ -15282,6 +15306,7 @@
 			"security_code": {
 				"n": 10,
 				"faction": "locals",
+				"responder": "staff",
 				"intensity": "light",
 				"hardened": true
 			},

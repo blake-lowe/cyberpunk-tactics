@@ -44,12 +44,12 @@ wild_things gang Wild Things
 willows gang Willows
 yellow_brick_road_gang gang Yellow Brick Road Gang
 zoners gang The Zoners
-consortium crime The Consortium
-eastern_tigers_triad crime Eastern Tigers Triad
-el_norte_cartel crime El Norte Cartel
-kanzaki_family crime Kanzaki Family
-skiv_family crime Skiv Family
-weng_fang_tong crime Weng Fang Tong
+consortium criminal The Consortium
+eastern_tigers_triad criminal Eastern Tigers Triad
+el_norte_cartel criminal El Norte Cartel
+kanzaki_family criminal Kanzaki Family
+skiv_family criminal Skiv Family
+weng_fang_tong criminal Weng Fang Tong
 aldecaldo_peacekeepers security Aldecaldo Peacekeepers
 corporate_security security Corporate Security
 danger_gal security Danger Gal

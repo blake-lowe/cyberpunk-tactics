@@ -525,7 +525,7 @@ A Tech and Netrunner bar (20eb Code Freeze) that is really a tech refurbishment 
 	"type": "bar",
 	"owner": "",
 	"owner_name": "Brain (Tech 6/Netrunner 2) and 3-Piece (Fixer 5/Media 2)",
-	"security_code": {"n": 9, "faction": "locals", "intensity": "medium", "hardened": false},
+	"security_code": {"n": 9, "faction": "locals", "responder": "patrons", "intensity": "medium", "hardened": false},
 	"utility_code": null,
 	"npcs": ["Brain (Tech 6/Netrunner 2)", "3-Piece (Fixer 5/Media 2)"],
 	"hooks": [

@@ -649,7 +649,7 @@ Sanroo's weapons showroom and store.
 	"owner_name": "Sanroo",
 	"security_code": {
 		"n": 10,
-		"faction": "kimen_gumi",
+		"faction": "kimen_gumi", "or_faction": "g3",
 		"intensity": "heavy",
 		"hardened": true
 	},
@@ -786,7 +786,7 @@ Martial arts school: Arasaka-te for beginners, advanced arts in Tora-no-Ana; the
 	"owner_name": "Ryu Sensei (Solo 6)",
 	"security_code": {
 		"n": 10,
-		"faction": "locals",
+		"faction": "locals", "responder": "staff",
 		"intensity": "heavy",
 		"hardened": false
 	},

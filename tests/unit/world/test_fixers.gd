@@ -58,8 +58,8 @@ func test_offers_come_from_district_fixers_at_canon_locations() -> void:
 	for day in 8:
 		camp.refresh_board()
 		for g in camp.board:
-			if g.get("unique", false) or String(g.get("hook", "~")) == "~":
-				continue   # generic stand-ins (none fitted) and personal jobs
+			if g.get("unique", false):
+				continue   # personal jobs
 			city += 1
 			var l := World.location(String(g.location))
 			assert_false(l.is_empty(), "a canon location")
@@ -120,15 +120,23 @@ func test_strip_cite() -> void:
 	assert_eq(Campaign.strip_cite("No cite."), "No cite.")
 
 
-func test_fallback_to_generic_offers_when_nothing_fits() -> void:
-	var data := RulesDB.world("locations.json")
-	var saved: Dictionary = (data.get("locations", {}) as Dictionary).duplicate(true)
-	data["locations"] = {}
-	var camp := Campaign.new_game(23)
-	camp.refresh_board()
-	data["locations"] = saved
-	assert_between(float(camp.board.size()), 3.0, 4.0)
-	for g in camp.board:
-		assert_false(String(g.title).contains("{"))
-		assert_true(World.fixers().has(String(g.fixer_id)), "a Fixer from the data even so")
-		assert_true(g.has("security_code"))
+## Owner ruling 2026-11-04: every offer is at a canon place (no generic offers), and the board
+## still fills at every Reputation level: 3 offers, 4 with a name, each at a different place.
+func test_the_board_always_fills_at_canon_places() -> void:
+	for rep in range(0, 11):
+		for s in 12:
+			var camp := Campaign.new_game(1000 + rep * 37 + s)
+			camp.crew[0].reputation = rep
+			camp.refresh_board()
+			var plain: Array = camp.board.filter(func(g): return not g.get("unique", false))
+			assert_eq(plain.size(), 3 + (1 if rep >= 3 else 0), "rep %d seed %d: a full board" % [rep, s])
+			var places := {}
+			for g in camp.board:
+				var lid := String(g.get("location", ""))
+				assert_true(World.locations().has(lid), "rep %d: %s at a canon place" % [rep, g.get("title", "")])
+				assert_true(Campaign.offered_at(lid), "not in a NO_GIGS district")
+				assert_eq(String(g.district), String(World.location(lid).district))
+				assert_false(String(g.title).contains("{") or String(g.blurb).contains("{"), "slots filled: %s" % g.blurb)
+				assert_true(g.has("security_code"))
+				places[lid] = true
+			assert_eq(places.size(), camp.board.size(), "rep %d: no place twice" % rep)

@@ -51,8 +51,12 @@ extends RefCounted
 ##     Operation offers (gigs with `legs`) leave the board. Weapons the park's gate left in the van go
 ##     to safehouse storage so nothing is lost; a kit grenade in the van never left storage (a kit
 ##     slot only names what storage holds), so it goes back in its owner's slot if that is still empty.
+## v14: every board offer is at a canon location (owner ruling 2026-11-04: no generic places). Offers
+##     without a `location` (the old generic offers: a scene or site picked by tags) leave the board;
+##     the save is marked `refill_board` and Campaign.from_dict tops the board up with canon offers
+##     (the migration can't: it reads no city data and rolls no dice).
 
-const CURRENT := 13
+const CURRENT := 14
 
 
 ## Upgrade `d` (a parsed save) to CURRENT. Returns {} for a save from a newer build, which this
@@ -76,6 +80,7 @@ static func migrate(d: Dictionary) -> Dictionary:
 			10: _v10_to_v11(d)
 			11: _v11_to_v12(d)
 			12: _v12_to_v13(d)
+			13: _v13_to_v14(d)
 		v += 1
 		d["version"] = v
 	return d
@@ -258,3 +263,11 @@ static func _v12_to_v13(d: Dictionary) -> void:
 	d.erase("operation")
 	var board: Array = d.get("board", [])
 	d["board"] = board.filter(func(g): return not (g is Dictionary and g.get("legs") is Array and (g.legs as Array).size() > 1))
+
+
+static func _v13_to_v14(d: Dictionary) -> void:
+	var board: Array = d.get("board", [])
+	var kept: Array = board.filter(func(g): return g is Dictionary and String(g.get("location", "")) != "")
+	if kept.size() < board.size():
+		d["refill_board"] = true
+	d["board"] = kept

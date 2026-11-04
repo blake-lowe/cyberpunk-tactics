@@ -1,5 +1,5 @@
 {
-	"_doc": "Gig templates for the fixer board (M6, M9 P3). Each offer picks a template (its kind), a security level weighted by the crew's best Reputation (CPR p193, per character; rep_for_security), then a canon Night City location of that level (data/world/locations.json: hooks naming the kind first, else places whose gigs include it) and a Fixer working its district (data/world/fixers.json; fixer_tags: which deals_in tags suit each kind, weighted up). The title is the template's label and the location; the blurb is '<Fixer> has work at <Location> (<District>): <hook>', or the template's pitch when the place has no hook for the kind. When no location fits, the old generic offer stands in: titles/blurb with slots filled, a scene from scene_tags matching kind_tags (owner-approved: objectives work on every map type), raid_chance of them a single-site raid (lone_building with a site from raid_sites). Pay and rewards are HOUSE-RULE economy numbers until checked against the book's job rates. Unique offers (spec: 'occasional unique offers' from fixers who trust you) appear once the crew's best Reputation reaches unique_rep. Target factions come from data/world/factions.json (each faction lists the gig kinds it can be the target of); {corp}/{gang} slots are filled with the target's name, and titles naming the other kind of slot are skipped. Complications are no longer here: the book's Hardened complication tables (data/rules/npcs.json) are rolled at gig start (Complication).",
+	"_doc": "Gig templates for the fixer board (M6, M9 P3). Each offer picks a template (its kind), a security level weighted by the crew's best Reputation (CPR p193, per character; rep_for_security), then a canon Night City location of that level (data/world/locations.json: hooks naming the kind first, else places whose gigs include it) and a Fixer working its district (data/world/fixers.json; fixer_tags: which deals_in tags suit each kind, weighted up). The title is the template's label and the location; the blurb is '<Fixer> has work at <Location> (<District>): <hook>', or the template's pitch when the place has no hook for the kind. Every offer is at a canon location (owner ruling 2026-11-04: no generic offers): when no place fits the template's kind at the rolled level or below, the other kinds are tried. Pay and rewards are HOUSE-RULE economy numbers until checked against the book's job rates. Unique offers (spec: 'occasional unique offers' from fixers who trust you) appear once the crew's best Reputation reaches unique_rep, at one of the target's own places (else a canon place for the job); their titles/blurb fill {fixer}, {corp}, {gang}, {data} and {place} (the location's name). Target factions come from data/world/factions.json (each faction lists the gig kinds it can be the target of); {corp}/{gang} slots are filled with the target's name, and titles naming the other kind of slot are skipped. Complications are no longer here: the book's Hardened complication tables (data/rules/npcs.json) are rolled at gig start (Complication).",
 	"data": [
 		"payroll ledger",
 		"prototype schematics",
@@ -12,89 +12,32 @@
 		{
 			"kind": "data_theft",
 			"label": "Data theft",
-			"pitch": "a buyer wants {target}'s {data} out of there.",
-			"titles": [
-				"Data theft: {corp}",
-				"Steal {corp}'s {data}",
-				"Download the {data}"
-			],
-			"blurb": "{fixer} has a buyer for {corp}'s {data}. Download it through their NET, or clear the building and take it by hand."
+			"pitch": "a buyer wants {target}'s {data} out of there."
 		},
 		{
 			"kind": "gang_hit",
 			"label": "Gang hit",
-			"pitch": "the {target} have to go, along with anyone they call.",
-			"titles": [
-				"Gang hit: {gang}",
-				"Clear the {gang} out of the {place}"
-			],
-			"blurb": "The {gang} have taken over a {place}. {fixer} wants them gone, along with anyone they call for help.",
-			"places": [
-				"camp",
-				"docks",
-				"yard",
-				"bar"
-			]
+			"pitch": "the {target} have to go, along with anyone they call."
 		},
 		{
 			"kind": "corp_extraction",
 			"label": "Package job",
-			"pitch": "an inside contact leaves a door open; bring the package out.",
-			"titles": [
-				"Package job: {corp}",
-				"Steal the {data} drive from {corp}"
-			],
-			"blurb": "A {corp} insider will leave a door open tonight. Find the {data} drive inside and carry it back to where you came in."
+			"pitch": "an inside contact leaves a door open; bring the package out."
 		},
 		{
 			"kind": "assassination",
 			"label": "Wetwork",
-			"pitch": "someone in {target} has a contract on them.",
-			"titles": [
-				"Wetwork: {gang}",
-				"Retire a {corp} manager",
-				"Take down the {gang}'s lieutenant"
-			],
-			"blurb": "{fixer} has a name and an address. The mark is inside with bodyguards. Put them down before they bolt for an exit, then get out."
+			"pitch": "someone in {target} has a contract on them."
 		},
 		{
 			"kind": "rescue",
 			"label": "Extraction",
-			"pitch": "someone is being held inside; walk them out alive.",
-			"titles": [
-				"Extraction: someone {fixer} owes",
-				"Get them out of the {place}",
-				"Hostage pull from the {gang}"
-			],
-			"blurb": "Someone {fixer} cares about is being held inside. Find them, cut them loose and walk them out alive.",
-			"places": [
-				"warehouse",
-				"clinic",
-				"hideout",
-				"basement"
-			]
+			"pitch": "someone is being held inside; walk them out alive."
 		},
 		{
 			"kind": "sabotage",
 			"label": "Sabotage",
-			"pitch": "{target}'s gear has to be wrecked before morning.",
-			"titles": [
-				"Sabotage: {corp}",
-				"Blow {corp}'s {target}",
-				"Lights out at the {place}"
-			],
-			"blurb": "{fixer} wants {corp}'s {target} wrecked before morning. Get to it, plant the charge, and be somewhere else when it goes.",
-			"places": [
-				"plant",
-				"depot",
-				"tower",
-				"yard"
-			],
-			"targets": [
-				"server core",
-				"backup generator",
-				"substation"
-			]
+			"pitch": "{target}'s gear has to be wrecked before morning."
 		}
 	],
 	"pay": {
@@ -158,16 +101,8 @@
 				"Personal job: {corp} prototype"
 			],
 			"blurb": "{fixer} trusts you with this one. A {corp} prototype is in storage tonight; bring it back. Double pay.",
-			"scenes": [
-				"corp_campus",
-				"megablock"
-			],
 			"security": 3,
-			"pay_mult": 2.0,
-			"tags": [
-				"corp",
-				"industrial"
-			]
+			"pay_mult": 2.0
 		},
 		{
 			"kind": "gang_hit",
@@ -175,22 +110,8 @@
 				"Personal job: wipe out the {gang}"
 			],
 			"blurb": "{fixer} wants the {gang} gone for good. Their main crew is at the {place}. Double pay.",
-			"scenes": [
-				"shipyard",
-				"rail_yard",
-				"badlands"
-			],
-			"places": [
-				"warehouse",
-				"depot",
-				"camp"
-			],
 			"security": 3,
-			"pay_mult": 2.0,
-			"tags": [
-				"gang",
-				"wild"
-			]
+			"pay_mult": 2.0
 		},
 		{
 			"kind": "data_theft",
@@ -198,164 +119,9 @@
 				"Personal job: {corp}'s {data}"
 			],
 			"blurb": "{fixer}'s client wants {corp}'s {data}. Expect a deep NET and heavy Black ICE. Double pay.",
-			"scenes": [
-				"corp_campus",
-				"lone_building"
-			],
 			"security": 3,
-			"pay_mult": 2.0,
-			"tags": [
-				"corp",
-				"industrial",
-				"residential"
-			]
+			"pay_mult": 2.0
 		}
 	],
-	"unique_rep": 3,
-	"scene_tags": {
-		"skirmish": [
-			"gang",
-			"residential"
-		],
-		"lone_building": [
-			"corp",
-			"residential",
-			"gang",
-			"industrial"
-		],
-		"street_block": [
-			"residential",
-			"gang"
-		],
-		"megablock": [
-			"residential"
-		],
-		"shipyard": [
-			"industrial",
-			"gang"
-		],
-		"badlands": [
-			"wild",
-			"gang"
-		],
-		"rail_yard": [
-			"industrial",
-			"gang"
-		],
-		"corp_campus": [
-			"corp"
-		],
-		"neighborhood:corporate_center": [
-			"corp"
-		],
-		"neighborhood:executive_zone": [
-			"corp"
-		],
-		"neighborhood:market_streets": [
-			"residential",
-			"gang"
-		],
-		"neighborhood:mixed_residential": [
-			"residential"
-		],
-		"neighborhood:combat_zone": [
-			"gang"
-		],
-		"neighborhood:hot_zone": [
-			"gang",
-			"wild"
-		],
-		"neighborhood:industrial": [
-			"industrial"
-		],
-		"neighborhood:pacifica": [
-			"gang",
-			"residential"
-		],
-		"undercity": [
-			"gang",
-			"industrial"
-		],
-		"arcology": [
-			"corp"
-		],
-		"warzone": [
-			"gang",
-			"wild"
-		]
-	},
-	"kind_tags": {
-		"data_theft": [
-			"corp",
-			"industrial",
-			"residential"
-		],
-		"gang_hit": [
-			"gang",
-			"wild"
-		],
-		"corp_extraction": [
-			"corp",
-			"industrial"
-		],
-		"assassination": [
-			"gang",
-			"corp",
-			"wild"
-		],
-		"rescue": [
-			"gang",
-			"industrial",
-			"residential",
-			"corp"
-		],
-		"sabotage": [
-			"corp",
-			"industrial"
-		]
-	},
-	"raid_sites": {
-		"data_theft": [
-			"corp_office",
-			"data_center",
-			"clinic",
-			"corp_hq"
-		],
-		"gang_hit": [
-			"gang_hideout",
-			"bar",
-			"club",
-			"chop_shop",
-			"bd_parlor",
-			"squat"
-		],
-		"corp_extraction": [
-			"corp_office",
-			"warehouse",
-			"clinic",
-			"villa",
-			"factory"
-		],
-		"assassination": [
-			"gang_hideout",
-			"club",
-			"villa",
-			"corp_office",
-			"bar"
-		],
-		"rescue": [
-			"gang_hideout",
-			"warehouse",
-			"clinic",
-			"chop_shop",
-			"squat"
-		],
-		"sabotage": [
-			"data_center",
-			"factory",
-			"warehouse",
-			"corp_office"
-		]
-	},
-	"raid_chance": 0.3
+	"unique_rep": 3
 }

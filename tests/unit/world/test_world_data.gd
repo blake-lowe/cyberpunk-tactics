@@ -17,23 +17,15 @@ func _sites() -> Array:
 	return RulesDB.gen("sites.json").keys().filter(func(k): return k != "_doc")
 
 
-func test_gig_places_exist() -> void:
+## Owner ruling 2026-11-04: every offer is at a canon location, so the gig data keeps no generic
+## places (scene tags, raid sites) and every template's kind has places the board can pick.
+func test_gig_data_has_no_generic_places() -> void:
 	var g := RulesDB.gen("gigs.json")
-	for sc in g.scene_tags:
-		if String(sc).begins_with("neighborhood:"):
-			assert_true(String(sc).get_slice(":", 1) in _profiles(), "scene tag %s: a district profile" % sc)
-		else:
-			assert_true(String(sc) in SceneGen.PLANNERS, "scene tag %s: a scene SceneGen builds" % sc)
-	for kind in g.raid_sites:
-		for site in g.raid_sites[kind]:
-			assert_true(String(site) in _sites(), "raid site %s (%s) exists" % [site, kind])
-	var tags := {}
-	for sc in g.scene_tags:
-		for t in g.scene_tags[sc]:
-			tags[t] = true
-	for kind in g.kind_tags:
-		assert_true((g.kind_tags[kind] as Array).any(func(t): return tags.has(t)), "%s: some scene carries one of its tags" % kind)
-
+	for k in ["scene_tags", "kind_tags", "raid_sites", "raid_chance", "location_chance"]:
+		assert_false(g.has(k), "no %s" % k)
+	var c := Campaign.new_game(3)
+	for t in g.templates + g.unique_templates:
+		assert_true(c._pick_location(String(t.kind), 3, 5, {}) != "", "%s: a canon place for it" % t.kind)
 
 func test_scene_themes_name_real_scenes_and_palettes() -> void:
 	for sc in SceneTheme.themes():
@@ -68,13 +60,14 @@ func test_the_board_sends_a_job_to_its_targets_own_place() -> void:
 	data["locations"] = {"test_depot": {"name": "Test Depot", "owner": "militech", "site": "warehouse", "security": [3, 3],
 		"gigs": ["sabotage", "corp_extraction", "data_theft"], "cite": "test"}}
 	var camp := Campaign.new_game(5)
+	camp.crew[0].reputation = 5   # a name: security 3 jobs come up (rep_for_security)
 	var hits := 0
-	for day in 400:   # with the NC2045 factions there are ~100 targets to draw from
+	for day in 60:   # the only place in the city: a job lands there whenever a level-3 one is rolled
 		if hits >= 2:
 			break
 		camp.refresh_board()
 		for g in camp.board:
-			if String(g.get("location", "")) == "test_depot":
+			if String(g.get("location", "")) == "test_depot" and not g.get("unique", false):
 				hits += 1
 				assert_eq(String(g.faction), "militech")
 				assert_eq(String(g.site), "warehouse")

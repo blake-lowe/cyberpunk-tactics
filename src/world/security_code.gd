@@ -2,8 +2,9 @@ class_name SecurityCode
 extends RefCounted
 ## Night City 2045's Security and Utility Codes (NC2045 p.7-8), as the game plays them.
 ##
-## A Security Code is `{n, faction, intensity, hardened}` (docs/world/city.md, locations.md): when an
-## incident happens, roll 1d10; under `n`, `faction` responds (11 always does). Intensity sizes the
+## A Security Code is `{n, faction, intensity, hardened}` (docs/world/city.md, locations.md), plus
+## `or_faction` on a code printed with two responders and `responder` on a venue's (respondent): when
+## an incident happens, roll 1d10; under `n`, `faction` responds (11 always does). Intensity sizes the
 ## response on the CPR p.399 encounter budget; Hardened responders use the Hardened stat blocks.
 ## A Utility Code is one number: roll 1d10 per utility (power, water, CitiNet); under it, that
 ## utility is out. Pure helpers: every roll goes through the Dice passed in.
@@ -39,6 +40,9 @@ const PUBLIC_POLICE := ["ncpd", "maxtac"]
 const CITY_OWNERS := ["city_government"]
 ## utilities_happen: one gig in this many rolls its Utility Code (HOUSE-RULE pacing).
 const UTILITY_CHANCE_IN := 3
+## The one faction the book's venue placeholders ("Patrons", "Staff", "Various") are (factions.md);
+## a code's `responder` says which of the venue's people answer (respondent).
+const VENUE := "locals"
 ## CPR core p.399 encounter costs in Edgerunners' worth.
 const COST := {"mook": 1, "lieutenant": 2, "mini_boss": 3}
 
@@ -54,12 +58,17 @@ static func normalise(raw: Variant) -> Dictionary:
 	var intensity := String(d.get("intensity", "medium")).to_lower()
 	if not intensity in INTENSITIES:
 		intensity = "medium"
-	return {"n": clampi(int(d.n), 0, ALWAYS), "faction": String(d.get("faction", "")), "intensity": intensity,
+	var out := {"n": clampi(int(d.n), 0, ALWAYS), "faction": String(d.get("faction", "")), "intensity": intensity,
 		"hardened": bool(d.get("hardened", false))}
+	for k in ["or_faction", "responder"]:   # a two-responder code's second; a venue code's printed responder
+		if String(d.get(k, "")) != "":
+			out[k] = String(d[k])
+	return out
 
 
 ## The printed form (NC2045 p.7): "[Security Code] #: <Faction>, [Hardened] <Light|Medium|Heavy>".
-## The faction name becomes an id (snake_case: "6th Street" → "6th_street"). {} if it doesn't parse.
+## The faction name becomes an id (snake_case: "6th Street" → "6th_street"); a code printed with two
+## responders, "Petrochem/SovOil", keeps the second as `or_faction`. {} if it doesn't parse.
 static func parse(text: String) -> Dictionary:
 	var t := text.strip_edges()
 	if t.to_lower().begins_with("security code"):
@@ -75,8 +84,12 @@ static func parse(text: String) -> Dictionary:
 	for i in INTENSITIES:
 		if how.contains(i):
 			intensity = i
-	return normalise({"n": int(t.substr(0, colon)), "faction": who.strip_edges().to_lower().replace(" ", "_").replace("'", ""),
-		"intensity": intensity, "hardened": how.contains("hardened")})
+	var ids: Array = Array(who.split("/", false)).map(func(x): return String(x).strip_edges().to_lower().replace(" ", "_").replace("'", "").replace("-", "_"))
+	var out := {"n": int(t.substr(0, colon)), "faction": String(ids[0]) if not ids.is_empty() else "",
+		"intensity": intensity, "hardened": how.contains("hardened")}
+	if ids.size() > 1:
+		out["or_faction"] = String(ids[1])
+	return normalise(out)
 
 
 ## The fallback code for an old 1-3 security level, with `faction` (the site's own people) filled in.
@@ -95,6 +108,41 @@ static func level(code: Dictionary) -> int:
 ## Does the code's faction respond to an incident? 1d10 under `n` (NC2045 p.7; 11 always).
 static func responds(dice: Dice, code: Dictionary) -> bool:
 	return dice.d(10) < int(code.get("n", 0))
+
+
+## Who answers when `code` responds: {faction, civilians}. Rolled each time the code responds
+## (Encounter.call_it_in), through `dice`; `owner` is the location's owner faction ("" for none) and
+## `gangs` the district's gangs, for the venue codes.
+## - Two responders ("Kimen-Gumi/G3", `or_faction`): HOUSE-RULE (owner ruling 2026-11-04): the book
+##   prints both and says no more, so either may answer: 1d2 each time the code responds.
+## - A venue code (faction VENUE, NC2045 p.7: the Afterlife's patrons, p.69) by its printed
+##   `responder`. HOUSE-RULE (owner ruling 2026-11-04: the venue's own people or the civilians about
+##   answer): `patrons` and `residents` are armed locals (`civilians`: the district's civilian
+##   blocks, Recruit.civilian_blocks); `staff` the owner's people, else armed locals; `gangs`
+##   ("Various Gangs") one of the district's gangs, else armed locals; `various` and `unknown` ("??")
+##   the owner's people or armed locals, 1d2 (armed locals if the owner is no faction).
+## - Anything else: the code's faction.
+static func respondent(dice: Dice, code: Dictionary, owner := "", gangs: Array = []) -> Dictionary:
+	var fid := String(code.get("faction", ""))
+	var alt := String(code.get("or_faction", ""))
+	if alt != "" and dice.d(2) == 2:
+		fid = alt
+	if fid != VENUE:
+		return {"faction": fid, "civilians": false}
+	var locals := {"faction": VENUE, "civilians": true}
+	var own: Dictionary = {"faction": owner, "civilians": false} if owner != "" and owner != VENUE and World.has_faction(owner) else {}
+	match String(code.get("responder", "")):
+		"staff":
+			return own if not own.is_empty() else locals
+		"gangs":
+			var known: Array = gangs.filter(func(g): return World.has_faction(String(g)))
+			if known.is_empty():
+				return locals
+			return {"faction": String(known[dice.d(known.size()) - 1]), "civilians": false}
+		"various", "unknown":
+			if not own.is_empty() and dice.d(2) == 2:
+				return own
+	return locals
 
 
 ## Is this a quick responder (see QUICK_FROM)?
@@ -271,11 +319,25 @@ static func faction_name(id: String) -> String:
 	return World.display_name(id) if World.has_faction(id) else id.replace("_", " ").capitalize()
 
 
+## Who a code names, for display: "Petrochem/SovOil" for a two-responder code, "Patrons" for a
+## venue's (an empty faction shows `own`, the site's own people).
+static func responder_name(code: Dictionary, own := "") -> String:
+	var c := normalise(code)
+	if c.is_empty():
+		return ""
+	if String(c.faction) == VENUE and String(c.get("responder", "")) != "":
+		return String(c.responder).capitalize()
+	var who := faction_name(String(c.faction) if String(c.faction) != "" else own)
+	if String(c.get("or_faction", "")) != "":
+		who += "/" + faction_name(String(c.or_faction))
+	return who
+
+
 ## "SECURITY 6 · NCPD · HARDENED MEDIUM" (an empty faction shows `own`, the site's own people).
 static func label(code: Dictionary, own := "") -> String:
 	var c := normalise(code)
 	if c.is_empty():
 		return ""
-	var who := faction_name(String(c.faction) if String(c.faction) != "" else own)
+	var who := responder_name(c, own)
 	return "SECURITY %d%s · %s%s" % [int(c.n), (" · " + who.to_upper()) if who != "" else "",
 		"HARDENED " if bool(c.hardened) else "", String(c.intensity).to_upper()]
