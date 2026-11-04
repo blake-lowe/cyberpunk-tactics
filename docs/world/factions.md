@@ -9,7 +9,7 @@ What is **book-sourced** per faction: the name, `leader` (as printed), `activiti
 ## How the data reads
 
 ```world factions._doc
-"Factions of Night City (World.faction), from Night City 2045 (NC2045 p.32-52 and the district chapters). The gig's target faction fields the guards; others appear as third parties (bystanders, Trauma Team, NCPD, MaxTac, district security, rival crews). kind (crew/civilian/captive/corp/crime/gang/police/service) sets defaults; relations are symmetric and resolved most-hostile-wins between kind defaults and per-faction overrides (by faction id, else by kind). leader and activities are as printed; territory is district ids (derived from docs/world/nc_*.md). roster: ranks name the NPC tiers (ours); blocks list the stat blocks (npcs.json) the faction fields per tier: its own printed NC2045 blocks, the rest core or Hardened stand-ins; a tier without blocks falls back to the tier's default pool; responder: who they send when called. look: what the view dresses them in (jacket/accent/pants colours are ours, RULES-UNVERIFIED; vest/helmet/gloves). gigs: the gig kinds (gigs.json templates) this faction can be the target of (ours, from activities, plus the gigs listed on places it owns; gangs never take data_theft/corp_extraction, only gangs take gang_hit). doctrine: security style (data/world/security.json). cite: where the book describes it."
+"Factions of Night City (World.faction), from Night City 2045 (NC2045 p.32-52 and the district chapters). The gig's target faction fields the guards; others appear as third parties (bystanders, Trauma Team, NCPD, MaxTac, district security, rival crews). kind (crew/civilian/captive/corp/criminal/gang/police/service) sets defaults; relations are symmetric and resolved most-hostile-wins between kind defaults and per-faction overrides (by faction id, else by kind). leader and activities are as printed; territory is district ids (derived from docs/world/nc_*.md). roster: ranks name the NPC tiers (ours); blocks list the stat blocks (npcs.json) the faction fields per tier: its own printed NC2045 blocks, the rest core or Hardened stand-ins; a tier without blocks falls back to the tier's default pool; responder: who they send when called. look: what the view dresses them in (jacket/accent/pants colours are ours, RULES-UNVERIFIED; vest/helmet/gloves). gigs: the gig kinds (gigs.json templates) this faction can be the target of (ours, from activities, plus the gigs listed on places it owns; gangs never take data_theft/corp_extraction, only gangs take gang_hit). doctrine: security style (data/world/security.json). cite: where the book describes it."
 ```
 
 ## Stat blocks in rosters
@@ -35,14 +35,14 @@ Militech Veteran).
 
 ## Relations between kinds
 
-Defaults by kind, symmetric (most hostile wins); a faction's own `relations` override replaces them. `crime` (criminal organisations) is ours: at odds with the police, neutral to corps and gangs (the Skiv Family is "in bed with" corporations, NC2045 p.48).
+Defaults by kind, symmetric (most hostile wins); a faction's own `relations` override replaces them. `criminal` (criminal organisations) is ours: at odds with the police, neutral to corps and gangs (the Skiv Family is "in bed with" corporations, NC2045 p.48).
 
 ```world factions.kind_relations
 {
 	"crew": {
 		"crew": "ally",
 		"corp": "hostile",
-		"crime": "hostile",
+		"criminal": "hostile",
 		"gang": "hostile",
 		"police": "hostile",
 		"service": "neutral",
@@ -51,15 +51,15 @@ Defaults by kind, symmetric (most hostile wins); a faction's own `relations` ove
 	},
 	"corp": {
 		"corp": "neutral",
-		"crime": "neutral",
+		"criminal": "neutral",
 		"gang": "hostile",
 		"police": "neutral",
 		"service": "neutral",
 		"civilian": "neutral",
 		"captive": "neutral"
 	},
-	"crime": {
-		"crime": "neutral",
+	"criminal": {
+		"criminal": "neutral",
 		"gang": "neutral",
 		"police": "hostile",
 		"service": "neutral",
@@ -188,7 +188,7 @@ Generic private security (World.DEFAULT_OPFOR), used when a gig names no faction
 
 ### The locals (`locals`)
 
-The place's own armed people: bouncers, regulars, residents, staff and friends of the owner. The book prints these as a venue's Security Code responder ("Patrons", "Staff", "Residents", "Various", "??", e.g. the Afterlife's patrons, NC2045 p.69); owner ruling: one faction for all of them. They field civilian and mook blocks: the core Bodyguard and Boosterganger and the book's Firing Range Patron (p.164), Deli Brawler (p.174) and Rupture Fighter (p.255). Never a gig target in their own right. *(Ours; kind service: neutral to passers-by until the place is hit.)*
+The place's own armed people: bouncers, regulars, residents, staff and friends of the owner. The book prints these as a venue's Security Code responder ("Patrons", "Staff", "Residents", "Various", "??", e.g. the Afterlife's patrons, NC2045 p.69); owner ruling: one faction for all of them. They field civilian and mook blocks: the core Bodyguard and Boosterganger and the book's Firing Range Patron (p.164), Deli Brawler (p.174) and Rupture Fighter (p.255). Never a gig target in their own right. When such a code responds, the code's `responder` (docs/world/locations.md) decides who comes: HOUSE-RULE (owner ruling 2026-11-04), patrons and residents are armed locals drawn from the district's civilian blocks (data/rules/npcs.json `civilian`), staff are the owner's people when the owner is a faction (else armed locals), "Various Gangs" one of the district's gangs, and various or "??" any one of those the place has; the locals' officers (Bouncer, Hard Case) still come from this roster. *(Ours; kind service: neutral to passers-by until the place is hit.)*
 
 ```world factions.factions.locals
 {
@@ -891,7 +891,7 @@ An anarchist collective of bike and motorcycle couriers, modelled by Fixie on he
 		"gang": "neutral",
 		"police": "neutral",
 		"corp": "neutral",
-		"crime": "neutral"
+		"criminal": "neutral"
 	},
 	"doctrine": "gang_den",
 	"roster": {
@@ -2852,7 +2852,7 @@ Night City's Bratva. A small share of most rackets but big in smuggling and pira
 ```world factions.factions.consortium
 {
 	"name": "The Consortium",
-	"kind": "crime",
+	"kind": "criminal",
 	"leader": "Valya",
 	"activities": [
 		"gambling",
@@ -2916,7 +2916,7 @@ The newest syndicate: Lu Zho hired edgerunners to steal dozens of corporate desi
 ```world factions.factions.eastern_tigers_triad
 {
 	"name": "Eastern Tigers Triad",
-	"kind": "crime",
+	"kind": "criminal",
 	"leader": "Lu Zho",
 	"activities": [
 		"smuggling",
@@ -2981,7 +2981,7 @@ A Mexican cartel that got in once bribable corporate shipping opened the Panama 
 ```world factions.factions.el_norte_cartel
 {
 	"name": "El Norte Cartel",
-	"kind": "crime",
+	"kind": "criminal",
 	"leader": "Rubén Meza",
 	"activities": [
 		"drugs",
@@ -3040,7 +3040,7 @@ What's left of the Yakuza: shut out of Japantown and Kabuki by the NCCS-backed T
 ```world factions.factions.kanzaki_family
 {
 	"name": "Kanzaki Family",
-	"kind": "crime",
+	"kind": "criminal",
 	"leader": "Shin Kanzaki",
 	"activities": [
 		"construction",
@@ -3104,7 +3104,7 @@ A mafia family that Lynn Skiv rebuilt on 20th-century mob lines: own the docks, 
 ```world factions.factions.skiv_family
 {
 	"name": "Skiv Family",
-	"kind": "crime",
+	"kind": "criminal",
 	"leader": "Lynn Skiv",
 	"activities": [
 		"construction",
@@ -3167,7 +3167,7 @@ On the surface the most powerful syndicate: David Ling Po runs Little China, an 
 ```world factions.factions.weng_fang_tong
 {
 	"name": "Weng Fang Tong",
-	"kind": "crime",
+	"kind": "criminal",
 	"leader": "David Ling Po",
 	"activities": [
 		"sex_work",

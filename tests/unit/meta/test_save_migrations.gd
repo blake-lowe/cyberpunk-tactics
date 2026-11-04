@@ -242,3 +242,45 @@ func test_v12_migration_leaves_a_save_without_an_operation_alone() -> void:
 		assert_eq(c.stored(String(k)), int(d.stash[k]), "storage unchanged: " + String(k))
 	assert_eq(c.board.size(), (d.board as Array).size(), "the board unchanged")
 	assert_false(c.to_dict().has("operation"))
+
+
+# --- v14: every offer at a canon place --------------------------------------------------------
+
+## A v13 save whose board has old generic offers (a scene picked by tags, no location): they leave the
+## board and canon offers take their places on load; the canon offer it had stays as it was.
+func test_v13_generic_offers_are_dropped_and_the_board_refilled() -> void:
+	var c0 := Campaign.new_game(31)
+	var d: Dictionary = JSON.parse_string(JSON.stringify(c0.to_dict()))
+	var kept: Dictionary = (d.board[0] as Dictionary).duplicate(true)
+	for i in range(1, (d.board as Array).size()):
+		var g: Dictionary = d.board[i]
+		for k in ["location", "district", "hook", "setpiece"]:
+			g.erase(k)
+		g["scene"] = "shipyard"
+		g["site"] = ""
+		g["title"] = "Clear the Maelstrom out of the docks"
+	d["version"] = 13
+	var raw: Dictionary = JSON.parse_string(JSON.stringify(d))
+	var mig := SaveMigrations.migrate(raw.duplicate(true))
+	assert_eq((mig.board as Array).size(), 1, "the generic offers leave the board")
+	assert_true(bool(mig.get("refill_board", false)), "and the save asks for a refill")
+	var c := Campaign.from_dict(raw)
+	assert_true(c != null, "loads")
+	assert_eq(c.board.size(), c.board_size(), "the board is full again")
+	assert_true(c.board.all(func(g): return String(g.get("location", "")) != "" and World.locations().has(String(g.location))), "every offer at a canon place")
+	assert_eq(String(c.board[0].id), String(kept.id), "the canon offer stays")
+	assert_eq(String(c.board[0].location), String(kept.location))
+	var ids := {}
+	var places := {}
+	for g in c.board:
+		ids[String(g.id)] = true
+		places[String(g.location)] = true
+	assert_eq(ids.size(), c.board.size(), "offer ids stay unique")
+	assert_eq(places.size(), c.board.size(), "no place has two offers")
+	var out := c.to_dict()
+	assert_eq(int(out.version), SaveMigrations.CURRENT)
+	assert_false(out.has("refill_board"), "the flag isn't saved")
+	var d2 := Campaign.new_game(31).to_dict()
+	d2["version"] = 13
+	var c2 := Campaign.from_dict(JSON.parse_string(JSON.stringify(d2)))
+	assert_eq(c2.board.map(func(g): return [String(g.id), String(g.location)]), Campaign.new_game(31).board.map(func(g): return [String(g.id), String(g.location)]), "a v13 board of canon offers loads as it was")

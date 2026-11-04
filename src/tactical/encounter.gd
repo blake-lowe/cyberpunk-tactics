@@ -29,6 +29,7 @@ var units: Array[Dictionary] = []   ## {id, c, pos: Vector3i, team (a side: see 
 var sides: Array[Dictionary] = []
 var _rel := {}                      ## Vector2i(a, b) → "hostile" | "neutral" | "ally" (both orders)
 var district := ""                  ## the gig's district (World), "" for none: who's in the crowd
+var site_owner := ""                ## the location's owner faction ("" for none): a venue code's staff (SecurityCode.respondent)
 var opfor_faction := World.DEFAULT_OPFOR   ## the gig's target faction: whose place and people these are
 ## Whose people hold the posts and walk the patrols: the target's own, or the contractor its
 ## Security Code names (SecurityCode.guarded_by: Lazarus at Night Corp HQ). They play on the
@@ -92,7 +93,8 @@ var _gunner: Combatant = null       ## who aims this attack when not `cur` itsel
 ## every time unless utilities: true, which rolls it only on one gig in SecurityCode.UTILITY_CHANCE_IN;
 ## complications: true to roll for one of the book's complications (Complication.CHANCE_IN);
 ## complication: {tier?, roll?} to force one; district: the gig's district, whose civilians make up
-## the crowd and the people the objectives need (Recruit.civilian_blocks); neutral_ground /
+## the crowd and the people the objectives need (Recruit.civilian_blocks); owner: the location's
+## owner faction, whose people a venue code's staff are (SecurityCode.respondent); neutral_ground /
 ## free_for_all: a set piece's rules for any map (NeutralGround, FreeForAll; by default the map's
 ## set piece's own)}.
 static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "data", opts: Dictionary = {}) -> Encounter:
@@ -100,6 +102,7 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 	opts = SetPieces.encounter_opts(p_map, opts)   # a set piece's per-seed variant (an estate's owner) brings its own code
 	e.opfor_faction = String(opts.get("faction", World.DEFAULT_OPFOR))
 	e.district = String(opts.get("district", ""))
+	e.site_owner = String(opts.get("owner", ""))
 	if not World.has_faction(e.opfor_faction):
 		e.opfor_faction = World.DEFAULT_OPFOR
 	e._init_sides()
@@ -1683,16 +1686,19 @@ func call_it_in(g: Dictionary) -> void:
 ## Who a code sends: the site's own people (the target's, or the contractor holding the posts) come
 ## as BACKUP on the opposition's side; anyone else on their own side (World.relation decides
 ## whether they also go after the guards). A faction not in factions.json yet turns up as generic
-## security under its printed name.
+## security under its printed name. Who answers is rolled now (SecurityCode.respondent): one of a
+## two-responder code's factions; for a venue's code its owner's people, a district gang or armed
+## locals (`civilians`: the district's civilian blocks, _arrive).
 func _plan_response(c: Dictionary) -> Dictionary:
-	var fid := String(c.faction)
+	var who := SecurityCode.respondent(dice, c, site_owner, World.district(district).get("gangs", []))
+	var fid := String(who.faction)
 	var known := World.has_faction(fid)
 	var spawn_fid := fid if known else World.DEFAULT_OPFOR
 	var own := fid == opfor_faction or spawn_fid == opfor_faction or fid == post_faction
 	var rank := "Backup"
 	if not own:
 		rank = String(World.responder(spawn_fid).get("rank", "")) if known else SecurityCode.faction_name(fid)
-	return {"code": c, "fid": spawn_fid, "own": own, "rank": rank,
+	return {"code": c, "fid": spawn_fid, "own": own, "rank": rank, "civilians": bool(who.civilians),
 		"label": "BACKUP" if own else SecurityCode.faction_name(fid).to_upper()}
 
 
@@ -1714,13 +1720,16 @@ func _tick_backup() -> void:
 
 
 ## A planned response turns up at the far entrance, sized by its code's intensity for the crew
-## still standing (SecurityCode.response_roster), Hardened if the code is.
+## still standing (SecurityCode.response_roster), Hardened if the code is. Armed locals
+## (`civilians`, HOUSE-RULE: a venue's patrons or the people about) are the district's civilian
+## blocks with their printed weapons as the Mooks; their officers come from the locals' roster.
 func _arrive(r: Dictionary) -> void:
 	if r.is_empty():
 		return
 	var roster := SecurityCode.response_roster(dice, r.code, maxi(1, alive(CREW).size()))
 	var team := OPFOR if bool(r.own) else side_for(String(r.fid), "guard", true)
-	_spawn_wave(roster, String(r.label), team, String(r.fid), String(r.rank), bool(r.code.get("hardened", false)))
+	var civ: Array[String] = Recruit.civilian_blocks(district) if bool(r.get("civilians", false)) else ([] as Array[String])
+	_spawn_wave(roster, String(r.label), team, String(r.fid), String(r.rank), bool(r.code.get("hardened", false)), civ)
 
 
 # --- Utility Codes (NC2045 p.8) ------------------------------------------------------------
@@ -1772,7 +1781,8 @@ func _responders(fid: String, team: int, cells: Array, cap: int) -> Array:
 
 
 ## Reinforcements for side `team` (faction `fid`), named "<rank> <n>".
-func _spawn_wave(roster: Array[String], label: String, team: int, fid: String, rank := "", hardened := false) -> void:
+## `civ`: civilian blocks (Recruit.civilian_blocks) the wave's Mooks are drawn from instead.
+func _spawn_wave(roster: Array[String], label: String, team: int, fid: String, rank := "", hardened := false, civ: Array[String] = []) -> void:
 	var crew_c := Vector2.ZERO
 	for u in alive(0):
 		crew_c += Vector2(u.pos.x, u.pos.y)
@@ -1792,7 +1802,12 @@ func _spawn_wave(roster: Array[String], label: String, team: int, fid: String, r
 	var cells: Array = reach.keys().filter(func(v): return v.z == spawn.z)
 	cells.sort_custom(func(a, b): return int(reach[a]) < int(reach[b]))
 	for i in mini(roster.size(), cells.size()):
-		var g := World.npc(dice, fid, roster[i], i + 1, rank, hardened)
+		var g: Combatant
+		if not civ.is_empty() and roster[i] == "mook":
+			g = Recruit.civilian(dice, civ[dice.d(civ.size()) - 1], "%s %d" % [rank if rank != "" else "Local", i + 1])
+			g.faction = World.faction(fid).id
+		else:
+			g = World.npc(dice, fid, roster[i], i + 1, rank, hardened)
 		_add(g, cells[i], team)
 		var u: Dictionary = units[-1]
 		u.alerted = true

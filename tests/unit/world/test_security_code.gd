@@ -219,8 +219,7 @@ func test_a_contractor_holds_the_posts_of_the_place_it_guards() -> void:
 	assert_eq(String(hq.owner), "night_corp")
 	assert_eq(String(SecurityCode.normalise(hq.security_code).faction), "lazarus")
 	var gig := {"faction": "night_corp", "location": "little_europe_15", "security": 3}
-	Campaign._fit_location_security(gig)
-	assert_eq(int(gig.security), 3, "a Heavy contractor's code keeps the place at level 3")
+	assert_eq(Campaign.location_levels(hq, "night_corp"), [3, 3], "a Heavy contractor's code keeps the place at level 3")
 	gig.merge(Campaign.codes_for(gig, "little_europe"), true)
 	var opts := Campaign.encounter_opts(gig)
 	assert_eq(String(opts.guards), "lazarus")
@@ -344,19 +343,18 @@ func test_the_board_reads_codes_from_the_city_data() -> void:
 	assert_eq(String(l.site), "warehouse", "the site comes from the type")
 	assert_eq(l.security, [1, 1], "a Light code is the old security 1")
 	assert_eq(World.districts_with_profile("combat_zone"), ["test_zone"] as Array[String])
-	var camp := Campaign.new_game(5)
 	var at_loc := {"location": "test_zone_1", "security": 1, "faction": "militech"}
-	camp._code_gig(at_loc)
+	at_loc.merge(Campaign.codes_for(at_loc, String(World.location("test_zone_1").district)), true)
 	assert_eq(String(at_loc.district), "test_zone")
 	assert_eq(int(at_loc.security_code.n), 10, "the location's own code")
 	assert_eq(int(at_loc.district_code.n), 3, "the district's for the street")
 	assert_eq(int(at_loc.utility_code), 8)
-	var in_dist := {"profile": "combat_zone", "security": 2, "faction": "maelstrom"}
-	camp._code_gig(in_dist)
-	assert_eq(String(in_dist.district), "test_zone", "a neighbourhood gig lands in a district with its profile")
+	var in_dist := {"security": 2, "faction": "maelstrom"}
+	in_dist.merge(Campaign.codes_for(in_dist, "test_zone"), true)
+	assert_eq(String(in_dist.district), "test_zone")
 	assert_eq(String(in_dist.security_code.faction), "ncpd")
 	var anywhere := {"scene": "skirmish", "security": 2, "faction": "maelstrom"}
-	camp._code_gig(anywhere)
+	anywhere.merge(Campaign.codes_for(anywhere, ""), true)
 	assert_eq(String(anywhere.district), "")
 	assert_eq(String(anywhere.security_code.faction), "maelstrom", "the fallback: the target's own people")
 	city["districts"] = saved_city
@@ -371,8 +369,9 @@ func test_board_gigs_save_their_codes() -> void:
 	for i in camp.board.size():
 		assert_eq(SecurityCode.normalise(back.board[i].security_code), SecurityCode.normalise(camp.board[i].security_code), "offer %d's code survives a save" % i)
 		assert_eq(Campaign.code_label(back.board[i]), Campaign.code_label(camp.board[i]))
-		assert_eq(Campaign.encounter_opts(back.board[i]).keys().size(), 8,
-			"faction, three codes, the district, who guards, and the complication and utility rolls reach the encounter")
+		var owned := String(World.location(String(back.board[i].location)).get("owner", "")) != ""
+		assert_eq(Campaign.encounter_opts(back.board[i]).keys().size(), 8 + int(owned),
+			"faction, three codes, the district, who guards, the owner if any, and the complication and utility rolls reach the encounter")
 
 
 func test_a_v7_board_gets_codes_on_load() -> void:
@@ -394,7 +393,10 @@ func test_a_v7_board_gets_codes_on_load() -> void:
 	assert_eq(String(hq.district), "little_europe")
 	assert_eq(String(hq.district_code.faction), "ncpd", "Little Europe's street")
 	assert_eq(int(hq.utility_code), 2, "Night Corp HQ's own Utility Code")
-	var anywhere: Dictionary = c.board[1]
+	# The offer with no place is a generic one: v14 drops it and a canon offer takes its place.
+	assert_eq(c.board.size(), c.board_size())
+	assert_true(c.board.slice(1).all(func(g): return String(g.get("location", "")) != "" and g.has("security_code")), "canon offers with their codes")
+	var anywhere: Dictionary = Campaign.code_loaded_gig({"kind": "gang_hit", "faction": "maelstrom", "security": 2})
 	assert_eq(SecurityCode.normalise(anywhere.security_code), SecurityCode.from_level(2, "maelstrom"), "no place: the fallback for its level, the target's own people")
 	assert_eq(anywhere.district_code, SecurityCode.STREET_FALLBACK)
 	var again := Campaign.from_dict(JSON.parse_string(JSON.stringify(c.to_dict())))
@@ -411,3 +413,89 @@ func test_utilities_come_into_play_on_one_gig_in_three() -> void:
 		hits += int(not e.outages.is_empty())
 	assert_between(hits, 4, 17, "about 1 in %d (%d of 30)" % [SecurityCode.UTILITY_CHANCE_IN, hits])
 	assert_true(bool(Campaign.encounter_opts({"faction": "militech"}).get("utilities", false)), "campaign gigs roll for it")
+
+
+# --- Two responders and the venue's own people (owner ruling 2026-11-04) -----------------------
+
+func test_a_two_responder_code_keeps_both_and_rolls_one_each_time() -> void:
+	var c := SecurityCode.parse("Security Code 10: Kimen-Gumi/G3, Hardened Heavy")
+	assert_eq(String(c.faction), "kimen_gumi")
+	assert_eq(String(c.or_faction), "g3", "the second responder is kept")
+	assert_eq(SecurityCode.responder_name(c), "%s/%s" % [World.display_name("kimen_gumi"), World.display_name("g3")])
+	assert_true(SecurityCode.label(c).contains("/"), "the board shows both")
+	# The data carries them through (docs/world -> locations.json).
+	for lid in ["kabuki_18", "outskirts_5", "outskirts_10", "south_night_city_11"]:
+		var code := SecurityCode.normalise(World.location(lid).security_code)
+		assert_true(String(code.get("or_faction", "")) != "" and World.has_faction(String(code.or_faction)), "%s: a second responder" % lid)
+	var landfill := SecurityCode.normalise(World.location("outskirts_5").security_code)
+	assert_eq([String(landfill.faction), String(landfill.or_faction)], ["petrochem", "sovoil"])
+	var seen := {}
+	var dice := Dice.new(4)
+	for i in 60:
+		seen[String(SecurityCode.respondent(dice, landfill).faction)] = true
+	assert_eq(seen.keys().size(), 2, "either answers (%s)" % [seen.keys()])
+	var a := Dice.new(9)
+	var b := Dice.new(9)
+	for i in 10:
+		assert_eq(SecurityCode.respondent(a, landfill), SecurityCode.respondent(b, landfill), "seeded")
+	# One responder: no roll, the dice untouched.
+	var one := Dice.new(9)
+	SecurityCode.respondent(one, {"n": 5, "faction": "ncpd", "intensity": "medium", "hardened": false})
+	assert_eq(one.rng.state, Dice.new(9).rng.state, "a one-faction code rolls nothing")
+
+
+func test_a_two_responder_code_sends_either_in_play() -> void:
+	var code := {"n": 11, "faction": "petrochem", "or_faction": "sovoil", "intensity": "medium", "hardened": false}
+	var seen := {}
+	for s in 16:
+		var e := _enc(s, {"faction": "maelstrom", "security_code": code, "district_code": {}}, "gang_hideout")
+		e.call_it_in(e.units.filter(func(u): return u.team == Encounter.OPFOR)[0])
+		seen[e.backup_label] = true
+	assert_eq(seen.keys().size(), 2, "Petrochem on some nights, SovOil on others (%s)" % [seen.keys()])
+
+
+func test_a_venue_code_answers_with_its_own_people_or_armed_locals() -> void:
+	var dice := Dice.new(3)
+	var code := func(r: String) -> Dictionary: return {"n": 10, "faction": "locals", "responder": r, "intensity": "medium", "hardened": false}
+	assert_eq(SecurityCode.respondent(dice, code.call("patrons"), "militech"), {"faction": "locals", "civilians": true}, "patrons: armed locals")
+	assert_eq(SecurityCode.respondent(dice, code.call("residents")), {"faction": "locals", "civilians": true})
+	assert_eq(SecurityCode.respondent(dice, code.call("staff"), "militech"), {"faction": "militech", "civilians": false}, "staff: the owner's people")
+	assert_eq(SecurityCode.respondent(dice, code.call("staff"), ""), {"faction": "locals", "civilians": true}, "no owner faction: armed locals")
+	assert_eq(SecurityCode.respondent(dice, code.call("gangs"), "", ["tyger_claws"]), {"faction": "tyger_claws", "civilians": false}, "Various Gangs: a district gang")
+	assert_eq(SecurityCode.respondent(dice, code.call("gangs"), "", []), {"faction": "locals", "civilians": true})
+	var seen := {}
+	for i in 40:
+		seen[String(SecurityCode.respondent(dice, code.call("various"), "militech").faction)] = true
+	assert_eq(seen.keys().size(), 2, "various: the owner's people or the locals")
+	assert_eq(SecurityCode.responder_name(code.call("patrons")), "Patrons")
+	# Every locals code in the data names its printed responder.
+	for id in World.locations():
+		var c := SecurityCode.normalise(World.location(String(id)).get("security_code"))
+		if String(c.get("faction", "")) == "locals":
+			assert_true(String(c.get("responder", "")) in ["patrons", "staff", "residents", "various", "gangs", "unknown"], "%s: %s" % [id, c.get("responder", "")])
+
+
+func test_a_venues_patrons_arrive_as_armed_district_civilians() -> void:
+	var opts := {"faction": "militech", "district": "kabuki", "district_code": {},
+		"security_code": {"n": 11, "faction": "locals", "responder": "patrons", "intensity": "medium", "hardened": false}}
+	var e := _enc(3, opts, "bar")
+	e.call_it_in(e.units.filter(func(u): return u.team == Encounter.OPFOR)[0])
+	var before := e.units.size()
+	e.backup_in = 1
+	e._backup_round = -5
+	e._tick_backup()
+	var came := e.units.slice(before)
+	assert_false(came.is_empty(), "the patrons come")
+	var civ := Recruit.civilian_blocks("kabuki")
+	var mooks: Array = came.filter(func(u): return String(u.c.role) == "mook")
+	assert_false(mooks.is_empty())
+	assert_true(mooks.all(func(u): return String(u.c.block) in civ), "Kabuki's own civilians")
+	assert_true(mooks.any(func(u): return not u.c.weapons.is_empty()), "armed with their printed weapons")
+	assert_true(came.all(func(u): return String(e.sides[int(u.team)].faction) == "locals" and u.alerted))
+	# The owner's staff instead, when the owner is a faction.
+	var staff := opts.duplicate(true)
+	staff.security_code.responder = "staff"
+	staff["owner"] = "tyger_claws"
+	var s := _enc(3, staff, "bar")
+	s.call_it_in(s.units.filter(func(u): return u.team == Encounter.OPFOR)[0])
+	assert_eq(s.backup_label, World.display_name("tyger_claws").to_upper())

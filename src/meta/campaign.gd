@@ -132,23 +132,57 @@ func best_reputation() -> int:
 ## location's Security Code intensity, World.location) whose hooks name the kind (else whose `gigs`
 ## include it), weighted toward Security Codes near what the crew's name can take on
 ## (code_weight). The location's hook is the job's pitch; its owner (else its code's faction, else
-## a district gang) is the target. When no location fits, the old generic offer stands in. Pay
-## scales with security.
+## a district gang) is the target. Every offer is at a canon place (owner ruling 2026-11-04: no
+## generic places): when no place fits the template's kind at the rolled level or below, the other
+## kinds are tried in a shuffled order. Pay scales with security.
 func refresh_board() -> void:
 	var g := RulesDB.gen("gigs.json")
 	board.clear()
-	var known := best_reputation()
-	var n := 3 + (1 if known >= 3 else 0)
 	var used := {}
-	for i in n:
+	_fill_board(g, used)
+	_unique_offer(g, used)
+
+
+## How many ordinary offers the board holds: 3, 4 once the crew has a name (Reputation 3).
+func board_size() -> int:
+	return 3 + (1 if best_reputation() >= 3 else 0)
+
+
+## Add offers at canon places until the board holds board_size() ordinary ones (refresh_board;
+## Campaign.from_dict tops up a board whose generic offers the v14 migration dropped). `used`
+## collects the places on the board, so no place has two offers.
+func _fill_board(g: Dictionary, used: Dictionary) -> void:
+	var known := best_reputation()
+	var ids := {}
+	for b in board:
+		ids[String(b.get("id", ""))] = true
+		if String(b.get("location", "")) != "":
+			used[String(b.location)] = true
+	var have := board.filter(func(b): return not b.get("unique", false)).size()
+	var k := 0
+	for i in maxi(0, board_size() - have):
 		var t: Dictionary = g.templates[dice.d(g.templates.size()) - 1]
 		var sec := _roll_security(g, known)
 		var gig := _city_offer(g, t, sec, known, used)
 		if gig.is_empty():
-			gig = _generic_offer(g, t, sec, known)
-		gig["id"] = "%d-%d" % [day, i]
+			var others: Array = (g.templates as Array).filter(func(x): return String(x.kind) != String(t.kind))
+			for j in range(others.size() - 1, 0, -1):   # Fisher-Yates on the campaign's dice
+				var r := dice.rng.randi_range(0, j)
+				var tmp: Variant = others[j]
+				others[j] = others[r]
+				others[r] = tmp
+			for t2 in others:
+				gig = _city_offer(g, t2, sec, known, used)
+				if not gig.is_empty():
+					break
+		if gig.is_empty():
+			push_warning("refresh_board: no canon place for any job at security %d" % sec)
+			continue
+		while ids.has("%d-%d" % [day, k]):
+			k += 1
+		gig["id"] = "%d-%d" % [day, k]
+		ids[gig.id] = true
 		board.append(gig)
-	_unique_offer(g)
 
 
 ## The security level for an offer: 1, or higher if the crew's best Reputation reaches it
@@ -188,22 +222,6 @@ func _city_offer(g: Dictionary, t: Dictionary, sec: int, known: int, used: Dicti
 		"security": level, "pay": int(g.pay[str(level)]), "seed": dice.rng.randi_range(1, 99999)}
 	gig.merge(_place_at(lid))
 	gig.merge(codes_for(gig, did), true)
-	return gig
-
-
-## The old generic offer (template slots, a scene picked by tags), with a Fixer from the data.
-func _generic_offer(g: Dictionary, t: Dictionary, sec: int, known: int) -> Dictionary:
-	var fx := _pick_fixer("", String(t.kind), known)
-	var slots := {"fixer": String(fx.get("name", "A fixer")), "data": _pick(g.data),
-		"place": _pick(t.get("places", ["site"])), "target": _pick(t.get("targets", ["target"]))}
-	slots.merge(_target_slots(String(t.kind)))
-	var gig := {"kind": t.kind, "fixer": slots.fixer, "fixer_id": String(fx.get("id", "")), "faction": slots.faction,
-		"title": _fill(_pick(_titles_for(t, String(slots.faction))), slots), "blurb": _fill(String(t.blurb), slots),
-		"security": sec, "pay": int(g.pay[str(sec)]), "seed": dice.rng.randi_range(1, 99999)}
-	gig.merge(_place_for(String(t.kind), g, String(slots.faction)))
-	_fit_location_security(gig)
-	gig.pay = int(g.pay[str(int(gig.security))])
-	_code_gig(gig)
 	return gig
 
 
@@ -326,13 +344,6 @@ func _weighted(ws: Array) -> int:
 	return ws.size() - 1
 
 
-## A gig at a named location keeps to that place's security range (location_levels).
-static func _fit_location_security(gig: Dictionary) -> void:
-	var rng := location_levels(World.location(String(gig.get("location", ""))), String(gig.get("faction", "")))
-	if rng.size() >= 2:
-		gig.security = clampi(int(gig.security), int(rng[0]), int(rng[1]))
-
-
 ## The 1-3 security levels a gig at location `l` against `target` can have: the entry's own
 ## `security` if it names one; else its Security Code's intensity (SecurityCode.level: Light 1,
 ## Medium 2, Heavy 3) when the code's faction guards the place (SecurityCode.guarded_by: the
@@ -356,19 +367,6 @@ static func location_levels(l: Dictionary, target := "") -> Array:
 	return [lv, lv]
 
 
-## The gig's Night City 2045 codes (NC2045 p.7-8): its district (the location's, else one whose
-## neighbourhood generator is the gig's profile, if the city has one) and the codes
-## SecurityCode.for_gig reads from the location, else the district, else the fallback for the
-## gig's security level.
-func _code_gig(gig: Dictionary) -> void:
-	var did := String(World.location(String(gig.get("location", ""))).get("district", ""))
-	if did == "" and String(gig.get("profile", "")) != "":
-		var ds: Array = World.districts_with_profile(String(gig.profile)).filter(func(d): return not d in NO_GIGS)
-		if not ds.is_empty():
-			did = _pick(ds)
-	gig.merge(codes_for(gig, did), true)
-
-
 ## {district, security_code, district_code, utility_code} for `gig` in district `did` ("" none).
 ## The fallback code names the gig's target as the site's own people.
 static func codes_for(gig: Dictionary, did: String) -> Dictionary:
@@ -385,8 +383,8 @@ static func code_label(gig: Dictionary) -> String:
 	return SecurityCode.label(c, String(gig.get("faction", "")))
 
 
-## Encounter.setup options for a gig: its target faction and its codes, who holds the posts under
-## the site code (SecurityCode.guarded_by, with the location's owner), and rolls at the start for
+## Encounter.setup options for a gig: its target faction and its codes, the location's owner, who
+## holds the posts under the site code (SecurityCode.guarded_by, with that owner), and rolls at the start for
 ## one of the book's complications (Complication; never known on the board) and for whether the
 ## Utility Code comes into play (SecurityCode.utilities_happen).
 static func encounter_opts(gig: Dictionary) -> Dictionary:
@@ -396,36 +394,53 @@ static func encounter_opts(gig: Dictionary) -> Dictionary:
 	for k in ["security_code", "district_code", "utility_code", "district"]:
 		if gig.has(k):
 			o[k] = gig[k]
+	var owner := String(World.location(String(gig.get("location", ""))).get("owner", ""))
+	if owner != "":
+		o["owner"] = owner   # a venue code's staff are the owner's people (SecurityCode.respondent)
 	var code := SecurityCode.normalise(gig.get("security_code"))
 	if not code.is_empty():
-		var owner := String(World.location(String(gig.get("location", ""))).get("owner", ""))
 		o["guards"] = SecurityCode.guarded_by(code, String(gig.get("faction", World.DEFAULT_OPFOR)), owner)
 	return o
 
 
 ## A crew with a name (best Reputation >= unique_rep) sometimes gets a fixer's personal job:
 ## security 3, double pay (spec: "occasional unique offers"). At most one on the board. The Fixer
-## is one of the data's (any district); the place is picked as for a generic offer.
-func _unique_offer(g: Dictionary) -> void:
+## is one of the data's (any district). The place is canon, like every offer's: one of the target's
+## own places for the job when it has one free, else a place for the job as the board picks them
+## (_pick_location), whose target (_target_for) the job is then against.
+func _unique_offer(g: Dictionary, used: Dictionary = {}) -> void:
 	if best_reputation() < int(g.get("unique_rep", 3)) or dice.d(3) != 1:
 		return
 	var t: Dictionary = g.unique_templates[dice.d(g.unique_templates.size()) - 1]
-	var fx := _pick_fixer("", String(t.kind), best_reputation())
-	var slots := {"fixer": String(fx.get("name", "A fixer")), "data": _pick(g.data), "place": _pick(t.get("places", ["site"]))}
-	slots.merge(_target_slots(String(t.kind)))
 	var sec := int(t.security)
-	board.append({"id": "%d-u" % day, "kind": t.kind, "fixer": slots.fixer, "fixer_id": String(fx.get("id", "")), "faction": slots.faction,
-		"title": _fill(_pick(_titles_for(t, String(slots.faction))), slots), "blurb": _fill(String(t.blurb), slots), "security": sec,
-		"unique": true, "pay": int(int(g.pay[str(sec)]) * float(t.pay_mult)), "seed": dice.rng.randi_range(1, 99999)})
-	board[-1].merge(_place_for(String(t.kind), g, String(slots.faction)))
-	_code_gig(board[-1])
+	var kind := String(t.kind)
+	var slots := _target_slots(kind)
+	var owned: Array = World.locations_for(String(slots.faction), kind).filter(func(id): return offered_at(String(id)) and not used.has(id))
+	var lid: String = String(_pick(owned)) if not owned.is_empty() else _pick_location(kind, sec, best_reputation(), used)
+	if lid == "":
+		return
+	used[lid] = true
+	var l := World.location(lid)
+	if owned.is_empty():
+		slots = _target_slots(kind, _target_for(l, kind))
+	var fx := _pick_fixer("", kind, best_reputation())
+	slots.merge({"fixer": String(fx.get("name", "A fixer")), "data": _pick(g.data), "place": String(l.name).trim_prefix("The ")}, true)
+	var gig := {"id": "%d-u" % day, "kind": kind, "fixer": slots.fixer, "fixer_id": String(fx.get("id", "")), "faction": slots.faction,
+		"title": _fill(_pick(_titles_for(t, String(slots.faction))), slots), "security": sec,
+		"unique": true, "pay": int(int(g.pay[str(sec)]) * float(t.pay_mult)), "seed": dice.rng.randi_range(1, 99999)}
+	gig.merge(_place_at(lid))
+	var did := String(l.get("district", ""))
+	gig.merge(codes_for(gig, did), true)
+	gig["blurb"] = "%s At %s (%s)." % [_fill(String(t.blurb), slots), String(l.name), district_name(gig)]
+	board.append(gig)
 
 
-## The gig's target (World faction able to be the target of this kind) and the {corp}/{gang}
-## names its text uses: the target's own name in its slot, another faction's in the other.
-func _target_slots(kind: String) -> Dictionary:
+## The gig's target (World faction able to be the target of this kind; `fid` if given) and the
+## {corp}/{gang} names its text uses: the target's own name in its slot, another faction's in the other.
+func _target_slots(kind: String, fid := "") -> Dictionary:
 	var ids := World.targets_for(kind)
-	var fid: String = _pick(ids) if not ids.is_empty() else World.DEFAULT_OPFOR
+	if fid == "":
+		fid = _pick(ids) if not ids.is_empty() else World.DEFAULT_OPFOR
 	var corps: Array = World.factions().keys().filter(func(f): return World.kind(f) in ["corp", "service"] and not World.targets_for_any(f).is_empty())
 	var gangs: Array = World.factions().keys().filter(func(f): return World.kind(f) == "gang")
 	var gang_target := World.kind(fid) == "gang"
@@ -477,22 +492,6 @@ static func deed_level(gig: Dictionary, e: Encounter) -> int:
 	if e.state != "won":
 		return 0
 	return 2 * clampi(int(gig.get("security", 1)), 1, 3) - 1 + (1 if e.alarm >= 2 else 0)
-
-
-## Where a gig happens: any scene whose tags fit the job (gigs.json scene_tags / kind_tags), or
-## (raid_chance) a raid on a single site picked for the job. Returns {scene, profile, site}.
-func _place_for(kind: String, g: Dictionary, faction := "") -> Dictionary:
-	var owned: Array = World.locations_for(faction, kind).filter(func(id): return offered_at(String(id)))   # the target's own places first (data/world/locations.json)
-	if not owned.is_empty() and dice.rng.randf() < float(g.get("location_chance", 0.6)):
-		return _place_at(String(_pick(owned)))
-	if dice.rng.randf() < float(g.get("raid_chance", 0.0)) and g.raid_sites.has(kind):
-		return {"scene": "lone_building", "profile": "", "site": _pick(g.raid_sites[kind])}
-	var want: Array = g.kind_tags.get(kind, [])
-	var fits: Array = g.scene_tags.keys().filter(func(sc): return (g.scene_tags[sc] as Array).any(func(t): return t in want))
-	var pick: String = _pick(fits) if not fits.is_empty() else "lone_building"
-	if pick.begins_with("neighborhood:"):
-		return {"scene": "neighborhood", "profile": pick.get_slice(":", 1), "site": ""}
-	return {"scene": pick, "profile": "", "site": ""}
 
 
 ## Where a gig at canon location `lid` is played: {scene, profile, site, location}, plus its set
@@ -1371,6 +1370,8 @@ static func from_dict(raw: Dictionary) -> Campaign:
 		if m is Dictionary:
 			c.debrief.append(m)
 	c.update_market()   # a save from before markets (v5) gets one now
+	if bool(d.get("refill_board", false)):   # v14 dropped its generic offers: canon ones take their places
+		c._fill_board(RulesDB.gen("gigs.json"), {})
 	return c
 
 

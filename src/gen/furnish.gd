@@ -672,6 +672,7 @@ static func _devices(m: TacMap, dice: Dice, sid: int, first := 0) -> void:
 	# the turrets' gun (Turret.ARMAMENTS, CPR core p.214): a room spec's `weapon`, else the site's
 	# `turret_weapon` (sites.json), else Turret's default
 	var site_gun := String(RulesDB.gen("sites.json").get(String(m.structures[sid].get("site", "")), {}).get("turret_weapon", ""))
+	var armed := -1   # does this building have turrets in its vaults and secure rooms (has_turrets)? -1: not asked yet
 	for r in m.rooms:
 		if r.cells == 0 or r.get("structure", -1) != sid or int(r.id) < first:
 			continue
@@ -698,7 +699,10 @@ static func _devices(m: TacMap, dice: Dice, sid: int, first := 0) -> void:
 			for i in maxi(1, r.cells / int(spec.get("per_cells", 100000))):
 				add_device(m, dice, r, spec["t"], group, spec.get("wall", false), extra)
 		if sec >= 2 and (r.kind in ["data_vault", "vault", "bank_vault", "armored_car", "cargo_hold"] or (z >= TacMap.Zone.SECURE and dice.rng.randf() < 0.4)):
-			add_device(m, dice, r, "turret", "turrets_" + zn, true, {"weapon": site_gun} if site_gun != "" else {})
+			if armed == -1:
+				armed = 1 if has_turrets(m, sid) else 0
+			# a building without turrets still draws the square, so the rest of the map is unchanged
+			add_device(m, dice, r, "turret", "turrets_" + zn, true, {"weapon": site_gun} if site_gun != "" else {}, armed == 0)
 	for d in m.doors:
 		if d.security and d.get("structure", -1) == sid and (first == 0 or int(d.b) >= first):
 			var zone := maxi(m.rooms[d.a].zone if d.a >= 0 else 0, m.rooms[d.b].zone)
@@ -739,7 +743,31 @@ static func _reachable_in_room(m: TacMap, r: Dictionary) -> Dictionary:
 	return seen
 
 
-static func add_device(m: TacMap, dice: Dice, r: Dictionary, type: String, group: String, wall: bool, extra: Dictionary = {}) -> void:
+## HOUSE-RULE (owner ruling 2026-11-04: turrets not on every map): whether a building's vaults and
+## secure rooms (security 2+) get automated turrets. Its site's chance at its security level
+## (sites.json `turrets`: likely at banks, data centres, corp and police sites, rarely or never at
+## bars, flats and restaurants), at least the scene's (scenes.json `turrets`, or a map param
+## `turrets`: the corporate campus, where military locations play), rolled once per building on a
+## Dice of its own seeded from the map and the building (the main stream is untouched). Set pieces
+## keep the old rule: their recipes chose their turrets. Turrets a room's own data asks for
+## (rooms.json devices: the Combat Zone's streets, the Estates' grounds) are always placed.
+static func has_turrets(m: TacMap, sid: int) -> bool:
+	var st: Dictionary = m.structures[sid]
+	if String(st.get("setpiece", "")) != "" or String(m.params.get("setpiece", "")) != "":
+		return true
+	var lv := str(clampi(int(st.get("security", 1)), 1, 3))
+	var chance := float(RulesDB.gen("sites.json").get(String(st.get("site", "")), {}).get("turrets", {}).get(lv, 0.0))
+	var scene_odds: Dictionary = m.params.get("turrets", RulesDB.gen("scenes.json").get(String(m.params.get("scene", "")), {}).get("turrets", {}))
+	chance = maxf(chance, float(scene_odds.get(lv, 0.0)))
+	if chance <= 0.0:
+		return false
+	if chance >= 1.0:
+		return true
+	return Dice.new(m.seed_value * 1000003 + sid * 7919 + 419).rng.randf() < chance
+
+
+## `dry`: draw the square as for a real device (the same dice) but place nothing.
+static func add_device(m: TacMap, dice: Dice, r: Dictionary, type: String, group: String, wall: bool, extra: Dictionary = {}, dry := false) -> void:
 	var taken := {}
 	for d in m.devices:
 		if d.floor == r.floor:
@@ -756,7 +784,10 @@ static func add_device(m: TacMap, dice: Dice, r: Dictionary, type: String, group
 			cands.append(c)
 	if cands.is_empty():
 		return
-	var d := {"id": m.devices.size(), "type": type, "floor": r.floor, "pos": cands[dice.rng.randi_range(0, cands.size() - 1)],
+	var at: Vector2i = cands[dice.rng.randi_range(0, cands.size() - 1)]
+	if dry:
+		return
+	var d := {"id": m.devices.size(), "type": type, "floor": r.floor, "pos": at,
 		"room": r.id, "zone": r.zone, "group": group, "structure": r.get("structure", -1)}
 	d.merge(extra)
 	m.devices.append(d)

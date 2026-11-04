@@ -9,6 +9,7 @@ from gen_world_data import BLOCK
 
 GIGS = {"data_theft", "gang_hit", "corp_extraction", "assassination", "rescue", "sabotage"}
 INTENSITY = {"light", "medium", "heavy"}
+RESPONDERS = {"patrons", "staff", "residents", "various", "gangs", "unknown"}
 REGIONS = {"island", "northside", "mainland", "southside", "outskirts", "playland"}
 PROFILES = {"corporate_center", "executive_zone", "market_streets", "mixed_residential", "combat_zone", "hot_zone", "burning_zone", "industrial", "pacifica"}
 
@@ -37,6 +38,12 @@ def code_ok(c, where, errs, unknown, facs):
         errs.append("%s: security_code.hardened must be true/false" % where)
     if c.get("faction") not in facs:
         unknown.add(c.get("faction"))
+    if "or_faction" in c and (c["or_faction"] not in facs or c["or_faction"] == c.get("faction")):
+        errs.append("%s: security_code.or_faction must be another known faction" % where)
+    if "responder" in c and (c.get("faction") != "locals" or c["responder"] not in RESPONDERS):
+        errs.append("%s: security_code.responder only on a locals code, one of %s" % (where, sorted(RESPONDERS)))
+    if c.get("faction") == "locals" and "responder" not in c:
+        errs.append("%s: a locals code names its printed responder" % where)
 
 def main():
     files = sys.argv[1:] or sorted(glob.glob("docs/world/nc_*.md"))

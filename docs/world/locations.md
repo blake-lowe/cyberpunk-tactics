@@ -18,6 +18,16 @@ Each entry, at `locations.locations.<id>` (id: `<district id>_<number>` for numb
   `owner_name`: the owning person or company as printed, e.g. `"Rosa Ito (Fixer 5)"`.
 - `security_code`: `{"n": 6, "faction": "<faction id>", "intensity": "light|medium|heavy", "hardened": true}`
   as printed for the location (p.7). `utility_code`: the number if it differs from the district's, else `null`.
+  Two optional keys keep what the printed responder says beyond one faction id:
+  - `or_faction`: the second responder of a code printed "A/B" (Outskirts #5 and #10 "Petrochem/SovOil",
+    Kabuki #18 Kimen-Gumi/G3, South Night City #11 "Tyger Claws/Kanzaki"); each time the code responds
+    one of the two answers, 1d2 (SecurityCode.respondent). `faction` is the first as printed and holds
+    the posts (SecurityCode.guarded_by).
+  - `responder`: on a `locals` code, the venue placeholder as printed: `patrons`, `staff`, `residents`,
+    `various`, `gangs` (printed "Various Gangs") or `unknown` (printed "??"). It decides who the venue
+    sends (SecurityCode.respondent: the owner's people, armed locals from the district's civilian
+    blocks, or a district gang). RULES-UNVERIFIED: where an entry's paraphrase doesn't quote the word,
+    it comes from an earlier, unreviewed pass; check it against the book's location box.
 - `npcs`: named people as printed, `"Name (Role Rank)"`, short.
 - `hooks`: rumours, secrets, feuds or jobs in the entry, each `{"text": "<one-line paraphrase>",
   "gigs": [<gig kinds it could become>]}`; gig kinds: data_theft, gang_hit, corp_extraction,

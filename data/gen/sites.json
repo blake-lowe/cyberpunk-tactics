@@ -1,7 +1,9 @@
 {
- "_doc": "massing: weights for upper-floor shapes (podium: tower on a base, step: set back on one or two sides, wing: a low part beside a taller block, none). Building site types for BuildingGen. layout: room-partition algorithm + params. zones: room kinds per security zone \u2014 entrance (room at the main door), small (\u226416 cells), large (\u226560 cells), rotation (by size rank), and layout-kind mappings (e.g. living/bedroom from corridor_units). density: default cover density. exterior: wall material index (0 plaster, 1 concrete, 2 steel). enter_corridor: put the main door on a corridor. networked: false = no NET even with devices. no_corridors: never relabel long thin rooms as corridors. levels: how many security levels (L1..L4) the building uses, counted from its base level. net_chance: chance a non-target building of this type has a NET (targets always do). windows: chance per eligible exterior wall square of a window. shapes: weights for footprint shapes (rect, L, U, T, chamfer, courtyard). decay: default ruin level 0-1. Programmed sites (layout.algorithm program, Layouts.program): layout.program lists the rooms per floor in bands from the entrance facade inwards (see src/gen/layouts.gd), layout.enter / service: room kinds the main / service door open into, stair_in / lift_in: room kinds the stairs / lifts go in, stairs: stair shafts (2 = one at each end). footprint {w, d} (squares along / into the entrance facade) and floors [min, max] size a lone building of the site. anchors.<role>.<room kind>: where objectives put their vip / captive / package / machine (Encounter.secure_cell; a bonus on the score, ~20 per security level). armored_windows: every window bulletproof. room_windows: room kinds that get one punched window centred on each outside wall (two on a long wall) instead of windows at random: a hotel slab reads as rows of identical guest rooms. _why: the planning conventions and sources the program follows. turret_weapon: the gun on the site's automated turrets, one of Turret.ARMAMENTS (CPR core p.214 lets the GM pick; default assault_rifle); a rooms.json turret spec's `weapon` overrides it. Gangs and chop shops mount the cheap Heavy SMG (100eb against the rifle's 500, p.94); a bank's vault guns load AP rounds (VH Pistol, 8 AP).",
+ "_doc": "massing: weights for upper-floor shapes (podium: tower on a base, step: set back on one or two sides, wing: a low part beside a taller block, none). Building site types for BuildingGen. layout: room-partition algorithm + params. zones: room kinds per security zone \u2014 entrance (room at the main door), small (\u226416 cells), large (\u226560 cells), rotation (by size rank), and layout-kind mappings (e.g. living/bedroom from corridor_units). density: default cover density. exterior: wall material index (0 plaster, 1 concrete, 2 steel). enter_corridor: put the main door on a corridor. networked: false = no NET even with devices. no_corridors: never relabel long thin rooms as corridors. levels: how many security levels (L1..L4) the building uses, counted from its base level. net_chance: chance a non-target building of this type has a NET (targets always do). windows: chance per eligible exterior wall square of a window. shapes: weights for footprint shapes (rect, L, U, T, chamfer, courtyard). decay: default ruin level 0-1. Programmed sites (layout.algorithm program, Layouts.program): layout.program lists the rooms per floor in bands from the entrance facade inwards (see src/gen/layouts.gd), layout.enter / service: room kinds the main / service door open into, stair_in / lift_in: room kinds the stairs / lifts go in, stairs: stair shafts (2 = one at each end). footprint {w, d} (squares along / into the entrance facade) and floors [min, max] size a lone building of the site. anchors.<role>.<room kind>: where objectives put their vip / captive / package / machine (Encounter.secure_cell; a bonus on the score, ~20 per security level). armored_windows: every window bulletproof. room_windows: room kinds that get one punched window centred on each outside wall (two on a long wall) instead of windows at random: a hotel slab reads as rows of identical guest rooms. _why: the planning conventions and sources the program follows. turret_weapon: the gun on the site's automated turrets, one of Turret.ARMAMENTS (CPR core p.214 lets the GM pick; default assault_rifle); a rooms.json turret spec's `weapon` overrides it. Gangs and chop shops mount the cheap Heavy SMG (100eb against the rifle's 500, p.94); a bank's vault guns load AP rounds (VH Pistol, 8 AP). turrets: {\"<security 1-3>\": chance} that the building's vaults and secure rooms get automated turrets (Furnish._devices, rolled once per building on its own seeded Dice; HOUSE-RULE: likely at vaults, corp secure floors and police or military sites, rarely or never at bars, flats and restaurants; set pieces keep theirs). below_grade: {chance, storeys: [min, max], program: {\"ground\": B1's bands, \"-2\": B2's}, down_from: street-level room kinds the new stair goes down from ([]: any)} storeys below the street for an ordinary map's target building (BasementGen.ordinary; planned afresh as a program; set pieces use their recipe's `basement` instead; rolled on its own seeded Dice so a map whose roll misses is unchanged; HOUSE-RULE, owner ruling 2026-11-04: some ordinary buildings have them, not all).",
  "corp_office": {"massing": {"podium": 2, "step": 2, "none": 2}, 
   "name": "Corporate office",
+  "turrets": {"1": 0, "2": 0.25, "3": 0.6},
+  "below_grade": {"chance": 0.4, "storeys": [1, 2], "_why": "Office blocks put plant, servers and parking below grade (Neufert, offices: basement plant rooms and car parks).", "program": {"ground": [{"w": 1.0, "min": 4, "rooms": [{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["corridor"]}, {"room": "security_office", "zone": "secure", "w": 1, "min": 4, "doors": ["corridor"]}, {"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["corridor"]}]}, {"cells": 2, "rooms": [{"room": "corridor", "zone": "staff", "w": 1}]}, {"w": 1.2, "min": 4, "rooms": [{"room": "server_room", "zone": "secure", "w": 1.6, "min": 4, "doors": ["corridor"]}, {"room": "archive", "zone": "staff", "w": 1, "min": 3, "doors": ["corridor"]}, {"room": "cooling", "zone": "secure", "w": 0.8, "min": 3, "doors": ["corridor"], "p": 0.6}]}], "-2": [{"w": 0.6, "min": 4, "rooms": [{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["corridor"]}, {"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["corridor"]}]}, {"cells": 2, "rooms": [{"room": "corridor", "zone": "staff", "w": 1}]}, {"w": 1.6, "min": 4, "rooms": [{"room": "garage", "zone": "staff", "w": 3, "min": 6, "doors": ["corridor", "stair_hall"]}]}]}, "down_from": []},
   "layout": {
    "algorithm": "treemap"
   },
@@ -54,6 +56,7 @@
  },
  "warehouse": {
   "name": "Warehouse",
+  "turrets": {"1": 0, "2": 0.1, "3": 0.3},
   "layout": {
    "algorithm": "bsp",
    "min_room": 5,
@@ -107,6 +110,8 @@
  },
  "gang_hideout": {"massing": {"wing": 1, "step": 1, "none": 2},
   "name": "Gang hideout",
+  "turrets": {"1": 0, "2": 0.15, "3": 0.35},
+  "below_grade": {"chance": 0.25, "storeys": [1, 1], "_why": "A gang's den under the street: the stash and the guns.", "program": {"ground": [{"w": 1.0, "min": 4, "rooms": [{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["corridor"]}, {"room": "hangout", "zone": "staff", "w": 1.5, "min": 4, "doors": ["corridor"]}]}, {"cells": 2, "rooms": [{"room": "corridor", "zone": "staff", "w": 1}]}, {"w": 1.2, "min": 4, "rooms": [{"room": "stash", "zone": "secure", "w": 1, "min": 3, "doors": ["corridor"]}, {"room": "armory", "zone": "secure", "w": 1, "min": 3, "doors": ["corridor"]}, {"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["corridor"]}]}]}, "down_from": []},
   "turret_weapon": "heavy_smg",
   "layout": {
    "algorithm": "growth"
@@ -159,6 +164,8 @@
  },
  "apartments": {"massing": {"step": 2, "wing": 2, "none": 2}, 
   "name": "Apartment block",
+  "turrets": {"1": 0, "2": 0, "3": 0},
+  "below_grade": {"chance": 0.35, "storeys": [1, 1], "_why": "A block's basement: residents' storage cages, the laundry and the boiler room.", "program": {"ground": [{"w": 1.0, "min": 4, "rooms": [{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["corridor"]}, {"room": "laundry", "zone": "staff", "w": 1.2, "min": 4, "doors": ["corridor"]}, {"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["corridor"]}]}, {"cells": 2, "rooms": [{"room": "corridor", "zone": "staff", "w": 1}]}, {"w": 1.2, "min": 4, "rooms": [{"room": "storage", "zone": "staff", "w": 1.5, "min": 4, "doors": ["corridor"]}, {"room": "workshop", "zone": "staff", "w": 1, "min": 3, "doors": ["corridor"], "p": 0.5}, {"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["corridor"]}]}]}, "down_from": []},
   "layout": {
    "algorithm": "corridor_units",
    "verticality": 2
@@ -215,6 +222,8 @@
  },
  "club": {"massing": {"wing": 1, "step": 1, "none": 2}, 
   "name": "Club",
+  "turrets": {"1": 0, "2": 0.03, "3": 0.1},
+  "below_grade": {"chance": 0.4, "storeys": [1, 1], "_why": "A club's back rooms downstairs: the VIP room, the office and the stock (cellar bars and members' rooms are common in old buildings).", "program": {"ground": [{"w": 1.0, "min": 4, "rooms": [{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["corridor"]}, {"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["corridor"]}, {"room": "back_office", "zone": "staff", "w": 1, "min": 4, "doors": ["corridor"]}]}, {"cells": 2, "rooms": [{"room": "corridor", "zone": "staff", "w": 1}]}, {"w": 1.2, "min": 4, "rooms": [{"room": "vip_lounge", "zone": "secure", "w": 2, "min": 5, "doors": ["corridor"]}, {"room": "boss_room", "zone": "secure", "w": 1, "min": 4, "doors": ["corridor"], "p": 0.6}, {"room": "stash", "zone": "secure", "w": 0.8, "min": 3, "doors": ["corridor"]}]}]}, "down_from": []},
   "layout": {
    "algorithm": "growth"
   },
@@ -265,6 +274,7 @@
  },
  "shop": {"massing": {"wing": 2, "step": 1, "none": 2}, 
   "name": "Shop",
+  "turrets": {"1": 0, "2": 0, "3": 0.05},
   "layout": {
    "algorithm": "bsp",
    "min_room": 4,
@@ -312,6 +322,7 @@
  },
  "ship": {
   "name": "Cargo ship",
+  "turrets": {"1": 0, "2": 0.1, "3": 0.3},
   "layout": {
    "algorithm": "bsp",
    "min_room": 4,
@@ -361,6 +372,7 @@
  },
  "train": {
   "name": "Train",
+  "turrets": {"1": 0, "2": 0.05, "3": 0.15},
   "layout": {
    "algorithm": "train",
    "car_length": 14,
@@ -406,6 +418,7 @@
  },
  "station": {
   "name": "Station",
+  "turrets": {"1": 0, "2": 0.05, "3": 0.15},
   "layout": {
    "algorithm": "treemap"
   },
@@ -453,6 +466,7 @@
  },
  "shack": {
   "name": "Shack",
+  "turrets": {"1": 0, "2": 0, "3": 0},
   "layout": {
    "algorithm": "bsp",
    "min_room": 3,
@@ -495,6 +509,7 @@
  },
  "guard_booth": {
   "name": "Guard booth",
+  "turrets": {"1": 0, "2": 0.1, "3": 0.3},
   "layout": {
    "algorithm": "bsp",
    "min_room": 3,
@@ -533,6 +548,8 @@
  },
  "corp_hq": {"massing": {"podium": 3, "step": 1, "none": 1}, 
   "name": "Corporate HQ",
+  "turrets": {"1": 0, "2": 0.5, "3": 0.85},
+  "below_grade": {"chance": 0.6, "storeys": [1, 2], "_why": "As a corp office, deeper: the server floor and the executives' parking under the tower.", "program": {"ground": [{"w": 1.0, "min": 4, "rooms": [{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["corridor"]}, {"room": "security_office", "zone": "secure", "w": 1, "min": 4, "doors": ["corridor"]}, {"room": "comms_room", "zone": "secure", "w": 1, "min": 3, "doors": ["corridor"], "p": 0.7}]}, {"cells": 2, "rooms": [{"room": "corridor", "zone": "staff", "w": 1}]}, {"w": 1.2, "min": 4, "rooms": [{"room": "server_room", "zone": "secure", "w": 1.6, "min": 4, "doors": ["corridor"]}, {"room": "data_vault", "zone": "vault", "w": 1, "min": 4, "doors": ["corridor"]}, {"room": "cooling", "zone": "secure", "w": 0.8, "min": 3, "doors": ["corridor"], "p": 0.6}]}], "-2": [{"w": 0.6, "min": 4, "rooms": [{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["corridor"]}, {"room": "security_post", "zone": "staff", "w": 1, "min": 3, "doors": ["corridor"], "p": 0.7}, {"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["corridor"]}]}, {"cells": 2, "rooms": [{"room": "corridor", "zone": "staff", "w": 1}]}, {"w": 1.6, "min": 4, "rooms": [{"room": "garage", "zone": "staff", "w": 3, "min": 6, "doors": ["corridor", "stair_hall"]}]}]}, "down_from": []},
   "layout": {
    "algorithm": "treemap",
    "verticality": 2
@@ -587,6 +604,7 @@
  },
  "clinic": {"massing": {"step": 1, "wing": 1, "none": 2}, 
   "name": "Ripperdoc clinic",
+  "turrets": {"1": 0, "2": 0.05, "3": 0.2},
   "layout": {
    "algorithm": "bsp",
    "min_room": 4,
@@ -629,6 +647,8 @@
  },
  "bar": {"massing": {"wing": 2, "step": 1, "none": 2}, 
   "name": "Bar",
+  "turrets": {"1": 0, "2": 0, "3": 0},
+  "below_grade": {"chance": 0.25, "storeys": [1, 1], "_why": "The cellar: kegs and stock, and the back office.", "program": {"ground": [{"w": 1.0, "min": 4, "rooms": [{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["corridor"]}, {"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["corridor"]}]}, {"cells": 2, "rooms": [{"room": "corridor", "zone": "staff", "w": 1}]}, {"w": 1.2, "min": 4, "rooms": [{"room": "cold_store", "zone": "staff", "w": 1, "min": 3, "doors": ["corridor"]}, {"room": "back_office", "zone": "staff", "w": 1, "min": 3, "doors": ["corridor"]}, {"room": "stash", "zone": "secure", "w": 0.8, "min": 3, "doors": ["corridor"], "p": 0.5}]}]}, "down_from": []},
   "layout": {
    "algorithm": "growth"
   },
@@ -666,6 +686,7 @@
  },
  "bd_parlor": {"massing": {"wing": 1, "step": 1, "none": 2}, 
   "name": "Braindance parlour",
+  "turrets": {"1": 0, "2": 0, "3": 0.05},
   "layout": {
    "algorithm": "corridor_units",
    "unit_min": 3,
@@ -712,6 +733,7 @@
  },
  "capsule_hotel": {"massing": {"step": 1, "wing": 2, "none": 1}, 
   "name": "Capsule hotel",
+  "turrets": {"1": 0, "2": 0, "3": 0},
   "layout": {
    "algorithm": "corridor_units",
    "unit_min": 3,
@@ -752,6 +774,8 @@
  },
  "ncpd_precinct": {"massing": {"step": 1, "podium": 1, "none": 2}, 
   "name": "NCPD precinct",
+  "turrets": {"1": 0, "2": 0.35, "3": 0.7},
+  "below_grade": {"chance": 0.4, "storeys": [1, 1], "_why": "Below a precinct: the cells, the evidence lockers, the armory and the motor pool.", "program": {"ground": [{"w": 1.0, "min": 4, "rooms": [{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["corridor"]}, {"room": "holding_cells", "zone": "secure", "w": 1.4, "min": 4, "doors": ["corridor"]}, {"room": "armory", "zone": "secure", "w": 1, "min": 3, "doors": ["corridor"]}]}, {"cells": 2, "rooms": [{"room": "corridor", "zone": "staff", "w": 1}]}, {"w": 1.2, "min": 4, "rooms": [{"room": "evidence_locker", "zone": "secure", "w": 1, "min": 4, "doors": ["corridor"]}, {"room": "garage", "zone": "staff", "w": 2, "min": 6, "doors": ["corridor", "stair_hall"]}]}]}, "down_from": []},
   "layout": {
    "algorithm": "treemap"
   },
@@ -800,6 +824,7 @@
  },
  "factory": {
   "name": "Factory",
+  "turrets": {"1": 0, "2": 0.1, "3": 0.3},
   "layout": {
    "algorithm": "bsp",
    "min_room": 6,
@@ -845,6 +870,8 @@
  },
  "data_center": {"massing": {"step": 1, "none": 3}, 
   "name": "Data centre",
+  "turrets": {"1": 0, "2": 0.6, "3": 0.9},
+  "below_grade": {"chance": 0.5, "storeys": [1, 1], "_why": "Server halls and cooling plant below grade, away from the street.", "program": {"ground": [{"w": 1.0, "min": 4, "rooms": [{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["corridor"]}, {"room": "security_office", "zone": "secure", "w": 1, "min": 4, "doors": ["corridor"]}, {"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["corridor"]}]}, {"cells": 2, "rooms": [{"room": "corridor", "zone": "staff", "w": 1}]}, {"w": 1.2, "min": 4, "rooms": [{"room": "server_room", "zone": "secure", "w": 2, "min": 5, "doors": ["corridor"]}, {"room": "cooling", "zone": "secure", "w": 1, "min": 4, "doors": ["corridor"]}, {"room": "data_vault", "zone": "vault", "w": 1, "min": 4, "doors": ["corridor"], "p": 0.6}]}]}, "down_from": []},
   "layout": {
    "algorithm": "treemap"
   },
@@ -891,6 +918,7 @@
  },
  "temple": {"massing": {"podium": 1, "none": 2}, 
   "name": "Temple",
+  "turrets": {"1": 0, "2": 0, "3": 0},
   "layout": {
    "algorithm": "growth"
   },
@@ -925,6 +953,7 @@
  },
  "villa": {"massing": {"step": 2, "wing": 1, "none": 1}, 
   "name": "Villa",
+  "turrets": {"1": 0, "2": 0.25, "3": 0.5},
   "layout": {
    "algorithm": "growth"
   },
@@ -971,6 +1000,7 @@
  },
  "chop_shop": {"massing": {"wing": 1, "none": 2},
   "name": "Chop shop",
+  "turrets": {"1": 0, "2": 0.1, "3": 0.25},
   "turret_weapon": "heavy_smg",
   "layout": {
    "algorithm": "bsp",
@@ -1015,6 +1045,7 @@
  },
  "gun_shop": {"massing": {"wing": 2, "none": 2}, 
   "name": "Gun shop",
+  "turrets": {"1": 0, "2": 0.15, "3": 0.35},
   "layout": {
    "algorithm": "bsp",
    "min_room": 4,
@@ -1057,6 +1088,7 @@
  },
  "squat": {"massing": {"wing": 2, "step": 1, "none": 1}, 
   "name": "Squat",
+  "turrets": {"1": 0, "2": 0, "3": 0},
   "layout": {
    "algorithm": "growth"
   },
@@ -1090,6 +1122,7 @@
  },
  "substation_booth": {
   "name": "Substation control",
+  "turrets": {"1": 0, "2": 0.05, "3": 0.2},
   "layout": {
    "algorithm": "bsp",
    "min_room": 3,
@@ -1128,6 +1161,7 @@
  },
  "restaurant": {
   "name": "Restaurant",
+  "turrets": {"1": 0, "2": 0, "3": 0},
   "_why": "Front of house on the street, back of house behind it (Neufert, restaurants: dining room about 60% of the floor, kitchen and stores 30-40%; the kitchen sits between the dining room it serves and the stores it draws on, the cold store opens only off the kitchen, the service door takes deliveries into the stores; restrooms open off the dining room, never the kitchen). Upstairs: private dining rooms off a lounge and the owner's office, as at the Firebird Tearoom (NC2045 Executive Zone 3) and Yum Seng's karaoke boxes (Kabuki 24).",
   "footprint": {"w": [15, 20], "d": [16, 20]},
   "floors": [1, 2],
@@ -1208,6 +1242,8 @@
  },
  "hotel": {
   "name": "Hotel",
+  "turrets": {"1": 0, "2": 0.03, "3": 0.1},
+  "below_grade": {"chance": 0.5, "storeys": [1, 1], "_why": "A hotel's service level (Neufert, hotels: back of house below grade: laundry, stores, staff rooms, plant).", "program": {"ground": [{"w": 1.0, "min": 4, "rooms": [{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["corridor"]}, {"room": "laundry", "zone": "staff", "w": 1.4, "min": 4, "doors": ["corridor"]}, {"room": "break_room", "zone": "staff", "w": 1, "min": 3, "doors": ["corridor"]}]}, {"cells": 2, "rooms": [{"room": "corridor", "zone": "staff", "w": 1}]}, {"w": 1.2, "min": 4, "rooms": [{"room": "storage", "zone": "staff", "w": 1.2, "min": 4, "doors": ["corridor"]}, {"room": "cold_store", "zone": "staff", "w": 1, "min": 3, "doors": ["corridor"]}, {"room": "security_office", "zone": "secure", "w": 1, "min": 4, "doors": ["corridor"]}, {"room": "garage", "zone": "staff", "w": 2, "min": 6, "doors": ["corridor"], "p": 0.5}]}]}, "down_from": []},
   "_why": "A slab hotel: double-loaded corridors of guest rooms stacked over a podium floor of public rooms (Neufert, hotels: lobby with the reception desk at the entrance, bar and restaurant off it, conference rooms; back of house along a service corridor behind: offices, security, kitchen, laundry, luggage and linen stores). Guest stairs and lifts at one end of the corridor, a staff/fire stair at the other (two means of escape). Suites on the top floor. Valuables vault behind the back office and the security office, as at Hotel Muy Caro (NC2045 Charter Hill 12: conference rooms, a valuables vault and the restaurant on the ground floor, doubles above, suites on top); the Sunshine Motel (Outskirts 17) has the same front counter and locked rooms.",
   "footprint": {"w": [30, 38], "d": [15, 18]},
   "floors": [2, 4],
@@ -1300,6 +1336,8 @@
  },
  "bank": {
   "name": "Bank",
+  "turrets": {"1": 0, "2": 0.7, "3": 0.95},
+  "below_grade": {"chance": 0.6, "storeys": [1, 2], "_why": "Vaults below grade (Neufert, banks: the strongroom often in the basement behind a security vestibule); NC2045 Eurasiabank's drowned vault levels.", "program": {"ground": [{"w": 1.0, "min": 4, "rooms": [{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["corridor"]}, {"room": "security_office", "zone": "secure", "w": 1, "min": 4, "doors": ["corridor", "counting_room"]}, {"room": "counting_room", "zone": "secure", "w": 1.3, "min": 4, "doors": ["corridor", "security_office"]}]}, {"cells": 2, "rooms": [{"room": "corridor", "zone": "staff", "w": 1}]}, {"w": 1.2, "min": 4, "rooms": [{"room": "bank_vault", "zone": "vault", "w": 1.5, "min": 4, "doors": ["corridor"]}, {"room": "archive", "zone": "staff", "w": 1, "min": 3, "doors": ["corridor"]}, {"room": "bank_vault", "zone": "vault", "w": 1.2, "min": 4, "doors": ["corridor"], "p": 0.7}]}], "-2": [{"w": 1.0, "min": 4, "rooms": [{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["corridor"]}, {"room": "server_room", "zone": "secure", "w": 1, "min": 4, "doors": ["corridor"]}, {"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["corridor"]}]}, {"cells": 2, "rooms": [{"room": "corridor", "zone": "staff", "w": 1}]}, {"w": 1.2, "min": 4, "rooms": [{"room": "bank_vault", "zone": "vault", "w": 2, "min": 5, "doors": ["corridor"]}, {"room": "data_vault", "zone": "vault", "w": 1, "min": 4, "doors": ["corridor"], "p": 0.7}]}]}, "down_from": []},
   "turret_weapon": "very_heavy_pistol",
   "_why": "A branch bank in depth from the street (Neufert, banks: public banking hall at the entrance with the loan officers' side offices off it; the teller line across the back of the hall behind bullet-resistant glass; behind that the staff zone: manager, cash counting, security; the vault deepest, entered only through a security vestibule / mantrap). NC2045 The Glen 1, 1st Night City Bank: a public ground floor (marble, bulletproof windows, human tellers, side offices for loans) and the vault on the second floor, with ID card and retina scan between floors: the vault-upstairs variant. EuroBank (The Glen 12): screens instead of windows, layered biometrics.",
   "footprint": {"w": [18, 24], "d": [16, 20]},
@@ -1433,6 +1471,7 @@
  },
  "school": {
   "name": "School",
+  "turrets": {"1": 0, "2": 0, "3": 0},
   "_why": "A double-loaded corridor school (Neufert, schools): the front office, the principal's office and the records room at the entrance where visitors are checked in; the cafeteria on the ground floor beside its kitchen (service door to the yard); classrooms off a wide corridor (2 squares of floor, 4 m) with lockers; the gym and the assembly hall big-span rooms on the ground floor; library, labs and the staff room upstairs; a stair at each end of the corridor (two means of escape) and a lift. NC2045: Nakagawa Academy (Kabuki 12: athletic facilities, an NCCS office on site), Shady Oaks Elementary (Little Europe 20: banks of braindance rigs, the bd_lab), KidZ (South Night City 7: classrooms above, automated defences).",
   "footprint": {"w": [30, 38], "d": [19, 23]},
   "floors": [1, 3],

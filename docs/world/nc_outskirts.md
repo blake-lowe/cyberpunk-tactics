@@ -194,7 +194,7 @@ The city's landfill, run jointly by Petrochem's Coastal Carting and SovOil's SMK
 	"owner_name": "Coastal Carting (Petrochem) and SMKP Hauling (SovOil)",
 	"security_code": {
 		"n": 8,
-		"faction": "petrochem",
+		"faction": "petrochem", "or_faction": "sovoil",
 		"intensity": "medium",
 		"hardened": false
 	},
@@ -359,7 +359,7 @@ Dying oil fields split between Petrochem and SovOil after a decades-old lease di
 	"owner_name": "Petrochem and SovOil (each runs its own rigs)",
 	"security_code": {
 		"n": 9,
-		"faction": "petrochem",
+		"faction": "petrochem", "or_faction": "sovoil",
 		"intensity": "heavy",
 		"hardened": false
 	},
@@ -626,7 +626,7 @@ A 20eb-a-night roadside motel with a vendit hall for lone travellers avoiding a 
 	"owner_name": "Block clan (Ma Block, Fixer 2)",
 	"security_code": {
 		"n": 7,
-		"faction": "locals",
+		"faction": "locals", "responder": "staff",
 		"intensity": "medium",
 		"hardened": false
 	},

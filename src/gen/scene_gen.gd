@@ -56,6 +56,7 @@ static func generate(seed_value: int, scene: String, overrides: Dictionary = {})
 		BasementGen.run(c)   # storeys below the street, if the recipe has any: street level becomes m.street
 	else:
 		_plan(c, scene)
+		BasementGen.run(c)   # the target building may dig down (its site's below_grade); most don't
 	_link_nets(c)
 	_deploy_zone(c)
 	_ensure_public_access(m)

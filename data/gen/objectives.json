@@ -5,7 +5,7 @@
 	"snatch": {"script": "snatch.gd", "name": "Snatch and extract", "keepers": 3},
 	"assassinate": {"script": "assassinate.gd", "name": "Assassination", "bodyguards": 2,
 		"_vip": "The mark: a Night City civilian (NC2045 civilian blocks, data/rules/npcs.json) who fits the target faction's kind; a kind with none fields the faction's own Lieutenant (Mini Boss at security 2+).",
-		"vip_blocks": {"corp": ["junior_executive", "rupture_fighter"], "service": ["junior_executive"], "crime": ["minimallism_fixer"], "gang": ["minimallism_fixer"]},
+		"vip_blocks": {"corp": ["junior_executive", "rupture_fighter"], "service": ["junior_executive"], "criminal": ["minimallism_fixer"], "gang": ["minimallism_fixer"]},
 		"names": ["Rhyne Castell", "Mara Voss", "Tobias Kade", "Lena Okafor", "Silas Mott", "Yuki Brandt", "Dario Kesh", "Ines Vale",
 			"Oren Haldane", "Petra Szabo", "Marcus Ilunga", "Sable Ferro"]},
 	"rescue": {"script": "rescue.gd", "name": "Rescue",

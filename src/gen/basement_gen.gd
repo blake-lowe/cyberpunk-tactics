@@ -5,24 +5,72 @@ extends RefCounted
 ## rooms come from the building's own layout: a program's "-1" / "-2" bands (or "basement" for
 ## every storey down), sharing the plan's band depths and mirror, so stair halls placed like the
 ## ground floor's sit right under them and the stair shafts carry straight down. An arena may ask
-## for `tunnels` under its streets (the Combat Zone's guard tunnels between its hatches).
+## for `tunnels` under its streets (the Combat Zone's guard tunnels between its hatches). On any
+## other map the gig's target building may dig down by its site's `below_grade` chance (ordinary):
+## its own below-grade brief, planned apart from the storeys above.
 ##
 ## Runs once the planner has built everything at street level: lifts the map (TacMap.lift), so
 ## nothing above changes, then lays out, walls, doors, zones, furnishes and wires (the building's
 ## NET is rebuilt with the new rooms) each storey down. Maps without basements never come here.
 
 const T := TacMap.T
+## Scenes whose target building may dig down (ordinary): the single-site raids every canon place with a
+## site plays as, campuses and towers; not the district maps (their parks and ruins), the badlands, the undercity or a skirmish.
+const ORDINARY_SCENES := ["lone_building", "megablock", "corp_campus", "arcology"]
+## Tests only: build every map as if no ordinary building had a basement (the golden maps).
+static var ordinary_off := false
 
 
-## The storeys a scene's set piece wants below the street (0: none).
+## The storeys the scene wants below the street (0: none).
 static func depth(c: Dictionary) -> int:
 	var n := 0
-	for st in (c.m as TacMap).structures:
-		if String(st.get("kind", "")) == "building":
-			n = maxi(n, int(SetPieces.structure_def(st).get("basement", {}).get("storeys", 0)))
+	var want := wanted(c)
+	for sid in want:
+		n = maxi(n, int(want[sid].storeys))
 	if not _tunnels_def(c).is_empty():
 		n = maxi(n, 1)
 	return n
+
+
+## The basement each building gets, {structure id: def}: a set piece's buildings as their recipe
+## asks (`basement`); on any other map, the gig's target building as its site's `below_grade`
+## (ordinary) rolls.
+static func wanted(c: Dictionary) -> Dictionary:
+	var m: TacMap = c.m
+	var set_piece := String(c.p.get("setpiece", "")) != ""
+	var out := {}
+	for st in m.structures:
+		if String(st.get("kind", "")) != "building":
+			continue
+		var b: Dictionary = SetPieces.structure_def(st).get("basement", {}) if set_piece else (ordinary(m, st) if st.target else {})
+		if int(b.get("storeys", 0)) > 0:
+			out[int(st.id)] = b
+	return out
+
+
+## HOUSE-RULE (owner ruling 2026-11-04: "not every map should have a basement necessarily"): an
+## ordinary building digs down where real ones do. Its site's `below_grade` (sites.json: {chance,
+## storeys [min, max], program, down_from}) gives the chance and the below-grade brief (a bank's
+## vaults, a club's back rooms, a corp office's server floor and parking, a block's storage and
+## laundry, a hotel's service level). Rolled on a Dice of its own, seeded from the map's seed and
+## the building, so the main stream is untouched: a map whose roll misses is exactly what it was
+## before. The scene option `basement_storeys` forces the count (0: none). {} for none.
+static func ordinary(m: TacMap, st: Dictionary) -> Dictionary:
+	var bg: Dictionary = RulesDB.gen("sites.json").get(String(st.get("site", "")), {}).get("below_grade", {})
+	if bg.is_empty() or ordinary_off or not String(m.params.get("scene", "")) in ORDINARY_SCENES:
+		return {}
+	var span: Array = bg.get("storeys", [1, 1])
+	var n := 0
+	if m.params.has("basement_storeys"):
+		n = clampi(int(m.params.basement_storeys), 0, int(span[1]))
+	else:
+		var roll := Dice.new(m.seed_value * 1000003 + int(st.id) * 7919 + 211)
+		if roll.rng.randf() >= float(bg.get("chance", 0.0)):
+			return {}
+		n = roll.rng.randi_range(int(span[0]), int(span[1]))
+	if n <= 0:
+		return {}
+	return {"storeys": n, "program": bg.program, "down_from": bg.get("down_from", [])}
 
 
 static func _tunnels_def(c: Dictionary) -> Dictionary:
@@ -31,6 +79,7 @@ static func _tunnels_def(c: Dictionary) -> Dictionary:
 
 static func run(c: Dictionary) -> void:
 	var m: TacMap = c.m
+	var want := wanted(c)
 	var n := depth(c)
 	if n == 0:
 		return
@@ -38,12 +87,8 @@ static func run(c: Dictionary) -> void:
 	for h in c.hints:
 		if int(h.get("floor", -1)) >= 0:
 			h.floor = int(h.floor) + n
-	for st in m.structures.duplicate():
-		if String(st.get("kind", "")) != "building":
-			continue
-		var b: Dictionary = SetPieces.structure_def(st).get("basement", {})
-		if int(b.get("storeys", 0)) > 0:
-			building(c, int(st.id), b)
+	for sid in want:
+		building(c, int(sid), want[sid])
 	if not _tunnels_def(c).is_empty():
 		tunnels(c, _tunnels_def(c))
 
@@ -66,14 +111,21 @@ static func building(c: Dictionary, sid: int, b: Dictionary) -> void:
 	while m.rooms.size() < hints.size():   # room ids follow the scene-wide hint list
 		m.rooms.append({"id": m.rooms.size(), "floor": -1, "zone": -1, "kind": "void", "cells": 0, "bounds": Rect2i(), "structure": -1})
 	var first := hints.size()
+	# An ordinary building's own below-grade brief (`b.program`: its "ground" bands are B1's, "-2"
+	# B2's) is planned afresh: the storeys above may not be a program at all.
+	var below: Dictionary = p.duplicate()
+	if b.has("program"):
+		below["algorithm"] = "program"
+		below["program"] = b.program
+		below["plan"] = Layouts.program_plan(dice, inner, below)
 	for k in range(1, n + 1):
 		var f := s - k
 		var local := PackedInt32Array()
 		local.resize(m.w * m.h)
 		local.fill(-1)
-		var q: Dictionary = p.duplicate()
+		var q: Dictionary = below.duplicate()
 		q["floor"] = -k   # a program reads its "-k" (or "basement") bands
-		var room_hints := Layouts.run(String(p.get("algorithm", "program")), dice, m.w, inner, local, q)
+		var room_hints := Layouts.run(String(below.get("algorithm", "program")), dice, m.w, inner, local, q)
 		for y in range(inner.position.y, inner.end.y):
 			for x in range(inner.position.x, inner.end.x):
 				if not fp.interior(Vector2i(x, y)):
@@ -137,6 +189,17 @@ static func _stairs_down(m: TacMap, sid: int, s: int, n: int, first: int, b: Dic
 	var cap := int(b.get("shafts", 99))
 	var entry := Vector2i(-1, -1)
 	var down := 0
+	var shell: Rect2i = m.structures[sid].rect
+	if b.has("program"):
+		# An ordinary building's basement is planned apart from the storeys above, so their shafts
+		# would land in any room: a new stair from the street comes down into its own stair halls
+		# (each storey's brief starts with one, so they stack), else as below.
+		var own := _new_shaft(m, sid, s, n, shell, b.get("down_from", []), first, "stair_hall")
+		if own.x >= 0:
+			for f in range(s - n, s + 1):
+				m.set_t(f, own.x, own.y, T.STAIRS)
+			m.verticals.append({"type": "stairs", "pos": own, "from_floor": s - n, "to_floor": s, "structure": sid})
+			return own
 	for v in shafts:
 		if down >= cap:
 			break
@@ -153,26 +216,12 @@ static func _stairs_down(m: TacMap, sid: int, s: int, n: int, first: int, b: Dic
 			entry = v.pos
 	if entry.x >= 0:
 		return entry
-	# No shaft lines up: a new one beside a street-level stair (or in a room `down_from` names).
+	# No shaft lines up: a new one beside a street-level stair (or in a room `down_from` names;
+	# an ordinary building's empty list, or one none of whose rooms has room, means any of its rooms).
 	var want: Array = b.get("down_from", ["stair_hall"])
-	var shell: Rect2i = m.structures[sid].rect
-	var c := shell.get_center()
-	var best := Vector2i(-1, -1)
-	for y in range(shell.position.y + 1, shell.end.y - 1):
-		for x in range(shell.position.x + 1, shell.end.x - 1):
-			var v := Vector2i(x, y)
-			var l := m.label(s, x, y)
-			if l < 0 or not (String(m.rooms[l].get("program_kind", m.rooms[l].kind)) in want):
-				continue
-			var ok := true
-			for f in range(s - n, s + 1):
-				if m.t(f, x, y) != T.FLOOR:
-					ok = false
-				for d in MapGen.DIRS:
-					if m.t(f, x + d.x, y + d.y) != T.FLOOR:
-						ok = false
-			if ok and (best.x < 0 or v.distance_squared_to(c) < best.distance_squared_to(c)):
-				best = v
+	var best := _new_shaft(m, sid, s, n, shell, want)
+	if best.x < 0 and b.has("program") and not want.is_empty():
+		best = _new_shaft(m, sid, s, n, shell, [])
 	if best.x < 0 and not shafts.is_empty():   # last resort: cut the first shaft straight down
 		best = shafts[0].pos
 		for f in range(s - n, s):
@@ -194,6 +243,39 @@ static func _stairs_down(m: TacMap, sid: int, s: int, n: int, first: int, b: Dic
 	for f in range(s - n, s + 1):
 		m.set_t(f, best.x, best.y, T.STAIRS)
 	m.verticals.append({"type": "stairs", "pos": best, "from_floor": s - n, "to_floor": s, "structure": sid})
+	return best
+
+
+## The square nearest the building's centre, in a street-level room of structure `sid` whose kind
+## is in `want` (any of its rooms if `want` is empty), that is open floor with open floor all round
+## on the street and every storey down to s - n: where a new stair shaft can go. With `below`, the
+## square must be in a room of that program kind (rooms from `first` on) on every storey down.
+## (-1, -1) if none.
+static func _new_shaft(m: TacMap, sid: int, s: int, n: int, shell: Rect2i, want: Array, first := 0, below := "") -> Vector2i:
+	var c := shell.get_center()
+	var best := Vector2i(-1, -1)
+	for y in range(shell.position.y + 1, shell.end.y - 1):
+		for x in range(shell.position.x + 1, shell.end.x - 1):
+			var v := Vector2i(x, y)
+			var l := m.label(s, x, y)
+			if l < 0 or int(m.rooms[l].get("structure", -1)) != sid:
+				continue
+			if not want.is_empty() and not (String(m.rooms[l].get("program_kind", m.rooms[l].kind)) in want):
+				continue
+			# the street storey is furnished already: the shaft and its approaches stay clear of it
+			var ok := not m.has_cover_at(s, v) and not m.has_decor_at(s, v) and MapGen.DIRS.all(func(d): return not m.has_cover_at(s, v + d))
+			for f in range(s - n, s + 1):
+				if m.t(f, x, y) != T.FLOOR:
+					ok = false
+				for d in MapGen.DIRS:
+					if m.t(f, x + d.x, y + d.y) != T.FLOOR:
+						ok = false
+				if below != "" and f < s:
+					var bl := m.label(f, x, y)
+					if bl < first or String(m.rooms[bl].get("program_kind", "")) != below:
+						ok = false
+			if ok and (best.x < 0 or v.distance_squared_to(c) < best.distance_squared_to(c)):
+				best = v
 	return best
 
 

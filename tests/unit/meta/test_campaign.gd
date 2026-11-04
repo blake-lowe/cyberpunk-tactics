@@ -334,15 +334,12 @@ func test_no_gig_is_offered_in_playland() -> void:
 				break
 			assert_false(lid in park, "%s offered at %s" % [kind, lid])
 			used[lid] = true
-	for fid in ["tower_of_dark", "piranhas", "segotari"]:   # the park's owners: their own places come first
-		for kind in kinds:
-			for k in 10:
-				var at := c._place_for(String(kind), g, fid)
-				assert_false(String(at.get("location", "")) in park, "%s against %s at %s" % [kind, fid, at.get("location", "")])
-	for k in 20:   # a generic offer on Pacifica's profile never lands in Playland's district (it shares the profile)
-		var gig := {"profile": "pacifica", "security": 1, "faction": "piranhas"}
-		c._code_gig(gig)
-		assert_false(String(gig.district) == "playland", "a generic offer in Playland")
+	c.crew[0].reputation = 9
+	for k in 60:   # a personal job (the target's own places first) never goes to the park either
+		c.board.clear()
+		c._unique_offer(g, {})
+		for b in c.board:
+			assert_false(String(b.get("location", "")) in park, "unique offer at %s" % b.get("location", ""))
 	c.crew[0].reputation = 9
 	for d in 20:
 		c.refresh_board()

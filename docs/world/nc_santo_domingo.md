@@ -303,7 +303,7 @@ Cube hotel and apartments crammed under the New Pacific Highway, so loud that re
 	"owner_name": "",
 	"security_code": {
 		"n": 10,
-		"faction": "locals",
+		"faction": "locals", "responder": "residents",
 		"intensity": "medium",
 		"hardened": false
 	},
@@ -471,7 +471,7 @@ Under the Pacifica Bridge, the FBC community's all-metal bar where full borgs dr
 	"owner_name": "",
 	"security_code": {
 		"n": 8,
-		"faction": "locals",
+		"faction": "locals", "responder": "patrons",
 		"intensity": "heavy",
 		"hardened": false
 	},
