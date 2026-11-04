@@ -35,8 +35,12 @@ extends RefCounted
 ## v10: travel time (NC2045 p.18-20). The campaign has a safehouse district (every drive to a gig
 ##     starts there; older crews get Campaign.DEFAULT_SAFEHOUSE) and a clock within the day,
 ##     `minutes` (0 at midnight; older saves start the day fresh).
+## v11: operations (M9 P4, Playland by the Sea): a gig may carry `legs` (maps played back to back;
+##     offers without them are single-map gigs, as every older offer is), and the save keeps an
+##     operation in progress between legs, `operation` (the active gig with its leg, the legs done,
+##     the van and what the crew carries over; {} when none, which every older save gets).
 
-const CURRENT := 10
+const CURRENT := 11
 
 
 ## Upgrade `d` (a parsed save) to CURRENT. Returns {} for a save from a newer build, which this
@@ -57,6 +61,7 @@ static func migrate(d: Dictionary) -> Dictionary:
 			7: _v7_to_v8(d)
 			8: _v8_to_v9(d)
 			9: _v9_to_v10(d)
+			10: _v10_to_v11(d)
 		v += 1
 		d["version"] = v
 	return d
@@ -183,3 +188,8 @@ static func _v9_to_v10(d: Dictionary) -> void:
 		d["safehouse_district"] = Campaign.DEFAULT_SAFEHOUSE
 	if not d.has("minutes"):
 		d["minutes"] = 0
+
+
+static func _v10_to_v11(d: Dictionary) -> void:
+	if not d.has("operation"):
+		d["operation"] = {}

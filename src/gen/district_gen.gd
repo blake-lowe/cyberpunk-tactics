@@ -11,7 +11,9 @@ extends RefCounted
 const G := TacMap.G
 const YARDS := {"market": [G.CONCRETE, "market"], "park": [G.GRASS, "park"], "plaza": [G.CONCRETE, "plaza"],
 	"parking_lot": [G.ASPHALT, "parking_lot"], "rubble_field": [G.DIRT, "rubble_field"], "substation": [G.GRAVEL, "substation_yard"],
-	"construction": [G.DIRT, "construction_site"]}
+	"construction": [G.DIRT, "construction_site"], "ride": [G.CONCRETE, "ride"], "woods": [G.GRASS, "woods"]}
+## Outdoor lots walled in with a chain-link fence and one gate (a substation, a ride enclosure).
+const FENCED := ["substation", "ride"]
 
 
 static func generate(c: Dictionary, profile_name: String) -> void:
@@ -22,17 +24,43 @@ static func generate(c: Dictionary, profile_name: String) -> void:
 	SceneGen.ground(c, Rect2i(0, 0, m.w, m.h), G.SIDEWALK)
 	var roads := {}
 	var hw := float(prof.road_w) / 2.0
+	if bool(prof.get("midway", false)):
+		c["midway"] = true   # theme parks: the "roads" are paved pedestrian walks
 	var lines := _road_network(c, prof, hw)
 	for ln in lines:
 		_raster(c, ln, roads)
+	if bool(prof.get("shore", false)):
+		_shore(c, roads)
 	var lots := _lots(c, prof, roads)
 	_fill_lots(c, prof, lots)
-	_footbridges(c, lines)
+	if not bool(prof.get("midway", false)):
+		_footbridges(c, lines)
 	_parked(c, prof, roads)
-	_street_furniture(c, look)
+	_street_furniture(c, look, prof.get("street_props", {}))
 	_street_trees(c, look, roads)
 	_street_rubble(c, look)
 	_edge_spawns(c)
+	c.erase("midway")
+
+
+## The seafront (theme parks by the sea: Playland's boardwalk, NC2045 p.302): the bottom rows are
+## sea, the strip above them a boardwalk; both stay out of the lots.
+static func _shore(c: Dictionary, roads: Dictionary) -> void:
+	var m: TacMap = c.m
+	var sea := maxi(3, m.h / 14)
+	var walk := 3
+	for y in range(m.h - sea - walk, m.h):
+		for x in m.w:
+			var v := Vector2i(x, y)
+			if y >= m.h - sea:
+				m.set_t(0, x, y, TacMap.T.WATER)
+				m.set_ground(x, y, G.NONE)
+				c.reserved[v] = true
+				roads[v] = true
+			else:
+				m.set_ground(x, y, G.DOCK)
+				if not roads.has(v):
+					roads[v] = false
 
 
 # --- Road networks -------------------------------------------------------------
@@ -148,7 +176,7 @@ static func _road_cell(c: Dictionary, roads: Dictionary, v: Vector2i, d: float, 
 	var m: TacMap = c.m
 	var core := d <= hw - 1.0
 	if core or not roads.has(v):
-		m.set_ground(v.x, v.y, G.ASPHALT if core else G.SIDEWALK)
+		m.set_ground(v.x, v.y, G.SIDEWALK if not core or c.get("midway", false) else G.ASPHALT)
 	if core:
 		roads[v] = true
 	elif not roads.has(v):
@@ -237,8 +265,12 @@ static func _fill_lots(c: Dictionary, prof: Dictionary, lots: Array) -> void:
 	var target_site: String = String(c.overrides.get("site", prof.target))
 	var target_done := false
 	var blds: Array[Dictionary] = []
+	var hub := String(prof.get("hub", ""))
 	for piece in pieces:
 		var bb := _bbox(piece)
+		if hub != "" and c.has("plaza_center") and piece.has(Vector2i(c.plaza_center)):
+			_yard_lot(c, piece, hub)   # the hub every land opens off (a theme park's central plaza)
+			continue
 		var use: String = names[c.dice.rng.rand_weighted(wts)]
 		var is_target := not target_done and mini(bb.size.x, bb.size.y) >= 12
 		if is_target:
@@ -246,7 +278,8 @@ static func _fill_lots(c: Dictionary, prof: Dictionary, lots: Array) -> void:
 			target_done = true
 		if YARDS.has(use) or mini(bb.size.x, bb.size.y) < 7:
 			# leftover small lots: a pocket park, a bit of parking or a paved square, not bare ground
-			var small: String = ["park", "plaza", "parking_lot", "park"][c.dice.rng.randi() % 4] if mini(bb.size.x, bb.size.y) >= 5 else "park"
+			var pockets: Array = prof.get("pockets", ["park", "plaza", "parking_lot", "park"])
+			var small: String = pockets[c.dice.rng.randi() % pockets.size()] if mini(bb.size.x, bb.size.y) >= 5 else String(pockets[0])
 			_yard_lot(c, piece, use if YARDS.has(use) else small)
 			continue
 		if not is_target and not use in BIG_SITES and maxi(bb.size.x, bb.size.y) >= 15 and c.dice.rng.randf() < float(prof.get("cluster", 0.0)):
@@ -327,7 +360,7 @@ static func _yard_lot(c: Dictionary, cells: Dictionary, use: String) -> void:
 	var spec: Array = YARDS[use]
 	for v in cells:
 		m.set_ground(v.x, v.y, spec[0])
-	var sid := SceneGen.outdoor_structure(c, use, 0 if use != "substation" else 1, _bbox(cells))
+	var sid := SceneGen.outdoor_structure(c, use, 1 if use == "substation" else 0, _bbox(cells))
 	var id: int = c.hints.size()
 	c.hints.append({"zone_hint": TacMap.Zone.PUBLIC, "kind": spec[1], "floor": 0})
 	while m.rooms.size() < id:
@@ -339,7 +372,7 @@ static func _yard_lot(c: Dictionary, cells: Dictionary, use: String) -> void:
 		if m.t(0, v.x, v.y) == TacMap.T.OUTSIDE and m.label(0, v.x, v.y) < 0:
 			m.labels[0][v.y * m.w + v.x] = id
 			room.cells += 1
-	if use == "substation":
+	if use in FENCED:
 		# Fenced: the lot's outer ring becomes fence with one gate toward the street.
 		var bb := _bbox(cells)
 		var gate := Vector2i(-1, -1)
@@ -424,12 +457,13 @@ static func _parked(c: Dictionary, prof: Dictionary, roads: Dictionary) -> void:
 
 ## Street furniture against building fronts (owner round 6: empty lots and pavements): vending
 ## machines, benches and the odd kiosk, spaced out and clear of doors. Small cover on the street.
-## A district sets the pieces (market stalls, planters, sandbags...) and how many (props).
-static func _street_furniture(c: Dictionary, look: Dictionary = {}) -> void:
+## A district sets the pieces (market stalls, planters, sandbags...) and how many (props); a map
+## profile's own street_props (Playland's midway kiosks) win over the district's.
+static func _street_furniture(c: Dictionary, look: Dictionary = {}, spec: Dictionary = {}) -> void:
 	var m: TacMap = c.m
 	var placed: Array[Vector2i] = []
-	var rate := 0.05 * DistrictLook.num(look, "props", 1.0)
-	var pieces: Array = look.get("street", DistrictLook.STREET)
+	var rate := float(spec.get("rate", 0.05 * DistrictLook.num(look, "props", 1.0)))
+	var pieces: Array = spec.get("pieces", look.get("street", DistrictLook.STREET))
 	var gap := 36 if rate <= 0.05 else 16   # busy districts crowd their pavements
 	for y in range(1, m.h - 1):
 		for x in range(1, m.w - 1):

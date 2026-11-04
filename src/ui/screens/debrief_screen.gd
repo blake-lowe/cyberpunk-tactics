@@ -38,6 +38,11 @@ func build_body(body: VBoxContainer) -> void:
 	_sum(sums, "IMPROVEMENT POINTS", "%d each" % int(report.get("ip", 0)), Hud.CYAN)
 	if String(gig.get("fixer", "")) != "":
 		_sum(sums, "FIXER", String(gig.fixer), Hud.TEXT)
+	if report.has("legs"):   # an operation: every leg it got through, with its share of the pay
+		var legs: Array = report.legs
+		tv.add_child(UiKit.label("OPERATION · %d OF %d LEGS DONE" % [legs.size(), int(report.get("leg_count", legs.size()))], 12, Hud.GOLD))
+		for l in legs:
+			tv.add_child(UiKit.body("✓ %s: %s  ·  %s eb" % [String(l.title), String(l.line), UiKit.money(int(l.pay))], 14, Hud.TEXT))
 	var members: Array = report.get("members", [])
 	var grid := GridContainer.new()
 	grid.columns = clampi(members.size(), 1, 4)
