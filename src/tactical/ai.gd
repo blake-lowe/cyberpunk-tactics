@@ -281,11 +281,11 @@ static func trauma(e: Encounter, u: Dictionary) -> void:
 	elif carrier == u.id:
 		_go_toward(e, u, tt.av)
 		patient.pos = u.pos
-		if Vector2(u.pos.x - tt.av.x, u.pos.y - tt.av.y).length() <= 1.5:
+		if Vector2(u.pos.x - tt.av.x, u.pos.y - tt.av.y).length() <= 3.5:
 			e.tt_depart()
 	elif patient.c.dead:
 		_go_toward(e, u, tt.av)   # nothing to save: back to the AV
-		if Vector2(u.pos.x - tt.av.x, u.pos.y - tt.av.y).length() <= 1.5 and e.units.filter(func(o): return o.get("tt", false) and not o.c.dead).all(func(o): return Vector2(o.pos.x - tt.av.x, o.pos.y - tt.av.y).length() <= 1.5):
+		if Vector2(u.pos.x - tt.av.x, u.pos.y - tt.av.y).length() <= 3.5 and e.units.filter(func(o): return o.get("tt", false) and not o.c.dead).all(func(o): return Vector2(o.pos.x - tt.av.x, o.pos.y - tt.av.y).length() <= 3.5):
 			e.tt_depart()
 
 

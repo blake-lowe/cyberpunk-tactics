@@ -166,7 +166,7 @@ func _build() -> void:
 	var hull2 := _mat(Color("a9b1b8") if tt else Color("353a42"), 0.5, 0.45)    # lower flank, pods (MaxTac), roof spine
 	var mech := _mat(Color("2a2e34") if tt else Color("0c0d10"), 0.6, 0.45)     # ribs, pylons, fans, guns, belly
 	var accent := _mat(Color("169aa6") if tt else Color("2a6aff"), 0.2, 0.4, 0.0 if tt else 1.6)
-	var glass := _mat(Color("0e2a3c") if tt else Color("0e1218"), 0.6, 0.08, 0.35 if tt else 0.25)
+	var glass := _mat(Color("0e2a3c") if tt else Color("1a2a44"), 0.6, 0.08, 0.35 if tt else 0.25)
 	glass.emission = Color("4ab8ff") if tt else Color("3a6aff")
 	var mark := _mat(Color("e2302a"), 0.1, 0.4, 0.5)
 	var plate := _mat(Color("f2f4f5"), 0.2, 0.4)
@@ -181,10 +181,11 @@ func _build() -> void:
 		[2.8, 1.05, 0.45, 1.35, r],
 		[3.1, 0.75, 0.55, 1.0, r * 0.6],
 	], hull, b, 1, true)
-	_box(Vector3(2.3, 0.08, 4.6), Vector3(0, 0.28, -0.7), mech, b)                       # belly plate
-	for sx in [-1, 1]:   # two-tone: grey lower flank under a livery stripe
-		_box(Vector3(0.03, 0.4, 4.0), Vector3(sx * 1.33, 0.8 if tt else 0.66, -0.9), hull2, b)
-		_box(Vector3(0.03, 0.1, 4.0), Vector3(sx * 1.335, 1.05 if tt else 0.9, -0.9), accent, b)
+	_box(Vector3(2.0 if tt else 2.3, 0.08, 4.6), Vector3(0, 0.28, -0.7), mech, b)         # belly plate
+	for sx in [-1, 1]:   # two-tone: grey lower flank under a livery stripe, broken by the door
+		for seg in [[-1.9, 2.0], [0.8, 0.6]]:   # [centre z, length] either side of the door
+			_box(Vector3(0.03, 0.4, seg[1]), Vector3(sx * 1.33, 0.8 if tt else 0.66, seg[0]), hull2, b)
+			_box(Vector3(0.03, 0.1, seg[1]), Vector3(sx * 1.335, 1.05 if tt else 0.9, seg[0]), accent, b)
 	# canopy: Trauma's windscreen runs up onto the roof; MaxTac's is a visor on the nose slope
 	if tt:
 		_loft([
@@ -201,12 +202,13 @@ func _build() -> void:
 			[2.8, 1.07, 1.05, 1.37, r],
 			[2.95, 0.93, 0.95, 1.2, r * 0.8],
 		], glass, b, 1, true)
+		_box(Vector3(1.9, 0.03, 0.06), Vector3(0, 1.94, 2.1), accent, b)                       # lit visor brow
 	_box(Vector3(0.14, 0.05, 0.9), Vector3(0, 1.685, 2.45), hull, b, Vector3(deg_to_rad(38.2), 0, 0))       # centre post
 	# side doors (sliding, between the pods) and the rear ramp
 	for sx in [-1, 1]:
-		_box(Vector3(0.03, 1.35, 1.3), Vector3(sx * 1.335, 1.18 if tt else 1.24, -0.2), mech, b)
+		_box(Vector3(0.04, 1.35, 1.3), Vector3(sx * 1.345, 1.18 if tt else 1.24, -0.2), mech, b)
 		_box(Vector3(0.035, 1.2, 0.05), Vector3(sx * 1.34, 1.18 if tt else 1.24, 0.5), hull2, b)  # door rail
-	_box(Vector3(1.9, 1.3, 0.04), Vector3(0, 1.15, -3.21), mech, b)
+	_box(Vector3(1.6, 1.2, 0.04), Vector3(0, 1.2, -3.21), mech, b)                            # rear ramp
 	for sx in [-1, 1]:
 		_box(Vector3(0.22, 0.1, 0.04), Vector3(sx * 0.75, 1.75, -3.22), _mat(Color("ff2020"), 0.0, 0.4, 2.5), b)   # tail lights
 		_box(Vector3(0.18, 0.08, 0.04), Vector3(sx * 0.42, 0.66, 3.11), _mat(Color("f4f8ff"), 0.0, 0.3, 3.0), b)    # headlights
@@ -225,16 +227,16 @@ func _build() -> void:
 	if tt:   # the red asterisk on white on the roof and on the door plates; a teal band
 		_asterisk(Vector3(0, 2.215, -0.3), 1.3, mark, b)
 		_box(Vector3(1.95, 0.02, 0.26), Vector3(0, 2.21, 0.72), accent, b)
-		_box(Vector3(0.4, 0.2, 0.3), Vector3(0.55, 2.3, 0.35), mech, b)                       # sensor box
+		_box(Vector3(0.4, 0.2, 0.3), Vector3(0.75, 2.3, -1.0), hull2, b)                      # sensor box
 		for sx in [-1, 1]:
-			_box(Vector3(0.02, 0.72, 0.72), Vector3(sx * 1.355, 1.35, -0.2), plate, b)
-			_asterisk(Vector3(sx * 1.37, 1.35, -0.2), 0.58, mark, b, "x")
+			_box(Vector3(0.02, 0.72, 0.72), Vector3(sx * 1.375, 1.35, -0.2), plate, b)
+			_asterisk(Vector3(sx * 1.39, 1.35, -0.2), 0.58, mark, b, "x")
 	else:    # roof turret, blue running lights, lettering on the roof and the doors
-		_box(Vector3(0.55, 0.22, 0.5), Vector3(0, 2.31, 0.65), mech, b)
-		_cyl(0.045, 0.045, 0.7, Vector3(0, 2.36, 1.1), mech, b, Vector3(PI / 2.0, 0, 0))
+		_box(Vector3(0.55, 0.32, 0.5), Vector3(0, 2.36, 0.65), mech, b)                       # roof turret
+		_cyl(0.045, 0.045, 0.7, Vector3(0, 2.45, 1.1), mech, b, Vector3(PI / 2.0, 0, 0))
 		for sx in [-1, 1]:
 			_box(Vector3(0.06, 0.02, 4.0), Vector3(sx * 1.05, 2.21, -0.9), accent, b)
-			_label("MAX-TAC", Vector3(sx * 1.36, 1.62, -0.2), 0.22, b, Vector3(0, sx * PI / 2.0, 0))
+			_label("MAX-TAC", Vector3(sx * 1.375, 1.62, -0.2), 0.22, b, Vector3(0, sx * PI / 2.0, 0))
 		_label("MAXTAC", Vector3(0, 2.215, -0.85), 0.46, b, Vector3(-PI / 2.0, 0, 0), PI / 2.0)
 	# chin gun under the nose (MaxTac: twin heavy barrels)
 	_box(Vector3(0.5, 0.26, 0.55), Vector3(0, 0.3, 2.2), mech, b)
@@ -261,36 +263,42 @@ func _build() -> void:
 				_box(Vector3(0.03, 0.45, 1.4), Vector3(sx * 0.485, -0.6, -0.05), accent, piv)
 			else:    # blue edge lights along the top
 				_box(Vector3(0.04, 0.03, 1.4), Vector3(sx * 0.36, 0.57, -0.05), accent, piv)
-			for k in 3:   # lengthwise intake slats on top
-				_box(Vector3(0.06, 0.04, 1.1), Vector3(-0.2 + k * 0.2, 0.58, -0.05), mech, piv)
+			# a raised armour plate over the front half, sloping to the nose; intake slats behind it
+			_box(Vector3(0.62, 0.07, 0.7), Vector3(0, 0.6, 0.35), accent if tt else hull, piv, Vector3(deg_to_rad(8), 0, 0))
+			for k in 5:
+				_box(Vector3(0.5, 0.04, 0.06), Vector3(0, 0.58 if tt else 0.57, -0.7 + k * 0.15), mech, piv)
+			_box(Vector3(0.22, 0.05, 1.5), Vector3(sx * 0.42, 0.5, -0.05), hull if tt else hull2, piv, Vector3(0, 0, sx * deg_to_rad(35)))   # shoulder
 			for k in 5:   # deep vertical ribs on the outer face
 				_box(Vector3(0.12, 0.9, 0.08), Vector3(sx * 0.53, -0.2, -0.6 + k * 0.3), mech, piv)
-			if not tt and sz > 0:   # MaxTac: twin guns under the front pods
+			var guns: bool = not tt and sz > 0
+			var ez: float = -0.25 if guns else -0.05   # exhaust sits back to clear the gun mount
+			if guns:   # MaxTac: twin guns under the front pods
 				_box(Vector3(0.3, 0.2, 0.5), Vector3(0, -1.03, 0.45), mech, piv)
 				for gx in [-0.08, 0.08]:
-					_cyl(0.04, 0.04, 0.8, Vector3(gx, -1.05, 0.95), mech, piv, Vector3(PI / 2.0, 0, 0))
-			_cyl(0.42, 0.42, 0.06, Vector3(0, -0.96, -0.05), mech, piv)                        # fan exit
+					_cyl(0.04, 0.04, 0.55, Vector3(gx, -1.05, 0.975), mech, piv, Vector3(PI / 2.0, 0, 0))
+				_box(Vector3(0.28, 0.12, 0.12), Vector3(0, -1.05, 1.3), mech, piv)                # muzzle block
+			_cyl(0.36, 0.36, 0.06, Vector3(0, -0.96, ez), mech, piv)                           # fan exit
 			var ring := MeshInstance3D.new()
 			var tm := TorusMesh.new()
 			tm.inner_radius = 0.32
 			tm.outer_radius = 0.42
 			ring.mesh = tm
 			ring.material_override = _mat(Color("9ad8ff"), 0.0, 0.4, 3.5)
-			ring.position = Vector3(0, -0.99, -0.05)
+			ring.position = Vector3(0, -0.99, ez)
 			piv.add_child(ring)
 			var flame := MeshInstance3D.new()
 			var fm := CylinderMesh.new()
 			fm.top_radius = 0.34
 			fm.bottom_radius = 0.06
-			fm.height = 0.9
+			fm.height = 0.7
 			flame.mesh = fm
 			var fmat := StandardMaterial3D.new()
 			fmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 			fmat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
 			fmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-			fmat.albedo_color = Color(0.5, 0.8, 1.0, 0.55)
+			fmat.albedo_color = Color(0.25, 0.55, 1.0, 0.4)
 			flame.material_override = fmat
-			flame.position = Vector3(0, -1.47, -0.05)
+			flame.position = Vector3(0, -1.37, ez)
 			piv.add_child(flame)
 			_flames.append(flame)
 	var glow := OmniLight3D.new()   # thrust wash on the ground
@@ -351,16 +359,19 @@ func _process(delta: float) -> void:
 		(_shadow.material_override as StandardMaterial3D).albedo_color.a = clampf(1.0 - (h - 0.9) / 8.0, 0.0, 1.0)
 
 
-## Come down from the sky onto `at` (ground point), the nacelles swinging level as it slows,
-## and hover just above it at the end.
-func land(at: Vector3, secs := 2.6) -> Tween:
+## Come down from the sky onto `at` (ground point) facing `yaw` (square to the grid, so it fits
+## the clearing Encounter.av_spot found) at `size`, the pods swinging level as it slows, and
+## hover just above it at the end.
+func land(at: Vector3, yaw := 0.0, size := 1.0, secs := 2.6) -> Tween:
 	ground_y = at.y
-	position = at + Vector3(-5, 9, -3)
-	rotation.y = atan2(5.0, 3.0)
+	scale = Vector3.ONE * size
+	_shadow.scale = scale
+	rotation.y = yaw
+	position = at + Vector3(0, 9, -6).rotated(Vector3.UP, yaw)   # comes in nose first, from astern
 	_hover = false
 	_set_tilt(TILT_FLY)
 	var tw := create_tween()
-	tw.tween_property(self, "position", at + Vector3(0, HOVER, 0), secs).set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
+	tw.tween_property(self, "position", at + Vector3(0, HOVER * size, 0), secs).set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
 	tw.parallel().tween_method(_set_tilt, TILT_FLY, 0.0, secs * 0.8).set_delay(secs * 0.2).set_trans(Tween.TRANS_SINE)
 	tw.tween_callback(func(): _hover = true)
 	return tw
@@ -371,6 +382,6 @@ func lift_off(secs := 2.4) -> Tween:
 	var tw := create_tween()
 	tw.tween_property(self, "position", position + Vector3(0, 1.5, 0), 0.7).set_trans(Tween.TRANS_SINE)
 	tw.tween_method(_set_tilt, 0.0, TILT_FLY, 0.6).set_trans(Tween.TRANS_SINE)
-	tw.parallel().tween_property(self, "position", position + Vector3(12, 18, 10), secs).set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_IN)
+	tw.parallel().tween_property(self, "position", position + Vector3(0, 18, 14).rotated(Vector3.UP, rotation.y), secs).set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_IN)
 	tw.tween_callback(queue_free)
 	return tw

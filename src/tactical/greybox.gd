@@ -1098,7 +1098,7 @@ func _anim_av_land(e: Dictionary) -> void:
 	await _pan_to(at, 0.5)
 	hud.toast("MAXTAC" if e.kind == "maxtac" else "TRAUMA TEAM", 2.0)
 	_snd("sfx_jack_in", at, -2.0, 0.0, 0)
-	var tw := av.land(at)
+	var tw := av.land(at, float(e.get("yaw", 0.0)), float(e.get("scale", 1.0)))
 	await tw.finished
 	fx.burst(at + Vector3(0, 0.1, 0), Color("8a8070"), 30, 3.5, 0.12, 0.9, 0.0, -2.0)   # downwash dust
 	_kick(Vector2(0, 1), 4.0)
@@ -1111,7 +1111,7 @@ func _anim_av_land(e: Dictionary) -> void:
 		nn2.visible = true
 		create_tween().tween_property(nn2, "position", dest, 0.35).set_trans(Tween.TRANS_QUAD)
 		await get_tree().create_timer(0.18).timeout
-	_float(enc.units[e.units[0]], "MAXTAC" if e.kind == "maxtac" else "TRAUMA TEAM", Hud.RED if e.kind == "maxtac" else Color("2a8cff"))
+	_float(enc.units[e.units[0]], "MAXTAC" if e.kind == "maxtac" else "TRAUMA TEAM", Hud.RED if e.kind == "maxtac" else Color("7fd0ff"))
 	await get_tree().create_timer(0.5).timeout
 
 

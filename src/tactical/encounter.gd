@@ -666,7 +666,7 @@ func _tick_trauma() -> void:
 		tt.state = "cancelled"
 		return
 	var ids := []
-	var cells := _around(spot, 3)
+	var cells := _av_exits(spot, 3)
 	for i in mini(3, cells.size()):
 		var g := Recruit.npc(dice, "lieutenant", "Trauma Team %d" % (i + 1))
 		g.armor["body"] = ArmorPiece.from_id("heavy_armorjack")
@@ -677,8 +677,8 @@ func _tick_trauma() -> void:
 		u["tt"] = true
 		init.add(g)
 		ids.append(u.id)
-	tt.merge({"state": "landed", "av": spot, "units": ids, "carrier": -1}, true)
-	events.append({"type": "av_land", "unit": ids[0] if not ids.is_empty() else 0, "kind": "trauma", "cell": spot, "units": ids})
+	tt.merge({"state": "landed", "av": spot, "av_fit": av_fit.duplicate(), "units": ids, "carrier": -1}, true)
+	events.append({"type": "av_land", "unit": ids[0] if not ids.is_empty() else 0, "kind": "trauma", "cell": spot, "units": ids, "yaw": av_fit.yaw, "scale": av_fit.scale})
 	say("Trauma Team lands. Stay out of their way.")
 
 
@@ -713,7 +713,7 @@ func _maxtac_drop() -> void:
 		_spawn_wave(waves, "NCPD Officer", "NCPD")
 		return
 	var ids := []
-	var cells := _around(spot, 3)
+	var cells := _av_exits(spot, 3)
 	for i in mini(4, cells.size()):
 		var g := Recruit.npc(dice, "mini_boss", "MaxTac %d" % (i + 1))
 		g.team = 1
@@ -725,24 +725,36 @@ func _maxtac_drop() -> void:
 		u["maxtac"] = true
 		init.add(g)
 		ids.append(u.id)
-	events.append({"type": "av_land", "unit": ids[0] if not ids.is_empty() else 0, "kind": "maxtac", "cell": spot, "units": ids})
+	events.append({"type": "av_land", "unit": ids[0] if not ids.is_empty() else 0, "kind": "maxtac", "cell": spot, "units": ids, "yaw": av_fit.yaw, "scale": av_fit.scale})
 	say("MaxTac drops in. This just became a very bad night.")
 
 
-## An open landing spot for an AV: a street square with a clear 3x3 around it, between `lo` and
-## `hi` squares from `near`, the nearest one to `near` past `lo`.
-## Where an AV sets down: the open ground nearest `near` (between lo and hi squares away), clear
-## for three squares around (the craft is ~6 m by 5 m) so it isn't buried in an alley, else less. Spots with a
-## multi-storey building toward the default camera (+x +y, greybox cam_yaw 45°) count as farther, so the landing is seen.
-func av_spot(near: Vector3i, lo: int, hi: int) -> Vector3i:
-	for r in [3, 2, 1]:
-		var v := _av_clearing(near, lo, hi, r)
-		if v.x >= 0:
-			return v
-	return Vector3i(-1, -1, -1)
-
-
+## Where an AV sets down: the open ground nearest `near` (between lo and hi squares away). The
+## craft is about 5 m wide and 7 m long, so it lands square to the grid on a clear 5x7 patch
+## (either way round) and records which way it faces in `av_fit`; failing that it lands on a 5x5
+## or 3x3 patch at a smaller scale rather than clip into the buildings. Spots with a multi-storey
+## building toward the default camera (+x +y, greybox cam_yaw 45°) count as farther, so the
+## landing is seen. Returns (-1, -1, -1) if nowhere fits.
+const AV_FITS := [[2, 3, 0.0, 1.0], [3, 2, PI / 2.0, 1.0], [2, 2, 0.0, 0.75], [1, 1, 0.0, 0.55]]   ## [half x, half y, yaw, scale]
 const AV_HIDDEN_COST := 25.0           ## squares a hidden landing counts as farther
+
+var av_fit := {"yaw": 0.0, "scale": 1.0}   ## how the last av_spot landing faces and scales
+
+
+func av_spot(near: Vector3i, lo: int, hi: int) -> Vector3i:
+	var occ := occupied()
+	var best: Array = [Vector3i(-1, -1, -1), INF]
+	for i in AV_FITS.size():
+		var f: Array = AV_FITS[i]
+		var got := _av_clearing(near, lo, hi, int(f[0]), int(f[1]), occ)
+		if float(got[1]) < float(best[1]):
+			best = got
+			av_fit = {"yaw": float(f[2]), "scale": float(f[3])}
+		if i == 1 and best[0].x >= 0:   # a full-size fit either way round beats any smaller one
+			break
+		if i >= 2 and best[0].x >= 0:
+			break
+	return best[0]
 
 
 func _av_hidden(x: int, y: int) -> bool:
@@ -755,11 +767,12 @@ func _av_hidden(x: int, y: int) -> bool:
 	return false
 
 
-func _av_clearing(near: Vector3i, lo: int, hi: int, r: int) -> Vector3i:
+## The best clear (2rx+1) x (2ry+1) patch: [centre, score], score INF if none.
+func _av_clearing(near: Vector3i, lo: int, hi: int, rx: int, ry: int, occ: Dictionary) -> Array:
 	var best := Vector3i(-1, -1, -1)
 	var bd := INF
-	for y in range(r, m.h - r):
-		for x in range(r, m.w - r):
+	for y in range(ry, m.h - ry):
+		for x in range(rx, m.w - rx):
 			var d := Vector2(x - near.x, y - near.y).length()
 			if d < lo or d > hi or d >= bd:
 				continue
@@ -768,15 +781,42 @@ func _av_clearing(near: Vector3i, lo: int, hi: int, r: int) -> Vector3i:
 				if d >= bd:
 					continue
 			var ok := true
-			for dy in range(-r, r + 1):
-				for dx in range(-r, r + 1):
+			for dy in range(-ry, ry + 1):
+				for dx in range(-rx, rx + 1):
 					var v := Vector2i(x + dx, y + dy)
-					if m.t(0, v.x, v.y) != TacMap.T.OUTSIDE or m.label(0, v.x, v.y) >= 0 or not m.walkable(0, v) or occupied().has(Vector3i(v.x, v.y, 0)):
+					if m.t(0, v.x, v.y) != TacMap.T.OUTSIDE or m.label(0, v.x, v.y) >= 0 or not m.walkable(0, v) or occ.has(Vector3i(v.x, v.y, 0)):
 						ok = false
+						break
+				if not ok:
+					break
 			if ok:
 				bd = d
 				best = Vector3i(x, y, 0)
-	return best
+	return [best, bd]
+
+
+## Where the people aboard an AV at `c` step out: beside the side doors (square to the craft's
+## heading), clear of its hull and pods.
+func _av_exits(c: Vector3i, n: int) -> Array:
+	var side := Vector2i(1, 0) if is_zero_approx(float(av_fit.yaw)) else Vector2i(0, 1)
+	var along := Vector2i(side.y, side.x)
+	var reach := 3 if float(av_fit.scale) >= 1.0 else 2
+	var out: Array = []
+	for dist in [reach, reach + 1]:
+		for off in [0, 1, -1]:
+			for sgn in [1, -1]:
+				var d: Vector2i = side * dist * sgn + along * off
+				var v := c + Vector3i(d.x, d.y, 0)
+				if m.inb(v.x, v.y) and m.walkable(0, Vector2i(v.x, v.y)) and not occupied().has(v) and not out.has(v):
+					out.append(v)
+				if out.size() >= n + 1:
+					return out
+	for v in _around(c, n):   # cramped landing: fill up from the squares beside it
+		if out.size() >= n + 1:
+			break
+		if not out.has(v):
+			out.append(v)
+	return out
 
 
 func _around(c: Vector3i, n: int) -> Array:
