@@ -40,7 +40,8 @@ var _slid_this_turn := false
 var _ice_round := -1
 var _met_memory := {}               ## unit id → ICE met this gig: re-jacking doesn't re-ambush (playtest Giant loop)
 var _netting := false               ## this turn went to the NET (the meat Action is forgone, p197)
-var objective := {}                 ## {kind, done, + data: structure, node | snatch: cell, carrier | assassinate: target, name, exits, escaped | rescue: captive, freed}
+var objective := {}                 ## the objective's state: {kind, done, + per-kind fields} (obj.o)
+var obj: Objective                  ## the gig's goal as a module (src/tactical/objectives/)
 var twists: Array = []             ## gig complications: heavy, blackout, shift_change (data/gen/gigs.json)
 var extract_cells := {}             ## Vector3i → true: the deploy zone, where a snatch is carried out
 var vision: Vision                  ## what the crew can see (drives fog and hidden guards)
@@ -119,23 +120,10 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 		if tier == "mook" and p_dice.rng.randf() < World.grenade_chance(e.opfor_faction):
 			g.grenades = 1   # HOUSE-RULE: about a third of Mooks carry a frag grenade (per faction roster)
 		e._add(g, Vector3i(posts[i].pos.x, posts[i].pos.y, posts[i].floor), OPFOR)
-	# Objective: the target NET's most valuable File (data), everyone down, or the package.
-	e.objective = {"kind": kind, "done": false}
-	if kind == "data" and p_map.architectures.has(target_sid):
-		var a: NetArchitecture = p_map.architectures[target_sid]
-		var best := -1
-		for nd in a.nodes_of_type("file"):
-			if best < 0 or int(nd.value) > int(a.nodes[best].value):
-				best = nd.id
-		e.objective.merge({"structure": target_sid, "node": best})
-	elif kind == "snatch":
-		e.objective.merge({"cell": e._package_cell(target_sid, cells[0]), "carrier": -1})
-	elif kind == "assassinate":
-		e._place_vip(target_sid, cells[0], sec)
-	elif kind == "rescue":
-		e._place_captive(target_sid, cells[0])
-	elif kind == "sabotage":
-		e._place_sab_target(target_sid, cells[0])
+	# Objective: a module per kind (data/gen/objectives.json) places what the job needs.
+	e.obj = Objective.make(kind, e)
+	e.objective = e.obj.o
+	e.obj.setup(target_sid, cells[0], sec)
 	if "setup" in p_twists:   # HOUSE-RULE: a fixer sold the crew out; the guards are waiting
 		for u in e.units:
 			if u.team == OPFOR:
@@ -298,7 +286,7 @@ func next_turn() -> void:
 				say("Shift change: the new shift finds the place wrong.")
 				_call_it_in(gs[0])
 		_tick_backup()
-		_tick_fuse()
+		obj.tick()
 		if init.round_num != _civ_round:
 			_civ_round = init.round_num
 			_civilians_tick()
@@ -374,52 +362,14 @@ func _check_end() -> void:
 		pt.erase("carried")
 		pt.pos = units[int(tt.carrier)].pos
 		tt.carrier = -1
-	if objective.get("kind", "data") == "snatch":
-		_drop_package()
+	obj.before_check()
 	if units.filter(func(u): return u.team == 0 and u.c.can_act()).is_empty() \
 			and units.filter(func(u): return u.team == 0 and not u.c.dead and u.c.wake_in > 0).is_empty():
 		state = "lost"   # nobody on the crew can act or will wake up (the loop would otherwise spin)
 		return
-	if objective.get("kind", "") == "assassinate":
-		var vip: Dictionary = units[int(objective.target)]
-		if not objective.done and not vip.c.can_act():
-			objective.done = true
-			events.append({"type": "target_down", "unit": vip.id})
-			say("%s is down. Get out." % objective.name)
-		if objective.done and (opfor().is_empty() or _crew_out()):
-			state = "won"
-			say("The crew gets clear. The job's done.")
-		return
-	if objective.get("kind", "") == "sabotage":
-		if objective.done and (opfor().is_empty() or _crew_out()):
-			state = "won"
-			say("The crew gets clear. The job's done.")
-		return
-	if objective.get("kind", "") == "rescue":
-		var cap: Dictionary = units[int(objective.captive)]
-		if cap.c.dead:
-			state = "lost"
-			say("%s is dead. The job's over." % cap.c.display_name)
-		elif objective.freed and extract_cells.has(cap.pos) and cap.c.can_act():
-			objective.done = true
-			state = "won"
-			say("%s is out." % cap.c.display_name)
-		return
-	if objective.get("kind", "data") == "snatch":
-		var carrier: int = objective.carrier
-		if carrier >= 0 and extract_cells.has(units[carrier].pos):
-			objective.done = true
-			state = "won"
-			say("%s gets the package out." % units[carrier].c.display_name)
-		return
-	if opfor().is_empty():
-		if objective.get("kind", "data") == "eliminate" and backup_in > 0:
-			return   # HOUSE-RULE: a gang hit isn't done while backup is still on its way
-		state = "won"
-		say("All guards are down.")
-	elif objective.get("done", false):
-		state = "won"
-		say("The data is yours.")
+	var r := obj.check_end()
+	if r != "":
+		state = r
 
 
 # --- Locks: bypass and keycards -----------------------------------------------------------
@@ -557,7 +507,7 @@ func withdraw() -> bool:
 			continue
 		u.c.dead = true
 		say("%s is left behind." % u.c.display_name)
-	if objective.get("kind", "") in ["assassinate", "sabotage"] and objective.done:
+	if obj.withdraw_wins():
 		state = "won"   # the hit is done: leaving is the rest of the job
 		say("The crew pulls out. The job's done.")
 		return true
@@ -566,39 +516,7 @@ func withdraw() -> bool:
 	return true
 
 
-# --- Assassination -----------------------------------------------------------------------
-
-const VIP_NAMES := ["Rhyne Castell", "Mara Voss", "Tobias Kade", "Lena Okafor", "Silas Mott", "Yuki Brandt", "Dario Kesh", "Ines Vale",
-	"Oren Haldane", "Petra Szabo", "Marcus Ilunga", "Sable Ferro"]
-
-
-## The mark: a Lieutenant (a Mini Boss at security 2+) in the target building's most secure room,
-## with two bodyguards beside them. Exits: the map's entrances other than the crew's deploy zone,
-## where the mark runs once the alarm goes up (reaching one = the job fails).
-func _place_vip(target_sid: int, origin: Vector2i, sec: int) -> void:
-	var cell := _package_cell(target_sid, origin)
-	var name: String = VIP_NAMES[dice.d(VIP_NAMES.size()) - 1]
-	var vip := Recruit.npc(dice, "mini_boss" if sec >= 2 else "lieutenant", name)
-	vip.faction = opfor_faction
-	_add(vip, cell, OPFOR)
-	var vu: Dictionary = units[-1]
-	vu["vip"] = true
-	var guards := 0
-	for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 1), Vector2i(-1, -1), Vector2i(1, -1), Vector2i(-1, 1)]:
-		if guards >= 2:
-			break
-		var v := cell + Vector3i(d.x, d.y, 0)
-		if m.walkable(v.z, Vector2i(v.x, v.y)) and not occupied().has(v) and m.label(v.z, v.x, v.y) >= 0:
-			var g := World.npc(dice, opfor_faction, "lieutenant" if sec >= 3 else "mook", guards + 1, "Bodyguard")
-			_add(g, v, OPFOR)
-			units[-1]["bodyguard"] = true
-			guards += 1
-	var exits: Array = []
-	for en in m.entrances:
-		if en.kind != "deploy" and m.walkable(int(en.get("floor", 0)), en.pos):
-			exits.append(Vector3i(en.pos.x, en.pos.y, int(en.get("floor", 0))))
-	objective.merge({"target": vu.id, "name": name, "exits": exits, "escaped": false})
-
+# --- Objective helpers ------------------------------------------------------------------------
 
 ## Every crew member still standing is in the extraction zone.
 func _crew_out() -> bool:
@@ -606,14 +524,59 @@ func _crew_out() -> bool:
 	return not up.is_empty() and up.all(func(u): return extract_cells.has(u.pos))
 
 
-## The mark reached an exit: gone, and the job with them.
+## The mark reached an exit (assassination: the AI calls this).
 func _vip_escapes(u: Dictionary) -> void:
-	objective.escaped = true
-	events.append({"type": "escape", "unit": u.id})
-	u.c.dead = true   # off the map (not killed: the log says so)
-	u["escaped"] = true
-	say("%s gets away." % objective.name)
-	state = "lost"
+	if obj.has_method("escape"):
+		obj.escape(u)
+
+
+## Crew actions the objective offers the active unit now ("grab", "free", "plant").
+func obj_actions() -> Array[String]:
+	return obj.actions() if state == "playing" else []
+
+
+func obj_act(action: String) -> Dictionary:
+	return obj.act(action)
+
+
+func can_grab() -> bool:
+	return "grab" in obj_actions()
+
+
+func grab() -> Dictionary:
+	return obj.act("grab")
+
+
+func can_free() -> bool:
+	return "free" in obj_actions()
+
+
+func free_captive() -> Dictionary:
+	return obj.act("free")
+
+
+func can_plant() -> bool:
+	return "plant" in obj_actions()
+
+
+func plant_charge() -> Dictionary:
+	return obj.act("plant")
+
+
+## Rounds until a planted charge goes off (sabotage), or -1.
+func fuse_left() -> int:
+	return obj.fuse_left() if obj.has_method("fuse_left") else -1
+
+
+func _tick_fuse() -> void:
+	obj.tick()
+
+
+## Replace the objective (review reels stage one by hand).
+func set_objective(kind: String, fields: Dictionary) -> void:
+	obj = Objective.make(kind, self)
+	obj.o.merge(fields, true)
+	objective = obj.o
 
 
 # --- Civilians, Trauma Team, MaxTac ---------------------------------------------------------
@@ -781,11 +744,7 @@ func tt_depart() -> void:
 	tt.state = "gone"
 	events.append({"type": "av_leave", "unit": int(tt.patient), "kind": "trauma", "cell": tt.av})
 	say("The Trauma Team AV lifts off with %s." % patient.c.display_name)
-	if objective.get("kind", "") == "assassinate" and int(objective.target) == int(tt.patient):
-		objective.done = false
-		objective.escaped = true
-		state = "lost"
-		say("Trauma Team saved %s. The job's blown." % objective.name)
+	obj.on_evacuated(int(tt.patient))
 
 
 ## MaxTac (HOUSE-RULE stats, RULES-UNVERIFIED against the book's MaxTac block): four operatives,
@@ -906,63 +865,11 @@ func _around(c: Vector3i, n: int) -> Array:
 	return out
 
 
-# --- Sabotage ----------------------------------------------------------------------------
-
-const SAB_TARGETS := {"server_core": "the server core", "generator": "the backup generator", "transformer": "the substation transformer"}
-const CHARGE_FUSE_ROUNDS := 3     ## HOUSE-RULE: a timed charge goes off 3 rounds after it's planted
-const CHARGE_DICE := 8            ## HOUSE-RULE: 8d6, 7x7 squares (a breaching charge, bigger than a frag)
-const CHARGE_HALF := 3
-
-
-## The machine to wreck: a big piece of hardware (cover) in the target building's most secure room.
-func _place_sab_target(target_sid: int, origin: Vector2i) -> void:
-	var cell := _package_cell(target_sid, origin)
-	var kinds := SAB_TARGETS.keys()
-	var kind: String = kinds[dice.d(kinds.size()) - 1]
-	var entry := Furnish.cover_entry("machine", cell.z, Vector2i(cell.x, cell.y), m.label(cell.z, cell.x, cell.y))
-	entry.kind = kind
-	m.add_cover(entry)
-	los.cover_hp[cell] = int(entry.hp)
-	objective.merge({"cell": cell, "target_kind": kind, "name": SAB_TARGETS[kind], "planted": false, "boom_round": -1})
-
-
-func can_plant() -> bool:
-	if objective.get("kind", "") != "sabotage" or objective.planted or objective.done or cur.is_empty() or cur.team != 0:
-		return false
-	return adjacent(cur.pos, objective.cell)
-
-
-## Set the charge on the machine (an Action, next to it): it goes off CHARGE_FUSE_ROUNDS rounds later.
-func plant_charge() -> Dictionary:
-	if not can_plant():
-		return {"ok": false, "reason": "get next to the target"}
-	if not turn.use_action():
-		return {"ok": false, "reason": "no action left"}
-	objective.planted = true
-	objective.boom_round = init.round_num + CHARGE_FUSE_ROUNDS
-	objective["planter"] = cur.id
-	events.append({"type": "plant", "unit": cur.id, "cell": objective.cell})
-	say("%s sets the charge on %s. %d rounds. Move." % [cur.c.display_name, objective.name, CHARGE_FUSE_ROUNDS])
-	return {"ok": true}
-
-
-func fuse_left() -> int:
-	return int(objective.boom_round) - init.round_num if objective.get("planted", false) and not objective.done else -1
-
-
-func _tick_fuse() -> void:
-	if objective.get("kind", "") != "sabotage" or not objective.planted or objective.done or init.round_num < int(objective.boom_round):
-		return
-	_detonate(objective.cell, CHARGE_HALF, CHARGE_DICE, int(objective.get("planter", 0)))
-	objective.done = true
-	say("%s goes up." % String(objective.name).capitalize())
-	alarm = maxi(alarm, 1)
-	_check_end()
-
+# --- Explosions -----------------------------------------------------------------------------
 
 ## A big explosion at `center`: cover in the square breaks first, then everyone in it with a line to
 ## the blast takes the damage (dodge as for grenades, against a fixed DV-like total: HOUSE-RULE 17).
-func _detonate(center: Vector3i, half: int, n_dice: int, by: int) -> void:
+func _detonate(center: Vector3i, half: int, n_dice: int, by: int, total := 17) -> void:
 	var faces := dice.roll_each(n_dice, 6)
 	var dmg := 0
 	for f in faces:
@@ -987,7 +894,7 @@ func _detonate(center: Vector3i, half: int, n_dice: int, by: int) -> void:
 	var before := {}
 	for o in caught:
 		before[o.id] = [o.c.hp, o.c.wound_state()]
-	var results := Attack.explosion_rolled(dice, 17, faces, caught.map(func(o): return o.c))
+	var results := Attack.explosion_rolled(dice, total, faces, caught.map(func(o): return o.c))
 	_rouse(caught.filter(func(o): return is_guard(o)))
 	_noise(center)
 	var hits: Array = []
@@ -999,59 +906,12 @@ func _detonate(center: Vector3i, half: int, n_dice: int, by: int) -> void:
 		"destroyed": destroyed, "charge": true, "half": half})
 
 
-# --- Rescue ------------------------------------------------------------------------------
+# --- Placement ---------------------------------------------------------------------------
 
-const CAPTIVE_NAMES := ["Jun Reyes", "Abby Kowal", "Teo Marsh", "Nadia Faris", "Ezra Quill", "Mina Sato", "Luka Brenner", "Zoe Adair"]
-
-
-## The captive: held in the target building's most secure room, unarmed and hurt. Neutral (team 2)
-## until freed, so they neither see for the crew nor draw fire; freed, they join the crew's side and
-## the initiative order and follow the crew on their own turns.
-func _place_captive(target_sid: int, origin: Vector2i) -> void:
-	var cell := _package_cell(target_sid, origin)
-	var c := Recruit.generate(dice, ["media", "netrunner", "tech", "fixer"][dice.d(4) - 1], "edgerunner", CAPTIVE_NAMES[dice.d(CAPTIVE_NAMES.size()) - 1])
-	c.weapons.clear()
-	c.grenades = 0
-	c.hp = maxi(1, c.max_hp() / 2)   # roughed up
-	c.faction = "captive"
-	_add(c, cell, CAPTIVE)
-	var cu: Dictionary = units[-1]
-	cu["captive"] = true
-	cu.alerted = false
-	objective.merge({"captive": cu.id, "freed": false})
-
-
-func can_free() -> bool:
-	if objective.get("kind", "") != "rescue" or objective.freed or cur.is_empty() or cur.team != 0:
-		return false
-	var cap: Dictionary = units[int(objective.captive)]
-	return cur.pos == cap.pos or adjacent(cur.pos, cap.pos)
-
-
-## Cut the captive loose (an Action, next to them).
-func free_captive() -> Dictionary:
-	if not can_free():
-		return {"ok": false, "reason": "get next to the captive"}
-	if not turn.use_action():
-		return {"ok": false, "reason": "no action left"}
-	var cap: Dictionary = units[int(objective.captive)]
-	cap.team = 0
-	cap.c.team = 0
-	cap.alerted = true
-	init.add(cap.c)
-	objective.freed = true
-	events.append({"type": "free", "unit": cur.id, "target": cap.id})
-	say("%s cuts %s loose. Get them to the extraction zone." % [cur.c.display_name, cap.c.display_name])
-	refresh_vision()
-	_check_end()
-	return {"ok": true}
-
-
-# --- Snatch objective ------------------------------------------------------------------
-
-## The package sits indoors in the target building's most secure zone, as far from the deploy zone
-## as walking gets (upper floors count through the distance field), off guard posts and cover.
-func _package_cell(target_sid: int, origin: Vector2i) -> Vector3i:
+## The objective's square (the package, the mark, the captive, the machine): indoors in the target
+## building's most secure zone, as far from the deploy zone as walking gets (upper floors count
+## through the distance field), off guard posts and cover.
+func secure_cell(target_sid: int, origin: Vector2i) -> Vector3i:
 	var field: Dictionary = nav.distance_field([Vector3i(origin.x, origin.y, 0)], {})
 	var best := Vector3i(origin.x, origin.y, 0)
 	var best_d := -1.0
@@ -1066,38 +926,6 @@ func _package_cell(target_sid: int, origin: Vector2i) -> Vector3i:
 			best_d = score
 			best = cell
 	return best
-
-
-## Grab the package (an Action) from its square or a neighbouring one.
-func grab() -> Dictionary:
-	if objective.get("kind", "") != "snatch" or int(objective.carrier) >= 0:
-		return {"ok": false, "reason": "nothing to grab"}
-	var cell: Vector3i = objective.cell
-	if cur.pos != cell and not adjacent(cur.pos, cell):
-		return {"ok": false, "reason": "get next to the package"}
-	if not turn.use_action():
-		return {"ok": false, "reason": "no action left"}
-	objective.carrier = cur.id
-	events.append({"type": "grab", "unit": cur.id, "cell": cell})
-	say("%s has the package. Carry it to the extraction zone." % cur.c.display_name)
-	_check_end()
-	return {"ok": true}
-
-
-func can_grab() -> bool:
-	return objective.get("kind", "") == "snatch" and int(objective.carrier) < 0 and not cur.is_empty() \
-		and cur.team == 0 and (cur.pos == objective.cell or adjacent(cur.pos, objective.cell))
-
-
-## A carrier who can't act any more drops the package on their square.
-func _drop_package() -> void:
-	var carrier: int = objective.get("carrier", -1)
-	if carrier < 0 or units[carrier].c.can_act():
-		return
-	objective.cell = units[carrier].pos
-	objective.carrier = -1
-	events.append({"type": "drop", "unit": carrier, "cell": objective.cell})
-	say("%s drops the package." % units[carrier].c.display_name)
 
 
 # --- Alerts ------------------------------------------------------------------------

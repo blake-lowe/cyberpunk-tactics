@@ -131,7 +131,7 @@ func test_sabotage_plant_fuse_and_blast() -> void:
 	var e := _enc("sabotage")
 	var tc: Vector3i = e.objective.cell
 	assert_true(e.m.has_cover_at(tc.z, Vector2i(tc.x, tc.y)), "the machine stands in the most secure room")
-	assert_true(e.objective.target_kind in Encounter.SAB_TARGETS, "a known machine")
+	assert_true(e.objective.target_kind in e.obj.cfg.targets, "a known machine")
 	var solo: Dictionary = e.units[0]
 	e.cur = solo
 	e.turn = TurnState.begin(e.dice, solo.c)
@@ -143,9 +143,9 @@ func test_sabotage_plant_fuse_and_blast() -> void:
 			break
 	assert_true(e.can_plant())
 	assert_true(e.plant_charge().ok)
-	assert_eq(e.fuse_left(), Encounter.CHARGE_FUSE_ROUNDS)
+	assert_eq(e.fuse_left(), int(e.obj.cfg.fuse_rounds))
 	# the planter stays put: the blast catches them, wrecks the machine
-	e.init.round_num += Encounter.CHARGE_FUSE_ROUNDS
+	e.init.round_num += int(e.obj.cfg.fuse_rounds)
 	var hp0: int = solo.c.hp
 	e._tick_fuse()
 	assert_true(e.objective.done, "the machine is wrecked")

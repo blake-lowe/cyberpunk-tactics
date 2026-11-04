@@ -1,0 +1,139 @@
+class_name Objective
+extends RefCounted
+## A gig's goal as a plug-in: one module per kind (data_theft, eliminate, snatch, assassinate,
+## rescue, sabotage) in this folder, registered with its tuning in data/gen/objectives.json.
+## Encounter, the AI, the HUD and the view talk only to this interface, so a new kind of job is a
+## new module and a data entry.
+##
+## State lives in `o` (Encounter.objective): a plain Dictionary with at least {kind, done}, so the
+## view, the campaign report and tests can read it and it stays easy to save. Modules keep no other
+## state. Rules only: no Nodes; the view turns marks() into markers.
+
+const DIR := "res://src/tactical/objectives/"
+
+var e: Encounter
+var o: Dictionary = {}     ## the objective state (Encounter.objective)
+var cfg: Dictionary = {}   ## this kind's entry in data/gen/objectives.json
+
+
+## The module for `kind` (unknown kinds play as "eliminate").
+static func make(kind: String, enc: Encounter) -> Objective:
+	var all := RulesDB.gen("objectives.json")
+	var key := kind if all.has(kind) and kind != "_doc" else "eliminate"
+	var c: Dictionary = all[key]
+	var script: GDScript = load(DIR + String(c.script))
+	var ob: Objective = script.new()
+	ob.e = enc
+	ob.cfg = c
+	ob.o = {"kind": key, "done": false}
+	return ob
+
+
+## Every registered objective kind.
+static func kinds() -> Array:
+	return RulesDB.gen("objectives.json").keys().filter(func(k): return k != "_doc")
+
+
+# --- Hooks (override what the kind needs) ------------------------------------------------
+
+## Place what the job needs (the mark, the package, the machine) once the guards are posted.
+## `origin` is the deploy zone's first square; `sec` the effective security level.
+func setup(_target_sid: int, _origin: Vector2i, _sec: int) -> void:
+	pass
+
+
+## Runs before every end check (a downed carrier drops the package).
+func before_check() -> void:
+	pass
+
+
+## "won", "lost", or "" to play on. Runs after the crew-wiped check.
+func check_end() -> String:
+	return _cleared()
+
+
+## Start of every turn (timed things: the sabotage fuse).
+func tick() -> void:
+	pass
+
+
+## Crew actions the objective offers the active unit right now: "grab", "free", "plant".
+func actions() -> Array[String]:
+	return []
+
+
+## Do one of actions() (spends the Action). {ok, reason?}.
+func act(_action: String) -> Dictionary:
+	return {"ok": false, "reason": "nothing to do here"}
+
+
+## Leaving through the deploy zone finishes the job (after the hit, the sabotage) instead of fleeing.
+func withdraw_wins() -> bool:
+	return false
+
+
+## Trauma Team flew `patient` (a unit id) out.
+func on_evacuated(_patient: int) -> void:
+	pass
+
+
+## The round tab's line (upper case, may hold a second line).
+func hud_text() -> String:
+	return "OBJECTIVE · ELIMINATE ALL HOSTILES"
+
+
+## Where the view points: [{cell: Vector3i, h: metres above that square's floor, label: String,
+## tone: "gold" | "red" | "cyan"}], or {extract: true} for the extraction zone. `fog`: whether the
+## view hides what the crew hasn't seen.
+func marks(_fog: bool) -> Array:
+	return []
+
+
+## AI: extra wish for a guard to stand on `cell` (snatch: chase the carrier, mind the package).
+func ai_pull(_u: Dictionary, _cell: Vector3i) -> float:
+	return 0.0
+
+
+## AI: how much more a guard wants to shoot `t` (snatch: the carrier).
+func ai_target_mult(_t: Dictionary) -> float:
+	return 1.0
+
+
+## The unit the objective is about (the mark, the captive), or -1. For cameras and review shots.
+func focus_unit() -> int:
+	return -1
+
+
+## The square the objective is about (the package, the machine), or (-1, -1, -1).
+func focus_cell() -> Vector3i:
+	return Vector3i(-1, -1, -1)
+
+
+# --- Helpers ---------------------------------------------------------------------------
+
+func done() -> bool:
+	return bool(o.get("done", false))
+
+
+## Every guard down wins (the default for data and elimination jobs).
+func _cleared() -> String:
+	if e.opfor().is_empty():
+		e.say("All guards are down.")
+		return "won"
+	return ""
+
+
+## The active unit is crew, it's their turn, and they're standing at or next to `cell`.
+func _crew_beside(cell: Vector3i) -> bool:
+	return not e.cur.is_empty() and int(e.cur.team) == Encounter.CREW and (e.cur.pos == cell or e.adjacent(e.cur.pos, cell))
+
+
+func _extract_mark() -> Dictionary:
+	return {"extract": true, "label": "EXTRACT", "tone": "gold"}
+
+
+## Spend the active unit's Action; {ok: false} if it's gone.
+func _use_action() -> Dictionary:
+	if not e.turn.use_action():
+		return {"ok": false, "reason": "no action left"}
+	return {"ok": true}

@@ -640,37 +640,7 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 
 ## The gig's goal in a few words, for the round tab.
 static func objective_text(enc: Encounter) -> String:
-	var o := enc.objective
-	match String(o.get("kind", "data")):
-		"snatch":
-			return "OBJECTIVE · CARRY THE PACKAGE TO THE EXTRACTION ZONE" if int(o.get("carrier", -1)) >= 0 else "OBJECTIVE · RECOVER THE PACKAGE"
-		"eliminate":
-			return "OBJECTIVE · ELIMINATE ALL HOSTILES (%d LEFT)" % enc.opfor().size()
-		"assassinate":
-			if o.get("done", false):
-				if not enc.tt.is_empty() and String(enc.tt.state) in ["called", "landed"]:
-					return "OBJECTIVE · %s IS DOWN, NOT DEAD\nTRAUMA TEAM INBOUND: FINISH IT" % String(o.name).to_upper()
-				return "OBJECTIVE · %s IS DOWN\nGET TO THE EXTRACTION ZONE" % String(o.name).to_upper()
-			var vip: Dictionary = enc.units[int(o.target)]
-			var run := " · RUNNING FOR AN EXIT" if (vip.alerted or enc.alarm >= 1) else ""
-			if not enc.tt.is_empty() and int(enc.tt.patient) == vip.id and String(enc.tt.state) in ["called", "landed"]:
-				run = " · TRAUMA TEAM INBOUND: FINISH IT"
-			return "OBJECTIVE · TAKE DOWN %s%s" % [String(o.name).to_upper(), run]
-		"sabotage":
-			if o.get("done", false):
-				return "OBJECTIVE · %s IS WRECKED\nGET TO THE EXTRACTION ZONE" % String(o.name).to_upper()
-			if o.get("planted", false):
-				return "CHARGE SET · %d ROUND%s · GET CLEAR" % [enc.fuse_left(), "" if enc.fuse_left() == 1 else "S"]
-			return "OBJECTIVE · PLANT A CHARGE ON %s" % String(o.name).to_upper()
-		"rescue":
-			var cap: Dictionary = enc.units[int(o.captive)]
-			if o.get("freed", false):
-				return "OBJECTIVE · GET %s TO THE EXTRACTION ZONE" % cap.c.display_name.to_upper()
-			return "OBJECTIVE · FIND AND FREE %s" % cap.c.display_name.to_upper()
-	if int(o.get("node", -1)) >= 0 and enc.m.architectures.has(int(o.structure)):
-		var fn: Dictionary = (enc.m.architectures[int(o.structure)] as NetArchitecture).nodes[int(o.node)]
-		return "OBJECTIVE · DOWNLOAD THE ★ FILE (NET LEVEL %d)\nOR ELIMINATE ALL HOSTILES" % int(fn.zone)
-	return "OBJECTIVE · ELIMINATE ALL HOSTILES"
+	return enc.obj.hud_text()
 
 
 ## Show each M5 action only when it applies to the active unit; reflect the active tool.

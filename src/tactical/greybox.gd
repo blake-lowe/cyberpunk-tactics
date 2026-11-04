@@ -305,7 +305,7 @@ func _process(delta: float) -> void:
 	if _promo:
 		_hide_overlays()
 	if _charge_node and is_instance_valid(_charge_node) and enc:   # blink faster as the fuse runs down
-		var rate := 2.0 + 3.0 * float(Encounter.CHARGE_FUSE_ROUNDS - maxi(enc.fuse_left(), 0))
+		var rate := 2.0 + 3.0 * float(int(enc.obj.cfg.get("fuse_rounds", 3)) - maxi(enc.fuse_left(), 0))
 		var on := fmod(Time.get_ticks_msec() / 1000.0 * rate, 1.0) < 0.5
 		(_charge_node.get_node("led") as Node3D).visible = on
 		(_charge_node.get_node("glow") as OmniLight3D).visible = on
@@ -612,15 +612,15 @@ func new_gig() -> void:
 		_frame_unit(enc.cur)
 	if _focus != "":
 		var fc := Vector2(m.w / 2.0, m.h / 2.0)
-		var o_unit: int = int(enc.objective.get("target", enc.objective.get("captive", -1)))
+		var o_unit := enc.obj.focus_unit()
+		var o_cell := enc.obj.focus_cell()
 		if _focus == "objective" and o_unit >= 0:   # review renders: the mark or the captive
 			var ou: Vector3i = enc.units[o_unit].pos
 			fc = Vector2(ou.x, ou.y)
 			view_floor = ou.z
-		elif _focus == "objective" and enc.objective.has("cell"):   # review renders: the snatch package
-			var oc: Vector3i = enc.objective.cell
-			fc = Vector2(oc.x, oc.y)
-			view_floor = oc.z
+		elif _focus == "objective" and o_cell.x >= 0:   # review renders: the package, the machine
+			fc = Vector2(o_cell.x, o_cell.y)
+			view_floor = o_cell.z
 		elif _focus == "civ":   # review renders: the bystander nearest the crew
 			var best := INF
 			for u in enc.units:
@@ -1185,53 +1185,13 @@ func objective_marks() -> Array:
 	var out := []
 	if enc == null or enc.state != "playing" or _net_cleaned:
 		return out
-	var o := enc.objective
-	match String(o.get("kind", "")):
-		"snatch":
-			if int(o.get("carrier", -1)) < 0:
-				var pc: Vector3i = o.cell
-				out.append([Vector3(pc.x + 0.5, _gy(pc) + 0.4, pc.y + 0.5), "PACKAGE", Hud.GOLD, pc])
-			else:
-				var acc := Vector2.ZERO
-				for c2 in enc.extract_cells:
-					acc += Vector2(c2.x + 0.5, c2.y + 0.5)
-				acc /= maxf(1.0, enc.extract_cells.size())
-				out.append([Vector3(acc.x, 0.3, acc.y), "EXTRACT", Hud.GOLD, Vector3i(int(acc.x), int(acc.y), 0)])
-		"assassinate":
-			var vip: Dictionary = enc.units[int(o.target)]
-			if not o.get("done", false) and not vip.c.dead and (not fog_on or enc.vision.visible.has(vip.pos) or enc.vision.explored.has(vip.pos)):
-				out.append([Vector3(vip.pos.x + 0.5, _gy(vip.pos) + 1.6, vip.pos.y + 0.5), "TARGET", Hud.RED, vip.pos])
-			elif o.get("done", false):
-				out.append(_extract_mark())
-		"sabotage":
-			var sc: Vector3i = o.cell
-			if o.get("done", false):
-				out.append(_extract_mark())
-			elif o.get("planted", false):
-				out.append([Vector3(sc.x + 0.5, _gy(sc) + 1.8, sc.y + 0.5), "CHARGE · %d" % enc.fuse_left(), Hud.RED, sc])
-			else:
-				out.append([Vector3(sc.x + 0.5, _gy(sc) + 1.8, sc.y + 0.5), "TARGET", Hud.RED, sc])
-		"rescue":
-			var cap: Dictionary = enc.units[int(o.captive)]
-			if not o.get("freed", false):
-				out.append([Vector3(cap.pos.x + 0.5, _gy(cap.pos) + 1.4, cap.pos.y + 0.5), "CAPTIVE", Hud.GOLD, cap.pos])
-			else:
-				out.append(_extract_mark())
-		"data":
-			if int(o.get("node", -1)) >= 0 and not enc.runs.has(_runner_id()):
-				var a: NetArchitecture = m.architectures[int(o.structure)]
-				var best: Variant = null
-				var bd := INF
-				var from: Vector3i = enc.cur.pos if not enc.cur.is_empty() else enc.units[0].pos
-				for ap in a.access_points:
-					var d: Dictionary = m.devices[ap.device]
-					var dp := Vector3i(d.pos.x, d.pos.y, d.floor)
-					var dist := Vector3(dp - from).length()
-					if dist < bd:
-						bd = dist
-						best = dp
-				if best != null:
-					out.append([Vector3(best.x + 0.5, _gy(best) + 0.7, best.y + 0.5), "JACK POINT", Hud.CYAN, best])
+	var tones := {"gold": Hud.GOLD, "red": Hud.RED, "cyan": Hud.CYAN}
+	for mk in enc.obj.marks(fog_on):   # the objective module says where; the view draws it
+		if mk.get("extract", false):
+			out.append(_extract_mark())
+		else:
+			var c: Vector3i = mk.cell
+			out.append([Vector3(c.x + 0.5, _gy(c) + float(mk.h), c.y + 0.5), String(mk.label), tones.get(String(mk.tone), Hud.GOLD), c])
 	return out
 
 
@@ -1872,7 +1832,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			KEY_5: _on_hud("tool", "shell")
 			KEY_4: _on_hud("suppress", null)
 			KEY_T: _on_hud("tool", "stabilize")
-			KEY_B: _on_hud("free" if enc and enc.can_free() else ("plant" if enc and enc.can_plant() else "grab"), null)
+			KEY_B: _on_hud(enc.obj_actions()[0] if enc and not enc.obj_actions().is_empty() else "grab", null)   # the objective's action here
 			KEY_Y: _on_hud("tool", "dose")
 			KEY_U: _on_hud("tool", "rig")
 			KEY_L: _on_hud("withdraw", null)
@@ -2428,7 +2388,7 @@ func _run_reel() -> void:
 				if enc.adjacent(s, enc.cur.pos):
 					spot = s
 					break
-			enc.objective = {"kind": "snatch", "done": false, "cell": spot, "carrier": -1}
+			enc.set_objective("snatch", {"cell": spot, "carrier": -1})
 			_refresh()
 			await get_tree().create_timer(1.2).timeout
 			enc.turn = TurnState.begin(dice, enc.cur.c)
@@ -2706,160 +2666,251 @@ func _body_pos(u: Dictionary) -> Vector3:
 	return Vector3(u.pos.x + 0.5, _gy(u.pos), u.pos.y + 0.5)
 
 
+## Events that don't count as "hostile activity" for the enemy-phase banner (bookkeeping, third
+## parties, things the crew caused).
+const QUIET_EVENTS := ["alert", "death", "camera", "tt_call", "av_land", "av_leave", "tt_pickup", "panic", "civ_gone"]
+
+var _handlers: Dictionary = {}
+
+
+## Event type (Encounter.events) → how the view plays it. Rules modules (objectives, responders)
+## add event types; their view side registers a handler here (register_event) instead of growing
+## a match statement. Unknown types are skipped.
+func _event_handlers() -> Dictionary:
+	if _handlers.is_empty():
+		_handlers = {
+			"move": _anim_move,
+			"attack": _anim_attack,
+			"cover": _anim_cover,
+			"alert": _anim_alert,
+			"reload": _anim_reload,
+			"stabilize": _anim_stabilize,
+			"rig": _ev_rig,
+			"dose": _ev_dose,
+			"suppress": _anim_suppress,
+			"shell": _anim_shell,
+			"blast": _anim_blast,
+			"harm": _anim_harm,
+			"alarm": _ev_alarm,
+			"backup": _anim_backup,
+			"bypass": _ev_bypass,
+			"keycard": _ev_keycard,
+			"tamper": _ev_tamper,
+			"camera": _ev_camera,
+			"death": _anim_death,
+			"grab": _ev_grab,
+			"drop": _ev_drop,
+			"free": _ev_free,
+			"plant": _ev_plant,
+			"panic": _ev_panic,
+			"civ_gone": _ev_civ_gone,
+			"tt_call": _ev_tt_call,
+			"av_land": _anim_av_land,
+			"tt_pickup": _ev_tt_pickup,
+			"av_leave": _anim_av_leave,
+			"target_down": _ev_target_down,
+			"escape": _ev_escape,
+		}
+	return _handlers
+
+
+func register_event(type: String, handler: Callable) -> void:
+	_event_handlers()[type] = handler
+
+
 func _play_events() -> void:
 	var hostile_shown := false
 	while not enc.events.is_empty():
 		var e: Dictionary = enc.events.pop_front()
 		var u: Dictionary = enc.units[e.unit]
-		if enc.is_guard(u) and _foe(u) and not hostile_shown and String(e.type) not in ["alert", "death", "camera", "tt_call", "av_land", "av_leave", "tt_pickup", "panic", "civ_gone"] and not e.get("patrol", false) and _event_visible(e):
+		if enc.is_guard(u) and _foe(u) and not hostile_shown and String(e.type) not in QUIET_EVENTS and not e.get("patrol", false) and _event_visible(e):
 			hostile_shown = true
 			hud.enemy_phase(true)
 			hud.turn_banner("HOSTILE ACTIVITY", Hud.RED)
 			_ui_snd("sfx_ui_error", -10.0)
 			await get_tree().create_timer(0.3).timeout
-		match String(e.type):
-			"move": await _anim_move(e)
-			"attack": await _anim_attack(e)
-			"cover": await _anim_cover(e)
-			"alert": _anim_alert(e)
-			"reload": await _anim_reload(e)
-			"stabilize": await _anim_stabilize(e)
-			"rig":
-				var rn: CharModel = unit_nodes[u.id]
-				var rt: Dictionary = enc.units[e.target]
-				_focus_unit = u.id
-				if rt != u:
-					var rd := Vector2(rt.pos.x - u.pos.x, rt.pos.y - u.pos.y)
-					_turn_to(rn, atan2(rd.x, rd.y), 0.15)
-				rn.perform("medtech", 1.0)
-				await get_tree().create_timer(1.0).timeout
-				_float(rt, ("%s ARMOUR RIGGED" % String(e.loc).to_upper()) if e.ok else "RIG FAILED", Hud.CYAN if e.ok else Hud.RED)
-				await get_tree().create_timer(0.4).timeout
-			"dose":
-				var dn: CharModel = unit_nodes[u.id]
-				var dt: Dictionary = enc.units[e.target]
-				_focus_unit = u.id
-				if dt != u:
-					var dd := Vector2(dt.pos.x - u.pos.x, dt.pos.y - u.pos.y)
-					_turn_to(dn, atan2(dd.x, dd.y), 0.15)
-				dn.duck(0.4)
-				await get_tree().create_timer(0.35).timeout
-				_float(dt, ("SPEEDHEAL +%d" % int(e.healed)) if e.drug == "speedheal" else "STIMMED", Hud.GREEN)
-				_snd("sfx_inject", _body_pos(dt), -4.0)
-				await get_tree().create_timer(0.5).timeout
-			"suppress": await _anim_suppress(e)
-			"shell": await _anim_shell(e)
-			"blast": await _anim_blast(e)
-			"harm": _anim_harm(e)
-			"alarm":
-				if _seen(u.pos):
-					_float(u, "CALLING IT IN", Hud.RED)
-				hud.toast("ALARM: BACKUP IN %d ROUNDS" % int(e.rounds))
-				_snd("sfx_alarm", _body_pos(u), -6.0, 0.0, 500)
-			"backup": await _anim_backup(e)
-			"bypass":
-				_focus_unit = u.id
-				var bn: CharModel = unit_nodes[u.id]
-				var bc: Vector3i = e.cell
-				var bd := Vector2(bc.x - u.pos.x, bc.y - u.pos.y)
-				_turn_to(bn, atan2(bd.x, bd.y), 0.15)
-				bn.perform("medtech", 1.2)
-				var lockp := Vector3(bc.x + 0.5, _gy(bc) + 0.62, bc.y + 0.5)
-				for k in 3:
-					await get_tree().create_timer(0.3).timeout
-					fx.lock_crackle(lockp, e.ok or k < 2)
-				_float(u, "LOCK BYPASSED" if e.ok else ("BUZZER!" if e.loud else "BYPASS FAILED"), Hud.CYAN if e.ok else Hud.RED)
-				if e.ok:
-					hud.flash_screen(Color(0.2, 0.9, 1.0, 0.06))
-				await get_tree().create_timer(0.4).timeout
-			"keycard":
-				_focus_unit = u.id
-				var kn: CharModel = unit_nodes[u.id]
-				kn.duck(0.6)
-				await get_tree().create_timer(0.35).timeout
-				var fu: Dictionary = enc.units[e.from]
-				fx.glint(Vector3(fu.pos.x + 0.5, _gy(fu.pos) + 0.4, fu.pos.y + 0.5))
-				_float(u, "%s KEYCARD" % TacMap.ZONE_NAMES[int(e.zone)].to_upper(), Hud.GOLD)
-				hud.toast("%d DOOR%s UNLOCKED" % [int(e.opened), "" if int(e.opened) == 1 else "S"])
-				await get_tree().create_timer(0.5).timeout
-			"tamper":
-				_focus_unit = u.id
-				(unit_nodes[u.id] as CharModel).perform("idle_shift", 0.8)
-				await get_tree().create_timer(0.6).timeout
-				_float(u, "CAMERA DOWN" if e.ok else "TAMPER FAILED", Hud.CYAN if e.ok else Hud.RED)
-				await get_tree().create_timer(0.4).timeout
-			"camera":
-				var tu: Dictionary = enc.units[e.target]
-				_float(tu, "ON CAMERA", Hud.RED)
-				hud.toast("A CAMERA SPOTTED %s · TAKE THE CAMERAS IN THE NET" % tu.c.display_name.to_upper())
-			"death": await _anim_death(e)
-			"grab":
-				var gn: CharModel = unit_nodes[u.id]
-				_focus_unit = u.id
-				gn.duck(0.6)
-				await get_tree().create_timer(0.4).timeout
-				_float(u, "PACKAGE RECOVERED", Hud.GOLD)
-				_ui_snd("sfx_ui_confirm", -6.0)
-				hud.toast("CARRY IT TO THE EXTRACTION ZONE")
-				await get_tree().create_timer(0.5).timeout
-			"drop":
-				_float(u, "PACKAGE DROPPED", Hud.RED)
-			"free":
-				var fnode: CharModel = unit_nodes[u.id]
-				var ct: Dictionary = enc.units[e.target]
-				_focus_unit = u.id
-				fnode.duck(0.6)
-				_snd("sfx_zap", _body_pos(ct), -10.0)
-				await get_tree().create_timer(0.4).timeout
-				_float(ct, "FREED", Hud.GOLD)
-				_ui_snd("sfx_ui_confirm", -6.0)
-				hud.toast("GET %s TO THE EXTRACTION ZONE" % ct.c.display_name.to_upper())
-				await get_tree().create_timer(0.5).timeout
-			"plant":
-				var pn: CharModel = unit_nodes[u.id]
-				_focus_unit = u.id
-				pn.perform("medtech", 1.0)
-				await get_tree().create_timer(0.8).timeout
-				var pc: Vector3i = e.cell
-				_make_charge(Vector3(pc.x + 0.5, _gy(pc), pc.y + 0.5))
-				_snd("sfx_beep", _body_pos(u), 0.0)
-				_float(u, "CHARGE SET", Hud.RED)
-				hud.toast("%d ROUNDS · GET CLEAR OF THE BLAST" % Encounter.CHARGE_FUSE_ROUNDS)
-				await get_tree().create_timer(0.4).timeout
-			"panic":
-				var shown := 0
-				for pid in e.units:
-					var pu: Dictionary = enc.units[pid]
-					if _seen(pu.pos) and shown < 3:
-						_float(pu, "SCREAMS", Color("ffd0a0"))
-						shown += 1
-				if shown > 0:
-					hud.toast("BYSTANDERS SCATTER")
-			"civ_gone":
-				(unit_nodes[u.id] as Node3D).visible = false
-			"tt_call":
-				if _seen(u.pos):
-					_float(u, "TRAUMA CARD", Color("2a8cff"))
-				hud.toast("TRAUMA TEAM INBOUND · %d ROUNDS" % Encounter.TT_ROUNDS)
-				_ui_snd("sfx_beep", -4.0)
-			"av_land": await _anim_av_land(e)
-			"tt_pickup":
-				var tu2: Dictionary = enc.units[e.target]
-				_float(u, "PATIENT SECURED", Color("2a8cff"))
-				(unit_nodes[tu2.id] as Node3D).visible = false
-				await get_tree().create_timer(0.4).timeout
-			"av_leave": await _anim_av_leave(e)
-			"target_down":
-				_float(u, "TARGET DOWN", Hud.GOLD)
-				_ui_snd("sfx_ui_confirm", -6.0)
-				hud.toast("THE MARK IS DOWN · GET TO THE EXTRACTION ZONE OR WITHDRAW")
-			"escape":
-				if _seen(u.pos):
-					_float(u, "TARGET ESCAPED", Hud.RED)
-				(unit_nodes[u.id] as Node3D).visible = false
-				hud.toast("%s GOT AWAY" % String(enc.objective.get("name", "THE MARK")).to_upper())
+		var h: Variant = _event_handlers().get(String(e.type))
+		if h != null:
+			await (h as Callable).call(e)
 	hud.enemy_phase(false)
 	_focus_unit = -1
+
+
+# --- Event handlers (registered in _event_handlers) ---------------------------------------
+
+func _ev_rig(e: Dictionary) -> void:
+	var u: Dictionary = enc.units[e.unit]
+	var rn: CharModel = unit_nodes[u.id]
+	var rt: Dictionary = enc.units[e.target]
+	_focus_unit = u.id
+	if rt != u:
+		var rd := Vector2(rt.pos.x - u.pos.x, rt.pos.y - u.pos.y)
+		_turn_to(rn, atan2(rd.x, rd.y), 0.15)
+	rn.perform("medtech", 1.0)
+	await get_tree().create_timer(1.0).timeout
+	_float(rt, ("%s ARMOUR RIGGED" % String(e.loc).to_upper()) if e.ok else "RIG FAILED", Hud.CYAN if e.ok else Hud.RED)
+	await get_tree().create_timer(0.4).timeout
+
+
+func _ev_dose(e: Dictionary) -> void:
+	var u: Dictionary = enc.units[e.unit]
+	var dn: CharModel = unit_nodes[u.id]
+	var dt: Dictionary = enc.units[e.target]
+	_focus_unit = u.id
+	if dt != u:
+		var dd := Vector2(dt.pos.x - u.pos.x, dt.pos.y - u.pos.y)
+		_turn_to(dn, atan2(dd.x, dd.y), 0.15)
+	dn.duck(0.4)
+	await get_tree().create_timer(0.35).timeout
+	_float(dt, ("SPEEDHEAL +%d" % int(e.healed)) if e.drug == "speedheal" else "STIMMED", Hud.GREEN)
+	_snd("sfx_inject", _body_pos(dt), -4.0)
+	await get_tree().create_timer(0.5).timeout
+
+
+func _ev_alarm(e: Dictionary) -> void:
+	var u: Dictionary = enc.units[e.unit]
+	if _seen(u.pos):
+		_float(u, "CALLING IT IN", Hud.RED)
+	hud.toast("ALARM: BACKUP IN %d ROUNDS" % int(e.rounds))
+	_snd("sfx_alarm", _body_pos(u), -6.0, 0.0, 500)
+
+
+func _ev_bypass(e: Dictionary) -> void:
+	var u: Dictionary = enc.units[e.unit]
+	_focus_unit = u.id
+	var bn: CharModel = unit_nodes[u.id]
+	var bc: Vector3i = e.cell
+	var bd := Vector2(bc.x - u.pos.x, bc.y - u.pos.y)
+	_turn_to(bn, atan2(bd.x, bd.y), 0.15)
+	bn.perform("medtech", 1.2)
+	var lockp := Vector3(bc.x + 0.5, _gy(bc) + 0.62, bc.y + 0.5)
+	for k in 3:
+		await get_tree().create_timer(0.3).timeout
+		fx.lock_crackle(lockp, e.ok or k < 2)
+	_float(u, "LOCK BYPASSED" if e.ok else ("BUZZER!" if e.loud else "BYPASS FAILED"), Hud.CYAN if e.ok else Hud.RED)
+	if e.ok:
+		hud.flash_screen(Color(0.2, 0.9, 1.0, 0.06))
+	await get_tree().create_timer(0.4).timeout
+
+
+func _ev_keycard(e: Dictionary) -> void:
+	var u: Dictionary = enc.units[e.unit]
+	_focus_unit = u.id
+	var kn: CharModel = unit_nodes[u.id]
+	kn.duck(0.6)
+	await get_tree().create_timer(0.35).timeout
+	var fu: Dictionary = enc.units[e.from]
+	fx.glint(Vector3(fu.pos.x + 0.5, _gy(fu.pos) + 0.4, fu.pos.y + 0.5))
+	_float(u, "%s KEYCARD" % TacMap.ZONE_NAMES[int(e.zone)].to_upper(), Hud.GOLD)
+	hud.toast("%d DOOR%s UNLOCKED" % [int(e.opened), "" if int(e.opened) == 1 else "S"])
+	await get_tree().create_timer(0.5).timeout
+
+
+func _ev_tamper(e: Dictionary) -> void:
+	var u: Dictionary = enc.units[e.unit]
+	_focus_unit = u.id
+	(unit_nodes[u.id] as CharModel).perform("idle_shift", 0.8)
+	await get_tree().create_timer(0.6).timeout
+	_float(u, "CAMERA DOWN" if e.ok else "TAMPER FAILED", Hud.CYAN if e.ok else Hud.RED)
+	await get_tree().create_timer(0.4).timeout
+
+
+func _ev_camera(e: Dictionary) -> void:
+	var tu: Dictionary = enc.units[e.target]
+	_float(tu, "ON CAMERA", Hud.RED)
+	hud.toast("A CAMERA SPOTTED %s · TAKE THE CAMERAS IN THE NET" % tu.c.display_name.to_upper())
+
+
+func _ev_grab(e: Dictionary) -> void:
+	var u: Dictionary = enc.units[e.unit]
+	var gn: CharModel = unit_nodes[u.id]
+	_focus_unit = u.id
+	gn.duck(0.6)
+	await get_tree().create_timer(0.4).timeout
+	_float(u, "PACKAGE RECOVERED", Hud.GOLD)
+	_ui_snd("sfx_ui_confirm", -6.0)
+	hud.toast("CARRY IT TO THE EXTRACTION ZONE")
+	await get_tree().create_timer(0.5).timeout
+
+
+func _ev_drop(e: Dictionary) -> void:
+	var u: Dictionary = enc.units[e.unit]
+	_float(u, "PACKAGE DROPPED", Hud.RED)
+
+
+func _ev_free(e: Dictionary) -> void:
+	var u: Dictionary = enc.units[e.unit]
+	var fnode: CharModel = unit_nodes[u.id]
+	var ct: Dictionary = enc.units[e.target]
+	_focus_unit = u.id
+	fnode.duck(0.6)
+	_snd("sfx_zap", _body_pos(ct), -10.0)
+	await get_tree().create_timer(0.4).timeout
+	_float(ct, "FREED", Hud.GOLD)
+	_ui_snd("sfx_ui_confirm", -6.0)
+	hud.toast("GET %s TO THE EXTRACTION ZONE" % ct.c.display_name.to_upper())
+	await get_tree().create_timer(0.5).timeout
+
+
+func _ev_plant(e: Dictionary) -> void:
+	var u: Dictionary = enc.units[e.unit]
+	var pn: CharModel = unit_nodes[u.id]
+	_focus_unit = u.id
+	pn.perform("medtech", 1.0)
+	await get_tree().create_timer(0.8).timeout
+	var pc: Vector3i = e.cell
+	_make_charge(Vector3(pc.x + 0.5, _gy(pc), pc.y + 0.5))
+	_snd("sfx_beep", _body_pos(u), 0.0)
+	_float(u, "CHARGE SET", Hud.RED)
+	hud.toast("%d ROUNDS · GET CLEAR OF THE BLAST" % int(enc.obj.cfg.get("fuse_rounds", 3)))
+	await get_tree().create_timer(0.4).timeout
+
+
+func _ev_panic(e: Dictionary) -> void:
+	var shown := 0
+	for pid in e.units:
+		var pu: Dictionary = enc.units[pid]
+		if _seen(pu.pos) and shown < 3:
+			_float(pu, "SCREAMS", Color("ffd0a0"))
+			shown += 1
+	if shown > 0:
+		hud.toast("BYSTANDERS SCATTER")
+
+
+func _ev_civ_gone(e: Dictionary) -> void:
+	var u: Dictionary = enc.units[e.unit]
+	(unit_nodes[u.id] as Node3D).visible = false
+
+
+func _ev_tt_call(e: Dictionary) -> void:
+	var u: Dictionary = enc.units[e.unit]
+	if _seen(u.pos):
+		_float(u, "TRAUMA CARD", Color("2a8cff"))
+	hud.toast("TRAUMA TEAM INBOUND · %d ROUNDS" % Encounter.TT_ROUNDS)
+	_ui_snd("sfx_beep", -4.0)
+
+
+func _ev_tt_pickup(e: Dictionary) -> void:
+	var u: Dictionary = enc.units[e.unit]
+	var tu2: Dictionary = enc.units[e.target]
+	_float(u, "PATIENT SECURED", Color("2a8cff"))
+	(unit_nodes[tu2.id] as Node3D).visible = false
+	await get_tree().create_timer(0.4).timeout
+
+
+func _ev_target_down(e: Dictionary) -> void:
+	var u: Dictionary = enc.units[e.unit]
+	_float(u, "TARGET DOWN", Hud.GOLD)
+	_ui_snd("sfx_ui_confirm", -6.0)
+	hud.toast("THE MARK IS DOWN · GET TO THE EXTRACTION ZONE OR WITHDRAW")
+
+
+func _ev_escape(e: Dictionary) -> void:
+	var u: Dictionary = enc.units[e.unit]
+	if _seen(u.pos):
+		_float(u, "TARGET ESCAPED", Hud.RED)
+	(unit_nodes[u.id] as Node3D).visible = false
+	hud.toast("%s GOT AWAY" % String(enc.objective.get("name", "THE MARK")).to_upper())
 
 
 func _event_visible(e: Dictionary) -> bool:
