@@ -1829,11 +1829,11 @@ func _make_caret() -> MeshInstance3D:
 
 
 ## The HUD's floor label: "FLOOR 2/4" (storeys counted from the street, the roof level included);
-## a map with basements names them: "FLOOR B1 · B2–3".
+## a map with basements names the storey and counts levels from the bottom: "FLOOR B1 · 2/5".
 static func floor_label(mp: TacMap, f: int) -> String:
 	if mp.basements == 0:
 		return "FLOOR %d/%d" % [f + 1, mp.floors]
-	return "FLOOR %s · %s–%s" % [mp.floor_name(f), mp.floor_name(0), mp.floor_name(mp.floors - 1)]
+	return "FLOOR %s · %d/%d" % [mp.floor_name(f), f + 1, mp.floors]
 
 
 ## Height of the walkable surface of a square (sidewalks are raised by a kerb).

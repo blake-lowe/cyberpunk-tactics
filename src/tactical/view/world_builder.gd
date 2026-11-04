@@ -665,7 +665,7 @@ const EARTH_MARGIN := 6
 func _earth(f: int) -> void:
 	var y0 := f * FH
 	var top := (f + 1) * FH - 0.13   # just under the street's ground slabs: no z-fight from above
-	var soil := mat("dirt", f, false, {"color": Color("6e5640"), "color2": Color("4a3a2a"), "pattern": 5, "scale": 1.6, "shell": true, "glow": 0.12, "emit": Color("3a2c20")})
+	var soil := mat("dirt", f, false, {"color": Color("3e3a36"), "color2": Color("2c2926"), "pattern": 5, "scale": 1.6, "shell": true, "glow": 0.06, "emit": Color("1c1a18")})
 	var lip := mat("concrete", f, false, {"color": Color("9a8a74"), "color2": Color("7a6a56"), "shell": true, "glow": 0.2, "emit": Color("6a5a48")})
 	var dug := func(x: int, y: int) -> bool: return m.inb(x, y) and m.t(f, x, y) != TacMap.T.VOID
 	var used := {}

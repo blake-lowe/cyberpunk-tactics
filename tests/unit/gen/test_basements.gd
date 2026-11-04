@@ -78,8 +78,8 @@ func test_floor_names_and_hud_label() -> void:
 	assert_eq(m.level(0), -2, "storey of the deepest floor")
 	var gb: GDScript = load("res://src/tactical/greybox.gd")
 	assert_eq(gb.floor_label(TacMap.new(4, 4, 4), 1), "FLOOR 2/4", "the old label without basements")
-	assert_eq(gb.floor_label(m, 1), "FLOOR B1 · B2–4", "a basement reads B1")
-	assert_eq(gb.floor_label(m, 2), "FLOOR 1 · B2–4", "street level reads 1")
+	assert_eq(gb.floor_label(m, 1), "FLOOR B1 · 2/6", "a basement reads B1")
+	assert_eq(gb.floor_label(m, 2), "FLOOR 1 · 3/6", "street level reads 1")
 	assert_true(m.to_dict().get("basements", 0) == 2, "to_dict carries the count")
 	assert_false(TacMap.new(4, 4, 1).to_dict().has("basements"), "a map without basements leaves the key out")
 
