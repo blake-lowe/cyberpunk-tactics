@@ -499,11 +499,11 @@ func _build_bar() -> void:
 		_buttons.add_child(b2)
 	# M5 actions: target-picking tools (toggle; right-click applies) and instant ones
 	for spec in [["melee", "MELEE", "F", "tool", "melee", CYAN], ["shell", "SHELL", "5", "tool", "shell", CYAN],
-			["grenade", "FRAG", "G", "tool", "grenade", GOLD], ["suppress", "SUPPRESS", "4", "suppress", null, CYAN],
+			["suppress", "SUPPRESS", "4", "suppress", null, CYAN],
 			["medic", "STABILIZE", "T", "tool", "stabilize", GREEN], ["grab", "GRAB", "B", "grab", null, GOLD], ["free", "FREE", "B", "free", null, GOLD], ["plant", "PLANT", "B", "plant", null, RED], ["dose", "DOSE", "Y", "tool", "dose", GREEN], ["rig", "RIG", "U", "tool", "rig", CYAN], ["tamper", "CAMERA", "K", "tamper", null, CYAN], ["bypass", "BYPASS", "V", "bypass", null, CYAN], ["keycard", "KEYCARD", "P", "keycard", null, GOLD], ["withdraw", "WITHDRAW", "L", "withdraw", null, RED],
-			["kit0", "KIT", "6", "kit", 0, GREEN], ["kit1", "KIT", "7", "kit", 1, GREEN]]:
+			["kit0", "KIT", "G", "kit", 0, GOLD]]:
 		var b3 := ActBtn.new(spec[0], spec[1], spec[2], spec[5])
-		b3.toggle_mode = spec[3] == "tool"
+		b3.toggle_mode = spec[3] in ["tool", "kit"]
 		var arg: Variant = spec[4]
 		var act: String = spec[3]
 		b3.pressed.connect(func(): action.emit(act, arg))
@@ -653,19 +653,17 @@ func _refresh_tools(enc: Encounter, crew_turn: bool) -> void:
 	var near_dying := enc.units.any(func(o): return o.team == enc.cur.team and o != enc.cur and not o.c.dead \
 		and o.c.wound_state() == Combatant.Wound.MORTAL and enc.can_reach_to_stabilize(enc.cur, o))
 	var show := {"melee": true, "shell": w != null and w.def.get("shotgun_shell", false),
-		"grenade": c.grenades > 0, "suppress": w != null and w.def.get("suppressive", false), "medic": near_dying,
+		"suppress": w != null and w.def.get("suppressive", false), "medic": near_dying,
 		"grab": enc.can_grab(), "free": enc.can_free(), "plant": enc.can_plant(), "dose": c.role == "medtech" and c.doses > 0, "rig": int(c.maker.get("field", 0)) > 0, "withdraw": enc.can_withdraw(), "tamper": not enc.camera_in_reach(enc.cur).is_empty(),
 		"bypass": enc.lock_in_reach(enc.cur).x >= 0, "keycard": not enc.keycard_in_reach(enc.cur).is_empty(),
-		"kit0": enc.kit_action(0) in ["grenade", "dose"], "kit1": enc.kit_action(1) in ["grenade", "dose"]}
+		"kit0": enc.kit_action(0) in ["grenade", "dose"]}   # the packed consumable (slot 2's utility is passive)
 	for k in _tool_buttons:
 		var b: ActBtn = _tool_buttons[k]
 		b.visible = show[k]
 		b.disabled = not crew_turn
-		b.set_pressed_no_signal(b.toggle_mode and tool == {"melee": "melee", "shell": "shell", "grenade": "grenade", "medic": "stabilize", "dose": "dose", "rig": "rig"}.get(k, "-"))
-		if k == "grenade":
-			b.title = "FRAG ×%d" % c.grenades   # fits the button
-		if k in ["kit0", "kit1"] and b.visible:   # the packed item: its own name and glyph
-			var key: String = c.kit[1 if k == "kit1" else 0]
+		b.set_pressed_no_signal(b.toggle_mode and tool == {"melee": "melee", "shell": "shell", "kit0": "grenade", "medic": "stabilize", "dose": "dose", "rig": "rig"}.get(k, "-"))
+		if k == "kit0" and b.visible:   # the packed item: its own name and glyph
+			var key: String = c.kit[0]
 			b.title = Items.short_name(key)
 			b.glyph = "grenade" if Items.use(key) == "grenade" else "dose"
 		b.queue_redraw()

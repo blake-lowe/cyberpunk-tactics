@@ -56,3 +56,18 @@ func test_a_won_job_costs_standing_with_its_target() -> void:
 	var r := c.resolve(e)
 	assert_eq(int(c.faction_rep.get(fid, 0)), -1, "%s remembers" % fid)
 	assert_eq(r.get("standing", {}), {fid: -1}, "and the report says so")
+
+
+func test_v3_carried_frags_move_into_storage_and_slot_2_keeps_only_utilities() -> void:
+	var d := Campaign.new_game(4).to_dict()
+	d["version"] = 3
+	d["stash"] = {"drugs/synthcoke": 1}
+	d.crew[0]["kit"] = ["", "drugs/synthcoke"]   # v3 allowed a consumable in slot 2
+	d.crew[0]["grenades"] = 2
+	d.crew[1]["kit"] = ["", ""]
+	d.crew[1]["grenades"] = 1
+	var c := Campaign.from_dict(JSON.parse_string(JSON.stringify(d)))
+	assert_eq(int(c.stash["ammo/frag_grenade"]), 3, "three carried frags, now in storage")
+	assert_eq(c.crew[0].kit[0], "drugs/synthcoke", "the slot-2 drug moves to slot 1")
+	assert_eq(c.crew[0].kit[1], "")
+	assert_eq(c.crew[1].kit[0], "ammo/frag_grenade", "an empty slot 1 gets a frag")

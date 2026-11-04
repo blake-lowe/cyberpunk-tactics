@@ -60,9 +60,6 @@ static func generate(dice: Dice, role: String, method: String = "edgerunner", ha
 	c.hp = c.max_hp()
 	c.armor["body"] = ArmorPiece.from_id("light_armorjack")  # p98
 	c.armor["head"] = ArmorPiece.from_id("light_armorjack")
-	# HOUSE-RULE: pared-down loadouts carry frag grenades (two for Solos, one otherwise) until the
-	# gear/inventory system lands (M6+).
-	c.grenades = 2 if role == "solo" else 1
 	if role == "solo":
 		_default_awareness(c)
 	return c
@@ -120,7 +117,9 @@ static func npc(dice: Dice, tier: String, handle: String = "", gear: Dictionary 
 	var kits: Array = td["weapons"]
 	for w in kits[dice.d(kits.size()) - 1]:
 		c.weapons.append(Weapon.from_id(String(w)))
-	c.grenades = int(td.get("grenades", 0))
+	var tk: Array = td.get("kit", [])
+	for i in mini(tk.size(), c.kit.size()):
+		c.kit[i] = String(tk[i])
 	c.role = tier
 	c.tracks_humanity = false
 	return c

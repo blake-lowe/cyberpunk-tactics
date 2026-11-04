@@ -224,7 +224,6 @@ var _shot_delay := 0.0
 var _demo_ms := 0
 var _reel := ""
 var tool := ""                  ## M5 target-picking action: melee, shell, grenade, stabilize ("" = normal attacks)
-var _grenade_slot := -1         ## the grenade tool throws this kit slot's grenade (-1: a frag)
 var _dev_kit: PackedStringArray = []   ## --kit=a,b (review renders)
 var blast_node: MeshInstance3D  ## the grenade's 5x5 blast preview under the cursor
 var _net_cleaned := false
@@ -1838,9 +1837,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			KEY_3: _on_hud("mode", 2)
 			KEY_X: _on_hud("cover_mode", null)
 			KEY_F: _on_hud("tool", "melee")
-			KEY_G: _on_hud("tool", "grenade")
-			KEY_6: _on_hud("kit", 0)
-			KEY_7: _on_hud("kit", 1)
+			KEY_G: _on_hud("kit", 0)
 			KEY_5: _on_hud("tool", "shell")
 			KEY_4: _on_hud("suppress", null)
 			KEY_T: _on_hud("tool", "stabilize")
@@ -1879,18 +1876,16 @@ func _on_hud(name: String, arg: Variant) -> void:
 		"cover_mode": cover_mode = not cover_mode; _refresh(); _update_hover()
 		"tool":
 			tool = "" if tool == String(arg) else String(arg)
-			_grenade_slot = -1
 			cover_mode = false
 			_refresh(); _update_hover()
 		"suppress": _suppress()
-		"kit":   # a packed item: grenades pick a square like the frag; drugs are taken at once
+		"kit":   # the packed consumable: a grenade picks a square; a drug is taken at once
 			if not _crew_turn():
 				return
 			var slot := int(arg)
 			match enc.kit_action(slot):
 				"grenade":
-					tool = "" if (tool == "grenade" and _grenade_slot == slot) else "grenade"
-					_grenade_slot = slot if tool == "grenade" else -1
+					tool = "" if tool == "grenade" else "grenade"
 					cover_mode = false
 					_refresh(); _update_hover()
 				"dose":
@@ -2049,9 +2044,7 @@ func _click_tool() -> void:
 				r = enc.shotgun_shell(t, w)
 		"grenade":
 			if hover.x >= 0:
-				r = enc.throw_grenade(hover, _grenade_slot)
-				if r.get("ok", false):
-					_grenade_slot = -1
+				r = enc.throw_grenade(hover, 0)
 		"stabilize":
 			if not t.is_empty():
 				r = enc.stabilize(t)
@@ -2109,7 +2102,8 @@ func _tool_hover() -> void:
 			var pct := roundi(Check.chance_vs_dv(c.skill_base("athletics") - c.action_penalty(), dv) * 100)
 			var caught := enc.units.filter(func(o): return not o.c.dead and o.pos.z == hover.z and maxi(absi(o.pos.x - hover.x), absi(o.pos.y - hover.y)) <= Encounter.BLAST_HALF)
 			var names := caught.map(func(o): return ("[color=#39f0a0]%s[/color]" if enc.allied(o.team, enc.cur.team) else "[color=#ff3b4f]%s[/color]") % o.c.display_name)
-			hud.tip(("[code][font_size=44]%d%%[/font_size][/code] on target · DV %d · %d m\n6d6 in a 5x5 blast (a miss scatters it)\n%s" % [pct, dv, roundi(dist), ", ".join(names) if not names.is_empty() else "nobody in the blast"]) if ok else "[color=#ff3b4f]Out of reach or no clear throw[/color]", mouse, "// GRENADE ×%d" % c.grenades, Hud.GOLD)
+			var what := "no damage: everyone caught resists or is affected" if Items.fx(c.kit[0]).get("no_damage", false) else "6d6"
+			hud.tip(("[code][font_size=44]%d%%[/font_size][/code] on target · DV %d · %d m\n%s in a 5x5 blast (a miss scatters it)\n%s" % [pct, dv, roundi(dist), what, ", ".join(names) if not names.is_empty() else "nobody in the blast"]) if ok else "[color=#ff3b4f]Out of reach or no clear throw[/color]", mouse, "// " + Items.display_name(c.kit[0]).to_upper(), Hud.GOLD)
 		"melee":
 			if t.is_empty() or enc.allied(t.team, enc.cur.team):
 				hud.tip("Pick a neighbouring enemy", mouse, "// MELEE", Hud.CYAN)
@@ -2370,7 +2364,9 @@ func _run_reel() -> void:
 			enc.cur.c.skills["athletics"] = int(enc.cur.c.skills.get("athletics", 0)) + 10
 			await get_tree().create_timer(0.4).timeout
 			enc.turn = TurnState.begin(dice, enc.cur.c)
-			var r := enc.throw_grenade(g.pos)
+			enc.cur.c.kit[0] = Encounter.FRAG
+			enc.cur.c.kit_spent[0] = false
+			var r := enc.throw_grenade(g.pos, 0)
 			print("reel grenade: ", r.get("ok"), " ", r.get("reason", ""), " dmg ", r.get("damage", 0))
 			await _act()
 			tail = 2.5

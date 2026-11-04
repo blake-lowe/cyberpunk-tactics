@@ -12,7 +12,7 @@ func _arena(guard_cells: Array, crew_weapon := "assault_rifle", seed := 3) -> En
 	var dice := Dice.new(seed)
 	var crew: Array[Combatant] = [Fixtures.shooter("A")]
 	crew[0].weapons.append(Weapon.from_id(crew_weapon))
-	crew[0].grenades = 2
+	crew[0].kit[0] = Encounter.FRAG
 	var e := Encounter.setup(m, dice, crew)
 	e.units = e.units.filter(func(u): return u.team == 0)
 	for cell in guard_cells:
@@ -83,14 +83,14 @@ func test_grenade_blast_hits_the_area_and_breaks_weak_cover() -> void:
 	e.los = Los.new(e.m)
 	var r := e.throw_grenade(Vector3i(9, 5, 0))
 	assert_true(r.ok)
-	assert_eq(e.cur.c.grenades, 1)
+	assert_true(e.cur.c.kit_spent[0], "the packed frag is thrown")
 	var ids: Array = r.hits.map(func(h): return h.id)
 	if r.hit:
 		assert_true(1 in ids and 2 in ids, "everyone within the 5x5 is caught")
 		assert_false(3 in ids, "outside the 5x5 isn't")
 		assert_true(e.events[-1].destroyed.has(Vector3i(8, 6, 0)), "the desk in the blast breaks")
 	assert_between(float(r.damage), 6.0, 36.0, "6d6 rolled once")
-	assert_false(e.throw_grenade(Vector3i(9, 5, 0)).get("ok", false), "one Action per turn")
+	assert_false(e.throw_grenade(Vector3i(9, 5, 0)).get("ok", false), "one grenade, one throw")
 
 
 func test_stabilize_a_mortally_wounded_ally() -> void:
@@ -128,17 +128,16 @@ func test_ai_throws_at_a_cluster_and_punches_when_empty() -> void:
 	e._add(ally, Vector3i(3, 5, 0), 0)
 	var g: Dictionary = e.units[1]
 	g.c.weapons.append(Weapon.from_id("heavy_pistol"))
-	g.c.grenades = 1
+	g.c.kit[0] = Encounter.FRAG
 	g.c.skills["athletics"] = 8
 	e.cur = g
 	e.turn = TurnState.begin(e.dice, g.c)
 	AI.act(e, g)
-	assert_eq(g.c.grenades, 0, "two crew in one blast: the guard throws")
+	assert_true(g.c.kit_spent[0], "two crew in one blast: the guard throws")
 	assert_true(e.events.any(func(x): return x.type == "blast"))
 	# an empty gun next to an enemy: fists
 	g.pos = Vector3i(4, 5, 0)
 	g.c.weapons[0].ammo = 0
-	g.c.grenades = 0
 	e.turn = TurnState.begin(e.dice, g.c)
 	e.events.clear()
 	AI.act(e, g)

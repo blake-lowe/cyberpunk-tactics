@@ -24,7 +24,6 @@ var unconscious := false
 var wake_in := 0               ## rounds until a stabilized character comes round (1 minute = 20 rounds, p223)
 var prone := false
 var weapons: Array[Weapon] = []
-var grenades: int = 0          ## frag grenades carried (thrown: DEX + Athletics, 6d6 blast, p174/p177)
 var ip: int = 0                ## unspent Improvement Points (p410-411)
 var look_seed: int = -1        ## the crew member's appearance seed (stable across gigs); -1 = by unit order
 
@@ -618,7 +617,7 @@ func to_dict() -> Dictionary:
 		sub[loc] = _armor_dict(subdermal[loc])
 	return {"id": id, "name": display_name, "team": team, "faction": faction, "stats": stats, "skills": skills, "hp": hp, "armor": arm,
 		"subdermal": sub, "injuries": injuries, "base_dsp": base_dsp, "dsp": dsp, "dead": dead, "unconscious": unconscious,
-		"weapons": weapons.map(func(w): return {"id": w.id(), "ammo": w.ammo, "builtin": w.builtin, "quality": w.quality}), "grenades": grenades, "role": role,
+		"weapons": weapons.map(func(w): return {"id": w.id(), "ammo": w.ammo, "builtin": w.builtin, "quality": w.quality}), "role": role,
 		"role_rank": role_rank, "awareness": awareness, "tracks_humanity": tracks_humanity, "humanity": humanity,
 		"max_humanity": max_humanity, "cyberware": cyberware, "ip": ip, "look_seed": look_seed, "perks": perks, "medicine": medicine, "maker": maker, "downtime": downtime, "programs": programs,
 		"kit": kit, "addictions": addictions}
@@ -651,7 +650,6 @@ static func from_dict(d: Dictionary) -> Combatant:
 		w.ammo = int(wd.ammo)
 		w.builtin = bool(wd.get("builtin", false))
 		c.weapons.append(w)
-	c.grenades = int(d.grenades)
 	c.role = String(d.role)
 	c.role_rank = int(d.role_rank)
 	c.awareness = d.awareness

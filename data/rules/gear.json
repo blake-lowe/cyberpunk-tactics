@@ -366,6 +366,26 @@
 			"fx": {},
 			"unmodelled": "Basic arrows are always retrievable after firing (p174); grenades and rockets have no Basic type (p94)."
 		},
+		"frag_grenade": {
+			"name": "Frag Grenade",
+			"cost": 50,
+			"cost_tier": "Costly",
+			"cite": "HOUSE-RULE (CPR core p.94, p.344: there is no Basic grenade; thrown grenades deal 6d6 in a 5x5 blast, p.177)",
+			"summary": "A plain fragmentation grenade: 6d6 in the blast, nothing else.",
+			"house_rule": "The book sells grenades only by special ammo type; a cheap plain frag keeps a basic explosive in the game. 50eb, below the 100eb specials.",
+			"types": [
+				"grenades"
+			],
+			"unit": "1 each",
+			"unit_qty": {
+				"grenades": 1
+			},
+			"fx": {},
+			"kit": "consumable",
+			"shop_rep": 0,
+			"kit_use": "grenade",
+			"kit_short": "FRAG"
+		},
 		"armor_piercing_ammo": {
 			"name": "Armor-Piercing Ammunition",
 			"cost": 100,
@@ -2313,13 +2333,12 @@
 		"keyed_to_owner": "Biometric-keyed weapon (Kendachi Mono-Three, p.348): its special rule works for whoever carries it (HOUSE-RULE: sold keyed to the buyer)."
 	},
 	"kit_rules": {
-		"_doc": "What a crew member takes into a gig from safehouse storage (HOUSE-RULE, owner's design): slot 1 holds a consumable, slot 2 a consumable or a utility. Used consumables are spent; unused ones and utilities come back; kit on someone who doesn't come back is lost. Item fields: kit (consumable|utility), kit_use (grenade|dose|carried), kit_name (storage label), kit_short (action-bar label).",
+		"_doc": "What a crew member takes into a gig from safehouse storage (HOUSE-RULE, owner's design): slot 1 holds a consumable (the one item used in the field), slot 2 a passive utility. Used consumables are spent; unused ones and utilities come back; kit on someone who doesn't come back is lost. Item fields: kit (consumable|utility), kit_use (grenade|dose|carried), kit_name (storage label), kit_short (action-bar label).",
 		"slots": [
 			[
 				"consumable"
 			],
 			[
-				"consumable",
 				"utility"
 			]
 		]

@@ -148,9 +148,9 @@ Check-ins (🔶) are where work pauses for a user decision or review.
 ### Overnight decisions (report to owner)
 - Guards: CPR NPC tiers (Mook/Lieutenant/Mini Boss, p411-415, RULES-UNVERIFIED: read from a garbled
   extraction) on the p399 budget; balance check: AI crew of 3 beats an equal number of Mooks 12/12.
-- HOUSE-RULES: melee reach covers diagonal neighbours; recruits carry 1-2 frag grenades, a third of
-  Mooks one; failed-gig rescue fee, clinic treatment price, free armour patching, grenade price,
-  hire price (Campaign.ECON) are placeholders.
+- HOUSE-RULES: melee reach covers diagonal neighbours; frag grenades are a kit item (50eb, no
+  Basic grenade in the book), a new crew starts with 3 in storage and a third of Mooks carry one;
+  failed-gig rescue fee, clinic treatment price, free armour patching, Armory discount, hire price (Campaign.ECON) are placeholders.
 - IP rubric for p410's qualitative awards: fail 10, success 30, +10 nobody down, +10 NET objective.
 - Board is the main scene; dev flags still open the tactical view directly.
 - Fresh-eyes review (subagent): fixed four bugs (jack-in range anchor, NET action validation, ICE/strain

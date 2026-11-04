@@ -15,7 +15,8 @@ const ECON := {
 	"rescue_fee": 500,         # HOUSE-RULE: a fixer drags the survivors of a failed gig out
 	"treat_injury": 200,       # HOUSE-RULE: a street clinic's Treatment for one Critical Injury
 	"armor_repair": 0,         # HOUSE-RULE: armour is patched up for free in downtime (for now)
-	"grenade": 50,             # HOUSE-RULE: restock price per frag grenade
+	"start_frags": 3,          # HOUSE-RULE: frag grenades in storage at the start (the crew used to carry 2 + 1)
+	"armory_discount": 0.1,    # HOUSE-RULE: gear-market discount per Armory level
 	"hire": 500,               # HOUSE-RULE: signing a new crew member
 	"salvage": 0.25,           # HOUSE-RULE: a won gig strips the downed opposition's gear at a quarter of list
 }
@@ -29,7 +30,7 @@ const FACILITIES := {
 	"med_bay": {"name": "Med Bay", "costs": [1500, 4000],
 		"desc": ["Rest heals +2 HP a day per level.", "Level 2: clinic treatment costs a quarter less."]},
 	"armory": {"name": "Armory", "costs": [1000, 3000],
-		"desc": ["Frag grenades restock 10 eb cheaper per level.", "Level 2: everyone carries 3 grenades."]},
+		"desc": ["Grenades, drugs and scanners cost 10% less per level.", ""]},
 	"intel": {"name": "Fixer Network", "costs": [1500, 4000],
 		"desc": ["+1 gig on the board per level.", "Better-security gigs show up one reputation earlier per level."]},
 	"training": {"name": "Training Room", "costs": [1000, 3000],
@@ -85,6 +86,9 @@ static func new_game(p_seed: int) -> Campaign:
 	c.crew.append(Recruit.generate(c.dice, "netrunner", "edgerunner"))
 	for i in c.crew.size():
 		c.crew[i].look_seed = i
+	c.stash[Encounter.FRAG] = int(ECON.start_frags)
+	for m in c.crew:
+		c.set_kit(m, 0, Encounter.FRAG)
 	c.refresh_board()
 	c.refresh_recruits()
 	c.say("Day 1. %s and %s are looking for work." % [c.crew[0].display_name, c.crew[1].display_name])
@@ -372,7 +376,7 @@ func resolve(e: Encounter) -> Dictionary:
 # --- Downtime ---------------------------------------------------------------------
 
 ## Rest: everyone heals BODY HP per day (p223), up to full. Armour is patched and magazines
-## refilled; frag grenades restocked to two each if there's cash.
+## refilled. (Grenades and other kit are bought into storage: buy_item.)
 func rest(days := 1) -> void:
 	for c in crew:
 		var heal: int = (c.raw_stat("BODY") + 2 * level("med_bay")) * days
@@ -392,10 +396,6 @@ func rest(days := 1) -> void:
 				(c.armor[loc] as ArmorPiece).repair()
 		for w in c.weapons:
 			w.reload()
-		var price := int(ECON.grenade) - 10 * level("armory")
-		while c.grenades < (3 if level("armory") >= 2 else 2) and eb >= price:
-			c.grenades += 1
-			eb -= price
 	day += days
 	heat = maxi(0, heat - days)   # HOUSE-RULE: lying low cools heat by 1 a day
 	refresh_board()
@@ -569,7 +569,7 @@ func install(c: Combatant, id: String) -> int:
 	return loss
 
 
-# --- Safehouse storage and kits (owner's design: 2 slots, 1 consumable + 1 consumable or utility) ---
+# --- Safehouse storage and kits (owner's design: 2 slots, 1 consumable + 1 utility) ---
 
 ## Gear the market stocks at the current reputation: {key, name, cost, info, kind}.
 func item_stock() -> Array[Dictionary]:
@@ -578,9 +578,14 @@ func item_stock() -> Array[Dictionary]:
 		var d := Items.def(key)
 		if rep < int(d.shop_rep):
 			continue
-		out.append({"key": key, "name": Items.display_name(key), "cost": _price(Items.price(key)), "kind": Items.kind(key),
+		out.append({"key": key, "name": Items.display_name(key), "cost": item_price(key), "kind": Items.kind(key),
 			"info": String(d.get("summary", "")), "owned": int(stash.get(key, 0)), "fixer": Items.price(key) >= 500})
 	return out
+
+
+## What one costs here: fixer markup at 500eb+, less the Armory discount.
+func item_price(key: String) -> int:
+	return roundi(_price(Items.price(key)) * (1.0 - float(ECON.armory_discount) * level("armory")))
 
 
 ## Buy one into safehouse storage.

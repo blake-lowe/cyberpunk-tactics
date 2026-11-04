@@ -1,6 +1,6 @@
 extends TestCase
 ## Inventory: gear bought into safehouse storage, two kit slots per crew member (slot 1 a
-## consumable, slot 2 a consumable or utility), used in gigs, settled afterwards.
+## consumable, slot 2 a utility), used in gigs, settled afterwards.
 
 const FLASH := "ammo/flashbang_ammo"
 const AP := "ammo/armor_piercing_ammo"
@@ -14,6 +14,9 @@ func _camp() -> Campaign:
 	var c := Campaign.new_game(4)
 	c.rep = 5
 	c.eb = 20000
+	c.stash.clear()   # an empty safehouse (new games start with frags packed)
+	for m in c.crew:
+		m.kit[0] = ""
 	return c
 
 
@@ -34,8 +37,22 @@ func _enc_with(kit: Array, overrides := {}) -> Encounter:
 func test_slot_rules_follow_the_data() -> void:
 	assert_true(Items.fits(0, FLASH) and Items.fits(0, COKE), "slot 1 takes consumables")
 	assert_false(Items.fits(0, MEDSCAN), "but not utilities")
-	assert_true(Items.fits(1, MEDSCAN) and Items.fits(1, FLASH), "slot 2 takes either")
+	assert_true(Items.fits(1, MEDSCAN), "slot 2 takes utilities")
+	assert_false(Items.fits(1, FLASH), "but not a second consumable")
 	assert_eq(Items.kind(MEDSCAN), "utility")
+
+
+func test_a_new_crew_starts_with_a_frag_each_and_one_spare() -> void:
+	var camp := Campaign.new_game(4)
+	assert_eq(int(camp.stash[Encounter.FRAG]), 3)
+	assert_true(camp.crew.all(func(m): return m.kit[0] == Encounter.FRAG))
+
+
+func test_the_armory_discounts_the_gear_market() -> void:
+	var camp := _camp()
+	var full := camp.item_price(FLASH)
+	camp.facilities["armory"] = 2
+	assert_eq(camp.item_price(FLASH), roundi(full * 0.8), "10% a level")
 
 
 func test_buying_fills_storage_and_packing_needs_stock() -> void:

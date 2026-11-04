@@ -123,7 +123,7 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 		var tier: String = roster[i]
 		var g := World.npc(p_dice, e.opfor_faction, tier, i + 1)
 		if tier == "mook" and p_dice.rng.randf() < World.grenade_chance(e.opfor_faction):
-			g.grenades = 1   # HOUSE-RULE: about a third of Mooks carry a frag grenade (per faction roster)
+			g.kit[0] = FRAG   # HOUSE-RULE: about a third of Mooks carry a frag grenade (per faction roster)
 		e._add(g, Vector3i(posts[i].pos.x, posts[i].pos.y, posts[i].floor), OPFOR)
 	# Objective: a module per kind (data/gen/objectives.json) places what the job needs.
 	e.obj = Objective.make(kind, e)
@@ -641,7 +641,6 @@ func _place_civilians(deploy: Vector2i) -> void:
 			continue
 		var c := Recruit.generate(dice, ["media", "fixer", "exec", "rockerboy", "tech"][dice.d(5) - 1], "edgerunner", "Bystander")
 		c.weapons.clear()
-		c.grenades = 0
 		c.faction = "bystanders"
 		_add(c, v, CIV_TEAM)
 		var u: Dictionary = units[-1]
@@ -1513,6 +1512,7 @@ func attack(target: Dictionary, weapon: Weapon, mode: Attack.Mode) -> Dictionary
 const MELEE_ADJACENT_M := 2.0
 const BLAST_HALF := 2            ## 5x5 squares = 10x10 m (p174)
 const THROW_RANGE_M := 25.0      ## p177
+const FRAG := "ammo/frag_grenade"   ## the plain grenade guards carry (Items key)
 const GRENADE_DICE := 6          ## thrown grenades deal their launcher's damage (p177; Grenade Launcher 6d6, p94)
 const SHELL_HALF_ANGLE := 45.0   ## "every target in front of you" (p174): a 90° cone toward the aimed target
 
@@ -1607,30 +1607,22 @@ func shotgun_shell(target: Dictionary, weapon: Weapon) -> Dictionary:
 ## the range; a miss scatters the blast somewhere in the 5x5 around the aim point. Damage (6d6) is
 ## rolled once; cover the blast can't destroy shields whoever is behind it; cover it can destroy is
 ## destroyed and shields nobody; REF 8+ may dive clear.
-## `slot` >= 0 throws the grenade packed in that kit slot instead of a frag (Items: Armor-Piercing,
-## Incendiary, Flashbang, Teargas): its fx ride the blast (ablate 2, ignite, or no damage and a
-## forced check for everyone caught, p.345-347).
-func throw_grenade(cell: Vector3i, slot := -1) -> Dictionary:
-	var fx := {}
-	var key := ""
-	if slot >= 0:
-		var why := _kit_ready(slot, "grenade")
-		if why != "":
-			return {"ok": false, "reason": why}
-		key = cur.c.kit[slot]
-		fx = Items.fx(key)
-	elif cur.c.grenades <= 0:
-		return {"ok": false, "reason": "no grenades"}
+## The grenade is the one packed in kit slot `slot` (Items: Frag, Armor-Piercing, Incendiary,
+## Flashbang, Teargas): its fx ride the blast (ablate 2, ignite, or no damage and a forced check for
+## everyone caught, p.345-347).
+func throw_grenade(cell: Vector3i, slot := 0) -> Dictionary:
+	var why := _kit_ready(slot, "grenade")
+	if why != "":
+		return {"ok": false, "reason": why}
+	var key: String = cur.c.kit[slot]
+	var fx := Items.fx(key)
 	if not turn.action_available:
 		return {"ok": false, "reason": "no action left"}
 	var dist := Los.distance_m(cur.pos, cell)
 	if dist > THROW_RANGE_M or cell.z != cur.pos.z or not los.trace(cur.pos, cell).clear:
 		return {"ok": false, "reason": "can't throw there"}
 	turn.use_action()
-	if slot >= 0:
-		cur.c.kit_spent[slot] = true
-	else:
-		cur.c.grenades -= 1
+	cur.c.kit_spent[slot] = true
 	var base: int = cur.c.skill_base("athletics") - cur.c.action_penalty()
 	var check := Check.vs_dv(dice, base, maxi(10, RulesDB.range_dv("grenade_launcher", dist)))
 	var center := cell
@@ -1684,10 +1676,10 @@ func throw_grenade(cell: Vector3i, slot := -1) -> Dictionary:
 		hits.append({"id": u.id, "dodged": res.dodged, "damage": int(before[u.id][0]) - u.c.hp, "dead": u.c.dead,
 			"killed": u.c.dead or u.c.wound_state() == Combatant.Wound.MORTAL, "wound_before": before[u.id][1], "wound_after": u.c.wound_state(),
 			"status": res.get("status", {}), "ignited": res.get("ignited", false)})
-	var gname := Items.display_name(key) if key != "" else "grenade"
+	var gname := Items.display_name(key)
 	events.append({"type": "blast", "unit": cur.id, "cell": cell, "center": center, "hit": check.success, "damage": dmg, "hits": hits,
 		"destroyed": destroyed, "payload": key})
-	say("%s throws %s%s: %s, %d caught." % [cur.c.display_name, "a " + gname.to_lower() if key == "" else gname, "" if check.success else " (off target)",
+	say("%s throws %s%s: %s, %d caught." % [cur.c.display_name, "a " + gname.to_lower(), "" if check.success else " (off target)",
 		"%d damage" % dmg if not no_damage else "no damage", hits.filter(func(h): return h.damage > 0 or not h.status.is_empty()).size()])
 	_check_end()
 	return {"ok": true, "hit": check.success, "center": center, "damage": dmg, "hits": hits}
@@ -1848,9 +1840,10 @@ func _take_cover(u: Dictionary) -> void:
 
 # --- Kit (safehouse gear packed for the gig) -------------------------------------------
 
-## Why the active crew member can't use kit slot `slot` as `how` ("grenade" | "dose"), or "".
+## Why the active unit can't use kit slot `slot` as `how` ("grenade" | "dose"), or "". Guards
+## carry kit too (a frag), packed by their roster rather than from storage.
 func _kit_ready(slot: int, how: String) -> String:
-	if cur.is_empty() or cur.team != CREW:
+	if cur.is_empty():
 		return "not your turn"
 	if slot < 0 or slot >= cur.c.kit.size() or cur.c.kit[slot] == "":
 		return "nothing in that slot"

@@ -8,8 +8,10 @@ extends RefCounted
 ## v1: the first slice (M6/M7): crew, board, fixer rep, heat, facilities.
 ## v2: factions. Board gigs name their target faction; the campaign tracks standing per faction.
 ## v3: inventory. Safehouse storage (stash); each crew member's two kit slots and addictions.
+## v4: frags are kit. Carried frag grenades go into storage (one packed in slot 1); slot 2 holds
+##     utilities only, so a consumable there moves to an empty slot 1 or back into storage.
 
-const CURRENT := 3
+const CURRENT := 4
 
 
 ## Upgrade `d` (a parsed save) to CURRENT. Returns {} for a save from a newer build, which this
@@ -23,6 +25,7 @@ static func migrate(d: Dictionary) -> Dictionary:
 		match v:
 			1: _v1_to_v2(d)
 			2: _v2_to_v3(d)
+			3: _v3_to_v4(d)
 		v += 1
 		d["version"] = v
 	return d
@@ -48,3 +51,25 @@ static func _v2_to_v3(d: Dictionary) -> void:
 		if not (c as Dictionary).has("addictions"):
 			c["addictions"] = []
 
+
+
+const FRAG := "ammo/frag_grenade"
+
+
+static func _v3_to_v4(d: Dictionary) -> void:
+	var stash: Dictionary = d.get("stash", {})
+	d["stash"] = stash
+	for c in d.get("crew", []):
+		var kit: Array = c.get("kit", ["", ""])
+		c["kit"] = kit
+		if kit.size() > 1 and kit[1] != "" and Items.kind(String(kit[1])) != "utility":
+			if kit[0] == "":
+				kit[0] = kit[1]
+			kit[1] = ""   # still in storage: the stash counts packed items too
+		var n := int(c.get("grenades", 0))
+		if n > 0:
+			stash[FRAG] = int(stash.get(FRAG, 0)) + n
+			if kit[0] == "":
+				kit[0] = FRAG
+	for c in d.get("crew", []) + d.get("recruits", []):
+		(c as Dictionary).erase("grenades")

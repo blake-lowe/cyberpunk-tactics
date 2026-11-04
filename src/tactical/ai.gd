@@ -53,7 +53,7 @@ static func _special(e: Encounter, u: Dictionary, w: Weapon) -> bool:
 		return false
 	var foes := _enemies(e, u)
 	var shot := _best_shot_value(e, u, w)
-	if u.c.grenades > 0:
+	if e.kit_action(0) == "grenade":
 		var best_cell := Vector3i(-1, -1, -1)
 		var best_n := 1
 		for f in foes:
@@ -72,7 +72,7 @@ static func _special(e: Encounter, u: Dictionary, w: Weapon) -> bool:
 				best_n = n
 				best_cell = cell
 		if best_cell.x >= 0 and best_n * 21.0 * 0.5 > shot:
-			return e.throw_grenade(best_cell).get("ok", false)
+			return e.throw_grenade(best_cell, 0).get("ok", false)
 	if w.def.get("shotgun_shell", false) and w.ammo > 0:
 		for f in foes:
 			var cone := 0

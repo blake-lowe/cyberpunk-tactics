@@ -400,8 +400,8 @@ func _crew_card(c: Combatant) -> PanelContainer:
 				wr.add_child(b)
 		if wr.get_child_count() > 0:
 			col.add_child(wr)
-	if c.grenades > 0 or not c.weapons.is_empty():
-		col.add_child(_text(", ".join(c.weapons.map(func(w): return String(w.def.name))) + ("  · frag ×%d" % c.grenades if c.grenades > 0 else ""), Hud.F_TERM, Hud.ts(18), Color(Hud.TEXT, 0.7), true))
+	if not c.weapons.is_empty():
+		col.add_child(_text(", ".join(c.weapons.map(func(w): return String(w.def.name))), Hud.F_TERM, Hud.ts(18), Color(Hud.TEXT, 0.7), true))
 	col.add_child(_kit_row(c))
 	for drug in c.addictions:
 		var ar := HBoxContainer.new()
@@ -433,7 +433,7 @@ func _crew_card(c: Combatant) -> PanelContainer:
 
 
 ## The two kit slots: what this crew member takes into the next gig from safehouse storage.
-## Click a slot to cycle through what storage holds for it (slot 1 consumables; slot 2 either).
+## Click a slot to cycle through what storage holds for it (slot 1 consumables; slot 2 utilities).
 func _kit_row(c: Combatant) -> HBoxContainer:
 	var r := HBoxContainer.new()
 	r.add_theme_constant_override("separation", 6)
@@ -445,7 +445,7 @@ func _kit_row(c: Combatant) -> HBoxContainer:
 		if cur != "":
 			opts.insert(1, cur)
 		var nxt: String = opts[(opts.find(cur) + 1) % opts.size()] if opts.size() > 1 else ""
-		var label := ("%d · %s" % [slot + 1, Items.display_name(cur).to_upper()]) if cur != "" else ("%d · %s" % [slot + 1, "EMPTY (CONSUMABLE)" if slot == 0 else "EMPTY (ANY)"])
+		var label := ("%d · %s" % [slot + 1, Items.display_name(cur).to_upper()]) if cur != "" else ("%d · %s" % [slot + 1, "EMPTY (CONSUMABLE)" if slot == 0 else "EMPTY (UTILITY)"])
 		var b := _button(label, Hud.GOLD if cur != "" else Hud.DIM, func(): camp.set_kit(c, s, nxt); _rebuild(), opts.size() > 1)
 		b.add_theme_font_size_override("font_size", 15)
 		r.add_child(b)

@@ -12,7 +12,6 @@ func setup(target_sid: int, origin: Vector2i, _sec: int) -> void:
 	var names: Array = cfg.names
 	var c := Recruit.generate(e.dice, String(roles[e.dice.d(roles.size()) - 1]), "edgerunner", String(names[e.dice.d(names.size()) - 1]))
 	c.weapons.clear()
-	c.grenades = 0
 	c.hp = maxi(1, c.max_hp() / 2)   # roughed up
 	c.faction = "captive"
 	e._add(c, cell, Encounter.CAPTIVE)
