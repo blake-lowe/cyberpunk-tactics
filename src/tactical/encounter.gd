@@ -14,7 +14,6 @@ extends RefCounted
 const JACK_IN_RANGE_M := 6.0      # p198
 const SPOT_RANGE := 15            # squares a guard notices the crew at (clear sight)
 const GUNFIRE_RANGE := 12         # squares within which gunfire alerts guards (any floor)
-const SHOUT_RANGE := 8            # an alerted guard rouses others this close on its floor
 
 var m: TacMap
 var dice: Dice
@@ -30,6 +29,7 @@ var units: Array[Dictionary] = []   ## {id, c, pos: Vector3i, team (a side: see 
 var sides: Array[Dictionary] = []
 var _rel := {}                      ## Vector2i(a, b) → "hostile" | "neutral" | "ally" (both orders)
 var opfor_faction := World.DEFAULT_OPFOR   ## the gig's target faction: whose guards these are
+var doctrine: Dictionary = {}       ## how they guard and answer trouble (Security.doctrine: data/world/security.json)
 var cur: Dictionary = {}
 var turn: TurnState
 var log: Array[String] = []
@@ -88,10 +88,15 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 	for st in p_map.structures:
 		if st.target:
 			target_sid = st.id
+	var site := ""
+	for st in p_map.structures:
+		if st.target:
+			site = String(st.get("site", ""))
+	e.doctrine = Security.for_site(e.opfor_faction, site, String(p_map.params.get("scene", "")))
 	var posts := p_map.posts.duplicate()
 	posts.sort_custom(func(a, b): return int(a.structure == target_sid) > int(b.structure == target_sid))
 	var sec := mini(3, int(p_map.params.get("security", 1)) + (1 if "heavy" in p_twists else 0))
-	var roster := Recruit.opposition(crew.size(), sec)   # CPR p399 budget, strongest first (target building posts)
+	var roster := Security.roster(e.doctrine, crew.size(), sec)   # CPR p399 budget, strongest first (target building posts)
 	var want := roster.size()
 	if posts.size() < want:
 		# Not enough posts (small sites with no guard rooms or security doors): spread the rest over
@@ -138,7 +143,8 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 	e._compute_light()
 	e._outer_patrols(cells[0])
 	e._post_guards()
-	e._hand_out_keycards()
+	if bool(e.doctrine.get("keycards", true)):
+		e._hand_out_keycards()
 	e._trauma_cards()
 	e._place_civilians(cells[0])
 	e.refresh_vision()
@@ -583,9 +589,7 @@ func set_objective(kind: String, fields: Dictionary) -> void:
 
 const CIV_TEAM := 3
 const TT_TEAM := 4
-const MAXTAC_HEAT := 7            ## HOUSE-RULE: at heat 7+ the escalation is MaxTac, not NCPD
 const TT_ROUNDS := 2              ## HOUSE-RULE: Trauma Team lands two rounds after a cardholder goes down
-const CORP_SITES := ["corp_office", "corp_hq", "data_center", "clinic"]
 var civ_casualties := 0
 var tt_hostile := false             ## someone on the crew shot at Trauma Team: they shoot back
 var tt := {}                        ## the Trauma Team call: {patient, round, av, units, carrier, state}
@@ -687,18 +691,16 @@ func _count_civ_harm() -> void:
 ## Trauma Team subscribers: the mark on an assassination, and a Lieutenant or Mini Boss at corp sites
 ## half the time (HOUSE-RULE).
 func _trauma_cards() -> void:
-	var site := ""
-	for st in m.structures:
-		if st.target:
-			site = String(st.get("site", ""))
-	var corp: bool = site in CORP_SITES or String(m.params.get("scene", "")) in ["arcology", "corp_campus"]
+	var tc: Dictionary = doctrine.get("trauma_cards", {})
+	var p := float(tc.get("officers", 0.0))
 	for u in units:
 		if u.team != OPFOR:
 			continue
-		if u.get("vip", false) and corp:
-			u["trauma_card"] = true
-		elif corp and (String(u.c.display_name).begins_with("Lieutenant") or String(u.c.display_name).begins_with("Mini")):
-			u["trauma_card"] = dice.d(2) == 1
+		if u.get("vip", false):
+			if bool(tc.get("mark", false)):
+				u["trauma_card"] = true
+		elif String(u.c.role) in ["lieutenant", "mini_boss"] and p > 0.0:
+			u["trauma_card"] = p >= 1.0 or dice.rng.randf() < p
 
 
 ## A cardholder going down (alive) calls Trauma Team, who land TT_ROUNDS rounds later.
@@ -1058,9 +1060,7 @@ const VIEW_HALF_ANGLE := 60.0   ## HOUSE-RULE: a guard watches a 120° cone ahea
 const AWARE_RANGE := 2.0        ## ...but notices anyone within 2 squares, any direction
 const DARK_PENALTY := 4         ## "Task obscured by smoke or darkness" (CPR p? task modifiers)
 const SHIFT_CHANGE_ROUND := 6    ## HOUSE-RULE twist: the next shift arrives and raises the alarm
-const RADIO_RANGE := 20.0       ## HOUSE-RULE: guards a call-in rouses (squares from the caller)
-const BACKUP_ROUNDS := 5        ## HOUSE-RULE: reinforcements arrive 5 rounds after the call (CPR fights run ~10-17 rounds)
-const NCPD_ROUNDS := 12         ## HOUSE-RULE: still fighting this long after backup arrives, NCPD rolls in
+## Radio range, backup timing and escalation come from the doctrine (data/world/security.json).
 
 
 ## Can guard `g` spot crew member `u` right now? Inside the guard's view (cone or close), in clear
@@ -1135,7 +1135,7 @@ func _compute_light() -> void:
 ## maps were empty walks). One pair per ~2500 squares past the first 1500, up to four; Mooks,
 ## posted far from the deploy zone, every one walking a beat.
 func _outer_patrols(deploy: Vector2i) -> void:
-	var pairs := clampi(int((m.w * m.h - 1500) / 2500), 0, 4)
+	var pairs := Security.patrol_pairs(doctrine, m.w * m.h)
 	if pairs == 0:
 		return
 	var tsid := -1
@@ -1228,9 +1228,10 @@ func _call_it_in(g: Dictionary) -> void:
 	if alarm >= 2 or g.c.dead or not reinforcements:
 		return
 	alarm = 2
-	backup_in = BACKUP_ROUNDS
-	# The radio call rouses guards within RADIO_RANGE of the caller (HOUSE-RULE): the rest hold posts.
-	_rouse(units.filter(func(o): return is_guard(o) and allied(int(o.team), int(g.team)) and not o.alerted and not o.c.dead and Vector2(o.pos.x - g.pos.x, o.pos.y - g.pos.y).length() <= RADIO_RANGE))
+	backup_in = int(doctrine.backup.rounds)
+	# The radio call rouses guards within the doctrine's radio range of the caller: the rest hold posts.
+	var radio := float(doctrine.alarm.radio_range)
+	_rouse(units.filter(func(o): return is_guard(o) and allied(int(o.team), int(g.team)) and not o.alerted and not o.c.dead and Vector2(o.pos.x - g.pos.x, o.pos.y - g.pos.y).length() <= radio))
 	_backup_round = init.round_num
 	say("%s calls it in. Backup in %d rounds." % [g.c.display_name, backup_in])
 	events.append({"type": "alarm", "unit": g.id, "rounds": backup_in})
@@ -1242,10 +1243,10 @@ func _tick_backup() -> void:
 		ncpd_in -= 1
 		if ncpd_in == 0:
 			ncpd_in = -2   # once per gig
-			if heat >= MAXTAC_HEAT:
+			if heat >= int(doctrine.escalation.maxtac_heat):
 				_maxtac_drop()
 			else:
-				_ncpd_wave()
+				_ncpd_wave(String(doctrine.escalation.responder))
 	if backup_in < 0 or init.round_num == _backup_round:
 		return
 	_backup_round = init.round_num
@@ -1253,14 +1254,17 @@ func _tick_backup() -> void:
 	if backup_in > 0:
 		return
 	backup_in = -1
+	var bk: Dictionary = doctrine.backup
+	var sec := int(m.params.get("security", 1)) + (1 if "heavy" in twists else 0)
 	var roster: Array[String] = []
-	for i in int(m.params.get("security", 1)) + (1 if "heavy" in twists else 0):
-		roster.append("mook")
+	for i in int(bk.per_level) * sec + int(bk.get("extra", 0)):
+		roster.append(String(bk.tier))
 	_spawn_wave(roster, "BACKUP", OPFOR, opfor_faction, "Backup")
-	# Escalation: keep fighting and the city notices, if the site matters or the crew is already wanted
-	# (HOUSE-RULE: a low-security scuffle doesn't bring NCPD unless heat >= 3).
-	if ncpd_in == -1 and (int(m.params.get("security", 1)) >= 2 or "heavy" in twists or heat >= 3):   # (heat >= MAXTAC_HEAT sends MaxTac instead)
-		ncpd_in = maxi(2, NCPD_ROUNDS - heat / 2)
+	# Escalation: keep fighting and the city notices, if the site matters or the crew is already
+	# wanted (the doctrine's min_security / min_heat; MaxTac instead above maxtac_heat).
+	var esc: Dictionary = doctrine.escalation
+	if ncpd_in == -1 and (sec >= int(esc.min_security) or heat >= int(esc.min_heat)):
+		ncpd_in = maxi(2, int(esc.rounds) - heat / 2)
 		_ncpd_round = init.round_num
 
 
@@ -1286,12 +1290,12 @@ func _responders(fid: String, team: int, cells: Array, cap: int) -> Array:
 
 ## The NCPD answering the escalation: their responder squad, on their own side (World.relation
 ## decides whether they also go after the guards: police and gangs don't mix).
-func _ncpd_wave() -> void:
-	var r := World.responder("ncpd")
+func _ncpd_wave(fid := "ncpd") -> void:
+	var r := World.responder(fid)
 	var tiers: Array[String] = []
 	for t in r.tiers:
 		tiers.append(String(t))
-	_spawn_wave(tiers, "NCPD", side_for("ncpd", "guard", true), "ncpd", String(r.get("rank", "")))
+	_spawn_wave(tiers, World.display_name(fid).to_upper(), side_for(fid, "guard", true), fid, String(r.get("rank", "")))
 
 
 ## Reinforcements for side `team` (faction `fid`), named "<rank> <n>".
@@ -1349,7 +1353,7 @@ func _rouse(fresh: Array) -> void:
 		events.append({"type": "alert", "unit": g.id})
 		for o in units:
 			if not o.alerted and not o.c.dead and is_guard(o) and allied(int(o.team), int(g.team)) and o.pos.z == g.pos.z \
-					and Vector2(o.pos.x - g.pos.x, o.pos.y - g.pos.y).length() <= SHOUT_RANGE:
+					and Vector2(o.pos.x - g.pos.x, o.pos.y - g.pos.y).length() <= float(doctrine.alarm.shout_range):
 				q.append(o)
 
 

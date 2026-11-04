@@ -132,14 +132,4 @@ static func npc(dice: Dice, tier: String, handle: String = "", gear: Dictionary 
 ## security 1 is all Mooks, 2 adds a Lieutenant, 3 adds a Mini Boss. Alerts are local, so the
 ## crew rarely meets the whole budget at once (XCOM-style pods).
 static func opposition(crew_size: int, security: int) -> Array[String]:
-	var budget := int(round(crew_size * (0.5 + security)))
-	var out: Array[String] = []
-	if security >= 3:
-		out.append("mini_boss")
-		budget -= 3
-	if security >= 2:
-		out.append("lieutenant")
-		budget -= 2
-	for i in maxi(2, budget):
-		out.append("mook")
-	return out
+	return Security.roster(Security.doctrine("default"), crew_size, security)

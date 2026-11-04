@@ -365,7 +365,7 @@ func test_ncpd_follows_backup_if_the_fight_goes_on() -> void:
 	e.backup_in = 1
 	e._backup_round = -5
 	e.next_turn()
-	assert_eq(e.ncpd_in, Encounter.NCPD_ROUNDS - 1, "backup arrived and the clock started (heat 3: a round sooner)")
+	assert_eq(e.ncpd_in, int(e.doctrine.escalation.rounds) - 1, "backup arrived and the clock started (heat 3: a round sooner)")
 	var cops := false
 	for k in 200:
 		for u in e.units:

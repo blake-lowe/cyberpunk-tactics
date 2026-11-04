@@ -14,7 +14,7 @@
 		"bystanders": {"name": "Bystanders", "kind": "civilian",
 			"look": {"jackets": ["6a5a4a", "4a5a6a", "7a6a5a", "5a4a5a", "3a4a3a", "8a7a6a", "6a3a3a"], "accent_from_jacket": 0.3, "visor": 0.0}},
 		"captive": {"name": "Captive", "kind": "captive"},
-		"security": {"name": "Private security", "kind": "corp", "doctrine": "corp_standard",
+		"security": {"name": "Private security", "kind": "corp", "doctrine": "default",
 			"roster": {"ranks": {"mook": "Guard", "lieutenant": "Sergeant", "mini_boss": "Enforcer"}},
 			"look": {"jacket": "4e555e", "accent": "ff3030", "pants": "3a4048", "vest": true, "helmet": true, "gloves": true}},
 		"biotechnica": {"name": "Biotechnica", "kind": "corp", "doctrine": "corp_standard",
