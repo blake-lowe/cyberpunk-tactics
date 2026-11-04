@@ -5,3 +5,4 @@ export_presets.cfg
 /android/
 *.tmp
 .DS_Store
+.claude/worktrees/
