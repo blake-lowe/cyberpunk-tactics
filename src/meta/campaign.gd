@@ -441,14 +441,9 @@ func hire(index: int) -> bool:
 
 # --- Night market (gear shop) ------------------------------------------------------
 
-## What the market stocks, and the reputation it takes to get it (HOUSE-RULE: availability by
-## reputation stands in for the book's Night Market rolls, p337). Prices are the book's list
-## prices (weapons p92/p94, armour p97). Bows and launchers wait for their rules and models.
-const SHOP_WEAPONS := {"medium_pistol": 0, "heavy_pistol": 0, "very_heavy_pistol": 0, "smg": 0, "heavy_smg": 1,
-	"shotgun": 1, "assault_rifle": 1, "sniper_rifle": 2, "light_melee": 0, "medium_melee": 0, "heavy_melee": 0,
-	"very_heavy_melee": 2}
-const SHOP_ARMOR := {"leathers": 0, "kevlar": 0, "light_armorjack": 0, "medium_armorjack": 1, "heavy_armorjack": 2,
-	"flak": 2, "bodyweight_suit": 3, "metalgear": 5}
+## What the market stocks: every weapon and armour whose data carries "shop_rep", the reputation
+## it takes to get it (HOUSE-RULE: availability by reputation stands in for the book's Night Market
+## rolls, p337). Prices are the book's list prices (data/rules weapons.json / armor.json).
 const RESALE := 0.5   ## HOUSE-RULE: replaced gear sells back at half price
 const MAX_GUNS := 2   ## HOUSE-RULE: a primary and a sidearm (plus one melee weapon)
 
@@ -456,13 +451,15 @@ const MAX_GUNS := 2   ## HOUSE-RULE: a primary and a sidearm (plus one melee wea
 ## Shop entries available at the current reputation: {id, kind: weapon|armor, name, cost, info}.
 func shop_stock() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
-	for id in SHOP_WEAPONS:
-		if rep >= int(SHOP_WEAPONS[id]):
+	var wdb: Dictionary = RulesDB.load_json("weapons.json")["weapons"]
+	for id in wdb:
+		if wdb[id].has("shop_rep") and rep >= int(wdb[id].shop_rep):
 			var d := RulesDB.weapon(id)
 			var info := "%dd6" % int(d.dice) + ("" if d.get("melee", false) else " · ROF %d · %d rds" % [int(d.rof), int(d.mag)])
 			out.append({"id": id, "kind": "weapon", "name": String(d.name), "cost": _price(int(d.cost)), "info": info, "fixer": int(d.cost) >= 500})
-	for id in SHOP_ARMOR:
-		if rep >= int(SHOP_ARMOR[id]):
+	var adb: Dictionary = RulesDB.load_json("armor.json")["armor"]
+	for id in adb:
+		if adb[id].has("shop_rep") and rep >= int(adb[id].shop_rep):
 			var a := RulesDB.armor(id)
 			out.append({"id": id, "kind": "armor", "name": String(a.name), "cost": _price(int(a.cost)), "fixer": int(a.cost) >= 500,
 				"info": "SP %d" % int(a.sp) + (" · -%d REF/DEX/MOVE" % int(a.penalty) if int(a.penalty) > 0 else "")})

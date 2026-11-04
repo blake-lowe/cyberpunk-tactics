@@ -16,21 +16,21 @@
     "assault_rifle": [22, 20, 17, 20, 25]
   },
   "weapons": {
-    "medium_pistol":     {"name": "Medium Pistol",     "skill": "handgun",       "dice": 2, "mag": 12, "rof": 2, "hands": 1, "conceal": true,  "cost": 50,  "range": "pistol"},
-    "heavy_pistol":      {"name": "Heavy Pistol",      "skill": "handgun",       "dice": 3, "mag": 8,  "rof": 2, "hands": 1, "conceal": true,  "cost": 100, "range": "pistol"},
-    "very_heavy_pistol": {"name": "Very Heavy Pistol", "skill": "handgun",       "dice": 4, "mag": 8,  "rof": 1, "hands": 1, "conceal": false, "cost": 100, "range": "pistol"},
-    "smg":               {"name": "SMG",               "skill": "handgun",       "dice": 2, "mag": 30, "rof": 1, "hands": 1, "conceal": true,  "cost": 100, "range": "smg", "autofire": 3, "autofire_range": "smg", "suppressive": true},
-    "heavy_smg":         {"name": "Heavy SMG",         "skill": "handgun",       "dice": 3, "mag": 40, "rof": 1, "hands": 1, "conceal": false, "cost": 100, "range": "smg", "autofire": 3, "autofire_range": "smg", "suppressive": true},
-    "shotgun":           {"name": "Shotgun",           "skill": "shoulder_arms", "dice": 5, "mag": 4,  "rof": 1, "hands": 2, "conceal": false, "cost": 500, "range": "shotgun_slug", "shotgun_shell": true},
-    "assault_rifle":     {"name": "Assault Rifle",     "skill": "shoulder_arms", "dice": 5, "mag": 25, "rof": 1, "hands": 2, "conceal": false, "cost": 500, "range": "assault_rifle", "autofire": 4, "autofire_range": "assault_rifle", "suppressive": true},
-    "sniper_rifle":      {"name": "Sniper Rifle",      "skill": "shoulder_arms", "dice": 5, "mag": 4,  "rof": 1, "hands": 2, "conceal": false, "cost": 500, "range": "sniper_rifle"},
+    "medium_pistol":     {"name": "Medium Pistol",     "skill": "handgun",       "dice": 2, "mag": 12, "rof": 2, "hands": 1, "conceal": true,  "cost": 50,  "range": "pistol", "shop_rep": 0},
+    "heavy_pistol":      {"name": "Heavy Pistol",      "skill": "handgun",       "dice": 3, "mag": 8,  "rof": 2, "hands": 1, "conceal": true,  "cost": 100, "range": "pistol", "shop_rep": 0},
+    "very_heavy_pistol": {"name": "Very Heavy Pistol", "skill": "handgun",       "dice": 4, "mag": 8,  "rof": 1, "hands": 1, "conceal": false, "cost": 100, "range": "pistol", "shop_rep": 0},
+    "smg":               {"name": "SMG",               "skill": "handgun",       "dice": 2, "mag": 30, "rof": 1, "hands": 1, "conceal": true,  "cost": 100, "range": "smg", "autofire": 3, "autofire_range": "smg", "suppressive": true, "shop_rep": 0},
+    "heavy_smg":         {"name": "Heavy SMG",         "skill": "handgun",       "dice": 3, "mag": 40, "rof": 1, "hands": 1, "conceal": false, "cost": 100, "range": "smg", "autofire": 3, "autofire_range": "smg", "suppressive": true, "shop_rep": 1},
+    "shotgun":           {"name": "Shotgun",           "skill": "shoulder_arms", "dice": 5, "mag": 4,  "rof": 1, "hands": 2, "conceal": false, "cost": 500, "range": "shotgun_slug", "shotgun_shell": true, "shop_rep": 1},
+    "assault_rifle":     {"name": "Assault Rifle",     "skill": "shoulder_arms", "dice": 5, "mag": 25, "rof": 1, "hands": 2, "conceal": false, "cost": 500, "range": "assault_rifle", "autofire": 4, "autofire_range": "assault_rifle", "suppressive": true, "shop_rep": 1},
+    "sniper_rifle":      {"name": "Sniper Rifle",      "skill": "shoulder_arms", "dice": 5, "mag": 4,  "rof": 1, "hands": 2, "conceal": false, "cost": 500, "range": "sniper_rifle", "shop_rep": 2},
     "bow":               {"name": "Bow",               "skill": "archery",       "dice": 4, "mag": 0,  "rof": 1, "hands": 2, "conceal": false, "cost": 100, "range": "bow"},
     "grenade_launcher":  {"name": "Grenade Launcher",  "skill": "heavy_weapons", "dice": 6, "mag": 2,  "rof": 1, "hands": 2, "conceal": false, "cost": 500, "range": "grenade_launcher", "explosive": true},
     "rocket_launcher":   {"name": "Rocket Launcher",   "skill": "heavy_weapons", "dice": 8, "mag": 1,  "rof": 1, "hands": 2, "conceal": false, "cost": 500, "range": "rocket_launcher", "explosive": true},
 
-    "light_melee":       {"name": "Combat Knife",      "skill": "melee_weapon",  "dice": 1, "rof": 2, "hands": 1, "conceal": true,  "cost": 50,  "melee": true},
-    "medium_melee":      {"name": "Baseball Bat",      "skill": "melee_weapon",  "dice": 2, "rof": 2, "hands": 2, "conceal": false, "cost": 50,  "melee": true},
-    "heavy_melee":       {"name": "Sword",             "skill": "melee_weapon",  "dice": 3, "rof": 2, "hands": 2, "conceal": false, "cost": 100, "melee": true},
-    "very_heavy_melee":  {"name": "Sledgehammer",      "skill": "melee_weapon",  "dice": 4, "rof": 1, "hands": 2, "conceal": false, "cost": 500, "melee": true}
+    "light_melee":       {"name": "Combat Knife",      "skill": "melee_weapon",  "dice": 1, "rof": 2, "hands": 1, "conceal": true,  "cost": 50,  "melee": true, "shop_rep": 0},
+    "medium_melee":      {"name": "Baseball Bat",      "skill": "melee_weapon",  "dice": 2, "rof": 2, "hands": 2, "conceal": false, "cost": 50,  "melee": true, "shop_rep": 0},
+    "heavy_melee":       {"name": "Sword",             "skill": "melee_weapon",  "dice": 3, "rof": 2, "hands": 2, "conceal": false, "cost": 100, "melee": true, "shop_rep": 0},
+    "very_heavy_melee":  {"name": "Sledgehammer",      "skill": "melee_weapon",  "dice": 4, "rof": 1, "hands": 2, "conceal": false, "cost": 500, "melee": true, "shop_rep": 2}
   }
 }
