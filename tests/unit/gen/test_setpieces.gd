@@ -255,3 +255,9 @@ func test_set_pieces_deterministic() -> void:
 		var a := JSON.stringify(SceneGen.generate(55, "lone_building", {"setpiece": id}).to_dict())
 		var b := JSON.stringify(SceneGen.generate(55, "lone_building", {"setpiece": id}).to_dict())
 		assert_true(a == b, id + " deterministic")
+
+
+func test_a_gig_at_a_famous_place_plays_as_its_set_piece() -> void:
+	assert_eq(String(Campaign._place_at("south_night_city_4").get("setpiece", "")), "fort_sumter", "Fort Sumter")
+	assert_eq(String(Campaign._place_at("upper_marina_40").get("setpiece", "")), "ziggurat_hq", "Ziggurat HQ")
+	assert_false(Campaign._place_at("little_europe_1").has("setpiece"), "ordinary places stay procedural")

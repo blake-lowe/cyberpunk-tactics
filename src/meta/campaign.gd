@@ -473,11 +473,15 @@ func _place_for(kind: String, g: Dictionary, faction := "") -> Dictionary:
 	return {"scene": pick, "profile": "", "site": ""}
 
 
-## Where a gig at canon location `lid` is played: {scene, profile, site, location}.
+## Where a gig at canon location `lid` is played: {scene, profile, site, location}, plus its set
+## piece (data/gen/setpieces.json) when the place has one: the famous places play as themselves.
 static func _place_at(lid: String) -> Dictionary:
 	var l := World.location(lid)
-	return {"scene": String(l.get("scene", "neighborhood" if l.has("profile") else "lone_building")),
+	var out := {"scene": String(l.get("scene", "neighborhood" if l.has("profile") else "lone_building")),
 		"profile": String(l.get("profile", "")), "site": String(l.get("site", "")), "location": lid}
+	if String(l.get("setpiece", "")) != "":
+		out["setpiece"] = String(l.setpiece)
+	return out
 
 
 ## The district a gig is in, by name ("" if none).
