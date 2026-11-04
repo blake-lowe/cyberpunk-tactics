@@ -48,6 +48,30 @@ func test_park_lands_are_playable() -> void:
 					for c in cells:
 						if m.walkable(0, c):
 							assert_true(reach.has(Vector3i(c.x, c.y, 0)), "%s: ride lot %d square %s cut off" % [tag, r.id, c])
+			_assert_no_pockets(m, reach, tag)
+
+
+## Every open ground-floor square is one the crew can walk to (no courtyard walled in, no square
+## sealed by pines and crates), and no device sits inside a prop.
+func _assert_no_pockets(m: TacMap, reach: Dictionary, tag: String) -> void:
+	var lost: Array[Vector2i] = []
+	for y in m.h:
+		for x in m.w:
+			if m.walkable(0, Vector2i(x, y)) and not reach.has(Vector3i(x, y, 0)):
+				lost.append(Vector2i(x, y))
+	assert_eq(lost.size(), 0, "%s: open squares cut off from the deploy zone %s" % [tag, lost])
+	for dv in m.devices:
+		assert_false(m.has_cover_at(int(dv.floor), dv.pos), "%s: %s at %s stands inside a %s" % [tag, dv.type, dv.pos, m.cover_at(int(dv.floor), dv.pos).get("kind", "")])
+
+
+## Seeds that once left pockets (haunted_woods 2, 6, 14) or a camera inside the hub fountain
+## (theme_park 15, the fountain went in after the plaza was furnished).
+func test_no_pockets_and_nothing_inside_the_fountain() -> void:
+	for pr in [["haunted_woods", 2], ["haunted_woods", 6], ["haunted_woods", 14], ["theme_park", 15]]:
+		var m := _map(pr[0], pr[1])
+		var d0 := _deploy(m)
+		_assert_no_pockets(m, m.reachable(d0), "%s seed %d" % pr)
+	assert_true(_map("theme_park", 15).cover.any(func(cv): return cv.kind == "fountain"), "the hub keeps its fountain")
 
 
 func test_the_target_can_be_reached_on_foot() -> void:

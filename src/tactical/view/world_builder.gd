@@ -1586,7 +1586,7 @@ func _fire_escape(f: int) -> void:
 	for sid in _escapes:
 		var e: Array = _escapes[sid]
 		var floors: int = e[3]
-		if f >= floors:
+		if f >= street + floors:   # `floors` counts storeys from the street up
 			continue
 		var cell: Vector2i = e[0]
 		var along: Vector3 = e[1]
@@ -1599,14 +1599,14 @@ func _fire_escape(f: int) -> void:
 			box(steel, base + out * 0.34 + along * (-1.35 + i * 0.675) + Vector3(0, 0.23, 0), Vector3(0.025, 0.44, 0.025))
 		for sgn in [-1, 1]:   # brackets into the wall
 			box(steel, base + along * (1.2 * sgn) - out * 0.2 + Vector3(0, -0.12, 0), Vector3(0.04, 0.24, 0.04) if horiz else Vector3(0.04, 0.24, 0.04))
-		var dir := 1.0 if f % 2 == 0 else -1.0
-		if f + 1 < floors:   # flight up to the next landing
+		var dir := 1.0 if (f - street) % 2 == 0 else -1.0
+		if f + 1 < street + floors:   # flight up to the next landing
 			var x_dir := (along * dir * 2.0 + Vector3(0, FH, 0)).normalized()
 			var ln := Vector2(2.0, FH).length()
 			var z := out
 			var yv := z.cross(x_dir).normalized()
 			put("box", grate, Transform3D(Basis(x_dir * ln, yv * 0.05, z * 0.5), base + Vector3(0, FH / 2, 0) + out * 0.02))
-		if f == 1:   # drop ladder, hanging short of the street
+		if f == street + 1:   # drop ladder, hanging short of the street
 			for sgn in [-1, 1]:
 				box(steel, base + along * (-1.1 * dir) + along * (0.18 * sgn) + Vector3(0, -0.75, 0), Vector3(0.025, 1.0, 0.025))
 			for i in 5:
@@ -1616,6 +1616,9 @@ func _fire_escape(f: int) -> void:
 func _plan_escapes() -> void:
 	_escapes.clear()
 	var best := {}   # sid → [score, cell, d]
+	var up := street + 1
+	if up >= m.floors:
+		return
 	for y in range(1, m.h - 1):
 		for x in range(1, m.w - 1):
 			var sid := _sid_grid[y * m.w + x]
@@ -1624,10 +1627,10 @@ func _plan_escapes() -> void:
 			for d in MapGen.DIRS:
 				var along := Vector2i(-d.y, d.x)
 				var ok := true
-				for k in range(-1, 2):   # three blank wall squares on floor 1, the street below
+				for k in range(-1, 2):   # three blank wall squares on the storey above the street, the street below
 					var w: Vector2i = Vector2i(x, y) + along * k
-					if _wall_kind(1, w.x, w.y) in [-1, 3, 4, 5, 6] or m.t(1, w.x + d.x, w.y + d.y) != TacMap.T.VOID \
-							or m.t(0, w.x + d.x, w.y + d.y) != TacMap.T.OUTSIDE or m.t(0, w.x, w.y) == TacMap.T.DOOR:
+					if _wall_kind(up, w.x, w.y) in [-1, 3, 4, 5, 6] or m.t(up, w.x + d.x, w.y + d.y) != TacMap.T.VOID \
+							or m.t(street, w.x + d.x, w.y + d.y) != TacMap.T.OUTSIDE or m.t(street, w.x, w.y) == TacMap.T.DOOR:
 						ok = false
 				if not ok:
 					continue

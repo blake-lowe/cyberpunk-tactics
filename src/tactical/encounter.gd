@@ -948,11 +948,12 @@ func av_spot(near: Vector3i, lo: int, hi: int) -> Vector3i:
 
 
 func _av_hidden(x: int, y: int) -> bool:
-	if m.floors < 2:
+	var up := m.street + 1   # the storey above the street (basements sit below it)
+	if up >= m.floors:
 		return false
 	for k in range(2, 9):   # a wedge toward the camera, about 25° either side
 		for c in [Vector2i(x + k, y + k), Vector2i(x + k, y + k / 2), Vector2i(x + k / 2, y + k)]:
-			if m.inb(c.x, c.y) and m.t(1, c.x, c.y) in [TacMap.T.FLOOR, TacMap.T.WALL, TacMap.T.DOOR, TacMap.T.STAIRS]:   # a second storey
+			if m.inb(c.x, c.y) and m.t(up, c.x, c.y) in [TacMap.T.FLOOR, TacMap.T.WALL, TacMap.T.DOOR, TacMap.T.STAIRS]:   # a second storey
 				return true
 	return false
 

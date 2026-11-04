@@ -1414,14 +1414,27 @@ func _below_grade_view() -> void:
 		return
 	var below := view_floor < m.street
 	for f in floor_nodes.size():   # from the street up the storeys below are out of sight under it
-		floor_nodes[f].visible = f <= view_floor if below else f >= m.street
+		floor_nodes[f].visible = _grade_shows(f)
 	var sky := world.get_node_or_null("skyline") as Node3D
 	if sky:
 		sky.visible = not below
-	if devices:   # wall kit (terminals, cameras, jack points) goes with its storey
-		for n in devices.get_children():
-			if n is Node3D and n.has_meta("floor"):
-				(n as Node3D).visible = int(n.get_meta("floor")) <= view_floor if below else int(n.get_meta("floor")) >= m.street
+	for group in [devices, door_nodes]:   # wall kit (terminals, cameras, jack points), door leaves and lock lamps go with their storey
+		if group:
+			for n in group.get_children():
+				if n is Node3D and n.has_meta("floor"):
+					(n as Node3D).visible = _grade_shows(int(n.get_meta("floor")))
+	if hazard_view and is_instance_valid(hazard_view):   # the MIST lies over the street; the tunnels are spared (Encounter)
+		hazard_view.visible = not below
+	if ambient and is_instance_valid(ambient):   # embers, wreck fires and the like hang over the street
+		ambient.visible = not below
+
+
+## Whether storey `f` stands in the below-grade view: viewing a basement shows it and the storeys
+## under it; otherwise the street and everything above (the basements are out of sight under it).
+func _grade_shows(f: int) -> bool:
+	if m == null or m.basements == 0:
+		return true
+	return f <= view_floor if view_floor < m.street else f >= m.street
 
 
 func _cut_hides(v: Vector3i) -> bool:
@@ -1536,6 +1549,8 @@ func _build_doors() -> void:
 		if open:
 			mi.position = mi.get_meta("open_at")
 			mi.rotation.y = PI / 2
+		mi.set_meta("floor", d.floor)
+		mi.visible = _grade_shows(d.floor)
 		door_nodes.add_child(mi)
 		_door_leaves[v] = mi
 		var lamp := MeshInstance3D.new()
@@ -1545,6 +1560,8 @@ func _build_doors() -> void:
 		lm.material = builder.mat("dark", d.floor, true, {"glow": 1.2, "emit": Color("ff3b4f") if locked else Color("39f0a0")})
 		lamp.mesh = lm
 		lamp.position = c + (Vector3(0.47, 0.05, 0.26) if horiz else Vector3(0.26, 0.05, 0.47))
+		lamp.set_meta("floor", d.floor)
+		lamp.visible = mi.visible
 		door_nodes.add_child(lamp)
 
 
@@ -2742,6 +2759,7 @@ func _update_keycards() -> void:
 		var n: Node3D = keycard_nodes[id]
 		n.rotation.y = t * 2.0
 		n.position.y = _gy(enc.units[id].pos) + 0.72 + 0.05 * sin(t * 3.0)
+		n.visible = _grade_shows(enc.units[id].pos.z)   # a card over a body on the street lifts off with it below grade
 
 
 ## Snatch gigs: the package sits on a gold beacon until someone carries it (then a gold diamond

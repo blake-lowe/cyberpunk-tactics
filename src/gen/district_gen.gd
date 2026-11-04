@@ -50,6 +50,7 @@ static func generate(c: Dictionary, profile_name: String) -> void:
 	_edge_spawns(c)
 	if c.get("midway", false):
 		ParkGen.tidy_roofs(c)   # last: prop ids are the cover count at placement, so nothing may be placed after a removal
+		ParkGen.fill_pockets(c)   # then no open square is left boxed in
 	for k in ["midway", "path_g", "verge_g", "pier", "park_rides"]:
 		c.erase(k)
 
@@ -289,9 +290,7 @@ static func _fill_lots(c: Dictionary, prof: Dictionary, lots: Array) -> void:
 	for piece in pieces:
 		var bb := _bbox(piece)
 		if hub != "" and c.has("plaza_center") and piece.has(Vector2i(c.plaza_center)):
-			var hr := _yard_lot(c, piece, hub)   # the hub every land opens off (a theme park's central plaza)
-			if c.get("midway", false):
-				ParkGen.hub(c, hr)
+			_yard_lot(c, piece, hub, true)   # the hub every land opens off (a theme park's central plaza)
 			continue
 		var use: String = names[c.dice.rng.rand_weighted(wts)]
 		var is_target := not target_done and mini(bb.size.x, bb.size.y) >= 12
@@ -379,7 +378,7 @@ static func _cut(c: Dictionary, piece: Dictionary, r: Rect2i, out: Array[Rect2i]
 		else Rect2i(r.position.x, r.position.y + cut + gap, r.size.x, r.size.y - cut - gap), out)
 
 
-static func _yard_lot(c: Dictionary, cells: Dictionary, use: String) -> Dictionary:
+static func _yard_lot(c: Dictionary, cells: Dictionary, use: String, is_hub := false) -> Dictionary:
 	var m: TacMap = c.m
 	var spec: Array = YARDS[use]
 	for v in cells:
@@ -443,6 +442,8 @@ static func _yard_lot(c: Dictionary, cells: Dictionary, use: String) -> Dictiona
 					room.cells -= 1
 		if use == "ride" and c.get("midway", false):
 			ParkGen.ride(c, room, gate)   # the ride itself, before its benches and planters
+	if is_hub and c.get("midway", false):
+		ParkGen.hub(c, room)   # the fountain first, so the plaza's devices and props go round it
 	Furnish.run_structure(m, c.dice, sid)
 	if m.devices.any(func(d): return d.structure == sid) and use == "substation":
 		m.architectures[sid] = NetGen.generate(m, c.dice, sid)

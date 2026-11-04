@@ -266,3 +266,85 @@ func test_combat_zone_tunnels_link_the_hatches() -> void:
 			assert_true(field.has(Vector3i(v.x, v.y, 0)), "%s: every tunnel square joins up" % tag)
 		var posts := m.posts.filter(func(p): return int(p.floor) == 0)
 		assert_true(posts.size() >= 1, "%s: guards posted in the tunnels" % tag)
+
+
+## AV landings shy from squares a second storey hides from the camera: the storey above the
+## street (m.street + 1), not absolute floor 1, which on the Combat Zone is the street itself.
+func test_av_hidden_reads_the_storey_above_the_street() -> void:
+	var m := _map("combat_zone", SEEDS[0])
+	var dice := Dice.new(9)
+	var e := Encounter.setup(m, dice, _crew(dice), "rescue", {"faction": "network_54"})
+	var up := m.street + 1
+	var structural := [TacMap.T.FLOOR, TacMap.T.WALL, TacMap.T.DOOR, TacMap.T.STAIRS]
+	var low := 0   # squares where only a street-level building lies toward the camera
+	for y in range(0, m.h, 2):
+		for x in range(0, m.w, 2):
+			var street_only := false
+			var upper := false
+			for k in range(2, 9):
+				for c in [Vector2i(x + k, y + k), Vector2i(x + k, y + k / 2), Vector2i(x + k / 2, y + k)]:
+					if not m.inb(c.x, c.y):
+						continue
+					if m.t(up, c.x, c.y) in structural:
+						upper = true
+					elif m.t(m.street, c.x, c.y) in structural:
+						street_only = true
+			if street_only and not upper:
+				low += 1
+				assert_false(e._av_hidden(x, y), "(%d,%d): a street-level building alone doesn't hide a landing" % [x, y])
+			elif upper:
+				assert_true(e._av_hidden(x, y), "(%d,%d): a storey above the street does" % [x, y])
+	assert_true(low > 50, "plenty of squares with only street-level buildings toward the camera (%d)" % low)
+
+
+## A stair shaft whose rooms BuildingGen sealed off (no door reached them) goes with them: the
+## Combat Zone's seed 3 once kept a squat's shaft that was wall on both floors it linked.
+func test_no_shaft_runs_through_solid_wall() -> void:
+	for s in [3] + SEEDS:
+		var m := _map("combat_zone", s)
+		for v in m.verticals:
+			for f in range(int(v.from_floor), int(v.to_floor) + 1):
+				assert_true(m.t(f, v.pos.x, v.pos.y) in [TacMap.T.STAIRS, TacMap.T.ELEVATOR], "seed %d: %s at %s open on floor %d" % [s, v.type, v.pos, f])
+
+
+## The view's fire escapes climb from the street (floor m.street), not absolute floor 0.
+func test_fire_escapes_climb_from_the_street() -> void:
+	var m := _map("combat_zone", SEEDS[0])
+	var los := Los.new(m)
+	var wb := WorldBuilder.new(m, Vision.new(m, los), null)
+	var root := Node3D.new()
+	wb.build(root)
+	assert_true(wb._escapes.size() >= 3, "the set's tenements keep their fire escapes (%d)" % wb._escapes.size())
+	root.free()
+
+
+## Ambient embers drift over the street, not inside the earth round the tunnels.
+func test_embers_rise_from_the_street() -> void:
+	var m := _map("combat_zone", SEEDS[0])
+	var fx := AmbientFx.new()
+	fx.build(m, ["embers"], m.seed_value)
+	var p := fx.get_child(0) as CPUParticles3D
+	assert_true(p != null, "an ember emitter")
+	var gy := m.street * WorldBuilder.FH
+	assert_near(p.position.y - p.emission_box_extents.y, gy, 0.001, "the emission box sits on the street")
+	fx.free()
+
+
+## HOUSE-RULE: the MIST covers the set from the street up; the guard tunnels under it are spared.
+func test_the_mist_spares_the_tunnels() -> void:
+	var m := _map("combat_zone", SEEDS[0])
+	var dice := Dice.new(9)
+	var e := Encounter.setup(m, dice, _crew(dice), "rescue", {"faction": "network_54"})
+	e.hazard.force_stage(4)
+	var tunnel := Vector3i(-1, -1, -1)
+	for v in Furnish.room_cells(m, m.rooms.filter(func(r): return r.cells > 0 and r.kind == "tunnel")[0]):
+		if e.hazard.outside(Vector3i(v.x, v.y, m.street)):
+			tunnel = Vector3i(v.x, v.y, 0)
+			break
+	assert_true(tunnel.x >= 0, "a tunnel square under the gas")
+	assert_false(e.hazard.outside(tunnel), "no MIST below the street")
+	var u: Dictionary = e.alive(Encounter.CREW)[0]
+	u.pos = tunnel
+	var hp: int = u.c.hp
+	e._hazard_harm(u)
+	assert_eq(u.c.hp, hp, "the crew in the tunnels take nothing")

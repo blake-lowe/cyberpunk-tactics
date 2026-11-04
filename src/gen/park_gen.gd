@@ -333,6 +333,44 @@ static func tidy_roofs(c: Dictionary) -> void:
 		m.remove_cover_at(v.z, Vector2i(v.x, v.y))
 
 
+## Last: open ground-floor squares the park's props, fences and building massing boxed in (a
+## walled-in courtyard, a square sealed by a pine and a crate) become solid, the material of the
+## walls round them, so every open square on the ground is one the crew can walk to. The main
+## walkable network is the largest connected piece.
+static func fill_pockets(c: Dictionary) -> void:
+	var m: TacMap = c.m
+	var main := {}
+	var seen := {}
+	for y in m.h:
+		for x in m.w:
+			var v := Vector3i(x, y, 0)
+			if seen.has(v) or not m.walkable(0, Vector2i(x, y)):
+				continue
+			var piece := m.reachable(v)
+			seen.merge(piece)
+			if piece.size() > main.size():
+				main = piece
+	for y in m.h:
+		for x in m.w:
+			if main.has(Vector3i(x, y, 0)) or not m.walkable(0, Vector2i(x, y)):
+				continue
+			var mats := {}
+			for d in Nav.DIRS8:
+				if m.t(0, x + d.x, y + d.y) == TacMap.T.WALL:
+					var k := int(m.wall_mat[0][(y + d.y) * m.w + x + d.x])
+					mats[k] = int(mats.get(k, 0)) + 1
+			var mat := 1   # concrete when nothing walls it
+			for k in mats:
+				if int(mats[k]) > int(mats.get(mat, 0)):
+					mat = k
+			var l := m.label(0, x, y)
+			if l >= 0:
+				m.rooms[l].cells -= 1
+				m.labels[0][y * m.w + x] = -1
+			m.set_t(0, x, y, TacMap.T.WALL)
+			m.wall_mat[0][y * m.w + x] = mat
+
+
 static func _free(m: TacMap, v: Vector2i) -> bool:
 	return m.inb(v.x, v.y) and m.t(0, v.x, v.y) == TacMap.T.OUTSIDE and m.label(0, v.x, v.y) < 0 and not m.has_cover_at(0, v) and not m.has_decor_at(0, v)
 

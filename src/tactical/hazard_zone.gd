@@ -18,6 +18,7 @@ var start := 3
 var every := 3
 var dice_by_stage: Array = []       ## d6 a turn outside, per stage (1-based: [0] is stage 1)
 var spare: Array = []               ## side ais it never touches (guard: the owner's people)
+var street := 0                     ## the street storey (TacMap.street); it never bites below it
 
 
 ## The zone for a map, or null when `spec` is empty. Draws its centre with `dice`: an open outdoor
@@ -31,6 +32,7 @@ static func from_spec(spec: Dictionary, m: TacMap, dice: Dice) -> HazardZone:
 	z.every = maxi(1, int(spec.get("every", 3)))
 	z.dice_by_stage = spec.get("dice", [1])
 	z.spare = spec.get("spare", [])
+	z.street = m.street
 	var a: Array = m.params.get("hazard_area", [0, 0, m.w, m.h])
 	z.area = Rect2i(int(a[0]), int(a[1]), int(a[2]), int(a[3]))
 	var mid := z.area.grow_individual(-z.area.size.x / 4, -z.area.size.y / 4, -z.area.size.x / 4, -z.area.size.y / 4)
@@ -87,9 +89,10 @@ func next_radius() -> float:
 	return radii[mini(stage + 1, steps())]
 
 
-## Is square `v` (any storey) outside the safe circle and inside the hazard area?
+## Is square `v` (the street or above) outside the safe circle and inside the hazard area?
+## HOUSE-RULE: storeys below the street are spared; the book's MIST covers the set (NC2045 p.216), and the tunnels are Net54's own.
 func outside(v: Vector3i) -> bool:
-	return stage > 0 and area.has_point(Vector2i(v.x, v.y)) and Vector2(v.x + 0.5, v.y + 0.5).distance_to(center) > radius()
+	return stage > 0 and v.z >= street and area.has_point(Vector2i(v.x, v.y)) and Vector2(v.x + 0.5, v.y + 0.5).distance_to(center) > radius()
 
 
 ## d6 a turn outside, at the current stage.
