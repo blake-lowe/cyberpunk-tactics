@@ -1,5 +1,5 @@
 {
- "_doc": "massing: weights for upper-floor shapes (podium: tower on a base, step: set back on one or two sides, wing: a low part beside a taller block, none). Building site types for BuildingGen. layout: room-partition algorithm + params. zones: room kinds per security zone \u2014 entrance (room at the main door), small (\u226416 cells), large (\u226560 cells), rotation (by size rank), and layout-kind mappings (e.g. living/bedroom from corridor_units). density: default cover density. exterior: wall material index (0 plaster, 1 concrete, 2 steel). enter_corridor: put the main door on a corridor. networked: false = no NET even with devices. no_corridors: never relabel long thin rooms as corridors. levels: how many security levels (L1..L4) the building uses, counted from its base level. net_chance: chance a non-target building of this type has a NET (targets always do). windows: chance per eligible exterior wall square of a window. shapes: weights for footprint shapes (rect, L, U, T, chamfer, courtyard). decay: default ruin level 0-1. Programmed sites (layout.algorithm program, Layouts.program): layout.program lists the rooms per floor in bands from the entrance facade inwards (see src/gen/layouts.gd), layout.enter / service: room kinds the main / service door open into, stair_in / lift_in: room kinds the stairs / lifts go in, stairs: stair shafts (2 = one at each end). footprint {w, d} (squares along / into the entrance facade) and floors [min, max] size a lone building of the site. anchors.<role>.<room kind>: where objectives put their vip / captive / package / machine (Encounter.secure_cell; a bonus on the score, ~20 per security level). armored_windows: every window bulletproof. room_windows: room kinds that get one punched window centred on each outside wall (two on a long wall) instead of windows at random: a hotel slab reads as rows of identical guest rooms. _why: the planning conventions and sources the program follows.",
+ "_doc": "massing: weights for upper-floor shapes (podium: tower on a base, step: set back on one or two sides, wing: a low part beside a taller block, none). Building site types for BuildingGen. layout: room-partition algorithm + params. zones: room kinds per security zone \u2014 entrance (room at the main door), small (\u226416 cells), large (\u226560 cells), rotation (by size rank), and layout-kind mappings (e.g. living/bedroom from corridor_units). density: default cover density. exterior: wall material index (0 plaster, 1 concrete, 2 steel). enter_corridor: put the main door on a corridor. networked: false = no NET even with devices. no_corridors: never relabel long thin rooms as corridors. levels: how many security levels (L1..L4) the building uses, counted from its base level. net_chance: chance a non-target building of this type has a NET (targets always do). windows: chance per eligible exterior wall square of a window. shapes: weights for footprint shapes (rect, L, U, T, chamfer, courtyard). decay: default ruin level 0-1. Programmed sites (layout.algorithm program, Layouts.program): layout.program lists the rooms per floor in bands from the entrance facade inwards (see src/gen/layouts.gd), layout.enter / service: room kinds the main / service door open into, stair_in / lift_in: room kinds the stairs / lifts go in, stairs: stair shafts (2 = one at each end). footprint {w, d} (squares along / into the entrance facade) and floors [min, max] size a lone building of the site. anchors.<role>.<room kind>: where objectives put their vip / captive / package / machine (Encounter.secure_cell; a bonus on the score, ~20 per security level). armored_windows: every window bulletproof. room_windows: room kinds that get one punched window centred on each outside wall (two on a long wall) instead of windows at random: a hotel slab reads as rows of identical guest rooms. _why: the planning conventions and sources the program follows. turret_weapon: the gun on the site's automated turrets, one of Turret.ARMAMENTS (CPR core p.214 lets the GM pick; default assault_rifle); a rooms.json turret spec's `weapon` overrides it. Gangs and chop shops mount the cheap Heavy SMG (100eb against the rifle's 500, p.94); a bank's vault guns load AP rounds (VH Pistol, 8 AP).",
  "corp_office": {"massing": {"podium": 2, "step": 2, "none": 2}, 
   "name": "Corporate office",
   "layout": {
@@ -105,8 +105,9 @@
    "courtyard": 1
   }
  },
- "gang_hideout": {"massing": {"wing": 1, "step": 1, "none": 2}, 
+ "gang_hideout": {"massing": {"wing": 1, "step": 1, "none": 2},
   "name": "Gang hideout",
+  "turret_weapon": "heavy_smg",
   "layout": {
    "algorithm": "growth"
   },
@@ -968,8 +969,9 @@
    "courtyard": 2
   }
  },
- "chop_shop": {"massing": {"wing": 1, "none": 2}, 
+ "chop_shop": {"massing": {"wing": 1, "none": 2},
   "name": "Chop shop",
+  "turret_weapon": "heavy_smg",
   "layout": {
    "algorithm": "bsp",
    "min_room": 5,
@@ -1298,6 +1300,7 @@
  },
  "bank": {
   "name": "Bank",
+  "turret_weapon": "very_heavy_pistol",
   "_why": "A branch bank in depth from the street (Neufert, banks: public banking hall at the entrance with the loan officers' side offices off it; the teller line across the back of the hall behind bullet-resistant glass; behind that the staff zone: manager, cash counting, security; the vault deepest, entered only through a security vestibule / mantrap). NC2045 The Glen 1, 1st Night City Bank: a public ground floor (marble, bulletproof windows, human tellers, side offices for loans) and the vault on the second floor, with ID card and retina scan between floors: the vault-upstairs variant. EuroBank (The Glen 12): screens instead of windows, layered biometrics.",
   "footprint": {"w": [18, 24], "d": [16, 20]},
   "floors": [1, 2],

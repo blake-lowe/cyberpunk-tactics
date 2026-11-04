@@ -954,7 +954,8 @@ static func stat_block(c: Combatant, full: bool, extra: Array = []) -> String:
 	var ws: Array = c.weapons if full else c.weapons.slice(0, 1)
 	for w in ws:
 		var q := "" if w.quality == "standard" else " (%s)" % w.quality.capitalize()
-		out.append((K % "WEAPON") + " %s%s · %dd6 · ROF %d%s" % [w.def.name, q, w.dice(), w.rof(), (" · %d/%d" % [w.ammo, int(w.def.get("mag", 0))]) if w.uses_ammo() else ""])
+		var ap := " AP" if w.special_left > 0 and int(w.special_fx.get("ablate_sp", 1)) > 1 else ""   # a VH Pistol turret's AP rounds (Turret)
+		out.append((K % "WEAPON") + " %s%s · %dd6 · ROF %d%s" % [w.def.name, q, w.dice(), w.rof(), (" · %d/%d%s" % [w.ammo, int(w.def.get("mag", 0)), ap]) if w.uses_ammo() else ""])
 	if full:
 		var sk: Array = c.skills.keys().filter(func(k): return int(c.skills[k]) > 0)
 		sk.sort_custom(func(a, b): return c.skill_base(a) > c.skill_base(b))
@@ -1193,6 +1194,24 @@ func _net_refresh(enc: Encounter) -> void:
 	add.call("PATHFINDER", "pathfinder")
 	add.call("JACK OUT", "jack_out", run.kraken_until < enc.init.round_num)
 	_net_box.add_child(acts)
+	# Turrets on held Control Nodes: a NET Action fires one, each node once a turn, with the
+	# runner's own Skill (p.199, p.213-214; Encounter.fire_turret)
+	for ht in enc.held_turrets(enc.cur.id):
+		var tu: Dictionary = enc.units[int(ht.id)]
+		var tw: Weapon = tu.c.weapons[0]
+		var why := String(ht.why)
+		_net_box.add_child(_text("%s · %s %d/%d%s" % [tu.c.display_name.to_upper(), tw.display_name().to_upper(), tw.ammo, tw.mag(), (" · " + why.to_upper()) if why != "" else ""],
+			F_PIXEL, 20, DIM if why != "" else Color("e2c8ff")))
+		if why != "":
+			continue
+		if (ht.targets as Array).is_empty():
+			_net_box.add_child(_text("   NOTHING IN ITS SIGHTS", F_TERM, Hud.ts(16), DIM))
+		for tg in (ht.targets as Array).slice(0, 4):
+			var pair := [int(ht.id), int(tg.id)]
+			var fb := _net_button("FIRE TURRET → %s · %d%%" % [enc.units[int(tg.id)].c.display_name.to_upper(), roundi(float(tg.chance) * 100)],
+				func(): action.emit("net_turret", pair), 296, 26, none or float(tg.chance) <= 0.0)
+			fb.tooltip_text = "1 NET Action: the turret fires with your own REF + weapon Skill. Each node once a turn (p.199, p.214)"
+			_net_box.add_child(fb)
 	var unsafe := _net_button("UNSAFE JACK OUT", func(): action.emit("net", "jack_out_unsafe"), 296, 24)
 	unsafe.tooltip_text = "Every Black ICE you've met gets an attack on the way out (p.198)"
 	unsafe.add_theme_color_override("font_color", RED)

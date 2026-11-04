@@ -83,6 +83,7 @@ var hazard: HazardZone = null       ## a shrinking safe circle (the Combat Zone'
 var neutral: NeutralGround = null   ## a house where nobody fights (Totentanz's club floor), null for none
 var turret_side := -1               ## the site's automated turrets (Turret); -1 until the map has one
 var _crew_turret_side := -1         ## turrets a Netrunner holds; -1 until one does
+var _gunner: Combatant = null       ## who aims this attack when not `cur` itself: a Netrunner firing a held turret (fire_turret)
 
 
 ## opts: {faction: the gig's target faction id (World), default generic private security;
@@ -406,9 +407,10 @@ func next_turn() -> void:
 			say("%s fails a Death Save and dies." % c.display_name)
 			events.append({"type": "death", "unit": cur.id})   # so the view plays the death, not a snap
 		elif c.can_act():
-			if cur.has("turret"):   # bolted down: it shoots or it waits (Turret)
+			if cur.has("turret"):   # bolted down: it shoots or it waits (Turret); a held one waits for its Netrunner
 				cur.erase("suppressed_by")
-				AI.turret(self, cur)
+				if not cur.has("held_by"):
+					AI.turret(self, cur)
 				end_turn()
 				continue
 			_ice_turn(cur)
@@ -618,7 +620,7 @@ func turret_off(u: Dictionary) -> bool:
 ## sight, AI.turret_targets) wake and take their place in the Initiative order.
 func _wake_turrets() -> void:
 	for u in units:
-		if not u.has("turret") or u.alerted or u.c.dead or turret_off(u):
+		if not u.has("turret") or u.has("held_by") or u.alerted or u.c.dead or turret_off(u):
 			continue
 		if not AI.turret_targets(self, u).is_empty():
 			u.alerted = true
@@ -626,32 +628,150 @@ func _wake_turrets() -> void:
 			say("%s swings round." % u.c.display_name)
 
 
-## Who holds each turret: a Netrunner holding its Control Node turns it on the site (p.213-214),
-## and it goes back to the site when they let go of the node (jack out, p199).
-## HOUSE-RULE: a held turret keeps firing on its own turn with its own Combat Number, at the crew's
-## foes; the book has the Netrunner spend a NET Action per use and roll their own Skill (p.199,
-## p.213-214), which would need a turret-aiming NET Action in the UI.
+## Who holds each turret. A Netrunner holding its Control Node operates it (p.199, p.213-214):
+## it stands with the crew, leaves the Initiative order and fires only when the runner spends a
+## NET Action on it (fire_turret). When they let go of the node (jack out, p199) it goes back to
+## the site and, if it was awake, rolls back into the order to act on its own CN + 1d10 (p.213).
 func _retake_turrets() -> void:
-	var held := {}
+	var holder := {}   # device id → the runner's unit id
 	for uid in runs:
 		for did in (runs[uid] as NetRun).controlled_devices():
-			held[int(did)] = true
+			holder[int(did)] = int(uid)
 	for u in units:
 		if not u.has("turret") or u.c.dead:
 			continue
-		var want := turret_side
-		if held.has(int(u.turret)):
+		var by: int = holder.get(int(u.turret), -1)
+		if by == int(u.get("held_by", -1)):
+			continue
+		if by >= 0:
 			if _crew_turret_side < 0:
 				_crew_turret_side = add_side("crew", "turret", false, {"stands_with": CREW})
-			want = _crew_turret_side
-		if int(u.team) == want:
+			var was_held := u.has("held_by")
+			u["held_by"] = by
+			u.team = _crew_turret_side
+			u.c.team = _crew_turret_side
+			if not was_held:
+				init.remove(u.c)   # no turn of its own while the runner holds it
+			say("%s answers to %s's deck." % [u.c.display_name, units[by].c.display_name])
+		else:
+			u.erase("held_by")
+			u.team = turret_side
+			u.c.team = turret_side
+			if u.alerted and not init.order().has(u.c):
+				init.add(u.c)
+			say("%s goes back to the site." % u.c.display_name)
+
+
+## Who rolls the attack: the Netrunner operating a turret (fire_turret), else whoever's turn it is.
+func _aimer() -> Combatant:
+	return _gunner if _gunner != null else cur.c
+
+
+## The turrets on Control Nodes `uid`'s Netrunner holds, for the NET panel: [{id, node, why ("" =
+## it can fire now), targets: [{id, chance}] best first}].
+func held_turrets(uid: int) -> Array:
+	var run: NetRun = runs.get(uid)
+	var out := []
+	if run == null:
+		return out
+	for u in units:
+		if int(u.get("held_by", -1)) != uid or u.c.dead:
 			continue
-		u.team = want
-		u.c.team = want
-		say("%s now fires for %s." % [u.c.display_name, "the crew" if want == _crew_turret_side else "the site"])
-		if not u.alerted:
-			u.alerted = true
-			init.add(u.c)
+		var node := _turret_node(run, int(u.turret))
+		var why := _turret_block(run, u, node)
+		var ts := []
+		for t in AI.turret_targets(self, u):
+			ts.append({"id": int(t.id), "chance": turret_chance(u, t, run.runner)})
+		ts.sort_custom(func(a, b): return float(a.chance) > float(b.chance))
+		out.append({"id": int(u.id), "node": node, "why": why, "targets": ts})
+	return out
+
+
+## The held Control Node a turret device hangs on (-1: none).
+func _turret_node(run: NetRun, did: int) -> int:
+	for nid in run.held:
+		if (run.arch.nodes[nid].get("devices", []) as Array).has(did):
+			return int(nid)
+	return -1
+
+
+## Why the runner can't fire turret `u` right now ("" = they can).
+func _turret_block(run: NetRun, u: Dictionary, node: int) -> String:
+	if node < 0:
+		return "not on a node you hold"
+	if turret_off(u):
+		return "no power"
+	var w: Weapon = u.c.weapons[0]
+	if w.jammed:
+		return "jammed"
+	if w.uses_ammo() and w.ammo <= 0:
+		return "out of ammunition"   # nobody reloads a turret (p.214)
+	if int(run.activated.get(node, -1)) == init.round_num:
+		return "node already used this turn"   # each Node once per Turn (p199)
+	return ""
+
+
+## The runner's chance with turret `u` at `t`: their own REF + weapon Skill (RULES-UNVERIFIED,
+## see fire_turret) from the turret's square; a flamethrower's shell is vs DV13 (p174).
+func turret_chance(u: Dictionary, t: Dictionary, gunner: Combatant) -> float:
+	var w: Weapon = u.c.weapons[0]
+	if Turret.shells(w):
+		if Los.distance_m(u.pos, t.pos) > Attack.SHOTGUN_SHELL_RANGE_M:
+			return 0.0
+		return Check.chance_vs_dv(Attack.attack_base(gunner, w, Attack.Mode.SINGLE), Attack.SHOTGUN_SHELL_DV)
+	var keep: Dictionary = cur
+	cur = u
+	_gunner = gunner
+	var p := preview(t, w, Attack.Mode.SINGLE)
+	cur = keep
+	_gunner = null
+	return float(p.chance) if p.ok else 0.0
+
+
+## Operate a held turret (p.199, p.213-214): a NET Action, each Control Node once per Turn, the
+## turret firing from where it stands at `target_id` (someone it has in its sights,
+## AI.turret_targets) with the Netrunner's own Skill. One Single Shot, or the flamethrower's one
+## shell (p174, p.348). Spends the turret's rounds; it is never reloaded.
+## RULES-UNVERIFIED: p.213-214 says only "their own Skills"; we use the turret weapon's Skill with
+## REF (Shoulder Arms for the rifle, Heavy Weapons for the flamethrower, Handgun for the pistol and
+## SMG), as a person firing it would.
+func fire_turret(tid: int, target_id: int) -> Dictionary:
+	var run: NetRun = runs.get(cur.id)
+	if run == null or net_left <= 0:
+		return {"ok": false, "reason": "no NET Actions left"}
+	if not _netting and not turn.action_available:   # the meat Action is spent: no NET this turn (p197)
+		return {"ok": false, "reason": "your Action is spent"}
+	if tid < 0 or tid >= units.size() or int(units[tid].get("held_by", -1)) != int(cur.id):
+		return {"ok": false, "reason": "you don't hold that turret"}
+	var t: Dictionary = units[tid]
+	var node := _turret_node(run, int(t.turret))
+	var why := _turret_block(run, t, node)
+	if why != "":
+		return {"ok": false, "reason": why}
+	if target_id < 0 or target_id >= units.size() or not AI.turret_targets(self, t).has(units[target_id]):
+		return {"ok": false, "reason": "not in the turret's sights"}
+	var tgt: Dictionary = units[target_id]
+	var w: Weapon = t.c.weapons[0]
+	if turret_chance(t, tgt, cur.c) <= 0.0:
+		return {"ok": false, "reason": "out of range"}
+	turn.action_available = false
+	_netting = true
+	net_left -= 1
+	run.activated[node] = init.round_num
+	say("%s fires %s through the NET." % [cur.c.display_name, t.c.display_name])
+	var runner: Dictionary = cur
+	var keep_turn := turn
+	cur = t   # the shot comes from the turret's square, with the turret's gun ...
+	turn = TurnState.new()
+	turn.c = t.c
+	_gunner = runner.c   # ... aimed with the Netrunner's Skill
+	var r: Dictionary = shotgun_shell(tgt, w) if Turret.shells(w) else attack(tgt, w, Attack.Mode.SINGLE)
+	cur = runner
+	turn = keep_turn
+	_gunner = null
+	r["ok"] = true   # the NET Action is spent whatever the shot did
+	r["success"] = bool(r.get("hit", false))
+	return r
 
 
 ## A turret at 0 HP is wrecked: no Death Saves for a machine.
@@ -1876,7 +1996,7 @@ func preview(target: Dictionary, weapon: Weapon, mode: Attack.Mode) -> Dictionar
 	if weapon.is_melee():   # melee is from where you stand, never from a lean-out square
 		s.from = cur.pos
 	var dist := _attack_distance(weapon, s.from, target.pos)
-	var p := Attack.preview(cur.c, weapon, target.c, mode, dist)
+	var p := Attack.preview(_aimer(), weapon, target.c, mode, dist)
 	p["from"] = s.from
 	p["blocker"] = s.blocker
 	return p
@@ -1900,7 +2020,7 @@ func attack(target: Dictionary, weapon: Weapon, mode: Attack.Mode) -> Dictionary
 	var sp_before: int = target.c.sp(loc)
 	var wound_before: int = target.c.wound_state()
 	var ammo_before := weapon.ammo
-	var r := Attack.resolve(dice, cur.c, weapon, target.c, mode, _attack_distance(weapon, p.from, target.pos))
+	var r := Attack.resolve(dice, _aimer(), weapon, target.c, mode, _attack_distance(weapon, p.from, target.pos))
 	var mult := 1
 	if mode == Attack.Mode.AUTOFIRE and r.hit and r.check != null:
 		mult = mini(r.check.total - r.check.dv, weapon.autofire_mult())   # rounds that connect (p173)
@@ -2048,7 +2168,7 @@ func shotgun_shell(target: Dictionary, weapon: Weapon) -> Dictionary:
 	var before := {}
 	for o in cone:
 		before[o.id] = [o.c.hp, o.c.wound_state()]
-	var r := Attack.shotgun_shell(dice, cur.c, weapon, cone.map(func(o): return o.c))
+	var r := Attack.shotgun_shell(dice, _aimer(), weapon, cone.map(func(o): return o.c))
 	if not r.ok:
 		return r
 	turn.use_action()

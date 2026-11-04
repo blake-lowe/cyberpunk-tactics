@@ -680,6 +680,9 @@ static func _devices(m: TacMap, dice: Dice, sid: int, first := 0) -> void:
 	var sec := int(m.structures[sid].security)
 	var rooms_def := RulesDB.gen("rooms.json")
 	var site_groups := {}
+	# the turrets' gun (Turret.ARMAMENTS, CPR core p.214): a room spec's `weapon`, else the site's
+	# `turret_weapon` (sites.json), else Turret's default
+	var site_gun := String(RulesDB.gen("sites.json").get(String(m.structures[sid].get("site", "")), {}).get("turret_weapon", ""))
 	for r in m.rooms:
 		if r.cells == 0 or r.get("structure", -1) != sid or int(r.id) < first:
 			continue
@@ -701,10 +704,12 @@ static func _devices(m: TacMap, dice: Dice, sid: int, first := 0) -> void:
 				extra["access_point"] = true
 			if spec.has("file"):
 				extra["file_value"] = int(spec["file"])
+			if spec["t"] == "turret" and String(spec.get("weapon", site_gun)) != "":
+				extra["weapon"] = String(spec.get("weapon", site_gun))
 			for i in maxi(1, r.cells / int(spec.get("per_cells", 100000))):
 				add_device(m, dice, r, spec["t"], group, spec.get("wall", false), extra)
 		if sec >= 2 and (r.kind in ["data_vault", "vault", "bank_vault", "armored_car", "cargo_hold"] or (z >= TacMap.Zone.SECURE and dice.rng.randf() < 0.4)):
-			add_device(m, dice, r, "turret", "turrets_" + zn, true)
+			add_device(m, dice, r, "turret", "turrets_" + zn, true, {"weapon": site_gun} if site_gun != "" else {})
 	for d in m.doors:
 		if d.security and d.get("structure", -1) == sid and (first == 0 or int(d.b) >= first):
 			var zone := maxi(m.rooms[d.a].zone if d.a >= 0 else 0, m.rooms[d.b].zone)

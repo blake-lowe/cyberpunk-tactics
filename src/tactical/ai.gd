@@ -197,16 +197,22 @@ static func covered_from(e: Encounter, cell: Vector3i, foes: Array) -> bool:
 
 
 ## An automated turret (Turret, CPR core p.214): fires on its own Combat Number at the best target
-## it has and never moves. Dead with the power out. HOUSE-RULE: nobody reloads it, so when its
-## magazine is empty it falls silent.
+## it has and never moves; a flamethrower turret fires its shell at whoever is within 6 m (p174,
+## p.348). Dead with the power out, idle while a Netrunner holds it (Encounter.fire_turret). Nobody
+## reloads it (p.214 lists its rounds): when its magazine is empty it falls silent.
 static func turret(e: Encounter, u: Dictionary) -> void:
-	if e.turret_off(u) or u.c.weapons.is_empty():
+	if e.turret_off(u) or u.has("held_by") or u.c.weapons.is_empty():
 		return
 	var w: Weapon = u.c.weapons[0]
 	if w.jammed or (w.uses_ammo() and w.ammo <= 0):
 		return
 	var ts := turret_targets(e, u)
-	if not ts.is_empty():
+	if Turret.shells(w):
+		var near := ts.filter(func(t): return Los.distance_m(u.pos, t.pos) <= Attack.SHOTGUN_SHELL_RANGE_M)
+		if not near.is_empty():
+			near.sort_custom(func(a, b): return Los.distance_m(u.pos, a.pos) < Los.distance_m(u.pos, b.pos))
+			e.shotgun_shell(near[0], w)
+	elif not ts.is_empty():
 		_shoot(e, u, w, ts)
 
 
