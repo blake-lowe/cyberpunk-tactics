@@ -84,7 +84,8 @@ from the Grand Trolley Yard (p.307).
 ```
 
 The events calendar (p.305-306), each with what it changes in play. `fx` maps only onto systems the
-game has: `police` (uniformed NCPD in the crowd: on NCPD Night they get in free), `civilians`
+game has: `police` (uniformed NCPD in the crowd: on NCPD Night they get in free; HOUSE-RULE: the book says
+"plenty of them come", the game puts that many officers on each leg's map), `civilians`
 (stat blocks added to the crowd), `lights_off` (the lands played with the lights down: HOUSE-RULE reading of Fright Nights, the
 scares are staged in the dark). Everything else is flavour on the offer. Entry is 200eb on event days instead of 100eb (p.303), paid by the fixer.
 

@@ -2036,9 +2036,10 @@ func _on_hud(name: String, arg: Variant) -> void:
 					_float(enc.cur, "%s %s" % [String(arg).replace("_", "-").to_upper(), "OK" if r.success else "FAILED"], Color("d68cff"))
 				_after_action()
 		"net_move":
-			if not enc.net_move(int(arg)):
-				hud.toast("Blocked by a firewall or ICE.")
-			_after_action()
+			if _crew_turn():   # not once the gig is over (a won data leg ends inside the NET)
+				if not enc.net_move(int(arg)):
+					hud.toast("Blocked by a firewall or ICE.")
+				_after_action()
 		"net_slide":
 			if _crew_turn():
 				var rs := enc.net_action("slide", int(arg))
@@ -2798,17 +2799,38 @@ func _brief_leg(camp: Campaign) -> void:
 		if not ev.is_empty():
 			enc.say("%s (%s): %s" % [String(ev.name), String(ev.when), String(ev.text)])
 		var van := camp.van_list()
-		enc.say(("No weapons past the gate. In the van: %s." % ", ".join(van)) if not van.is_empty() else "No weapons past the gate: what the crew carries is all concealable.")
+		if String(Campaign.operation_def(g).get("gate", "")) == "conceal":
+			enc.say(("No weapons past the gate. In the van: %s." % ", ".join(van)) if not van.is_empty() else "No weapons past the gate: what the crew carries is all concealable.")
 	if bool(g.get("no_drones", false)):
 		enc.say("The fake trees blind the park's drones here: no cameras, no turrets.")
 
 
 var _leg_panel: Control = null
+var _leg_chosen := false   ## NEXT or WITHDRAW was clicked: the gig's end is in hand, never asked again
+var _settling := false     ## _settle_gig is under way: once per gig
+
+
+## What the end of a gig does next: "" nothing (already in hand), "leg" ask NEXT/WITHDRAW, "settle".
+static func gig_end_step(state: String, more_legs: bool, leg_chosen: bool, settling: bool) -> String:
+	if settling or leg_chosen:
+		return ""
+	return "leg" if state == "won" and more_legs else "settle"
+
+
+## The banner over the settling: {text, good}. An operation not done to the end says so, with how
+## many of its legs were (a won leg then WITHDRAW is an operation ended early, not a gig complete).
+static func end_banner(state: String, gig: Dictionary, more_legs: bool) -> Dictionary:
+	if Campaign.is_operation(gig) and (state != "won" or more_legs):
+		var done := (gig.get("done", []) as Array).size() + (1 if state == "won" else 0)
+		return {"text": "OPERATION %s  ·  %d OF %d LEGS DONE  ·  DEBRIEF" % ["FAILED" if state == "lost" else "ENDED EARLY", done,
+			(gig.legs as Array).size()], "good": false}
+	return {"text": "GIG %s  ·  DEBRIEF" % ("COMPLETE" if state == "won" else ("ABANDONED" if state == "fled" else "FAILED")), "good": state == "won"}
+
 
 ## A won leg with another after it: NEXT goes straight on to that map (Campaign.next_leg, saved
 ## between legs); WITHDRAW ends the operation here (the legs done are paid) and goes home.
 func _leg_done() -> void:
-	if _leg_panel != null:
+	if _leg_panel != null and is_instance_valid(_leg_panel):
 		return
 	var camp := Campaign.current
 	var nxt := camp.next_leg_info()
@@ -2822,11 +2844,18 @@ func _leg_done() -> void:
 	var row := UiKit.hbox(12)
 	v.add_child(row)
 	row.add_child(UiKit.button("NEXT: %s  ›" % String(nxt.get("land_name", "")).to_upper(), UiKit.PRIMARY, func():
+		if _leg_chosen:
+			return
+		_leg_chosen = true
 		camp.next_leg(enc)
 		camp.save()
 		get_tree().reload_current_scene()))
 	row.add_child(UiKit.button("WITHDRAW", UiKit.NEUTRAL, func():
+		if _leg_chosen:
+			return
+		_leg_chosen = true
 		_leg_panel.queue_free()
+		_leg_panel = null
 		_settle_gig()))
 	hud.add_child(_leg_panel)
 	_leg_panel.reset_size()
@@ -2836,16 +2865,19 @@ func _leg_done() -> void:
 ## A board gig is over: settle it (pay, injuries, the dead), save, and go to the debrief (the
 ## safehouse opens it first, BaseView). An operation's won leg with another to come asks first.
 func _finish_gig() -> void:
-	if enc.state == "won" and Campaign.current.has_next_leg():
-		_leg_done()
-		return
-	_settle_gig()
+	match gig_end_step(enc.state, Campaign.current.has_next_leg(), _leg_chosen, _settling):
+		"leg": _leg_done()
+		"settle": _settle_gig()
 
 
 func _settle_gig() -> void:
-	hud.turn_banner("GIG %s  ·  DEBRIEF" % ("COMPLETE" if enc.state == "won" else ("ABANDONED" if enc.state == "fled" else "FAILED")), Hud.GREEN if enc.state == "won" else Hud.RED)
-	await get_tree().create_timer(3.0).timeout
+	if _settling:
+		return
+	_settling = true
 	var camp := Campaign.current
+	var b := end_banner(enc.state, camp.active_gig, camp.has_next_leg())
+	hud.turn_banner(String(b.text), Hud.GREEN if b.good else (Hud.GOLD if enc.state == "won" else Hud.RED))
+	await get_tree().create_timer(3.0).timeout
 	var report := camp.resolve(enc)
 	camp.set_meta("report", report)
 	camp.save()

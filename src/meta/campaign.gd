@@ -68,7 +68,35 @@ static func ensure_current() -> Campaign:
 		current = load_from()
 		if current == null or current.crew.is_empty():
 			current = new_game(int(Time.get_unix_time_from_system()) % 100000)
+		elif is_operation(current.active_gig):   # quit during a leg: see quit_mid_leg
+			var rep := current.quit_mid_leg()
+			if not rep.is_empty():
+				current.set_meta("report", rep)   # BaseView opens the debrief
+			current.save()
 	return current
+
+
+## The game was quit during an operation's leg (the save is from when it was taken or from between
+## legs). A fight in progress is never saved, as with a single gig: quitting one mid-fight comes back
+## to the safehouse as the gig was taken (nothing settled, the offer still on the board, the drive's
+## time spent). So the leg being played is dropped, never replayed: with no leg done yet that is
+## exactly the single gig's case (the van's weapons come back, the offer stays up); with legs done,
+## the operation ends where the save left it, as WITHDRAW between legs would have (resolve: the legs
+## done are paid, the van comes back, a failed mission's IP). Returns resolve's report, or {}.
+func quit_mid_leg() -> Dictionary:
+	if not is_operation(active_gig):
+		return {}
+	var title := String(active_gig.get("title", "the operation"))
+	if (active_gig.get("done", []) as Array).is_empty():
+		_unload_van()
+		active_gig = {}
+		say("Walked away from '%s' before the first leg was done." % title)
+		return {}
+	var e := Encounter.new()
+	e.state = "fled"
+	e.leg = int(active_gig.get("leg", 0))
+	say("Walked away from '%s' between legs." % title)
+	return resolve(e)
 
 
 static func new_game(p_seed: int) -> Campaign:
@@ -390,6 +418,8 @@ static func encounter_opts(gig: Dictionary) -> Dictionary:
 	if not code.is_empty():
 		var owner := String(World.location(String(gig.get("location", ""))).get("owner", ""))
 		o["guards"] = SecurityCode.guarded_by(code, String(gig.get("faction", World.DEFAULT_OPFOR)), owner)
+	if is_operation(gig) and gig.has("leg"):
+		o["leg"] = int(gig.leg)   # the encounter is for this leg (Campaign.next_leg/resolve check it)
 	if int(gig.get("leg", 0)) > 0:
 		o["carry"] = true   # an operation's next map: the crew comes straight from the last one
 	for k in ["crowd", "police"]:
@@ -474,10 +504,12 @@ func _downtime_episodes() -> Array:
 ## knows" / loud 2 "stories have gotten around to immediate friends"; security 2: 3 "co-workers and
 ## casual acquaintances" / 4 "all over the local area"; security 3: 5 "others beyond your local area
 ## recognize your name" / 6 "know you on sight". Levels 7+ (news stories, headlines) aren't awarded yet.
+## An operation's deed is the whole job: its highest leg's level (op_level), not the last map's.
 static func deed_level(gig: Dictionary, e: Encounter) -> int:
 	if e.state != "won":
 		return 0
-	return 2 * clampi(int(gig.get("security", 1)), 1, 3) - 1 + (1 if e.alarm >= 2 or bool(gig.get("loud", false)) else 0)
+	var sec := op_level(gig) if is_operation(gig) else int(gig.get("security", 1))
+	return 2 * clampi(sec, 1, 3) - 1 + (1 if e.alarm >= 2 or bool(gig.get("loud", false)) else 0)
 
 
 ## Where a gig happens: any scene whose tags fit the job (gigs.json scene_tags / kind_tags), or
@@ -568,7 +600,7 @@ func accept(index: int) -> Dictionary:
 	active_gig["before"] = before
 	debrief.clear()   # the last gig's marks come off the crew cards
 	say("Took '%s' from %s." % [active_gig.title, active_gig.fixer])
-	if not (active_gig.get("van", {}) as Dictionary).is_empty():
+	if not (active_gig.get("van", []) as Array).is_empty():
 		say("Left in the van: %s." % ", ".join(van_list()))
 	if drive > 0:
 		say("Drove %d minutes from %s to %s." % [drive,
@@ -615,6 +647,17 @@ static func is_operation(gig: Dictionary) -> bool:
 	return (gig.get("legs", []) as Array).size() > 1
 
 
+## An operation's level: its highest leg's security level (1-3). HOUSE-RULE: the target leg pays
+## the book's pay for this level and a won operation's deed is this level (deed_level): the target is
+## the job and the other legs are the way in, so a Hardened Light target behind Medium lands (the
+## Segotari Discovery Zone, level 1) isn't the cheapest leg or a level-1 deed.
+static func op_level(gig: Dictionary) -> int:
+	var top := 1
+	for l in gig.get("legs", []):
+		top = maxi(top, int(l.get("security", 1)))
+	return top
+
+
 ## The operation recipe an offer came from ({} for any other gig).
 static func operation_def(gig: Dictionary) -> Dictionary:
 	return RulesDB.gen("operations.json").get(String(gig.get("op", "")), {})
@@ -650,22 +693,31 @@ func _leg_summary(i: int) -> Dictionary:
 
 
 ## Taking an operation: the first leg is the gig, and at a gate that bans weapons (`gate`:
-## "conceal") whatever can't be smuggled in stays in the van for the whole operation.
+## "conceal") whatever can't be smuggled in stays in the van for the whole operation. Everything
+## an operation keeps per crew member (the van, who was there, what carries over between legs) is
+## keyed by the member's place in `crew`, not by handle: handles needn't be unique, and nobody joins
+## or leaves the crew until the operation is settled (resolve).
 func _start_operation() -> void:
 	active_gig["done"] = []
-	active_gig["present"] = {}
+	active_gig["present"] = []
 	_enter_leg(0)
-	var van := {}
+	var van: Array = []   # [{crew (index), key, ammo, at} a weapon | {crew, key, slot} a kit grenade]
 	if String(operation_def(active_gig).get("gate", "")) == "conceal":
-		for c in alive_crew():
+		for idx in crew.size():
+			var c: Combatant = crew[idx]
+			if c.dead:
+				continue
 			var stowed: Array = []
 			for i in range(c.weapons.size() - 1, -1, -1):
 				var w: Weapon = c.weapons[i]
 				if not smuggles(w):
-					stowed.push_front({"key": Items.key_of_weapon(w), "ammo": w.ammo, "at": i})
+					stowed.push_front({"crew": idx, "key": Items.key_of_weapon(w), "ammo": w.ammo, "at": i})
 					c.weapons.remove_at(i)
-			if not stowed.is_empty():
-				van[c.display_name] = stowed
+			for s in c.kit.size():
+				if c.kit[s] != "" and not smuggles_kit(c.kit[s]):
+					stowed.append({"crew": idx, "key": c.kit[s], "slot": s})
+					c.kit[s] = ""
+			van.append_array(stowed)
 	active_gig["van"] = van
 
 
@@ -676,51 +728,74 @@ static func smuggles(w: Weapon) -> bool:
 	return w.builtin or bool(w.def.get("conceal", false))
 
 
-## What a crew member would have to leave in the van (names), for the board and the briefing.
+## The same gate for what's packed in a kit slot: a grenade is a weapon (thrown as weapons.json
+## `thrown_grenade`, CPR core p.177, p.344), and it gets in only if that is concealable. Its data
+## says not (conceal: false). RULES-UNVERIFIED: the book's Concealable column (p.94) covers the
+## Grenade Launcher (No) but gives no entry for a hand grenade; we read it as one the scanners catch.
+## Drugs and utilities (scanners) aren't weapons and go in.
+static func smuggles_kit(key: String) -> bool:
+	return Items.use(key) != "grenade" or bool(RulesDB.weapon("thrown_grenade").get("conceal", false))
+
+
+## What a crew member would have to leave in the van (names), for the board and the briefing:
+## weapons, and grenades packed in a kit slot.
 static func banned_weapons(c: Combatant) -> Array[String]:
 	var out: Array[String] = []
 	for w in c.weapons:
 		if not smuggles(w):
 			out.append(w.display_name())
+	for key in c.kit:
+		if key != "" and not smuggles_kit(key):
+			out.append(Items.display_name(key))
 	return out
 
 
-## "Vex's Assault Rifle", one per weapon in the van.
+## The crew member a van, carry-over or presence entry belongs to (its index in `crew`), or null.
+func _member(idx: Variant) -> Combatant:
+	var i := int(idx)
+	return crew[i] if i >= 0 and i < crew.size() else null
+
+
+## "Vex's Assault Rifle", one per weapon (or grenade) in the van.
 func van_list() -> Array[String]:
 	var out: Array[String] = []
-	var van: Dictionary = active_gig.get("van", {})
-	for nm in van:
-		for it in van[nm]:
-			out.append("%s's %s" % [nm, Items.display_name(String(it.key))])
+	for it in active_gig.get("van", []):
+		var c := _member(it.get("crew", -1))
+		out.append("%s's %s" % [c.display_name if c else "Someone", Items.display_name(String(it.key))])
 	return out
 
 
 ## Back from the operation: everyone gets what they left in the van, where it was; a fallen
-## member's goes to storage (it was never on them).
+## member's weapons go to storage (they were never on them). A grenade left in the van never left
+## storage (a kit slot only names what storage holds): it goes back in its owner's slot.
 func _unload_van() -> void:
-	var van: Dictionary = active_gig.get("van", {})
-	for nm in van:
-		var owner: Combatant = null
-		for c in crew:
-			if c.display_name == nm and not c.dead:
-				owner = c
-		for it in van[nm]:
-			var key := String(it.key)
-			if owner == null:
-				_put(key)
-				continue
-			var w := Items.make_weapon(key)
-			w.ammo = int(it.get("ammo", w.ammo))
-			owner.weapons.insert(mini(int(it.get("at", owner.weapons.size())), owner.weapons.size()), w)
-	active_gig["van"] = {}
+	for it in active_gig.get("van", []):
+		var owner := _member(it.get("crew", -1))
+		if owner != null and owner.dead:
+			owner = null
+		var key := String(it.key)
+		if it.has("slot"):
+			var s := int(it.slot)
+			if owner != null and s < owner.kit.size() and owner.kit[s] == "":
+				owner.kit[s] = key
+				owner.kit_spent[s] = false
+			continue
+		if owner == null:
+			_put(key)
+			continue
+		var w := Items.make_weapon(key)
+		w.ammo = int(it.get("ammo", w.ammo))
+		owner.weapons.insert(mini(int(it.get("at", owner.weapons.size())), owner.weapons.size()), w)
+	active_gig["van"] = []
 
 
 ## The leg is won and there is another: straight on to it. The leg's share is banked (paid at the
 ## end, resolve), the dying are carried and stabilized (p222-223) and come round on the ride (a
 ## minute, p223), and the streetcar ride moves the clock on. Nothing heals. Returns
 ## {leg, pay, next, minutes}, or {} if there is no next leg or the leg wasn't won.
+## An encounter set up for another leg (e.leg, Encounter.setup opts.leg) is refused.
 func next_leg(e: Encounter) -> Dictionary:
-	if e.state != "won" or not has_next_leg():
+	if e.state != "won" or not has_next_leg() or e.leg != int(active_gig.leg):
 		return {}
 	var i := int(active_gig.leg)
 	var done: Array = active_gig.get("done", [])
@@ -728,10 +803,11 @@ func next_leg(e: Encounter) -> Dictionary:
 	active_gig["done"] = done
 	if e.alarm >= 2:
 		active_gig["loud"] = true
-	var present: Dictionary = active_gig.get("present", {})
+	var present: Array = active_gig.get("present", [])
 	for u in e.units:
-		if u.c in crew:
-			present[(u.c as Combatant).display_name] = true
+		var k := crew.find(u.c)
+		if k >= 0 and not k in present:
+			present.append(k)
 	active_gig["present"] = present
 	for c in crew:
 		if c.dead:
@@ -749,23 +825,38 @@ func next_leg(e: Encounter) -> Dictionary:
 	return {"leg": i, "pay": int(done[-1].pay), "next": active_gig.legs[i + 1], "minutes": ride}
 
 
-## What a crew member is carrying over from the leg before (kit used, drugs in the system, doses
-## and Stim spent), by name: saved with an operation in progress (Combatant.to_dict keeps only
-## what lasts between gigs).
-func _carry_state() -> Dictionary:
-	var out := {}
+## What each crew member is carrying over from the leg before, one entry per member in `crew`
+## order: kit used, drugs in the system, doses and Stim spent, and per weapon (in carried order) a
+## jam, special rounds still loaded and a reload under way, per armour piece whether it's been
+## jury-rigged. Saved with an operation in progress: Combatant.to_dict keeps only what lasts
+## between gigs, and a reload must leave the crew as playing straight on (next_leg) does.
+func _carry_state() -> Array:
+	var out: Array = []
 	for c in crew:
-		out[c.display_name] = {"kit_spent": c.kit_spent.duplicate(), "drugs_taken": c.drugs_taken.duplicate(),
+		out.append({"name": c.display_name, "kit_spent": c.kit_spent.duplicate(), "drugs_taken": c.drugs_taken.duplicate(),
 			"drug_fx": c.drug_fx.duplicate(true), "drug_humanity": c.drug_humanity.duplicate(), "doses": c.doses,
-			"stimmed": c.stimmed, "speedhealed": c.speedhealed, "temp_mods": c.temp_mods.duplicate()}
+			"stimmed": c.stimmed, "speedhealed": c.speedhealed, "temp_mods": c.temp_mods.duplicate(),
+			"weapons": c.weapons.map(func(w: Weapon): return {"jammed": w.jammed, "special_fx": w.special_fx.duplicate(true),
+				"special_left": w.special_left, "reload_done": w.reload_done}),
+			"armor": _rigged(c.armor), "subdermal": _rigged(c.subdermal)})
 	return out
 
 
-func _restore_carry(carry: Dictionary) -> void:
-	for c in crew:
-		var d: Dictionary = carry.get(c.display_name, {})
-		if d.is_empty():
-			continue
+## {location: true} for each jury-rigged piece.
+static func _rigged(pieces: Dictionary) -> Dictionary:
+	var out := {}
+	for loc in pieces:
+		if pieces[loc] and (pieces[loc] as ArmorPiece).rigged:
+			out[loc] = true
+	return out
+
+
+func _restore_carry(carry: Array) -> void:
+	for m in mini(carry.size(), crew.size()):
+		var c: Combatant = crew[m]
+		var d: Dictionary = carry[m] if carry[m] is Dictionary else {}
+		if d.is_empty() or String(d.get("name", c.display_name)) != c.display_name:
+			continue   # not this member's (the crew changed under the save): leave them as saved
 		var ks: Array = d.get("kit_spent", [false, false])
 		for i in mini(ks.size(), c.kit_spent.size()):
 			c.kit_spent[i] = bool(ks[i])
@@ -778,6 +869,18 @@ func _restore_carry(carry: Dictionary) -> void:
 		c.stimmed = bool(d.get("stimmed", false))
 		c.speedhealed = bool(d.get("speedhealed", false))
 		c.temp_mods = _ints(d.get("temp_mods", {}))
+		var ws: Array = d.get("weapons", [])
+		for k in mini(ws.size(), c.weapons.size()):
+			var w: Weapon = c.weapons[k]
+			w.jammed = bool(ws[k].get("jammed", false))
+			w.special_fx = _ints(ws[k].get("special_fx", {}))
+			w.special_left = int(ws[k].get("special_left", 0))
+			w.reload_done = int(ws[k].get("reload_done", 0))
+		for part in ["armor", "subdermal"]:
+			var pieces: Dictionary = c.get(part)
+			for loc in d.get(part, {}):
+				if pieces.get(loc):
+					(pieces[loc] as ArmorPiece).rigged = true
 
 
 ## JSON brings whole numbers back as floats: make them ints again (in dictionaries and arrays too).
@@ -814,8 +917,11 @@ func _operation_offers() -> void:
 ## An operation offer from recipe `op_id` (operations.json) for a crew whose best Reputation is
 ## `known`, or {} if no job in it is one their name can take on yet (every leg's security level
 ## must be one the board would offer them, gigs.json rep_for_security, p193). The target leg is a
-## job from the recipe in a land that suits it; the first leg is in a land with a lower Security
-## Code than the target's (the way in), and a three-leg operation crosses one more land. Each leg is
+## job from the recipe in a land that suits it; the first leg is in another land, one with a lower
+## Security Code than the target's where there is one (the way in; the Haunted Woods, the park's
+## lowest code, is entered from any land), and a three-leg operation crosses one more land. The
+## crew comes through the Ticket Gate (Grand Junction, p.303) before the first leg: the gate is the
+## weapons check at the start (the van), not a map of its own. Each leg is
 ## a canon location of its land (hooks naming the leg's kind first), played on the land's own
 ## neighbourhood generator with the location as the target building, under its own Security Code,
 ## faction and site. An event from the park's calendar may be on.
@@ -839,8 +945,10 @@ func operation_offer(op_id: String, known: int) -> Dictionary:
 			continue
 		var code := SecurityCode.normalise(World.location(String(ids[0])).get("security_code"))
 		info[land] = {"n": int(code.get("n", 5)), "level": SecurityCode.level(code), "ids": ids}
-	var entries := func(tl: String) -> Array:
-		return info.keys().filter(func(l): return l != tl and int(info[l].n) < int(info[tl].n) and int(info[l].level) <= top)
+	var entries := func(tl: String) -> Array:   # the way in: a land with a lower code than the target's if there is one
+		var any: Array = info.keys().filter(func(l): return l != tl and int(info[l].level) <= top)
+		var lower: Array = any.filter(func(l): return int(info[l].n) < int(info[tl].n))
+		return lower if not lower.is_empty() else any
 	var fits := func(tl: String) -> bool:
 		return info.has(tl) and int(info[tl].level) <= top and not (entries.call(tl) as Array).is_empty()
 	var jobs: Array = (od.get("jobs", []) as Array).filter(func(j): return (j.lands as Array).any(fits))
@@ -860,14 +968,15 @@ func operation_offer(op_id: String, known: int) -> Dictionary:
 	if not cal.is_empty() and dice.rng.randf() < float(od.get("event_chance", 0.0)):
 		ev = (_pick(cal) as Dictionary).duplicate(true)
 	var legs: Array = []
-	var pay := 0
 	for i in path.size():
 		var land := String(path[i])
 		var step: Dictionary = job if i == path.size() - 1 else _pick(od.get("approach", [{"kind": "data_theft", "line": ""}]))
-		var leg := _operation_leg(did, land, lands[land], info[land].ids, step, ev, top, int(od.get("crowd", 0)))
-		pay += int(leg.pay)
-		legs.append(leg)
+		legs.append(_operation_leg(did, land, lands[land], info[land].ids, step, ev, top, int(od.get("crowd", 0))))
 	var last: Dictionary = legs[-1]
+	last["pay"] = int(g.pay[str(op_level({"legs": legs}))])   # HOUSE-RULE (op_level): the target pays the job's level
+	var pay := 0
+	for leg in legs:
+		pay += int(leg.pay)
 	var fx := _pick_fixer(did, String(job.kind), known)
 	if String(last.faction) in (World.district(did).get("gangs", []) as Array) and String(od.get("rival_fixers_from", "")) != "":
 		fx = _pick_fixer(String(od.rival_fixers_from), String(job.kind), known)   # the park's fixer runs its gang (p.304)
@@ -908,15 +1017,15 @@ func _operation_leg(did: String, land: String, ld: Dictionary, ids: Array, step:
 		"hook": _hook_for(l, kind),
 		"scene": "neighborhood", "profile": String(ld.get("profile", "theme_park")),
 		"site": String(l.get("site", "")), "security": level, "pay": int(RulesDB.gen("gigs.json").pay[str(level)]),
-		"seed": dice.rng.randi_range(1, 99999), "crowd": crowd}
+		"seed": dice.rng.randi_range(1, 99999), "crowd": crowd}   # HOUSE-RULE: crowd size (operations.json crowd)
 	if String(step.get("objective", "")) != "":
 		leg["objective"] = String(step.objective)
 	if bool(ld.get("drone_blind", false)):
 		leg["no_drones"] = true
 	if land in (fxs.get("lights_off", []) as Array):
-		leg["lights_off"] = true
+		leg["lights_off"] = true   # HOUSE-RULE: Fright Nights (p.306) read as the land's lights down for its scares
 	if int(fxs.get("police", 0)) > 0:
-		leg["police"] = int(fxs.police)
+		leg["police"] = int(fxs.police)   # HOUSE-RULE: NCPD Night's "plenty of them come" (p.305) is fx.police officers per map
 	if not (fxs.get("civilians", []) as Array).is_empty():
 		leg["civilians"] = fxs.civilians
 	leg.merge(codes_for(leg, did), true)
@@ -929,10 +1038,15 @@ func _operation_leg(did: String, land: String, ld: Dictionary, ids: Array, step:
 ## An operation (is_operation) ends here however it went: the legs done so far are paid (each its
 ## share, `pay`), it counts as won only when its last leg is, and what stayed in the van comes back.
 ## The report then covers the whole operation (`legs`: what each completed leg paid).
+## An encounter that isn't the one being played (an operation's other leg, e.leg, or one set up
+## for a different kind of gig) is refused: {} and nothing changes.
 func resolve(e: Encounter) -> Dictionary:
 	var gig := active_gig
 	var won := e.state == "won"
 	var op := is_operation(gig)
+	if e.leg != (int(gig.get("leg", 0)) if op else -1):
+		push_warning("Campaign.resolve: the encounter is for leg %d, not the one being played" % e.leg)
+		return {}
 	var legs_done: Array = []
 	if op:
 		legs_done = (gig.get("done", []) as Array).duplicate()
@@ -977,9 +1091,12 @@ func resolve(e: Encounter) -> Dictionary:
 		c.ip += report.ip
 	# Reputation (p193): those who were there earn the deed's Level if it beats what they had.
 	var lvl := deed_level(gig, e) if won else 0
-	var earlier: Dictionary = gig.get("present", {})   # an operation's earlier legs count too
+	var earlier: Array = []   # an operation's earlier legs count too (`present`: indices in the crew that went)
+	for k in gig.get("present", []):
+		if int(k) >= 0 and int(k) < went.size():
+			earlier.append(went[int(k)])
 	for c in crew:
-		if lvl > c.reputation and (e.units.any(func(u): return u.c == c) or earlier.has(c.display_name)):
+		if lvl > c.reputation and (e.units.any(func(u): return u.c == c) or c in earlier):
 			c.reputation = lvl
 			report.reputation[c.display_name] = lvl
 	var heard := ""
@@ -1690,7 +1807,8 @@ func to_dict() -> Dictionary:
 
 
 ## An operation in progress (with what the crew carries over between legs), else {}: a single
-## gig is never saved half-played, but an operation is saved between legs.
+## gig is never saved half-played, but an operation is saved when taken and between legs. Loading
+## one at launch means the game was quit during a leg (quit_mid_leg).
 func _operation_save() -> Dictionary:
 	if not is_operation(active_gig):
 		return {}
@@ -1738,7 +1856,7 @@ static func from_dict(raw: Dictionary) -> Campaign:
 	if is_operation(op):   # saved between legs: carry on where it was
 		c.active_gig = _ints(op)
 		c.active_gig.erase("carry")
-		c._restore_carry(op.get("carry", {}))
+		c._restore_carry(op.get("carry", []))
 	c.update_market()   # a save from before markets (v5) gets one now
 	return c
 

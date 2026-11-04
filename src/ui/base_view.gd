@@ -115,10 +115,7 @@ func _ready() -> void:
 	if "--demo" in OS.get_cmdline_user_args():   # review shots: DEV-ONLY sample campaign, never saved
 		camp = DemoState.make()
 	else:
-		camp = Campaign.ensure_current()
-		if Campaign.is_operation(camp.active_gig) and not stay:   # saved between an operation's legs: back to it
-			get_tree().change_scene_to_file.call_deferred(GREYBOX)
-			return
+		camp = Campaign.ensure_current()   # a save from during an operation's leg ends it there (Campaign.quit_mid_leg)
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	portraits = Portraits.new()
 	add_child(portraits)
