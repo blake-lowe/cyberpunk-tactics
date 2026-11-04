@@ -81,7 +81,7 @@ static func targets_for_any(id: String) -> Array:
 	return faction(id).get("gigs", [])
 
 
-## The name a faction gives an NPC tier ("Militech Trooper"), or the tier's own name.
+## The name a faction gives an NPC tier ("Militech Trooper"), or the tier's own name ("Mook").
 static func rank(id: String, tier: String) -> String:
 	var ranks: Dictionary = faction(id).get("roster", {}).get("ranks", {})
 	if ranks.has(tier):
@@ -89,38 +89,14 @@ static func rank(id: String, tier: String) -> String:
 	return String(RulesDB.load_json("npcs.json")["tiers"][tier]["name"])
 
 
-## One of the faction's people at `tier` (npcs.json), geared from its roster, named "<rank> <n>".
+## One of the faction's people at `tier`: a stat block from its roster's pool for the tier (or the
+## tier's default pool, npcs.json), named "<rank> <n>". Everything they carry comes from the block.
 static func npc(dice: Dice, id: String, tier: String, n: int, rank_override := "") -> Combatant:
-	var roster: Dictionary = faction(id).get("roster", {})
-	var gear := {}
-	if (roster.get("kits", {}) as Dictionary).has(tier):
-		gear["kits"] = roster.kits[tier]
-	if (roster.get("armor", {}) as Dictionary).has(tier):
-		gear["armor"] = roster.armor[tier]
+	var pool: Array = (faction(id).get("roster", {}).get("blocks", {}) as Dictionary).get(tier, [])
 	var name := "%s %d" % [rank_override if rank_override != "" else rank(id, tier), n]
-	var c := Recruit.npc(dice, tier, name, gear)
-	var q: Variant = (roster.get("quality", {}) as Dictionary).get(tier, "standard")
-	var picked := "standard"
-	if q is String:
-		picked = q
-	elif q is Dictionary:   # chances: {"poor": 0.6} (the rest standard)
-		var roll := dice.rng.randf()
-		for k in q:
-			roll -= float(q[k])
-			if roll < 0.0:
-				picked = String(k)
-				break
-	if picked != "standard":
-		for i in c.weapons.size():
-			if Weapon.can_have_quality(c.weapons[i].id(), picked):
-				c.weapons[i] = Weapon.from_id(c.weapons[i].id(), picked)
+	var c := Recruit.npc(dice, tier, name, pool)
 	c.faction = faction(id).id
 	return c
-
-
-## The faction's chance that a mook carries a frag grenade (HOUSE-RULE default: a third).
-static func grenade_chance(id: String) -> float:
-	return float(faction(id).get("roster", {}).get("grenade_chance", 1.0 / 3.0))
 
 
 ## How the faction turns up when called (Trauma Team, NCPD, MaxTac): {tiers: [...], rank, armor}.

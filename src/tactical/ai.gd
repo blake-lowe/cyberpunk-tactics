@@ -53,7 +53,12 @@ static func _special(e: Encounter, u: Dictionary, w: Weapon) -> bool:
 		return false
 	var foes := _enemies(e, u)
 	var shot := _best_shot_value(e, u, w)
-	if e.kit_action(0) == "grenade":
+	var gslot := -1   # the first grenade it carries (a stat block's kit: Pyro, Cyberpsycho)
+	for i in u.c.kit.size():
+		if e.kit_action(i) == "grenade":
+			gslot = i
+			break
+	if gslot >= 0:
 		var best_cell := Vector3i(-1, -1, -1)
 		var best_n := 1
 		for f in foes:
@@ -72,7 +77,7 @@ static func _special(e: Encounter, u: Dictionary, w: Weapon) -> bool:
 				best_n = n
 				best_cell = cell
 		if best_cell.x >= 0 and best_n * 21.0 * 0.5 > shot:
-			return e.throw_grenade(best_cell, 0).get("ok", false)
+			return e.throw_grenade(best_cell, gslot).get("ok", false)
 	if w.def.get("shotgun_shell", false) and w.ammo > 0:
 		for f in foes:
 			var cone := 0

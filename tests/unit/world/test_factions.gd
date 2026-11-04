@@ -28,17 +28,13 @@ func test_every_faction_resolves_against_the_rules_data() -> void:
 		var roster: Dictionary = f.get("roster", {})
 		for tier in roster.get("ranks", {}):
 			assert_true(tiers.has(tier), "%s: rank for a real tier (%s)" % [id, tier])
-		for tier in roster.get("kits", {}):
-			for kit in roster.kits[tier]:
-				for w in kit:
-					assert_true(weapons.has(w), "%s: kit weapon %s exists" % [id, w])
-		for tier in roster.get("armor", {}):
-			assert_true(armor.has(roster.armor[tier]), "%s: armour %s exists" % [id, roster.armor[tier]])
-		var quals: Dictionary = RulesDB.load_json("weapons.json")["quality"]
-		for tier in roster.get("quality", {}):
-			var q: Variant = roster.quality[tier]
-			for name in ([q] if q is String else (q as Dictionary).keys()):
-				assert_true(quals.has(String(name)), "%s: quality %s for %s exists" % [id, name, tier])
+		var blocks: Dictionary = RulesDB.load_json("npcs.json")["blocks"]
+		for tier in roster.get("blocks", {}):
+			assert_true(tiers.has(tier), "%s: blocks for a real tier (%s)" % [id, tier])
+			for b in roster.blocks[tier]:
+				assert_true(blocks.has(b), "%s: stat block %s exists" % [id, b])
+		for k in ["kits", "armor", "quality", "grenade_chance"]:
+			assert_false(roster.has(k), "%s: gear comes from stat blocks, not roster.%s" % [id, k])
 		var r: Dictionary = roster.get("responder", {})
 		if r.has("armor"):
 			assert_true(armor.has(r.armor), "%s: responder armour exists" % id)

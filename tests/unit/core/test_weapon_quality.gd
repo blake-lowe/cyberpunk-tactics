@@ -84,14 +84,8 @@ func test_the_market_sells_qualities_and_excellent_needs_a_name() -> void:
 	assert_eq(c.weapons[0].id(), "heavy_pistol")
 
 
-func test_factions_field_their_quality() -> void:
-	var poor := 0
-	var mooks := 0
-	for i in 40:
-		var g := World.npc(Dice.new(i), "bozos", "mook", 1)
-		mooks += 1
-		if g.weapons.any(func(w): return w.quality == "poor"):
-			poor += 1
-	assert_between(float(poor) / mooks, 0.35, 0.85, "most Bozos carry printed junk (%d/%d)" % [poor, mooks])
-	var officer := World.npc(Dice.new(1), "militech", "lieutenant", 1)
-	assert_true(officer.weapons.all(func(w): return w.quality == "excellent"), "Militech officers carry the good stuff")
+func test_stat_blocks_carry_their_printed_quality() -> void:
+	var op := Recruit.from_block(Dice.new(1), "security_operative")
+	assert_eq(op.weapons[0].id(), "assault_rifle")
+	assert_eq(op.weapons[0].quality, "poor", "a Poor Quality assault rifle (CPR core p.413)")
+	assert_eq(op.weapons[1].quality, "standard")

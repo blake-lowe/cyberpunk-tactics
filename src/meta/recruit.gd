@@ -97,31 +97,61 @@ static func _default_awareness(c: Combatant) -> void:
 	c.set_awareness({"precision_attack": 3, "initiative_reaction": c.role_rank - 3})
 
 
-## An NPC from the book's tiers (npcs.json: mook, lieutenant, mini_boss; CPR p399, p411-415).
-## The book prints Skill Bases (STAT + skill), so each skill level is the base minus its stat.
-## `gear` overrides the tier's kit list and armour (a faction's roster: World.npc):
-## {kits: [[weapon ids]], armor: armour id}.
-static func npc(dice: Dice, tier: String, handle: String = "", gear: Dictionary = {}) -> Combatant:
-	var td: Dictionary = (RulesDB.load_json("npcs.json")["tiers"][tier] as Dictionary).duplicate()
-	if gear.has("kits"):
-		td["weapons"] = gear.kits
-	if gear.has("armor"):
-		td["armor"] = gear.armor
-	var stats: Dictionary = (td["stats"] as Dictionary).duplicate()
-	var skills := {}
-	for s in td["skills"]:
-		skills[s] = maxi(0, int(td["skills"][s]) - int(stats.get(RulesDB.skill_stat(s), 0)))
-	var c := Combatant.new(handle if handle != "" else String(td["name"]), stats, skills)
-	c.armor["body"] = ArmorPiece.from_id(String(td["armor"]))
-	c.armor["head"] = ArmorPiece.from_id(String(td["armor"]))
-	var kits: Array = td["weapons"]
-	for w in kits[dice.d(kits.size()) - 1]:
-		c.weapons.append(Weapon.from_id(String(w)))
-	var tk: Array = td.get("kit", [])
-	for i in mini(tk.size(), c.kit.size()):
-		c.kit[i] = String(tk[i])
+## An NPC at `tier` (mook, lieutenant, mini_boss, boss; CPR p.399): one of the printed stat blocks
+## from `pool` (a faction's roster: World.npc), or the tier's default pool in npcs.json.
+static func npc(dice: Dice, tier: String, handle: String = "", pool: Array = []) -> Combatant:
+	var tiers: Dictionary = RulesDB.load_json("npcs.json")["tiers"]
+	var ids: Array = pool if not pool.is_empty() else tiers[tier]["blocks"]
+	var c := from_block(dice, String(ids[dice.d(ids.size()) - 1]), handle)
 	c.role = tier
+	return c
+
+
+## The stat block `id` (npcs.json blocks, CPR core p.412-416) as a combatant: the printed stats,
+## Skill Bases (the book prints STAT + skill, so each skill level is the base minus its stat),
+## armour, weapons with their printed quality, cyberware, and the kit items it carries. Skills
+## with a specialisation (language:streetslang) are skipped until the game models them.
+static func from_block(dice: Dice, id: String, handle: String = "") -> Combatant:
+	var b: Dictionary = RulesDB.load_json("npcs.json")["blocks"][id]
+	var stats: Dictionary = {}
+	for s in b.stats:
+		stats[s] = int(b.stats[s])
+	var known: Dictionary = RulesDB.load_json("skills.json")["skills"]
+	var skills := {}
+	for s in b.skills:
+		if known.has(s):
+			skills[s] = maxi(0, int(b.skills[s]) - int(stats.get(RulesDB.skill_stat(s), 0)))
+	var c := Combatant.new(handle if handle != "" else String(b.name), stats, skills)
+	c.block = id
 	c.tracks_humanity = false
+	for loc in ["body", "head"]:
+		var aid := String(b.armor[loc])
+		if (RulesDB.load_json("armor.json")["armor"] as Dictionary).has(aid):
+			c.armor[loc] = ArmorPiece.from_id(aid)
+	for cw in b.get("cyberware", []):   # Subdermal Armor, built-in weapons...
+		if not c.has_cyberware(String(cw)):
+			c.install_cyberware(String(cw), dice, true)
+	var builtin: Array = c.weapons.duplicate()
+	c.weapons.clear()
+	var q: Dictionary = b.get("weapon_quality", {})
+	for wid in b.weapons:   # primary first, as printed
+		var have: Array = builtin.filter(func(x): return x.id() == String(wid))
+		if not have.is_empty():
+			c.weapons.append(have[0])
+			builtin.erase(have[0])
+			continue
+		var w := Weapon.from_id(String(wid), String(q.get(wid, "standard")))
+		w.builtin = (b.get("weapon_sources", {}) as Dictionary).has(wid)
+		c.weapons.append(w)
+	c.weapons.append_array(builtin)
+	var slot := 0
+	for key in b.get("kit", []):   # the kit items among the printed gear, one per slot
+		if Items.is_item(String(key)) and slot < c.kit.size():
+			c.kit[slot] = String(key)
+			slot += 1
+	if int(b.get("hp", 0)) > 0 and int(b.hp) != c.max_hp():
+		c.hp_max_override = int(b.hp)   # printed HP that doesn't follow the formula (Boosterganger)
+	c.hp = c.max_hp()
 	return c
 
 

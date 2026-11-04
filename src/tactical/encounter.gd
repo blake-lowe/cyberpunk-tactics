@@ -122,8 +122,6 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 	for i in n:
 		var tier: String = roster[i]
 		var g := World.npc(p_dice, e.opfor_faction, tier, i + 1)
-		if tier == "mook" and p_dice.rng.randf() < World.grenade_chance(e.opfor_faction):
-			g.kit[0] = FRAG   # HOUSE-RULE: about a third of Mooks carry a frag grenade (per faction roster)
 		e._add(g, Vector3i(posts[i].pos.x, posts[i].pos.y, posts[i].floor), OPFOR)
 	# Objective: a module per kind (data/gen/objectives.json) places what the job needs.
 	e.obj = Objective.make(kind, e)
@@ -1512,7 +1510,7 @@ func attack(target: Dictionary, weapon: Weapon, mode: Attack.Mode) -> Dictionary
 const MELEE_ADJACENT_M := 2.0
 const BLAST_HALF := 2            ## 5x5 squares = 10x10 m (p174)
 const THROW_RANGE_M := 25.0      ## p177
-const FRAG := "ammo/frag_grenade"   ## the plain grenade guards carry (Items key)
+const FRAG := "ammo/frag_grenade"   ## the plain grenade (HOUSE-RULE kit item; new crews start with some)
 const GRENADE_DICE := 6          ## thrown grenades deal their launcher's damage (p177; Grenade Launcher 6d6, p94)
 const SHELL_HALF_ANGLE := 45.0   ## "every target in front of you" (p174): a 90° cone toward the aimed target
 

@@ -7,14 +7,18 @@ Status: everything below is **RULES-UNVERIFIED**: Time of the Red common knowled
 ## How the data reads
 
 ```world factions._doc
-"Factions of Night City (World.faction). The gig's target faction fields the guards; others appear as third parties (bystanders, Trauma Team, NCPD, MaxTac, rival crews). kind sets defaults; relations are symmetric and resolved most-hostile-wins between kind defaults and per-faction overrides. roster: ranks name the NPC tiers (npcs.json), kits/armor override a tier's gear, grenade_chance is for mooks. look: what the view dresses them in (jacket/accent/pants colours, vest/helmet/gloves). gigs: the gig kinds (gigs.json templates) this faction can be the target of. doctrine: security style (data/world/security.json, task 41). Names follow CPR's Time of the Red; anything not checked against the book is RULES-UNVERIFIED until the Night City 2047 pass."
+"Factions of Night City (World.faction). The gig's target faction fields the guards; others appear as third parties (bystanders, Trauma Team, NCPD, MaxTac, rival crews). kind sets defaults; relations are symmetric and resolved most-hostile-wins between kind defaults and per-faction overrides. roster: ranks name the NPC tiers; blocks list the stat blocks (npcs.json) the faction fields per tier, falling back to the tier's default pool; responder: who they send when called. look: what the view dresses them in (jacket/accent/pants colours, vest/helmet/gloves). gigs: the gig kinds (gigs.json templates) this faction can be the target of. doctrine: security style (data/world/security.json, task 41). Names follow CPR's Time of the Red; anything not checked against the book is RULES-UNVERIFIED until the Night City 2047 pass."
 ```
 
-## Weapon quality in rosters
+## Stat blocks in rosters
 
-`roster.quality` per NPC tier: a quality (`"excellent"`) or chances (`{"poor": 0.6}`). HOUSE-RULE
-choices: street gangs carry cheap printed guns (Poor Quality pistols are common on the street,
-CPR core p.321; jams on a 1, p.342), corporate and Trauma Team officers carry Excellent ones.
+`roster.blocks` names, per tier, the printed stat blocks (data/rules/npcs.json) a faction fields:
+their stats, skills, armour, guns (with the book's quality), cyberware and grenades come from the
+block, never from here. Until the Night City 2047 pass supplies faction blocks, these use the core
+book's generic ones (CPR core p.412-416) and the mapping is **RULES-UNVERIFIED**: corps, NCPD and
+6th Street field Security Operatives and Officers; gangs field Boostergangers (the Wraiths, Road
+Gangers) with Netrunner or Reclaimer Chief lieutenants and a Pyro or Outrider as mini boss. The core
+book has no corporate mini boss, so corps put a Security Officer in that slot.
 
 ## Relations between kinds
 
@@ -129,6 +133,17 @@ Generic private security, used when a gig names no faction. At corporate sites t
 			"mook": "Guard",
 			"lieutenant": "Sergeant",
 			"mini_boss": "Enforcer"
+		},
+		"blocks": {
+			"mook": [
+				"security_operative"
+			],
+			"lieutenant": [
+				"security_officer"
+			],
+			"mini_boss": [
+				"security_officer"
+			]
 		}
 	},
 	"look": {
@@ -157,16 +172,15 @@ Agricultural and biotech megacorp. *RULES-UNVERIFIED.*
 			"lieutenant": "Biotechnica Sergeant",
 			"mini_boss": "Biotechnica Enforcer"
 		},
-		"kits": {
+		"blocks": {
 			"mook": [
-				[
-					"smg",
-					"heavy_pistol"
-				],
-				[
-					"assault_rifle",
-					"heavy_pistol"
-				]
+				"security_operative"
+			],
+			"lieutenant": [
+				"security_officer"
+			],
+			"mini_boss": [
+				"security_officer"
 			]
 		}
 	},
@@ -202,16 +216,15 @@ Fuel and chemicals megacorp. *RULES-UNVERIFIED.*
 			"lieutenant": "Petrochem Sergeant",
 			"mini_boss": "Petrochem Enforcer"
 		},
-		"kits": {
+		"blocks": {
 			"mook": [
-				[
-					"shotgun",
-					"heavy_pistol"
-				],
-				[
-					"assault_rifle",
-					"heavy_pistol"
-				]
+				"security_operative"
+			],
+			"lieutenant": [
+				"security_officer"
+			],
+			"mini_boss": [
+				"security_officer"
 			]
 		}
 	},
@@ -247,29 +260,16 @@ Arms maker with a private army: more troopers, better kit, grenades. *RULES-UNVE
 			"lieutenant": "Militech Sergeant",
 			"mini_boss": "Militech Lieutenant"
 		},
-		"kits": {
+		"blocks": {
 			"mook": [
-				[
-					"assault_rifle",
-					"heavy_pistol"
-				],
-				[
-					"assault_rifle",
-					"heavy_pistol"
-				],
-				[
-					"heavy_smg",
-					"heavy_pistol"
-				]
+				"security_operative"
+			],
+			"lieutenant": [
+				"security_officer"
+			],
+			"mini_boss": [
+				"security_officer"
 			]
-		},
-		"armor": {
-			"mook": "medium_armorjack"
-		},
-		"grenade_chance": 0.5,
-		"quality": {
-			"lieutenant": "excellent",
-			"mini_boss": "excellent"
 		}
 	},
 	"look": {
@@ -303,6 +303,17 @@ Computers and cyberware. *RULES-UNVERIFIED.*
 			"mook": "Zetatech Security",
 			"lieutenant": "Zetatech Sergeant",
 			"mini_boss": "Zetatech Enforcer"
+		},
+		"blocks": {
+			"mook": [
+				"security_operative"
+			],
+			"lieutenant": [
+				"security_officer"
+			],
+			"mini_boss": [
+				"security_officer"
+			]
 		}
 	},
 	"look": {
@@ -337,20 +348,16 @@ Smart-weapons maker. *RULES-UNVERIFIED.*
 			"lieutenant": "Kang Tao Sergeant",
 			"mini_boss": "Kang Tao Enforcer"
 		},
-		"kits": {
+		"blocks": {
 			"mook": [
-				[
-					"smg",
-					"very_heavy_pistol"
-				],
-				[
-					"assault_rifle",
-					"heavy_pistol"
-				]
+				"security_operative"
+			],
+			"lieutenant": [
+				"security_officer"
+			],
+			"mini_boss": [
+				"security_officer"
 			]
-		},
-		"quality": {
-			"mini_boss": "excellent"
 		}
 	},
 	"look": {
@@ -384,6 +391,17 @@ Cyberware and prosthetics. *RULES-UNVERIFIED.*
 			"mook": "Rocklin Security",
 			"lieutenant": "Rocklin Sergeant",
 			"mini_boss": "Rocklin Enforcer"
+		},
+		"blocks": {
+			"mook": [
+				"security_operative"
+			],
+			"lieutenant": [
+				"security_officer"
+			],
+			"mini_boss": [
+				"security_officer"
+			]
 		}
 	},
 	"look": {
@@ -417,15 +435,19 @@ Armed paramedics on subscription. As responders they land by AV for a downed car
 			"lieutenant": "Trauma Team Sergeant",
 			"mini_boss": "Trauma Team Enforcer"
 		},
+		"blocks": {
+			"lieutenant": [
+				"security_officer"
+			],
+			"mini_boss": [
+				"security_officer"
+			]
+		},
 		"responder": {
 			"tier": "lieutenant",
 			"count": 3,
 			"rank": "Trauma Team",
 			"armor": "heavy_armorjack"
-		},
-		"quality": {
-			"lieutenant": "excellent",
-			"mini_boss": "excellent"
 		}
 	},
 	"look": {
@@ -457,6 +479,14 @@ Night City police. Answer escalating fights; at war with gangs, leave corp secur
 			"mook": "NCPD Officer",
 			"lieutenant": "NCPD Sergeant",
 			"mini_boss": "NCPD Lieutenant"
+		},
+		"blocks": {
+			"mook": [
+				"security_operative"
+			],
+			"lieutenant": [
+				"security_officer"
+			]
 		},
 		"responder": {
 			"tiers": [
@@ -492,6 +522,11 @@ Police cyberpsycho squad. Answers instead of the NCPD when the crew's heat is hi
 			"lieutenant": "MaxTac",
 			"mini_boss": "MaxTac"
 		},
+		"blocks": {
+			"mini_boss": [
+				"security_officer"
+			]
+		},
 		"responder": {
 			"tier": "mini_boss",
 			"count": 4,
@@ -526,29 +561,17 @@ Heavy-chrome gang; hostile to every other gang. *RULES-UNVERIFIED.*
 			"lieutenant": "Maelstrom Boss",
 			"mini_boss": "Maelstrom Warlord"
 		},
-		"kits": {
+		"blocks": {
 			"mook": [
-				[
-					"shotgun",
-					"heavy_pistol"
-				],
-				[
-					"smg",
-					"heavy_pistol"
-				],
-				[
-					"heavy_melee",
-					"heavy_pistol"
-				]
+				"boosterganger"
+			],
+			"lieutenant": [
+				"netrunner",
+				"reclaimer_chief"
+			],
+			"mini_boss": [
+				"pyro"
 			]
-		},
-		"armor": {
-			"mook": "leathers"
-		},
-		"quality": {
-			"mook": {
-				"poor": 0.3
-			}
 		}
 	},
 	"look": {
@@ -586,23 +609,17 @@ Blades and pistols; disciplined crew. *RULES-UNVERIFIED.*
 			"lieutenant": "Tyger Claws Boss",
 			"mini_boss": "Tyger Claws Oyabun's Blade"
 		},
-		"kits": {
+		"blocks": {
 			"mook": [
-				[
-					"medium_melee",
-					"heavy_pistol"
-				],
-				[
-					"smg",
-					"heavy_pistol"
-				],
-				[
-					"heavy_pistol"
-				]
+				"boosterganger"
+			],
+			"lieutenant": [
+				"netrunner"
+			],
+			"mini_boss": [
+				"pyro",
+				"outrider"
 			]
-		},
-		"armor": {
-			"mook": "light_armorjack"
 		}
 	},
 	"look": {
@@ -637,27 +654,16 @@ Pistol-heavy gang. *RULES-UNVERIFIED.*
 			"lieutenant": "Valentinos Boss",
 			"mini_boss": "Valentinos Jefe"
 		},
-		"kits": {
+		"blocks": {
 			"mook": [
-				[
-					"heavy_pistol"
-				],
-				[
-					"very_heavy_pistol"
-				],
-				[
-					"smg",
-					"heavy_pistol"
-				]
+				"boosterganger"
+			],
+			"lieutenant": [
+				"reclaimer_chief"
+			],
+			"mini_boss": [
+				"pyro"
 			]
-		},
-		"armor": {
-			"mook": "kevlar"
-		},
-		"quality": {
-			"mook": {
-				"poor": 0.3
-			}
 		}
 	},
 	"look": {
@@ -691,20 +697,16 @@ Vigilante gang of ex-military; gets along with the NCPD. *RULES-UNVERIFIED.*
 			"lieutenant": "6th Street Sergeant",
 			"mini_boss": "6th Street Captain"
 		},
-		"kits": {
+		"blocks": {
 			"mook": [
-				[
-					"assault_rifle",
-					"heavy_pistol"
-				],
-				[
-					"shotgun",
-					"heavy_pistol"
-				]
+				"security_operative"
+			],
+			"lieutenant": [
+				"security_officer"
+			],
+			"mini_boss": [
+				"outrider"
 			]
-		},
-		"armor": {
-			"mook": "light_armorjack"
 		}
 	},
 	"look": {
@@ -741,29 +743,16 @@ Nomad-style raiders on the city's edge. *RULES-UNVERIFIED.*
 			"lieutenant": "Wraith Boss",
 			"mini_boss": "Wraith Warlord"
 		},
-		"kits": {
+		"blocks": {
 			"mook": [
-				[
-					"shotgun",
-					"heavy_pistol"
-				],
-				[
-					"assault_rifle",
-					"heavy_pistol"
-				],
-				[
-					"heavy_melee",
-					"heavy_pistol"
-				]
+				"road_ganger"
+			],
+			"lieutenant": [
+				"reclaimer_chief"
+			],
+			"mini_boss": [
+				"outrider"
 			]
-		},
-		"armor": {
-			"mook": "leathers"
-		},
-		"quality": {
-			"mook": {
-				"poor": 0.5
-			}
 		}
 	},
 	"look": {
@@ -797,29 +786,16 @@ Clown-themed gang; melee and cheap guns. *RULES-UNVERIFIED.*
 			"lieutenant": "Bozo Ringmaster",
 			"mini_boss": "Bozo Headliner"
 		},
-		"kits": {
+		"blocks": {
 			"mook": [
-				[
-					"heavy_melee",
-					"heavy_pistol"
-				],
-				[
-					"smg",
-					"medium_pistol"
-				],
-				[
-					"shotgun",
-					"medium_pistol"
-				]
+				"boosterganger"
+			],
+			"lieutenant": [
+				"netrunner"
+			],
+			"mini_boss": [
+				"pyro"
 			]
-		},
-		"armor": {
-			"mook": "leathers"
-		},
-		"quality": {
-			"mook": {
-				"poor": 0.6
-			}
 		}
 	},
 	"look": {

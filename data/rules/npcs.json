@@ -1,14 +1,909 @@
 {
-  "_source": "CPR core p399 (encounter budget: 1 Mook = 1 Edgerunner, 1 Lieutenant = 2, 1 Mini Boss = 3) and p411-415 (Mooks and Grunts stat blocks). RULES-UNVERIFIED: the stat blocks were read from a garbled text extraction (columns interleaved); numbers are the pattern the blocks share (Mook skill bases ~10, HP 20-35, SP 7; Lieutenants ~13, HP 40) rather than one specific NPC. Check against the printed pages. kit: the consumable a tier carries (HOUSE-RULE: one frag for Sergeants and Enforcers). Skill values are SKILL BASES (STAT + skill), as the book prints them.",
-  "tiers": {
-    "mook": {"weight": 1, "name": "Guard", "stats": {"INT": 4, "REF": 6, "DEX": 6, "TECH": 3, "COOL": 4, "WILL": 4, "LUCK": 0, "MOVE": 5, "BODY": 5, "EMP": 3},
-      "armor": "light_armorjack", "weapons": [["assault_rifle", "heavy_pistol"], ["smg", "heavy_pistol"], ["heavy_pistol"], ["shotgun", "heavy_pistol"]],
-      "skills": {"handgun": 10, "shoulder_arms": 10, "autofire": 10, "evasion": 6, "brawling": 6, "melee_weapon": 6, "athletics": 8, "concentration": 6, "perception": 6, "first_aid": 4, "stealth": 6}},
-    "lieutenant": {"weight": 2, "name": "Sergeant", "stats": {"INT": 5, "REF": 7, "DEX": 7, "TECH": 4, "COOL": 6, "WILL": 6, "LUCK": 0, "MOVE": 6, "BODY": 7, "EMP": 3},
-      "armor": "medium_armorjack", "weapons": [["assault_rifle", "very_heavy_pistol"], ["heavy_smg", "very_heavy_pistol"]], "kit": ["ammo/frag_grenade"],
-      "skills": {"handgun": 13, "shoulder_arms": 13, "autofire": 13, "evasion": 9, "brawling": 10, "melee_weapon": 10, "athletics": 10, "concentration": 9, "perception": 10, "first_aid": 7, "stealth": 8}},
-    "mini_boss": {"weight": 3, "name": "Enforcer", "stats": {"INT": 6, "REF": 8, "DEX": 8, "TECH": 4, "COOL": 7, "WILL": 7, "LUCK": 0, "MOVE": 6, "BODY": 9, "EMP": 3},
-      "armor": "heavy_armorjack", "weapons": [["assault_rifle", "very_heavy_pistol"]], "kit": ["ammo/frag_grenade"],
-      "skills": {"handgun": 15, "shoulder_arms": 15, "autofire": 15, "evasion": 12, "brawling": 13, "melee_weapon": 13, "athletics": 12, "concentration": 11, "perception": 12, "first_aid": 8, "stealth": 9}}
-  }
+	"_source": "CPR core p.412-416 (Mooks and Grunts, Lieutenants, Mini Bosses, a Boss), read off the page images. Numbers as printed; skill values are SKILL BASES (STAT + skill). Night City 2047 stat blocks go in the same shape. Encounter budget p.399-400.",
+	"_doc": "tiers: the encounter-budget tiers (weight = Edgerunners' worth, p.399) with the default pool of blocks a faction without its own falls back to. blocks: one entry per printed stat block. stats/hp/seriously_wounded/death_save/skills as printed (hp is used when it differs from the formula); armor head/body are armor.json ids (sp is the printed SP, for checking); weapons are weapons.json ids, primary first, with weapon_quality where printed and weapon_sources naming the cyberware a built-in weapon comes from; cyberware are cyberware.json ids; kit lists gear.json keys (the kit items among them are carried into the fight; the rest is flavour until modelled). unmapped/unverified: what isn't modelled or couldn't be checked. Skills written skill:specialisation (language:streetslang) are kept for reference and skipped by the game until specialisations exist.",
+	"tiers": {
+		"mook": {
+			"weight": 1,
+			"name": "Mook",
+			"blocks": [
+				"security_operative",
+				"boosterganger",
+				"road_ganger",
+				"bodyguard"
+			]
+		},
+		"lieutenant": {
+			"weight": 2,
+			"name": "Lieutenant",
+			"blocks": [
+				"security_officer",
+				"reclaimer_chief",
+				"netrunner"
+			]
+		},
+		"mini_boss": {
+			"weight": 3,
+			"name": "Mini Boss",
+			"blocks": [
+				"outrider",
+				"pyro"
+			]
+		},
+		"boss": {
+			"weight": 0,
+			"name": "Boss",
+			"blocks": [
+				"cyberpsycho"
+			],
+			"note": "No count in the book (p.416): a boss fight is placed by a gig, never by the budget."
+		}
+	},
+	"tier_guidance": {
+		"cite": "CPR core p.399-400, p.413-416",
+		"weights": {
+			"mook": 1,
+			"lieutenant": 2,
+			"mini_boss": 3
+		},
+		"mook": "About one Mook per Edgerunner; up to 2 per Edgerunner against a combat-heavy crew (p.399, p.413).",
+		"lieutenant": "1 Lieutenant per 2 Edgerunners; top up with Mooks so total weight equals crew size (p.399, p.414).",
+		"mini_boss": "1 Mini Boss per 3 Edgerunners, with Lieutenants/Mooks added until weight equals the crew (p.400, p.415).",
+		"boss": "Cyberpsycho is a full boss battle; only for a crew that can handle it. No count given (p.416).",
+		"gear_note": "Upgrading an enemy's gear (e.g. a Mook with a top-tier pistol) or counting a heavily geared PC as 2-3 Edgerunners also scales difficulty (p.400)."
+	},
+	"blocks": {
+		"bodyguard": {
+			"name": "Bodyguard",
+			"tier": "mook",
+			"cite": "CPR core p.412",
+			"stats": {
+				"INT": 3,
+				"REF": 6,
+				"DEX": 5,
+				"TECH": 2,
+				"COOL": 4,
+				"WILL": 4,
+				"LUCK": 0,
+				"MOVE": 4,
+				"BODY": 6,
+				"EMP": 3
+			},
+			"hp": 35,
+			"seriously_wounded": 18,
+			"death_save": 6,
+			"skills": {
+				"athletics": 9,
+				"brawling": 11,
+				"concentration": 6,
+				"conversation": 5,
+				"drive_land_vehicle": 10,
+				"education": 5,
+				"endurance": 9,
+				"evasion": 7,
+				"first_aid": 4,
+				"handgun": 10,
+				"human_perception": 5,
+				"interrogation": 6,
+				"language:native": 5,
+				"language:streetslang": 5,
+				"local_expert:your_home": 5,
+				"perception": 9,
+				"persuasion": 6,
+				"resist_torture_drugs": 8,
+				"shoulder_arms": 10,
+				"stealth": 7
+			},
+			"armor": {
+				"head": "kevlar",
+				"body": "kevlar"
+			},
+			"sp": {
+				"head": 7,
+				"body": 7
+			},
+			"weapons": [
+				"shotgun",
+				"very_heavy_pistol"
+			],
+			"weapon_quality": {
+				"shotgun": "poor"
+			},
+			"cyberware": [],
+			"kit": [
+				"gear/radio_communicator"
+			],
+			"ammo": {
+				"slug": 25,
+				"very_heavy_pistol": 25
+			},
+			"unmapped": [],
+			"notes": "Close-protection muscle: poor shotgun loaded with slugs plus a VH pistol; tough (BODY 6) but no chrome.",
+			"unverified": [
+				"'Radio Communicator' read as carried gear (gear/radio_communicator), not the cyberaudio option; outrider's could be either since it sits next to its Cyberaudio Suite."
+			]
+		},
+		"boosterganger": {
+			"name": "Boosterganger",
+			"tier": "mook",
+			"cite": "CPR core p.412",
+			"stats": {
+				"INT": 2,
+				"REF": 6,
+				"DEX": 5,
+				"TECH": 2,
+				"COOL": 4,
+				"WILL": 2,
+				"LUCK": 0,
+				"MOVE": 4,
+				"BODY": 4,
+				"EMP": 3
+			},
+			"hp": 20,
+			"seriously_wounded": 10,
+			"death_save": 4,
+			"skills": {
+				"athletics": 9,
+				"brawling": 9,
+				"conceal_reveal_object": 4,
+				"concentration": 4,
+				"conversation": 5,
+				"drive_land_vehicle": 10,
+				"education": 4,
+				"endurance": 6,
+				"evasion": 7,
+				"first_aid": 4,
+				"handgun": 12,
+				"human_perception": 5,
+				"interrogation": 6,
+				"language:native": 4,
+				"language:streetslang": 4,
+				"local_expert:your_home": 4,
+				"melee_weapon": 11,
+				"perception": 6,
+				"persuasion": 6,
+				"resist_torture_drugs": 4,
+				"stealth": 7
+			},
+			"armor": {
+				"head": "leathers",
+				"body": "leathers"
+			},
+			"sp": {
+				"head": 4,
+				"body": 4
+			},
+			"weapons": [
+				"very_heavy_pistol",
+				"medium_melee"
+			],
+			"weapon_quality": {
+				"very_heavy_pistol": "poor"
+			},
+			"weapon_sources": {
+				"medium_melee": "rippers"
+			},
+			"cyberware": [
+				"rippers",
+				"techhair"
+			],
+			"kit": [
+				"gear/disposable_cell_phone"
+			],
+			"ammo": {
+				"very_heavy_pistol": 30
+			},
+			"unmapped": [],
+			"notes": "Fragile street ganger (20 HP, leathers); poor VH pistol and Rippers claws, best skill Handgun 12 / Melee 11.",
+			"unverified": [
+				"printed 20 (SW 10), but 10+5*ceil((BODY 4+WILL 2)/2) = 25. Book typo or deliberate; stored as printed.",
+				"cyberware weapons mapped to generic melee classes (Rippers->medium_melee, Wolvers->heavy_melee, Cybersnake->very_heavy_melee) per cyberware.json fx; see weapon_sources."
+			]
+		},
+		"road_ganger": {
+			"name": "Road Ganger",
+			"tier": "mook",
+			"cite": "CPR core p.413",
+			"stats": {
+				"INT": 4,
+				"REF": 6,
+				"DEX": 4,
+				"TECH": 4,
+				"COOL": 3,
+				"WILL": 3,
+				"LUCK": 0,
+				"MOVE": 3,
+				"BODY": 3,
+				"EMP": 3
+			},
+			"hp": 25,
+			"seriously_wounded": 13,
+			"death_save": 3,
+			"skills": {
+				"archery": 10,
+				"athletics": 10,
+				"brawling": 6,
+				"concentration": 5,
+				"conversation": 6,
+				"drive_land_vehicle": 12,
+				"education": 6,
+				"endurance": 5,
+				"evasion": 6,
+				"first_aid": 6,
+				"handgun": 10,
+				"human_perception": 5,
+				"land_vehicle_tech": 10,
+				"language:native": 6,
+				"language:streetslang": 6,
+				"local_expert:your_home": 6,
+				"melee_weapon": 8,
+				"perception": 6,
+				"persuasion": 5,
+				"stealth": 8,
+				"tracking": 8,
+				"wilderness_survival": 8
+			},
+			"armor": {
+				"head": "leathers",
+				"body": "leathers"
+			},
+			"sp": {
+				"head": 4,
+				"body": 4
+			},
+			"weapons": [
+				"very_heavy_pistol",
+				"crossbow",
+				"light_melee"
+			],
+			"cyberware": [
+				"neural_link",
+				"interface_plugs"
+			],
+			"kit": [
+				"gear/rope",
+				"gear/flashlight"
+			],
+			"ammo": {
+				"very_heavy_pistol": 20,
+				"arrow": 20
+			},
+			"unmapped": [],
+			"notes": "Badlands raider built around vehicles (Drive 12); VH pistol, crossbow and a knife-class melee weapon."
+		},
+		"security_operative": {
+			"name": "Security Operative",
+			"tier": "mook",
+			"cite": "CPR core p.413",
+			"stats": {
+				"INT": 3,
+				"REF": 7,
+				"DEX": 4,
+				"TECH": 2,
+				"COOL": 2,
+				"WILL": 3,
+				"LUCK": 0,
+				"MOVE": 3,
+				"BODY": 5,
+				"EMP": 3
+			},
+			"hp": 30,
+			"seriously_wounded": 15,
+			"death_save": 5,
+			"skills": {
+				"athletics": 8,
+				"autofire": 10,
+				"brawling": 6,
+				"concentration": 7,
+				"conversation": 5,
+				"education": 5,
+				"evasion": 6,
+				"first_aid": 4,
+				"handgun": 10,
+				"human_perception": 5,
+				"interrogation": 6,
+				"language:native": 5,
+				"language:streetslang": 5,
+				"local_expert:your_home": 5,
+				"melee_weapon": 6,
+				"perception": 5,
+				"persuasion": 4,
+				"resist_torture_drugs": 5,
+				"shoulder_arms": 10,
+				"stealth": 6
+			},
+			"armor": {
+				"head": "kevlar",
+				"body": "kevlar"
+			},
+			"sp": {
+				"head": 7,
+				"body": 7
+			},
+			"weapons": [
+				"assault_rifle",
+				"very_heavy_pistol",
+				"medium_melee"
+			],
+			"weapon_quality": {
+				"assault_rifle": "poor"
+			},
+			"cyberware": [],
+			"kit": [
+				"gear/radio_communicator"
+			],
+			"ammo": {
+				"rifle": 40,
+				"very_heavy_pistol": 20
+			},
+			"unmapped": [],
+			"notes": "Rank-and-file corp guard: poor assault rifle (Autofire 10), VH sidearm, baton-class melee; no chrome.",
+			"unverified": [
+				"printed 'Rifle x40' (no word Ammo); read as 40 rifle rounds.",
+				"'Radio Communicator' read as carried gear (gear/radio_communicator), not the cyberaudio option; outrider's could be either since it sits next to its Cyberaudio Suite."
+			]
+		},
+		"netrunner": {
+			"name": "Netrunner",
+			"tier": "lieutenant",
+			"cite": "CPR core p.414",
+			"stats": {
+				"INT": 7,
+				"REF": 5,
+				"DEX": 4,
+				"TECH": 7,
+				"COOL": 4,
+				"WILL": 5,
+				"LUCK": 0,
+				"MOVE": 5,
+				"BODY": 3,
+				"EMP": 4
+			},
+			"hp": 30,
+			"seriously_wounded": 15,
+			"death_save": 3,
+			"role_ability": {
+				"role": "netrunner",
+				"name": "Interface",
+				"rank": 4
+			},
+			"skills": {
+				"athletics": 9,
+				"basic_tech": 13,
+				"brawling": 6,
+				"conceal_reveal_object": 11,
+				"concentration": 9,
+				"conversation": 6,
+				"cryptography": 11,
+				"deduction": 11,
+				"education": 11,
+				"electronics_security_tech": 11,
+				"evasion": 6,
+				"first_aid": 9,
+				"forgery": 13,
+				"handgun": 10,
+				"human_perception": 6,
+				"language:native": 9,
+				"language:streetslang": 9,
+				"local_expert:your_home": 13,
+				"library_search": 9,
+				"perception": 11,
+				"persuasion": 6,
+				"pick_lock": 11,
+				"resist_torture_drugs": 7,
+				"stealth": 8
+			},
+			"armor": {
+				"head": "bodyweight_suit",
+				"body": "bodyweight_suit"
+			},
+			"sp": {
+				"head": 11,
+				"body": 11
+			},
+			"weapons": [
+				"very_heavy_pistol"
+			],
+			"cyberware": [
+				"neural_link",
+				"interface_plugs"
+			],
+			"kit": [
+				"gear/flashlight",
+				"gear/virtuality_goggles"
+			],
+			"ammo": {
+				"very_heavy_pistol": 50
+			},
+			"programs": [
+				"Banhammer",
+				"DeckKRASH",
+				"Eraser",
+				"Hellbolt",
+				"Shield",
+				"Sword",
+				"Worm"
+			],
+			"unmapped": [
+				"Interface 4 (role ability rank, no ability id)",
+				"Cyberdeck programs: Banhammer, DeckKRASH, Eraser, Hellbolt, Shield, Sword, Worm (no program ids)"
+			],
+			"notes": "Hacker lieutenant: fights in the NET with a full attack/defence program load; only a VH pistol in meatspace.",
+			"unverified": [
+				"has programs and Interface 4 but no cyberdeck is listed; only Virtuality Goggles + Interface Plugs."
+			]
+		},
+		"reclaimer_chief": {
+			"name": "Reclaimer Chief",
+			"tier": "lieutenant",
+			"cite": "CPR core p.414",
+			"stats": {
+				"INT": 3,
+				"REF": 6,
+				"DEX": 6,
+				"TECH": 5,
+				"COOL": 4,
+				"WILL": 5,
+				"LUCK": 0,
+				"MOVE": 4,
+				"BODY": 6,
+				"EMP": 4
+			},
+			"hp": 40,
+			"seriously_wounded": 20,
+			"death_save": 6,
+			"skills": {
+				"athletics": 12,
+				"basic_tech": 9,
+				"brawling": 8,
+				"concentration": 7,
+				"conversation": 6,
+				"deduction": 7,
+				"drive_land_vehicle": 10,
+				"education": 5,
+				"electronics_security_tech": 9,
+				"endurance": 11,
+				"evasion": 8,
+				"first_aid": 7,
+				"handgun": 10,
+				"human_perception": 6,
+				"land_vehicle_tech": 7,
+				"language:native": 5,
+				"language:streetslang": 5,
+				"local_expert:your_home": 5,
+				"melee_weapon": 10,
+				"paramedic": 7,
+				"perception": 8,
+				"persuasion": 6,
+				"pick_lock": 7,
+				"resist_torture_drugs": 10,
+				"shoulder_arms": 10,
+				"stealth": 10,
+				"weaponstech": 9,
+				"wilderness_survival": 7
+			},
+			"armor": {
+				"head": "light_armorjack",
+				"body": "light_armorjack"
+			},
+			"sp": {
+				"head": 11,
+				"body": 11
+			},
+			"weapons": [
+				"shotgun",
+				"heavy_pistol",
+				"light_melee",
+				"heavy_melee"
+			],
+			"cyberware": [
+				"neural_link",
+				"chipware_socket",
+				"tactile_boost",
+				"nasal_filters"
+			],
+			"kit": [
+				"gear/agent",
+				"gear/grapple_gun",
+				"gear/radio_communicator",
+				"gear/tent_camping"
+			],
+			"ammo": {
+				"slug": 25,
+				"heavy_pistol": 25
+			},
+			"unmapped": [],
+			"notes": "Ruins scavenger boss: generalist with shotgun (slugs), heavy pistol and two melee weapons; grapple gun for climbing.",
+			"unverified": [
+				"'Radio Communicator' read as carried gear (gear/radio_communicator), not the cyberaudio option; outrider's could be either since it sits next to its Cyberaudio Suite."
+			]
+		},
+		"security_officer": {
+			"name": "Security Officer",
+			"tier": "lieutenant",
+			"cite": "CPR core p.415",
+			"stats": {
+				"INT": 4,
+				"REF": 8,
+				"DEX": 6,
+				"TECH": 4,
+				"COOL": 6,
+				"WILL": 5,
+				"LUCK": 0,
+				"MOVE": 6,
+				"BODY": 7,
+				"EMP": 4
+			},
+			"hp": 40,
+			"seriously_wounded": 20,
+			"death_save": 7,
+			"stats_armor_penalised": {
+				"REF": 6,
+				"DEX": 4,
+				"MOVE": 4
+			},
+			"skills": {
+				"athletics": 10,
+				"autofire": 12,
+				"brawling": 10,
+				"concentration": 7,
+				"conversation": 6,
+				"deduction": 6,
+				"drive_land_vehicle": 12,
+				"education": 6,
+				"evasion": 10,
+				"first_aid": 6,
+				"handgun": 10,
+				"human_perception": 6,
+				"interrogation": 8,
+				"language:native": 6,
+				"language:streetslang": 6,
+				"local_expert:your_home": 6,
+				"melee_weapon": 10,
+				"perception": 6,
+				"persuasion": 8,
+				"resist_torture_drugs": 10,
+				"shoulder_arms": 10,
+				"stealth": 6
+			},
+			"skills_armor_penalised": {
+				"athletics": 8,
+				"autofire": 10,
+				"brawling": 8,
+				"drive_land_vehicle": 10,
+				"evasion": 8,
+				"handgun": 8,
+				"melee_weapon": 8,
+				"shoulder_arms": 8,
+				"stealth": 4
+			},
+			"armor": {
+				"head": "medium_armorjack",
+				"body": "medium_armorjack"
+			},
+			"sp": {
+				"head": 13,
+				"body": 13
+			},
+			"weapons": [
+				"assault_rifle",
+				"very_heavy_pistol",
+				"medium_melee"
+			],
+			"cyberware": [
+				"neural_link",
+				"kerenzikov"
+			],
+			"kit": [
+				"shields/bulletproof_shield",
+				"gear/binoculars",
+				"gear/disposable_cell_phone",
+				"gear/flashlight",
+				"gear/handcuffs",
+				"gear/radio_communicator",
+				"gear/radio_scanner"
+			],
+			"ammo": {
+				"rifle": 50,
+				"very_heavy_pistol": 30
+			},
+			"unmapped": [],
+			"notes": "Corp security sergeant: medium armorjack plus a 10 HP bulletproof shield; values in () are after the -2 armour penalty.",
+			"unverified": [
+				"printed M Armorjack 13 SP head/body, but our armor.json (CPR core p.97) has medium_armorjack sp 12. 13 is our heavy_armorjack's SP.",
+				"'Tactics' is listed with no number; omitted from skills.",
+				"printed as 'X (Y)'; X stored in stats/skills, the -2 armour-penalised Y in stats_armor_penalised/skills_armor_penalised.",
+				"'Radio Communicator' read as carried gear (gear/radio_communicator), not the cyberaudio option; outrider's could be either since it sits next to its Cyberaudio Suite."
+			]
+		},
+		"outrider": {
+			"name": "Outrider",
+			"tier": "mini_boss",
+			"cite": "CPR core p.415",
+			"stats": {
+				"INT": 6,
+				"REF": 8,
+				"DEX": 8,
+				"TECH": 3,
+				"COOL": 5,
+				"WILL": 6,
+				"LUCK": 0,
+				"MOVE": 6,
+				"BODY": 6,
+				"EMP": 6
+			},
+			"hp": 40,
+			"seriously_wounded": 20,
+			"death_save": 6,
+			"role_ability": {
+				"role": "nomad",
+				"name": "Moto",
+				"rank": 4
+			},
+			"skills": {
+				"animal_handling": 8,
+				"athletics": 14,
+				"autofire": 12,
+				"basic_tech": 5,
+				"brawling": 14,
+				"concentration": 10,
+				"conversation": 6,
+				"criminology": 10,
+				"drive_land_vehicle": 14,
+				"education": 8,
+				"endurance": 10,
+				"evasion": 14,
+				"first_aid": 5,
+				"handgun": 14,
+				"human_perception": 8,
+				"land_vehicle_tech": 7,
+				"language:native": 8,
+				"language:streetslang": 8,
+				"local_expert:badlands": 10,
+				"local_expert:your_home": 8,
+				"melee_weapon": 12,
+				"perception": 14,
+				"persuasion": 7,
+				"resist_torture_drugs": 12,
+				"shoulder_arms": 14,
+				"stealth": 12,
+				"streetwise": 9,
+				"tracking": 10
+			},
+			"armor": {
+				"head": "light_armorjack",
+				"body": "light_armorjack"
+			},
+			"sp": {
+				"head": 11,
+				"body": 11
+			},
+			"weapons": [
+				"assault_rifle",
+				"very_heavy_pistol",
+				"light_melee"
+			],
+			"cyberware": [
+				"cyberaudio_suite",
+				"amplified_hearing",
+				"cybereye",
+				"targeting_scope",
+				"teleoptics",
+				"neural_link",
+				"interface_plugs"
+			],
+			"kit": [
+				"gear/handcuffs",
+				"gear/homing_tracer",
+				"gear/radio_communicator"
+			],
+			"ammo": {
+				"rifle": 60,
+				"very_heavy_pistol": 40
+			},
+			"unmapped": [
+				"Moto Family 4 (Nomad role ability, printed 'Moto Family'; no ability id)"
+			],
+			"notes": "Nomad scout/hunter: skill 14 across guns, Evasion and Perception; targeting-scope cybereye makes it a long-range threat.",
+			"unverified": [
+				"'Radio Communicator' read as carried gear (gear/radio_communicator), not the cyberaudio option; outrider's could be either since it sits next to its Cyberaudio Suite.",
+				"printed 'Moto Family 4' (Nomad's ability is Moto); netrunner Interface 4 and pyro Combat Awareness 4 are role-ability ranks, stored in role_ability, not skills."
+			]
+		},
+		"pyro": {
+			"name": "Pyro",
+			"tier": "mini_boss",
+			"cite": "CPR core p.416",
+			"stats": {
+				"INT": 5,
+				"REF": 8,
+				"DEX": 6,
+				"TECH": 7,
+				"COOL": 4,
+				"WILL": 4,
+				"LUCK": 0,
+				"MOVE": 6,
+				"BODY": 5,
+				"EMP": 3
+			},
+			"hp": 35,
+			"seriously_wounded": 18,
+			"death_save": 5,
+			"role_ability": {
+				"role": "solo",
+				"name": "Combat Awareness",
+				"rank": 4
+			},
+			"skills": {
+				"athletics": 11,
+				"basic_tech": 12,
+				"brawling": 10,
+				"concentration": 8,
+				"conversation": 5,
+				"demolitions": 13,
+				"drive_land_vehicle": 10,
+				"education": 7,
+				"evasion": 13,
+				"first_aid": 9,
+				"handgun": 14,
+				"heavy_weapons": 14,
+				"human_perception": 5,
+				"interrogation": 10,
+				"language:native": 7,
+				"language:streetslang": 7,
+				"local_expert:your_home": 7,
+				"melee_weapon": 13,
+				"perception": 12,
+				"persuasion": 6,
+				"resist_torture_drugs": 14,
+				"science:chemistry": 10,
+				"stealth": 10,
+				"streetwise": 8,
+				"tactics": 8
+			},
+			"armor": {
+				"head": "light_armorjack",
+				"body": "light_armorjack"
+			},
+			"sp": {
+				"head": 11,
+				"body": 11
+			},
+			"weapons": [
+				"flamethrower",
+				"heavy_pistol",
+				"heavy_melee"
+			],
+			"cyberware": [
+				"cyberaudio_suite",
+				"level_damper",
+				"cybereye",
+				"cybereye",
+				"anti_dazzle",
+				"anti_dazzle",
+				"nasal_filters"
+			],
+			"kit": [
+				"ammo/incendiary_ammo",
+				"ammo/flashbang_ammo"
+			],
+			"kit_detail": {
+				"ammo/incendiary_ammo": "1 incendiary grenade + 8 incendiary shotgun shells (flamethrower ammo)",
+				"ammo/flashbang_ammo": "1 flashbang grenade"
+			},
+			"ammo": {
+				"incendiary_shotgun_shell": 8,
+				"very_heavy_pistol": 50
+			},
+			"unmapped": [
+				"Combat Awareness 4 (Solo role ability; no ability id)"
+			],
+			"notes": "Fire-support mini boss: flamethrower plus incendiary and flashbang grenades; chrome makes it immune to its own flash/bang.",
+			"unverified": [
+				"carries 'VH Pistol Ammo x50' but its weapon is a Heavy Pistol (3d6); book inconsistency, stored as printed.",
+				"Incendiary Grenade x1 -> ammo/incendiary_ammo and Flashbang Grenade x1 -> ammo/flashbang_ammo (grenade-type ammo keys); see kit_detail."
+			]
+		},
+		"cyberpsycho": {
+			"name": "Cyberpsycho",
+			"tier": "boss",
+			"cite": "CPR core p.416",
+			"stats": {
+				"INT": 5,
+				"REF": 8,
+				"DEX": 8,
+				"TECH": 5,
+				"COOL": 4,
+				"WILL": 7,
+				"LUCK": 0,
+				"MOVE": 8,
+				"BODY": 10,
+				"EMP": 0
+			},
+			"hp": 55,
+			"seriously_wounded": 28,
+			"death_save": 10,
+			"skills": {
+				"athletics": 16,
+				"autofire": 14,
+				"basic_tech": 11,
+				"brawling": 15,
+				"concentration": 6,
+				"conversation": 2,
+				"drive_land_vehicle": 10,
+				"education": 7,
+				"endurance": 10,
+				"evasion": 13,
+				"first_aid": 6,
+				"handgun": 12,
+				"heavy_weapons": 14,
+				"human_perception": 2,
+				"interrogation": 13,
+				"language:native": 7,
+				"language:streetslang": 7,
+				"local_expert:your_home": 7,
+				"melee_weapon": 17,
+				"perception": 9,
+				"persuasion": 6,
+				"resist_torture_drugs": 15,
+				"stealth": 10,
+				"tracking": 10
+			},
+			"armor": {
+				"head": "subdermal_armor",
+				"body": "subdermal_armor"
+			},
+			"sp": {
+				"head": 11,
+				"body": 11
+			},
+			"armor_is_cyberware": true,
+			"weapons": [
+				"grenade_launcher",
+				"heavy_smg",
+				"very_heavy_melee",
+				"heavy_melee"
+			],
+			"weapon_sources": {
+				"grenade_launcher": "popup_grenade_launcher",
+				"heavy_smg": "popup_ranged_weapon",
+				"very_heavy_melee": "cybersnake",
+				"heavy_melee": "wolvers"
+			},
+			"cyberware": [
+				"cyberarm",
+				"cyberarm",
+				"popup_grenade_launcher",
+				"popup_grenade_launcher",
+				"popup_ranged_weapon",
+				"wolvers",
+				"cyberleg",
+				"cyberleg",
+				"jump_booster",
+				"jump_booster",
+				"cybersnake",
+				"grafted_muscle_and_bone_lace",
+				"neural_link",
+				"chipware_socket",
+				"pain_editor",
+				"subdermal_armor"
+			],
+			"kit": [
+				"ammo/armor_piercing_ammo"
+			],
+			"kit_detail": {
+				"ammo/armor_piercing_ammo": "2 armor-piercing grenades (for the popup launchers)"
+			},
+			"ammo": {
+				"heavy_pistol": 100
+			},
+			"unmapped": [],
+			"notes": "Full boss fight: EMP 0, 55 HP, two popup grenade launchers with AP grenades, popup heavy SMG, cybersnake and wolvers.",
+			"unverified": [
+				"Armor Piercing Grenade x2 -> ammo/armor_piercing_ammo; ammo is Heavy Pistol x100 though it carries no heavy pistol (likely meant for the Popup Heavy SMG, which uses heavy pistol rounds).",
+				"Subdermal Armor is cyberware (subdermal_armor), not an armor.json id; armor_is_cyberware=true.",
+				"popup heavy SMG mapped to heavy_smg via popup_ranged_weapon cyberware; multiples (cyberarm x2, popup_grenade_launcher x2, cyberleg x2, jump_booster x2) are repeated in the cyberware list.",
+				"cyberware weapons mapped to generic melee classes (Rippers->medium_melee, Wolvers->heavy_melee, Cybersnake->very_heavy_melee) per cyberware.json fx; see weapon_sources."
+			]
+		}
+	}
 }

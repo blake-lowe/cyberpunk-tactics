@@ -21,10 +21,10 @@ func _initialize() -> void:
 
 
 func _weapon(fid: String, tier: String) -> String:
-	var kits: Array = World.faction(fid).get("roster", {}).get("kits", {}).get(tier, [])
-	if kits.is_empty():
-		kits = RulesDB.load_json("npcs.json")["tiers"][tier]["weapons"]
-	return String(kits[0][0])
+	var pool: Array = World.faction(fid).get("roster", {}).get("blocks", {}).get(tier, [])
+	if pool.is_empty():
+		pool = RulesDB.load_json("npcs.json")["tiers"][tier]["blocks"]
+	return String(RulesDB.load_json("npcs.json")["blocks"][pool[0]]["weapons"][0])
 
 
 func _run() -> void:

@@ -24,6 +24,8 @@ var unconscious := false
 var wake_in := 0               ## rounds until a stabilized character comes round (1 minute = 20 rounds, p223)
 var prone := false
 var weapons: Array[Weapon] = []
+var block := ""               ## the printed stat block an NPC was built from (npcs.json), "" for crew
+var hp_max_override := 0       ## a stat block's printed HP when it differs from the formula (0: formula)
 var ip: int = 0                ## unspent Improvement Points (p410-411)
 var look_seed: int = -1        ## the crew member's appearance seed (stable across gigs); -1 = by unit order
 
@@ -111,7 +113,16 @@ func stat(s: String) -> int:
 	return v
 
 
+## What kind of person this is, for cards: the stat block's name ("Security Operative") or the role.
+func kind_name() -> String:
+	if block != "":
+		return String(RulesDB.load_json("npcs.json")["blocks"][block]["name"])
+	return role.capitalize()
+
+
 func max_hp() -> int:
+	if hp_max_override > 0:
+		return hp_max_override
 	return 10 + 5 * ceili((raw_stat("BODY") + raw_stat("WILL")) / 2.0)  # p79
 
 

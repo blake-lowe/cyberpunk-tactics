@@ -1275,7 +1275,7 @@ func _inspect(v: Vector3i) -> void:
 	if not u.is_empty():
 		var c: Combatant = u.c
 		var w: Weapon = c.weapons[0] if not c.weapons.is_empty() else null
-		lines.append("[b]%s[/b]  [color=#7d8a96]%s[/color]" % [c.display_name, c.role.capitalize()])
+		lines.append("[b]%s[/b]  [color=#7d8a96]%s[/color]" % [c.display_name, c.kind_name()])
 		lines.append("[code]REF %d  DEX %d  BODY %d  MOVE %d[/code]" % [c.stat("REF"), c.stat("DEX"), c.stat("BODY"), c.stat("MOVE")])
 		lines.append("HP %d/%d · %s" % [c.hp, c.max_hp(), ["Unhurt", "Lightly wounded", "Seriously wounded", "Mortally wounded", "Dead"][c.wound_state()]])
 		lines.append("Armor: head SP %d · body SP %d" % [c.sp("head"), c.sp("body")])
@@ -3741,7 +3741,7 @@ func _update_hover() -> void:
 		pcts[k] = roundi(pm.chance * 100) if pm.ok else -1
 	hud.mode_pcts(pcts)
 	var c: Combatant = t.c
-	var lines := ["[b]%s[/b]  [color=#7d8a96]%s[/color]" % [c.display_name, c.role.capitalize()]]
+	var lines := ["[b]%s[/b]  [color=#7d8a96]%s[/color]" % [c.display_name, c.kind_name()]]
 	if p.ok:
 		var pct := roundi(p.chance * 100)
 		var col := "#39f0a0" if pct >= 65 else ("#f9c80e" if pct >= 35 else "#ff3b4f")
