@@ -45,7 +45,7 @@ The legendary edgerunner bar and hired-muscle marketplace, furnished like the mo
 	"type": "bar",
 	"owner": "",
 	"owner_name": "Rogue Amendiares (Solo 7/Fixer 7)",
-	"security_code": {"n": 11, "faction": "patrons", "intensity": "heavy", "hardened": true},
+	"security_code": {"n": 11, "faction": "locals", "intensity": "heavy", "hardened": true},
 	"utility_code": null,
 	"npcs": ["Rogue Amendiares (Solo 7/Fixer 7)"],
 	"hooks": [

@@ -47,8 +47,7 @@ func test_locations_resolve() -> void:
 	for id in World.locations():
 		var l := World.location(id)
 		var owner := String(l.get("owner", ""))
-		if owner != "" and not World.has_faction(owner):
-			continue   # TODO(M9 P1 factions pass): every owner gets a faction; until then they can't host gigs
+		assert_true(owner == "" or World.has_faction(owner), "%s: owner %s is a faction" % [id, owner])
 		assert_true(World.districts().has(String(l.get("district", ""))), "%s: district %s exists" % [id, l.get("district")])
 		assert_true(l.has("profile") or l.has("site") or l.has("scene"), "%s: somewhere" % id)
 		if l.has("profile"):
@@ -70,7 +69,9 @@ func test_the_board_sends_a_job_to_its_targets_own_place() -> void:
 		"gigs": ["sabotage", "corp_extraction", "data_theft"], "cite": "test"}}
 	var camp := Campaign.new_game(5)
 	var hits := 0
-	for day in 12:
+	for day in 400:   # with the NC2045 factions there are ~100 targets to draw from
+		if hits >= 2:
+			break
 		camp.refresh_board()
 		for g in camp.board:
 			if String(g.get("location", "")) == "test_depot":
@@ -87,7 +88,7 @@ func test_the_board_sends_a_job_to_its_targets_own_place() -> void:
 ## turn, and the objective reports. Catches content that names something the code can't build.
 func test_every_profile_objective_and_faction_family_sets_up() -> void:
 	var kinds := Objective.kinds()
-	var factions := ["security", "militech", "maelstrom", "valentinos", "biotechnica", "6th_street", "tyger_claws", "kang_tao", "bozos"]
+	var factions := ["security", "militech", "maelstrom", "weng_fang_tong", "biotechnica", "6th_street", "tyger_claws", "lazarus", "bozos", "locals", "nomads"]
 	var i := 0
 	for prof in _profiles():
 		var kind := String(kinds[i % kinds.size()])

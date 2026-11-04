@@ -43,6 +43,42 @@ func test_every_faction_resolves_against_the_rules_data() -> void:
 		for k in f.get("look", {}):
 			if k in ["jacket", "accent", "pants"]:
 				assert_true(Color.html_is_valid(String(f.look[k])), "%s: look.%s is a colour" % [id, k])
+		for other in f.get("relations", {}):
+			assert_true(kinds.has(String(other)) or World.has_faction(String(other)), "%s: relation to a kind or faction (%s)" % [id, other])
+			assert_true(String(f.relations[other]) in World.RELATIONS, "%s: relation %s" % [id, f.relations[other]])
+		for d in f.get("territory", []):
+			assert_true(World.districts().has(String(d)), "%s: territory %s is a district" % [id, d])
+		assert_true(f.has("cite"), "%s: cited (or ours)" % id)
+		if "gang_hit" in f.get("gigs", []):
+			assert_eq(String(f.kind), "gang", "%s: only gangs take a gang hit (its titles name a gang)" % id)
+
+
+## Night City 2045: every faction the district and location docs name exists; the owner's
+## book-only ruling removed the Time-of-the-Red extras.
+func test_the_city_names_only_real_factions() -> void:
+	for did in World.districts():
+		var d := World.district(did)
+		for g in d.get("gangs", []):
+			assert_true(World.has_faction(String(g)), "%s: gang %s" % [did, g])
+		if d.get("provider") != null:
+			assert_true(World.has_faction(String(d.provider)), "%s: provider %s" % [did, d.provider])
+		if d.get("security_code") is Dictionary:
+			assert_true(World.has_faction(String(d.security_code.faction)), "%s: responder %s" % [did, d.security_code.faction])
+	for lid in World.locations():
+		var l := World.location(lid)
+		if l.get("security_code") is Dictionary:
+			assert_true(World.has_faction(String(l.security_code.faction)), "%s: responder %s" % [lid, l.security_code.faction])
+	for gone in ["valentinos", "wraiths", "kang_tao", "zetatech", "patrons", "staff", "residents", "various", "unknown"]:
+		assert_false(World.has_faction(gone), "%s is not a faction" % gone)
+	var n := {}
+	for id in World.factions():
+		n[World.kind(id)] = int(n.get(World.kind(id), 0)) + 1
+	assert_true(int(n.get("gang", 0)) >= 44 and int(n.get("crime", 0)) == 6, "the book's 44 gangs and 6 syndicates (%s)" % n)
+	assert_eq(World.relation("iron_sights", "red_chrome_legion"), "hostile", "an eternal war (NC2045 p.41)")
+	assert_eq(World.relation("kimen_gumi", "tyger_claws"), "ally", "every Kimen-Gumi is a Tyger Claw (p.50)")
+	assert_eq(World.relation("ncpd", "kimen_gumi"), "ally", "deputized district police")
+	assert_eq(World.relation("ncpd", "skiv_family"), "hostile", "syndicates and the police")
+	assert_eq(World.relation("sk_securities", "skiv_family"), "ally", "but the Skivs own SK Securities (p.48)")
 
 
 func test_every_gig_kind_has_a_target_faction() -> void:
@@ -59,9 +95,9 @@ func test_relations_are_symmetric_and_follow_kinds_and_overrides() -> void:
 			assert_eq(World.relation(a, b), World.relation(b, a), "%s/%s symmetric" % [a, b])
 	assert_eq(World.relation("militech", "maelstrom"), "hostile", "corps and gangs")
 	assert_eq(World.relation("militech", "biotechnica"), "neutral", "corps keep to themselves")
-	assert_eq(World.relation("valentinos", "tyger_claws"), "neutral", "gangs by default")
+	assert_eq(World.relation("voodoo_boys", "tyger_claws"), "neutral", "gangs by default")
 	assert_eq(World.relation("maelstrom", "tyger_claws"), "hostile", "Maelstrom hates every other gang")
-	assert_eq(World.relation("ncpd", "valentinos"), "hostile", "police and gangs")
+	assert_eq(World.relation("ncpd", "voodoo_boys"), "hostile", "police and gangs")
 	assert_eq(World.relation("ncpd", "6th_street"), "neutral", "6th Street and the NCPD get along")
 	assert_eq(World.relation("crew", "bystanders"), "neutral")
 	assert_eq(World.relation("crew", "trauma_team"), "neutral", "Trauma Team minds its own business")
@@ -87,14 +123,14 @@ func test_an_unknown_faction_falls_back_to_private_security() -> void:
 
 
 func test_police_answering_a_gang_job_fight_the_gang_too() -> void:
-	var e := _enc("valentinos")
+	var e := _enc("voodoo_boys")
 	e._ncpd_wave()
 	var cops := e.units.filter(func(u): return e.faction_of(u) == "ncpd")
 	assert_false(cops.is_empty(), "the NCPD turns up")
 	var t: int = cops[0].team
 	assert_true(t != Encounter.OPFOR, "on their own side")
 	assert_true(e.hostile(t, Encounter.CREW), "after the crew")
-	assert_true(e.hostile(t, Encounter.OPFOR), "and the Valentinos: a three-way fight")
+	assert_true(e.hostile(t, Encounter.OPFOR), "and the Voodoo Boys: a three-way fight")
 	var g: Dictionary = e.units.filter(func(u): return u.team == Encounter.OPFOR)[0]
 	assert_true(AI._enemies(e, g).has(cops[0]), "the gang shoots back at them")
 

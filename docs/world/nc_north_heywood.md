@@ -296,7 +296,7 @@ A veterans' bar turned edgerunner hangout, moved here after the Little China ori
 	"owner_name": "John \"The Professor\" Freeman (Fixer 8) and Marianne Freeman (Fixer 6/Tech 4)",
 	"security_code": {
 		"n": 10,
-		"faction": "patrons",
+		"faction": "locals",
 		"intensity": "heavy",
 		"hardened": true
 	},

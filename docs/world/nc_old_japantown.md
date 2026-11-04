@@ -229,7 +229,7 @@ ex-Lazarus operative, guards it.
 	"type": "chop_shop",
 	"owner": "",
 	"owner_name": "Hiro (Fixer 5)",
-	"security_code": {"n": 10, "faction": "steve_and_friends", "intensity": "medium", "hardened": true},
+	"security_code": {"n": 10, "faction": "locals", "intensity": "medium", "hardened": true},
 	"utility_code": null,
 	"npcs": ["Hiro (Fixer 5)", "Steve (Solo 6)"],
 	"hooks": [],

@@ -118,7 +118,7 @@ A site no drone can map and where unseen snipers kill anyone on foot; Raven Micr
 	"type": "ruin",
 	"owner": "",
 	"owner_name": "",
-	"security_code": {"n": 11, "faction": "unknown", "intensity": "heavy", "hardened": true},
+	"security_code": {"n": 11, "faction": "locals", "intensity": "heavy", "hardened": true},
 	"utility_code": null,
 	"npcs": [],
 	"hooks": [
@@ -260,7 +260,7 @@ A hidden, invitation-only underground paradise for gun nuts on the Zone's wester
 	"type": "gun_shop",
 	"owner": "",
 	"owner_name": "Toggle (Tech 5)",
-	"security_code": {"n": 8, "faction": "patrons", "intensity": "light", "hardened": true},
+	"security_code": {"n": 8, "faction": "locals", "intensity": "light", "hardened": true},
 	"utility_code": null,
 	"npcs": ["Toggle (Tech 5)"],
 	"hooks": [],

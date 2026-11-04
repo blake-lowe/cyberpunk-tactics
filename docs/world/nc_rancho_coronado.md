@@ -375,7 +375,7 @@ Night City's biggest guerrilla garden, built in a fenced former Petrochem subdiv
 	"owner_name": "Cheech (Exec 3)",
 	"security_code": {
 		"n": 10,
-		"faction": "residents",
+		"faction": "locals",
 		"intensity": "medium",
 		"hardened": false
 	},

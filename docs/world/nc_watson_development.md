@@ -655,7 +655,7 @@ Pistols and basic armour for anyone; the heavy stuff only for regulars, and he k
 	"owner_name": "Morgan (Fixer 3)",
 	"security_code": {
 		"n": 7,
-		"faction": "patrons",
+		"faction": "locals",
 		"intensity": "medium",
 		"hardened": true
 	},
@@ -941,7 +941,7 @@ A nomad carnival that has stayed put for four years since its founder fell ill.
 	"owner_name": "Pochinko clan of Blood Nation nomads (Libby Manseau, Nomad 4/Rockerboy 5)",
 	"security_code": {
 		"n": 10,
-		"faction": "staff",
+		"faction": "locals",
 		"intensity": "light",
 		"hardened": true
 	},

@@ -187,7 +187,7 @@ A waterfront body bank that grows replacement limbs and installs cyberware witho
 {
 	"name": "Medical Technologies", "district": "port_of_night_city", "number": 9, "type": "medical",
 	"owner": "", "owner_name": "Medical Technologies",
-	"security_code": {"n": 5, "faction": "various_gangs", "intensity": "medium", "hardened": false},
+	"security_code": {"n": 5, "faction": "locals", "intensity": "medium", "hardened": false},
 	"utility_code": null,
 	"npcs": [],
 	"hooks": [
@@ -244,7 +244,7 @@ An ugly but sturdy apartment tower of identical furnished studios, full of cyber
 {
 	"name": "Reclaimed Studios", "district": "port_of_night_city", "number": 12, "type": "housing",
 	"owner": "", "owner_name": "",
-	"security_code": {"n": 5, "faction": "various_gangs", "intensity": "medium", "hardened": false},
+	"security_code": {"n": 5, "faction": "locals", "intensity": "medium", "hardened": false},
 	"utility_code": null,
 	"npcs": [],
 	"hooks": [],

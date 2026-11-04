@@ -674,7 +674,7 @@ brain-solution dispenser. The residents handle their own security.
 	"type": "housing",
 	"owner": "",
 	"owner_name": "",
-	"security_code": {"n": 10, "faction": "residents", "intensity": "heavy", "hardened": false},
+	"security_code": {"n": 10, "faction": "locals", "intensity": "heavy", "hardened": false},
 	"utility_code": null,
 	"npcs": [],
 	"hooks": [],
