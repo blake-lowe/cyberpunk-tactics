@@ -49,6 +49,17 @@ static func armor(id: String) -> Dictionary:
 	return a
 
 
+## Equipment beyond weapons and armour (data/rules/gear.json): `section` is attachments, ammo,
+## shields, gear, fashion, drugs, pharmaceuticals or therapy. Empty if unknown.
+static func gear(section: String, id: String) -> Dictionary:
+	var g: Dictionary = (load_json("gear.json").get(section, {}) as Dictionary).get(id, {})
+	if g.is_empty():
+		return {}
+	var out := g.duplicate()
+	out["id"] = id
+	return out
+
+
 static func cyberware(id: String) -> Dictionary:
 	return load_json("cyberware.json")["cyberware"][id]
 

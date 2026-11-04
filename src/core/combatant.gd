@@ -214,6 +214,8 @@ func medical_tech() -> int:
 
 
 ## Pharmaceuticals this Medtech can make: one per Pharmaceutical point (p149), in our fixed order.
+## HOUSE-RULE: Pharmaceuticals points unlock drugs in this fixed order (the book lets the Medtech
+## pick one per point, p149); the first two are the ones that matter in a fight.
 const PHARMA_ORDER := ["speedheal", "stim", "antibiotic", "rapidetox", "surge"]
 
 

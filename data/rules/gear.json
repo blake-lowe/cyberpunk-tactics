@@ -1,0 +1,2275 @@
+{
+	"_source": "CPR core equipment, imported from the book with page cites per item (p.97, p.101-102, p.149-150, p.183-184, p.227-230, p.338-358). Numbers and short paraphrases only. fx: machine-readable effects; the vocabulary is in fx_keys (and src/core uses only the keys it implements; see docs/rules/gear.md). unmodelled: what fx doesn't capture yet.",
+	"price_tiers": "Price categories (CPR core p.385): Cheap 10eb, Everyday 20eb, Costly 50eb, Premium 100eb, Expensive 500eb, Very Expensive 1,000eb, Luxury 5,000eb, Super Luxury 10,000eb and up. Without a Fixer/Night Market only up to Premium is buyable.",
+	"attachment_rules": {
+		"slots_per_weapon": 3,
+		"cite": "CPR core p.342 (also p96)",
+		"exotic_weapons": 0,
+		"default_slot_cost": 1,
+		"same_attachment_twice": "no effect",
+		"shared_location": "Attachments occupying the same physical spot can be combined, but each pays its own slot cost.",
+		"clip_limit": "Only one magazine attachment (extended or drum) per weapon.",
+		"cross_type": "Attachments are built for one weapon type; buying one fits that type only."
+	},
+	"clip_chart": {
+		"cite": "CPR core p.344",
+		"standard": {
+			"medium_pistol": 12,
+			"heavy_pistol": 8,
+			"very_heavy_pistol": 8,
+			"smg": 30,
+			"heavy_smg": 40,
+			"shotgun": 4,
+			"assault_rifle": 25,
+			"sniper_rifle": 4,
+			"grenade_launcher": 2,
+			"rocket_launcher": 1
+		},
+		"extended": {
+			"medium_pistol": 18,
+			"heavy_pistol": 14,
+			"very_heavy_pistol": 14,
+			"smg": 40,
+			"heavy_smg": 50,
+			"shotgun": 8,
+			"assault_rifle": 35,
+			"sniper_rifle": 8,
+			"grenade_launcher": 4,
+			"rocket_launcher": 2
+		},
+		"drum": {
+			"medium_pistol": 36,
+			"heavy_pistol": 28,
+			"very_heavy_pistol": 28,
+			"smg": 50,
+			"heavy_smg": 60,
+			"shotgun": 16,
+			"assault_rifle": 45,
+			"sniper_rifle": 12,
+			"grenade_launcher": 6,
+			"rocket_launcher": 3
+		}
+	},
+	"ammo_rules": {
+		"cite": "CPR core p.344, p94, p96",
+		"kinds": [
+			"bullets",
+			"shotgun_shells",
+			"arrows",
+			"grenades",
+			"rockets"
+		],
+		"bullet_calibres": [
+			"medium_pistol",
+			"heavy_pistol",
+			"very_heavy_pistol",
+			"slug",
+			"rifle"
+		],
+		"purchase_unit": {
+			"bullets": 10,
+			"arrows": 10,
+			"shotgun_shells": 10,
+			"grenades": 1,
+			"rockets": 1
+		},
+		"basic_grenades_rockets": false,
+		"grenades_thrown_or_launched": true,
+		"non_basic_ok_for": "Non-exotic ranged weapons; exotic weapons only Basic unless noted (p95, p347)",
+		"one_type_per_magazine": "Reload fills with one ammo type; no mixing (p169-170)"
+	},
+	"attachments": {
+		"bayonet": {
+			"name": "Bayonet",
+			"cost": 100,
+			"cost_tier": "Premium",
+			"cite": "CPR core p.343",
+			"summary": "Blade under the barrel; the gun doubles as a Light Melee Weapon. No longer concealable.",
+			"eligible": {
+				"skills": [
+					"shoulder_arms"
+				],
+				"exotic": false,
+				"weapons": [
+					"shotgun",
+					"assault_rifle",
+					"sniper_rifle"
+				]
+			},
+			"slots": 1,
+			"fx": {
+				"melee_mode": "light_melee",
+				"conceal": false
+			}
+		},
+		"drum_magazine": {
+			"name": "Drum Magazine",
+			"cost": 500,
+			"cost_tier": "Expensive",
+			"cite": "CPR core p.343",
+			"summary": "Huge magazine; capacity from the Drum column of the Clip Chart. Not concealable. Only one magazine attachment per weapon.",
+			"eligible": {
+				"exotic": false,
+				"exclude": [
+					"bow",
+					"crossbow"
+				],
+				"weapons": [
+					"medium_pistol",
+					"heavy_pistol",
+					"very_heavy_pistol",
+					"smg",
+					"heavy_smg",
+					"shotgun",
+					"assault_rifle",
+					"sniper_rifle",
+					"grenade_launcher",
+					"rocket_launcher"
+				]
+			},
+			"slots": 1,
+			"fx": {
+				"mag_by_weapon": {
+					"medium_pistol": 36,
+					"heavy_pistol": 28,
+					"very_heavy_pistol": 28,
+					"smg": 50,
+					"heavy_smg": 60,
+					"shotgun": 16,
+					"assault_rifle": 45,
+					"sniper_rifle": 12,
+					"grenade_launcher": 6,
+					"rocket_launcher": 3
+				},
+				"clip": true,
+				"conceal": false
+			}
+		},
+		"extended_magazine": {
+			"name": "Extended Magazine",
+			"cost": 100,
+			"cost_tier": "Premium",
+			"cite": "CPR core p.343",
+			"summary": "Larger magazine; capacity from the Extended column of the Clip Chart. Not concealable. Only one magazine attachment per weapon.",
+			"eligible": {
+				"exotic": false,
+				"exclude": [
+					"bow",
+					"crossbow"
+				],
+				"weapons": [
+					"medium_pistol",
+					"heavy_pistol",
+					"very_heavy_pistol",
+					"smg",
+					"heavy_smg",
+					"shotgun",
+					"assault_rifle",
+					"sniper_rifle",
+					"grenade_launcher",
+					"rocket_launcher"
+				]
+			},
+			"slots": 1,
+			"fx": {
+				"mag_by_weapon": {
+					"medium_pistol": 18,
+					"heavy_pistol": 14,
+					"very_heavy_pistol": 14,
+					"smg": 40,
+					"heavy_smg": 50,
+					"shotgun": 8,
+					"assault_rifle": 35,
+					"sniper_rifle": 8,
+					"grenade_launcher": 4,
+					"rocket_launcher": 2
+				},
+				"clip": true,
+				"conceal": false
+			}
+		},
+		"grenade_launcher_underbarrel": {
+			"name": "Grenade Launcher Underbarrel",
+			"cost": 500,
+			"cost_tier": "Expensive",
+			"cite": "CPR core p.343",
+			"summary": "Held two-handed, the weapon can also fire as a Grenade Launcher holding one grenade. Not concealable.",
+			"eligible": {
+				"skills": [
+					"shoulder_arms"
+				],
+				"exotic": false,
+				"weapons": [
+					"shotgun",
+					"assault_rifle",
+					"sniper_rifle"
+				]
+			},
+			"slots": 2,
+			"fx": {
+				"underbarrel": {
+					"weapon": "grenade_launcher",
+					"mag": 1,
+					"hands": 2
+				},
+				"conceal": false
+			}
+		},
+		"infrared_nightvision_scope": {
+			"name": "Infrared Nightvision Scope",
+			"cost": 500,
+			"cost_tier": "Expensive",
+			"cite": "CPR core p.343",
+			"summary": "Cuts penalties for shooting targets obscured by darkness, smoke or fog to 0; shows heat signatures only, no fine detail.",
+			"eligible": {
+				"exotic": false,
+				"weapons": [
+					"medium_pistol",
+					"heavy_pistol",
+					"very_heavy_pistol",
+					"smg",
+					"heavy_smg",
+					"shotgun",
+					"assault_rifle",
+					"sniper_rifle",
+					"bow",
+					"grenade_launcher",
+					"rocket_launcher"
+				]
+			},
+			"slots": 1,
+			"fx": {
+				"vision": "infrared",
+				"ignore_obscured_penalty": true
+			},
+			"unmodelled": "Thermal view distinguishes warm bodies from cold metal but reveals no identifying detail (flavour)."
+		},
+		"shotgun_underbarrel": {
+			"name": "Shotgun Underbarrel",
+			"cost": 500,
+			"cost_tier": "Expensive",
+			"cite": "CPR core p.343",
+			"summary": "Held two-handed, the weapon can also fire as a Shotgun with a two-shot magazine. Not concealable.",
+			"eligible": {
+				"skills": [
+					"shoulder_arms"
+				],
+				"exotic": false,
+				"weapons": [
+					"shotgun",
+					"assault_rifle",
+					"sniper_rifle"
+				]
+			},
+			"slots": 2,
+			"fx": {
+				"underbarrel": {
+					"weapon": "shotgun",
+					"mag": 2,
+					"hands": 2
+				},
+				"conceal": false
+			}
+		},
+		"smartgun_link": {
+			"name": "Smartgun Link",
+			"cost": 500,
+			"cost_tier": "Expensive",
+			"cite": "CPR core p.344",
+			"summary": "Smartgun: +1 to Ranged Attacks when linked via Interface Plugs or Subdermal Grip (both need a Neural Link). Fitting takes an hour.",
+			"eligible": {
+				"exotic": false,
+				"weapons": [
+					"medium_pistol",
+					"heavy_pistol",
+					"very_heavy_pistol",
+					"smg",
+					"heavy_smg",
+					"shotgun",
+					"assault_rifle",
+					"sniper_rifle",
+					"bow",
+					"grenade_launcher",
+					"rocket_launcher"
+				]
+			},
+			"slots": 2,
+			"fx": {
+				"attack_bonus": 1,
+				"requires": "neural_link",
+				"requires_any": [
+					"interface_plugs",
+					"subdermal_grip"
+				],
+				"install_time": "1 hour"
+			},
+			"unmodelled": "Plugs connect as part of drawing into a free hand if not already in use; Subdermal Grip links automatically; disarm unplugs, replug is free while held."
+		},
+		"sniping_scope": {
+			"name": "Sniping Scope",
+			"cost": 100,
+			"cost_tier": "Premium",
+			"cite": "CPR core p.344",
+			"summary": "See detail to 800 m. +1 to single-shot or Aimed Shot attacks at targets 51 m or more away. Doesn't stack with TeleOptics.",
+			"eligible": {
+				"exotic": false,
+				"weapons": [
+					"medium_pistol",
+					"heavy_pistol",
+					"very_heavy_pistol",
+					"smg",
+					"heavy_smg",
+					"shotgun",
+					"assault_rifle",
+					"sniper_rifle",
+					"bow",
+					"grenade_launcher",
+					"rocket_launcher"
+				]
+			},
+			"slots": 1,
+			"fx": {
+				"vision": "telescopic",
+				"vision_range_m": 800,
+				"attack_bonus_if": {
+					"bonus": 1,
+					"min_range_m": 51,
+					"modes": [
+						"single_shot",
+						"aimed_shot"
+					]
+				},
+				"no_stack_with": [
+					"teleoptics"
+				]
+			}
+		}
+	},
+	"ammo": {
+		"basic_ammo": {
+			"name": "Basic Ammunition",
+			"cost": 10,
+			"cost_tier": "Cheap",
+			"cite": "CPR core p.345",
+			"summary": "Standard rounds, no special features. Basic arrows can be recovered after firing.",
+			"types": [
+				"bullets",
+				"arrows",
+				"shotgun_shells"
+			],
+			"unit": "10 rounds (bullets, arrows, shotgun shells); 1 each (grenades, rockets)",
+			"unit_qty": {
+				"bullets": 10,
+				"arrows": 10,
+				"shotgun_shells": 10
+			},
+			"fx": {},
+			"unmodelled": "Basic arrows are always retrievable after firing (p174); grenades and rockets have no Basic type (p94)."
+		},
+		"armor_piercing_ammo": {
+			"name": "Armor-Piercing Ammunition",
+			"cost": 100,
+			"cost_tier": "Premium",
+			"cite": "CPR core p.345",
+			"summary": "Each ablation strips 2 SP from the target's armour instead of 1.",
+			"types": [
+				"bullets",
+				"arrows",
+				"grenades",
+				"rockets"
+			],
+			"unit": "10 rounds (bullets, arrows, shotgun shells); 1 each (grenades, rockets)",
+			"unit_qty": {
+				"bullets": 10,
+				"arrows": 10,
+				"grenades": 1,
+				"rockets": 1
+			},
+			"fx": {
+				"ablate_sp": 2
+			}
+		},
+		"biotoxin_ammo": {
+			"name": "Biotoxin Ammunition",
+			"cost": 500,
+			"cost_tier": "Expensive",
+			"cite": "CPR core p.345",
+			"summary": "No damage. Organic targets hit roll Resist Torture/Drugs DV15 or take 3d6 straight to HP; armour untouched.",
+			"types": [
+				"arrows",
+				"grenades"
+			],
+			"unit": "10 rounds (bullets, arrows, shotgun shells); 1 each (grenades, rockets)",
+			"unit_qty": {
+				"arrows": 10,
+				"grenades": 1
+			},
+			"fx": {
+				"no_damage": true,
+				"meat_only": true,
+				"status": {
+					"name": "biotoxin",
+					"dv": 15,
+					"check": "resist_torture_drugs",
+					"hp_dice": 3
+				},
+				"ablate_sp": 0
+			}
+		},
+		"emp_ammo": {
+			"name": "EMP Ammunition",
+			"cost": 500,
+			"cost_tier": "Expensive",
+			"cite": "CPR core p.345",
+			"summary": "No damage. Targets hit roll Cybertech DV15 or 2 GM-picked cyberware/electronics stop working for a minute.",
+			"types": [
+				"grenades"
+			],
+			"unit": "10 rounds (bullets, arrows, shotgun shells); 1 each (grenades, rockets)",
+			"unit_qty": {
+				"grenades": 1
+			},
+			"fx": {
+				"no_damage": true,
+				"status": {
+					"name": "emp",
+					"dv": 15,
+					"check": "cybertech",
+					"disable_items": 2,
+					"rounds": 20
+				},
+				"duration": "1 minute"
+			},
+			"unmodelled": "Disabled cyberlimbs behave like dismembered limbs (p187) while still attached; which items are picked is a GM/AI choice."
+		},
+		"expansive_ammo": {
+			"name": "Expansive Ammunition",
+			"cost": 100,
+			"cost_tier": "Premium",
+			"cite": "CPR core p.345",
+			"summary": "When it causes the Foreign Object Critical Injury, the victim also takes a rerolled non-Foreign-Object injury, without its Bonus Damage.",
+			"types": [
+				"bullets",
+				"arrows"
+			],
+			"unit": "10 rounds (bullets, arrows, shotgun shells); 1 each (grenades, rockets)",
+			"unit_qty": {
+				"bullets": 10,
+				"arrows": 10
+			},
+			"fx": {
+				"foreign_object_extra_crit": true
+			},
+			"unmodelled": "Book lists Arrows, Bullets and Slugs; slugs are a bullet type (p344)."
+		},
+		"flashbang_ammo": {
+			"name": "Flashbang Ammunition",
+			"cost": 100,
+			"cost_tier": "Premium",
+			"cite": "CPR core p.346",
+			"summary": "No damage. Targets hit roll Resist Torture/Drugs DV15 or suffer Damaged Eye and Damaged Ear for a minute, no Bonus Damage.",
+			"types": [
+				"grenades"
+			],
+			"unit": "10 rounds (bullets, arrows, shotgun shells); 1 each (grenades, rockets)",
+			"unit_qty": {
+				"grenades": 1
+			},
+			"fx": {
+				"no_damage": true,
+				"status": {
+					"name": "flashbang",
+					"dv": 15,
+					"check": "resist_torture_drugs",
+					"rounds": 20,
+					"crit_injuries": [
+						"damaged_eye",
+						"damaged_ear"
+					],
+					"no_bonus_damage": true
+				},
+				"duration": "1 minute"
+			}
+		},
+		"incendiary_ammo": {
+			"name": "Incendiary Ammunition",
+			"cost": 100,
+			"cost_tier": "Premium",
+			"cite": "CPR core p.346",
+			"summary": "Damage through armour ignites the target: 2 HP at the end of each of their turns until they spend an Action. No stacking.",
+			"types": [
+				"bullets",
+				"arrows",
+				"grenades",
+				"shotgun_shells"
+			],
+			"unit": "10 rounds (bullets, arrows, shotgun shells); 1 each (grenades, rockets)",
+			"unit_qty": {
+				"bullets": 10,
+				"arrows": 10,
+				"grenades": 1,
+				"shotgun_shells": 10
+			},
+			"fx": {
+				"burning": 2,
+				"burning_trigger": "damage_through_sp",
+				"burning_stacks": false,
+				"burning_extinguish": "action"
+			}
+		},
+		"poison_ammo": {
+			"name": "Poison Ammunition",
+			"cost": 100,
+			"cost_tier": "Premium",
+			"cite": "CPR core p.346",
+			"summary": "No damage. Organic targets hit roll Resist Torture/Drugs DV13 or take 2d6 straight to HP; armour untouched.",
+			"types": [
+				"arrows",
+				"grenades"
+			],
+			"unit": "10 rounds (bullets, arrows, shotgun shells); 1 each (grenades, rockets)",
+			"unit_qty": {
+				"arrows": 10,
+				"grenades": 1
+			},
+			"fx": {
+				"no_damage": true,
+				"meat_only": true,
+				"status": {
+					"name": "poison",
+					"dv": 13,
+					"check": "resist_torture_drugs",
+					"hp_dice": 2
+				},
+				"ablate_sp": 0
+			}
+		},
+		"rubber_ammo": {
+			"name": "Rubber Ammunition",
+			"cost": 10,
+			"cost_tier": "Cheap",
+			"cite": "CPR core p.346",
+			"summary": "Never causes Critical Injuries or ablates armour; a hit that would drop a target above 1 HP below 0 leaves them at 1 HP.",
+			"types": [
+				"bullets",
+				"arrows"
+			],
+			"unit": "10 rounds (bullets, arrows, shotgun shells); 1 each (grenades, rockets)",
+			"unit_qty": {
+				"bullets": 10,
+				"arrows": 10
+			},
+			"fx": {
+				"non_lethal": true,
+				"no_critical_injury": true,
+				"ablate_sp": 0
+			},
+			"unmodelled": "Book lists Arrows, Bullets and Slugs; slugs are a bullet type (p344). Non-lethal floor only applies to targets above 1 HP."
+		},
+		"sleep_ammo": {
+			"name": "Sleep Ammunition",
+			"cost": 500,
+			"cost_tier": "Expensive",
+			"cite": "CPR core p.346",
+			"summary": "No damage. Organic targets hit roll Resist Torture/Drugs DV13 or fall Prone and Unconscious for a minute, until damaged or touched awake.",
+			"types": [
+				"arrows",
+				"grenades"
+			],
+			"unit": "10 rounds (bullets, arrows, shotgun shells); 1 each (grenades, rockets)",
+			"unit_qty": {
+				"arrows": 10,
+				"grenades": 1
+			},
+			"fx": {
+				"no_damage": true,
+				"meat_only": true,
+				"status": {
+					"name": "unconscious",
+					"dv": 13,
+					"check": "resist_torture_drugs",
+					"rounds": 20,
+					"also": [
+						"prone"
+					],
+					"ends_on": [
+						"damage",
+						"touched_by_action"
+					]
+				},
+				"duration": "1 minute"
+			}
+		},
+		"smart_ammo": {
+			"name": "Smart Ammunition",
+			"cost": 500,
+			"cost_tier": "Expensive",
+			"cite": "CPR core p.346",
+			"summary": "Needs Targeting Scope cyberware or won't fire. A single-shot miss by 4 or less re-rolls once: d10 + 10 (+LUCK) vs the same DV.",
+			"types": [
+				"bullets",
+				"arrows",
+				"rockets"
+			],
+			"unit": "10 rounds (bullets, arrows, shotgun shells); 1 each (grenades, rockets)",
+			"unit_qty": {
+				"bullets": 10,
+				"arrows": 10,
+				"rockets": 1
+			},
+			"fx": {
+				"requires": "targeting_scope",
+				"smart_reroll": {
+					"miss_by_max": 4,
+					"modes": [
+						"single_shot"
+					],
+					"flat": 10,
+					"luck_allowed": true
+				}
+			},
+			"unmodelled": "A target able to dodge bullets may dodge the second chance as normal."
+		},
+		"smoke_ammo": {
+			"name": "Smoke Ammunition",
+			"cost": 50,
+			"cost_tier": "Costly",
+			"cite": "CPR core p.347",
+			"summary": "On impact, fills a 10 m x 10 m area with smoke for a minute; tasks through smoke typically take -4.",
+			"types": [
+				"grenades"
+			],
+			"unit": "10 rounds (bullets, arrows, shotgun shells); 1 each (grenades, rockets)",
+			"unit_qty": {
+				"grenades": 1
+			},
+			"fx": {
+				"no_damage": true,
+				"obscure": {
+					"size_m": 10,
+					"penalty": -4,
+					"rounds": 20
+				},
+				"duration": "1 minute"
+			},
+			"unmodelled": "Smoke does not damage; 10 m square = 5x5 grid squares (1 square = 2 m)."
+		},
+		"teargas_ammo": {
+			"name": "Teargas Ammunition",
+			"cost": 50,
+			"cost_tier": "Costly",
+			"cite": "CPR core p.347",
+			"summary": "No damage. Targets with organic eyes roll Resist Torture/Drugs DV13 or suffer Damaged Eye for a minute, no Bonus Damage.",
+			"types": [
+				"grenades"
+			],
+			"unit": "10 rounds (bullets, arrows, shotgun shells); 1 each (grenades, rockets)",
+			"unit_qty": {
+				"grenades": 1
+			},
+			"fx": {
+				"no_damage": true,
+				"meat_only": "eyes",
+				"status": {
+					"name": "teargas",
+					"dv": 13,
+					"check": "resist_torture_drugs",
+					"rounds": 20,
+					"crit_injuries": [
+						"damaged_eye"
+					],
+					"no_bonus_damage": true
+				},
+				"duration": "1 minute"
+			},
+			"unmodelled": "Cybereyes are immune (only 'meat eyes' are affected)."
+		}
+	},
+	"shields": {
+		"bulletproof_shield": {
+			"name": "Bulletproof Shield",
+			"cost": 100,
+			"cost_tier": "Premium",
+			"cite": "CPR core p.97, 183-184, 350-351",
+			"summary": "Clear polycarbonate hand shield: portable cover that soaks a whole attack into its HP.",
+			"night_market": "weapons_armor",
+			"fx": {
+				"shield_hp": 10,
+				"hands": 1,
+				"equip_actions": 1,
+				"grants_cover": true,
+				"interpose_blocks_dodge": true
+			},
+			"unmodelled": "Interpose only vs an attacker you can see. At 0 HP it is destroyed (repairable) but stays in hand until dropped (Action)."
+		},
+		"human_shield": {
+			"name": "Human Shield (Corpse)",
+			"cost": null,
+			"cost_tier": null,
+			"cite": "CPR core p.184",
+			"summary": "Grappled foe held as cover; becomes a meat shield with HP equal to its BODY once dead.",
+			"fx": {
+				"hands": 1,
+				"grants_cover": true,
+				"interpose_blocks_dodge": true,
+				"shield_hp_from_stat": "BODY",
+				"requires_grapple": true,
+				"blocks_melee": false,
+				"blocks_aimed_head": false
+			},
+			"unmodelled": "Live shield: equip as Action from a Grapple you lead; it takes hits as a normal target and can't dodge; release is free. Corpse drop costs an Action."
+		}
+	},
+	"gear": {
+		"agent": {
+			"category": "electronics",
+			"name": "Agent",
+			"cost": 100,
+			"cost_tier": "Premium",
+			"cite": "CPR core p.352",
+			"summary": "Learning-AI smartphone that runs your calls, schedule, shopping and navigation; nearly everyone carries one.",
+			"night_market": "personal_electronics",
+			"fx": {
+				"skill_bonus": {
+					"library_search": 2,
+					"wardrobe_style": 2
+				},
+				"no_stack": true
+			},
+			"unmodelled": "Wardrobe & Style +2 only while wearing the outfits it picks (seasonal). Phone/records/data-pool roles are narrative; could gate in-mission comms."
+		},
+		"airhypo": {
+			"category": "medical",
+			"name": "Airhypo",
+			"cost": 50,
+			"cost_tier": "Costly",
+			"cite": "CPR core p.352",
+			"summary": "Compressed-air injector: dose a willing ally as an Action, or a foe with a Melee attack instead of damage.",
+			"night_market": "survival_gear",
+			"fx": {
+				"drug_delivery": {
+					"willing": "action",
+					"unwilling": "melee_attack"
+				},
+				"reload_free": true,
+				"requires": "drug_dose"
+			},
+			"unmodelled": "Needs drug doses (p.357). Melee hit delivers one dose instead of damage."
+		},
+		"anti_smog_mask": {
+			"category": "survival",
+			"name": "Anti-Smog Breathing Mask",
+			"cost": 20,
+			"cost_tier": "Everyday",
+			"cite": "CPR core p.352",
+			"summary": "Filter mask; wearer ignores toxic gases, fumes and other inhaled hazards.",
+			"night_market": "survival_gear",
+			"fx": {
+				"immune": [
+					"inhaled"
+				]
+			},
+			"unmodelled": "Teargas (p.347) hits meat eyes, not lungs, so RAW the mask does not stop it; smoke still obscures vision."
+		},
+		"audio_recorder": {
+			"category": "electronics",
+			"name": "Audio Recorder",
+			"cost": 100,
+			"cost_tier": "Premium",
+			"cite": "CPR core p.352",
+			"summary": "Records about 24 hours of sound onto one memory chip.",
+			"record_hours": 24,
+			"night_market": "personal_electronics",
+			"fx": {},
+			"unmodelled": "Narrative; could serve evidence/blackmail objectives."
+		},
+		"ear_protectors": {
+			"category": "survival",
+			"name": "Auto Level Dampening Ear Protectors",
+			"cost": 1000,
+			"cost_tier": "Very Expensive",
+			"cite": "CPR core p.352",
+			"summary": "Compact earwear; wearer is immune to deafening noise effects such as flashbangs.",
+			"night_market": "survival_gear",
+			"fx": {
+				"immune": [
+					"loud_noise"
+				]
+			},
+			"unmodelled": "Blocks the Damaged Ear half of a Flashbang (p.346) and the Shrieker's self-inflicted Damaged Ear (p.349); Damaged Eye still applies."
+		},
+		"binoculars": {
+			"category": "survival",
+			"name": "Binoculars",
+			"cost": 50,
+			"cost_tier": "Costly",
+			"cite": "CPR core p.352",
+			"summary": "Handheld optics magnifying the view two to three times.",
+			"night_market": "survival_gear",
+			"fx": {
+				"vision": "telescopic",
+				"magnification": [
+					2,
+					3
+				]
+			},
+			"unmodelled": "Book gives no rules number; game could cut long-range observation/Perception penalties while used."
+		},
+		"braindance_viewer": {
+			"category": "electronics",
+			"name": "Braindance Viewer",
+			"cost": 1000,
+			"cost_tier": "Very Expensive",
+			"cite": "CPR core p.352",
+			"summary": "Rig for playing braindance recordings: relive someone else's full sensory and emotional experience.",
+			"night_market": "personal_electronics",
+			"fx": {},
+			"unmodelled": "Narrative; could tie to braindance-recovery gig objectives or downtime."
+		},
+		"bug_detector": {
+			"category": "security",
+			"name": "Bug Detector",
+			"cost": 500,
+			"cost_tier": "Expensive",
+			"cite": "CPR core p.352",
+			"summary": "Beeps when within 2 m of a tap, bug or other listening device.",
+			"night_market": "personal_electronics",
+			"fx": {
+				"detects": {
+					"what": "listening_device",
+					"range_m": 2
+				}
+			},
+			"unmodelled": "Could reveal hidden bugs/surveillance objects on the map within 1 square."
+		},
+		"carryall": {
+			"category": "misc",
+			"name": "Carryall",
+			"cost": 20,
+			"cost_tier": "Everyday",
+			"cite": "CPR core p.352",
+			"summary": "Ripstop nylon bag, from messenger size up to a near body-sized duffel.",
+			"night_market": "survival_gear",
+			"fx": {},
+			"unmodelled": "No rules; could add inventory/loot capacity."
+		},
+		"chemical_analyzer": {
+			"category": "electronics",
+			"name": "Chemical Analyzer",
+			"cost": 1000,
+			"cost_tier": "Very Expensive",
+			"cite": "CPR core p.352",
+			"summary": "Identifies a substance's exact composition as an Action against a large sample database.",
+			"night_market": "personal_electronics",
+			"fx": {
+				"identify": "substance",
+				"action_cost": 1
+			},
+			"unmodelled": "Could identify drugs/poisons/loot or reveal a contaminated-supply objective."
+		},
+		"computer": {
+			"category": "electronics",
+			"name": "Computer",
+			"cost": 50,
+			"cost_tier": "Costly",
+			"cite": "CPR core p.352",
+			"summary": "Laptop or desktop for writing and browsing the Data Pool.",
+			"night_market": "personal_electronics",
+			"fx": {},
+			"unmodelled": "Narrative; base-management flavour."
+		},
+		"cryopump": {
+			"category": "medical",
+			"name": "Cryopump",
+			"cost": 5000,
+			"cost_tier": "Luxury",
+			"cite": "CPR core p.353",
+			"summary": "Briefcase body-bag pump: puts a dying patient in stasis, halting Death Saves for up to a week. Medtech only.",
+			"fx": {
+				"charges": 1,
+				"refill_cost": 50,
+				"action_cost": 1,
+				"stasis": {
+					"stops_death_saves": true,
+					"duration": "1 week"
+				},
+				"cover_hp": 15,
+				"requires": "role:medtech"
+			},
+			"unmodelled": "Target must be willing or unconscious; one human-size target; surgery/stabilisation in stasis is safer (no number). Medtech Cryosystem Operation ranks raise charges (p.150)."
+		},
+		"cryotank": {
+			"category": "medical",
+			"name": "Cryotank",
+			"cost": 5000,
+			"cost_tier": "Luxury",
+			"cite": "CPR core p.353",
+			"summary": "Person-sized stasis tank; occupant stays unconscious indefinitely but heals at double rate. Medtech only.",
+			"fx": {
+				"stasis": {
+					"duration": "indefinite",
+					"heal_rate_mult": 2
+				},
+				"cover_hp": 30,
+				"requires": "role:medtech",
+				"check": {
+					"dv": 13,
+					"skill": "medical_tech"
+				}
+			},
+			"unmodelled": "Base/med-bay fixture rather than field kit. 'Medical Tech Check' is the Medtech Medicine ability, not a skills.json id."
+		},
+		"cyberdeck_poor": {
+			"category": "electronics",
+			"name": "Cyberdeck (Poor Quality)",
+			"cost": 100,
+			"cost_tier": "Premium",
+			"cite": "CPR core p.353",
+			"summary": "Modular netrunning platform with 5 slots for Programs and Hardware.",
+			"night_market": "personal_electronics",
+			"fx": {
+				"deck_slots": 5,
+				"requires": [
+					"interface_plugs",
+					"neural_link"
+				]
+			},
+			"unmodelled": "Netrunning per p.195; the repo's net code owns the deck model."
+		},
+		"cyberdeck_standard": {
+			"category": "electronics",
+			"name": "Cyberdeck (Standard Quality)",
+			"cost": 500,
+			"cost_tier": "Expensive",
+			"cite": "CPR core p.353",
+			"summary": "Modular netrunning platform with 7 slots for Programs and Hardware.",
+			"night_market": "personal_electronics",
+			"fx": {
+				"deck_slots": 7,
+				"requires": [
+					"interface_plugs",
+					"neural_link"
+				]
+			},
+			"unmodelled": "Netrunning per p.195; the repo's net code owns the deck model."
+		},
+		"cyberdeck_excellent": {
+			"category": "electronics",
+			"name": "Cyberdeck (Excellent Quality)",
+			"cost": 1000,
+			"cost_tier": "Very Expensive",
+			"cite": "CPR core p.353",
+			"summary": "Modular netrunning platform with 9 slots for Programs and Hardware.",
+			"night_market": "personal_electronics",
+			"fx": {
+				"deck_slots": 9,
+				"requires": [
+					"interface_plugs",
+					"neural_link"
+				]
+			},
+			"unmodelled": "Netrunning per p.195; the repo's net code owns the deck model."
+		},
+		"disposable_cell_phone": {
+			"category": "comms",
+			"name": "Disposable Cell Phone",
+			"cost": 50,
+			"cost_tier": "Costly",
+			"cite": "CPR core p.353",
+			"summary": "Cheap throwaway phone for people who don't want to be traced.",
+			"night_market": "personal_electronics",
+			"fx": {},
+			"unmodelled": "Narrative; could reduce trace/heat on comms-dependent gigs."
+		},
+		"drum_synthesizer": {
+			"category": "misc",
+			"name": "Drum Synthesizer",
+			"cost": 500,
+			"cost_tier": "Expensive",
+			"cite": "CPR core p.353",
+			"summary": "Linked pads and processor imitating nearly any drum; needs an amplifier.",
+			"fx": {
+				"tool_for": [
+					"play_instrument"
+				],
+				"requires": "pocket_amplifier"
+			},
+			"unmodelled": "Rockerboy performance flavour."
+		},
+		"duct_tape": {
+			"category": "tool",
+			"name": "Duct Tape",
+			"cost": 20,
+			"cost_tier": "Everyday",
+			"cite": "CPR core p.353",
+			"summary": "Tape in many colours, including a self-glowing kind used to mark tunnels and caches.",
+			"night_market": "survival_gear",
+			"fx": {},
+			"unmodelled": "Narrative; could mark routes or improvise gags/restraints."
+		},
+		"electric_guitar": {
+			"category": "misc",
+			"name": "Electric Guitar or another Instrument",
+			"cost": 500,
+			"cost_tier": "Expensive",
+			"cite": "CPR core p.353",
+			"summary": "Any instrument; electronic ones need an amplifier to be heard.",
+			"night_market": "personal_electronics",
+			"fx": {
+				"tool_for": [
+					"play_instrument"
+				]
+			},
+			"unmodelled": "Rockerboy performance flavour; electric versions need pocket_amplifier."
+		},
+		"flashlight": {
+			"category": "survival",
+			"name": "Flashlight",
+			"cost": 20,
+			"cost_tier": "Everyday",
+			"cite": "CPR core p.353",
+			"summary": "Rechargeable torch with a 100 m beam lasting about 10 hours a charge.",
+			"night_market": "survival_gear",
+			"fx": {
+				"light": {
+					"shape": "beam",
+					"range_m": 100
+				},
+				"duration": "10 hours"
+			},
+			"unmodelled": "Could cancel darkness penalties (p.130) along a beam; also reveals the holder."
+		},
+		"food_stick": {
+			"category": "survival",
+			"name": "Food Stick",
+			"cost": 10,
+			"cost_tier": "Cheap",
+			"cite": "CPR core p.353",
+			"summary": "Grainy dried ration bar; one awful meal.",
+			"fx": {
+				"consumable": true,
+				"meals": 1
+			},
+			"unmodelled": "Downtime/upkeep flavour."
+		},
+		"glow_paint": {
+			"category": "misc",
+			"name": "Glow Paint",
+			"cost": 20,
+			"cost_tier": "Everyday",
+			"cite": "CPR core p.353",
+			"summary": "Spray can of glow-in-the-dark paint for markers, art and tags.",
+			"fx": {
+				"consumable": true
+			},
+			"unmodelled": "Narrative; route marking or gang tagging."
+		},
+		"glow_stick": {
+			"category": "survival",
+			"name": "Glow Stick",
+			"cost": 10,
+			"cost_tier": "Cheap",
+			"cite": "CPR core p.353",
+			"summary": "Single-use light tube lighting a 4 m area for up to 10 hours.",
+			"fx": {
+				"light": {
+					"shape": "radius",
+					"radius_m": 4
+				},
+				"duration": "10 hours",
+				"consumable": true
+			},
+			"unmodelled": "Could be thrown to light a 2-square area."
+		},
+		"grapple_gun": {
+			"category": "tool",
+			"name": "Grapple Gun",
+			"cost": 100,
+			"cost_tier": "Premium",
+			"cite": "CPR core p.181, 353",
+			"summary": "Rocket grapple fixing to thick cover within 30 m; climb the line at no movement penalty. Not a weapon.",
+			"night_market": "survival_gear",
+			"fx": {
+				"hands": 1,
+				"action_cost": 1,
+				"grapple_range_m": 30,
+				"negates_climb_penalty": true,
+				"free_retract": true,
+				"line_hp": 10,
+				"fall_save_auto": true
+			},
+			"unmodelled": "Line holds only 2x the user's weight; hand is occupied; can't be used to Grab. Auto-succeeds the fall-save (p.181, p.215)."
+		},
+		"handcuffs": {
+			"category": "security",
+			"name": "Handcuffs",
+			"cost": 50,
+			"cost_tier": "Costly",
+			"cite": "CPR core p.353",
+			"summary": "Basic restraints; anyone with BODY above 10 snaps them easily.",
+			"night_market": "survival_gear",
+			"fx": {
+				"restraint": {
+					"break_body_gt": 10
+				}
+			},
+			"unmodelled": "Could support capture/extraction objectives; applying them has no stated action cost."
+		},
+		"homing_tracer": {
+			"category": "security",
+			"name": "Homing Tracer",
+			"cost": 500,
+			"cost_tier": "Expensive",
+			"cite": "CPR core p.354",
+			"summary": "Receiver tracking a linked button-sized tag up to a mile away; one tag included.",
+			"night_market": "personal_electronics",
+			"fx": {
+				"track_range_miles": 1
+			},
+			"unmodelled": "Spare tags 50eb. Could drive tail/track-the-target gig objectives."
+		},
+		"inflatable_bed": {
+			"category": "survival",
+			"name": "Inflatable Bed & Sleep-bag",
+			"cost": 20,
+			"cost_tier": "Everyday",
+			"cite": "CPR core p.354",
+			"summary": "Self-inflating mattress and thin sleeping bag folding into a small square pack.",
+			"night_market": "survival_gear",
+			"fx": {},
+			"unmodelled": "Downtime flavour."
+		},
+		"kibble_pack": {
+			"category": "survival",
+			"name": "Kibble Pack",
+			"cost": 10,
+			"cost_tier": "Cheap",
+			"cite": "CPR core p.354",
+			"summary": "Foil pack of pet-food-like cereal; one numbered meal.",
+			"night_market": "food_drugs",
+			"fx": {
+				"consumable": true,
+				"meals": 1
+			},
+			"unmodelled": "Downtime/upkeep flavour."
+		},
+		"linear_frame_beta": {
+			"category": "misc",
+			"name": "Linear Frame ß (Beta)",
+			"cost": 5000,
+			"cost_tier": "Luxury",
+			"cite": "CPR core p.354",
+			"summary": "Powered exoskeleton raising BODY to 14 while plugged in; HP and Death Save unchanged.",
+			"fx": {
+				"stat_set": {
+					"BODY": 14
+				},
+				"no_hp_change": true,
+				"requires": {
+					"interface_plugs": 2
+				}
+			},
+			"unmodelled": "Raises BODY to 14 (won't exceed 14). Unlocks BODY 11+ heavy weapons (p.349), thick-cover moving (p.182)."
+		},
+		"linear_frame_sigma": {
+			"category": "misc",
+			"name": "Linear Frame ∑ (Sigma)",
+			"cost": 1000,
+			"cost_tier": "Very Expensive",
+			"cite": "CPR core p.354",
+			"summary": "Powered exoskeleton raising BODY to 12 while plugged in; HP and Death Save unchanged.",
+			"fx": {
+				"stat_set": {
+					"BODY": 12
+				},
+				"no_hp_change": true,
+				"requires": {
+					"interface_plugs": 1
+				}
+			},
+			"unmodelled": "Book contradicts itself on plugs (text says two, bullet says one); listed as 1. Won't raise BODY past 12."
+		},
+		"lock_picking_set": {
+			"category": "security",
+			"name": "Lock Picking Set",
+			"cost": 20,
+			"cost_tier": "Everyday",
+			"cite": "CPR core p.354",
+			"summary": "Pouch of tools for opening mechanical locks.",
+			"night_market": "survival_gear",
+			"fx": {
+				"tool_for": [
+					"pick_lock"
+				]
+			},
+			"unmodelled": "No listed bonus; without tools a Pick Lock check takes the -2 'no right tools' modifier (p.130)."
+		},
+		"medscanner": {
+			"category": "medical",
+			"name": "Medscanner",
+			"cost": 1000,
+			"cost_tier": "Very Expensive",
+			"cite": "CPR core p.354",
+			"summary": "Diagnostic scanner with probes; +2 First Aid and Paramedic for non-surgical emergencies. Doesn't stack.",
+			"night_market": "personal_electronics",
+			"fx": {
+				"skill_bonus": {
+					"first_aid": 2,
+					"paramedic": 2
+				},
+				"no_stack": true
+			}
+		},
+		"medtech_bag": {
+			"category": "medical",
+			"name": "Medtech Bag",
+			"cost": 100,
+			"cost_tier": "Premium",
+			"cite": "CPR core p.354",
+			"summary": "Full field medical kit: staplers, spray skin, scalpels and the rest.",
+			"night_market": "survival_gear",
+			"fx": {
+				"tool_for": [
+					"first_aid",
+					"paramedic",
+					"surgery"
+				]
+			},
+			"unmodelled": "No listed bonus. tool_for is an interpretation: absence could apply p.130's -2 no-tools modifier."
+		},
+		"memory_chip": {
+			"category": "electronics",
+			"name": "Memory Chips",
+			"cost": 10,
+			"cost_tier": "Cheap",
+			"cite": "CPR core p.354",
+			"summary": "Thin plastic data wafers of assorted capacity.",
+			"fx": {},
+			"unmodelled": "Narrative; datashard/loot objectives."
+		},
+		"mre": {
+			"category": "survival",
+			"name": "MRE",
+			"cost": 10,
+			"cost_tier": "Cheap",
+			"cite": "CPR core p.354",
+			"summary": "Self-heating meal bag; add water, pull tab, hot meal in two minutes.",
+			"night_market": "food_drugs",
+			"fx": {
+				"consumable": true,
+				"meals": 1
+			},
+			"unmodelled": "Downtime/upkeep flavour."
+		},
+		"personal_carepak": {
+			"category": "misc",
+			"name": "Personal CarePak",
+			"cost": 20,
+			"cost_tier": "Everyday",
+			"cite": "CPR core p.354",
+			"summary": "Toiletry kit: loaded toothbrush, wipes, depilatory, comb.",
+			"night_market": "survival_gear",
+			"fx": {},
+			"unmodelled": "Narrative."
+		},
+		"pocket_amplifier": {
+			"category": "misc",
+			"name": "Pocket Amplifier",
+			"cost": 50,
+			"cost_tier": "Costly",
+			"cite": "CPR core p.354",
+			"summary": "Book-sized rechargeable amp carrying sound 100 m for 6 hours; two instruments.",
+			"fx": {
+				"duration": "6 hours",
+				"range_m": 100
+			},
+			"unmodelled": "Performance flavour; could make a noise distraction."
+		},
+		"radar_detector": {
+			"category": "security",
+			"name": "Radar Detector",
+			"cost": 500,
+			"cost_tier": "Expensive",
+			"cite": "CPR core p.354",
+			"summary": "Beeps when an active radar beam is within 100 m.",
+			"night_market": "personal_electronics",
+			"fx": {
+				"detects": {
+					"what": "active_radar",
+					"range_m": 100
+				}
+			},
+			"unmodelled": "Could warn of radar-based security sensors."
+		},
+		"radio_communicator": {
+			"category": "comms",
+			"name": "Radio Communicator",
+			"cost": 100,
+			"cost_tier": "Premium",
+			"cite": "CPR core p.354",
+			"summary": "Earpiece radio with a one-mile range.",
+			"night_market": "personal_electronics",
+			"fx": {
+				"comms_range_miles": 1
+			},
+			"unmodelled": "Could gate squad coordination (e.g. sharing spotted enemies) on a mission."
+		},
+		"radio_scanner": {
+			"category": "comms",
+			"name": "Radio Scanner/Music Player",
+			"cost": 50,
+			"cost_tier": "Costly",
+			"cite": "CPR core p.354",
+			"summary": "Music player that also scans and listens in on active radio bands within a mile.",
+			"night_market": "personal_electronics",
+			"fx": {
+				"comms_range_miles": 1,
+				"intercept": true
+			},
+			"unmodelled": "Scrambled channels need a descrambler. Could reveal enemy comms/alarm state."
+		},
+		"road_flare": {
+			"category": "survival",
+			"name": "Road Flare",
+			"cost": 10,
+			"cost_tier": "Cheap",
+			"cite": "CPR core p.354",
+			"summary": "Single-use coloured flare lighting a 100 m area for an hour.",
+			"night_market": "survival_gear",
+			"fx": {
+				"light": {
+					"shape": "radius",
+					"radius_m": 100
+				},
+				"duration": "1 hour",
+				"consumable": true
+			},
+			"unmodelled": "Could be thrown to light a large zone."
+		},
+		"rope": {
+			"category": "survival",
+			"name": "Rope (60m/yds)",
+			"cost": 20,
+			"cost_tier": "Everyday",
+			"cite": "CPR core p.354",
+			"summary": "60 m nylon line rated to about 360 kg.",
+			"night_market": "survival_gear",
+			"fx": {
+				"length_m": 60,
+				"load_kg": 360
+			},
+			"unmodelled": "Climbing/rappel flavour."
+		},
+		"scrambler_descrambler": {
+			"category": "comms",
+			"name": "Scrambler/Descrambler",
+			"cost": 500,
+			"cost_tier": "Expensive",
+			"cite": "CPR core p.354",
+			"summary": "Encrypts your outgoing comms; matching descrambler included.",
+			"night_market": "personal_electronics",
+			"fx": {
+				"scramble": true,
+				"descramble": true
+			},
+			"unmodelled": "Could block enemy radio interception (radio_scanner)."
+		},
+		"smart_glasses": {
+			"category": "electronics",
+			"name": "Smart Glasses",
+			"cost": 500,
+			"cost_tier": "Expensive",
+			"cite": "CPR core p.354",
+			"summary": "Wearable frames with two Cybereye option slots, counted as paired; one pair worn at a time.",
+			"night_market": "personal_electronics",
+			"fx": {
+				"cybereye_option_slots": 2,
+				"options_paired": true
+			},
+			"unmodelled": "Lets non-chromed crew use eye options (low light etc.) — integrate with cyberware slice."
+		},
+		"tech_bag": {
+			"category": "tool",
+			"name": "Tech Bag",
+			"cost": 500,
+			"cost_tier": "Expensive",
+			"cite": "CPR core p.354",
+			"summary": "Repair kit: techtool, wire and tape, fasteners, plug-in modules, heat torch, prybars, hammer.",
+			"night_market": "survival_gear",
+			"fx": {
+				"tool_for": [
+					"basic_tech",
+					"electronics_security_tech",
+					"weaponstech",
+					"land_vehicle_tech",
+					"sea_vehicle_tech",
+					"air_vehicle_tech",
+					"cybertech"
+				]
+			},
+			"unmodelled": "No listed bonus; tool_for is an interpretation (avoids p.130 -2 no-tools)."
+		},
+		"techscanner": {
+			"category": "tool",
+			"name": "Techscanner",
+			"cost": 1000,
+			"cost_tier": "Very Expensive",
+			"cite": "CPR core p.355",
+			"summary": "Diagnostic scanner for machines and electronics; +2 to seven TECH repair skills. Doesn't stack.",
+			"night_market": "personal_electronics",
+			"fx": {
+				"skill_bonus": {
+					"basic_tech": 2,
+					"cybertech": 2,
+					"land_vehicle_tech": 2,
+					"sea_vehicle_tech": 2,
+					"air_vehicle_tech": 2,
+					"electronics_security_tech": 2,
+					"weaponstech": 2
+				},
+				"no_stack": true
+			}
+		},
+		"techtool": {
+			"category": "tool",
+			"name": "Techtool",
+			"cost": 100,
+			"cost_tier": "Premium",
+			"cite": "CPR core p.101, 355",
+			"summary": "All-in-one multitool for electronics and machine repair.",
+			"night_market": "survival_gear",
+			"fx": {
+				"tool_for": [
+					"basic_tech",
+					"electronics_security_tech"
+				]
+			},
+			"unmodelled": "p.355 text duplicates the Tech Bag entry (book error); p.101 calls it a multitool. tool_for is an interpretation."
+		},
+		"tent_camping": {
+			"category": "survival",
+			"name": "Tent & Camping Equipment",
+			"cost": 50,
+			"cost_tier": "Costly",
+			"cite": "CPR core p.355",
+			"summary": "One-person tube tent, rechargeable self-heating pot and a cheap spork.",
+			"night_market": "survival_gear",
+			"fx": {},
+			"unmodelled": "Downtime flavour."
+		},
+		"vial_biotoxin": {
+			"category": "misc",
+			"name": "Vial of Biotoxin",
+			"cost": 500,
+			"cost_tier": "Expensive",
+			"cite": "CPR core p.355",
+			"summary": "Coat a light melee blade as an Action; for 30 minutes hits force DV15 resist or 3d6 straight to HP.",
+			"fx": {
+				"consumable": true,
+				"action_cost": 1,
+				"duration": "30 minutes",
+				"coating": {
+					"weapon": "light_melee",
+					"replaces_damage": true,
+					"dv": 15,
+					"check": "resist_torture_drugs",
+					"damage_dice": 3,
+					"bypass_armor": true,
+					"meat_only": true
+				}
+			},
+			"unmodelled": "Armour neither reduces nor is ablated."
+		},
+		"vial_poison": {
+			"category": "misc",
+			"name": "Vial of Poison",
+			"cost": 100,
+			"cost_tier": "Premium",
+			"cite": "CPR core p.355",
+			"summary": "Coat a light melee blade as an Action; for 30 minutes hits force DV13 resist or 2d6 straight to HP.",
+			"fx": {
+				"consumable": true,
+				"action_cost": 1,
+				"duration": "30 minutes",
+				"coating": {
+					"weapon": "light_melee",
+					"replaces_damage": true,
+					"dv": 13,
+					"check": "resist_torture_drugs",
+					"damage_dice": 2,
+					"bypass_armor": true,
+					"meat_only": true
+				}
+			},
+			"unmodelled": "Armour neither reduces nor is ablated."
+		},
+		"video_camera": {
+			"category": "electronics",
+			"name": "Video Camera",
+			"cost": 100,
+			"cost_tier": "Premium",
+			"cite": "CPR core p.355",
+			"summary": "Handheld recorder storing about 12 hours of video and sound per memory chip.",
+			"record_hours": 12,
+			"fx": {
+				"hands": 1
+			},
+			"unmodelled": "Media flavour; could serve 'get footage' objectives."
+		},
+		"virtuality_goggles": {
+			"category": "electronics",
+			"name": "Virtuality Goggles",
+			"cost": 100,
+			"cost_tier": "Premium",
+			"cite": "CPR core p.355",
+			"summary": "Headset overlaying cyberspace imagery on your real view; recommended for netrunners.",
+			"night_market": "personal_electronics",
+			"fx": {},
+			"unmodelled": "Netrunning per p.195; also used with interface plugs to visualise machine controls."
+		},
+		"radiation_suit": {
+			"category": "survival",
+			"name": "Radiation Suit",
+			"cost": 1000,
+			"cost_tier": "Very Expensive",
+			"cite": "CPR core p.101, 339",
+			"summary": "Protective suit against radiation. Listed in the starting gear table and Night Market, not the Master Gear List.",
+			"night_market": "survival_gear",
+			"fx": {
+				"immune": [
+					"radiation"
+				]
+			},
+			"unmodelled": "High-level radiation (p.181) treats you as Mildly On Fire each turn; the suit negates it."
+		},
+		"shovel_or_axe": {
+			"category": "tool",
+			"name": "Shovel or Axe",
+			"cost": 50,
+			"cost_tier": "Costly",
+			"cite": "CPR core p.339",
+			"summary": "Digging or chopping tool; appears only in the Night Market survival column, with no rules text.",
+			"night_market": "survival_gear",
+			"fx": {},
+			"unmodelled": "No description; could double as an improvised melee weapon (GM call)."
+		}
+	},
+	"fashion": {
+		"fashion_bag_lady_chic": {
+			"name": "Bag Lady Chic",
+			"cost": null,
+			"cost_tier": null,
+			"cite": "CPR core p.102, 356",
+			"summary": "Clothing style: Homeless, ragged, vagrant. Priced per piece.",
+			"piece_costs": {
+				"bottoms": 20,
+				"top": 10,
+				"jacket": 20,
+				"footwear": 20,
+				"jewelry": 20,
+				"mirrorshades": 20,
+				"glasses": 10,
+				"contact_lenses": 10,
+				"hats": 10
+			},
+			"piece_tiers": {
+				"bottoms": "Everyday",
+				"top": "Cheap",
+				"jacket": "Everyday",
+				"footwear": "Everyday",
+				"jewelry": "Everyday",
+				"mirrorshades": "Everyday",
+				"glasses": "Cheap",
+				"contact_lenses": "Cheap",
+				"hats": "Cheap"
+			},
+			"night_market": "clothing_fashionware",
+			"fx": {},
+			"unmodelled": "Pure appearance; no armour value. Could feed Wardrobe & Style / disguise or social-access rules."
+		},
+		"fashion_gang_colors": {
+			"name": "Gang Colors",
+			"cost": null,
+			"cost_tier": null,
+			"cite": "CPR core p.102, 356",
+			"summary": "Clothing style: Dangerous, violent, rebellious. Priced per piece.",
+			"piece_costs": {
+				"bottoms": 50,
+				"top": 20,
+				"jacket": 50,
+				"footwear": 20,
+				"jewelry": 50,
+				"mirrorshades": 20,
+				"glasses": 20,
+				"contact_lenses": 10,
+				"hats": 10
+			},
+			"piece_tiers": {
+				"bottoms": "Costly",
+				"top": "Everyday",
+				"jacket": "Costly",
+				"footwear": "Everyday",
+				"jewelry": "Costly",
+				"mirrorshades": "Everyday",
+				"glasses": "Everyday",
+				"contact_lenses": "Cheap",
+				"hats": "Cheap"
+			},
+			"night_market": "clothing_fashionware",
+			"fx": {},
+			"unmodelled": "Pure appearance; no armour value. Could feed Wardrobe & Style / disguise or social-access rules."
+		},
+		"fashion_generic_chic": {
+			"name": "Generic Chic",
+			"cost": null,
+			"cost_tier": null,
+			"cite": "CPR core p.102, 356",
+			"summary": "Clothing style: Standard, colourful, modular. Priced per piece.",
+			"piece_costs": {
+				"bottoms": 50,
+				"top": 20,
+				"jacket": 50,
+				"footwear": 20,
+				"jewelry": 50,
+				"mirrorshades": 20,
+				"glasses": 20,
+				"contact_lenses": 10,
+				"hats": 10
+			},
+			"piece_tiers": {
+				"bottoms": "Costly",
+				"top": "Everyday",
+				"jacket": "Costly",
+				"footwear": "Everyday",
+				"jewelry": "Costly",
+				"mirrorshades": "Everyday",
+				"glasses": "Everyday",
+				"contact_lenses": "Cheap",
+				"hats": "Cheap"
+			},
+			"night_market": "clothing_fashionware",
+			"fx": {},
+			"unmodelled": "Pure appearance; no armour value. Could feed Wardrobe & Style / disguise or social-access rules."
+		},
+		"fashion_bohemian": {
+			"name": "Bohemian",
+			"cost": null,
+			"cost_tier": null,
+			"cite": "CPR core p.102, 356",
+			"summary": "Clothing style: Folksy, retro, free-spirited. Priced per piece.",
+			"piece_costs": {
+				"bottoms": 50,
+				"top": 20,
+				"jacket": 50,
+				"footwear": 50,
+				"jewelry": 100,
+				"mirrorshades": 50,
+				"glasses": 50,
+				"contact_lenses": 10,
+				"hats": 10
+			},
+			"piece_tiers": {
+				"bottoms": "Costly",
+				"top": "Everyday",
+				"jacket": "Costly",
+				"footwear": "Costly",
+				"jewelry": "Premium",
+				"mirrorshades": "Costly",
+				"glasses": "Costly",
+				"contact_lenses": "Cheap",
+				"hats": "Cheap"
+			},
+			"night_market": "clothing_fashionware",
+			"fx": {},
+			"unmodelled": "Pure appearance; no armour value. Could feed Wardrobe & Style / disguise or social-access rules."
+		},
+		"fashion_leisurewear": {
+			"name": "Leisurewear",
+			"cost": null,
+			"cost_tier": null,
+			"cite": "CPR core p.102, 356",
+			"summary": "Clothing style: Comfort, agility, athleticism. Priced per piece.",
+			"piece_costs": {
+				"bottoms": 100,
+				"top": 20,
+				"jacket": 100,
+				"footwear": 50,
+				"jewelry": 100,
+				"mirrorshades": 50,
+				"glasses": 50,
+				"contact_lenses": 20,
+				"hats": 50
+			},
+			"piece_tiers": {
+				"bottoms": "Premium",
+				"top": "Everyday",
+				"jacket": "Premium",
+				"footwear": "Costly",
+				"jewelry": "Premium",
+				"mirrorshades": "Costly",
+				"glasses": "Costly",
+				"contact_lenses": "Everyday",
+				"hats": "Costly"
+			},
+			"night_market": "clothing_fashionware",
+			"fx": {},
+			"unmodelled": "Pure appearance; no armour value. Could feed Wardrobe & Style / disguise or social-access rules."
+		},
+		"fashion_nomad_leathers": {
+			"name": "Nomad Leathers",
+			"cost": null,
+			"cost_tier": null,
+			"cite": "CPR core p.102, 356",
+			"summary": "Clothing style: Western, rugged, tribal. Priced per piece.",
+			"piece_costs": {
+				"bottoms": 100,
+				"top": 20,
+				"jacket": 100,
+				"footwear": 100,
+				"jewelry": 100,
+				"mirrorshades": 50,
+				"glasses": 50,
+				"contact_lenses": 20,
+				"hats": 100
+			},
+			"piece_tiers": {
+				"bottoms": "Premium",
+				"top": "Everyday",
+				"jacket": "Premium",
+				"footwear": "Premium",
+				"jewelry": "Premium",
+				"mirrorshades": "Costly",
+				"glasses": "Costly",
+				"contact_lenses": "Everyday",
+				"hats": "Premium"
+			},
+			"night_market": "clothing_fashionware",
+			"fx": {},
+			"unmodelled": "Pure appearance; no armour value. Could feed Wardrobe & Style / disguise or social-access rules."
+		},
+		"fashion_asia_pop": {
+			"name": "Asia Pop",
+			"cost": null,
+			"cost_tier": null,
+			"cite": "CPR core p.102, 356",
+			"summary": "Clothing style: Bright, costume-like, youthful. Priced per piece.",
+			"piece_costs": {
+				"bottoms": 100,
+				"top": 20,
+				"jacket": 100,
+				"footwear": 100,
+				"jewelry": 100,
+				"mirrorshades": 100,
+				"glasses": 100,
+				"contact_lenses": 100,
+				"hats": 100
+			},
+			"piece_tiers": {
+				"bottoms": "Premium",
+				"top": "Everyday",
+				"jacket": "Premium",
+				"footwear": "Premium",
+				"jewelry": "Premium",
+				"mirrorshades": "Premium",
+				"glasses": "Premium",
+				"contact_lenses": "Premium",
+				"hats": "Premium"
+			},
+			"night_market": "clothing_fashionware",
+			"fx": {},
+			"unmodelled": "Pure appearance; no armour value. Could feed Wardrobe & Style / disguise or social-access rules."
+		},
+		"fashion_urban_flash": {
+			"name": "Urban Flash",
+			"cost": null,
+			"cost_tier": null,
+			"cite": "CPR core p.102, 356",
+			"summary": "Clothing style: Flashy, technological, streetwear. Priced per piece.",
+			"piece_costs": {
+				"bottoms": 100,
+				"top": 20,
+				"jacket": 100,
+				"footwear": 100,
+				"jewelry": 100,
+				"mirrorshades": 100,
+				"glasses": 100,
+				"contact_lenses": 100,
+				"hats": 100
+			},
+			"piece_tiers": {
+				"bottoms": "Premium",
+				"top": "Everyday",
+				"jacket": "Premium",
+				"footwear": "Premium",
+				"jewelry": "Premium",
+				"mirrorshades": "Premium",
+				"glasses": "Premium",
+				"contact_lenses": "Premium",
+				"hats": "Premium"
+			},
+			"night_market": "clothing_fashionware",
+			"fx": {},
+			"unmodelled": "Pure appearance; no armour value. Could feed Wardrobe & Style / disguise or social-access rules."
+		},
+		"fashion_businesswear": {
+			"name": "Businesswear",
+			"cost": null,
+			"cost_tier": null,
+			"cite": "CPR core p.102, 356",
+			"summary": "Clothing style: Leadership, presence, authority. Priced per piece.",
+			"piece_costs": {
+				"bottoms": 500,
+				"top": 50,
+				"jacket": 500,
+				"footwear": 500,
+				"jewelry": 5000,
+				"mirrorshades": 500,
+				"glasses": 500,
+				"contact_lenses": 100,
+				"hats": 500
+			},
+			"piece_tiers": {
+				"bottoms": "Expensive",
+				"top": "Costly",
+				"jacket": "Expensive",
+				"footwear": "Expensive",
+				"jewelry": "Luxury",
+				"mirrorshades": "Expensive",
+				"glasses": "Expensive",
+				"contact_lenses": "Premium",
+				"hats": "Expensive"
+			},
+			"night_market": "clothing_fashionware",
+			"fx": {},
+			"unmodelled": "Pure appearance; no armour value. Could feed Wardrobe & Style / disguise or social-access rules."
+		},
+		"fashion_high_fashion": {
+			"name": "High Fashion",
+			"cost": null,
+			"cost_tier": null,
+			"cite": "CPR core p.102, 356",
+			"summary": "Clothing style: Exclusive, designer, couture. Priced per piece.",
+			"piece_costs": {
+				"bottoms": 1000,
+				"top": 500,
+				"jacket": 1000,
+				"footwear": 5000,
+				"jewelry": 50000,
+				"mirrorshades": 1000,
+				"glasses": 1000,
+				"contact_lenses": 1000,
+				"hats": 5000
+			},
+			"piece_tiers": {
+				"bottoms": "Very Expensive",
+				"top": "Expensive",
+				"jacket": "Very Expensive",
+				"footwear": "Luxury",
+				"jewelry": "Luxury",
+				"mirrorshades": "Very Expensive",
+				"glasses": "Very Expensive",
+				"contact_lenses": "Very Expensive",
+				"hats": "Luxury"
+			},
+			"night_market": "clothing_fashionware",
+			"fx": {},
+			"unmodelled": "Pure appearance; no armour value. Could feed Wardrobe & Style / disguise or social-access rules."
+		}
+	},
+	"drugs": {
+		"black_lace": {
+			"name": "Black Lace",
+			"cost": 50,
+			"cost_tier": "Costly",
+			"cite": "CPR core p.357-358",
+			"summary": "Combat drug: shrug off serious wounds for a day at a 2d6 Humanity cost, kept if you fail to resist; addicts lose REF.",
+			"duration": "24 hours",
+			"addiction_dv": 17,
+			"fx": {
+				"consumable": true,
+				"administer": "airhypo_action",
+				"duration": "24 hours",
+				"addiction_dv": 17,
+				"addiction_check": "WILL+resist_torture_drugs",
+				"stack_extends": true,
+				"ignore_seriously_wounded": true,
+				"humanity_loss": "2d6",
+				"humanity_refund_on_resist": true,
+				"addicted": {
+					"stat_bonus": {
+						"REF": -2
+					},
+					"suppressed_by_primary": true
+				}
+			},
+			"unmodelled": "Humanity Loss lowers EMP via the Humanity tens rule (p.229); needs a Humanity track."
+		},
+		"blue_glass": {
+			"name": "Blue Glass",
+			"cost": 20,
+			"cost_tier": "Everyday",
+			"cite": "CPR core p.357-358",
+			"summary": "Hallucinogen: user randomly 'flashes out' and loses Actions; addicts flash out off-drug and take it to stay stable.",
+			"duration": "4 hours",
+			"addiction_dv": 15,
+			"fx": {
+				"consumable": true,
+				"administer": "airhypo_action",
+				"duration": "4 hours",
+				"addiction_dv": 15,
+				"addiction_check": "WILL+resist_torture_drugs",
+				"stack_extends": true,
+				"flash_out": true,
+				"addicted": {
+					"flash_out": true,
+					"flash_out_every": "about 1 hour",
+					"primary_override": {
+						"flash_out": false,
+						"immune_flash_out": true
+					}
+				}
+			},
+			"unmodelled": "Flash-out timing is GM-called; frequency varies per person. Needs a 'lose Action this Turn' roll or schedule."
+		},
+		"boost": {
+			"name": "Boost",
+			"cost": 50,
+			"cost_tier": "Costly",
+			"cite": "CPR core p.357-358",
+			"summary": "Brain booster: +2 INT for a day, may exceed 8; addiction permanently costs 2 INT.",
+			"duration": "24 hours",
+			"addiction_dv": 17,
+			"fx": {
+				"consumable": true,
+				"administer": "airhypo_action",
+				"duration": "24 hours",
+				"addiction_dv": 17,
+				"addiction_check": "WILL+resist_torture_drugs",
+				"stack_extends": true,
+				"stat_bonus": {
+					"INT": 2
+				},
+				"stat_cap_bypass": true,
+				"addicted": {
+					"stat_bonus": {
+						"INT": -2
+					},
+					"suppressed_by_primary": false
+				}
+			},
+			"unmodelled": "Book does not say whether the addicted -2 INT and dose +2 INT stack while dosed; assumed they do (net 0)."
+		},
+		"smash": {
+			"name": "Smash",
+			"cost": 10,
+			"cost_tier": "Cheap",
+			"cite": "CPR core p.357-358",
+			"summary": "Canned party drug: +2 to social and performance skills; addicts get -2 to the same skills and cravings.",
+			"duration": "4 hours",
+			"addiction_dv": 15,
+			"fx": {
+				"consumable": true,
+				"administer": "airhypo_action",
+				"duration": "4 hours",
+				"addiction_dv": 15,
+				"addiction_check": "WILL+resist_torture_drugs",
+				"stack_extends": true,
+				"skill_bonus": {
+					"dance": 2,
+					"contortionist": 2,
+					"conversation": 2,
+					"human_perception": 2,
+					"persuasion": 2,
+					"acting": 2
+				},
+				"addicted": {
+					"skill_bonus": {
+						"dance": -2,
+						"contortionist": -2,
+						"conversation": -2,
+						"human_perception": -2,
+						"persuasion": -2,
+						"acting": -2
+					},
+					"suppressed_by_primary": false,
+					"craving": true
+				}
+			},
+			"unmodelled": "Craving is roleplay only. Addicted penalty has no stated exception while dosed; assumed net 0 while high."
+		},
+		"synthcoke": {
+			"name": "Synthcoke",
+			"cost": 20,
+			"cost_tier": "Everyday",
+			"cite": "CPR core p.357-358",
+			"summary": "Stimulant: +1 REF (may exceed 8) with paranoia; addicts lose 2 REF unless high, and crave it.",
+			"duration": "4 hours",
+			"addiction_dv": 15,
+			"fx": {
+				"consumable": true,
+				"administer": "airhypo_action",
+				"duration": "4 hours",
+				"addiction_dv": 15,
+				"addiction_check": "WILL+resist_torture_drugs",
+				"stack_extends": true,
+				"stat_bonus": {
+					"REF": 1
+				},
+				"stat_cap_bypass": true,
+				"paranoia": true,
+				"addicted": {
+					"stat_bonus": {
+						"REF": -2
+					},
+					"suppressed_by_primary": true,
+					"craving": true
+				}
+			},
+			"unmodelled": "Paranoia and craving are roleplay only (GM prompts)."
+		}
+	},
+	"pharmaceuticals": {
+		"antibiotic": {
+			"name": "Antibiotic",
+			"cost": null,
+			"cost_tier": null,
+			"cite": "CPR core p.149-150",
+			"summary": "Speeds natural healing: +2 HP per day for a week; only one course at a time.",
+			"synth_dv": 13,
+			"materials_cost": 200,
+			"doses_per_batch": "Medical Tech Skill",
+			"fx": {
+				"consumable": true,
+				"administer": "airhypo_action",
+				"medtech_only": true,
+				"heal_per_day": 2,
+				"duration": "1 week",
+				"requires_natural_healing": true,
+				"once_per": "concurrent"
+			},
+			"duration": "1 week",
+			"unmodelled": "Between-gig healing only; needs a downtime/day clock."
+		},
+		"rapidetox": {
+			"name": "Rapidetox",
+			"cost": null,
+			"cost_tier": null,
+			"cite": "CPR core p.149-150",
+			"summary": "Instantly purges a drug, poison or intoxicant from the target.",
+			"synth_dv": 13,
+			"materials_cost": 200,
+			"doses_per_batch": "Medical Tech Skill",
+			"fx": {
+				"consumable": true,
+				"administer": "airhypo_action",
+				"medtech_only": true,
+				"purge_drugs": true
+			},
+			"unmodelled": "Ends drug Primary Effects immediately (book does not say it triggers the addiction roll; assume no roll)."
+		},
+		"speedheal": {
+			"name": "Speedheal",
+			"cost": null,
+			"cost_tier": null,
+			"cite": "CPR core p.149-150",
+			"summary": "Heals HP equal to the target's BODY + WILL at once; not on the Mortally Wounded; once per day.",
+			"synth_dv": 13,
+			"materials_cost": 200,
+			"doses_per_batch": "Medical Tech Skill",
+			"fx": {
+				"consumable": true,
+				"administer": "airhypo_action",
+				"medtech_only": true,
+				"heal_hp": "BODY+WILL",
+				"blocked_by_wound": "mortal",
+				"once_per": "day"
+			}
+		},
+		"stim": {
+			"name": "Stim",
+			"cost": null,
+			"cost_tier": null,
+			"cite": "CPR core p.149-150",
+			"summary": "Target ignores Seriously Wounded penalties for an hour; once per day.",
+			"synth_dv": 13,
+			"materials_cost": 200,
+			"doses_per_batch": "Medical Tech Skill",
+			"fx": {
+				"consumable": true,
+				"administer": "airhypo_action",
+				"medtech_only": true,
+				"ignore_seriously_wounded": true,
+				"duration": "1 hour",
+				"once_per": "day"
+			},
+			"duration": "1 hour"
+		},
+		"surge": {
+			"name": "Surge",
+			"cost": null,
+			"cost_tier": null,
+			"cite": "CPR core p.149-150",
+			"summary": "Target functions unimpaired without sleep for 24 hours; once per week.",
+			"synth_dv": 13,
+			"materials_cost": 200,
+			"doses_per_batch": "Medical Tech Skill",
+			"fx": {
+				"consumable": true,
+				"administer": "airhypo_action",
+				"medtech_only": true,
+				"no_sleep": true,
+				"duration": "24 hours",
+				"once_per": "week"
+			},
+			"duration": "24 hours",
+			"unmodelled": "No fatigue/sleep rules in core combat; only matters for downtime or multi-day gigs."
+		}
+	},
+	"therapy": {
+		"addiction_therapy": {
+			"name": "Addiction Therapy",
+			"cost": 1000,
+			"cost_tier": "V. Expensive",
+			"cite": "CPR core p.229-230",
+			"summary": "A week of therapy by a Medtech (not on self) cures one addiction; that drug's secondary roll auto-fails for a year.",
+			"duration": "1 week",
+			"fx": {
+				"cures_addiction": 1,
+				"check": "medical_tech",
+				"dv": 15,
+				"materials_cost": 500,
+				"materials_tier": "Expensive",
+				"relapse_autofail": "1 year",
+				"medtech_only": true
+			},
+			"unmodelled": "Patient and doctor do nothing else that week; failed check wastes the week and materials. Overnight hospital stay 100eb/night."
+		}
+	},
+	"fx_keys": {
+		"no_damage": "bool. Hit deals no HP damage (effect comes from status/other fx). air_pistol, microwaver, shrieker",
+		"no_crit_injury": "bool. Damage from this weapon never causes a Critical Injury (incl. double-6). air_pistol, flamethrower, stun_baton, stun_gun",
+		"no_ablate": "bool. Hits don't ablate the target's armour SP. stun_baton, stun_gun",
+		"acid_sp_ablate": "int. With acid paintballs, each hit lowers SP of armour at the hit location by n (no damage). air_pistol",
+		"option_slots": "int. Cyberarm option slots the item holds. battleglove",
+		"equip_actions": "int. Actions to put on or take off. battleglove",
+		"no_aimed_shot": "bool. Cannot make Aimed Shots. hurricane_assault_weapon, flamethrower, rhinemetall_emg86, tsunami_helix",
+		"reload_actions": "int. Actions a full reload takes (spread over turns). Default 1. hurricane, cowboy_u56, emg86, helix",
+		"min_body": "int. BODY needed to fire unless the weapon is mounted. hurricane, cowboy_u56, emg86, helix",
+		"non_basic_ammo_only": "bool. Only Non-Basic ammo of its type may be loaded. dartgun",
+		"shell_only": "bool. Shotgun that fires only shotgun shells (no slug mode). flamethrower",
+		"any_grenade_ammo": "bool. Exotic that may load every grenade ammo type despite the exotic rule. cowboy_u56",
+		"battery_shots": "int. Shots per battery pack; ammo is free. microwaver, shrieker, stun_gun",
+		"battery_cost": "eb per spare battery pack. microwaver, shrieker, stun_gun",
+		"battery_recharge": "string duration to recharge a pack. microwaver, shrieker, stun_gun",
+		"disable_count": "int. Number of cyberware/carried-electronics items disabled when the status lands. microwaver",
+		"self_status": "{name, unless}. Condition the user suffers on firing unless the named protection is worn. shrieker",
+		"smartgun": "bool. Weapon has a (built-in) Smartgun Link; its +1 is already folded into attack_bonus. malorian_arms_3516",
+		"autofire_only": "bool. Weapon can only attack in Autofire mode (no single shots). tsunami_helix",
+		"ammo_per_attack": "int. Rounds consumed per Autofire attack (default 10). tsunami_helix",
+		"jam_on_fumble": "bool. A natural-1 Critical Failure on the attack jams the weapon until cleared. quality_poor",
+		"unjam_actions": "int. Actions to clear a jam (no Check). quality_poor",
+		"cost_by_base": "{standard_cost_eb: this_quality_cost_eb}. Quality price lookup from the standard weapon's cost. quality_*",
+		"max_range_m": "int. Hard range cap in m/yds. thrown_melee, thrown_grenade",
+		"dodgeable": "bool. Targets able to dodge bullets (REF 8+) may dodge it. thrown_melee",
+		"no_reload": "bool. Never needs a Reload Action (loading is part of the attack). bow, crossbow",
+		"recover_basic_ammo": "bool. Basic ammo can be retrieved after firing. bow, crossbow",
+		"ablate_sp": "SP stripped from struck armour per ablation (default 1; 0 = never ablates). armor_piercing_ammo=2; rubber/poison/biotoxin=0.",
+		"meat_only": "true = only organic (non-borg/drone) targets are affected; \"eyes\" = only targets with at least one organic eye (teargas).",
+		"status.hp_dice": "inside status: Nd6 dealt straight to HP (ignores SP, no ablation) on a failed check. biotoxin 3, poison 2.",
+		"status.crit_injuries": "inside status: critical_injuries.json ids applied on a failed check for status.rounds. flashbang, teargas.",
+		"status.no_bonus_damage": "inside status: the applied crit injuries skip their 5 Bonus Damage.",
+		"status.disable_items": "inside status: number of the target's cyberware/electronic items disabled on a failed check (EMP: 2).",
+		"status.also": "inside status: extra conditions applied together (sleep: prone).",
+		"status.ends_on": "inside status: early-end triggers: damage, touched_by_action (an ally spends an Action touching them).",
+		"foreign_object_extra_crit": "bool: on Foreign Object crit, reroll the crit table until not Foreign Object and apply that too, no Bonus Damage. expansive_ammo.",
+		"no_critical_injury": "bool: damage can never cause a Critical Injury. rubber_ammo.",
+		"burning_trigger": "when burning starts: damage_through_sp = only if some damage got past armour. incendiary_ammo.",
+		"burning_stacks": "bool: whether repeated ignitions stack (incendiary: false).",
+		"burning_extinguish": "how burning ends: action = target spends one Action. incendiary_ammo.",
+		"smart_reroll": "{miss_by_max, modes, flat, luck_allowed}: a qualifying miss rolls d10 + flat (+LUCK only) vs the same DV once. smart_ammo.",
+		"obscure": "{size_m, penalty, rounds}: square area of smoke centred on impact; penalty to tasks/attacks through it. smoke_ammo.",
+		"melee_mode": "weapons.json id of a melee profile the weapon can also attack as. bayonet = light_melee.",
+		"mag_by_weapon": "{weapon_id: capacity}: replaces the weapon's mag. extended/drum magazine (Clip Chart p344).",
+		"clip": "bool: a magazine attachment; only one per weapon.",
+		"underbarrel": "{weapon, mag, hands}: weapon gains an alternate firing mode as that weapons.json profile with its own magazine, two hands required.",
+		"ignore_obscured_penalty": "bool: penalties for targets obscured by darkness/smoke/fog become 0 when firing this weapon. infrared scope.",
+		"requires_any": "list: at least one of these cyberware ids is also needed. smartgun_link (interface_plugs or subdermal_grip).",
+		"install_time": "time to fit/remove the attachment (smartgun_link: 1 hour); others assumed trivial.",
+		"vision_range_m": "metres of detailed sight through the scope. sniping_scope 800.",
+		"attack_bonus_if": "{bonus, min_range_m, modes}: conditional attack bonus. sniping_scope: +1 at >=51 m (range band index 4+) for single_shot/aimed_shot.",
+		"no_stack_with": "list of item/cyberware ids whose bonus doesn't stack with this one. sniping_scope vs teleoptics.",
+		"unit_qty": "(item field, not fx) rounds per purchase per ammo kind; cost buys this many.",
+		"penalty": "(clarifies vocab) armour penalty magnitude as a POSITIVE int, subtracted from REF, DEX and MOVE; only the worst worn piece applies (p.97). Matches data/rules/armor.json sign convention.",
+		"deck_hardware_slots": "int: extra Hardware-only option slots added to a connected cyberdeck (bodyweight_suit, 1).",
+		"grants_cover": "bool: wielder counts as in cover while the shield has HP (shields).",
+		"interpose_blocks_dodge": "bool: choosing to interpose the shield forbids dodging that attack; the shield takes all of it (shields).",
+		"shield_hp_from_stat": "STAT name: shield HP equals that STAT of the held body (human_shield, BODY).",
+		"requires_grapple": "bool: usable only while you are the attacker in a Grapple (human_shield).",
+		"blocks_melee": "bool false: shield can't be interposed vs melee or vs Aimed Shots at the head (human_shield).",
+		"blocks_aimed_head": "bool false: shield can't be interposed vs melee or vs Aimed Shots at the head (human_shield).",
+		"no_stack": "bool: bonus doesn't stack with another copy of the same item (agent, medscanner, techscanner).",
+		"drug_delivery": "{willing: 'action', unwilling: 'melee_attack'}: how a dose is given (airhypo).",
+		"reload_free": "bool: reloading isn't an Action (airhypo).",
+		"immune": "list of hazard tags the wearer ignores: 'inhaled' (anti_smog_mask), 'loud_noise' (ear_protectors), 'radiation' (radiation_suit).",
+		"magnification": "[min,max] optical zoom (binoculars).",
+		"detects": "{what, range_m}: device alerts when that thing is within range (bug_detector, radar_detector).",
+		"identify": "string: what the device identifies (chemical_analyzer).",
+		"action_cost": "int: Actions to use/apply the item once.",
+		"refill_cost": "eb per recharge (cryopump, 50).",
+		"stasis": "{stops_death_saves?, heal_rate_mult?, duration}: stasis effect on the occupant (cryopump, cryotank).",
+		"cover_hp": "int: occupant counts as behind cover of this HP (cryopump 15, cryotank 30).",
+		"check": "{dv, skill}: check needed to operate (cryotank).",
+		"deck_slots": "int: Program/Hardware slots of a cyberdeck.",
+		"tool_for": "list of skill ids this item is the 'right tool' for; lacking it applies the -2 'no right tools' modifier (p.130). Interpretation, not RAW per item.",
+		"light": "{shape: 'beam'|'radius', range_m|radius_m}: illumination (flashlight, glow_stick, road_flare).",
+		"meals": "int: meals provided (food items).",
+		"grapple_range_m": "int metres: grapple anchor range (grapple_gun, 30).",
+		"negates_climb_penalty": "bool: climbing the line costs normal movement (grapple_gun).",
+		"free_retract": "bool: retracting the line isn't an Action (grapple_gun).",
+		"line_hp": "int: HP of the deployed line (grapple_gun, 10).",
+		"fall_save_auto": "bool: no Athletics check needed to catch a ledge when falling (p.181, p.215).",
+		"restraint": "{break_body_gt: n}: restraint broken easily by BODY above n (handcuffs).",
+		"track_range_miles": "float: tracker range (homing_tracer).",
+		"stat_set": "{STAT: n}: STAT raised to n while used, never above n (linear frames).",
+		"no_hp_change": "bool: the STAT change doesn't alter HP or Death Save (linear frames).",
+		"comms_range_miles": "float: radio range (radio_communicator, radio_scanner).",
+		"intercept": "bool: can listen in on others' radio traffic (radio_scanner).",
+		"scramble": "bool: encrypts own traffic / decodes scrambled traffic (scrambler_descrambler).",
+		"descramble": "bool: encrypts own traffic / decodes scrambled traffic (scrambler_descrambler).",
+		"cybereye_option_slots": "int / bool: worn eye-option slots, counting as a pair (smart_glasses).",
+		"options_paired": "int / bool: worn eye-option slots, counting as a pair (smart_glasses).",
+		"coating": "{weapon, replaces_damage, dv, check, damage_dice (d6s), bypass_armor, meat_only}: blade coating effect per hit (vials).",
+		"length_m": "plain physical figures (rope, pocket_amplifier).",
+		"load_kg": "plain physical figures (rope, pocket_amplifier).",
+		"range_m": "plain physical figures (rope, pocket_amplifier).",
+		"requires": "{item_id: count} when a count matters (linear frames: interface_plugs); 'role:<id>' for role locks (cryopump, cryotank).",
+		"administer": "how a dose is given: 'airhypo_action' = an Action with an Airhypo on a willing target, or a Melee Weapon Attack that doses instead of damaging an unwilling one (p.150, p.227). All drugs and pharmaceuticals.",
+		"addiction_check": "roll made when the Primary Effect ends: WILL + Resist Torture/Drugs + 1d10 vs addiction_dv; failure applies 'addicted' permanently (p.227). Drugs.",
+		"stack_extends": "true: each extra dose extends the Primary Effect by its full duration (p.227). Drugs.",
+		"addicted": "fx dict applied permanently once addicted (until Addiction Therapy). Drugs.",
+		"suppressed_by_primary": "inside 'addicted': true if the addicted penalty does not apply while the drug's Primary Effect is active (Black Lace, Synthcoke). False = always applies (Boost, Smash).",
+		"primary_override": "inside 'addicted': replaces the Primary Effect fx for an addict (Blue Glass: immune to flashing out instead).",
+		"ignore_seriously_wounded": "true: Seriously Wounded penalties ignored (same key combatant.gd already reads from cyberware fx). Black Lace, Stim.",
+		"humanity_loss": "dice string of Humanity Loss on taking a dose. Black Lace ('2d6').",
+		"humanity_refund_on_resist": "true: the dose's Humanity Loss is given back if the addiction check succeeds. Black Lace.",
+		"stat_cap_bypass": "true: the stat_bonus may raise the STAT above 8. Boost, Synthcoke.",
+		"flash_out": "true: at GM-chosen moments the user loses their Action on a Turn (hallucination burst). Blue Glass.",
+		"flash_out_every": "rough interval between flash-outs for an addict ('about 1 hour'). Blue Glass.",
+		"immune_flash_out": "true: no flash-outs while this effect is active. Blue Glass (addicted primary).",
+		"paranoia": "true: roleplay-only paranoid ideation flag. Synthcoke.",
+		"craving": "true: roleplay-only cravings flag for addicts. Smash, Synthcoke.",
+		"medtech_only": "true: only a Medtech can administer / perform it (p.150, p.229). Pharmaceuticals, Addiction Therapy.",
+		"heal_hp": "instant HP healed, as a formula of the TARGET's STATs ('BODY+WILL'). Speedheal.",
+		"blocked_by_wound": "wound state in which the item has no effect ('mortal'). Speedheal.",
+		"once_per": "re-use limit per target: 'day', 'week', or 'concurrent' (one course active at a time). Pharmaceuticals.",
+		"heal_per_day": "extra HP healed per day of natural healing, for 'duration'. Antibiotic.",
+		"requires_natural_healing": "true: only works on a target already healing naturally. Antibiotic.",
+		"purge_drugs": "true: immediately ends all drug/poison/intoxicant effects on the target. Rapidetox.",
+		"no_sleep": "true: target needs no sleep and suffers no impairment for 'duration'. Surge.",
+		"cures_addiction": "number of addictions removed. Addiction Therapy.",
+		"dv": "DV of 'check'. Addiction Therapy.",
+		"materials_cost": "eb of consumed materials, lost on failure (therapy: 500; pharma batch: 200, as item field).",
+		"materials_tier": "price category of materials_cost.",
+		"relapse_autofail": "period after a cure during which that drug's addiction check auto-fails. Addiction Therapy ('1 year')."
+	}
+}

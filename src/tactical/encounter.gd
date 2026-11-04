@@ -1711,6 +1711,8 @@ func dose(target: Dictionary, drug: String) -> Dictionary:
 		"stim":
 			if t.stimmed:
 				return {"ok": false, "reason": "already stimmed"}
+		_:   # Antibiotic, Rapidetox, Surge (p149-150) act over hours or days, not in a firefight
+			return {"ok": false, "reason": "%s does nothing in a fight" % drug.capitalize()}
 	if not turn.use_action():
 		return {"ok": false, "reason": "no action left"}
 	c.doses -= 1

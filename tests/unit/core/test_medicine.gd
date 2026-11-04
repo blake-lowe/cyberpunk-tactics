@@ -44,3 +44,14 @@ func test_stim_ignores_serious_wound_penalty() -> void:
 	assert_eq(e.best_dose(me), "stim")
 	assert_true(e.dose(me, "stim").ok)
 	assert_eq(me.c.action_penalty(), 0)
+
+
+func test_drugs_without_a_combat_use_are_refused_not_turned_into_stim() -> void:
+	var e := _enc_with_medtech()
+	var me: Dictionary = e.cur
+	me.c.medicine["pharma"] = 5   # knows all five (p149)
+	assert_true(me.c.knows_drug("antibiotic"))
+	var r := e.dose(me, "antibiotic")
+	assert_false(r.ok, "refused: it works over days, not in a firefight")
+	assert_false(me.c.stimmed, "and it never acts as Stim")
+	assert_eq(me.c.doses, 2, "no dose spent")
