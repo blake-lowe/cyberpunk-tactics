@@ -793,6 +793,12 @@ func _draw_pins() -> void:
 		draw_string(nf, p + Vector2(-tw / 2, 4), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 10, INK_DARK)
 		if on:
 			draw_arc(p, s + 5, 0, TAU, 24, Hud.TEXT, 1.0, true)
+			var drive := Travel.label(camp.travel_minutes(camp.board[int(pin.index)])) if camp and int(pin.index) < camp.board.size() else ""
+			if drive != "":   # the hovered pin's drive from the safehouse (NC2045 p.18)
+				var dw := nf.get_string_size(drive, HORIZONTAL_ALIGNMENT_LEFT, -1, 10).x
+				var at := p + Vector2(-dw / 2, -s - 9)
+				draw_rect(Rect2(at + Vector2(-3, -10), Vector2(dw + 6, 13)), Color(INK_DARK, 0.85))
+				draw_string(nf, at, drive, HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Hud.GOLD)
 
 
 ## The terminal frame round the map: corner brackets, title, compass and the Security Code key.

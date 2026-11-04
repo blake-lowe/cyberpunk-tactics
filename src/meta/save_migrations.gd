@@ -32,8 +32,11 @@ extends RefCounted
 ##     `twist` and `setup` (an offer that was a setup becomes an honest job); new offers carry
 ##     `fixer_id`, `hook` and `district` from Night City's fixers and locations, which older offers
 ##     simply lack (the board shows what they have).
+## v10: travel time (NC2045 p.18-20). The campaign has a safehouse district (every drive to a gig
+##     starts there; older crews get Campaign.DEFAULT_SAFEHOUSE) and a clock within the day,
+##     `minutes` (0 at midnight; older saves start the day fresh).
 
-const CURRENT := 9
+const CURRENT := 10
 
 
 ## Upgrade `d` (a parsed save) to CURRENT. Returns {} for a save from a newer build, which this
@@ -53,6 +56,7 @@ static func migrate(d: Dictionary) -> Dictionary:
 			6: _v6_to_v7(d)
 			7: _v7_to_v8(d)
 			8: _v8_to_v9(d)
+			9: _v9_to_v10(d)
 		v += 1
 		d["version"] = v
 	return d
@@ -172,3 +176,10 @@ static func _v8_to_v9(d: Dictionary) -> void:
 		if g is Dictionary:
 			(g as Dictionary).erase("twist")
 			(g as Dictionary).erase("setup")
+
+
+static func _v9_to_v10(d: Dictionary) -> void:
+	if not d.has("safehouse_district"):
+		d["safehouse_district"] = Campaign.DEFAULT_SAFEHOUSE
+	if not d.has("minutes"):
+		d["minutes"] = 0

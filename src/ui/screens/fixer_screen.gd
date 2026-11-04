@@ -91,6 +91,9 @@ func _gig_card(i: int, ready: bool) -> PanelContainer:
 	left.add_child(t)
 	var where := [String(g.fixer), Campaign.place_name(g), Campaign.district_name(g)].filter(func(s): return s != "")
 	left.add_child(UiKit.label(" · ".join(where), 14, Hud.CYAN))   # fixer · place · district; the hook is the blurb
+	var drive := Travel.label(camp.travel_minutes(g))   # NC2045 p.18: from the safehouse district
+	if drive != "":
+		left.add_child(UiKit.label(drive, 12, Hud.DIM))
 	left.add_child(UiKit.body(String(g.blurb), 15))
 	var mid := UiKit.vbox(6)
 	mid.size_flags_horizontal = Control.SIZE_EXPAND_FILL

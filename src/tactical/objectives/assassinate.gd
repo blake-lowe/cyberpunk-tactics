@@ -3,14 +3,21 @@ extends Objective
 ## Trauma Team flying the mark out blows the job. State: {target, name, exits, escaped}.
 
 
-## The mark: a Lieutenant (a Mini Boss at security 2+) of the target faction in the target building's
-## most secure room, with bodyguards beside them. Exits: the map's entrances other than the deploy
-## zone, where the mark runs once the alarm goes up.
+## The mark: a Night City civilian who fits the target (vip_block: an executive for a corp, a fixer
+## for a gang), else one of the target faction's own Lieutenants (a Mini Boss at security 2+), in
+## the target building's most secure room, with bodyguards beside them. Exits: the map's entrances
+## other than the deploy zone, where the mark runs once the alarm goes up.
 func setup(target_sid: int, origin: Vector2i, sec: int) -> void:
 	var cell := e.secure_cell(target_sid, origin, "vip")
 	var names: Array = cfg.names
 	var name: String = names[e.dice.d(names.size()) - 1]
-	var vip := Recruit.npc(e.dice, "mini_boss" if sec >= 2 else "lieutenant", name)
+	var block := vip_block(e.opfor_faction, cfg, e.dice)
+	var vip: Combatant
+	if block != "":
+		vip = Recruit.civilian(e.dice, block, name)
+	else:
+		var tier := "mini_boss" if sec >= 2 else "lieutenant"
+		vip = Recruit.npc(e.dice, tier, name, SecurityCode.tier_pool(e.opfor_faction, tier, false))
 	vip.faction = e.opfor_faction
 	e._add(vip, cell, Encounter.OPFOR)
 	var vu: Dictionary = e.units[-1]
@@ -30,6 +37,16 @@ func setup(target_sid: int, origin: Vector2i, sec: int) -> void:
 		if en.kind != "deploy" and e.m.walkable(int(en.get("floor", 0)), en.pos):
 			exits.append(Vector3i(en.pos.x, en.pos.y, int(en.get("floor", 0))))
 	o.merge({"target": vu.id, "name": name, "exits": exits, "escaped": false})
+
+
+## The civilian block the mark is for target faction `fid` (cfg vip_blocks, by the faction's kind:
+## NC2045's Junior Executive or Rupture Fighter for a corp, the Minimallism Fixer for a gang), or ""
+## when the kind has none (the police: the mark is one of their own officers).
+static func vip_block(fid: String, p_cfg: Dictionary, dice: Dice) -> String:
+	var known := RulesDB.load_json("npcs.json")["blocks"] as Dictionary
+	var fits: Array = ((p_cfg.get("vip_blocks", {}) as Dictionary).get(World.kind(fid), []) as Array).filter(
+		func(id): return known.has(String(id)) and bool(known[String(id)].get("civilian", false)))
+	return String(fits[dice.d(fits.size()) - 1]) if not fits.is_empty() else ""
 
 
 func check_end() -> String:

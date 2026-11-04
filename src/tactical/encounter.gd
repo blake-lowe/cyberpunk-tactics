@@ -28,6 +28,7 @@ var units: Array[Dictionary] = []   ## {id, c, pos: Vector3i, team (a side: see 
 ## whom comes from World.relation, never from comparing team numbers.
 var sides: Array[Dictionary] = []
 var _rel := {}                      ## Vector2i(a, b) → "hostile" | "neutral" | "ally" (both orders)
+var district := ""                  ## the gig's district (World), "" for none: who's in the crowd
 var opfor_faction := World.DEFAULT_OPFOR   ## the gig's target faction: whose place and people these are
 ## Whose people hold the posts and walk the patrols: the target's own, or the contractor its
 ## Security Code names (SecurityCode.guarded_by: Lazarus at Night Corp HQ). They play on the
@@ -86,10 +87,12 @@ var disabled_devices := {}          ## device id → true (turrets/cameras under
 ## and the target alone); utility_code: the Utility Code (default 0, nothing goes out), rolled
 ## every time unless utilities: true, which rolls it only on one gig in SecurityCode.UTILITY_CHANCE_IN;
 ## complications: true to roll for one of the book's complications (Complication.CHANCE_IN);
-## complication: {tier?, roll?} to force one}.
+## complication: {tier?, roll?} to force one; district: the gig's district, whose civilians make up
+## the crowd and the people the objectives need (Recruit.civilian_blocks)}.
 static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "data", opts: Dictionary = {}) -> Encounter:
 	var e := Encounter.new()
 	e.opfor_faction = String(opts.get("faction", World.DEFAULT_OPFOR))
+	e.district = String(opts.get("district", ""))
 	if not World.has_faction(e.opfor_faction):
 		e.opfor_faction = World.DEFAULT_OPFOR
 	e._init_sides()
@@ -672,6 +675,13 @@ func _place_civilians(deploy: Vector2i) -> void:
 		return
 	var extra := int(SetPieces.rule(m, "civilians", 0))   # a set piece's public floor draws a crowd
 	var n := clampi(int(m.w * m.h / 650.0) + (3 if scene == "arcology" else 0) + extra, 3, 12 + extra)
+	# Who's about (NC2045's civilian blocks): two in three are the district's own, the rest from
+	# anywhere in the city (HOUSE-RULE: most districts print one or two, so a crowd of only those
+	# would be one face). A place whose Security Code answers with its own patrons (`locals`, e.g.
+	# a club's regulars) keeps their printed weapons; anywhere else they're unarmed bystanders.
+	var local := Recruit.civilian_blocks(district)
+	var city := Recruit.civilian_blocks()
+	var locals_armed := String(code.get("faction", "")) == "locals"
 	var placed: Array = []
 	for k in n * 6:
 		if placed.size() >= n:
@@ -679,14 +689,18 @@ func _place_civilians(deploy: Vector2i) -> void:
 		var v: Vector3i = cand[dice.d(cand.size()) - 1]
 		if placed.any(func(q): return Vector2(q.x - v.x, q.y - v.y).length() < 4.0):
 			continue
-		var c := Recruit.generate(dice, ["media", "fixer", "exec", "rockerboy", "tech"][dice.d(5) - 1], "edgerunner", "Bystander")
-		c.weapons.clear()
+		var pool: Array[String] = local if dice.d(3) <= 2 else city
+		var c := Recruit.civilian(dice, pool[dice.d(pool.size()) - 1])
+		if not locals_armed:
+			c.weapons.clear()
 		c.faction = "bystanders"
 		_add(c, v, CIV_TEAM)
 		var u: Dictionary = units[-1]
 		u.alerted = false
 		u["civ"] = true
 		u["panic"] = false
+		if locals_armed:
+			u["local"] = true
 		placed.append(v)
 
 

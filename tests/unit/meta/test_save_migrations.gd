@@ -144,4 +144,30 @@ func test_v8_board_twists_and_setups_are_dropped() -> void:
 	var c := Campaign.from_dict(JSON.parse_string(JSON.stringify(d)))
 	assert_true(c != null)
 	assert_false(c.board[0].has("twist") or c.board[0].has("setup"), "the book's complications replaced them (v9)")
-	assert_eq(int(c.to_dict().version), 9)
+	assert_eq(int(c.to_dict().version), SaveMigrations.CURRENT)
+
+
+func test_v9_save_gets_a_safehouse_district_and_a_clock() -> void:
+	var d := Campaign.new_game(4).to_dict()
+	d["version"] = 9
+	d.erase("safehouse_district")
+	d.erase("minutes")
+	var c := Campaign.from_dict(JSON.parse_string(JSON.stringify(d)))
+	assert_true(c != null)
+	assert_eq(c.safehouse_district, Campaign.DEFAULT_SAFEHOUSE, "an old crew lives in the default district (v10)")
+	assert_eq(c.minutes, 0)
+	assert_eq(int(c.to_dict().version), 10)
+
+
+func test_safehouse_district_and_clock_survive_a_save() -> void:
+	var c := Campaign.new_game(4)
+	c.safehouse_district = "kabuki"
+	c.minutes = 95
+	var back := Campaign.from_dict(JSON.parse_string(JSON.stringify(c.to_dict())))
+	assert_eq(back.safehouse_district, "kabuki")
+	assert_eq(back.minutes, 95)
+	assert_eq(back.time_label(), "01:35")
+	var d := c.to_dict()
+	d["safehouse_district"] = "atlantis"
+	assert_eq(Campaign.from_dict(JSON.parse_string(JSON.stringify(d))).safehouse_district, Campaign.DEFAULT_SAFEHOUSE,
+		"a district the city doesn't have falls back to the default")

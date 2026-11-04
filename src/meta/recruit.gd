@@ -107,6 +107,30 @@ static func npc(dice: Dice, tier: String, handle: String = "", pool: Array = [])
 	return c
 
 
+## Night City's civilians (NC2045 district chapters: npcs.json blocks flagged `civilian`, each
+## printed for a `district`): the ones from district `did`, or every civilian block when `did` has
+## none (or is ""). In data order.
+static func civilian_blocks(did := "") -> Array[String]:
+	var blocks: Dictionary = RulesDB.load_json("npcs.json")["blocks"]
+	var all: Array[String] = []
+	var local: Array[String] = []
+	for id in blocks:
+		var b: Dictionary = blocks[id]
+		if bool(b.get("civilian", false)):
+			all.append(String(id))
+			if did != "" and String(b.get("district", "")) == did:
+				local.append(String(id))
+	return local if not local.is_empty() else all
+
+
+## A civilian block (civilian_blocks) as a combatant, its role its tier as for any NPC (npc). With
+## no `handle`, the block's name ("Kabuki Market Vendor").
+static func civilian(dice: Dice, id: String, handle := "") -> Combatant:
+	var c := from_block(dice, id, handle)
+	c.role = String(RulesDB.load_json("npcs.json")["blocks"][id].get("tier", "mook"))
+	return c
+
+
 ## The stat block `id` (npcs.json blocks, CPR core p.412-416) as a combatant: the printed stats,
 ## Skill Bases (the book prints STAT + skill, so each skill level is the base minus its stat),
 ## armour, weapons with their printed quality, cyberware, and the kit items it carries. Skills
