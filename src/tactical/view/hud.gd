@@ -496,6 +496,7 @@ func _build_bar() -> void:
 	sep.custom_minimum_size = Vector2(1, 0)
 	sep.color = Color(CYAN, 0.25)
 	row.add_child(sep)
+	_card_sep = sep
 	var mid := VBoxContainer.new()
 	mid.add_theme_constant_override("separation", 8)
 	row.add_child(mid)
@@ -707,6 +708,11 @@ func _refresh_tools(enc: Encounter, crew_turn: bool) -> void:
 				if b.visible:   # the packed item: its own name and glyph
 					b.title = Items.short_name(c.kit[0])
 					b.glyph = "grenade" if Items.use(c.kit[0]) == "grenade" else "dose"
+			"reload":   # always the weapon in hand (the one named in the header); Tab draws another first
+				if b.visible:
+					var wr: Weapon = c.weapons[0]
+					b.tooltip_text = "Reload the %s in hand (%d/%d)" % [wr.display_name(), wr.ammo, wr.mag()]
+					b.disabled = b.disabled or wr.ammo >= wr.mag() and not wr.jammed
 			"jack":
 				b.title = "JACK OUT" if jacked else "JACK IN"
 			"interact":
@@ -720,19 +726,21 @@ func _refresh_tools(enc: Encounter, crew_turn: bool) -> void:
 		b.queue_redraw()
 	_buttons.visible = stage != "attack"
 	_atk_buttons.visible = stage == "attack"
+	_card.visible = stage != "attack"   # the attack stage gets the whole bar, so its buttons stay full size (owner)
+	_card_sep.visible = _card.visible
 	if stage != "attack":
 		_wheel_idx = -1
 	if stage == "attack":
 		_build_attack_stage(enc, crew_turn and can_act)
 	_bar.reset_size()
-	_withdraw_btn.visible = true   # always there; usable once everyone standing is in the deploy zone
-	_withdraw_btn.disabled = not (crew_turn and enc.can_withdraw())
-	_withdraw_btn.tooltip_text = "" if not _withdraw_btn.disabled else "Get everyone still standing back to the deploy zone"
+	_withdraw_btn.visible = crew_turn and enc.can_withdraw()   # owner: only shown once the crew can leave
+	_withdraw_btn.disabled = false
 	_withdraw_btn.queue_redraw()
 	_place_withdraw()
 
 
 var _atk_mode_btns := {}   ## mode id → ActBtn in the attack stage (for live hit chances)
+var _card_sep: ColorRect   ## between the unit card and the actions (hidden with the card in the attack stage)
 var _wheel: Control          ## the attack stage's weapon slot: one weapon shown, the rest stacked above/below
 var _wheel_col: VBoxContainer
 var _wheel_idx := -1         ## which weapon the slot shows (-1: not shown yet, so no slide)
@@ -830,8 +838,9 @@ func _build_attack_stage(enc: Encounter, usable: bool) -> void:
 	# fit the screen: narrower buttons when the weapon has many options
 	var n := _atk_buttons.get_child_count() - 1
 	var badge := (hint_tab.size.x + 16.0) if hint_tab else 0.0
-	var room := get_viewport_rect().size.x - 28 - 96 - 420 - 2.0 * badge
+	var room := get_viewport_rect().size.x - 28 - 96 - 2.0 * badge   # no unit card in this stage
 	var bw := clampf((room - WHEEL_W) / maxf(1.0, n - 1) - 5.0, 48.0, 66.0)
+	bw = 66.0 if room - WHEEL_W >= (n - 1) * 71.0 else bw   # full size whenever it fits (owner)
 	for ch in _atk_buttons.get_children():
 		if ch is ActBtn:
 			(ch as ActBtn).custom_minimum_size.x = bw
@@ -843,6 +852,8 @@ func _place_withdraw() -> void:
 		_withdraw_btn.custom_minimum_size = Vector2(_end_btn.size.x, 66)
 		_withdraw_btn.size = _withdraw_btn.custom_minimum_size
 		_withdraw_btn.position = Vector2(_bar.position.x + _end_btn.get_global_transform().origin.x - _bar.get_global_transform().origin.x, _bar.position.y - 66 - 8)
+		if _net_panel.visible and _net_panel.get_rect().intersects(_withdraw_btn.get_rect()):   # jacked in: over the bar's left end instead
+			_withdraw_btn.position.x = _bar.position.x + 12
 
 
 func _hp_meter(uid: int, c: Combatant, w: float, h: float) -> Meter:
@@ -904,7 +915,7 @@ func _party_card(u: Dictionary, active: bool) -> Control:
 ## A combatant as a dark take on the book's NPC stat blocks (CPR core p.412-416): labels dim,
 ## values bright. `full` (Alt inspect) adds every STAT, Seriously Wounded / Death Save, all the
 ## weapons, the top skills, cyberware and kit; the compact one is for hovering a target.
-static func stat_block(c: Combatant, full: bool) -> String:
+static func stat_block(c: Combatant, full: bool, extra: Array = []) -> String:
 	const K := "[color=#7d8a96]%s[/color]"
 	var out: Array[String] = ["[b]%s[/b]  [color=#7d8a96]%s[/color]" % [c.display_name, c.kind_name()]]
 	var stats: Array = ["INT", "REF", "DEX", "TECH", "COOL", "WILL", "LUCK", "MOVE", "BODY", "EMP"] if full else ["REF", "DEX", "BODY", "MOVE"]
@@ -918,7 +929,7 @@ static func stat_block(c: Combatant, full: bool) -> String:
 	out.append(tb + "[/table]")
 	var hp := (K % "HP") + " %d/%d" % [c.hp, c.max_hp()]
 	if full:
-		hp += "  " + (K % "SERIOUSLY WOUNDED") + " %d  " % c.seriously_wounded_threshold() + (K % "DEATH SAVE") + " %d" % c.death_save_target()
+		hp += "  [color=#7d8a96]·[/color] " + ["Unhurt", "Lightly Wounded", "Seriously Wounded", "Mortally Wounded", "Dead"][c.wound_state()] + "  " + (K % "DEATH SAVE") + " %d" % c.death_save_target()   # Seriously Wounded is always half HP: not worth a line (owner)
 	else:
 		hp += "  [color=#7d8a96]·[/color] " + ["Unhurt", "Lightly Wounded", "Seriously Wounded", "Mortally Wounded", "Dead"][c.wound_state()]
 	out.append(hp)
@@ -937,9 +948,9 @@ static func stat_block(c: Combatant, full: bool) -> String:
 		var kit: Array = c.kit.filter(func(k): return k != "")
 		if not kit.is_empty():
 			out.append((K % "KIT") + " " + ", ".join(kit.map(func(k): return Items.display_name(String(k)))))
-	var cond := conditions(c)
+	var cond: Array = conditions(c) + extra
 	if not cond.is_empty():
-		out.append("[color=#ff3b4f]%s[/color]" % ", ".join(cond))
+		out.append((K % "CONDITIONS") + " [color=#ff3b4f]%s[/color]" % ", ".join(cond))
 	return "\n".join(out)
 
 

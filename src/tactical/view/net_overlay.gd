@@ -106,6 +106,7 @@ func _draw() -> void:
 			draw_line(mid + Vector2(-5, 5), mid + Vector2(5, -5), Hud.RED, 2.0)
 	# nodes (labels step down out of each other's way)
 	var placed: Array[Rect2] = []
+	var labels: Array = []   # drawn last, on a dark plate, so links and nodes never cross the text
 	for id in sh:
 		if not pos.has(id):
 			continue
@@ -139,8 +140,13 @@ func _draw() -> void:
 			var ice_at := _free_spot(Rect2(p3 + Vector2(r * 1.7, -r * 0.4 - 12), Vector2(90, 16)), placed)
 			draw_string(font, ice_at.position + Vector2(0, 12), "ICE: %s" % String(ice[0].kind).to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Hud.RED)
 		var label := _label(nd)
-		var at := _free_spot(Rect2(p3 + Vector2(-60, r + 4), Vector2(120, 16)), placed)
-		draw_string(font, at.position + Vector2(0, 12), label, HORIZONTAL_ALIGNMENT_CENTER, 120, 18, Color(col2, 0.95 * flick))
+		var lw := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x + 8.0
+		var at := _free_spot(Rect2(p3 + Vector2(-lw * 0.5, r + 4), Vector2(lw, 16)), placed)
+		labels.append([at, label, Color(col2, 0.95 * flick)])
+	for lb in labels:
+		var rr: Rect2 = lb[0]
+		draw_rect(rr.grow_individual(2, 1, 2, 3), Color(0.0, 0.0, 0.0, 0.8))
+		draw_string(font, rr.position + Vector2(0, 12), String(lb[1]), HORIZONTAL_ALIGNMENT_CENTER, rr.size.x, 18, lb[2])
 
 
 ## First spot at or below `want` that doesn't overlap a label already placed; records it.
@@ -189,7 +195,7 @@ func _label(nd: Dictionary) -> String:
 	match String(nd.type):
 		"firewall": return "FIREWALL DV%d" % int(nd.dv)
 		"file": return "FILE DV%d" % int(nd.dv)
-		"control": return String(nd.group).replace("_", " ").to_upper()
+		"control": return "CONTROL: " + Hud.control_name(String(nd.group)).to_upper()
 		"socket": return "SOCKET"
 		"port": return "ACCESS PORT"
 		"hub": return "L%d HUB" % int(nd.zone)

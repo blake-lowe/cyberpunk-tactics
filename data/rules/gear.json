@@ -371,7 +371,7 @@
 			"cost": 100,
 			"cost_tier": "Premium",
 			"cite": "CPR core p.345",
-			"summary": "Each ablation strips 2 SP from the target's armour instead of 1.",
+			"summary": "Each ablation strips 2 SP from the target's armor instead of 1.",
 			"types": [
 				"bullets",
 				"arrows",
@@ -399,7 +399,7 @@
 			"cost": 500,
 			"cost_tier": "Expensive",
 			"cite": "CPR core p.345",
-			"summary": "No damage. Organic targets hit roll Resist Torture/Drugs DV15 or take 3d6 straight to HP; armour untouched.",
+			"summary": "No damage. Organic targets hit roll Resist Torture/Drugs DV15 or take 3d6 straight to HP; armor untouched.",
 			"types": [
 				"arrows",
 				"grenades"
@@ -506,7 +506,7 @@
 			"cost": 100,
 			"cost_tier": "Premium",
 			"cite": "CPR core p.346",
-			"summary": "Damage through armour ignites the target: 2 HP at the end of each of their turns until they spend an Action. No stacking.",
+			"summary": "Damage through armor ignites the target: 2 HP at the end of each of their turns until they spend an Action. No stacking.",
 			"types": [
 				"bullets",
 				"arrows",
@@ -537,7 +537,7 @@
 			"cost": 100,
 			"cost_tier": "Premium",
 			"cite": "CPR core p.346",
-			"summary": "No damage. Organic targets hit roll Resist Torture/Drugs DV13 or take 2d6 straight to HP; armour untouched.",
+			"summary": "No damage. Organic targets hit roll Resist Torture/Drugs DV13 or take 2d6 straight to HP; armor untouched.",
 			"types": [
 				"arrows",
 				"grenades"
@@ -564,7 +564,7 @@
 			"cost": 10,
 			"cost_tier": "Cheap",
 			"cite": "CPR core p.346",
-			"summary": "Never causes Critical Injuries or ablates armour; a hit that would drop a target above 1 HP below 0 leaves them at 1 HP.",
+			"summary": "Never causes Critical Injuries or ablates armor; a hit that would drop a target above 1 HP below 0 leaves them at 1 HP.",
 			"types": [
 				"bullets",
 				"arrows"

@@ -1283,7 +1283,7 @@ func _inspect(v: Vector3i) -> void:
 	var head := "// INSPECT"
 	var u := _unit_at(v)
 	if not u.is_empty():
-		lines.append(Hud.stat_block(u.c, true))
+		lines.append(Hud.stat_block(u.c, true, _unit_conditions(u)))
 		head = "// INSPECT · " + ("CREW" if u.team == 0 else ("%s · %s" % [World.display_name(enc.faction_of(u)), "HOSTILE" if _foe(u) else "NEUTRAL"]).to_upper())
 	var cover_hp: int = enc.los.cover_hp.get(v, 0)
 	for cv in m.cover:
@@ -2572,6 +2572,17 @@ func _demo_attack() -> void:
 
 
 ## After any rules call: play what happened (moves, shots, alerts) as animation, then sync.
+## Encounter-level conditions on a unit for its card (suppressed, unaware); the combatant's own
+## (injuries, prone, burning, drugs...) come from Hud.conditions.
+func _unit_conditions(u: Dictionary) -> Array:
+	var out: Array = []
+	if u.has("suppressed_by"):
+		out.append("suppressed")
+	if u.team != 0 and not u.get("alerted", true):
+		out.append("unaware")
+	return out
+
+
 ## Encounter.attack_modes ids that are plain attacks → Attack.Mode.
 const ATK_ENUM := {"single": Attack.Mode.SINGLE, "aim_head": Attack.Mode.AIMED_HEAD, "aim_leg": Attack.Mode.AIMED_LEG,
 	"aim_held": Attack.Mode.AIMED_HELD, "auto": Attack.Mode.AUTOFIRE, "cover": Attack.Mode.SINGLE}
@@ -3838,5 +3849,5 @@ func _update_hover() -> void:
 	var avg := w.dice() * 3.5
 	var thru := maxf(0.0, avg - c.sp(loc)) * (2.0 if loc == "head" else 1.0)
 	lines.append("[code]%dd6 vs SP %d: ~%d through[/code]" % [w.dice(), c.sp(loc), roundi(thru)] + ("  [color=#ff3b4f]armor likely stops it[/color]" if thru < 1.0 else ""))
-	lines.append(Hud.stat_block(c, false))
+	lines.append(Hud.stat_block(c, false, _unit_conditions(t)))
 	hud.tip("\n".join(lines), mouse, "// TARGET · HOSTILE", Hud.RED)
