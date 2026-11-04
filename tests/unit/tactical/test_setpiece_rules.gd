@@ -139,7 +139,7 @@ func test_contestants_roam_the_set_hostile_to_everyone() -> void:
 	var m := e.m
 	var cs := e.units.filter(func(u): return e.faction_of(u) == "contestants")
 	assert_between(cs.size(), 3, 5, "a handful of contestants on the set")
-	var a: Array = m.params.hazard_area
+	var a: Array = m.params.set_area
 	var area := Rect2i(int(a[0]), int(a[1]), int(a[2]), int(a[3]))
 	var tsid := int(m.structures.filter(func(st): return st.target)[0].id)
 	var t := int(cs[0].team)
@@ -158,22 +158,6 @@ func test_contestants_roam_the_set_hostile_to_everyone() -> void:
 	var ncpd := e.side_for("ncpd", "guard", true)
 	assert_true(e.hostile(t, ncpd), "nor to whoever turns up later")
 	assert_true(e.log.any(func(l): return l.begins_with("THE COMBAT ZONE")), "the briefing line")
-	# The MIST spares Net54 and zaps the contestants' implants.
-	e.hazard.force_stage(4)
-	var far := Vector3i(e.hazard.area.position.x + 1, e.hazard.area.end.y - 2, m.street)
-	assert_true(e.hazard.outside(far), "a corner outside the final circle")
-	var c: Dictionary = cs[0]
-	c.pos = far
-	var hp: int = c.c.hp
-	e._hazard_harm(c)
-	assert_true(c.c.hp < hp, "the MIST hits a contestant")
-	var g: Dictionary = e.opfor()[0]
-	var gpos: Vector3i = g.pos
-	g.pos = far
-	hp = g.c.hp
-	e._hazard_harm(g)
-	assert_eq(g.c.hp, hp, "Net54's people carry transponders")
-	g.pos = gpos
 
 
 func test_contestants_and_guards_fight_each_other() -> void:

@@ -332,22 +332,3 @@ func test_embers_rise_from_the_street() -> void:
 	assert_near(p.position.y - p.emission_box_extents.y, gy, 0.001, "the emission box sits on the street")
 	fx.free()
 
-
-## HOUSE-RULE: the MIST covers the set from the street up; the guard tunnels under it are spared.
-func test_the_mist_spares_the_tunnels() -> void:
-	var m := _map("combat_zone", SEEDS[0])
-	var dice := Dice.new(9)
-	var e := Encounter.setup(m, dice, _crew(dice), "rescue", {"faction": "network_54"})
-	e.hazard.force_stage(4)
-	var tunnel := Vector3i(-1, -1, -1)
-	for v in Furnish.room_cells(m, m.rooms.filter(func(r): return r.cells > 0 and r.kind == "tunnel")[0]):
-		if e.hazard.outside(Vector3i(v.x, v.y, m.street)):
-			tunnel = Vector3i(v.x, v.y, 0)
-			break
-	assert_true(tunnel.x >= 0, "a tunnel square under the gas")
-	assert_false(e.hazard.outside(tunnel), "no MIST below the street")
-	var u: Dictionary = e.alive(Encounter.CREW)[0]
-	u.pos = tunnel
-	var hp: int = u.c.hp
-	e._hazard_harm(u)
-	assert_eq(u.c.hp, hp, "the crew in the tunnels take nothing")

@@ -61,52 +61,10 @@ gate attractions, and reactivating one is a DV13 Electronics/Security Tech check
   24-36 hour shifts on busy days.
 - **Mobile**: Torta Tortoise, a sandwich-cart mascot worn by Miguel (Solo 5), and the inescapable Troubadour Cart roam
   Lovers Lane (p.310).
-
-## Lands and events (multi-map operations)
-
-The park as the game's Playland operations read it (Campaign: an operation is a chain of legs across
-the lands, data/gen/operations.json has the recipe). Each land lists its attractions (the locations
-below, by number) and keeps the Security Code its entries carry. `profile` is the neighbourhood
-generator a leg there is played on (data/gen/districts.json). The Haunted Woods' fake trees blind
-the drones (p.308): no cameras or turrets on a leg there. Fantasy Island is adults only and bans
-Red Chrome Legion, Voodoo Boys and Bozos (p.306). The replica San Francisco streetcars link the lands
-from the Grand Trolley Yard (p.307).
-
-```world playland.lands
-{
-	"thrill_hill": {"name": "Thrill Hill", "locations": [1, 2, 3, 4, 5, 6, 7, 8], "profile": "theme_park", "cite": "NC2045 p.311"},
-	"lovers_lane": {"name": "Lovers Lane", "locations": [9, 10, 11, 12, 13], "profile": "theme_park", "cite": "NC2045 p.309"},
-	"haunted_woods": {"name": "Haunted Woods", "locations": [14, 15, 16, 17, 18, 19, 20], "profile": "haunted_woods", "drone_blind": true, "cite": "NC2045 p.308"},
-	"grand_junction": {"name": "Grand Junction", "locations": [21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33], "profile": "theme_park", "hub": true, "cite": "NC2045 p.307"},
-	"fantasy_island": {"name": "Fantasy Island", "locations": [34, 35, 36, 37, 38, 39, 40, 41, 42], "profile": "theme_park", "adults_only": true, "cite": "NC2045 p.306"},
-	"segotari_discovery_zone": {"name": "Segotari Discovery Zone", "locations": [43, 44, 45, 46, 47, 48, 49, 50, 51, 52], "profile": "theme_park", "cite": "NC2045 p.310"}
-}
-```
-
-The events calendar (p.305-306), each with what it changes in play. `fx` maps only onto systems the
-game has: `police` (uniformed NCPD in the crowd: on NCPD Night they get in free; HOUSE-RULE: the book says
-"plenty of them come", the game puts that many officers on each leg's map), `civilians`
-(stat blocks added to the crowd), `lights_off` (the lands played with the lights down: HOUSE-RULE reading of Fright Nights, the
-scares are staged in the dark). Everything else is flavour on the offer. Entry is 200eb on event days instead of 100eb (p.303), paid by the fixer.
-
-```world playland.events
-[
-	{"id": "new_year_sale", "name": "New Year Bodysculpt Sale", "when": "Jan 1-3", "text": "Bodysculpt clinics sell cut-price new looks; half the crowd wears someone else's face.", "fx": {}, "cite": "NC2045 p.305"},
-	{"id": "date_knights", "name": "Date Knights", "when": "February", "text": "A Valentine's joust on Lovers Lane; couples everywhere.", "fx": {}, "cite": "NC2045 p.305"},
-	{"id": "parti_gras", "name": "Parti Gras", "when": "March", "text": "A 48-hour adults-only lock-in on Fantasy Island: nobody leaves the island until it's over.", "fx": {}, "cite": "NC2045 p.305"},
-	{"id": "job_fair", "name": "Junior Executive Job Fair", "when": "Apr 22", "text": "Segotari, Biotechnica, Rocklin, Continental Brands and Militech recruit the park's young guests.", "fx": {"civilians": ["junior_executive"]}, "cite": "NC2045 p.305"},
-	{"id": "elflines_takeover", "name": "Elflines Park Takeover", "when": "May 1-7", "text": "Cosplay is compulsory for every guest.", "fx": {}, "cite": "NC2045 p.305"},
-	{"id": "summer_of_love", "name": "Summer of Love", "when": "June", "text": "A month of romance packages.", "fx": {}, "cite": "NC2045 p.305"},
-	{"id": "western_celebration", "name": "Western Celebration", "when": "Jun 29", "text": "Cowboy day across the park.", "fx": {}, "cite": "NC2045 p.305"},
-	{"id": "fourth_of_freedom", "name": "Fourth of Freedom", "when": "Jul 4", "text": "Militech puts on the fireworks.", "fx": {}, "cite": "NC2045 p.305"},
-	{"id": "ncpd_night", "name": "NCPD Night", "when": "Aug 5", "text": "Uniformed cops get in free, and plenty of them come.", "fx": {"police": 2}, "cite": "NC2045 p.305"},
-	{"id": "memorial_day", "name": "Corporate Center Memorial Day", "when": "Aug 20", "text": "A day of remembrance for the Corporate Center.", "fx": {}, "cite": "NC2045 p.305"},
-	{"id": "family_days", "name": "End of Summer Family Days", "when": "Sep 1-7", "text": "Families pack the park before school starts.", "fx": {}, "cite": "NC2045 p.306"},
-	{"id": "fright_nights", "name": "Fright Nights", "when": "October weekends", "text": "Every October weekend the park turns to horror; the Haunted Woods' shows run fully staffed.", "fx": {"lights_off": ["haunted_woods"]}, "cite": "NC2045 p.306"},
-	{"id": "thrillsgiving", "name": "Thrillsgiving", "when": "late November", "text": "Holiday rides and feasts.", "fx": {}, "cite": "NC2045 p.306"},
-	{"id": "merry_merri", "name": "Merry Merri", "when": "December nights", "text": "An all-drone parade winds through the park every night.", "fx": {}, "cite": "NC2045 p.306"}
-]
-```
+- **Getting about**: replica San Francisco streetcars link the lands from the Grand Trolley Yard (p.307); the Haunted
+  Woods' fake trees blind the park's drones (p.308).
+- **In the game**: descoped by the owner (M9). The district and its locations are kept as book facts and shown on the
+  city map, but no gig is offered here (Campaign.NO_GIGS).
 
 ## Locations
 

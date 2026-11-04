@@ -9,7 +9,7 @@ extends RefCounted
 ##
 ## spec: {faction (the side's id), rank (their name: "Contestant 2"), count: [a, b], blocks:
 ## [npcs.json ids, drawn per fighter], keep_out: [room kinds they never start in], brief, source}
-## They start inside the map's hazard_area when it has one (the set, not the street outside), on
+## They start inside the map's set_area when it has one (the set, not the street outside), on
 ## the street floor, off the target building, 15+ squares from the deploy zone, 6+ apart.
 
 const MIN_FROM_DEPLOY := 15.0
@@ -25,7 +25,7 @@ static func place(e: Encounter, spec: Dictionary, deploy: Vector2i) -> Array:
 	var blocks: Array = spec.get("blocks", ["boosterganger"])
 	var cnt: Array = spec.get("count", [3, 5])
 	var n := int(cnt[0]) + e.dice.d(int(cnt[-1]) - int(cnt[0]) + 1) - 1
-	var a: Array = m.params.get("hazard_area", [0, 0, m.w, m.h])
+	var a: Array = m.params.get("set_area", [0, 0, m.w, m.h])
 	var area := Rect2i(int(a[0]), int(a[1]), int(a[2]), int(a[3]))
 	var keep_out: Array = spec.get("keep_out", [])
 	var tsid := -1

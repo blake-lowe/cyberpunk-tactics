@@ -129,18 +129,7 @@ func _init(p_map: TacMap, p_vision: Vision, p_fog: Texture2D) -> void:
 	mesa.height = 1.0
 	mesa.radial_segments = 7
 	mesa.rings = 2
-	var cone := CylinderMesh.new()   # pines, canopies, spires
-	cone.top_radius = 0.0
-	cone.bottom_radius = 0.5
-	cone.height = 1.0
-	cone.radial_segments = 10
-	cone.rings = 1
-	var torus := TorusMesh.new()   # a big wheel's rim: radius 1, round its y axis
-	torus.inner_radius = 0.955
-	torus.outer_radius = 1.0
-	torus.rings = 40
-	torus.ring_segments = 4
-	_shapes = {"box": box, "cyl": cyl, "sphere": sph, "quad": quad, "rock": rock, "mesa": mesa, "cone": cone, "torus": torus}
+	_shapes = {"box": box, "cyl": cyl, "sphere": sph, "quad": quad, "rock": rock, "mesa": mesa}
 
 
 # --- Materials ---------------------------------------------------------------------
@@ -347,7 +336,6 @@ func build(root: Node3D) -> Array[Node3D]:
 		_roof_clutter(f)
 		_facade_dressing(f)
 		SetPieceDressing.dress(self, f)
-		ParkDressing.dress(self, f)
 		flush(fn)
 	var sky := Node3D.new()
 	sky.name = "skyline"
@@ -1045,8 +1033,8 @@ func _cover(f: int) -> void:
 		tag = null
 	var stanchions := {}
 	for d in m.decor:
-		if d.floor == f and d.kind in ["stanchion", "rail"]:
-			stanchions[d.pos] = d.kind
+		if d.floor == f and d.kind == "stanchion":
+			stanchions[d.pos] = true
 	for d in m.decor:
 		if d.floor == f:
 			_decor(d, Vector3(d.pos.x + 0.5, y0, d.pos.y + 0.5), f, stanchions)
@@ -1082,7 +1070,7 @@ func _decor(d: Dictionary, c: Vector3, f: int, stanchions: Dictionary) -> void:
 			put("cyl", steel, Transform3D(Basis.from_scale(Vector3(0.05, 0.46, 0.05)), c + Vector3(0, 0.23, 0)))
 			put("cyl", steel, Transform3D(Basis.from_scale(Vector3(0.2, 0.02, 0.2)), c + Vector3(0, 0.01, 0)))
 			for n in MapGen.DIRS:
-				if stanchions.get(d.pos + n, "") == "stanchion":
+				if stanchions.has(d.pos + n):
 					var dir := Vector3(n.x, 0, n.y)
 					box(mat("fabric", f, false, {"color": Color("a01830"), "glow": 0.3, "emit": Color("ff2040")}), c + dir * 0.25 + Vector3(0, 0.42, 0), Vector3(0.5, 0.05, 0.015), _yaw(Vector2i(n.y, -n.x)))
 		"nightstand":
@@ -1099,8 +1087,6 @@ func _decor(d: Dictionary, c: Vector3, f: int, stanchions: Dictionary) -> void:
 			box(mat("steel", f, true, {"color": Color("e8e8e4")}), p + Vector3(0, 1.15, 0), Vector3(0.55, 0.36, 0.03), yaw)
 			box(mat("steel", f, true, {"color": Color("d05a1a")}), p + Vector3(0, 1.02, 0) + fz * 0.14, Vector3(0.22, 0.02, 0.22), yaw)
 			box(mat("steel", f, true, {"color": Color("d05a1a")}), p + Vector3(0, 1.1, 0) + fz * 0.03, Vector3(0.16, 0.12, 0.02), yaw)
-		_:   # a theme park's: queue rails, string-light poles, the coaster's track, a pavilion's canopy
-			ParkDressing.decor(self, d, c, f, stanchions)
 
 
 ## One-square pieces. `p` is the jittered base centre; `yaw` a small deterministic turn.
@@ -1300,9 +1286,6 @@ func _piece(kind: String, p: Vector3, yaw: float, f: int, h0: int, aligned := fa
 			if SetPieceDressing.has_piece(kind):   # a set piece's own prop (cupola, mast, ...)
 				SetPieceDressing.piece(self, kind, p, yaw, f, h0)
 				return
-			if ParkDressing.has_piece(kind):   # a theme park's (rides, booths, fake pines)
-				ParkDressing.piece(self, kind, p, yaw, f, h0)
-				return
 			box(mat("concrete_prop", f, false), p + Vector3(0, 0.25, 0), Vector3(0.7, 0.5, 0.7), yaw)
 
 
@@ -1372,8 +1355,6 @@ func _multi(kind: String, r: Rect2, f: int, h0: int) -> void:
 		_:
 			if SetPieceDressing.has_piece(kind):
 				SetPieceDressing.multi(self, kind, r, f, h0)
-			elif kind in ParkDressing.MULTI:
-				ParkDressing.multi(self, kind, r, f, h0)
 			else:
 				_piece(kind, c, yaw, f, h0)
 

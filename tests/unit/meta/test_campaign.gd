@@ -311,3 +311,41 @@ func test_downtime_is_only_what_the_book_has() -> void:
 	var c := Campaign.new_game(9)
 	assert_true(c.crew.all(func(m): return m.reputation == 0), "most characters start at Reputation 0 (p193)")
 	assert_false(c.to_dict().has("heat") or c.to_dict().has("rep"), "no campaign heat or crew-wide rep")
+
+
+## Owner: Playland by the Sea is descoped. Its district and 52 canon locations stay in the world data
+## (book facts, shown on the city map), but no gig is offered there by any route an offer takes.
+func test_no_gig_is_offered_in_playland() -> void:
+	var all := World.locations()
+	var park: Array = all.keys().filter(func(id): return String(all[id].get("district", "")) == "playland")
+	assert_eq(park.size(), 52, "the park's canon locations are kept")
+	assert_false(World.district("playland").is_empty(), "and the district itself")
+	assert_true(park.any(func(id): return not (all[id].get("gigs", []) as Array).is_empty()), "some carry the book's job hooks")
+	var c := Campaign.new_game(5)
+	var g := RulesDB.gen("gigs.json")
+	var kinds := {}
+	for t in g.templates:
+		kinds[String(t.kind)] = true
+	for kind in kinds:   # every place a city offer could pick, at any level, until none is left
+		var used := {}
+		while true:
+			var lid := c._pick_location(String(kind), 3, 10, used)
+			if lid == "":
+				break
+			assert_false(lid in park, "%s offered at %s" % [kind, lid])
+			used[lid] = true
+	for fid in ["tower_of_dark", "piranhas", "segotari"]:   # the park's owners: their own places come first
+		for kind in kinds:
+			for k in 10:
+				var at := c._place_for(String(kind), g, fid)
+				assert_false(String(at.get("location", "")) in park, "%s against %s at %s" % [kind, fid, at.get("location", "")])
+	for k in 20:   # a generic offer on Pacifica's profile never lands in Playland's district (it shares the profile)
+		var gig := {"profile": "pacifica", "security": 1, "faction": "piranhas"}
+		c._code_gig(gig)
+		assert_false(String(gig.district) == "playland", "a generic offer in Playland")
+	c.crew[0].reputation = 9
+	for d in 20:
+		c.refresh_board()
+		for b in c.board:
+			assert_false(String(b.get("district", "")) == "playland", "board gig %s in Playland" % b.get("title", ""))
+			assert_false(String(b.get("location", "")) in park, "board gig %s at a Playland location" % b.get("title", ""))

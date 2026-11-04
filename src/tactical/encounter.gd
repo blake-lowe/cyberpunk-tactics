@@ -77,9 +77,6 @@ var _hardened_posts := false        ## the posts use Hardened blocks (a Hardened
 var _spot_rolls := {}               ## [guard id, crew id, round] → result: one stealth roll per pair per round
 var jack_pos := {}                  ## runner unit id → the square of the device they jacked in at
 var disabled_devices := {}          ## device id → true (turrets/cameras under the runner's control)
-var lights_off := false             ## the site's lights are down for the whole gig (opts.lights_off)
-var leg := -1                       ## the operation leg this encounter is for (opts.leg), -1 for a single gig
-var hazard: HazardZone = null       ## a shrinking safe circle (the Combat Zone's MIST), null for none
 var neutral: NeutralGround = null   ## a house where nobody fights (Totentanz's club floor), null for none
 var turret_side := -1               ## the site's automated turrets (Turret); -1 until the map has one
 var _crew_turret_side := -1         ## turrets a Netrunner holds; -1 until one does
@@ -95,14 +92,9 @@ var _gunner: Combatant = null       ## who aims this attack when not `cur` itsel
 ## every time unless utilities: true, which rolls it only on one gig in SecurityCode.UTILITY_CHANCE_IN;
 ## complications: true to roll for one of the book's complications (Complication.CHANCE_IN);
 ## complication: {tier?, roll?} to force one; district: the gig's district, whose civilians make up
-## the crowd and the people the objectives need (Recruit.civilian_blocks); carry: true for the next
-## leg of an operation (Campaign), where the crew comes straight from the last map: kit already
-## used, drugs in the system and doses spent carry over (no Combatant.gig_reset); crowd: extra
-## bystanders; civilians: stat blocks (npcs.json) added to the crowd, one each; police: uniformed
-## NCPD officers among the crowd, unalerted, who answer trouble as the police do; lights_off: the
-## site's lights are down; leg: which leg of an operation this is (Campaign checks it when settling);
-## hazard_zone / neutral_ground / free_for_all: a set piece's rules for any map (HazardZone,
-## NeutralGround, FreeForAll; by default the map's set piece's own)}.
+## the crowd and the people the objectives need (Recruit.civilian_blocks); neutral_ground /
+## free_for_all: a set piece's rules for any map (NeutralGround, FreeForAll; by default the map's
+## set piece's own)}.
 static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "data", opts: Dictionary = {}) -> Encounter:
 	var e := Encounter.new()
 	opts = SetPieces.encounter_opts(p_map, opts)   # a set piece's per-seed variant (an estate's owner) brings its own code
@@ -120,13 +112,8 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 	var cells: Array = deploy.get("cells", [deploy.pos])
 	for c0 in cells:
 		e.extract_cells[Vector3i(c0.x, c0.y, p_map.street)] = true
-	e.lights_off = bool(opts.get("lights_off", false))   # HOUSE-RULE: Playland's Fright Nights (NC2045 p.306) read as lights down
-	e.leg = int(opts.get("leg", -1))
 	for i in crew.size():
-		if bool(opts.get("carry", false)):
-			crew[i].leg_reset()
-		else:
-			crew[i].gig_reset()
+		crew[i].gig_reset()
 		var c: Vector2i = cells[i % cells.size()]
 		e._add(crew[i], Vector3i(c.x, c.y, p_map.street), 0)
 	# Guards at posts, target building first.
@@ -214,9 +201,7 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 	if bool(e.doctrine.get("keycards", true)):
 		e._hand_out_keycards()
 	e._trauma_cards()
-	e._place_civilians(cells[0], int(opts.get("crowd", 0)), opts.get("civilians", []))
-	e._place_police(cells[0], int(opts.get("police", 0)))
-	e.hazard = HazardZone.from_spec(opts.get("hazard_zone", SetPieces.rule(p_map, "hazard_zone", {})), p_map, p_dice)
+	e._place_civilians(cells[0])
 	e._mount_turrets()
 	for line in SetPieces.briefs(String(p_map.params.get("setpiece", ""))):   # the place's house rules, for the briefing
 		e.say(line)
@@ -394,7 +379,6 @@ func next_turn() -> void:
 			_civ_round = init.round_num
 			_civilians_tick()
 			_tick_trauma()
-			_tick_hazard()
 		if state != "playing":
 			return
 		turn = TurnState.begin(dice, c)
@@ -453,8 +437,6 @@ func end_turn() -> void:
 			var b0: int = cur.c.wound_state()
 			cur.c.hp -= cur.c.burning
 			events.append({"type": "harm", "unit": cur.id, "damage": cur.c.burning, "source": "BURNING", "wound_before": b0, "wound_after": cur.c.wound_state()})
-	if turn != null and not cur.is_empty():
-		_hazard_harm(cur)
 	if turn != null and not cur.is_empty():   # knocked-out cyberware comes back a round at a time
 		for cid in cur.c.cyber_off.keys():
 			cur.c.cyber_off[cid] = int(cur.c.cyber_off[cid]) - 1
@@ -493,32 +475,6 @@ func _check_end() -> void:
 	var r := obj.check_end()
 	if r != "":
 		state = r
-
-
-# --- Hazard zone (HazardZone: the Combat Zone's MIST) --------------------------------------
-
-## Once a round: the safe circle closes in on schedule.
-func _tick_hazard() -> void:
-	if hazard == null or not hazard.tick(init.round_num):
-		return
-	var msg := "The %s closes in: %d squares round its heart" % [hazard.name, roundi(hazard.radius())]
-	say(msg + (", as small as it gets." if hazard.closes_in(init.round_num) < 0 else "."))
-	events.append({"type": "hazard", "unit": cur.id if not cur.is_empty() else 0, "stage": hazard.stage, "radius": hazard.radius()})
-
-
-## The end of `u`'s turn outside the safe circle: the zone's dice straight to HP (no armour).
-func _hazard_harm(u: Dictionary) -> void:
-	if hazard == null or u.c.dead or u.get("carried", false) or u.has("turret") or not hazard.bites(String(sides[u.team].ai), u.pos, faction_of(u)):
-		return
-	var dmg := 0
-	for i in hazard.damage_dice():
-		dmg += dice.d(6)
-	if dmg <= 0:
-		return
-	var before: int = u.c.wound_state()
-	u.c.hp -= dmg
-	say("%s takes %d outside the %s." % [u.c.display_name, dmg, hazard.name])
-	events.append({"type": "harm", "unit": u.id, "damage": dmg, "source": hazard.name, "wound_before": before, "wound_after": u.c.wound_state()})
 
 
 # --- Neutral ground (NeutralGround: Totentanz's club floor) ------------------------------------
@@ -1005,14 +961,14 @@ var _counted := {}
 ## Civilians (HOUSE-RULE): bystanders in the public rooms and on the street, more where people
 ## gather (bars, clubs, markets), few in the badlands or the tunnels. They take no turns: each round
 ## the ones that have panicked run for the map edge.
-func _place_civilians(deploy: Vector2i, crowd := 0, extra_blocks: Array = []) -> void:
+func _place_civilians(deploy: Vector2i) -> void:
 	var scene := String(m.params.get("scene", ""))
 	if scene in ["badlands", "undercity"]:
 		return
 	var cand := _crowd_cells(deploy)
 	if cand.is_empty():
 		return
-	var extra := int(SetPieces.rule(m, "civilians", 0)) + crowd   # a set piece's public floor draws a crowd
+	var extra := int(SetPieces.rule(m, "civilians", 0))   # a set piece's public floor draws a crowd
 	var n := clampi(int(m.w * m.h / 650.0) + (3 if scene == "arcology" else 0) + extra, 3, 12 + extra)
 	# Who's about (NC2045's civilian blocks): two in three are the district's own, the rest from
 	# anywhere in the city (HOUSE-RULE: most districts print one or two, so a crowd of only those
@@ -1031,15 +987,6 @@ func _place_civilians(deploy: Vector2i, crowd := 0, extra_blocks: Array = []) ->
 		var pool: Array[String] = local if dice.d(3) <= 2 else city
 		_add_civilian(Recruit.civilian(dice, pool[dice.d(pool.size()) - 1]), v, locals_armed)
 		placed.append(v)
-	# Named extras (an event's guests: Playland's job-fair recruiters), one each where there's room.
-	for b in extra_blocks:
-		if not RulesDB.load_json("npcs.json")["blocks"].has(String(b)):
-			continue
-		for k in 12:
-			var v: Vector3i = cand[dice.d(cand.size()) - 1]
-			if not occupied().has(v):
-				_add_civilian(Recruit.civilian(dice, String(b)), v, locals_armed)
-				break
 
 
 ## Where bystanders stand: public rooms on the ground floor and the street's pavements, 10+
@@ -1074,25 +1021,6 @@ func _add_civilian(c: Combatant, v: Vector3i, armed: bool) -> void:
 	u["panic"] = false
 	if armed:
 		u["local"] = true
-
-
-## Uniformed NCPD among the crowd (an event that draws off-duty cops: Playland's NCPD Night,
-## NC2045 p.305): `n` officers on the police's side, unalerted, standing about like the
-## bystanders; they answer trouble the way police responders do (World.npc's NCPD block).
-func _place_police(deploy: Vector2i, n: int) -> void:
-	if n <= 0:
-		return
-	var cand := _crowd_cells(deploy)
-	if cand.is_empty():
-		return
-	var team := side_for("ncpd", "guard", true)
-	for i in n:
-		for k in 12:
-			var v: Vector3i = cand[dice.d(cand.size()) - 1]
-			if not occupied().has(v):
-				_add(World.npc(dice, "ncpd", "mook", i + 1), v, team)
-				units[-1].alerted = false
-				break
 
 
 func _panic_near(at: Vector3i) -> void:
@@ -1800,11 +1728,9 @@ func _arrive(r: Dictionary) -> void:
 const POWERED := ["camera", "turret"]
 
 
-## Is the power out? The lights are off and cameras and turrets dead. `lights_off` (a site played
-## with its lights down) is a HOUSE-RULE reading of Playland's Fright Nights (NC2045 p.306): the book
-## says only that the Haunted Woods' scares run fully staffed.
+## Is the power out? The lights are off and cameras and turrets dead.
 func lights_out() -> bool:
-	return "power" in outages or lights_off
+	return "power" in outages
 
 
 func _unpowered(dev: Dictionary) -> bool:
