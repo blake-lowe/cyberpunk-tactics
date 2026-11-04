@@ -2,15 +2,30 @@ class_name SetPieceGen
 extends RefCounted
 ## Planners for set pieces (data/gen/setpieces.json, SetPieces): famous places built from their
 ## recipe with SceneGen's building blocks. `plot`: a landmark building on its own grounds with its
-## annexes (Fort Sumter, Ziggurat HQ); `port`: quays, moored and anchored ships and the floats
-## between them (Main Port and Flotsam). After the scene's own guard posts, posts() adds the
-## recipe's posts (roof snipers, AA gunners, checkpoints), which the guards man first.
+## annexes (Fort Sumter, Ziggurat HQ, Totentanz, Trauma Team Tower, Eurasiabank Plaza); `port`:
+## quays, moored and anchored ships and the floats between them (Main Port and Flotsam);
+## `compound`: buildings round a central court inside a perimeter wall (the Potentilla's five
+## petals, MAX-TAC's castle wings). After the scene's own guard posts, posts() adds the recipe's
+## posts (roof snipers, AA gunners, checkpoints), which the guards man first. Set pieces have props
+## of their own (PIECES: a school cupola, a flagpole, a warship's turret ...), real cover the view
+## draws with SetPieceDressing.
 
 const G := TacMap.G
 const T := TacMap.T
 const GROUNDS := {"asphalt": G.ASPHALT, "sidewalk": G.SIDEWALK, "gravel": G.GRAVEL, "dirt": G.DIRT, "concrete": G.CONCRETE,
 	"grass": G.GRASS, "dock": G.DOCK}
 const ROAD := 6   ## street depth (SceneGen.road: sidewalks either side)
+
+## Set pieces' own props: piece → [material, thick] (cover HP from armor.json like Furnish's).
+## A school's roof cupola (brick and timber: concrete thick), a flagpole (steel thin), a tower's
+## crowning spire, a warship's gun turret, mast and funnel (steel thick), the Potentilla's
+## columbarium (stone thick), an AV parked on its pad and a burnt-out school bus (vehicle bodies:
+## steel thin, like a car).
+const PIECES := {"cupola": ["concrete", true], "flagpole": ["steel", false], "spire": ["steel", true],
+	"turret": ["steel", true], "mast": ["steel", true], "funnel": ["steel", true], "columbarium": ["stone", true],
+	"av": ["steel", false], "bus": ["steel", false]}
+## Multi-square set-piece props: piece → [w, h] squares.
+const SIZES := {"cupola": [3, 3], "spire": [3, 3], "turret": [2, 2], "funnel": [2, 2], "columbarium": [3, 3], "av": [3, 3], "bus": [1, 5]}
 
 
 static func _sp(c: Dictionary) -> Dictionary:
@@ -28,6 +43,9 @@ static func _roll(dice: Dice, r: Variant) -> int:
 ## (SetPieces.overrides drops a caller's w / h / floors).
 static func size(dice: Dice, p: Dictionary, _overrides: Dictionary) -> void:
 	var sp := SetPieces.get_def(String(p.setpiece))
+	if String(sp.get("base", {}).get("planner", "")) == "compound":
+		_compound_size(dice, p, sp)
+		return
 	if String(sp.get("base", {}).get("planner", "")) != "plot":
 		return
 	var main_def := SetPieces.site_def("", String(p.setpiece), "main")
@@ -48,7 +66,9 @@ static func size(dice: Dice, p: Dictionary, _overrides: Dictionary) -> void:
 		else:
 			w += ad.w + ad.gap
 		annexes.append(ad)
-	p["_plot"] = {"fw": fw, "fd": fd, "margin": margin, "front": front, "annexes": annexes}
+	var side := _roll(dice, plot.get("side_yard", 0))   # open ground beside the building (a schoolyard)
+	w += side
+	p["_plot"] = {"fw": fw, "fd": fd, "margin": margin, "front": front, "annexes": annexes, "side": side}
 	p.w = w
 	p.h = h
 
@@ -56,6 +76,7 @@ static func size(dice: Dice, p: Dictionary, _overrides: Dictionary) -> void:
 static func run(c: Dictionary) -> void:
 	match String(_sp(c).get("base", {}).get("planner", "plot")):
 		"port": port(c)
+		"compound": compound(c)
 		_: plot(c)
 	_props(c)
 
@@ -76,12 +97,12 @@ static func plot(c: Dictionary) -> void:
 	SceneGen.ground(c, lot, GROUNDS.get(String(plot_def.get("ground", "concrete")), G.CONCRETE))
 	var margin := int(pl.margin)
 	var behind := 0
-	var beside := 0
+	var beside := int(pl.get("side", 0))
 	for a in pl.annexes:
 		if a.where == "behind":
 			behind = int(a.d) + int(a.gap)
 		else:
-			beside = int(a.w) + int(a.gap)
+			beside += int(a.w) + int(a.gap)
 	var main_shell := Rect2i(margin, margin + behind, int(pl.fw), int(pl.fd))
 	main_shell.size = Vector2i(mini(main_shell.size.x, m.w - margin * 2 - beside), mini(main_shell.size.y, road_y - int(pl.front) - main_shell.position.y))
 	var mst := SceneGen.building(c, main_shell, String(sp.sites.main.base), int(c.p.floors), sec, true, TacMap.Zone.PUBLIC, "S", {}, "main")
@@ -99,20 +120,48 @@ static func plot(c: Dictionary) -> void:
 	# The front path from the street to the main door stays clear.
 	var door := m.main_entrance()
 	var gate := Vector2i(m.w / 2, road_y - 1)
+	var front_r := Rect2i(1, main_shell.end.y + 1, m.w - 2, road_y - main_shell.end.y - 2)
+	# A front lawn (or other ground) between the building and the street.
+	if plot_def.has("front_ground"):
+		for y in range(main_shell.end.y, road_y):
+			for x in m.w:
+				if m.t(0, x, y) == T.OUTSIDE and m.label(0, x, y) < 0:
+					m.set_ground(x, y, GROUNDS.get(String(plot_def.front_ground), G.GRASS))
+	var path_w := int(plot_def.get("approach", {}).get("w", 3))
 	if not door.is_empty():
 		gate = Vector2i(door.pos.x, road_y - 1)
 		for y in range(door.pos.y + 1, road_y):
-			SceneGen.reserve(c, Rect2i(door.pos.x - 1, y, 3, 1))
-			if String(plot_def.get("ground", "concrete")) != "concrete":
-				SceneGen.ground(c, Rect2i(door.pos.x - 1, y, 3, 1), G.CONCRETE)
+			SceneGen.reserve(c, Rect2i(door.pos.x - path_w / 2, y, path_w, 1))
+			if String(plot_def.get("ground", "concrete")) != "concrete" or plot_def.has("front_ground"):
+				SceneGen.ground(c, Rect2i(door.pos.x - path_w / 2, y, path_w, 1), G.CONCRETE)
+	var fenced: bool = plot_def.get("fence", false)
+	# An approach of its own (Totentanz: the street up to the club door is anyone's; the ruins
+	# round it are Maelstrom's): a yard over the path, zoned apart from the rest of the lot.
+	if plot_def.has("approach") and not door.is_empty():
+		var ap: Dictionary = plot_def.approach
+		SceneGen.yard(c, Rect2i(door.pos.x - path_w / 2, door.pos.y + 1, path_w, road_y - door.pos.y - 1 - (1 if fenced else 0)),
+			String(ap.get("kind", "plaza")), Layouts._zone_of(String(ap.get("zone", "public"))), sid)
 	var kind := String(plot_def.get("yard", "compound_yard"))
-	var yard_room := SceneGen.yard(c, Rect2i(0, 0, m.w, road_y - (1 if plot_def.get("fence", false) else 0)), kind, TacMap.Zone.PUBLIC, sid)
-	if plot_def.get("fence", false):
-		SceneGen.fence(c, Rect2i(-1, -1, m.w + 2, road_y + 1), [gate], yard_room, 3)
-		m.doors[-1].b = yard_room.id
-	# Dressing: a plaza gets planters and trees, a yard barriers and crates.
-	var front_r := Rect2i(1, main_shell.end.y + 1, m.w - 2, road_y - main_shell.end.y - 2)
-	if kind == "plaza":
+	var zone := Layouts._zone_of(String(plot_def.get("zone", "public")))
+	var yard_room := SceneGen.yard(c, Rect2i(0, 0, m.w, road_y - (1 if fenced else 0)), kind, zone, sid)
+	if fenced:
+		SceneGen.fence(c, Rect2i(-1, -1, m.w + 2, road_y + 1), [gate], yard_room, int(plot_def.get("fence_mat", 3)))
+		m.doors[-1].b = m.label(0, gate.x, gate.y - 1)
+	# A flagpole on the front lawn, beside the path to the door (before the dressing takes the lawn).
+	if plot_def.get("flagpole", false) and not door.is_empty():
+		var done := false
+		for dy in [3, 2, 4, 5]:
+			for dx in [path_w / 2 + 2, -(path_w / 2 + 2), path_w / 2 + 3, -(path_w / 2 + 3), path_w / 2 + 5, -(path_w / 2 + 5)]:
+				var v := Vector2i(door.pos.x + dx, door.pos.y + dy)
+				if not done and m.label(0, v.x, v.y) >= 0 and m.rooms[m.label(0, v.x, v.y)].get("outdoor", false) \
+						and try_piece(m, 0, Rect2i(v, Vector2i.ONE), "flagpole", m.label(0, v.x, v.y), {}, c.reserved):
+					done = true
+	# Dressing: the recipe's, else a plaza gets planters and trees, a yard barriers and crates.
+	if plot_def.has("dress"):
+		for d in plot_def.dress:
+			var area := front_r if String(d.get("area", "front")) == "front" else Rect2i(1, 1, m.w - 2, road_y - 2)
+			_dress(c, yard_room, area, String(d.piece), _roll(c.dice, d.get("count", 1)))
+	elif kind == "plaza":
 		_dress(c, yard_room, front_r, "planter", 5 + c.dice.d(4))
 		_dress(c, yard_room, front_r, "tree", 3 + c.dice.d(3))
 	else:
@@ -134,12 +183,153 @@ static func _dress(c: Dictionary, room: Dictionary, r: Rect2i, piece: String, n:
 	for v in cells:
 		allowed[v] = true
 	Layouts._shuffle(c.dice, cells)
+	var sz := piece_size(piece)
 	var placed := 0
 	for v in cells:
 		if placed >= n:
 			break
-		if Furnish.try_prop(m, 0, Rect2i(v, Vector2i.ONE), piece, int(room.id), allowed, c.reserved):
+		var fp := Vector2i(sz[0], sz[1]) if c.dice.d(2) == 1 else Vector2i(sz[1], sz[0])
+		if try_piece(m, 0, Rect2i(v, fp), piece, int(room.id), allowed, c.reserved):
 			placed += 1
+
+
+## A piece's footprint in squares (set-piece props, else Furnish's multi-square props, else 1x1).
+static func piece_size(piece: String) -> Array:
+	return SIZES.get(piece, Furnish.PROP_SIZES.get(piece, [1, 1]))
+
+
+## A cover entry for a piece: a set piece's own (PIECES), else Furnish's.
+static func piece_entry(piece: String, f: int, pos: Vector2i, room: int, prop := -1) -> Dictionary:
+	if not PIECES.has(piece):
+		return Furnish.cover_entry(piece, f, pos, room, prop)
+	var mat: Array = PIECES[piece]
+	var hp := int(RulesDB.load_json("armor.json")["cover_hp"][mat[0]][0 if mat[1] else 1])
+	return {"floor": f, "pos": pos, "kind": piece, "material": mat[0], "thick": mat[1], "hp": hp, "room": room, "prop": prop, "hazard": ""}
+
+
+## Furnish.try_prop for any piece (set-piece props too): every square open and unreserved, a
+## one-square ring clear of other cover, doorways and stairs. Multi-square pieces share a prop id.
+static func try_piece(m: TacMap, f: int, rect: Rect2i, piece: String, room: int, allowed: Dictionary = {}, reserved: Dictionary = {}) -> bool:
+	if not PIECES.has(piece):
+		return Furnish.try_prop(m, f, rect, piece, room, allowed, reserved)
+	for y in range(rect.position.y - 1, rect.end.y + 1):
+		for x in range(rect.position.x - 1, rect.end.x + 1):
+			var v := Vector2i(x, y)
+			if rect.has_point(v):
+				if not m.inb(x, y) or not Furnish.open_tile(m.t(f, x, y)) or reserved.has(v) or (not allowed.is_empty() and not allowed.has(v)):
+					return false
+			if m.has_cover_at(f, v) or m.t(f, x, y) in [T.DOOR, T.STAIRS, T.ELEVATOR] or m.is_connector_end(f, v):
+				return false
+	var multi := rect.size != Vector2i.ONE
+	var prop := m.cover.size() if multi else -1
+	for y in range(rect.position.y, rect.end.y):
+		for x in range(rect.position.x, rect.end.x):
+			m.add_cover(piece_entry(piece, f, Vector2i(x, y), room, prop))
+	return true
+
+
+# --- Compound: buildings round a court --------------------------------------------------------
+
+## The compound's layout, drawn once (size() runs before the map exists): the court in the middle,
+## each building `at` [x, y] (-1..1, in court half-widths: [0, -1] north of it, [0.55, 1] south-east)
+## set `gap` squares off the court with its entrance facing it, the perimeter `margin` round them.
+static func _compound_size(dice: Dice, p: Dictionary, sp: Dictionary) -> void:
+	var cp: Dictionary = sp.get("compound", {})
+	var court_def: Dictionary = cp.get("court", {})
+	var cw := _roll(dice, court_def.get("w", 14))
+	var ch := _roll(dice, court_def.get("d", 12))
+	var court := Rect2i(-cw / 2, -ch / 2, cw, ch)
+	var bounds := court
+	var blds: Array = []
+	var floors := 1
+	for b in cp.get("buildings", []):
+		var at: Array = b.at
+		var entry := String(b.get("entry", ""))
+		if entry == "":
+			entry = ("S" if float(at[1]) < 0 else "N") if absf(float(at[1])) >= absf(float(at[0])) else ("W" if float(at[0]) > 0 else "E")
+		var bw := _roll(dice, b.w)   # along its entrance facade
+		var bd := _roll(dice, b.d)   # into the building
+		var sz := Vector2i(bw, bd) if entry in ["S", "N"] else Vector2i(bd, bw)
+		var gap := _roll(dice, b.get("gap", 3))
+		var ctr := Vector2(float(at[0]) * (cw / 2.0 + gap + sz.x / 2.0), float(at[1]) * (ch / 2.0 + gap + sz.y / 2.0))
+		var rect := Rect2i(Vector2i(roundi(ctr.x - sz.x / 2.0), roundi(ctr.y - sz.y / 2.0)), sz)
+		var fl := _roll(dice, b.get("floors", 1))
+		floors = maxi(floors, fl)
+		bounds = bounds.merge(rect)
+		blds.append({"part": String(b.part), "rect": rect, "entry": entry, "floors": fl, "zone": String(b.get("zone", "staff"))})
+	var margin := int(cp.get("margin", 4))
+	var off := Vector2i(margin, margin) - bounds.position
+	court.position += off
+	for b in blds:
+		b.rect = Rect2i(b.rect.position + off, b.rect.size)
+	p["_compound"] = {"court": court, "buildings": blds}
+	p.w = bounds.size.x + margin * 2
+	p.h = bounds.size.y + margin * 2 + ROAD
+	p.floors = floors
+
+
+## Buildings round a central court (a garden, a parade square, a memorial), inside a perimeter wall
+## or fence with one gate on the street and a guard booth behind it; a path from the gate to the
+## court, which is reached through the gaps between the buildings.
+static func compound(c: Dictionary) -> void:
+	var m: TacMap = c.m
+	var sp := _sp(c)
+	var cp: Dictionary = sp.get("compound", {})
+	var lay: Dictionary = c.p._compound
+	var sec := int(c.p.security)
+	var target := String(c.p.get("target", "main"))
+	var road_y := m.h - ROAD
+	SceneGen.road(c, Rect2i(0, road_y, m.w, ROAD), true)
+	var lot := Rect2i(0, 0, m.w, road_y)
+	SceneGen.ground(c, lot, GROUNDS.get(String(cp.get("ground", "concrete")), G.CONCRETE))
+	var court: Rect2i = lay.court
+	var court_def: Dictionary = cp.get("court", {})
+	SceneGen.ground(c, court, GROUNDS.get(String(court_def.get("ground", "grass")), G.GRASS))
+	var sid := SceneGen.outdoor_structure(c, "grounds", maxi(sec - 1, 0), lot)
+	for b in lay.buildings:
+		var part := String(b.part)
+		var st := SceneGen.building(c, b.rect, String(sp.sites[part].base), int(b.floors), sec if part == target else maxi(sec - 1, 1),
+			part == target, Layouts._zone_of(String(b.zone)), String(b.entry), {}, part)
+		SceneGen.related(c, st.id, sid, 0.7)
+	# The gate under the court's middle, a paved path from it up to the court.
+	var gx := court.get_center().x
+	var gate := Vector2i(gx, road_y - 1)
+	for y in range(court.end.y, road_y):
+		for x in range(gx - 1, gx + 2):
+			if m.t(0, x, y) == T.OUTSIDE and m.label(0, x, y) < 0:
+				SceneGen.reserve(c, Rect2i(x, y, 1, 1))
+				m.set_ground(x, y, G.CONCRETE)
+	if cp.get("booth", true):   # inside the gate, on whichever side has room
+		for bx in [gx + 2, gx - 7, 3, m.w - 8]:
+			var booth := Rect2i(bx, road_y - 6, 5, 4)
+			if _free(m, booth.grow(1)):
+				var bst := SceneGen.building(c, booth, "guard_booth", 1, maxi(sec - 1, 0), false, TacMap.Zone.STAFF)
+				SceneGen.related(c, bst.id, sid, 0.9)
+				break
+	var zone := Layouts._zone_of(String(cp.get("zone", "staff")))
+	var court_room := SceneGen.yard(c, court, String(court_def.get("kind", "courtyard")), Layouts._zone_of(String(court_def.get("zone", "staff"))), sid)
+	var inside := Rect2i(2, 2, m.w - 4, road_y - 3)
+	var yard_room := SceneGen.yard(c, inside, String(cp.get("yard", "compound_yard")), zone, sid)
+	SceneGen.fence(c, Rect2i(1, 1, m.w - 2, road_y - 1), [gate], yard_room, int(cp.get("wall_mat", 3)))
+	# Dressing the court and the grounds (the recipe's; the court's centrepiece is a prop).
+	for d in cp.get("dress", []):
+		var room := court_room if String(d.get("area", "yard")) == "court" else yard_room
+		_dress(c, room, inside, String(d.piece), _roll(c.dice, d.get("count", 1)))
+	Furnish.run_structure(m, c.dice, sid)
+	if m.devices.any(func(d): return d.structure == sid):
+		m.architectures[sid] = NetGen.generate(m, c.dice, sid)
+	SceneGen.curb_cars(c, Rect2i(0, road_y, m.w, ROAD), true)
+	SceneGen.spawn(c, Vector2i(0, m.h - 3))
+	SceneGen.spawn(c, Vector2i(m.w - 1, m.h - 3))
+
+
+## Every square of `r` is open, unlabelled ground (nothing built there yet).
+static func _free(m: TacMap, r: Rect2i) -> bool:
+	for y in range(r.position.y, r.end.y):
+		for x in range(r.position.x, r.end.x):
+			if not m.inb(x, y) or m.t(0, x, y) != T.OUTSIDE or m.label(0, x, y) >= 0:
+				return false
+	return true
 
 
 # --- Port: quays, ships and Flotsam --------------------------------------------------------------
@@ -191,7 +381,8 @@ static func port(c: Dictionary) -> void:
 	var lund := Rect2i(2, fy - 15, sakata.position.x - 7, 15)
 	# Flotsam's programmed ships are entered like buildings (the gangway hall, the Pilots' Club):
 	# their briefs zone them from public in, so their base is the public level.
-	var sak_st := SceneGen.building(c, sakata, "ship", int(c.p.floors), sec, target == "sakata_maru", TacMap.Zone.PUBLIC, "S", hull(sakata, "E", 6), "sakata_maru")
+	# The Sakata Maru was built as a warship: a long raked bow, a square transom stern.
+	var sak_st := SceneGen.building(c, sakata, "ship", int(c.p.floors), sec, target == "sakata_maru", TacMap.Zone.PUBLIC, "S", hull(sakata, "E", 12), "sakata_maru")
 	var rose_st := SceneGen.building(c, rose, "ship", 1, maxi(sec - 1, 1), target == "rose", TacMap.Zone.PUBLIC, "S", hull(rose, "both", 4), "rose")
 	var lund_st := SceneGen.building(c, lund, "ship", 1, 1, target == "lund", TacMap.Zone.STAFF, "S", hull(lund, "W", 6), "lund")
 	var fr_floors := mini(2, int(c.p.floors))
@@ -287,23 +478,32 @@ static func _structure(m: TacMap, part: String) -> Dictionary:
 	return {}
 
 
-## Cells for `where` (roof | deck | room:<kind>) of a part: [floor, room, cells] per room.
+## Rooms for `where` of a part: roof (its roofs), top (the highest roof only), deck (its terraces,
+## else its roof), room:<kind>. Part `_scene`: the scene's outdoor rooms of that kind.
 static func _where(m: TacMap, part: String, where: String) -> Array:
+	var want := "roof"
+	if where.begins_with("room:"):
+		want = where.trim_prefix("room:")
+	if part == "_scene":
+		return m.rooms.filter(func(r): return r.cells > 0 and r.get("outdoor", false) and String(r.kind) == want)
 	var st := _structure(m, part)
 	if st.is_empty():
 		return []
 	var out := []
-	var want := "roof"
 	if where == "deck":
 		want = "terrace" if m.rooms.any(func(r): return r.cells > 0 and r.get("structure", -1) == st.id and r.kind == "terrace") else "roof"
-	elif where.begins_with("room:"):
-		want = where.trim_prefix("room:")
 	for r in m.rooms:
 		if r.cells > 0 and r.get("structure", -1) == st.id and String(r.kind) == want:
 			out.append(r)
+	if where in ["top", "deck"] and not out.is_empty():   # the highest roof; the main (lowest) deck
+		var lvl: int = out.map(func(r): return int(r.floor)).max() if where == "top" else out.map(func(r): return int(r.floor)).min()
+		out = out.filter(func(r): return int(r.floor) == lvl)
 	return out
 
 
+## The recipe's props: `count` pieces in the rooms `where` names, spread out (at least 5 squares
+## apart), or as near as they fit to the rooms' middle (`at: center`) or the part's main door
+## (`at: door`: a school's cupola over its entrance).
 static func _props(c: Dictionary) -> void:
 	var m: TacMap = c.m
 	for spec in _sp(c).get("props", []):
@@ -312,11 +512,23 @@ static func _props(c: Dictionary) -> void:
 		if rooms.is_empty():
 			continue
 		var cells: Array = []
+		var box := Rect2i()
 		for r in rooms:
 			for v in Furnish.room_cells(m, r):
 				cells.append([r, v])
+				box = Rect2i(v, Vector2i.ONE) if box.size == Vector2i.ZERO else box.expand(v).expand(v + Vector2i.ONE)
 		Layouts._shuffle(c.dice, cells)
-		var sz: Array = Furnish.PROP_SIZES.get(String(spec.piece), [1, 1])
+		var sz := piece_size(String(spec.piece))
+		var at := String(spec.get("at", ""))
+		if at in ["center", "door"]:
+			var goal := Vector2(box.get_center())
+			if at == "door":
+				var st := _structure(m, String(spec.part))
+				for e in m.entrances:
+					if e.get("structure", -1) == st.get("id", -2) and e.main:
+						goal = Vector2(e.pos)
+			var half := Vector2(sz[0], sz[1]) / 2.0
+			cells.sort_custom(func(p, q): return (Vector2(p[1]) + half).distance_squared_to(goal) < (Vector2(q[1]) + half).distance_squared_to(goal))
 		var placed: Array[Vector2i] = []
 		for cv in cells:
 			if placed.size() >= n:
@@ -325,7 +537,7 @@ static func _props(c: Dictionary) -> void:
 			if placed.any(func(q): return q.distance_to(v) < 5.0):
 				continue
 			var r: Dictionary = cv[0]
-			if Furnish.try_prop(m, int(r.floor), Rect2i(v, Vector2i(sz[0], sz[1])), String(spec.piece), int(r.id), {}, c.reserved):
+			if try_piece(m, int(r.floor), Rect2i(v, Vector2i(sz[0], sz[1])), String(spec.piece), int(r.id), {}, c.reserved):
 				placed.append(v)
 
 
@@ -361,7 +573,7 @@ static func posts(c: Dictionary) -> void:
 							break
 				else:
 					cand.append([r, v, Vector2i.ZERO])
-			if where.begins_with("room:"):   # the middle of the room
+			if where.begins_with("room:") and not spec.get("spread", false):   # the middle of the room (`spread`: anywhere in it)
 				var mid: Vector2 = Vector2((r.bounds as Rect2i).get_center())
 				cand.sort_custom(func(a, b): return Vector2(a[1]).distance_squared_to(mid) < Vector2(b[1]).distance_squared_to(mid))
 				cand = cand.slice(0, 1)

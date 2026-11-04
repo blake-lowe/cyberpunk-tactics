@@ -379,7 +379,8 @@ static func train(dice: Dice, w: int, region: Rect2i, labels: PackedInt32Array, 
 #        | {repeat: item, size: [a, b], w | cells}      identical units across the width
 #        | {rooms: [item, ...], w | cells}             items side by side (inside a stack)
 # Set pieces (data/gen/setpieces.json) add: item `secret: group` (built on one drawn floor only, see
-# program_plan), program `keep` (program_keep) and `mirror: false` (the plan never flips).
+# program_plan), program `keep` (program_keep), `mirror: false` (the plan never flips) and item
+# `steady: true` (its share of the band is never jittered: see _alloc).
 # Band depths come from the ground floor's bands and every floor shares them, so walls, corridors
 # and stair halls stack storey over storey; an item at either end of a band (a stair hall) lands
 # in the same place on every floor.
@@ -505,7 +506,9 @@ static func _alloc(dice: Dice, total: int, items: Array) -> Array:
 			out[i] = clampi(int(items[i].cells), 0, maxi(rest, 0))
 			rest -= out[i]
 		else:
-			wt[i] = float(items[i].get("w", 1.0)) * dice.rng.randf_range(0.85, 1.15)
+			# `steady` (set pieces): no jitter, so a band laid out the same on every storey puts a
+			# central stair core in the same place on each, under upper floors set back on all sides.
+			wt[i] = float(items[i].get("w", 1.0)) * (1.0 if items[i].get("steady", false) else dice.rng.randf_range(0.85, 1.15))
 			wsum += wt[i]
 	if wt.is_empty():
 		if rest > 0 and not keep.is_empty():

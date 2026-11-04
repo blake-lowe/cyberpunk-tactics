@@ -703,14 +703,46 @@ static func _devices(m: TacMap, dice: Dice, sid: int) -> void:
 				"zone": TacMap.Zone.PUBLIC, "group": "elevator", "structure": sid})
 
 
+## Open, cover-free cells of room `r` reachable from its doors (or any opening to outside), by a
+## flood within the room. Empty if the room has no door cell (then callers don't filter).
+static func _reachable_in_room(m: TacMap, r: Dictionary) -> Dictionary:
+	var cells := {}
+	for c in room_cells(m, r):
+		cells[c] = true
+	var free := func(c: Vector2i) -> bool: return cells.has(c) and open_tile(m.t(r.floor, c.x, c.y)) and not m.has_cover_at(r.floor, c)
+	var todo: Array[Vector2i] = []
+	for c in cells:
+		if not free.call(c):
+			continue
+		for d in MapGen.DIRS:
+			var n: Vector2i = c + d
+			if not cells.has(n) and m.inb(n.x, n.y) and m.t(r.floor, n.x, n.y) in [TacMap.T.DOOR, TacMap.T.FLOOR, TacMap.T.OUTSIDE]:
+				todo.append(c)
+				break
+	var seen := {}
+	while not todo.is_empty():
+		var c: Vector2i = todo.pop_back()
+		if seen.has(c):
+			continue
+		seen[c] = true
+		for d in MapGen.DIRS:
+			var n: Vector2i = c + d
+			if not seen.has(n) and free.call(n):
+				todo.append(n)
+	return seen
+
+
 static func add_device(m: TacMap, dice: Dice, r: Dictionary, type: String, group: String, wall: bool, extra: Dictionary = {}) -> void:
 	var taken := {}
 	for d in m.devices:
 		if d.floor == r.floor:
 			taken[d.pos] = true
 	var cands: Array[Vector2i] = []
+	var reach := _reachable_in_room(m, r)   # never a pocket boxed in by furniture: the crew must reach it
 	for c in room_cells(m, r):
 		if not open_tile(m.t(r.floor, c.x, c.y)) or m.has_cover_at(r.floor, c) or m.has_decor_at(r.floor, c) or taken.has(c):
+			continue
+		if not reach.is_empty() and not reach.has(c):
 			continue
 		var by_wall := MapGen.DIRS.any(func(d): return m.t(r.floor, c.x + d.x, c.y + d.y) == TacMap.T.WALL)
 		if by_wall == wall or not wall:

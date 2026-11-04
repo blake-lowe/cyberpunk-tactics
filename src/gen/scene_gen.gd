@@ -55,11 +55,50 @@ static func generate(seed_value: int, scene: String, overrides: Dictionary = {})
 	_guard_posts(m)
 	if setpiece != "":
 		SetPieceGen.posts(c)
+		_reseat_devices(m)   # set-piece props come after the devices: move any they boxed in
 	for st in m.structures:
 		if st.target and m.architectures.has(st.id):
 			m.architecture = m.architectures[st.id]
 			m.algorithm = st.get("algorithm", scene) if scene == "lone_building" else scene
 	return m
+
+
+## Devices on the target structure that the crew can't reach from the deploy zone (boxed in by
+## props placed after them) move to the nearest reachable free square in their room, else in their
+## structure. Door locks sit on doors and stay put.
+static func _reseat_devices(m: TacMap) -> void:
+	var dep := Vector3i(-1, -1, -1)
+	for e in m.entrances:
+		if e.kind == "deploy":
+			dep = Vector3i(e.pos.x, e.pos.y, 0)
+			break
+	if dep.x < 0:
+		return
+	var reach := m.reachable(dep)
+	var used := {}
+	for dv in m.devices:
+		used[Vector3i(dv.pos.x, dv.pos.y, dv.floor)] = true
+	for dv in m.devices:
+		var at := Vector3i(dv.pos.x, dv.pos.y, dv.floor)
+		if dv.type == "door_lock" or reach.has(at) or int(dv.get("structure", -1)) < 0 or not m.structures[dv.structure].target:
+			continue
+		var best := Vector3i(-1, -1, -1)
+		var best_d := INF
+		for cell in reach:
+			if cell.z != dv.floor or used.has(cell) or m.has_cover_at(cell.z, Vector2i(cell.x, cell.y)):
+				continue
+			var l := m.label(cell.z, cell.x, cell.y)
+			if l < 0 or m.rooms[l].get("structure", -1) != dv.structure:
+				continue
+			var dd := Vector2(cell.x - at.x, cell.y - at.y).length() + (0.0 if l == int(dv.get("room", -2)) else 50.0)
+			if dd < best_d:
+				best_d = dd
+				best = cell
+		if best.x >= 0:
+			used.erase(at)
+			used[best] = true
+			dv.pos = Vector2i(best.x, best.y)
+			dv.room = m.label(best.z, best.x, best.y)
 
 
 static func _plan(c: Dictionary, scene: String) -> void:

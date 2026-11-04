@@ -1,243 +1,423 @@
 {
-	"_doc": "Set pieces: authored layout recipes for famous Night City places (SetPieces, SetPieceGen). The book gives no floor plans, so a set piece is a recipe the generators follow: the place stays recognisable while the rooms vary per seed. Keys: name; locations {location id (data/world/locations.json): params that location adds, e.g. which structure is the target}; faction (the Security Code's faction, the default opposition); base {scene (scenes.json; its theme, doctrine and civilians), planner (SetPieceGen: plot = a building plot with its annexes, port = quays and anchored ships)}; params (scene params; the caller's win); plot (the building plot: margin, front yard depth, fence along the street, yard kind and ground, annexes behind or beside the main building); sites {part: {base: a sites.json site, then site keys that replace the base's (layout replaces key by key)}}: part main is the target building unless locations say otherwise; posts [{where: roof | deck | room:<kind>, part, kind, count [a, b], weapon (the guard posted there carries it as their primary), cover (sandbags round the post)}]: posts the guards man first; props [{where, part, piece, count}]; key_rooms {part (or _scene: the outdoor rooms): [room kinds every seed must have]}; anchors {objective kind: {room kind: score}} (a site part may carry its own; Encounter.secure_cell, which only reaches rooms without a locked security door, so anchors name staff-zone rooms; data uses the NET instead, eliminate needs no anchor); rules (special rules the engine honours: public_access, civilians); todo (rules the engine can't honour yet); look (tags for the view; the walls and windows themselves come from the site keys); cite; _why: which book detail each element follows and what is ours. Program keys only set pieces use (Layouts.program): keep {floor: {bands: [first, last]} | {u: [from, to]}} keeps only those bands (or that share of the facade) on a storey, so upper floors step back and the roofs below become terraces; secret {group: note}: items tagged secret: group are built on one floor only, drawn per seed; mirror: false fixes the plan's handedness.",
+	"_doc": "Set pieces: authored layout recipes for famous Night City places (SetPieces, SetPieceGen). The book gives no floor plans, so a set piece is a recipe the generators follow: the place stays recognisable while the rooms vary per seed. Keys: name; locations {location id (data/world/locations.json): params that location adds, e.g. which structure is the target}; faction (the Security Code's faction, the default opposition); base {scene (scenes.json; its theme, doctrine and civilians), planner (SetPieceGen: plot = a building plot with its annexes, port = quays and anchored ships, compound = buildings round a court inside a perimeter wall)}; params (scene params; the caller's win); plot (the building plot: margin, front yard depth, side_yard (open ground beside the building), fence along the street (fence_mat), yard kind, zone and ground, front_ground (a lawn), approach {kind, zone, w} (a yard of its own over the path to the door), dress [{piece, count, area: front | lot}], flagpole, annexes behind or beside the main building); compound (court {w, d, kind, ground, zone}, buildings [{part, at [x, y] round the court, w along its entrance facade, d, floors, gap, entry}], margin, ground, zone, yard, wall_mat (1 concrete, 3 chain-link), booth, dress [{piece, count, area: court | yard}]); sites {part: {base: a sites.json site, then site keys that replace the base's (layout replaces key by key)}}: part main is the target building unless locations say otherwise; posts [{where: roof | deck | room:<kind>, part (_scene: the outdoor rooms), kind, count [a, b], weapon (the guard posted there carries it as their primary), cover (sandbags round the post), spread (anywhere in the room, not its middle)}]: posts the guards man first; props [{where (also top: the highest roof), part, piece (Furnish's or SetPieceGen.PIECES: cupola, flagpole, spire, turret, mast, funnel, columbarium, av), count, at: center | door}]; key_rooms {part (or _scene: the outdoor rooms): [room kinds every seed must have]}; anchors {objective kind: {room kind: score}} (a site part may carry its own; Encounter.secure_cell, which only reaches rooms without a locked security door, so anchors name staff-zone rooms; data uses the NET instead, eliminate needs no anchor); rules (special rules the engine honours: public_access, civilians); todo (rules the engine can't honour yet); look (tags; wall_crenels, graffiti_walls for the perimeter wall); a part's own look (SetPieceDressing: wall / roof {color, color2, pattern (11 brick), scale}, trim, roof_mark none, graffiti, crown, terrace_lights, crenels, pads, waterline, sign, flooded [room kinds]); cite; _why: which book detail each element follows and what is ours. Program keys only set pieces use (Layouts.program): keep {floor: {bands: [first, last]} | {u: [from, to]}} keeps only those bands (or that share of the facade) on a storey, so upper floors step back and the roofs below become terraces; secret {group: note}: items tagged secret: group are built on one floor only, drawn per seed; mirror: false fixes the plan's handedness; an item's steady: true takes its exact share of the band (no jitter), so a central stair core sits on the same squares on every storey.",
 
 	"fort_sumter": {
-		"name": "Fort Sumter",
-		"locations": {"south_night_city_4": {}},
-		"faction": "deadwoods",
-		"base": {"scene": "lone_building", "planner": "plot"},
+		"name": "Fort Sumter", "locations": {"south_night_city_4": {}}, "faction": "deadwoods", "base": {"scene": "lone_building", "planner": "plot"},
 		"params": {"security": 2, "floors": 2},
-		"plot": {"margin": 3, "front": [6, 8], "fence": true, "yard": "compound_yard", "ground": "asphalt",
-			"annexes": [{"part": "bike_garage", "where": "behind", "gap": [3, 4], "w": [13, 16], "d": [8, 10], "floors": 1}]},
+		"plot": {
+			"margin": 3, "front": [8, 10], "side_yard": [12, 14], "fence": true, "yard": "compound_yard", "ground": "asphalt", "front_ground": "grass",
+			"flagpole": true,
+			"dress": [
+				{"piece": "wreck", "count": [2, 3], "area": "front"}, {"piece": "barrier", "count": [4, 6], "area": "front"},
+				{"piece": "sandbags", "count": [3, 5], "area": "front"}, {"piece": "barrel", "count": [3, 5], "area": "lot"},
+				{"piece": "crate", "count": [3, 5], "area": "lot"}, {"piece": "bus", "count": [1, 1], "area": "front"}
+			],
+			"annexes": [{"part": "bike_garage", "where": "behind", "gap": [3, 4], "w": [13, 16], "d": [8, 10], "floors": 1}]
+		},
 		"sites": {
 			"main": {
-				"base": "school",
-				"name": "Fort Sumter (the old high school)",
-				"footprint": {"w": [34, 40], "d": [26, 29]},
-				"floors": [2, 2],
+				"base": "school", "name": "Fort Sumter (the old high school)", "footprint": {"w": [34, 40], "d": [26, 29]}, "floors": [2, 2],
 				"exterior": 1, "windows": 0.4, "levels": 4, "net_chance": 1.0, "density": 0.4,
 				"layout": {
-					"algorithm": "program", "loops": 0.12, "verticality": 1, "stairs": 2, "roof_access": true,
-					"stair_in": ["stair_hall"], "enter": ["lobby"], "service": ["hallway"],
+					"algorithm": "program", "loops": 0.12, "verticality": 1, "stairs": 2, "roof_access": true, "stair_in": ["stair_hall"],
+					"enter": ["lobby"], "service": ["hallway"],
 					"program": {
 						"keep": {"1": {"bands": [0, 2]}},
 						"ground": [
-							{"cells": 7, "rooms": [
-								{"room": "petition_office", "zone": "staff", "w": 1, "min": 4, "doors": ["lobby", "hallway"]},
-								{"room": "lobby", "zone": "public", "w": 1.5, "min": 5},
-								{"room": "petition_office", "zone": "staff", "w": 1, "min": 4, "doors": ["lobby", "hallway"]},
-								{"room": "auditorium", "zone": "public", "w": 3, "min": 9, "doors": ["lobby", "hallway"]}
-							]},
+							{
+								"cells": 7,
+								"rooms": [
+									{"room": "petition_office", "zone": "staff", "w": 1, "min": 4, "doors": ["lobby", "hallway"]},
+									{"room": "lobby", "zone": "public", "w": 1.5, "min": 5},
+									{"room": "petition_office", "zone": "staff", "w": 1, "min": 4, "doors": ["lobby", "hallway"]},
+									{"room": "auditorium", "zone": "public", "w": 3, "min": 9, "doors": ["lobby", "hallway"]}
+								]
+							},
 							{"cells": 3, "rooms": [{"room": "hallway", "zone": "public"}]},
-							{"w": 1, "min": 7, "rooms": [
-								{"room": "stair_hall", "zone": "public", "cells": 4, "doors": ["hallway"]},
-								{"room": "restroom", "zone": "public", "cells": 3, "doors": ["hallway"]},
-								{"room": "cafeteria", "zone": "public", "w": 3, "min": 8, "doors": ["hallway", "commercial_kitchen"]},
-								{"room": "commercial_kitchen", "zone": "staff", "w": 1.2, "min": 4, "doors": ["cafeteria", "hallway"]},
-								{"room": "security_office", "zone": "staff", "cells": 5, "doors": ["hallway", "corridor"]},
-								{"room": "stair_hall", "zone": "public", "cells": 4, "doors": ["hallway"]}
-							]},
-							{"w": 1.3, "min": 9, "rooms": [
-								{"stack": [
-									{"room": "corridor", "zone": "staff", "cells": 3, "doors": ["security_office", "crew_quarters", "gym", "gun_range", "armory"]},
-									{"rooms": [
-										{"repeat": {"room": "crew_quarters", "zone": "staff", "doors": ["corridor"]}, "size": [5, 7], "w": 1.5},
-										{"room": "gym", "zone": "staff", "w": 1.5, "min": 7, "doors": ["corridor"]},
-										{"room": "gun_range", "zone": "staff", "w": 2.4, "min": 9, "doors": ["corridor", "armory"]},
-										{"room": "armory", "zone": "staff", "cells": 5, "doors": ["corridor", "gun_range"]}
-									]}
-								]}
-							]}
+							{
+								"w": 1, "min": 7,
+								"rooms": [
+									{"room": "stair_hall", "zone": "public", "cells": 4, "doors": ["hallway"]},
+									{"room": "restroom", "zone": "public", "cells": 3, "doors": ["hallway"]},
+									{"room": "cafeteria", "zone": "public", "w": 3, "min": 8, "doors": ["hallway", "commercial_kitchen"]},
+									{"room": "commercial_kitchen", "zone": "staff", "w": 1.2, "min": 4, "doors": ["cafeteria", "hallway"]},
+									{"room": "security_office", "zone": "staff", "cells": 5, "doors": ["hallway", "corridor"]},
+									{"room": "stair_hall", "zone": "public", "cells": 4, "doors": ["hallway"]}
+								]
+							},
+							{
+								"w": 1.3, "min": 9,
+								"rooms": [
+									{
+										"stack": [
+											{
+												"room": "corridor", "zone": "staff", "cells": 3,
+												"doors": ["security_office", "crew_quarters", "gym", "gun_range", "armory"]
+											},
+											{
+												"rooms": [
+													{
+														"repeat": {"room": "crew_quarters", "zone": "staff", "doors": ["corridor"]}, "size": [5, 7],
+														"w": 1.5
+													},
+													{"room": "gym", "zone": "staff", "w": 1.5, "min": 7, "doors": ["corridor"]},
+													{"room": "gun_range", "zone": "staff", "w": 2.4, "min": 9, "doors": ["corridor", "armory"]},
+													{"room": "armory", "zone": "staff", "cells": 5, "doors": ["corridor", "gun_range"]}
+												]
+											}
+										]
+									}
+								]
+							}
 						],
 						"upper": [
-							{"rooms": [
-								{"room": "ops_center", "zone": "staff", "w": 2, "min": 6, "doors": ["hallway"]},
-								{"room": "rec_room", "zone": "staff", "w": 2.5, "min": 7, "doors": ["hallway"]},
-								{"room": "restroom", "zone": "public", "cells": 3, "doors": ["hallway"]},
-								{"room": "crash_room", "zone": "staff", "w": 1, "min": 4, "doors": ["hallway"]}
-							]},
+							{
+								"rooms": [
+									{"room": "ops_center", "zone": "staff", "w": 2, "min": 6, "doors": ["hallway"]},
+									{"room": "rec_room", "zone": "staff", "w": 2.5, "min": 7, "doors": ["hallway"]},
+									{"room": "restroom", "zone": "public", "cells": 3, "doors": ["hallway"]},
+									{"room": "crash_room", "zone": "staff", "w": 1, "min": 4, "doors": ["hallway"]}
+								]
+							},
 							{"rooms": [{"room": "hallway", "zone": "staff"}]},
-							{"rooms": [
-								{"room": "stair_hall", "zone": "public", "cells": 4, "doors": ["hallway"]},
-								{"room": "bar", "zone": "staff", "w": 3, "min": 8, "doors": ["hallway", "storage"]},
-								{"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["bar", "hallway"]},
-								{"room": "boss_room", "zone": "staff", "w": 1.4, "min": 5, "doors": ["hallway"]},
-								{"room": "stair_hall", "zone": "public", "cells": 4, "doors": ["hallway"]}
-							]},
+							{
+								"rooms": [
+									{"room": "stair_hall", "zone": "public", "cells": 4, "doors": ["hallway"]},
+									{"room": "bar", "zone": "staff", "w": 3, "min": 8, "doors": ["hallway", "storage"]},
+									{"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["bar", "hallway"]},
+									{"room": "boss_room", "zone": "staff", "w": 1.4, "min": 5, "doors": ["hallway"]},
+									{"room": "stair_hall", "zone": "public", "cells": 4, "doors": ["hallway"]}
+								]
+							},
 							{"rooms": [{"room": "storage", "zone": "staff"}]}
 						]
 					}
 				},
-				"zones": {"public": {"rotation": ["hallway"]}, "staff": {"rotation": ["crash_room"]}, "secure": {"rotation": ["crew_quarters"]}, "vault": {"rotation": ["armory"]}}
+				"zones": {
+					"public": {"rotation": ["hallway"]}, "staff": {"rotation": ["crash_room"]}, "secure": {"rotation": ["crew_quarters"]},
+					"vault": {"rotation": ["armory"]}
+				},
+				"look": {
+					"wall": {"color": "8a4232", "color2": "4e2a22", "pattern": 11, "scale": 1.0}, "trim": "d4ccb8",
+					"roof": {"color": "3c3a36", "color2": "2a2826", "pattern": 5, "scale": 1.8}, "graffiti": 0.35, "sign": "f0d8a0"
+				}
 			},
 			"bike_garage": {
-				"base": "chop_shop",
-				"name": "DeadWoods bike garage",
-				"massing": {}, "shapes": {"rect": 1}, "windows": 0.15, "networked": false,
-				"layout": {"algorithm": "program", "loops": 0.2, "enter": ["garage"], "service": ["workshop"], "stair_in": ["storage"],
-					"program": {"ground": [{"w": 1, "rooms": [
-						{"room": "garage", "zone": "public", "w": 3, "min": 8},
-						{"stack": [
-							{"room": "workshop", "zone": "staff", "w": 1.5, "doors": ["garage", "storage"]},
-							{"room": "storage", "zone": "staff", "w": 1, "doors": ["workshop"]}
-						], "w": 1.2, "min": 4}
-					]}]}
-				}
+				"base": "chop_shop", "name": "DeadWoods bike garage", "massing": {}, "shapes": {"rect": 1}, "windows": 0.15, "networked": false,
+				"layout": {
+					"algorithm": "program", "loops": 0.2, "enter": ["garage"], "service": ["workshop"], "stair_in": ["storage"],
+					"program": {
+						"ground": [
+							{
+								"w": 1,
+								"rooms": [
+									{"room": "garage", "zone": "public", "w": 3, "min": 8},
+									{
+										"stack": [
+											{"room": "workshop", "zone": "staff", "w": 1.5, "doors": ["garage", "storage"]},
+											{"room": "storage", "zone": "staff", "w": 1, "doors": ["workshop"]}
+										],
+										"w": 1.2, "min": 4
+									}
+								]
+							}
+						]
+					}
+				},
+				"look": {"wall": {"color": "6a3a2c", "color2": "3e241c", "pattern": 11}, "trim": "b8b0a0", "graffiti": 0.5}
 			}
 		},
-		"posts": [
-			{"where": "roof", "part": "main", "kind": "sniper", "count": [2, 3], "weapon": "sniper_rifle", "cover": "sandbags"}
-		],
+		"posts": [{"where": "roof", "part": "main", "kind": "sniper", "count": [2, 3], "weapon": "sniper_rifle", "cover": "sandbags"}],
 		"props": [
+			{"where": "roof", "part": "main", "piece": "cupola", "count": [1, 1], "at": "door"},
 			{"where": "roof", "part": "main", "piece": "cyberbike", "count": [1, 1]}
 		],
 		"key_rooms": {
-			"main": ["lobby", "petition_office", "auditorium", "cafeteria", "hallway", "ops_center", "rec_room", "bar", "security_office", "crew_quarters", "gym", "gun_range", "armory", "roof"],
+			"main": [
+				"lobby", "petition_office", "auditorium", "cafeteria", "hallway", "ops_center", "rec_room", "bar", "security_office", "crew_quarters",
+				"gym", "gun_range", "armory", "roof"
+			],
 			"bike_garage": ["garage"]
 		},
 		"anchors": {
-			"assassinate": {"boss_room": 130, "ops_center": 90},
-			"rescue": {"security_office": 90, "crew_quarters": 60},
-			"snatch": {"armory": 140, "ops_center": 60},
-			"sabotage": {"armory": 140, "ops_center": 80}
+			"assassinate": {"boss_room": 130, "ops_center": 90}, "rescue": {"security_office": 90, "crew_quarters": 60},
+			"snatch": {"armory": 140, "ops_center": 60}, "sabotage": {"armory": 140, "ops_center": 80}
 		},
 		"rules": {"public_access": true, "civilians": 4},
 		"todo": [
 			"Basement and sub-basement: the engine has no storeys below the street, so the members-only levels are a single-storey rear wing behind the security office (same rooms, same members-only gate). Needs below-grade floors in TacMap and the greybox.",
 			"Gunslinger's Brennan Infiniti aerodyne cyberbike is set dressing on the roof pad; no vehicle rules yet.",
-			"Friends-only second floor: guards treat the crew as hostile there like anywhere off the public floor; no reputation/friendship check yet."
+			"Friends-only second floor: guards treat the crew as hostile there like anywhere off the public floor; no reputation/friendship check yet.",
+			"A US public school's courtyard plan (an E or H wing round a court): the program fills one rectangle; the members' rear wing stands in for it."
 		],
-		"look": {"tags": ["old_school_brick", "cowboy_saloon", "fortified", "rooftop_sandbags"]},
+		"look": {
+			"court_lines": "e8dcc0", "burn_barrels": true,
+			"tags": ["old_school_brick", "white_trim", "bell_cupola", "front_lawn_flagpole", "gang_tags", "barricaded_yard", "rooftop_sandbags"]
+		},
 		"cite": "NC2045 p.143",
-		"_why": "Book (NC2045 p.143, South Night City #4): a high school abandoned in the 4th Corporate War, now the DeadWoods' base, Security Code 10 DeadWoods Hardened Medium. Floor by floor as printed: the first floor holds a small auditorium, a chow hall (the school cafeteria and its kitchen) and offices where locals petition the gang (petition_office either side of the lobby; locals walk in, so the first floor is public: public_access + civilians); the second floor, for friends of the gang, holds a rec room, an operations centre and an entertainment facility (a saloon bar, for a cowboy gang: ours); the basement and sub-basement, members only, hold bunks, a gym, a gun range, an armory and a security office; the roof has several snipers' nests and a landing pad for Gunslinger's prototype aerodyne cyberbike; the gang's bikes are parked in a garage behind the school (the bike_garage annex behind). Ours: the members-only levels sit in a single-storey rear wing (the engine has no basements; see todo), entered only through the security office (a guard post) and the members' corridor, the armory deepest, beside the gun range (staff zone, no keycard locks: a gang base, and so objectives can sit there); the rear wing's roof becomes a terrace off the second floor; the school keeps its double-loaded hallway, two stair halls (two means of escape) and fenced yard; Gunslinger's own room upstairs (boss_room) and where captives are held are ours. Sniper nests are guard posts on the roof manned first, each guard handed a sniper rifle (the DeadWoods roster has no sniper block, so these are their own people with rifles) behind sandbags."
+		"_why": "Book (NC2045 p.143, South Night City #4): a high school abandoned in the 4th Corporate War, now the DeadWoods' base, Security Code 10 DeadWoods Hardened Medium. Floor by floor as printed: the first floor holds a small auditorium, a chow hall (the school cafeteria and its kitchen) and offices where locals petition the gang (petition_office either side of the lobby; locals walk in, so the first floor is public: public_access + civilians); the second floor, for friends of the gang, holds a rec room, an operations centre and an entertainment facility (a saloon bar, for a cowboy gang: ours); the basement and sub-basement, members only, hold bunks, a gym, a gun range, an armory and a security office; the roof has several snipers' nests and a landing pad for Gunslinger's prototype aerodyne cyberbike; the gang's bikes are parked in a garage behind the school (the bike_garage annex behind). Ours: the members-only levels sit in a single-storey rear wing (the engine has no basements; see todo), entered only through the security office (a guard post) and the members' corridor, the armory deepest, beside the gun range (staff zone, no keycard locks: a gang base, and so objectives can sit there); the rear wing's roof becomes a terrace off the second floor; the school keeps its double-loaded hallway, two stair halls (two means of escape) and fenced yard; Gunslinger's own room upstairs (boss_room) and where captives are held are ours. Sniper nests are guard posts on the roof manned first, each guard handed a sniper rifle (the DeadWoods roster has no sniper block, so these are their own people with rifles) behind sandbags. Look (ours, from the American public-school type the book's \"former high school\" names): two storeys of red brick in running bond under a white stone cornice, a tar-and-gravel flat roof with a white bell cupola and clock over the entrance, a lit name band over the door, a front lawn with the flagpole flying the gang's colours, the asphalt schoolyard beside it with its old basketball court, all behind a chain-link fence; the DeadWoods' tags on the brickwork and their barricades (wrecks, jersey barriers, sandbags) on the lawn."
 	},
 
 	"ziggurat_hq": {
-		"name": "Ziggurat Headquarters",
-		"locations": {"upper_marina_40": {}},
-		"faction": "ziggurat",
-		"base": {"scene": "lone_building", "planner": "plot"},
-		"params": {"security": 3, "floors": 6},
-		"plot": {"margin": 3, "front": [7, 9], "fence": false, "yard": "plaza",
-			"annexes": [{"part": "fire_station", "where": "beside", "gap": [3, 4], "w": [11, 13], "d": [12, 14], "floors": 1}]},
+		"name": "Ziggurat Headquarters", "locations": {"upper_marina_40": {}}, "faction": "ziggurat",
+		"base": {"scene": "lone_building", "planner": "plot"}, "params": {"security": 3, "floors": 6},
+		"plot": {
+			"margin": 3, "front": [7, 9], "fence": false, "yard": "plaza",
+			"annexes": [{"part": "fire_station", "where": "beside", "gap": [3, 4], "w": [11, 13], "d": [12, 14], "floors": 1}]
+		},
 		"sites": {
 			"main": {
-				"base": "corp_hq",
-				"name": "Ziggurat Headquarters (the curve)",
-				"footprint": {"w": [32, 38], "d": [22, 25]},
-				"floors": [6, 6],
-				"exterior": 1, "windows": 0.8, "armored_windows": true, "levels": 4, "density": 0.3,
-				"massing": {}, "shapes": {"rect": 1},
+				"base": "corp_hq", "name": "Ziggurat Headquarters (the curve)", "footprint": {"w": [38, 42], "d": [23, 25]}, "floors": [6, 6],
+				"exterior": 1, "windows": 0.8, "armored_windows": true, "levels": 4, "density": 0.3, "massing": {}, "shapes": {"rect": 1},
 				"layout": {
-					"algorithm": "program", "loops": 0.1, "verticality": 2, "stairs": 2, "roof_access": true,
-					"stair_in": ["stair_hall"], "lift_in": ["lift_lobby"], "enter": ["lobby"], "service": ["vehicle_bay"],
+					"algorithm": "program", "loops": 0.1, "verticality": 2, "stairs": 1, "roof_access": true, "stair_in": ["stair_hall"],
+					"lift_in": ["lift_lobby"], "enter": ["lobby"], "service": ["vehicle_bay"],
 					"program": {
-						"keep": {"3": {"bands": [1, 2]}, "4": {"bands": [1, 2]}, "5": {"bands": [2, 2]}},
-						"secret": {"citinet": "The CitiNet servers (data_vault) are built on one floor of the tower only, drawn per seed: their location is a closely guarded secret (NC2045 p.78)."},
+						"keep": {
+							"2": {"u": [0.05, 0.95]}, "3": {"bands": [1, 2], "u": [0.1, 0.9]}, "4": {"bands": [1, 2], "u": [0.15, 0.85]},
+							"5": {"bands": [2, 2], "u": [0.2, 0.8]}
+						},
+						"secret": {
+							"citinet": "The CitiNet servers (data_vault) are built on one floor of the tower only, drawn per seed: their location is a closely guarded secret (NC2045 p.78)."
+						},
 						"ground": [
-							{"cells": 8, "rooms": [
-								{"room": "restroom", "zone": "public", "cells": 3, "doors": ["lobby"]},
-								{"room": "net_museum", "zone": "public", "w": 3, "min": 9, "doors": ["lobby", "hallway"]},
-								{"room": "lobby", "zone": "public", "w": 2, "min": 6},
-								{"room": "auditorium", "zone": "public", "w": 3, "min": 9, "doors": ["lobby", "hallway"]}
-							]},
+							{
+								"cells": 8,
+								"rooms": [
+									{"room": "restroom", "zone": "public", "cells": 3, "doors": ["lobby"]},
+									{"room": "net_museum", "zone": "public", "w": 3, "min": 9, "doors": ["lobby", "hallway"]},
+									{"room": "lobby", "zone": "public", "w": 2, "min": 6},
+									{"room": "auditorium", "zone": "public", "w": 3, "min": 9, "doors": ["lobby", "hallway"]}
+								]
+							},
 							{"cells": 3, "rooms": [{"room": "hallway", "zone": "public"}]},
-							{"w": 1, "min": 9, "rooms": [
-								{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["lift_lobby", "vehicle_bay"]},
-								{"room": "lift_lobby", "zone": "staff", "cells": 4, "doors": ["stair_hall", "security_post"]},
-								{"room": "security_post", "zone": "staff", "cells": 5, "doors": ["hallway", "lift_lobby", "vehicle_bay"]},
-								{"room": "vehicle_bay", "zone": "staff", "w": 3, "min": 9, "doors": ["security_post", "storage", "stair_hall", "data_vault"]},
-								{"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["vehicle_bay", "stair_hall"]},
-								{"room": "data_vault", "zone": "secure", "cells": 5, "secret": "citinet", "doors": ["vehicle_bay", "storage", "stair_hall"]},
-								{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["vehicle_bay", "storage", "data_vault"]}
-							]}
+							{
+								"w": 1, "min": 9,
+								"rooms": [
+									{
+										"rooms": [
+											{
+												"room": "vehicle_bay", "zone": "staff", "w": 3, "min": 8,
+												"doors": ["storage", "data_vault", "stair_hall"]
+											},
+											{"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["vehicle_bay", "stair_hall"]}
+										],
+										"w": 1, "steady": true
+									},
+									{
+										"rooms": [
+											{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["lift_lobby", "storage", "vehicle_bay"]},
+											{"room": "lift_lobby", "zone": "staff", "cells": 5, "doors": ["stair_hall", "security_post"]}
+										],
+										"cells": 9
+									},
+									{
+										"rooms": [
+											{"room": "security_post", "zone": "staff", "cells": 5, "doors": ["hallway", "lift_lobby", "vehicle_bay"]},
+											{
+												"room": "data_vault", "zone": "secure", "cells": 5, "secret": "citinet",
+												"doors": ["security_post", "vehicle_bay"]
+											},
+											{"room": "vehicle_bay", "zone": "staff", "w": 2, "min": 6, "doors": ["security_post", "data_vault"]}
+										],
+										"w": 1, "steady": true
+									}
+								]
+							}
 						],
 						"1": [
-							{"rooms": [
-								{"room": "crew_quarters", "zone": "staff", "w": 2, "min": 6, "doors": ["hallway"]},
-								{"room": "break_room", "zone": "staff", "w": 1.3, "min": 4, "doors": ["hallway"]},
-								{"room": "workshop", "zone": "staff", "w": 2.5, "min": 7, "doors": ["hallway", "storage"]},
-								{"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["workshop", "hallway"]}
-							]},
+							{
+								"rooms": [
+									{"room": "crew_quarters", "zone": "staff", "w": 2, "min": 6, "doors": ["hallway"]},
+									{"room": "break_room", "zone": "staff", "w": 1.3, "min": 4, "doors": ["hallway"]},
+									{"room": "workshop", "zone": "staff", "w": 2.5, "min": 7, "doors": ["hallway", "storage"]},
+									{"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["workshop", "hallway"]}
+								]
+							},
 							{"rooms": [{"room": "hallway", "zone": "staff"}]},
-							{"rooms": [
-								{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["hallway", "lift_lobby"]},
-								{"room": "lift_lobby", "zone": "staff", "cells": 4, "doors": ["hallway", "stair_hall"]},
-								{"room": "dispatch_office", "zone": "staff", "w": 1.5, "min": 5, "doors": ["hallway"]},
-								{"room": "workshop", "zone": "staff", "w": 2, "min": 6, "doors": ["hallway"]},
-								{"room": "data_vault", "zone": "secure", "cells": 5, "secret": "citinet", "doors": ["security_office"]},
-								{"room": "security_office", "zone": "staff", "w": 1.2, "min": 4, "doors": ["hallway", "data_vault"]},
-								{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["hallway"]}
-							]}
+							{
+								"rooms": [
+									{
+										"rooms": [
+											{"room": "workshop", "zone": "staff", "w": 2, "min": 6, "doors": ["hallway"]},
+											{"room": "dispatch_office", "zone": "staff", "w": 1.5, "min": 5, "doors": ["hallway"]}
+										],
+										"w": 1, "steady": true
+									},
+									{
+										"rooms": [
+											{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["hallway", "lift_lobby"]},
+											{"room": "lift_lobby", "zone": "staff", "cells": 5, "doors": ["hallway", "stair_hall"]}
+										],
+										"cells": 9
+									},
+									{
+										"rooms": [
+											{"room": "security_office", "zone": "staff", "w": 1.2, "min": 4, "doors": ["hallway", "data_vault"]},
+											{"room": "data_vault", "zone": "secure", "cells": 5, "secret": "citinet", "doors": ["security_office"]},
+											{"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["hallway"]}
+										],
+										"w": 1, "steady": true
+									}
+								]
+							}
 						],
 						"2": [
-							{"rooms": [
-								{"room": "lab", "zone": "staff", "w": 2, "min": 6, "doors": ["hallway", "server_room"]},
-								{"room": "server_room", "zone": "staff", "cells": 5, "doors": ["lab", "hallway"]},
-								{"room": "content_control", "zone": "staff", "w": 2.5, "min": 7, "doors": ["hallway"]},
-								{"room": "meeting", "zone": "staff", "w": 1, "min": 4, "doors": ["hallway"]}
-							]},
+							{
+								"rooms": [
+									{"room": "meeting", "zone": "staff", "w": 1, "min": 4, "doors": ["hallway"]},
+									{"room": "lab", "zone": "staff", "w": 2, "min": 6, "doors": ["hallway", "server_room"]},
+									{"room": "server_room", "zone": "staff", "cells": 5, "doors": ["lab", "hallway"]},
+									{"room": "content_control", "zone": "staff", "w": 2.5, "min": 7, "doors": ["hallway"]},
+									{"room": "meeting", "zone": "staff", "w": 1, "min": 4, "doors": ["hallway"]}
+								]
+							},
 							{"rooms": [{"room": "hallway", "zone": "staff"}]},
-							{"rooms": [
-								{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["hallway", "lift_lobby"]},
-								{"room": "lift_lobby", "zone": "staff", "cells": 4, "doors": ["hallway", "stair_hall"]},
-								{"room": "bullpen", "zone": "staff", "w": 2.5, "min": 7, "doors": ["hallway"]},
-								{"room": "lab", "zone": "staff", "w": 1.5, "min": 5, "doors": ["hallway"]},
-								{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["hallway"]}
-							]}
+							{
+								"rooms": [
+									{
+										"rooms": [
+											{"room": "lab", "zone": "staff", "w": 1, "min": 4, "doors": ["hallway"]},
+											{"room": "bullpen", "zone": "staff", "w": 2.5, "min": 7, "doors": ["hallway"]}
+										],
+										"w": 1, "steady": true
+									},
+									{
+										"rooms": [
+											{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["hallway", "lift_lobby"]},
+											{"room": "lift_lobby", "zone": "staff", "cells": 5, "doors": ["hallway", "stair_hall"]}
+										],
+										"cells": 9
+									},
+									{
+										"rooms": [
+											{"room": "bullpen", "zone": "staff", "w": 2, "min": 6, "doors": ["hallway"]},
+											{"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["hallway"]}
+										],
+										"w": 1, "steady": true
+									}
+								]
+							}
 						],
 						"3": [
-							{"rooms": [{"room": "storage", "zone": "staff"}]},
-							{"rooms": [{"room": "hallway", "zone": "staff"}]},
-							{"rooms": [
-								{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["hallway", "lift_lobby"]},
-								{"room": "lift_lobby", "zone": "staff", "cells": 4, "doors": ["hallway", "stair_hall"]},
-								{"room": "content_control", "zone": "staff", "w": 2, "min": 6, "doors": ["hallway"]},
-								{"room": "data_vault", "zone": "secure", "cells": 5, "secret": "citinet", "doors": ["content_control"]},
-								{"room": "bullpen", "zone": "staff", "w": 2, "min": 6, "doors": ["hallway", "meeting"]},
-								{"room": "meeting", "zone": "staff", "w": 1, "min": 4, "doors": ["hallway", "bullpen"]},
-								{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["hallway"]}
-							]}
+							{"rooms": [{"room": "storage", "zone": "staff"}]}, {"rooms": [{"room": "hallway", "zone": "staff"}]},
+							{
+								"rooms": [
+									{
+										"rooms": [
+											{"room": "meeting", "zone": "staff", "w": 1, "min": 4, "doors": ["hallway", "bullpen"]},
+											{"room": "bullpen", "zone": "staff", "w": 2, "min": 6, "doors": ["hallway", "meeting"]}
+										],
+										"w": 1, "steady": true
+									},
+									{
+										"rooms": [
+											{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["hallway", "lift_lobby"]},
+											{"room": "lift_lobby", "zone": "staff", "cells": 5, "doors": ["hallway", "stair_hall"]}
+										],
+										"cells": 9
+									},
+									{
+										"rooms": [
+											{"room": "content_control", "zone": "staff", "w": 2, "min": 6, "doors": ["hallway"]},
+											{"room": "data_vault", "zone": "secure", "cells": 5, "secret": "citinet", "doors": ["content_control"]},
+											{"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["hallway"]}
+										],
+										"w": 1, "steady": true
+									}
+								]
+							}
 						],
 						"4": [
-							{"rooms": [{"room": "storage", "zone": "staff"}]},
-							{"rooms": [{"room": "hallway", "zone": "staff"}]},
-							{"rooms": [
-								{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["hallway", "lift_lobby"]},
-								{"room": "lift_lobby", "zone": "staff", "cells": 4, "doors": ["hallway", "stair_hall"]},
-								{"repeat": {"room": "exec_office", "zone": "staff", "doors": ["hallway"]}, "size": [5, 7], "w": 2.5},
-								{"room": "meeting", "zone": "staff", "w": 1.5, "min": 5, "doors": ["hallway"]},
-								{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["hallway"]}
-							]}
+							{"rooms": [{"room": "storage", "zone": "staff"}]}, {"rooms": [{"room": "hallway", "zone": "staff"}]},
+							{
+								"rooms": [
+									{
+										"rooms": [
+											{"room": "meeting", "zone": "staff", "w": 1, "min": 4, "doors": ["hallway"]},
+											{"room": "exec_office", "zone": "staff", "w": 1.5, "min": 5, "doors": ["hallway"]}
+										],
+										"w": 1, "steady": true
+									},
+									{
+										"rooms": [
+											{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["hallway", "lift_lobby"]},
+											{"room": "lift_lobby", "zone": "staff", "cells": 5, "doors": ["hallway", "stair_hall"]}
+										],
+										"cells": 9
+									},
+									{
+										"rooms": [
+											{"room": "exec_office", "zone": "staff", "w": 1.5, "min": 5, "doors": ["hallway"]},
+											{"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["hallway"]}
+										],
+										"w": 1, "steady": true
+									}
+								]
+							}
 						],
 						"5": [
-							{"rooms": [{"room": "storage", "zone": "staff"}]},
-							{"rooms": [{"room": "storage", "zone": "staff"}]},
-							{"rooms": [
-								{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["lift_lobby", "ceo_suite"]},
-								{"room": "lift_lobby", "zone": "staff", "cells": 4, "doors": ["stair_hall", "ceo_suite"]},
-								{"room": "ceo_suite", "zone": "staff", "w": 3, "min": 9, "doors": ["lift_lobby", "stair_hall", "data_vault"]},
-								{"room": "data_vault", "zone": "secure", "cells": 5, "secret": "citinet", "doors": ["ceo_suite", "stair_hall"]},
-								{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["ceo_suite", "data_vault"]}
-							]}
+							{"rooms": [{"room": "storage", "zone": "staff"}]}, {"rooms": [{"room": "storage", "zone": "staff"}]},
+							{
+								"rooms": [
+									{
+										"rooms": [{"room": "ceo_suite", "zone": "staff", "w": 1, "min": 5, "doors": ["stair_hall"]}], "w": 1,
+										"steady": true
+									},
+									{
+										"rooms": [
+											{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["lift_lobby", "ceo_suite"]},
+											{"room": "lift_lobby", "zone": "staff", "cells": 5, "doors": ["stair_hall", "meeting"]}
+										],
+										"cells": 9
+									},
+									{
+										"rooms": [{"room": "meeting", "zone": "staff", "w": 1, "min": 4, "doors": ["lift_lobby"]}], "w": 1,
+										"steady": true
+									}
+								]
+							}
 						]
 					}
 				},
-				"zones": {"public": {"rotation": ["hallway"]}, "staff": {"rotation": ["office"]}, "secure": {"rotation": ["office"]}, "vault": {"rotation": ["data_vault"]}}
+				"zones": {
+					"public": {"rotation": ["hallway"]}, "staff": {"rotation": ["office"]}, "secure": {"rotation": ["office"]},
+					"vault": {"rotation": ["data_vault"]}
+				},
+				"look": {
+					"wall": {"color": "26324a", "color2": "121a2a", "pattern": 7, "scale": 1.2},
+					"trim": {"color": "c8a050", "glow": 0.7, "emit": "ffb030"},
+					"roof": {"color": "77736a", "color2": "55524b", "pattern": 4, "scale": 0.6}, "roof_mark": "none", "terrace_lights": "ffc040",
+					"crown": "ffc040", "sign": "4fd8ff"
+				}
 			},
 			"fire_station": {
-				"base": "chop_shop",
-				"name": "Ziggurat fire and EMS station",
-				"massing": {}, "shapes": {"rect": 1}, "exterior": 1, "windows": 0.4, "networked": false,
-				"layout": {"algorithm": "program", "loops": 0.2, "enter": ["vehicle_bay"], "service": ["crew_quarters"], "stair_in": ["storage"],
-					"program": {"ground": [{"w": 1, "rooms": [
-						{"room": "vehicle_bay", "zone": "public", "w": 2.4, "min": 7},
-						{"stack": [
-							{"room": "dispatch_office", "zone": "staff", "w": 1, "min": 3, "doors": ["vehicle_bay", "crew_quarters"]},
-							{"room": "crew_quarters", "zone": "staff", "w": 1.4, "min": 4, "doors": ["dispatch_office", "vehicle_bay"]}
-						], "w": 1.5, "min": 5}
-					]}]}
-				}
+				"base": "chop_shop", "name": "Ziggurat fire and EMS station", "massing": {}, "shapes": {"rect": 1}, "exterior": 1, "windows": 0.4,
+				"networked": false,
+				"layout": {
+					"algorithm": "program", "loops": 0.2, "enter": ["vehicle_bay"], "service": ["crew_quarters"], "stair_in": ["storage"],
+					"program": {
+						"ground": [
+							{
+								"w": 1,
+								"rooms": [
+									{"room": "vehicle_bay", "zone": "public", "w": 2.4, "min": 7},
+									{
+										"stack": [
+											{"room": "dispatch_office", "zone": "staff", "w": 1, "min": 3, "doors": ["vehicle_bay", "crew_quarters"]},
+											{
+												"room": "crew_quarters", "zone": "staff", "w": 1.4, "min": 4,
+												"doors": ["dispatch_office", "vehicle_bay"]
+											}
+										],
+										"w": 1.5, "min": 5
+									}
+								]
+							}
+						]
+					}
+				},
+				"look": {"wall": {"color": "8a2a24", "color2": "4a1814", "pattern": 7}, "trim": "d8d4c8"}
 			}
 		},
 		"posts": [
@@ -245,125 +425,215 @@
 			{"where": "room:lift_lobby", "part": "main", "kind": "lift", "count": [1, 1]}
 		],
 		"key_rooms": {
-			"main": ["lobby", "net_museum", "auditorium", "security_post", "vehicle_bay", "workshop", "lab", "content_control", "bullpen", "exec_office", "ceo_suite", "data_vault", "lift_lobby", "terrace"],
+			"main": [
+				"lobby", "net_museum", "auditorium", "security_post", "vehicle_bay", "workshop", "lab", "content_control", "bullpen", "exec_office",
+				"ceo_suite", "data_vault", "lift_lobby", "terrace"
+			],
 			"fire_station": ["vehicle_bay", "crew_quarters"]
 		},
 		"anchors": {
-			"assassinate": {"ceo_suite": 150, "exec_office": 90},
-			"rescue": {"security_office": 90, "storage": 70, "exec_office": 40},
-			"snatch": {"ceo_suite": 120, "content_control": 90},
-			"sabotage": {"server_room": 150, "content_control": 100}
+			"assassinate": {"ceo_suite": 150, "exec_office": 90}, "rescue": {"security_office": 90, "storage": 70, "exec_office": 40},
+			"snatch": {"ceo_suite": 120, "content_control": 90}, "sabotage": {"server_room": 150, "content_control": 100}
 		},
 		"rules": {"public_access": true, "civilians": 6},
 		"todo": [
-			"The tower's curve is stepped: each step back is a terrace (the engine builds on a square grid).",
 			"Tech squads rolling out of the bays as a response (NC2045 p.78) and the fire/EMS station answering an alarm: no responder hook for them yet; the station is a neutral building.",
-			"Public tours: the crew passes as visitors on the public floor and the plaza only while no alarm is up (public_access); no disguise or visible-weapon checks yet."
+			"Public tours: the crew passes as visitors on the public floor and the plaza only while no alarm is up (public_access); no disguise or visible-weapon checks yet.",
+			"The curve is a stepped pyramid on the square grid: the front and both ends set back (two squares a side a storey, the front band at floor 4), the back stays sheer; one central stair and the lift (a second stair would need a second core)."
 		],
-		"look": {"tags": ["corporate_glass", "stepped_curve_terraces", "plaza", "data_pool_screens"]},
+		"look": {
+			"tags": ["corporate_glass", "stepped_ziggurat", "gold_setback_bands", "lit_terraces", "crowning_spire", "plaza", "data_pool_screens"]
+		},
 		"cite": "NC2045 p.78",
-		"_why": "Book (NC2045 p.78, Upper Marina #40): Ziggurat's global HQ, a curved megastructure towering over the district, Security Code 10 Ziggurat Security Hardened Heavy. Vertical zoning as printed: the lower floors are bays for the repair and service vehicle fleet and the tech squads who work out of them (vehicle_bay at the back of the ground floor with its own service door, the squads' ready room, workshops and dispatch on floor 2); the middle floors hold software and hardware development, CitiNet and Data Pool content control, sales and marketing (lab, server_room, content_control, bullpen, meeting); the most important offices are on the upper floors (exec_office) with CEO UR's executive suite at the highest point of the curve (ceo_suite alone on the top floor); the first floor is open to the public for business and tours of the Ihara-Grubb Net Museum, with a large auditorium for press conferences and UR's speeches (net_museum, auditorium, lobby: public_access + civilians, the security post between them and the lifts is the first restricted door); where the CitiNet servers sit is a closely guarded secret (the data_vault is built on one of four floors, drawn per seed, so a data gig has to find it); a private fire and EMS company in a separate facility at the base of the tower (the fire_station annex beside it). Ours: the curve is stepped back floor by floor from the street side so the top storey sits over the back of the building (terraces on the steps), the plaza, the security post and lift lobby as the first restricted door, the band layout and room sizes."
+		"_why": "Book (NC2045 p.78, Upper Marina #40): Ziggurat's global HQ, a curved megastructure towering over the district, Security Code 10 Ziggurat Security Hardened Heavy. Vertical zoning as printed: the lower floors are bays for the repair and service vehicle fleet and the tech squads who work out of them (vehicle_bay at the back of the ground floor with its own service door, the squads' ready room, workshops and dispatch on floor 2); the middle floors hold software and hardware development, CitiNet and Data Pool content control, sales and marketing (lab, server_room, content_control, bullpen, meeting); the most important offices are on the upper floors (exec_office) with CEO UR's executive suite at the highest point of the curve (ceo_suite alone on the top floor); the first floor is open to the public for business and tours of the Ihara-Grubb Net Museum, with a large auditorium for press conferences and UR's speeches (net_museum, auditorium, lobby: public_access + civilians, the security post between them and the lifts is the first restricted door); where the CitiNet servers sit is a closely guarded secret (the data_vault is built on one of four floors, drawn per seed, so a data gig has to find it); a private fire and EMS company in a separate facility at the base of the tower (the fire_station annex beside it). Ours: the curve is a ziggurat (the company's name; the stepped-pyramid tower type): two full podium storeys, then each storey set back on the front and both ends round a central stair-and-lift core (Ching: a stacked core under setbacks), the step roofs planted terraces edged in light, gold banding at every floor line and a lit spire crowning the top storey, the plaza, the security post and lift lobby as the first restricted door, the band layout and room sizes.",
+		"props": [
+			{"where": "top", "part": "main", "piece": "spire", "count": [1, 1], "at": "center"},
+			{"where": "room:terrace", "part": "main", "piece": "planter", "count": [6, 10]},
+			{"where": "room:plaza", "part": "_scene", "piece": "tree", "count": [3, 5]}
+		]
 	},
 
 	"main_port": {
 		"name": "Main Port and Flotsam",
-		"locations": {"port_of_night_city_7": {"target": "freighter"}, "port_of_night_city_5": {"target": "sakata_maru"}},
-		"faction": "thelas_marines",
-		"base": {"scene": "shipyard", "planner": "port"},
-		"params": {"security": 3, "floors": 3, "w": 128, "h": 88, "target": "sakata_maru"},
+		"locations": {"port_of_night_city_7": {"target": "freighter"}, "port_of_night_city_5": {"target": "sakata_maru"}}, "faction": "thelas_marines",
+		"base": {"scene": "shipyard", "planner": "port"}, "params": {"security": 3, "floors": 3, "w": 128, "h": 88, "target": "sakata_maru"},
 		"sites": {
-			"freighter": {"base": "ship", "name": "Freighter at Quays 2-3", "floors": [1, 2],
-				"anchors": {"assassinate": {"crew_quarters": 110, "mess": 70}, "rescue": {"storage": 100, "crew_quarters": 80},
-					"snatch": {"cargo_hold": 140, "storage": 60}, "sabotage": {"cargo_hold": 130, "galley": 60}}},
+			"freighter": {
+				"base": "ship", "name": "Freighter at Quays 2-3", "floors": [1, 2],
+				"anchors": {
+					"assassinate": {"crew_quarters": 110, "mess": 70}, "rescue": {"storage": 100, "crew_quarters": 80},
+					"snatch": {"cargo_hold": 140, "storage": 60}, "sabotage": {"cargo_hold": 130, "galley": 60}
+				},
+				"look": {"wall": {"color": "6a3428", "color2": "3a1e18", "pattern": 8, "scale": 1.0}, "waterline": "2a2a2e"}
+			},
 			"sakata_maru": {
-				"base": "ship",
-				"name": "Sakata Maru (ex-Arasaka munitions ship, Port administration)",
-				"exterior": 2, "windows": 0.25, "armored_windows": true, "levels": 4, "density": 0.3,
+				"base": "ship", "name": "Sakata Maru (ex-Arasaka munitions ship, Port administration)", "exterior": 2, "windows": 0.25,
+				"armored_windows": true, "levels": 4, "density": 0.3,
 				"layout": {
-					"algorithm": "program", "loops": 0.15, "verticality": 1, "stairs": 1, "roof_access": true,
-					"stair_in": ["stair_hall"], "enter": ["gangway_hall"], "service": ["cargo_hold"],
+					"algorithm": "program", "loops": 0.15, "verticality": 1, "stairs": 1, "roof_access": true, "stair_in": ["stair_hall"],
+					"enter": ["gangway_hall"], "service": ["cargo_hold"],
 					"program": {
-						"mirror": false,
-						"keep": {"1": {"u": [0.0, 0.45]}, "2": {"u": [0.0, 0.26]}},
+						"mirror": false, "keep": {"1": {"u": [0.26, 0.6]}, "2": {"u": [0.31, 0.5]}},
 						"ground": [
-							{"w": 1, "min": 4, "rooms": [
-								{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["corridor", "gangway_hall"]},
-								{"room": "gangway_hall", "zone": "public", "cells": 6, "doors": ["corridor", "stair_hall"]},
-								{"room": "mess", "zone": "staff", "w": 1.5, "min": 5, "doors": ["corridor"]},
-								{"room": "armory", "zone": "secure", "w": 1, "min": 5, "doors": ["corridor"]},
-								{"room": "cargo_hold", "zone": "staff", "w": 3, "min": 8, "doors": ["corridor"]}
-							]},
+							{
+								"w": 1, "min": 4,
+								"rooms": [
+									{
+										"rooms": [
+											{"room": "cargo_hold", "zone": "staff", "w": 2.5, "min": 6, "doors": ["corridor"]},
+											{"room": "armory", "zone": "staff", "w": 1, "min": 4, "doors": ["corridor"]}
+										],
+										"w": 0.36, "steady": true
+									},
+									{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["corridor", "gangway_hall"]},
+									{
+										"rooms": [
+											{"room": "gangway_hall", "zone": "public", "cells": 6, "doors": ["corridor", "stair_hall"]},
+											{"room": "mess", "zone": "staff", "w": 1.5, "min": 5, "doors": ["corridor"]},
+											{"room": "armory", "zone": "secure", "w": 1, "min": 4, "doors": ["corridor"]},
+											{"room": "cargo_hold", "zone": "staff", "w": 3, "min": 8, "doors": ["corridor"]}
+										],
+										"w": 0.64, "steady": true
+									}
+								]
+							},
 							{"cells": 2, "rooms": [{"room": "corridor", "zone": "staff"}]},
-							{"w": 1, "min": 4, "rooms": [
-								{"room": "engine_room", "zone": "staff", "w": 1.6, "min": 6, "doors": ["corridor"]},
-								{"repeat": {"room": "crew_quarters", "zone": "staff", "doors": ["corridor"]}, "size": [4, 6], "w": 1.5},
-								{"room": "armory", "zone": "staff", "w": 1, "min": 4, "doors": ["corridor"]},
-								{"room": "cargo_hold", "zone": "staff", "w": 2.5, "min": 7, "doors": ["corridor"]}
-							]}
+							{
+								"w": 1, "min": 4,
+								"rooms": [
+									{"room": "engine_room", "zone": "staff", "w": 1.6, "min": 6, "doors": ["corridor"]},
+									{"repeat": {"room": "crew_quarters", "zone": "staff", "doors": ["corridor"]}, "size": [4, 6], "w": 1.5},
+									{"room": "armory", "zone": "staff", "w": 1, "min": 4, "doors": ["corridor"]},
+									{"room": "cargo_hold", "zone": "staff", "w": 2.5, "min": 7, "doors": ["corridor"]}
+								]
+							}
 						],
 						"1": [
-							{"rooms": [
-								{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["corridor"]},
-								{"room": "bullpen", "zone": "staff", "w": 2, "min": 5, "doors": ["corridor"]},
-								{"room": "office", "zone": "staff", "w": 1, "min": 4, "doors": ["corridor"]},
-								{"room": "storage", "zone": "staff"}
-							]},
+							{
+								"rooms": [
+									{"rooms": [{"room": "storage", "zone": "staff"}], "w": 0.36, "steady": true},
+									{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["corridor"]},
+									{
+										"rooms": [
+											{"room": "bullpen", "zone": "staff", "w": 2, "min": 5, "doors": ["corridor"]},
+											{"room": "office", "zone": "staff", "w": 1, "min": 4, "doors": ["corridor"]},
+											{"room": "storage", "zone": "staff", "w": 3}
+										],
+										"w": 0.64, "steady": true
+									}
+								]
+							},
 							{"rooms": [{"room": "corridor", "zone": "staff"}]},
-							{"rooms": [
-								{"room": "exec_office", "zone": "staff", "w": 1.5, "min": 5, "doors": ["corridor"]},
-								{"room": "office", "zone": "staff", "w": 1, "min": 4, "doors": ["corridor"]},
-								{"room": "security_office", "zone": "staff", "w": 1, "min": 4, "doors": ["corridor"]},
-								{"room": "storage", "zone": "staff"}
-							]}
+							{
+								"rooms": [
+									{"rooms": [{"room": "storage", "zone": "staff"}], "w": 0.27, "steady": true},
+									{
+										"rooms": [
+											{"room": "exec_office", "zone": "staff", "w": 1.5, "min": 5, "doors": ["corridor"]},
+											{"room": "office", "zone": "staff", "w": 1, "min": 4, "doors": ["corridor"]},
+											{"room": "security_office", "zone": "staff", "w": 1, "min": 4, "doors": ["corridor"]}
+										],
+										"w": 0.33, "steady": true
+									},
+									{"rooms": [{"room": "storage", "zone": "staff"}], "w": 0.4, "steady": true}
+								]
+							}
 						],
 						"2": [
-							{"rooms": [
-								{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["corridor", "bridge"]},
-								{"room": "bridge", "zone": "staff", "w": 2, "min": 5, "doors": ["corridor", "stair_hall"]}
-							]},
+							{
+								"rooms": [
+									{"rooms": [{"room": "storage", "zone": "staff"}], "w": 0.36, "steady": true},
+									{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["corridor", "bridge"]},
+									{
+										"rooms": [
+											{"room": "bridge", "zone": "staff", "w": 2, "min": 4, "doors": ["corridor", "stair_hall"]},
+											{"room": "storage", "zone": "staff", "w": 3}
+										],
+										"w": 0.64, "steady": true
+									}
+								]
+							},
 							{"rooms": [{"room": "corridor", "zone": "staff"}]},
-							{"rooms": [
-								{"room": "comms_room", "zone": "secure", "w": 1, "min": 4, "doors": ["corridor"]},
-								{"room": "security_office", "zone": "staff", "w": 1, "min": 4, "doors": ["corridor"]}
-							]}
+							{
+								"rooms": [
+									{"rooms": [{"room": "storage", "zone": "staff"}], "w": 0.31, "steady": true},
+									{
+										"rooms": [
+											{"room": "comms_room", "zone": "secure", "w": 1, "min": 3, "doors": ["corridor"]},
+											{"room": "security_office", "zone": "staff", "w": 1, "min": 3, "doors": ["corridor"]}
+										],
+										"w": 0.19, "steady": true
+									},
+									{"rooms": [{"room": "storage", "zone": "staff"}], "w": 0.5, "steady": true}
+								]
+							}
 						]
 					}
 				},
-				"zones": {"public": {"rotation": ["gangway_hall"]}, "staff": {"rotation": ["crew_quarters"]}, "secure": {"rotation": ["armory"]}, "vault": {"rotation": ["armory"]}}
+				"zones": {
+					"public": {"rotation": ["gangway_hall"]}, "staff": {"rotation": ["crew_quarters"]}, "secure": {"rotation": ["armory"]},
+					"vault": {"rotation": ["armory"]}
+				},
+				"look": {
+					"wall": {"color": "5c646c", "color2": "3a4048", "pattern": 7, "scale": 0.8}, "trim": "454b52",
+					"roof": {"color": "40464c", "color2": "2c3035", "pattern": 4, "scale": 0.9}, "waterline": "7a2a22", "roof_mark": "none"
+				}
 			},
 			"rose": {
-				"base": "ship",
-				"name": "The Rose (submarine, Thelas comms hub and the Pilots' Club)",
-				"exterior": 2, "windows": 0.0, "levels": 3, "density": 0.3,
-				"layout": {"algorithm": "program", "loops": 0.3, "verticality": 1, "enter": ["bar"], "service": ["crew_quarters"], "stair_in": ["storage"],
-					"program": {"mirror": false, "ground": [{"w": 1, "rooms": [
-						{"room": "crew_quarters", "zone": "staff", "w": 1.2, "min": 4, "doors": ["bar"]},
-						{"room": "bar", "zone": "public", "w": 2, "min": 6},
-						{"room": "comms_room", "zone": "staff", "w": 1.6, "min": 5, "doors": ["bar", "server_room"]},
-						{"room": "server_room", "zone": "secure", "w": 1, "min": 4, "doors": ["comms_room"]}
-					]}]}
+				"base": "ship", "name": "The Rose (submarine, Thelas comms hub and the Pilots' Club)", "exterior": 2, "windows": 0.0, "levels": 3,
+				"density": 0.3,
+				"layout": {
+					"algorithm": "program", "loops": 0.3, "verticality": 1, "enter": ["bar"], "service": ["crew_quarters"], "stair_in": ["storage"],
+					"program": {
+						"mirror": false,
+						"ground": [
+							{
+								"w": 1,
+								"rooms": [
+									{"room": "crew_quarters", "zone": "staff", "w": 1.2, "min": 4, "doors": ["bar"]},
+									{"room": "bar", "zone": "public", "w": 2, "min": 6},
+									{"room": "comms_room", "zone": "staff", "w": 1.6, "min": 5, "doors": ["bar", "server_room"]},
+									{"room": "server_room", "zone": "secure", "w": 1, "min": 4, "doors": ["comms_room"]}
+								]
+							}
+						]
+					}
 				},
-				"zones": {"public": {"rotation": ["bar"]}, "staff": {"rotation": ["comms_room"]}, "secure": {"rotation": ["server_room"]}, "vault": {"rotation": ["server_room"]}}
+				"zones": {
+					"public": {"rotation": ["bar"]}, "staff": {"rotation": ["comms_room"]}, "secure": {"rotation": ["server_room"]},
+					"vault": {"rotation": ["server_room"]}
+				}
 			},
 			"lund": {
-				"base": "ship",
-				"name": "OGV Lund (container hulk, still being salvaged)",
-				"decay": 0.25, "density": 0.45, "net_chance": 0.0, "networked": false, "windows": 0.1,
-				"layout": {"algorithm": "bsp", "min_room": 6, "max_room": 14, "corridor_depth": 1},
-				"zones": {"public": {"entrance": "gangway_hall", "rotation": ["cargo_hold"]}, "staff": {"rotation": ["cargo_hold", "cargo_hold", "storage"]}, "secure": {"rotation": ["cargo_hold"]}, "vault": {"rotation": ["cargo_hold"]}}
+				"base": "ship", "name": "OGV Lund (container hulk, still being salvaged)", "decay": 0.25, "density": 0.45, "net_chance": 0.0,
+				"networked": false, "windows": 0.1, "layout": {"algorithm": "bsp", "min_room": 6, "max_room": 14, "corridor_depth": 1},
+				"zones": {
+					"public": {"entrance": "gangway_hall", "rotation": ["cargo_hold"]}, "staff": {"rotation": ["cargo_hold", "cargo_hold", "storage"]},
+					"secure": {"rotation": ["cargo_hold"]}, "vault": {"rotation": ["cargo_hold"]}
+				}
 			},
 			"drone_hangar": {
-				"base": "warehouse",
-				"name": "Quay 4 cargo-drone hangar and control",
-				"massing": {}, "shapes": {"rect": 1}, "exterior": 2, "windows": 0.2,
-				"layout": {"algorithm": "program", "loops": 0.2, "enter": ["drone_hangar"], "service": ["storage"], "stair_in": ["storage"],
-					"program": {"ground": [{"w": 1, "rooms": [
-						{"room": "drone_hangar", "zone": "staff", "w": 3, "min": 9},
-						{"stack": [
-							{"room": "control_room", "zone": "staff", "w": 1.2, "min": 4, "doors": ["drone_hangar"]},
-							{"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["drone_hangar"]}
-						], "w": 1.3, "min": 5}
-					]}]}
+				"base": "warehouse", "name": "Quay 4 cargo-drone hangar and control", "massing": {}, "shapes": {"rect": 1}, "exterior": 2,
+				"windows": 0.2,
+				"layout": {
+					"algorithm": "program", "loops": 0.2, "enter": ["drone_hangar"], "service": ["storage"], "stair_in": ["storage"],
+					"program": {
+						"ground": [
+							{
+								"w": 1,
+								"rooms": [
+									{"room": "drone_hangar", "zone": "staff", "w": 3, "min": 9},
+									{
+										"stack": [
+											{"room": "control_room", "zone": "staff", "w": 1.2, "min": 4, "doors": ["drone_hangar"]},
+											{"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["drone_hangar"]}
+										],
+										"w": 1.3, "min": 5
+									}
+								]
+							}
+						]
+					}
 				}
 			},
 			"kelong": {"base": "shack", "name": "Kelong (float house)"}
@@ -374,20 +644,19 @@
 		],
 		"props": [
 			{"where": "deck", "part": "sakata_maru", "piece": "aa_gun", "count": [2, 3]},
+			{"where": "deck", "part": "sakata_maru", "piece": "turret", "count": [2, 2]},
+			{"where": "top", "part": "sakata_maru", "piece": "mast", "count": [1, 1], "at": "center"},
+			{"where": "top", "part": "sakata_maru", "piece": "funnel", "count": [1, 1]},
 			{"where": "roof", "part": "lund", "piece": "container", "count": [6, 10]}
 		],
 		"key_rooms": {
-			"sakata_maru": ["gangway_hall", "bridge", "exec_office", "bullpen", "armory", "engine_room", "terrace"],
-			"rose": ["bar", "comms_room"],
-			"freighter": ["cargo_hold"],
-			"drone_hangar": ["drone_hangar", "control_room"],
+			"sakata_maru": ["gangway_hall", "bridge", "exec_office", "bullpen", "armory", "engine_room", "terrace"], "rose": ["bar", "comms_room"],
+			"freighter": ["cargo_hold"], "drone_hangar": ["drone_hangar", "control_room"],
 			"_scene": ["quay", "container_yard", "construction_site", "float"]
 		},
 		"anchors": {
-			"assassinate": {"exec_office": 150, "bridge": 90},
-			"rescue": {"crew_quarters": 110, "security_office": 120, "cargo_hold": 90},
-			"snatch": {"armory": 130, "cargo_hold": 70, "exec_office": 50},
-			"sabotage": {"engine_room": 150, "bridge": 90, "control_room": 120}
+			"assassinate": {"exec_office": 150, "bridge": 90}, "rescue": {"crew_quarters": 110, "security_office": 120, "cargo_hold": 90},
+			"snatch": {"armory": 130, "cargo_hold": 70, "exec_office": 50}, "sabotage": {"engine_room": 150, "bridge": 90, "control_room": 120}
 		},
 		"rules": {"civilians": 0},
 		"todo": [
@@ -395,8 +664,884 @@
 			"Flotsam's shifting geography (ships come and go daily) is the per-seed layout of the floats; no boats to steal or sail.",
 			"Quay depths, the rail link to the Yard and the dry dock are flavour (rail ground, a construction site); no tide or crane-operation rules."
 		],
-		"look": {"tags": ["harbour_night_shift", "floodlights", "rust_and_steel", "kelongs"]},
-		"cite": "NC2045 p.153-154",
-		"_why": "Book (NC2045 p.153-154, Port of Night City #5 Flotsam and #7 Main Port; both Security Code 10 Thelas Marines Hardened Heavy). Main Port as printed: Quay 1 hand-offloaded (pallets and crates, no cranes), Quays 2 and 3 for bulk cargo with two container cranes each and rail to the Yard (four cranes, a rail strip, the container yard, the freighter moored there), Quay 4 the newest with cranes plus a dedicated hangar and control facility for cargo drones (drone_hangar with its control room), Quay 5 about half built (a construction site at the end of the quay). Flotsam as printed: small ships, kelongs, pontoon docks and floats anchored to three wrecks in the bay: the OGV Lund (a war-adrift container ship, under 2,000 of its 5,000 containers salvaged: a decayed hulk with containers on deck), the Rose (an old submarine, the heart of Thelas communications run by Netrunners, home of the tug pilots' club: comms_room, server_room, the Pilots' Club bar) and the Sakata Maru (once an Arasaka munitions and transport ship, now the Port's administration centre with Calypso's office and senior management, retrofitted with anti-aircraft weapons: the admin superstructure with bullpen, offices and Calypso's exec_office, the bridge above, the old magazines kept as armories, AA gun mounts on the open deck). The Main Port location targets the freighter, Flotsam the Sakata Maru. Ours: one map for both (Flotsam lies in the bay off the quays, joined to the port by a long float walkway), the quay order west to east, the bow taper, the superstructure aft, the kelongs' positions and the fenced port gate on the road."
+		"look": {"tags": ["harbour_night_shift", "floodlights", "rust_and_steel", "kelongs", "haze_grey_warship"]}, "cite": "NC2045 p.153-154",
+		"_why": "Book (NC2045 p.153-154, Port of Night City #5 Flotsam and #7 Main Port; both Security Code 10 Thelas Marines Hardened Heavy). Main Port as printed: Quay 1 hand-offloaded (pallets and crates, no cranes), Quays 2 and 3 for bulk cargo with two container cranes each and rail to the Yard (four cranes, a rail strip, the container yard, the freighter moored there), Quay 4 the newest with cranes plus a dedicated hangar and control facility for cargo drones (drone_hangar with its control room), Quay 5 about half built (a construction site at the end of the quay). Flotsam as printed: small ships, kelongs, pontoon docks and floats anchored to three wrecks in the bay: the OGV Lund (a war-adrift container ship, under 2,000 of its 5,000 containers salvaged: a decayed hulk with containers on deck), the Rose (an old submarine, the heart of Thelas communications run by Netrunners, home of the tug pilots' club: comms_room, server_room, the Pilots' Club bar) and the Sakata Maru (once an Arasaka munitions and transport ship, now the Port's administration centre with Calypso's office and senior management, retrofitted with anti-aircraft weapons: the admin superstructure with bullpen, offices and Calypso's exec_office, the bridge above, the old magazines kept as armories, AA gun mounts on the open deck). The Main Port location targets the freighter, Flotsam the Sakata Maru. Ours: one map for both (Flotsam lies in the bay off the quays, joined to the port by a long float walkway), the quay order west to east, the Sakata Maru dressed as the warship she was built as (haze-grey hull with a red boot-top at the waterline, a long raked bow, the stepped superstructure amidships with the bridge at its front, a lattice mast and funnel on top, a gun turret on the fore and after decks beside the AA mounts), the kelongs' positions and the fenced port gate on the road."
+	},
+
+	"norcal_potentilla": {
+		"name": "The Potentilla (NorCal Military Base)", "locations": {"norcal_military_base_13": {}}, "faction": "estero_bay_military_cog",
+		"base": {"scene": "lone_building", "planner": "compound"}, "params": {"security": 3, "floors": 2},
+		"compound": {
+			"margin": 4, "ground": "concrete", "zone": "staff", "yard": "compound_yard", "wall_mat": 1, "booth": true,
+			"court": {"w": [14, 16], "d": [12, 14], "kind": "courtyard", "ground": "grass", "zone": "staff"},
+			"buildings": [
+				{"part": "main", "at": [0, -1], "w": [20, 24], "d": [11, 13], "floors": 2, "gap": [3, 4]},
+				{"part": "navy_hq", "at": [1, 0], "w": [13, 15], "d": [10, 11], "floors": 2, "gap": [3, 4]},
+				{"part": "air_hq", "at": [-1, 0], "w": [13, 15], "d": [10, 11], "floors": 2, "gap": [3, 4]},
+				{"part": "armor_hq", "at": [0.62, 1], "w": [12, 14], "d": [10, 11], "floors": 2, "gap": [3, 4]},
+				{"part": "engineer_hq", "at": [-0.62, 1], "w": [12, 14], "d": [10, 11], "floors": 2, "gap": [3, 4]}
+			],
+			"dress": [
+				{"piece": "planter", "count": [6, 9], "area": "court"}, {"piece": "tree", "count": [3, 5], "area": "court"},
+				{"piece": "barrier", "count": [5, 8], "area": "yard"}, {"piece": "sandbags", "count": [3, 5], "area": "yard"}
+			]
+		},
+		"sites": {
+			"main": {
+				"base": "corp_office", "name": "Potentilla: intelligence and drone operations", "massing": {}, "shapes": {"rect": 1}, "exterior": 1,
+				"windows": 0.3, "armored_windows": true, "levels": 4, "net_chance": 1.0, "density": 0.35,
+				"layout": {
+					"algorithm": "program", "loops": 0.15, "verticality": 1, "stairs": 2, "roof_access": true, "stair_in": ["stair_hall"],
+					"enter": ["lobby"], "service": ["corridor"],
+					"program": {
+						"ground": [
+							{
+								"w": 1, "min": 4,
+								"rooms": [
+									{"room": "meeting", "zone": "staff", "w": 1.2, "min": 4, "doors": ["lobby"]},
+									{"room": "lobby", "zone": "staff", "w": 1.4, "min": 5},
+									{"room": "security_post", "zone": "staff", "cells": 5, "doors": ["lobby", "corridor"]},
+									{"room": "office", "zone": "staff", "w": 1, "min": 4, "doors": ["corridor"]}
+								]
+							},
+							{"cells": 2, "rooms": [{"room": "corridor", "zone": "staff"}]},
+							{
+								"w": 1, "min": 4,
+								"rooms": [
+									{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["corridor"]},
+									{"room": "control_room", "zone": "staff", "w": 2, "min": 5, "doors": ["corridor"]},
+									{"room": "server_room", "zone": "secure", "w": 1.2, "min": 4, "doors": ["corridor", "control_room"]},
+									{"room": "armory", "zone": "staff", "w": 1, "min": 4, "doors": ["corridor"]},
+									{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["corridor"]}
+								]
+							}
+						],
+						"upper": [
+							{
+								"rooms": [
+									{"room": "ops_center", "zone": "staff", "w": 2.5, "min": 6, "doors": ["corridor"]},
+									{"room": "office", "zone": "staff", "w": 1, "min": 4, "doors": ["corridor"]},
+									{"room": "exec_office", "zone": "staff", "w": 1.2, "min": 4, "doors": ["corridor"]}
+								]
+							},
+							{"rooms": [{"room": "corridor", "zone": "staff"}]},
+							{
+								"rooms": [
+									{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["corridor"]},
+									{"room": "archive", "zone": "staff", "w": 1.5, "min": 4, "doors": ["corridor"]},
+									{"room": "data_vault", "zone": "secure", "cells": 5, "doors": ["corridor"]},
+									{"room": "security_office", "zone": "staff", "w": 1, "min": 4, "doors": ["corridor"]},
+									{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["corridor"]}
+								]
+							}
+						]
+					}
+				},
+				"zones": {
+					"public": {"rotation": ["hallway"]}, "staff": {"rotation": ["office"]}, "secure": {"rotation": ["storage"]},
+					"vault": {"rotation": ["data_vault"]}
+				},
+				"look": {
+					"wall": {"color": "6a6c60", "color2": "3e4036", "pattern": 7, "scale": 0.9}, "trim": "8a8c7e",
+					"roof": {"color": "4a4c44", "color2": "33352e", "pattern": 4, "scale": 0.7}, "roof_mark": "none", "sign": "ff3030"
+				}
+			},
+			"navy_hq": {
+				"base": "corp_office", "name": "Potentilla: Task Force 384 HQ", "massing": {}, "shapes": {"rect": 1}, "exterior": 1, "windows": 0.35,
+				"armored_windows": true, "levels": 3, "net_chance": 0.5,
+				"look": {
+					"wall": {"color": "6a6c60", "color2": "3e4036", "pattern": 7, "scale": 0.9}, "trim": "8a8c7e",
+					"roof": {"color": "4a4c44", "color2": "33352e", "pattern": 4, "scale": 0.7}, "roof_mark": "none"
+				}
+			},
+			"air_hq": {
+				"base": "corp_office", "name": "Potentilla: 157th Tactical Air Squadron HQ", "massing": {}, "shapes": {"rect": 1}, "exterior": 1,
+				"windows": 0.35, "armored_windows": true, "levels": 3, "net_chance": 0.5,
+				"look": {
+					"wall": {"color": "6a6c60", "color2": "3e4036", "pattern": 7, "scale": 0.9}, "trim": "8a8c7e",
+					"roof": {"color": "4a4c44", "color2": "33352e", "pattern": 4, "scale": 0.7}, "roof_mark": "none"
+				}
+			},
+			"armor_hq": {
+				"base": "corp_office", "name": "Potentilla: 223rd Battalion HQ", "massing": {}, "shapes": {"rect": 1}, "exterior": 1, "windows": 0.35,
+				"armored_windows": true, "levels": 3, "net_chance": 0.5,
+				"look": {
+					"wall": {"color": "6a6c60", "color2": "3e4036", "pattern": 7, "scale": 0.9}, "trim": "8a8c7e",
+					"roof": {"color": "4a4c44", "color2": "33352e", "pattern": 4, "scale": 0.7}, "roof_mark": "none"
+				}
+			},
+			"engineer_hq": {
+				"base": "corp_office", "name": "Potentilla: 120.8th Engineer Battalion HQ", "massing": {}, "shapes": {"rect": 1}, "exterior": 1,
+				"windows": 0.35, "armored_windows": true, "levels": 3, "net_chance": 0.5,
+				"look": {
+					"wall": {"color": "6a6c60", "color2": "3e4036", "pattern": 7, "scale": 0.9}, "trim": "8a8c7e",
+					"roof": {"color": "4a4c44", "color2": "33352e", "pattern": 4, "scale": 0.7}, "roof_mark": "none"
+				}
+			}
+		},
+		"posts": [
+			{"where": "room:security_post", "part": "main", "kind": "checkpoint", "count": [1, 1]},
+			{"where": "roof", "part": "main", "kind": "lookout", "count": [1, 2], "weapon": "assault_rifle", "cover": "sandbags"},
+			{"where": "room:courtyard", "part": "_scene", "kind": "honour_guard", "count": [1, 1]}
+		],
+		"props": [
+			{"where": "room:courtyard", "part": "_scene", "piece": "columbarium", "count": [1, 1], "at": "center"},
+			{"where": "room:compound_yard", "part": "_scene", "piece": "flagpole", "count": [1, 2]}
+		],
+		"key_rooms": {
+			"main": ["lobby", "security_post", "control_room", "server_room", "ops_center", "archive", "exec_office", "data_vault", "roof"],
+			"navy_hq": ["roof"], "air_hq": ["roof"], "armor_hq": ["roof"], "engineer_hq": ["roof"], "_scene": ["courtyard", "compound_yard"]
+		},
+		"anchors": {
+			"assassinate": {"exec_office": 140, "ops_center": 90}, "rescue": {"security_office": 110, "meeting": 60},
+			"snatch": {"archive": 130, "armory": 110}, "sabotage": {"server_room": 150, "control_room": 130}
+		},
+		"rules": {"civilians": 0},
+		"todo": [
+			"The compound sinking underground on its elevators (NC2045 p.184): no lockdown event yet; it would end the gig or seal the petals.",
+			"The rest of the base: the Main Gate (the only way in for outsiders, MP credential checks; p.182) as an approach map or a disguise check, MP escorts for visitors (p.181), the airfield, the Motor Pool's tanks and ACPA (p.183).",
+			"Four petals are other units' HQs built from the plain office site; only the intelligence petal has a program. Each could get its own (the 157th's flight ops, the 223rd's armour, Task Force 384's naval ops)."
+		],
+		"look": {"tags": ["military_concrete", "five_petals", "memorial_courtyard", "realgrass", "flagpoles", "perimeter_wall"]},
+		"cite": "NC2045 p.178-185",
+		"_why": "Book (NC2045 p.184, NorCal Military Base #13): the Potentilla, Security Code 11 COG MPs Hardened Heavy, named for its shape: five buildings set like a flower's petals round a central courtyard; four are the headquarters of Task Force 384, the 157th Tactical Air Squadron, the 223rd Battalion and the 120.8th Engineer Battalion, the fifth holds the smaller units on base, among them a military intelligence group and a drone operations unit (the target petal, at the head of the flower: control_room for drone ops, ops_center, server_room, archive and the data vault for intelligence); the courtyard holds the base memorial, a small columbarium (the columbarium prop at its middle, an honour guard posted by it); the compound is fortified (a concrete perimeter wall, a gate with its guard booth, an MP checkpoint at the petal's door). Why this part of the base (p.178-185 lists 17 sites): the Main Gate is one gatehouse and a visitor lot (p.182), a doorway rather than a map; the airfield, Motor Pool and docks are wide open ground; the Potentilla is the base's brain (its listed gigs are data theft and sabotage), and five buildings round an open court give a crew several approaches, a killing ground in the middle and objectives that can sit in any petal. Ours: the petals' sizes and their places round the court (head petal north, two at the sides, two flanking the gate path), the Biotechnica Realgrass court (the base's parade ground uses it, p.184), the drone/intel petal's rooms, the flagpoles, and the base's COG soldiers holding the posts (the location's owner)."
+	},
+
+	"maxtac_hq": {
+		"name": "MAX-TAC Headquarters", "locations": {"south_night_city_9": {}}, "faction": "maxtac",
+		"base": {"scene": "lone_building", "planner": "compound"}, "params": {"security": 3, "floors": 3},
+		"compound": {
+			"margin": 4, "ground": "concrete", "zone": "staff", "yard": "compound_yard", "wall_mat": 1, "booth": true,
+			"court": {"w": [12, 14], "d": [10, 12], "kind": "courtyard", "ground": "grass", "zone": "secure"},
+			"buildings": [
+				{"part": "main", "at": [0, -1], "w": [22, 26], "d": [10, 12], "floors": 2, "gap": 3},
+				{"part": "west_tower", "at": [-1, 0], "w": [12, 13], "d": [11, 12], "floors": 3, "gap": 3},
+				{"part": "east_tower", "at": [1, 0], "w": [12, 13], "d": [12, 13], "floors": 2, "gap": 3},
+				{"part": "barracks", "at": [0, 1], "w": [22, 26], "d": [9, 10], "floors": 2, "gap": 3, "entry": "S"}
+			],
+			"dress": [
+				{"piece": "planter", "count": [10, 14], "area": "court"}, {"piece": "tree", "count": [2, 3], "area": "court"},
+				{"piece": "barrier", "count": [5, 8], "area": "yard"}, {"piece": "car", "count": [2, 3], "area": "yard"}
+			]
+		},
+		"sites": {
+			"main": {
+				"base": "corp_office", "name": "MAX-TAC HQ: offices, intelligence and comms", "massing": {}, "shapes": {"rect": 1}, "exterior": 1,
+				"windows": 0.25, "armored_windows": true, "levels": 4, "net_chance": 1.0, "density": 0.35,
+				"layout": {
+					"algorithm": "program", "loops": 0.15, "verticality": 1, "stairs": 2, "roof_access": true, "stair_in": ["stair_hall"],
+					"enter": ["lobby"], "service": ["hallway"],
+					"program": {
+						"ground": [
+							{
+								"w": 1, "min": 4,
+								"rooms": [
+									{"room": "comms_room", "zone": "staff", "w": 1.5, "min": 4, "doors": ["hallway"]},
+									{"room": "lobby", "zone": "staff", "cells": 5},
+									{"room": "meeting", "zone": "staff", "w": 1.5, "min": 4, "doors": ["hallway", "lobby"]},
+									{"room": "recovery", "zone": "staff", "w": 1.5, "min": 4, "doors": ["hallway"]}
+								]
+							},
+							{"cells": 2, "rooms": [{"room": "hallway", "zone": "staff"}]},
+							{
+								"w": 1, "min": 4,
+								"rooms": [
+									{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["hallway"]},
+									{"room": "ops_center", "zone": "staff", "w": 2.5, "min": 6, "doors": ["hallway"]},
+									{"room": "server_room", "zone": "secure", "w": 1.2, "min": 4, "doors": ["hallway", "ops_center"]},
+									{"room": "archive", "zone": "staff", "w": 1, "min": 3, "doors": ["hallway"]},
+									{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["hallway"]}
+								]
+							}
+						],
+						"upper": [
+							{
+								"rooms": [
+									{"room": "exec_office", "zone": "staff", "w": 1.5, "min": 5, "doors": ["hallway"]},
+									{"room": "office", "zone": "staff", "w": 1.5, "min": 4, "doors": ["hallway"]},
+									{"room": "meeting", "zone": "staff", "w": 1, "min": 4, "doors": ["hallway"]},
+									{"room": "office", "zone": "staff", "w": 1, "min": 4, "doors": ["hallway"]}
+								]
+							},
+							{"rooms": [{"room": "hallway", "zone": "staff"}]},
+							{
+								"rooms": [
+									{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["hallway"]},
+									{"room": "workshop", "zone": "staff", "w": 2, "min": 5, "doors": ["hallway"]},
+									{"room": "data_vault", "zone": "secure", "cells": 5, "doors": ["hallway"]},
+									{"room": "security_office", "zone": "staff", "w": 1, "min": 4, "doors": ["hallway"]},
+									{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["hallway"]}
+								]
+							}
+						]
+					}
+				},
+				"zones": {
+					"public": {"rotation": ["hallway"]}, "staff": {"rotation": ["office"]}, "secure": {"rotation": ["storage"]},
+					"vault": {"rotation": ["data_vault"]}
+				},
+				"look": {
+					"wall": {"color": "34363a", "color2": "1e2024", "pattern": 7}, "trim": {"color": "ffcc00", "glow": 0.4, "emit": "ffcc00"},
+					"crenels": true, "sign": "ffcc00", "roof_mark": "none"
+				}
+			},
+			"west_tower": {
+				"base": "corp_office", "name": "MAX-TAC HQ west tower (armory)", "massing": {}, "shapes": {"rect": 1}, "exterior": 1, "windows": 0.1,
+				"armored_windows": true, "levels": 4, "net_chance": 0.5,
+				"layout": {
+					"algorithm": "program", "loops": 0.1, "verticality": 1, "stairs": 1, "roof_access": true, "stair_in": ["stair_hall"],
+					"enter": ["security_post"], "service": ["storage"],
+					"program": {
+						"ground": [
+							{
+								"w": 1, "min": 4,
+								"rooms": [
+									{"room": "security_post", "zone": "staff", "cells": 5},
+									{"room": "armory", "zone": "staff", "w": 2, "min": 5, "doors": ["security_post", "corridor"]}
+								]
+							},
+							{"cells": 2, "rooms": [{"room": "corridor", "zone": "staff"}]},
+							{
+								"w": 1, "min": 4,
+								"rooms": [
+									{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["corridor"]},
+									{"room": "gun_range", "zone": "staff", "w": 2.5, "min": 6, "doors": ["corridor"]},
+									{"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["corridor"]}
+								]
+							}
+						],
+						"upper": [
+							{
+								"rooms": [
+									{"room": "armory", "zone": "staff", "w": 2, "min": 5, "doors": ["corridor"]},
+									{"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["corridor"]}
+								]
+							},
+							{"rooms": [{"room": "corridor", "zone": "staff"}]},
+							{
+								"rooms": [
+									{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["corridor"]},
+									{"room": "crew_quarters", "zone": "staff", "w": 2, "min": 5, "doors": ["corridor"]},
+									{"room": "gym", "zone": "staff", "w": 1.5, "min": 4, "doors": ["corridor"]}
+								]
+							}
+						]
+					}
+				},
+				"zones": {
+					"public": {"rotation": ["hallway"]}, "staff": {"rotation": ["office"]}, "secure": {"rotation": ["storage"]},
+					"vault": {"rotation": ["data_vault"]}
+				},
+				"look": {
+					"wall": {"color": "2e3034", "color2": "1a1c20", "pattern": 7}, "trim": {"color": "ffcc00", "glow": 0.4, "emit": "ffcc00"},
+					"crenels": true, "roof_mark": "none"
+				}
+			},
+			"east_tower": {
+				"base": "corp_office", "name": "MAX-TAC HQ east tower (vehicles, AVs, repair bays)", "massing": {}, "shapes": {"rect": 1},
+				"exterior": 2, "windows": 0.1, "levels": 3, "net_chance": 0.3,
+				"layout": {
+					"algorithm": "program", "loops": 0.2, "verticality": 1, "stairs": 1, "roof_access": true, "stair_in": ["stair_hall"],
+					"enter": ["vehicle_bay"], "service": ["workshop"],
+					"program": {
+						"ground": [
+							{
+								"w": 1.4, "min": 6,
+								"rooms": [
+									{"room": "vehicle_bay", "zone": "staff", "w": 3, "min": 7},
+									{"room": "workshop", "zone": "staff", "w": 1.5, "min": 4, "doors": ["vehicle_bay"]}
+								]
+							},
+							{
+								"w": 1, "min": 4,
+								"rooms": [
+									{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["vehicle_bay", "storage"]},
+									{"room": "vehicle_bay", "zone": "staff", "w": 2, "min": 5, "doors": ["vehicle_bay", "workshop"]},
+									{"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["vehicle_bay"]}
+								]
+							}
+						],
+						"upper": [
+							{
+								"rooms": [
+									{"room": "workshop", "zone": "staff", "w": 2, "min": 5, "doors": ["dispatch_office"]},
+									{"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["workshop"]}
+								]
+							},
+							{
+								"rooms": [
+									{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["dispatch_office", "workshop"]},
+									{"room": "dispatch_office", "zone": "staff", "w": 1.5, "min": 4, "doors": ["workshop", "stair_hall"]},
+									{"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["workshop"]}
+								]
+							}
+						]
+					}
+				},
+				"zones": {
+					"public": {"rotation": ["hallway"]}, "staff": {"rotation": ["office"]}, "secure": {"rotation": ["storage"]},
+					"vault": {"rotation": ["data_vault"]}
+				},
+				"look": {
+					"wall": {"color": "3a3e44", "color2": "22262a", "pattern": 8}, "trim": {"color": "ffcc00", "glow": 0.4, "emit": "ffcc00"},
+					"crenels": true, "pads": true, "roof_mark": "none"
+				}
+			},
+			"barracks": {
+				"base": "corp_office", "name": "MAX-TAC HQ south wing (front desk, barracks, training)", "massing": {}, "shapes": {"rect": 1},
+				"exterior": 1, "windows": 0.25, "armored_windows": true, "levels": 3, "net_chance": 0.4,
+				"layout": {
+					"algorithm": "program", "loops": 0.15, "verticality": 1, "stairs": 2, "roof_access": true, "stair_in": ["stair_hall"],
+					"enter": ["lobby"], "service": ["hallway"],
+					"program": {
+						"ground": [
+							{
+								"w": 1, "min": 4,
+								"rooms": [
+									{"room": "interview", "zone": "staff", "w": 1, "min": 3, "doors": ["hallway"]},
+									{"room": "lobby", "zone": "public", "cells": 6},
+									{"room": "waiting", "zone": "public", "w": 1.5, "min": 4, "doors": ["lobby"]},
+									{"room": "gym", "zone": "staff", "w": 2, "min": 5, "doors": ["hallway"]}
+								]
+							},
+							{"cells": 2, "rooms": [{"room": "hallway", "zone": "staff"}]},
+							{
+								"w": 1, "min": 4,
+								"rooms": [
+									{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["hallway"]},
+									{"room": "crew_quarters", "zone": "staff", "w": 2, "min": 5, "doors": ["hallway"]},
+									{"room": "restroom", "zone": "staff", "cells": 3, "doors": ["hallway"]},
+									{"room": "gun_range", "zone": "staff", "w": 2, "min": 5, "doors": ["hallway"]},
+									{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["hallway"]}
+								]
+							}
+						],
+						"upper": [
+							{"rooms": [{"repeat": {"room": "crew_quarters", "zone": "staff", "doors": ["hallway"]}, "size": [4, 6], "w": 1}]},
+							{"rooms": [{"room": "hallway", "zone": "staff"}]},
+							{
+								"rooms": [
+									{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["hallway"]},
+									{"room": "break_room", "zone": "staff", "w": 1.5, "min": 4, "doors": ["hallway"]},
+									{"room": "crew_quarters", "zone": "staff", "w": 2, "min": 5, "doors": ["hallway"]},
+									{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["hallway"]}
+								]
+							}
+						]
+					}
+				},
+				"zones": {
+					"public": {"rotation": ["hallway"]}, "staff": {"rotation": ["office"]}, "secure": {"rotation": ["storage"]},
+					"vault": {"rotation": ["data_vault"]}
+				},
+				"look": {
+					"wall": {"color": "34363a", "color2": "1e2024", "pattern": 7}, "trim": {"color": "ffcc00", "glow": 0.4, "emit": "ffcc00"},
+					"crenels": true, "sign": "ffcc00", "roof_mark": "none"
+				}
+			}
+		},
+		"posts": [
+			{"where": "roof", "part": "west_tower", "kind": "sniper", "count": [1, 2], "weapon": "sniper_rifle", "cover": "sandbags"},
+			{"where": "room:security_post", "part": "west_tower", "kind": "checkpoint", "count": [1, 1]},
+			{"where": "room:lobby", "part": "barracks", "kind": "front_desk", "count": [1, 1]}
+		],
+		"props": [{"where": "roof", "part": "east_tower", "piece": "av", "count": [1, 2]}],
+		"key_rooms": {
+			"main": ["lobby", "comms_room", "ops_center", "server_room", "recovery", "exec_office", "workshop", "data_vault"],
+			"west_tower": ["armory", "gun_range", "crew_quarters"], "east_tower": ["vehicle_bay", "workshop", "dispatch_office"],
+			"barracks": ["lobby", "crew_quarters", "gym"], "_scene": ["courtyard", "compound_yard"]
+		},
+		"anchors": {
+			"assassinate": {"exec_office": 150, "ops_center": 80}, "rescue": {"security_office": 110, "recovery": 90},
+			"snatch": {"archive": 120, "workshop": 90}, "sabotage": {"server_room": 150, "comms_room": 130}
+		},
+		"rules": {"civilians": 0},
+		"todo": [
+			"AVs on the east tower's pads are cover and set dressing: a MAX-TAC AV launching as the response (p.144) isn't tied to the pads yet.",
+			"The castle's curtain wall is solid wall a storey high (perimeter fence material: concrete); no wall-walk to stand on.",
+			"Hammerman tending his roses: no named NPC in the garden."
+		],
+		"look": {"tags": ["fortress", "crenellated_wings", "curtain_wall", "hidden_rose_garden", "yellow_trim", "av_pads"], "wall_crenels": true},
+		"cite": "NC2045 p.144-145",
+		"_why": "Book (NC2045 p.144-145, South Night City #9): MAX-TAC's headquarters, Security Code 11 MAX-TAC Hardened Heavy: a fortified castle with a protected, hidden garden at its centre, where Hammerman is said to tend roses himself (the courtyard, walled in by the four wings, its planters the roses; zoned secure, so only reached through the gaps between the wings); the east tower holds the vehicles from Gorgon security vans to Herakles AVs plus repair bays (east_tower: vehicle bays and a workshop on the ground floor, a workshop and dispatch above, AVs parked on its roof pads); the west tower one of the best armories outside the NorCal base (west_tower, three storeys: a checkpoint, armories, a gun range, ready rooms); between them meeting rooms, intelligence posts, communication centres, clinics, tech workshops, training, offices and barracks (the north wing, the target: comms, ops_center for intelligence, a clinic's recovery room, offices, Hammerman's exec_office, a workshop and the server room; the south wing on the street: front desk, interview room, gym, gun range and barracks). Ours: the castle as four crenellated wings round the garden inside a crenellated curtain wall with one gate and its booth, which wing holds what between the towers, the yellow trim (MAX-TAC's livery), snipers on the armory tower."
+	},
+
+	"trauma_team_tower": {
+		"name": "Trauma Team Tower", "locations": {"watson_development_32": {}}, "faction": "trauma_team",
+		"base": {"scene": "lone_building", "planner": "plot"}, "params": {"security": 3, "floors": 6},
+		"plot": {
+			"margin": 3, "front": [7, 9], "fence": false, "yard": "plaza",
+			"dress": [{"piece": "planter", "count": [5, 8], "area": "front"}, {"piece": "barrier", "count": [4, 6], "area": "front"}]
+		},
+		"sites": {
+			"main": {
+				"base": "corp_hq", "name": "Trauma Team Tower", "footprint": {"w": [32, 36], "d": [23, 25]}, "floors": [6, 6], "exterior": 1,
+				"windows": 0.45, "armored_windows": true, "levels": 4, "net_chance": 1.0, "density": 0.3, "massing": {}, "shapes": {"rect": 1},
+				"layout": {
+					"algorithm": "program", "loops": 0.1, "verticality": 2, "stairs": 1, "roof_access": true, "stair_in": ["stair_hall"],
+					"lift_in": ["lift_lobby"], "enter": ["lobby"], "service": ["dispatch_office"],
+					"program": {
+						"keep": {
+							"2": {"u": [0.05, 0.95]}, "3": {"bands": [1, 2], "u": [0.08, 0.92]}, "4": {"bands": [1, 2], "u": [0.14, 0.86]},
+							"5": {"bands": [2, 2], "u": [0.18, 0.82]}
+						},
+						"ground": [
+							{
+								"cells": 8,
+								"rooms": [
+									{"room": "clinic_waiting", "zone": "public", "w": 2.5, "min": 7, "doors": ["lobby"]},
+									{"room": "lobby", "zone": "public", "w": 2, "min": 6},
+									{"room": "surgery", "zone": "staff", "w": 2, "min": 6, "doors": ["lobby", "hallway"]},
+									{"room": "restroom", "zone": "public", "cells": 3, "doors": ["lobby"]}
+								]
+							},
+							{"cells": 3, "rooms": [{"room": "hallway", "zone": "staff"}]},
+							{
+								"w": 1, "min": 9,
+								"rooms": [
+									{
+										"rooms": [
+											{"room": "exec_office", "zone": "staff", "w": 1, "min": 4, "doors": ["dispatch_office"]},
+											{
+												"room": "dispatch_office", "zone": "staff", "w": 1.6, "min": 5,
+												"doors": ["stair_hall", "exec_office", "control_room"]
+											},
+											{"room": "control_room", "zone": "staff", "w": 1, "min": 4, "doors": ["dispatch_office"]}
+										],
+										"w": 1, "steady": true
+									},
+									{
+										"rooms": [
+											{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["lift_lobby", "dispatch_office"]},
+											{"room": "lift_lobby", "zone": "staff", "cells": 5, "doors": ["stair_hall", "security_post"]}
+										],
+										"cells": 9
+									},
+									{
+										"rooms": [
+											{"room": "security_post", "zone": "staff", "cells": 5, "doors": ["hallway", "lift_lobby"]},
+											{"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["hallway"]},
+											{"room": "cold_store", "zone": "staff", "w": 1, "min": 3, "doors": ["hallway"]}
+										],
+										"w": 1, "steady": true
+									}
+								]
+							}
+						],
+						"1": [
+							{
+								"rooms": [
+									{"room": "surgery", "zone": "staff", "w": 2, "min": 6, "doors": ["hallway"]},
+									{"room": "recovery", "zone": "staff", "w": 2, "min": 6, "doors": ["hallway"]},
+									{"room": "lab", "zone": "staff", "w": 1.5, "min": 5, "doors": ["hallway"]}
+								]
+							},
+							{"rooms": [{"room": "hallway", "zone": "staff"}]},
+							{
+								"rooms": [
+									{
+										"rooms": [
+											{"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["hallway"]},
+											{"room": "recovery", "zone": "staff", "w": 2, "min": 5, "doors": ["hallway"]}
+										],
+										"w": 1, "steady": true
+									},
+									{
+										"rooms": [
+											{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["hallway", "lift_lobby"]},
+											{"room": "lift_lobby", "zone": "staff", "cells": 5, "doors": ["hallway", "stair_hall"]}
+										],
+										"cells": 9
+									},
+									{
+										"rooms": [
+											{"room": "surgery", "zone": "staff", "w": 1.5, "min": 5, "doors": ["hallway"]},
+											{"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["hallway"]}
+										],
+										"w": 1, "steady": true
+									}
+								]
+							}
+						],
+						"2": [
+							{
+								"rooms": [
+									{"room": "recovery", "zone": "staff", "w": 2, "min": 6, "doors": ["hallway"]},
+									{"room": "suite", "zone": "staff", "w": 2, "min": 6, "doors": ["hallway"]},
+									{"room": "recovery", "zone": "staff", "w": 2, "min": 6, "doors": ["hallway"]}
+								]
+							},
+							{"rooms": [{"room": "hallway", "zone": "staff"}]},
+							{
+								"rooms": [
+									{
+										"rooms": [
+											{"room": "cold_store", "zone": "staff", "w": 1, "min": 3, "doors": ["hallway"]},
+											{"room": "lab", "zone": "staff", "w": 1.5, "min": 5, "doors": ["hallway"]}
+										],
+										"w": 1, "steady": true
+									},
+									{
+										"rooms": [
+											{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["hallway", "lift_lobby"]},
+											{"room": "lift_lobby", "zone": "staff", "cells": 5, "doors": ["hallway", "stair_hall"]}
+										],
+										"cells": 9
+									},
+									{
+										"rooms": [
+											{"room": "server_room", "zone": "secure", "w": 1.5, "min": 4, "doors": ["hallway"]},
+											{"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["hallway"]}
+										],
+										"w": 1, "steady": true
+									}
+								]
+							}
+						],
+						"3": [
+							{"rooms": [{"room": "storage", "zone": "staff"}]}, {"rooms": [{"room": "hallway", "zone": "staff"}]},
+							{
+								"rooms": [
+									{
+										"rooms": [{"room": "vehicle_bay", "zone": "staff", "w": 1, "min": 5, "doors": ["hallway"]}], "w": 1,
+										"steady": true
+									},
+									{
+										"rooms": [
+											{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["hallway", "lift_lobby"]},
+											{"room": "lift_lobby", "zone": "staff", "cells": 5, "doors": ["hallway", "stair_hall"]}
+										],
+										"cells": 9
+									},
+									{
+										"rooms": [{"room": "vehicle_bay", "zone": "staff", "w": 1, "min": 5, "doors": ["hallway"]}], "w": 1,
+										"steady": true
+									}
+								]
+							}
+						],
+						"4": [
+							{"rooms": [{"room": "storage", "zone": "staff"}]}, {"rooms": [{"room": "hallway", "zone": "staff"}]},
+							{
+								"rooms": [
+									{
+										"rooms": [{"room": "crew_quarters", "zone": "staff", "w": 1, "min": 4, "doors": ["hallway"]}], "w": 1,
+										"steady": true
+									},
+									{
+										"rooms": [
+											{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["hallway", "lift_lobby"]},
+											{"room": "lift_lobby", "zone": "staff", "cells": 5, "doors": ["hallway", "stair_hall"]}
+										],
+										"cells": 9
+									},
+									{"rooms": [{"room": "workshop", "zone": "staff", "w": 1, "min": 4, "doors": ["hallway"]}], "w": 1, "steady": true}
+								]
+							}
+						],
+						"5": [
+							{"rooms": [{"room": "storage", "zone": "staff"}]}, {"rooms": [{"room": "storage", "zone": "staff"}]},
+							{
+								"rooms": [
+									{
+										"rooms": [{"room": "control_room", "zone": "staff", "w": 1, "min": 4, "doors": ["stair_hall"]}], "w": 1,
+										"steady": true
+									},
+									{
+										"rooms": [
+											{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["lift_lobby", "control_room"]},
+											{"room": "lift_lobby", "zone": "staff", "cells": 5, "doors": ["stair_hall", "comms_room"]}
+										],
+										"cells": 9
+									},
+									{
+										"rooms": [{"room": "comms_room", "zone": "staff", "w": 1, "min": 4, "doors": ["lift_lobby"]}], "w": 1,
+										"steady": true
+									}
+								]
+							}
+						]
+					}
+				},
+				"zones": {
+					"public": {"rotation": ["hallway"]}, "staff": {"rotation": ["office"]}, "secure": {"rotation": ["storage"]},
+					"vault": {"rotation": ["data_vault"]}
+				},
+				"look": {
+					"wall": {"color": "d4dade", "color2": "98a2a8", "pattern": 7, "scale": 1.1},
+					"trim": {"color": "2a8cff", "glow": 0.8, "emit": "2a8cff"},
+					"roof": {"color": "5a6066", "color2": "3a3e44", "pattern": 4, "scale": 0.6}, "roof_mark": "none", "terrace_lights": "2a8cff",
+					"pads": true, "sign": "2a8cff"
+				}
+			}
+		},
+		"posts": [
+			{"where": "room:security_post", "part": "main", "kind": "checkpoint", "count": [1, 1]},
+			{"where": "room:lift_lobby", "part": "main", "kind": "lift", "count": [1, 1]},
+			{"where": "room:terrace", "part": "main", "kind": "pad_guard", "count": [1, 2]}
+		],
+		"props": [{"where": "room:terrace", "part": "main", "piece": "av", "count": [2, 3]}],
+		"key_rooms": {
+			"main": [
+				"lobby", "clinic_waiting", "surgery", "recovery", "lab", "dispatch_office", "exec_office", "security_post", "vehicle_bay", "workshop",
+				"control_room", "lift_lobby", "terrace"
+			],
+			"_scene": ["plaza"]
+		},
+		"anchors": {
+			"assassinate": {"exec_office": 150, "recovery": 90}, "rescue": {"recovery": 120, "surgery": 80}, "snatch": {"lab": 120, "cold_store": 110},
+			"sabotage": {"control_room": 150, "dispatch_office": 130}
+		},
+		"rules": {"public_access": true, "civilians": 4},
+		"todo": [
+			"Dispatch and the executive offices are in the subbasement in the book: no storeys below the street, so they sit behind the security post at the back of the ground floor.",
+			"AVs on the launch pads are cover and set dressing; a squad launching from its bay as the response, and the air-control tower directing it, aren't modelled.",
+			"Every Trauma Team employee armed on duty (p.196): the medtechs and pilots on the roster carry guns; no unarmed hospital staff to tell apart."
+		],
+		"look": {"tags": ["hospital_white", "tt_blue_trim", "stepped_launch_terraces", "landing_pads", "parked_avs", "air_control_top"]},
+		"cite": "NC2045 p.195-196",
+		"_why": "Book (NC2045 p.195, Watson Development #32): Trauma Team Tower, Security Code 10 Lazarus Hardened Heavy (Lazarus guards it, p.196: every Trauma Team employee is also armed on duty), the base of the Night City rapid-response teams and the regional HQ for the Pacifica Confederation. Facilities as printed: an exclusive client-only hospital (ground-floor client reception and an ER intake, surgeries, recovery wards, labs, a cold store and private suites on floors 2-3: public_access only in the reception), AV maintenance and launch bays for each squad (the tower steps back above the hospital and each step is a launch terrace with a pad and a parked AV, the squads' bays opening onto it on floor 4, their ready room and the maintenance workshop on floor 5), a tactical air control tower (the set-back top storey: control_room and comms_room), and dispatch and the executive offices buried in the subbasement, where the operators run the response (dispatch_office, control_room and exec_office behind the security post at the back of the ground floor: no basements, see todo). Ours: the stepped massing round a central core, white walls with TT-blue trim, pads lit in blue."
+	},
+
+	"totentanz": {
+		"name": "Totentanz (Burleson Tower)", "locations": {"hot_zone_11": {}}, "faction": "maelstrom",
+		"base": {"scene": "lone_building", "planner": "plot"}, "params": {"security": 3, "floors": 5},
+		"plot": {
+			"margin": 3, "front": [8, 10], "fence": false, "yard": "rubble_field", "zone": "staff", "ground": "concrete",
+			"approach": {"kind": "plaza", "zone": "public", "w": 3},
+			"dress": [
+				{"piece": "rubble", "count": [8, 12], "area": "lot"}, {"piece": "wreck", "count": [3, 5], "area": "lot"},
+				{"piece": "barrel", "count": [4, 6], "area": "front"}
+			]
+		},
+		"sites": {
+			"main": {
+				"base": "club", "name": "Totentanz (Burleson Tower)", "footprint": {"w": [26, 30], "d": [21, 23]}, "floors": [5, 5], "exterior": 1,
+				"windows": 0.3, "levels": 4, "net_chance": 1.0, "density": 0.4, "decay": 0.15, "massing": {}, "shapes": {"rect": 1},
+				"layout": {
+					"algorithm": "program", "loops": 0.2, "verticality": 1, "stairs": 1, "roof_access": true, "stair_in": ["stair_hall"],
+					"enter": ["foyer"], "service": ["backstage"],
+					"program": {
+						"keep": {"3": {"u": [0.0, 0.78]}, "4": {"u": [0.0, 0.5]}},
+						"ground": [
+							{
+								"cells": 9,
+								"rooms": [
+									{"room": "restroom", "zone": "public", "cells": 3, "doors": ["foyer"]},
+									{"room": "foyer", "zone": "public", "cells": 5, "doors": ["dance_floor", "bar"]},
+									{"room": "dance_floor", "zone": "public", "w": 3, "min": 9, "doors": ["foyer", "bar"]},
+									{"room": "bar", "zone": "public", "w": 2, "min": 6, "doors": ["dance_floor", "corridor"]}
+								]
+							},
+							{"cells": 2, "rooms": [{"room": "corridor", "zone": "staff"}]},
+							{
+								"w": 1, "min": 6,
+								"rooms": [
+									{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["corridor"]},
+									{"room": "security_office", "zone": "staff", "cells": 5, "doors": ["corridor"]},
+									{"room": "backstage", "zone": "staff", "w": 2, "min": 5, "doors": ["corridor"]},
+									{"room": "vip_lounge", "zone": "staff", "w": 2, "min": 5, "doors": ["corridor"]},
+									{"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["corridor"]}
+								]
+							}
+						],
+						"upper": [
+							{
+								"rooms": [
+									{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["corridor"]},
+									{"room": "crash_room", "zone": "staff", "w": 2, "min": 5, "doors": ["corridor"]},
+									{"room": "hangout", "zone": "staff", "w": 2, "min": 5, "doors": ["corridor"]},
+									{"room": "workshop", "zone": "staff", "w": 2, "min": 5, "doors": ["corridor"]},
+									{"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["corridor"]}
+								]
+							},
+							{"rooms": [{"room": "corridor", "zone": "staff"}]},
+							{
+								"rooms": [
+									{"room": "armory", "zone": "staff", "w": 1.5, "min": 4, "doors": ["corridor"]},
+									{"room": "crash_room", "zone": "staff", "w": 2, "min": 5, "doors": ["corridor"]},
+									{"room": "stash", "zone": "staff", "w": 1, "min": 3, "doors": ["corridor"]},
+									{"room": "squat_room", "zone": "staff", "w": 2, "min": 4, "doors": ["corridor"]}
+								]
+							}
+						],
+						"3": [
+							{
+								"rooms": [
+									{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["corridor"]},
+									{"room": "boss_room", "zone": "staff", "w": 2, "min": 6, "doors": ["corridor"]},
+									{"room": "hangout", "zone": "staff", "w": 1.5, "min": 4, "doors": ["corridor"]},
+									{"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["corridor"]}
+								]
+							},
+							{"rooms": [{"room": "corridor", "zone": "staff"}]},
+							{
+								"rooms": [
+									{"room": "armory", "zone": "staff", "w": 1.2, "min": 4, "doors": ["corridor"]},
+									{"room": "stash", "zone": "staff", "w": 1, "min": 3, "doors": ["corridor"]},
+									{"room": "crash_room", "zone": "staff", "w": 2, "min": 4, "doors": ["corridor"]}
+								]
+							}
+						],
+						"4": [
+							{
+								"rooms": [
+									{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["corridor"]},
+									{"room": "squat_room", "zone": "staff", "w": 1, "min": 4, "doors": ["corridor"]}
+								]
+							},
+							{"rooms": [{"room": "corridor", "zone": "staff"}]},
+							{
+								"rooms": [
+									{"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["corridor"]},
+									{"room": "squat_room", "zone": "staff", "w": 1, "min": 4, "doors": ["corridor"]}
+								]
+							}
+						]
+					}
+				},
+				"zones": {
+					"public": {"rotation": ["dance_floor"]}, "staff": {"rotation": ["crash_room"]}, "secure": {"rotation": ["stash"]},
+					"vault": {"rotation": ["boss_room"]}
+				},
+				"look": {
+					"wall": {"color": "4a4542", "color2": "2a2624", "pattern": 7, "scale": 1.0}, "trim": "2a2224",
+					"roof": {"color": "2c2a2a", "color2": "1a1818", "pattern": 4}, "graffiti": 0.5, "sign": "ff2a2a"
+				}
+			}
+		},
+		"posts": [
+			{"where": "room:foyer", "part": "main", "kind": "bouncer", "count": [1, 1]},
+			{"where": "room:rubble_field", "part": "_scene", "kind": "lookout", "count": [2, 3], "spread": true},
+			{"where": "roof", "part": "main", "kind": "lookout", "count": [1, 2], "weapon": "assault_rifle", "cover": "sandbags"}
+		],
+		"props": [{"where": "room:terrace", "part": "main", "piece": "rubble", "count": [3, 6]}],
+		"key_rooms": {
+			"main": ["foyer", "dance_floor", "bar", "vip_lounge", "backstage", "security_office", "boss_room", "armory", "stash", "terrace"],
+			"_scene": ["rubble_field", "plaza"]
+		},
+		"anchors": {
+			"assassinate": {"boss_room": 140, "vip_lounge": 110}, "rescue": {"security_office": 100, "storage": 70},
+			"snatch": {"stash": 130, "armory": 100}, "sabotage": {"workshop": 120, "security_office": 90}
+		},
+		"rules": {"public_access": true, "civilians": 8},
+		"todo": [
+			"Inside is neutral ground: the bouncers keep the peace on the club floor and the danger starts out of their sight (p.94). The engine has the half of it it can: the club floor and the path from the street are public (the crew passes as patrons until an alarm), the ruins round the tower are Maelstrom's; it has no rule yet that keeps a fight off the dance floor after the alarm.",
+			"Burleson Tower is held up by Maelstrom's repairs: the broken top two storeys are set back and the walls breached (decay); no collapse rules.",
+			"Patrons come to bargain for tech and drugs (p.94): no trading with them."
+		],
+		"look": {"burn_barrels": true, "tags": ["damaged_tower", "maelstrom_red", "gang_tags", "rubble_lot", "neon_sign", "broken_top"]},
+		"cite": "NC2045 p.94",
+		"_why": "Book (NC2045 p.94, Hot Zone #11): Totentanz, Security Code 9 Maelstrom Hardened Heavy, the Hot Zone's 'castle': the club and its home, the damaged Burleson Tower, which Maelstrom rescued, keeps standing, guards from looters and runs; they fight anyone trying to rehab the blocks around it. No cover charge, dim lights, the Armageddon in a rusty can; mostly peaceful inside, Warlock wants people to come and bargain; once you leave and are out of the bouncers' sight, anyone you angered may shank you. So: the club on the ground floor is public (foyer with a bouncer posted, dance floor, bar; public_access with a crowd of patrons, the civilians), the approach from the street to the door is a public plaza, the rubble lots round the tower are Maelstrom's staff ground with lookouts posted in them, and the tower above is theirs (crash rooms, workshops, an armory, stashes, Warlock's boss_room on the fourth floor). Ours: the tower's size and five storeys, the broken top (the upper two storeys stand on part of the plan, their roofs rubble-strewn terraces), breached walls (decay), the red Maelstrom tags and neon sign, lookouts on the roof."
+	},
+
+	"eurasiabank_plaza": {
+		"name": "Eurasiabank Plaza (the sunken bank)", "locations": {"hot_zone_6": {}}, "faction": "maelstrom",
+		"base": {"scene": "lone_building", "planner": "plot"}, "params": {"security": 2, "floors": 3},
+		"plot": {
+			"margin": 5, "front": [9, 11], "fence": false, "yard": "rubble_field", "zone": "staff", "ground": "gravel",
+			"dress": [
+				{"piece": "rubble", "count": [10, 16], "area": "lot"}, {"piece": "boulder", "count": [4, 7], "area": "lot"},
+				{"piece": "wreck", "count": [2, 4], "area": "front"}, {"piece": "barrel", "count": [5, 8], "area": "lot"}
+			]
+		},
+		"sites": {
+			"main": {
+				"base": "bank", "name": "Eurasiabank (the sunken tower)", "footprint": {"w": [30, 34], "d": [21, 24]}, "floors": [3, 3], "exterior": 1,
+				"windows": 0.15, "levels": 3, "net_chance": 1.0, "density": 0.45, "decay": 0.45, "massing": {}, "shapes": {"rect": 1},
+				"layout": {
+					"algorithm": "program", "loops": 0.3, "verticality": 1, "stairs": 1, "roof_access": true, "stair_in": ["stair_hall"],
+					"enter": ["banking_hall"], "service": ["storage", "archive"],
+					"program": {
+						"keep": {"1": {"u": [0.0, 0.82]}, "2": {"bands": [0, 1], "u": [0.0, 0.55]}},
+						"ground": [
+							{
+								"w": 1, "min": 7,
+								"rooms": [
+									{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["banking_hall", "corridor"]},
+									{"room": "banking_hall", "zone": "staff", "w": 3, "min": 9, "doors": ["corridor", "counting_room"]},
+									{"room": "counting_room", "zone": "staff", "w": 1.4, "min": 4, "doors": ["banking_hall", "bank_vault"]},
+									{"room": "bank_vault", "zone": "staff", "cells": 6, "doors": ["counting_room", "corridor"]}
+								]
+							},
+							{"cells": 2, "rooms": [{"room": "corridor", "zone": "staff"}]},
+							{
+								"w": 1, "min": 6,
+								"rooms": [
+									{"room": "bank_vault", "zone": "staff", "w": 1.5, "min": 4, "doors": ["corridor"]},
+									{"room": "archive", "zone": "staff", "w": 2, "min": 5, "doors": ["corridor"]},
+									{"room": "server_room", "zone": "staff", "w": 1.5, "min": 4, "doors": ["corridor"]},
+									{"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["corridor"]}
+								]
+							}
+						],
+						"1": [
+							{
+								"rooms": [
+									{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["corridor"]},
+									{"room": "archive", "zone": "staff", "w": 2, "min": 5, "doors": ["corridor"]},
+									{"room": "office", "zone": "staff", "w": 1.5, "min": 4, "doors": ["corridor"]},
+									{"room": "server_room", "zone": "staff", "w": 1.5, "min": 4, "doors": ["corridor"]}
+								]
+							},
+							{"rooms": [{"room": "corridor", "zone": "staff"}]},
+							{
+								"rooms": [
+									{"room": "archive", "zone": "staff", "w": 2, "min": 5, "doors": ["corridor"]},
+									{"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["corridor"]},
+									{"room": "office", "zone": "staff", "w": 1, "min": 4, "doors": ["corridor"]}
+								]
+							}
+						],
+						"2": [
+							{
+								"rooms": [
+									{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["corridor"]},
+									{"room": "squat_room", "zone": "staff", "w": 2, "min": 5, "doors": ["corridor"]},
+									{"room": "stash", "zone": "staff", "w": 1, "min": 3, "doors": ["corridor"]}
+								]
+							},
+							{"rooms": [{"room": "corridor", "zone": "staff"}]},
+							{
+								"rooms": [
+									{"room": "squat_room", "zone": "staff", "w": 2, "min": 4, "doors": ["corridor"]},
+									{"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["corridor"]}
+								]
+							}
+						]
+					}
+				},
+				"zones": {
+					"public": {"rotation": ["banking_hall"]}, "staff": {"rotation": ["archive"]}, "secure": {"rotation": ["bank_vault"]},
+					"vault": {"rotation": ["bank_vault"]}
+				},
+				"look": {
+					"wall": {"color": "4c4c48", "color2": "2a2a28", "pattern": 7, "scale": 0.9}, "trim": "3a3a36",
+					"roof": {"color": "3a3834", "color2": "26241f", "pattern": 5, "scale": 1.4}, "graffiti": 0.25,
+					"flooded": ["banking_hall", "bank_vault", "counting_room", "archive", "server_room", "corridor"]
+				}
+			}
+		},
+		"posts": [
+			{"where": "roof", "part": "main", "kind": "lookout", "count": [1, 2], "cover": "sandbags"},
+			{"where": "room:rubble_field", "part": "_scene", "kind": "lookout", "count": [2, 3], "spread": true}
+		],
+		"props": [{"where": "room:terrace", "part": "main", "piece": "rubble", "count": [4, 7]}],
+		"key_rooms": {
+			"main": ["banking_hall", "counting_room", "bank_vault", "archive", "server_room", "squat_room", "terrace"], "_scene": ["rubble_field"]
+		},
+		"anchors": {
+			"assassinate": {"squat_room": 120, "office": 80}, "rescue": {"bank_vault": 120, "storage": 90},
+			"snatch": {"bank_vault": 140, "counting_room": 110}, "sabotage": {"server_room": 130, "stash": 100}
+		},
+		"rules": {"civilians": 0},
+		"todo": [
+			"Six storeys below the plaza (p.93): the engine has no storeys below the street, so the map is the floor of the pit the tower sank into, with the stump's three exposed storeys standing in it; the drowned vaults are the ground floor.",
+			"Partly flooded floors are dressing (standing water over the vault level): no wading or drowning rules yet.",
+			"The Crater (#2, the old Arasaka HQ pit, Reckoner prophets and their 'pure souls') and Dark Zone One (#4, the jamming and the snipers) are other Hot Zone ruins this recipe could serve with their own guards."
+		],
+		"look": {"burn_barrels": true, "tags": ["sunken_ruin", "crater_floor", "flooded_vaults", "rubble", "scavver_tags", "collapsed_top"]},
+		"cite": "NC2045 p.93-95",
+		"_why": "Book (NC2045 p.93, Hot Zone #6): Eurasiabank Plaza, Security Code 2 NCPD Hardened Heavy (a response almost never comes): unlike the towers that toppled or pancaked in the nuke, the bank's tower sank straight down, driving six of its floors underground before its upper half crumbled; scavvers find many sunken floors passable though partly flooded, far more extensive than anyone guessed, and the drowned vaults, server rooms and file stores are deadly to explore; half the doomba trips into the Zone start with a rumour about a bank, and some explorers never come back (rescue anchors in the vaults, snatch anchors on the vault and counting room for the hard currency and gold). Who's there: Maelstrom's Diggers, the gang's Hot Zone scavvers under Ripper, who guards his turf with murderous zeal (p.95; the location has no owner). Ours: the map is the bottom of the pit, a gravel and rubble crater floor round the stump's three exposed storeys (no below-grade storeys: see todo); the vault level is the ground floor with standing water over the banking hall, vaults, file store (archive) and server room; above it the file-store floor and the Diggers' camp (squat rooms, a stash) on the broken top, the collapsed parts of each storey rubble-strewn terraces to climb over, breached walls and holed roofs (decay), lookouts on the stump and in the rubble."
 	}
 }
