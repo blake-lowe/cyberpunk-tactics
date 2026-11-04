@@ -24,7 +24,10 @@ func check_end() -> String:
 
 
 func actions() -> Array[String]:
-	return ["plant"] if not o.planted and not done() and _crew_beside(o.cell) else []
+	var out: Array[String] = []   # typed: a bare [] from a ternary comes back untyped
+	if not o.planted and not done() and _crew_beside(o.cell):
+		out.append("plant")
+	return out
 
 
 ## Set the charge (an Action, next to the machine): it goes off fuse_rounds rounds later.

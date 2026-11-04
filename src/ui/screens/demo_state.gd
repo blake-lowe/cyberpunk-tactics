@@ -87,3 +87,53 @@ static func report(c: Campaign) -> Dictionary:
 		"addicted": [], "episode": false, "humanity_lost": 0})
 	return {"won": true, "gig": {"title": "Retire a Biotechnica manager", "fixer": "Mr. Blue", "security": 2}, "pay": 1500, "ip": 30,
 		"reputation": {a.display_name: 3}, "dead": ["Wraith"], "hurt": [], "episodes": [], "kit_used": ["Flashbang"], "addicted": [], "members": members}
+
+
+## A sample operation offer (operations.json `op_id`) for the demo crew: the first roll with three
+## legs and a park event on, so every part of the job card shows ({} if the recipe makes none).
+static func operation_offer(c: Campaign, op_id: String) -> Dictionary:
+	var keep := c.dice
+	var g := {}
+	for s in range(1, 200):
+		c.dice = Dice.new(s)
+		g = c.operation_offer(op_id, 9)
+		if g.is_empty() or ((g.legs as Array).size() >= 3 and not (g.get("event", {}) as Dictionary).is_empty()):
+			break
+	c.dice = keep
+	if not g.is_empty():
+		g["id"] = "demo-%s" % op_id
+	return g
+
+
+## The demo campaign in the middle of operation `op_id`: its offer taken from the top of the board
+## and the legs before `leg` (0-based) done (greybox --op=<id> --leg=<n>).
+static func operation(c: Campaign, op_id: String, leg := 0) -> Campaign:
+	var g := operation_offer(c, op_id)
+	if g.is_empty():
+		return c
+	c.board.insert(0, g)
+	c.accept(0)
+	for i in clampi(leg, 0, (g.legs as Array).size() - 1):
+		(c.active_gig.done as Array).append(c._leg_summary(i))
+		c.active_gig["present"] = range(c.crew.size())
+		c._enter_leg(i + 1)
+	return c
+
+
+## A sample debrief for an operation ended early: the report() crew with two of three legs done.
+static func operation_report(c: Campaign, op_id: String) -> Dictionary:
+	var rep := report(c)
+	var g := operation_offer(c, op_id)
+	if g.is_empty():
+		return rep
+	var legs: Array = []
+	for l in (g.legs as Array).slice(0, 2):
+		legs.append({"title": String(l.get("leg_title", "")), "line": String(l.get("line", "")), "pay": int(l.get("pay", 0))})
+	rep.gig = g
+	rep.won = false
+	rep["state"] = "won"   # a leg won, then WITHDRAW
+	rep["legs"] = legs
+	rep["leg_count"] = (g.legs as Array).size()
+	rep["event"] = g.get("event", {})
+	rep.pay = legs.reduce(func(t, l): return t + int(l.pay), 0)
+	return rep

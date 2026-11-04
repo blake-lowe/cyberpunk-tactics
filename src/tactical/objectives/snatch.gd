@@ -27,7 +27,10 @@ func check_end() -> String:
 
 
 func actions() -> Array[String]:
-	return ["grab"] if int(o.carrier) < 0 and _crew_beside(o.cell) else []
+	var out: Array[String] = []   # typed: a bare [] from a ternary comes back untyped
+	if int(o.carrier) < 0 and _crew_beside(o.cell):
+		out.append("grab")
+	return out
 
 
 func act(action: String) -> Dictionary:

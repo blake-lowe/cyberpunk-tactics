@@ -942,7 +942,8 @@ func _vip_escapes(u: Dictionary) -> void:
 
 ## Crew actions the objective offers the active unit now ("grab", "free", "plant").
 func obj_actions() -> Array[String]:
-	return obj.actions() if state == "playing" else []
+	var none: Array[String] = []   # typed: a bare [] from a ternary comes back untyped
+	return obj.actions() if state == "playing" else none
 
 
 func obj_act(action: String) -> Dictionary:

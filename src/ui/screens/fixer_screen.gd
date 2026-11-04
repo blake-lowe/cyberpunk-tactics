@@ -85,6 +85,10 @@ func _gig_card(i: int, ready: bool) -> PanelContainer:
 	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	left.size_flags_stretch_ratio = 1.6
 	row.add_child(left)
+	if Campaign.is_operation(g):   # owner: a gig that chains maps must read as one at a glance
+		var tag := UiKit.hbox(8)
+		tag.add_child(UiKit.chip(op_tag(g), Hud.GOLD))
+		left.add_child(tag)
 	var t := UiKit.head(String(g.title), 30, Hud.TEXT)
 	t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	t.custom_minimum_size.x = 100
@@ -117,19 +121,22 @@ func _gig_card(i: int, ready: bool) -> PanelContainer:
 	return p
 
 
-## An operation's card: its legs in order (land · place, what for, the place's code), the event
-## on, and the gate rule with what the crew would leave in the van.
+## An operation's card: its legs in order (land · place, what for, the place's code), what carries
+## over between them, the event on and what it changes, and the gate rule with what the crew would
+## leave in the van. Every line wraps: the card never pushes the PAY column off the screen.
 func _operation_lines(v: VBoxContainer, g: Dictionary) -> void:
 	var legs: Array = g.legs
-	v.add_child(UiKit.label("OPERATION · %d MAPS BACK TO BACK, NO REST BETWEEN" % legs.size(), 12, Hud.GOLD))
+	v.add_child(_wrapped(UiKit.label(op_route(g), 13, Hud.GOLD)))   # the tag is over the title
+	v.add_child(UiKit.body(CARRY_LINE, 13, Hud.GOLD))
 	for k in legs.size():
 		var l: Dictionary = legs[k]
 		v.add_child(UiKit.body("%d. %s: %s" % [k + 1, String(l.leg_title), String(l.line)], 14, Hud.TEXT))
-		v.add_child(UiKit.label("    ★ %s · %s · %s eb" % [String(OBJECTIVE_TEXT.get(Campaign.objective_for(l), "")),
-			Campaign.code_label(l), UiKit.money(int(l.pay))], 11, Hud.DIM))
+		v.add_child(_wrapped(UiKit.label("★ %s · %s · %s eb" % [String(OBJECTIVE_TEXT.get(Campaign.objective_for(l), "")),
+			Campaign.code_label(l), UiKit.money(int(l.pay))], 11, Hud.DIM), 18))
 	var ev: Dictionary = g.get("event", {})
 	if not ev.is_empty():
-		v.add_child(UiKit.body("Event: %s (%s). %s" % [String(ev.name), String(ev.when), String(ev.text)], 13, Hud.CYAN))
+		var fx := event_effects(ev)
+		v.add_child(UiKit.body("Event: %s (%s). %s%s" % [String(ev.name), String(ev.when), String(ev.text), (" " + fx) if fx != "" else ""], 13, Hud.CYAN))
 	if String(Campaign.operation_def(g).get("gate", "")) == "conceal":
 		var van: Array[String] = []
 		for c in camp.alive_crew():
@@ -137,6 +144,50 @@ func _operation_lines(v: VBoxContainer, g: Dictionary) -> void:
 				van.append("%s's %s" % [c.display_name, w])
 		v.add_child(UiKit.body("No weapons past the gate: only concealable ones get in. %s" % (
 			("Stays in the van: %s." % ", ".join(van)) if not van.is_empty() else "Everything the crew carries can be hidden."), 13, Hud.RED if not van.is_empty() else Hud.DIM))
+
+
+## A label that wraps to its column (labels don't by default), indented by `indent` pixels.
+static func _wrapped(l: Label, indent := 0) -> Control:
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.custom_minimum_size.x = 60
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	if indent <= 0:
+		return l
+	var m := MarginContainer.new()
+	m.add_theme_constant_override("margin_left", indent)
+	m.add_child(l)
+	return m
+
+
+## What an operation is, for the board, the CITY map's job panel and the offer rows: "3-MAP OPERATION".
+static func op_tag(g: Dictionary) -> String:
+	return "%d-MAP OPERATION" % (g.get("legs", []) as Array).size()
+
+
+## The lands an operation crosses, in order: "Lovers Lane → Grand Junction → Segotari Discovery Zone".
+static func op_route(g: Dictionary) -> String:
+	return " → ".join((g.get("legs", []) as Array).map(func(l): return String(l.get("land_name", l.get("land", "")))))
+
+
+## What playing the maps back to back means (Campaign.next_leg: nothing heals, the crew goes on as it stands).
+const CARRY_LINE := "Back to back, no safehouse stop: wounds, ammo and used kit carry over from map to map."
+
+
+## What a park event changes on the maps (its `fx`, Campaign._operation_leg), as a sentence; "" if
+## it's only colour.
+static func event_effects(ev: Dictionary) -> String:
+	var fx: Dictionary = ev.get("fx", {})
+	var out: Array[String] = []
+	var dark: Array = fx.get("lights_off", [])
+	if not dark.is_empty():
+		var names: Array = dark.map(func(l): return String(l).replace("_", " ").capitalize())
+		out.append("The lights are down in %s." % ", ".join(names))
+	if int(fx.get("police", 0)) > 0:
+		out.append("NCPD on every map (%d officers)." % int(fx.police))
+	var civ: Array = fx.get("civilians", [])
+	if not civ.is_empty():
+		out.append("%s in the crowd." % ", ".join(civ.map(func(c): return String(c).replace("_", " ").capitalize() + "s")))
+	return " ".join(out)
 
 
 # --- Hire -----------------------------------------------------------------------------------

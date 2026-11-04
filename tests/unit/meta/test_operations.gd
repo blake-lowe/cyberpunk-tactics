@@ -454,7 +454,7 @@ func test_withdrawing_after_a_won_leg_says_the_operation_ended_early() -> void:
 	c.active_gig["leg"] = 2
 	c.active_gig["done"] = [{}, {}]
 	var done: Dictionary = GREYBOX.end_banner("won", c.active_gig, false)
-	assert_true(done.good and String(done.text).begins_with("GIG COMPLETE"), "the last leg won: the job is done")
+	assert_true(done.good and String(done.text).begins_with("OPERATION COMPLETE"), "the last leg won: the job is done")
 	assert_true(GREYBOX.end_banner("won", {"title": "x"}, false).good, "a single gig as before")
 
 

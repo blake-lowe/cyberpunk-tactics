@@ -22,7 +22,8 @@ extends Control
 ## Dev flags (with --shot=x.png for screenshots): --base stays here; --screen=<id> opens a screen
 ## (jobs, hire, market, city, storage, workshop, ripperdoc, therapy, injuries, training, crew, debrief);
 ## --crew=n selects crew member n on it; --hover=<room id> shows a room hovered; --demo uses
-## DemoState's sample campaign (never saved); with it the Armory also takes --slot=<slot id>,
+## DemoState's sample campaign (never saved; --op=<operation id> puts one on the board and in the
+## debrief); with it the Armory also takes --slot=<slot id>,
 ## --pick=<storage key> and --filter=<chip> (StorageScreen.setup), and the city map --district=<id> or
 ## --pin=<board index> (CityTab.setup).
 
@@ -89,6 +90,7 @@ func _ready() -> void:
 	var stay := false
 	var open := ""
 	var crew_i := 0
+	var op := ""   # with --demo: an operation (operations.json id) on top of the board and in the debrief
 	for a in OS.get_cmdline_user_args():
 		var k := a.trim_prefix("--").get_slice("=", 0)
 		if k in DEV_FLAGS:
@@ -108,12 +110,19 @@ func _ready() -> void:
 			stay = true
 		if k == "crew":
 			crew_i = int(a.get_slice("=", 1))
+		if k == "op":
+			op = a.get_slice("=", 1)
 	if dev and not stay:
 		get_tree().change_scene_to_file.call_deferred(GREYBOX)
 		return
 	Hud._fonts()
 	if "--demo" in OS.get_cmdline_user_args():   # review shots: DEV-ONLY sample campaign, never saved
 		camp = DemoState.make()
+		if op != "":
+			var og := DemoState.operation_offer(camp, op)
+			if not og.is_empty():
+				camp.board.insert(0, og)
+			camp.set_meta("demo_op", op)
 	else:
 		camp = Campaign.ensure_current()   # a save from during an operation's leg ends it there (Campaign.quit_mid_leg)
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -131,7 +140,10 @@ func _ready() -> void:
 		camp.remove_meta("report")
 		open_screen("debrief", 0, rep)
 	elif open == "debrief":
-		open_screen("debrief", 0, DemoState.report(camp) if camp.has_meta("demo") else {"members": camp.debrief})
+		var rep := {"members": camp.debrief}
+		if camp.has_meta("demo"):
+			rep = DemoState.operation_report(camp, String(camp.get_meta("demo_op"))) if camp.has_meta("demo_op") else DemoState.report(camp)
+		open_screen("debrief", 0, rep)
 	elif open != "":
 		open_screen(open, crew_i)
 
