@@ -101,10 +101,7 @@ func _ready() -> void:
 	Hud._fonts()
 	camp = Campaign.ensure_current()
 	if "--demo" in OS.get_cmdline_user_args():   # review shots: a furnished base (not saved)
-		camp.facilities = {"med_bay": 2, "armory": 2, "intel": 2, "training": 1}
-		var dts := ["recover", "train", "hustle", "recover"]
-		for i in camp.crew.size():
-			camp.crew[i].downtime = dts[i % 4]
+		camp.facilities = {"med_bay": 2, "intel": 2, "training": 1}
 		if not camp.crew.is_empty():
 			camp.crew[0].hp = maxi(1, camp.crew[0].max_hp() / 2)
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -562,9 +559,6 @@ func _props_bunks(room: Node3D, accent: Color) -> void:
 func _room_for(c: Combatant) -> String:
 	if c.hp < c.max_hp() and camp.level("med_bay") > 0 and c.downtime == "recover":
 		return "med_bay"
-	match c.downtime:
-		"train": return "training" if camp.level("training") > 0 else "bunks"
-		"hustle": return "intel" if camp.level("intel") > 0 else "bunks"
 	if c.role == "tech" and camp.best_tech() != null:
 		return "workshop"
 	return "bunks"
@@ -784,7 +778,7 @@ func _rest_full() -> void:
 
 func _refresh_ui() -> void:
 	var vs := get_viewport_rect().size
-	_money.text = "DAY %d  ·  %s eb  ·  REP %d  ·  HEAT %d" % [camp.day, Board._money(camp.eb), camp.rep, camp.heat]
+	_money.text = "DAY %d  ·  %s eb" % [camp.day, Board._money(camp.eb)]
 	var acts: Control = ui.get_node("acts")
 	acts.reset_size()
 	acts.position = Vector2(vs.x - acts.size.x - 14, 12)
@@ -845,7 +839,7 @@ func _build_roster() -> void:
 		row.add_child(v)
 		v.add_child(_text(c.display_name.to_upper(), Hud.F_DISPLAY, 22, Hud.TEXT))
 		var hpc := Hud.GREEN if c.hp >= c.max_hp() else (Hud.GOLD if c.wound_state() < Combatant.Wound.SERIOUS else Hud.RED)
-		v.add_child(_text("%s · HP %d/%d" % [c.role.to_upper(), c.hp, c.max_hp()], Hud.F_TERM, Hud.ts(16), hpc))
+		v.add_child(_text("%s · HP %d/%d · REP %d" % [c.role.to_upper(), c.hp, c.max_hp(), c.reputation], Hud.F_TERM, Hud.ts(16), hpc))
 		v.add_child(_text("DOWNTIME: " + String(Campaign.DOWNTIME[c.downtime].name).to_upper(), Hud.F_TERM, Hud.ts(16), Hud.CYAN))
 		card.custom_minimum_size = Vector2(250, 0)
 		roster.add_child(card)
@@ -853,7 +847,7 @@ func _build_roster() -> void:
 
 func _crew_panel(col: VBoxContainer, c: Combatant) -> void:
 	col.add_child(_text(c.display_name.to_upper(), Hud.F_DISPLAY, 32, Hud.GOLD))
-	col.add_child(_text("%s · RANK %d · %d IP" % [c.role.to_upper(), c.role_rank, c.ip], Hud.F_TERM, Hud.ts(18), Hud.CYAN))
+	col.add_child(_text("%s · RANK %d · %d IP · REPUTATION %d" % [c.role.to_upper(), c.role_rank, c.ip, c.reputation], Hud.F_TERM, Hud.ts(18), Hud.CYAN))
 	col.add_child(_text("HP %d/%d · SP %d/%d%s" % [c.hp, c.max_hp(), c.sp("head"), c.sp("body"),
 		(" · HUM %d/%d" % [c.humanity, c.max_humanity]) if c.tracks_humanity else ""], Hud.F_TERM, Hud.ts(18), Hud.TEXT))
 	for inj in c.injuries:
@@ -890,7 +884,8 @@ func _room_panel(col: VBoxContainer, id: String) -> void:
 			col.add_child(_text("FULLY UPGRADED", Hud.F_TERM, Hud.ts(18), Hud.GREEN))
 	else:
 		var why := {"workshop": "Opens when a Tech joins the crew: armour upgrades between gigs (on the fixer board's crew cards).",
-			"bunks": "Where the crew sleeps, and where anyone recovering rests up when there's no med bay."}
+			"bunks": "Where the crew sleeps, and where anyone recovering rests up when there's no med bay.",
+			"armory": "Where the crew's gear is kept."}
 		col.add_child(_wrap(String(why.get(id, "")), 18, Hud.TEXT))
 	var here := camp.alive_crew().filter(func(c): return _room_for(c) == id)
 	if not here.is_empty():

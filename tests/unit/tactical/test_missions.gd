@@ -167,13 +167,11 @@ func test_civilians_scatter_on_gunfire_and_count_as_collateral() -> void:
 	e._civilians_tick()
 	assert_true(c0.pos != p0 or c0.get("fled", false), "and they run")
 	assert_false(e.init.entries.any(func(x): return x.c == c0.c), "bystanders never join the initiative")
-	var h0 := Campaign.gig_heat(e)
 	var c1: Dictionary = civs[1]
 	c1.c.hp = -5
 	c1.c.dead = true
 	e._check_end()
 	assert_eq(e.civ_casualties, 1, "a hurt bystander counts")
-	assert_eq(Campaign.gig_heat(e), h0 + 1, "and brings heat")
 
 
 func test_trauma_team_lands_for_a_downed_cardholder_and_lifts_them() -> void:
@@ -213,14 +211,11 @@ func test_trauma_team_lands_for_a_downed_cardholder_and_lifts_them() -> void:
 	assert_eq(e.state, "lost", "Trauma Team saved the mark: the hit failed")
 
 
-func test_maxtac_answers_at_high_heat() -> void:
+func test_maxtac_drop() -> void:   # no doctrine escalates to it (campaign heat is gone); dev renders call it
 	var m := SceneGen.generate(7, "street_block", {"security": 2})
 	var dice := Dice.new(5)
 	var e := Encounter.setup(m, dice, _crew(dice), "eliminate")
-	e.heat = 8
-	e.ncpd_in = 1
-	e._ncpd_round = -5
-	e._tick_backup()
+	e._maxtac_drop()
 	var mt := e.units.filter(func(u): return u.get("maxtac", false))
 	assert_true(mt.size() >= 3, "a MaxTac squad (%d)" % mt.size())
 	assert_true(mt.all(func(u): return e.hostile(u.team, Encounter.CREW) and e.is_guard(u) and u.c.sp("body") >= 18), "hostile, in heavy armour")

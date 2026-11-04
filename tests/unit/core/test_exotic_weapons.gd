@@ -169,7 +169,7 @@ func test_heavy_exotics_reload_over_two_actions() -> void:
 
 func test_the_market_now_sells_the_exotics_that_play() -> void:
 	var camp := Campaign.new_game(4)
-	camp.rep = 6
+	camp.crew[0].reputation = 6
 	var ids := camp.shop_stock().map(func(x): return String(x.id))
 	for id in ["stun_gun", "stun_baton", "air_pistol", "flamethrower", "malorian_arms_3516", "tsunami_helix"]:
 		assert_true(id in ids, "%s for sale" % id)

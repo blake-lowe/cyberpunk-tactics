@@ -357,15 +357,14 @@ func test_spot_roll_is_once_per_round() -> void:
 
 
 func test_ncpd_follows_backup_if_the_fight_goes_on() -> void:
-	var m := SceneGen.generate(11, "street_block", {"security": 1})
+	var m := SceneGen.generate(11, "street_block", {"security": 2})   # the doctrine's min_security
 	var dice := Dice.new(1)
 	var e := Encounter.setup(m, dice, _crew(dice))
-	e.heat = 3   # security 1: NCPD only bothers if the crew is already wanted
 	e.alarm = 2
 	e.backup_in = 1
 	e._backup_round = -5
 	e.next_turn()
-	assert_eq(e.ncpd_in, int(e.doctrine.escalation.rounds) - 1, "backup arrived and the clock started (heat 3: a round sooner)")
+	assert_eq(e.ncpd_in, int(e.doctrine.escalation.rounds), "backup arrived and the clock started")
 	var cops := false
 	for k in 200:
 		for u in e.units:
@@ -399,7 +398,7 @@ func test_withdraw_needs_everyone_up_in_the_zone_and_leaves_the_rest() -> void:
 	assert_true(crew[1].c.dead, "left behind")
 
 
-func test_low_security_low_heat_brings_no_ncpd() -> void:
+func test_low_security_brings_no_ncpd() -> void:
 	var m := SceneGen.generate(11, "street_block", {"security": 1})
 	var dice := Dice.new(1)
 	var e := Encounter.setup(m, dice, _crew(dice))

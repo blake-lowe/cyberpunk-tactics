@@ -43,8 +43,8 @@ func _ready() -> void:
 		if k == "scroll":   # --scroll=n: screenshots further down the board
 			_scroll_to = int(a.get_slice("=", 1))
 		if k == "report":   # --report: a sample results panel (screenshots)
-			report = {"won": true, "gig": {"title": "Retire a Biotechnica manager"}, "pay": 1500, "fees": 0, "rep": 1, "ip": 40,
-				"salvage": 320, "heat": 1, "dead": [], "hurt": ["Echo (Broken Arm)"], "kit_used": ["Flashbang"], "addicted": ["Wraith (Synthcoke)"], "episodes": []}
+			report = {"won": true, "gig": {"title": "Retire a Biotechnica manager"}, "pay": 1500, "fees": 0, "reputation": {"Echo": 4}, "ip": 30,
+				"salvage": 320, "dead": [], "hurt": ["Echo (Broken Arm)"], "kit_used": ["Flashbang"], "addicted": ["Wraith (Synthcoke)"], "episodes": []}
 		if k == "train":   # --train=n opens crew member n's training panel (screenshots)
 			_train_for = int(a.get_slice("=", 1))
 	if dev and not board_shot:
@@ -152,8 +152,7 @@ func _build() -> void:
 	_root.add_child(head)
 	var title := _text("NIGHT CITY", Hud.F_DISPLAY, 56, Hud.GOLD)
 	head.add_child(title)
-	for s in [["DAY %d" % camp.day, Hud.CYAN], ["%s eb" % _money(camp.eb), Hud.GREEN], ["REP %d" % camp.rep, Hud.MAGENTA],
-			["HEAT %d" % camp.heat, Hud.RED if camp.heat >= 5 else (Hud.GOLD if camp.heat > 0 else Hud.DIM)]]:
+	for s in [["DAY %d" % camp.day, Hud.CYAN], ["%s eb" % _money(camp.eb), Hud.GREEN]]:
 		var l := _text(s[0], Hud.F_TERM, Hud.ts(34), s[1])
 		l.size_flags_vertical = Control.SIZE_SHRINK_END
 		head.add_child(l)
@@ -241,7 +240,7 @@ func _shop() -> VBoxContainer:
 	var c: Combatant = camp.crew[_shop_for]
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 8)
-	box.add_child(_text("// NIGHT MARKET  (more stock with reputation · old gear sells at half)", Hud.F_PIXEL, 22, Hud.MAGENTA))
+	box.add_child(_text("// NIGHT MARKET  (more stock with the crew's best Reputation · old gear sells at half)", Hud.F_PIXEL, 22, Hud.MAGENTA))
 	var who := HBoxContainer.new()
 	who.add_theme_constant_override("separation", 8)
 	box.add_child(who)
@@ -376,7 +375,7 @@ func _crew_card(c: Combatant) -> PanelContainer:
 	col.add_theme_constant_override("separation", 2)
 	row.add_child(col)
 	col.add_child(_text(c.display_name.to_upper(), Hud.F_DISPLAY, 30, Hud.TEXT))
-	col.add_child(_text("%s · RANK %d · %d IP" % [c.role.to_upper(), c.role_rank, c.ip], Hud.F_TERM, Hud.ts(20), Hud.CYAN))
+	col.add_child(_text("%s · RANK %d · %d IP · REP %d" % [c.role.to_upper(), c.role_rank, c.ip, c.reputation], Hud.F_TERM, Hud.ts(20), Hud.CYAN))
 	var hpcol := Hud.GREEN if c.hp >= c.max_hp() else (Hud.GOLD if c.wound_state() < Combatant.Wound.SERIOUS else Hud.RED)
 	col.add_child(_text("HP %d/%d   SP %d/%d" % [c.hp, c.max_hp(), c.sp("head"), c.sp("body")], Hud.F_TERM, Hud.ts(20), hpcol))
 	if c.tracks_humanity:
@@ -411,8 +410,12 @@ func _crew_card(c: Combatant) -> PanelContainer:
 		ar.add_theme_constant_override("separation", 8)
 		ar.add_child(_text("HOOKED ON %s" % String(RulesDB.gear("drugs", drug).get("name", drug)).to_upper(), Hud.F_TERM, Hud.ts(20), Hud.RED))
 		var dg: String = drug
-		var cost := int(RulesDB.gear("therapy", "addiction_therapy").get("cost", 1000))
-		ar.add_child(_button("GET CLEAN %d eb · 1 WEEK" % cost, Hud.GREEN, func(): camp.treat_addiction(c, dg); _rebuild(), camp.eb >= cost))
+		var cost := int(RulesDB.gear("therapy", "addiction_therapy").fx.get("materials_cost", 500))
+		var doc := camp.therapist_for(c)
+		if doc == null:   # p229: a Medtech performs therapy, never on themselves
+			ar.add_child(_text("(THERAPY NEEDS A MEDTECH)", Hud.F_TERM, Hud.ts(18), Hud.DIM))
+		else:
+			ar.add_child(_button("THERAPY WITH %s %d eb · 1 WEEK" % [doc.display_name.to_upper(), cost], Hud.GREEN, func(): camp.treat_addiction(c, dg); _rebuild(), camp.eb >= cost))
 		col.add_child(ar)
 	for i in c.injuries.size():
 		var inj: Dictionary = c.injuries[i]
@@ -533,10 +536,10 @@ func _gig_card(i: int) -> PanelContainer:
 	var t := _text(String(g.title).to_upper(), Hud.F_DISPLAY, 30, Hud.GOLD, true)
 	top.add_child(t)
 	top.add_child(_text("%s eb" % _money(int(g.pay)), Hud.F_TERM, Hud.ts(30), Hud.GREEN))
-	col.add_child(_text("%s (REP %d) · %s · SECURITY %s" % [String(g.fixer).to_upper(), camp.rep_with(String(g.fixer)), Campaign.place_name(g).to_upper(), "◆".repeat(int(g.security)) + "◇".repeat(3 - int(g.security))], Hud.F_TERM, Hud.ts(20), Hud.CYAN))
+	col.add_child(_text("%s · %s · SECURITY %s" % [String(g.fixer).to_upper(), Campaign.place_name(g).to_upper(), "◆".repeat(int(g.security)) + "◇".repeat(3 - int(g.security))], Hud.F_TERM, Hud.ts(20), Hud.CYAN))
 	col.add_child(_text(String(g.blurb), Hud.F_BODY, 20, Color(Hud.TEXT, 0.85), true))
 	if g.get("unique", false):
-		col.add_child(_text("PERSONAL JOB · %s TRUSTS YOU · DOUBLE PAY" % String(g.fixer).to_upper(), Hud.F_TERM, Hud.ts(18), Hud.MAGENTA))
+		col.add_child(_text("PERSONAL JOB · %s HAS HEARD OF YOU · DOUBLE PAY" % String(g.fixer).to_upper(), Hud.F_TERM, Hud.ts(18), Hud.MAGENTA))
 	var tw := String(g.get("twist", ""))
 	if tw != "":
 		var td: Dictionary = RulesDB.gen("gigs.json").twists[tw]
@@ -569,11 +572,12 @@ func _report_panel() -> PanelContainer:
 	var col := VBoxContainer.new()
 	p.add_child(col)
 	col.add_child(_text(("GIG COMPLETE · " if won else "GIG FAILED · ") + String(report.gig.get("title", "")).to_upper(), Hud.F_DISPLAY, 34, Hud.GREEN if won else Hud.RED, true))
-	var parts := ["%+d eb" % (int(report.pay) - int(report.fees)), "%+d rep" % int(report.rep), "%d IP each" % int(report.ip)]
+	var parts := ["%+d eb" % (int(report.pay) - int(report.fees)), "%d IP each" % int(report.ip)]
+	var rp: Dictionary = report.get("reputation", {})
+	for nm in rp:
+		parts.append("%s REP %d" % [String(nm).to_upper(), int(rp[nm])])
 	for nm in report.get("episodes", []):
 		parts.append("%s: CYBERPSYCHOTIC EPISODE" % String(nm).to_upper())
-	if int(report.get("heat", 0)) != 0:
-		parts.append("%+d heat" % int(report.heat))
 	if int(report.get("salvage", 0)) > 0:
 		parts.insert(1, "+%d eb salvage" % int(report.salvage))
 	col.add_child(_text("   ".join(parts), Hud.F_TERM, Hud.ts(26), Hud.TEXT))
@@ -584,7 +588,7 @@ func _report_panel() -> PanelContainer:
 	if not report.get("kit_used", []).is_empty():
 		col.add_child(_text("Kit used or lost: " + ", ".join(report.kit_used), Hud.F_TERM, Hud.ts(20), Hud.DIM, true))
 	if not report.get("addicted", []).is_empty():
-		col.add_child(_text("HOOKED: " + ", ".join(report.addicted).to_upper() + " (therapy cures it)", Hud.F_TERM, Hud.ts(22), Hud.RED, true))
+		col.add_child(_text("HOOKED: " + ", ".join(report.addicted).to_upper() + " (a Medtech's therapy can cure it)", Hud.F_TERM, Hud.ts(22), Hud.RED, true))
 	return p
 
 

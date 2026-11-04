@@ -12,11 +12,8 @@ const MEDSCAN := "gear/medscanner"
 
 func _camp() -> Campaign:
 	var c := Campaign.new_game(4)
-	c.rep = 5
+	c.crew[0].reputation = 5
 	c.eb = 20000
-	c.stash.clear()   # an empty safehouse (new games start with frags packed)
-	for m in c.crew:
-		m.kit[0] = ""
 	return c
 
 
@@ -42,17 +39,17 @@ func test_slot_rules_follow_the_data() -> void:
 	assert_eq(Items.kind(MEDSCAN), "utility")
 
 
-func test_a_new_crew_starts_with_a_frag_each_and_one_spare() -> void:
+func test_a_new_crew_starts_with_empty_storage() -> void:
 	var camp := Campaign.new_game(4)
-	assert_eq(int(camp.stash[Encounter.FRAG]), 3)
-	assert_true(camp.crew.all(func(m): return m.kit[0] == Encounter.FRAG))
+	assert_true(camp.stash.is_empty(), "the book has no basic grenade to hand out (p94, p344)")
+	assert_true(camp.crew.all(func(m): return m.kit == ["", ""]))
+	assert_false(Items.is_item("ammo/frag_grenade"))
 
 
-func test_the_armory_discounts_the_gear_market() -> void:
+func test_market_prices_are_list_prices() -> void:
 	var camp := _camp()
-	var full := camp.item_price(FLASH)
-	camp.facilities["armory"] = 2
-	assert_eq(camp.item_price(FLASH), roundi(full * 0.8), "10% a level")
+	assert_eq(camp.item_price(FLASH), Items.price(FLASH))
+	assert_false(Campaign.FACILITIES.has("armory"), "the Armory is a room, not an upgrade")
 
 
 func test_buying_fills_storage_and_packing_needs_stock() -> void:
@@ -67,7 +64,7 @@ func test_buying_fills_storage_and_packing_needs_stock() -> void:
 	assert_false(camp.set_kit(a, 0, MEDSCAN), "a utility can't take the consumable slot")
 	camp.buy_item(MEDSCAN)
 	assert_true(camp.set_kit(a, 1, MEDSCAN))
-	camp.rep = 0
+	camp.crew[0].reputation = 0
 	assert_false(camp.buy_item(LACE), "Black Lace needs a name on the street")
 
 
@@ -187,8 +184,50 @@ func test_drugs_can_hook_you_and_therapy_cures_it() -> void:
 	a.addictions.erase("synthcoke")
 	assert_eq(a.stat("REF"), ref + 2, "an addict runs 2 REF short without it")
 	a.addictions.append("synthcoke")
-	assert_true(camp.treat_addiction(a, "synthcoke"))
-	assert_false("synthcoke" in a.addictions)
+	assert_true(camp.treat_addiction(a, "synthcoke").is_empty(), "therapy needs a Medtech, not the patient (p229)")
+	var doc := Recruit.generate(camp.dice, "medtech", "edgerunner")
+	camp.crew.append(doc)
+	assert_eq(camp.therapist_for(a), doc)
+	assert_eq(camp.therapist_for(doc), null, "Medtechs can't do Therapy on themselves")
+	doc.stats["TECH"] = 8
+	doc.medicine["pharma"] = 5
+	doc.medicine["cryo"] = 5   # 18 + 1d10 beats DV15 unless it fumbles
+	var eb0 := camp.eb
+	var day0 := camp.day
+	var tries := 0
+	while "synthcoke" in a.addictions and tries < 5:
+		camp.treat_addiction(a, "synthcoke")
+		tries += 1
+	assert_false("synthcoke" in a.addictions, "clean")
+	assert_eq(camp.eb, eb0 - 500 * tries, "the Medtech buys the 500eb materials each week (p230)")
+	assert_eq(camp.day, day0 + 7 * tries, "a week each")
+	a.drugs_taken = ["synthcoke"]
+	a.stats["WILL"] = 10
+	camp._addiction_checks()
+	assert_true("synthcoke" in a.addictions, "for a year after, that drug's roll fails automatically (p230)")
+	var back := Combatant.from_dict(JSON.parse_string(JSON.stringify(a.to_dict())))
+	assert_eq(back.clean_since, a.clean_since)
+
+
+func test_a_failed_therapy_wastes_the_week_and_materials() -> void:
+	var camp := _camp()
+	var a: Combatant = camp.crew[0]
+	a.addictions.append("synthcoke")
+	var doc := Recruit.generate(camp.dice, "medtech", "edgerunner")
+	camp.crew.append(doc)
+	doc.stats["TECH"] = 0
+	doc.medicine.clear()   # 0 + 1d10 vs DV15: only a critical 10 can beat it
+	var eb0 := camp.eb
+	var failed := false
+	for k in 10:
+		var r := camp.treat_addiction(a, "synthcoke")
+		if not r.success:
+			failed = true
+			break
+		a.addictions.append("synthcoke")
+	assert_true(failed, "TECH 0 + 1d10 vs DV15 mostly fails")
+	assert_true("synthcoke" in a.addictions, "still hooked")
+	assert_true(camp.eb < eb0, "the materials are gone")
 
 
 func test_storage_kits_and_addictions_survive_a_save() -> void:

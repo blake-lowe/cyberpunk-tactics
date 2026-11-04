@@ -53,7 +53,6 @@ var alarm := 0                      ## 0 quiet, 1 a guard is onto the crew, 2 ba
 var backup_in := -1                 ## rounds until reinforcements arrive (-1 none scheduled)
 var _backup_round := 0
 var _patrol_round := -1
-var heat := 0                       ## campaign heat: NCPD answers faster (HOUSE-RULE: -1 round per 2 heat)
 var reinforcements := true          ## backup/NCPD on (balance tests switch them off)
 var ncpd_in := -1                   ## rounds until the NCPD response (after backup has arrived)
 var _ncpd_round := 0
@@ -607,7 +606,7 @@ var _counted := {}
 
 ## Civilians (HOUSE-RULE): bystanders in the public rooms and on the street, more where people
 ## gather (bars, clubs, markets), few in the badlands or the tunnels. They take no turns: each round
-## the ones that have panicked run for the map edge. Hurting one costs the crew rep and heat.
+## the ones that have panicked run for the map edge.
 func _place_civilians(deploy: Vector2i) -> void:
 	var scene := String(m.params.get("scene", ""))
 	if scene in ["badlands", "undercity"]:
@@ -758,6 +757,7 @@ func tt_depart() -> void:
 
 ## MaxTac (HOUSE-RULE stats, RULES-UNVERIFIED against the book's MaxTac block): four operatives,
 ## Mini Boss stats, heavy armour and assault rifles, dropped by AV near the crew.
+## No doctrine escalates to MaxTac since campaign heat was removed; dev renders (greybox --av) call it.
 func _maxtac_drop() -> void:
 	var crew := alive(0)
 	if crew.is_empty():
@@ -1250,10 +1250,7 @@ func _tick_backup() -> void:
 		ncpd_in -= 1
 		if ncpd_in == 0:
 			ncpd_in = -2   # once per gig
-			if heat >= int(doctrine.escalation.maxtac_heat):
-				_maxtac_drop()
-			else:
-				_ncpd_wave(String(doctrine.escalation.responder))
+			_ncpd_wave(String(doctrine.escalation.responder))
 	if backup_in < 0 or init.round_num == _backup_round:
 		return
 	_backup_round = init.round_num
@@ -1267,11 +1264,11 @@ func _tick_backup() -> void:
 	for i in int(bk.per_level) * sec + int(bk.get("extra", 0)):
 		roster.append(String(bk.tier))
 	_spawn_wave(roster, "BACKUP", OPFOR, opfor_faction, "Backup")
-	# Escalation: keep fighting and the city notices, if the site matters or the crew is already
-	# wanted (the doctrine's min_security / min_heat; MaxTac instead above maxtac_heat).
+	# Escalation: keep fighting and the city notices, if the site matters (the doctrine's
+	# min_security; data/world/security.json).
 	var esc: Dictionary = doctrine.escalation
-	if ncpd_in == -1 and (sec >= int(esc.min_security) or heat >= int(esc.min_heat)):
-		ncpd_in = maxi(2, int(esc.rounds) - heat / 2)
+	if ncpd_in == -1 and sec >= int(esc.min_security):
+		ncpd_in = int(esc.rounds)
 		_ncpd_round = init.round_num
 
 
@@ -1510,7 +1507,6 @@ func attack(target: Dictionary, weapon: Weapon, mode: Attack.Mode) -> Dictionary
 const MELEE_ADJACENT_M := 2.0
 const BLAST_HALF := 2            ## 5x5 squares = 10x10 m (p174)
 const THROW_RANGE_M := 25.0      ## p177
-const FRAG := "ammo/frag_grenade"   ## the plain grenade (HOUSE-RULE kit item; new crews start with some)
 const GRENADE_DICE := 6          ## thrown grenades deal their launcher's damage (p177; Grenade Launcher 6d6, p94)
 const SHELL_HALF_ANGLE := 45.0   ## "every target in front of you" (p174): a 90° cone toward the aimed target
 
@@ -1601,11 +1597,11 @@ func shotgun_shell(target: Dictionary, weapon: Weapon) -> Dictionary:
 	return {"ok": true, "hit": r.hit, "hits": hits}
 
 
-## Throw a frag grenade at a square (p174, p177): DEX + Athletics vs the Grenade Launcher DV for
+## Throw a grenade at a square (p174, p177): DEX + Athletics vs the Grenade Launcher DV for
 ## the range; a miss scatters the blast somewhere in the 5x5 around the aim point. Damage (6d6) is
 ## rolled once; cover the blast can't destroy shields whoever is behind it; cover it can destroy is
 ## destroyed and shields nobody; REF 8+ may dive clear.
-## The grenade is the one packed in kit slot `slot` (Items: Frag, Armor-Piercing, Incendiary,
+## The grenade is the one packed in kit slot `slot` (Items: Armor-Piercing, Incendiary,
 ## Flashbang, Teargas): its fx ride the blast (ablate 2, ignite, or no damage and a forced check for
 ## everyone caught, p.345-347).
 func throw_grenade(cell: Vector3i, slot := 0) -> Dictionary:
@@ -1839,7 +1835,7 @@ func _take_cover(u: Dictionary) -> void:
 # --- Kit (safehouse gear packed for the gig) -------------------------------------------
 
 ## Why the active unit can't use kit slot `slot` as `how` ("grenade" | "dose"), or "". Guards
-## carry kit too (a frag), packed by their roster rather than from storage.
+## carry kit too (a Pyro's grenades), packed by their roster rather than from storage.
 func _kit_ready(slot: int, how: String) -> String:
 	if cur.is_empty():
 		return "not your turn"

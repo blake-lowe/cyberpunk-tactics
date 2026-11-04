@@ -366,26 +366,6 @@
 			"fx": {},
 			"unmodelled": "Basic arrows are always retrievable after firing (p174); grenades and rockets have no Basic type (p94)."
 		},
-		"frag_grenade": {
-			"name": "Frag Grenade",
-			"cost": 50,
-			"cost_tier": "Costly",
-			"cite": "HOUSE-RULE (CPR core p.94, p.344: there is no Basic grenade; thrown grenades deal 6d6 in a 5x5 blast, p.177)",
-			"summary": "A plain fragmentation grenade: 6d6 in the blast, nothing else.",
-			"house_rule": "The book sells grenades only by special ammo type; a cheap plain frag keeps a basic explosive in the game. 50eb, below the 100eb specials.",
-			"types": [
-				"grenades"
-			],
-			"unit": "1 each",
-			"unit_qty": {
-				"grenades": 1
-			},
-			"fx": {},
-			"kit": "consumable",
-			"shop_rep": 0,
-			"kit_use": "grenade",
-			"kit_short": "FRAG"
-		},
 		"armor_piercing_ammo": {
 			"name": "Armor-Piercing Ammunition",
 			"cost": 100,
@@ -2201,7 +2181,7 @@
 				"relapse_autofail": "1 year",
 				"medtech_only": true
 			},
-			"unmodelled": "Patient and doctor do nothing else that week; failed check wastes the week and materials. Overnight hospital stay 100eb/night."
+			"unmodelled": "Overnight hospital stay 100eb/night (Campaign.treat_addiction models the week, the check, the materials and the year of auto-fails)."
 		}
 	},
 	"fx_keys": {
