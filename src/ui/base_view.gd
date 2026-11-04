@@ -11,12 +11,19 @@ extends Control
 ## Walls are kit walls on the two far sides (rebuilt as the view rotates) and waist-high everywhere
 ## else, so every room reads from above. The crew stand where their downtime job puts them.
 ##
-## UI (same chrome as the tactical HUD): crew roster left (click: go to them, set their downtime job),
-## rest and the fixer board top right, room / crew detail on the right.
+## The safehouse is the hub (owner's UI audit): every between-gigs function is a full screen opened
+## from its room (src/ui/screens/): Fixer Network → jobs, hire, Night Market; Armory → storage and
+## loadouts; Med Bay → ripperdoc, therapy, Critical Injuries; Training Room → Improvement Points;
+## Bunks → the crew and resting; Workshop → the Tech's armor upgrades. Click a room (or its button
+## in the room list, right) to open its screen; click a crew member for theirs. After a gig the
+## debrief screen comes first.
+##
+## Dev flags (with --shot=x.png for screenshots): --base stays here; --screen=<id> opens a screen
+## (jobs, hire, market, storage, workshop, ripperdoc, therapy, injuries, training, crew, debrief);
+## --crew=n selects crew member n on it; --demo uses DemoState's sample campaign (never saved).
 
 const GB := preload("res://src/tactical/greybox.gd")
 const POST_SHADER := preload("res://src/tactical/view/post.gdshader")
-const BOARD := "res://scenes/board.tscn"
 const GREYBOX := "res://scenes/greybox.tscn"
 const KITS := "res://assets/third_party/quaternius/scifi/models/%s.gltf"
 const GUNS := "res://assets/third_party/quaternius/guns/%s.fbx"
@@ -53,22 +60,19 @@ var post: ShaderMaterial
 var cam: Camera3D
 var world: Node3D
 var ui: Control
-var panel: PanelContainer
 var roster: VBoxContainer
 var portraits: Portraits
 var outline: Node3D
 var labels := {}            ## room id → Label
 var crew_nodes := {}        ## Combatant → CharModel
 var crew_labels := {}       ## Combatant → Label
-var selected := ""          ## room id shown in the side panel
-var sel_crew: Combatant     ## or a crew member
+var selected := ""          ## room id outlined (hover outlines too)
 var hover := ""
 var yaw := 45.0
 var focus := Vector3(W / 2, 0, D / 2)
 var _cam_tw: Tween
 var _shot_path := ""
 var _frames := 0
-var _money: Label
 var _scenes := {}
 
 
@@ -80,6 +84,8 @@ func _ready() -> void:
 	UiScale.watch(get_window())
 	var dev := false
 	var stay := false
+	var open := ""
+	var crew_i := 0
 	for a in OS.get_cmdline_user_args():
 		var k := a.trim_prefix("--").get_slice("=", 0)
 		if k in DEV_FLAGS:
@@ -92,30 +98,37 @@ func _ready() -> void:
 			selected = a.get_slice("=", 1)
 		if k == "yaw":
 			yaw = float(a.get_slice("=", 1))
-		if k == "board" or k == "train":   # board review shots
-			get_tree().change_scene_to_file.call_deferred(BOARD)
-			return
+		if k == "screen":
+			open = a.get_slice("=", 1)
+			stay = true
+		if k == "crew":
+			crew_i = int(a.get_slice("=", 1))
 	if dev and not stay:
 		get_tree().change_scene_to_file.call_deferred(GREYBOX)
 		return
 	Hud._fonts()
-	camp = Campaign.ensure_current()
-	if "--demo" in OS.get_cmdline_user_args():   # review shots: someone hurt in the med bay (not saved)
-		if not camp.crew.is_empty():
-			camp.crew[0].hp = maxi(1, camp.crew[0].max_hp() / 2)
+	if "--demo" in OS.get_cmdline_user_args():   # review shots: DEV-ONLY sample campaign, never saved
+		camp = DemoState.make()
+	else:
+		camp = Campaign.ensure_current()
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	portraits = Portraits.new()
 	add_child(portraits)
 	_build_view()
 	_build_world()
-	for a in OS.get_cmdline_user_args():   # review shots: --crew=n selects crew member n
-		if a.begins_with("--crew=") and int(a.get_slice("=", 1)) < camp.alive_crew().size():
-			sel_crew = camp.alive_crew()[int(a.get_slice("=", 1))]
 	_build_ui()
 	_frame_selection(true)
 	_place_camera()
 	_resize()
 	get_viewport().size_changed.connect(_resize)
+	if camp.has_meta("report"):   # back from a gig: the debrief first
+		var rep: Dictionary = camp.get_meta("report")
+		camp.remove_meta("report")
+		open_screen("debrief", 0, rep)
+	elif open == "debrief":
+		open_screen("debrief", 0, DemoState.report(camp) if camp.has_meta("demo") else {"members": camp.debrief})
+	elif open != "":
+		open_screen(open, crew_i)
 
 
 func _process(_d: float) -> void:
@@ -196,7 +209,7 @@ func _build_view() -> void:
 	svp.add_child(moon)
 	cam = Camera3D.new()
 	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
-	cam.size = 14.5
+	cam.size = 16.0
 	svp.add_child(cam)
 
 
@@ -206,7 +219,7 @@ func _resize() -> void:
 	svp.size = Vector2i(maxi(1, int(win.x / px)), maxi(1, int(win.y / px)))
 	screen.size = Vector2(svp.size) * px
 	post.set_shader_parameter("src_size", Vector2(svp.size))
-	if panel:
+	if ui:
 		_refresh_ui()
 
 
@@ -670,6 +683,37 @@ func _update_outline() -> void:
 
 # --- UI -------------------------------------------------------------------------------------
 
+## Room → the screen it opens (owner: every between-gigs function is a full screen opened from its
+## room) and the line under its name in the room list.
+const ROOM_SCREENS := {
+	"intel": ["jobs", "Jobs · Hire · Night Market"],
+	"armory": ["storage", "Storage & loadouts"],
+	"med_bay": ["ripperdoc", "Ripperdoc · Therapy · Injuries"],
+	"training": ["training", "Spend Improvement Points"],
+	"bunks": ["crew", "Crew · Recover"],
+	"workshop": ["workshop", "Armor upgrades"],
+}
+## Screen id → the screen's tab.
+const SCREEN_TABS := {"jobs": "jobs", "hire": "hire", "market": "market", "storage": "loadouts", "workshop": "workshop",
+	"ripperdoc": "ripperdoc", "therapy": "therapy", "injuries": "injuries", "training": "", "crew": "", "debrief": ""}
+
+
+static func _make_screen(id: String) -> SafehouseScreen:
+	match id:
+		"jobs", "hire", "market": return FixerScreen.new()
+		"storage", "workshop": return StorageScreen.new()
+		"ripperdoc", "therapy", "injuries": return MedBayScreen.new()
+		"training": return TrainingScreen.new()
+		"crew": return CrewScreen.new()
+		"debrief": return DebriefScreen.new()
+	return null
+
+var _screen: SafehouseScreen
+var _rooms_box: PanelContainer
+var _log_box: PanelContainer
+var _top: PanelContainer
+
+
 func _text(s: String, font: Font, size: int, col := Hud.TEXT) -> Label:
 	if (font == Hud.F_DISPLAY or font == Hud.F_PIXEL) and s != s.to_upper():   # the pixel face is for caps only
 		font = Hud.F_TERM
@@ -686,42 +730,13 @@ func _text(s: String, font: Font, size: int, col := Hud.TEXT) -> Label:
 	return l
 
 
-func _wrap(s: String, size: int, col: Color, width := 340.0) -> Label:
-	var l := _text(s, Hud.F_TERM, Hud.ts(size), col)
-	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.custom_minimum_size.x = width
-	return l
-
-
-func _button(label: String, col: Color, cb: Callable, enabled := true, size := 20) -> Button:
-	var b := Button.new()
-	b.text = label
-	b.focus_mode = Control.FOCUS_NONE
-	b.disabled = not enabled
-	b.add_theme_font_override("font", Hud.F_DISPLAY)
-	b.add_theme_font_size_override("font_size", size)
-	b.add_theme_color_override("font_color", col)
-	b.add_theme_stylebox_override("normal", CutBox.make(Color(0.03, 0.045, 0.06, 0.95), Color(col, 0.5), 7, 0b0101))
-	b.add_theme_stylebox_override("hover", CutBox.make(Color(col.r * 0.15, col.g * 0.15, col.b * 0.15, 0.97), col, 7, 0b0101))
-	b.add_theme_stylebox_override("pressed", CutBox.make(Color(0.14, 0.11, 0.02, 0.97), Hud.GOLD, 7, 0b0101))
-	b.add_theme_stylebox_override("disabled", CutBox.make(Color(0.02, 0.025, 0.03, 0.8), Color(Hud.DIM, 0.2), 7, 0b0101))
-	b.pressed.connect(cb)
-	return b
-
-
-func _panel(accent: Color) -> PanelContainer:
-	var p := PanelContainer.new()
-	p.add_theme_stylebox_override("panel", CutBox.make(Hud.INK, Color(accent, 0.5), 12, 0b0101, accent, 12))
-	return p
-
-
 func _build_ui() -> void:
 	ui = Control.new()
 	ui.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	ui.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(ui)
 	for id in ROOMS:
-		var l := _text("", Hud.F_PIXEL, 18, Color(ROOMS[id][1]))
+		var l := _text(String(ROOMS[id][2]), Hud.F_PIXEL, 18, Color(ROOMS[id][1]))
 		l.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
 		l.add_theme_constant_override("shadow_offset_x", 2)
 		l.add_theme_constant_override("shadow_offset_y", 2)
@@ -729,190 +744,194 @@ func _build_ui() -> void:
 		ui.add_child(l)
 	for c in crew_nodes:
 		crew_labels[c] = _crew_label(c)
-	# header: title and the money / standing line, in the HUD's banner chrome
-	var head := _panel(Hud.GOLD)
-	head.position = Vector2(14, 12)
-	ui.add_child(head)
-	var hb := HBoxContainer.new()
-	hb.add_theme_constant_override("separation", 18)
-	head.add_child(hb)
-	hb.add_child(_text("SAFEHOUSE", Hud.F_DISPLAY, 34, Hud.GOLD))
-	_money = _text("", Hud.F_TERM, Hud.ts(24), Hud.TEXT)
-	_money.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	hb.add_child(_money)
-	# crew roster, left
-	roster = VBoxContainer.new()
-	roster.position = Vector2(14, 84)
-	roster.add_theme_constant_override("separation", 6)
+	roster = UiKit.vbox(6)
 	ui.add_child(roster)
-	# actions, top right
-	var acts := VBoxContainer.new()
-	acts.name = "acts"
-	acts.add_theme_constant_override("separation", 6)
-	ui.add_child(acts)
-	var board := _button("FIXER BOARD  ›", Hud.GOLD, func(): camp.save(); get_tree().change_scene_to_file(BOARD), true, 24)
-	board.custom_minimum_size = Vector2(230, 46)
-	acts.add_child(board)
-	var rest := HBoxContainer.new()
-	rest.add_theme_constant_override("separation", 6)
-	acts.add_child(rest)
-	rest.add_child(_button("REST 1 DAY", Hud.CYAN, func(): camp.rest(1); camp.save(); _rebuild(), true, 16))
-	rest.add_child(_button("UNTIL HEALED", Hud.CYAN, func(): _rest_full(); camp.save(); _rebuild(), true, 16))
-	var hint := _text("CLICK A ROOM TO UPGRADE IT · CLICK SOMEONE TO SET THEIR DOWNTIME · Q/E ROTATE · WHEEL ZOOM", Hud.F_TERM, Hud.ts(16), Hud.DIM)
+	var hint := UiKit.label("CLICK A ROOM OR A CREW MEMBER · Q/E ROTATE · WHEEL ZOOM", 13, Hud.DIM)
 	hint.name = "hint"
+	hint.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
+	hint.add_theme_constant_override("shadow_offset_x", 1)
+	hint.add_theme_constant_override("shadow_offset_y", 1)
 	ui.add_child(hint)
-	panel = _panel(Hud.CYAN)
-	panel.custom_minimum_size = Vector2(370, 0)
-	ui.add_child(panel)
 	_refresh_ui()
-
-
-func _rest_full() -> void:
-	var days := 0
-	while days < 14 and camp.crew.any(func(c): return c.hp < c.max_hp()):
-		camp.rest(1)
-		days += 1
 
 
 func _refresh_ui() -> void:
 	var vs := get_viewport_rect().size
-	_money.text = "DAY %d  ·  %s eb" % [camp.day, Board._money(camp.eb)]
-	var acts: Control = ui.get_node("acts")
-	acts.reset_size()
-	acts.position = Vector2(vs.x - acts.size.x - 14, 12)
+	if _top:
+		_top.queue_free()
+	_top = SafehouseScreen.top_bar(camp, "Safehouse", "", Callable())
+	_top.position = Vector2(12, 10)
+	_top.size = Vector2(vs.x - 24, 0)
+	ui.add_child(_top)
+	_top.reset_size()
+	_top.size.x = vs.x - 24
+	var y0 := 10 + _top.get_combined_minimum_size().y + 10
+	# rooms, right: every room's screen as a button (the 3D rooms open the same screens)
+	if _rooms_box:
+		_rooms_box.queue_free()
+	_rooms_box = _rooms_panel()
+	ui.add_child(_rooms_box)
+	_rooms_box.reset_size()
+	_rooms_box.position = Vector2(vs.x - _rooms_box.size.x - 12, y0)
+	roster.position = Vector2(12, y0)
+	_build_roster()
+	if _log_box:
+		_log_box.queue_free()
+	_log_box = _log_panel()
+	ui.add_child(_log_box)
+	_log_box.reset_size()
+	_log_box.position = Vector2(vs.x - _log_box.size.x - 12, _rooms_box.position.y + _rooms_box.size.y + 8)
 	var hint: Label = ui.get_node("hint")
 	hint.reset_size()
-	hint.position = Vector2(vs.x / 2 - hint.size.x / 2, vs.y - 30)
-	for id in ROOMS:
-		var lv := _room_level(id)
-		(labels[id] as Label).text = String(ROOMS[id][2]) + ("" if lv > 0 else "  · STORAGE")
+	hint.position = Vector2(vs.x / 2 - hint.size.x / 2, vs.y - 26)
 	for c in crew_labels:
-		(crew_labels[c] as Label).modulate = Color(1, 1, 1, 1.0 if c == sel_crew else 0.8)
-	_build_roster()
-	for ch in panel.get_children():
-		ch.queue_free()
-	panel.visible = selected != "" or sel_crew != null
-	if panel.visible:
-		var col := VBoxContainer.new()
-		col.add_theme_constant_override("separation", 6)
-		panel.add_child(col)
-		if sel_crew != null:
-			_crew_panel(col, sel_crew)
-		else:
-			_room_panel(col, selected)
-		col.add_child(_button("CLOSE", Hud.DIM, func(): selected = ""; sel_crew = null; _refresh_ui(); _frame_selection(), true, 16))
-		panel.reset_size()
-		panel.position = Vector2(vs.x - panel.size.x - 14, 120)
+		(crew_labels[c] as Label).modulate = Color(1, 1, 1, 0.85)
 
 
-## The crew down the left: HUD-style cards (portrait, name, role, HP, downtime job).
+func _rooms_panel() -> PanelContainer:
+	var p := UiKit.panel(Hud.CYAN, 8)
+	var v := UiKit.vbox(4)
+	p.add_child(v)
+	v.add_child(UiKit.label("ROOMS", 13, Hud.CYAN))
+	for id in ["intel", "armory", "med_bay", "training", "bunks", "workshop"]:
+		var rid: String = id
+		var b := Button.new()
+		b.focus_mode = Control.FOCUS_NONE
+		b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		b.custom_minimum_size = Vector2(250, 44)
+		var on := rid == hover
+		b.add_theme_stylebox_override("normal", CutBox.make(Color(0.03, 0.045, 0.06, 0.95), Color(Hud.GOLD if on else Hud.CYAN, 0.5), 7, 0b0101))
+		b.add_theme_stylebox_override("hover", CutBox.make(Color(0.1, 0.085, 0.02, 0.97), Hud.GOLD, 7, 0b0101))
+		b.add_theme_stylebox_override("pressed", CutBox.make(Color(0.14, 0.11, 0.02, 0.97), Hud.GOLD, 7, 0b0101))
+		b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+		b.mouse_entered.connect(func(): hover = rid)
+		b.pressed.connect(func(): open_room(rid))
+		var row := UiKit.hbox(8)
+		row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		row.offset_left = 10
+		row.offset_right = -8
+		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(row)
+		var tick := ColorRect.new()   # the room's light colour, small
+		tick.color = Color(ROOMS[rid][1])
+		tick.custom_minimum_size = Vector2(4, 26)
+		tick.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		tick.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(tick)
+		var tv := UiKit.vbox(-3)
+		tv.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		tv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(tv)
+		tv.add_child(UiKit.label(String(ROOMS[rid][2]), 15, Hud.TEXT))
+		var sub := String(ROOM_SCREENS[rid][1])
+		if rid == "workshop" and camp.best_tech() == null:
+			sub = "Needs a Tech on the crew"
+		tv.add_child(UiKit.body(sub, 12, Hud.DIM, false))
+		v.add_child(b)
+	return p
+
+
+func _log_panel() -> PanelContainer:
+	var p := UiKit.panel(Hud.CYAN, 6)
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var v := UiKit.vbox(0)
+	p.add_child(v)
+	for l in camp.log.slice(-3):
+		var lb := UiKit.body(l, 13, Color(Hud.TEXT, 0.7), false)
+		lb.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		lb.custom_minimum_size.x = _rooms_box.size.x - 16 if _rooms_box else 250.0
+		lb.clip_text = true
+		v.add_child(lb)
+	return p
+
+
+## The crew down the left: name, role, HP, Reputation, and what the last gig changed. Click: the
+## Bunks' crew screen on them.
 func _build_roster() -> void:
 	for ch in roster.get_children():
 		ch.queue_free()
-	roster.add_child(_text("// CREW", Hud.F_PIXEL, 18, Hud.CYAN))
-	for c in camp.alive_crew():
-		var card := _panel(Hud.GOLD if c == sel_crew else UnitLook.CREW_ACCENTS[maxi(0, c.look_seed) % 4])
-		card.mouse_filter = Control.MOUSE_FILTER_STOP
-		card.gui_input.connect(func(ev: InputEvent):
-			if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
-				_select_crew(c))
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 10)
-		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		card.add_child(row)
-		var pic := TextureRect.new()
-		pic.texture = portraits.tex({"id": 1000 + maxi(0, c.look_seed), "team": 0, "c": c})
-		pic.custom_minimum_size = Vector2(52, 52)
-		pic.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		pic.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		row.add_child(pic)
-		var v := VBoxContainer.new()
-		v.add_theme_constant_override("separation", 0)
-		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		row.add_child(v)
-		v.add_child(_text(c.display_name.to_upper(), Hud.F_DISPLAY, 22, Hud.TEXT))
-		var hpc := Hud.GREEN if c.hp >= c.max_hp() else (Hud.GOLD if c.wound_state() < Combatant.Wound.SERIOUS else Hud.RED)
-		v.add_child(_text("%s · HP %d/%d · REP %d" % [c.role.to_upper(), c.hp, c.max_hp(), c.reputation], Hud.F_TERM, Hud.ts(16), hpc))
-		v.add_child(_text("DOWNTIME: " + String(Campaign.DOWNTIME[c.downtime].name).to_upper(), Hud.F_TERM, Hud.ts(16), Hud.CYAN))
+	var crew := camp.alive_crew()
+	for i in crew.size():
+		var c: Combatant = crew[i]
+		var card := UiKit.panel(Hud.CYAN, 7)
 		card.custom_minimum_size = Vector2(250, 0)
+		var row := UiKit.hbox(8)
+		card.add_child(row)
+		row.add_child(UiKit.portrait(portraits, c, 1000 + maxi(0, c.look_seed), 46))
+		var v := UiKit.vbox(0)
+		v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(v)
+		v.add_child(UiKit.head(c.display_name, 28))
+		v.add_child(UiKit.role_hp(c))
+		v.add_child(UiKit.label("REPUTATION %d · %d IP" % [c.reputation, c.ip], 12, Hud.CYAN))
+		var marks := camp.marks_for(c)
+		if not marks.is_empty():
+			var f := UiKit.flow(4)
+			f.custom_minimum_size.x = 180
+			for m in marks:
+				f.add_child(CrewScreen.mark_chip(m))
+			v.add_child(f)
+		var idx := i
+		UiKit.clickable(card, func(): open_screen("crew", idx))
 		roster.add_child(card)
 
 
-func _crew_panel(col: VBoxContainer, c: Combatant) -> void:
-	col.add_child(_text(c.display_name.to_upper(), Hud.F_DISPLAY, 32, Hud.GOLD))
-	col.add_child(_text("%s · RANK %d · %d IP · REPUTATION %d" % [c.role.to_upper(), c.role_rank, c.ip, c.reputation], Hud.F_TERM, Hud.ts(18), Hud.CYAN))
-	col.add_child(_text("HP %d/%d · SP %d/%d%s" % [c.hp, c.max_hp(), c.sp("head"), c.sp("body"),
-		(" · HUM %d/%d" % [c.humanity, c.max_humanity]) if c.tracks_humanity else ""], Hud.F_TERM, Hud.ts(18), Hud.TEXT))
-	for inj in c.injuries:
-		col.add_child(_text("! " + String(inj.get("name", "injury")).to_upper(), Hud.F_TERM, Hud.ts(18), Hud.RED))
-	col.add_child(_text("DOWNTIME JOB", Hud.F_PIXEL, 18, Hud.DIM))
-	for k in Campaign.DOWNTIME:
-		var key: String = k
-		var on: bool = c.downtime == key
-		var b := _button(("● " if on else "○ ") + String(Campaign.DOWNTIME[key].name).to_upper(), Hud.GOLD if on else Hud.CYAN,
-			func(): if c.downtime != key: _set_downtime(c, key), true, 18)
-		if on:   # the current job is highlighted, not greyed out
-			b.add_theme_stylebox_override("normal", CutBox.make(Color(0.14, 0.11, 0.02, 0.97), Hud.GOLD, 7, 0b0101))
-		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		col.add_child(b)
-		col.add_child(_wrap(String(Campaign.DOWNTIME[key].desc), 16, Color(Hud.TEXT, 0.7)))
-	col.add_child(_wrap("Training, gear and chrome are on the fixer board.", 16, Hud.DIM))
+## Open a room's screen.
+func open_room(id: String) -> void:
+	if ROOM_SCREENS.has(id):
+		open_screen(String(ROOM_SCREENS[id][0]))
 
 
-func _room_panel(col: VBoxContainer, id: String) -> void:
-	var accent := Color(ROOMS[id][1])
-	col.add_child(_text(String(ROOMS[id][2]), Hud.F_DISPLAY, 32, accent))
-	var why := {"workshop": "Opens when a Tech joins the crew: armour upgrades between gigs (on the fixer board's crew cards).",
-		"bunks": "Where the crew sleeps.",
-		"armory": "Where the crew's gear is kept.",
-		"med_bay": "Where anyone hurt rests up.",
-		"intel": "Where the fixers' calls come in.",
-		"training": "Where the crew trains."}
-	col.add_child(_wrap(String(why.get(id, "")), 18, Hud.TEXT))
-	var here := camp.alive_crew().filter(func(c): return _room_for(c) == id)
-	if not here.is_empty():
-		col.add_child(_text("HERE: " + ", ".join(here.map(func(c): return c.display_name.to_upper())), Hud.F_TERM, Hud.ts(18), Hud.CYAN))
-
-
-func _set_downtime(c: Combatant, job: String) -> void:
-	var from := _room_for(c)
-	c.downtime = job
-	camp.save()
-	_walk(c, from, _room_for(c))
-	_refresh_ui()
-
-
-func _select_crew(c: Combatant) -> void:
-	sel_crew = c
+## Open a between-gigs screen full screen over the safehouse (`crew_index` selects someone).
+func open_screen(id: String, crew_index := 0, report := {}) -> void:
+	if not SCREEN_TABS.has(id):
+		return
+	if _screen:
+		_screen.queue_free()
+	var s := _make_screen(id)
+	if s is DebriefScreen:
+		(s as DebriefScreen).report = report
+	s.setup(camp, portraits, String(SCREEN_TABS[id]), crew_index)
+	s.closed.connect(close_screen)
+	s.navigate.connect(func(to: String): open_screen(to, s.sel))
+	if s is FixerScreen:
+		(s as FixerScreen).take_gig.connect(_take_gig)
+	_screen = s
+	hover = ""
 	selected = ""
-	_refresh_ui()
+	ui.visible = false
+	svp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	add_child(s)
+
+
+func close_screen() -> void:
+	if _screen:
+		_screen.queue_free()
+		_screen = null
+	ui.visible = true
+	svp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	_rebuild()
 	_frame_selection()
 
 
-## Glide in on the selected room or crew member (or back out to the whole floor).
-func _overview() -> Vector3:   # the whole floor, nudged down (clear of the header) and right (of the roster)
+func _take_gig(i: int) -> void:
+	if camp.accept(i).is_empty():
+		return
+	if not camp.has_meta("demo"):
+		camp.save()
+	get_tree().change_scene_to_file(GREYBOX)
+
+
+## Glide in on the hovered room (or back out to the whole floor).
+func _overview() -> Vector3:   # the whole floor, nudged down (clear of the top bar), centred between roster and rooms
 	_place_camera()
-	var right := Vector3(cam.global_basis.x.x, 0, cam.global_basis.x.z).normalized()
 	var dir := Vector3(sin(deg_to_rad(yaw)), 0, cos(deg_to_rad(yaw)))
-	return Vector3(W / 2, 0, D / 2) - dir * 1.0 - right * 1.6
+	return Vector3(W / 2, 0, D / 2) - dir * 1.0
 
 
 func _frame_selection(now := false) -> void:
 	var goal := _overview()
-	var size := 14.5
-	if sel_crew != null and crew_nodes.has(sel_crew):
-		goal = (crew_nodes[sel_crew] as Node3D).position
-		size = 6.0
-	elif selected != "":
-		var r := _rect(selected)
-		goal = Vector3(r.get_center().x, 0, r.get_center().y)
-		size = 6.5
-	if sel_crew != null or selected != "":   # sit left of the side panel
-		_place_camera()
-		var right := Vector3(cam.global_basis.x.x, 0, cam.global_basis.x.z).normalized()
-		goal += right * size * 0.2
+	var size := 16.0
 	if now:
 		focus = goal
 		cam.size = size
@@ -932,19 +951,20 @@ func _rebuild() -> void:
 
 
 func _unhandled_input(ev: InputEvent) -> void:
+	if _screen:
+		return
 	if ev is InputEventMouseMotion:
-		hover = _room_at(_pick_floor(ev.position))
+		var h := _room_at(_pick_floor(ev.position))
+		if h != hover:
+			hover = h
 	elif ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
 		var c := _crew_at(ev.position)
 		if c:
-			_select_crew(c)
+			open_screen("crew", camp.alive_crew().find(c))
 			return
 		var picked := _room_at(_pick_floor(ev.position))
-		if picked != selected or sel_crew != null:
-			selected = picked
-			sel_crew = null
-			_refresh_ui()
-			_frame_selection()
+		if picked != "":
+			open_room(picked)
 	elif ev is InputEventMouseButton and ev.pressed and ev.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
 		cam.size = clampf(cam.size + (-1.0 if ev.button_index == MOUSE_BUTTON_WHEEL_UP else 1.0), 4.0, 18.0)
 	elif ev is InputEventKey and ev.pressed and not ev.echo:

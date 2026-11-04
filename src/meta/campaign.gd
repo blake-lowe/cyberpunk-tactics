@@ -46,6 +46,9 @@ var active_gig: Dictionary = {}
 var stash := {}                      ## safehouse storage: Items key → how many (kit, weapons, armour)
 var market := {}                     ## the Night Market that's up (NightMarket.roll)
 var log: Array[String] = []
+## What the last gig changed for each crew member (resolve's report "members"), shown on the
+## debrief screen and as marks on crew cards until the next gig starts. Saved.
+var debrief: Array[Dictionary] = []
 
 
 ## The running campaign: the one in memory, else the save, else a new game.
@@ -73,7 +76,18 @@ static func new_game(p_seed: int) -> Campaign:
 	return c
 
 
+## Add a log line. The same line again merges into the last one with a count ("Bought Flashbang ×2").
 func say(s: String) -> void:
+	if not log.is_empty():
+		var last := log[-1]
+		var n := 1
+		var m := RegEx.create_from_string(" ×(\\d+)$").search(last)
+		if m:
+			n = int(m.get_string(1))
+			last = last.substr(0, m.get_start())
+		if last == s:
+			log[-1] = "%s ×%d" % [s, n + 1]
+			return
 	log.append(s)
 
 
@@ -262,7 +276,12 @@ static func _fill(s: String, slots: Dictionary) -> String:
 func accept(index: int) -> Dictionary:
 	if index < 0 or index >= board.size() or alive_crew().filter(func(c): return c.can_act()).is_empty():
 		return {}
-	active_gig = board[index]
+	active_gig = board[index].duplicate()
+	var before := {}   # for the debrief: what each crew member already had going in
+	for c in crew:
+		before[c.display_name] = {"injuries": c.injuries.size(), "humanity": c.humanity}
+	active_gig["before"] = before
+	debrief.clear()   # the last gig's marks come off the crew cards
 	say("Took '%s' from %s." % [active_gig.title, active_gig.fixer])
 	return active_gig
 
@@ -274,7 +293,12 @@ func resolve(e: Encounter) -> Dictionary:
 	var gig := active_gig
 	var won := e.state == "won"
 	var report := {"gig": gig, "won": won, "pay": 0, "reputation": {}, "ip": 0, "dead": [], "hurt": [], "episodes": []}
-	report["kit_used"] = _settle_kits()
+	var kit_of := {}
+	report["kit_used"] = _settle_kits(kit_of)
+	var went := crew.duplicate()   # everyone who went, the fallen included (the debrief lists them)
+	var hooked_before := {}
+	for c in crew:
+		hooked_before[c.display_name] = c.addictions.duplicate()
 	for c in crew:
 		if c.dead and not fallen.any(func(f): return f.name == c.display_name):
 			fallen.append({"name": c.display_name, "role": c.role, "day": day, "gig": gig.get("title", "")})
@@ -309,11 +333,63 @@ func resolve(e: Encounter) -> Dictionary:
 		heard += ", %s Reputation %d" % [nm, int(report.reputation[nm])]
 	say("%s: %s. %+d eb, %d IP each%s%s." % [gig.get("title", "Gig"), "done" if won else "failed",
 		report.pay, report.ip, heard, (", lost " + ", ".join(report.dead)) if not report.dead.is_empty() else ""])
+	report["members"] = _debrief_members(went, gig.get("before", {}), report, kit_of, hooked_before)
+	debrief.assign(report.members)
 	active_gig = {}
 	day += 1
 	refresh_board()
 	update_market()
 	return report
+
+
+## One crew member's debrief: {name, role, look_seed, dead, ip, reputation (the new Level, 0 if
+## unchanged), injuries (Critical Injuries taken on this gig), wound (Wound State name), hp,
+## max_hp, kit (used or lost), addicted (drug names newly hooked on), episode, humanity_lost}.
+func _debrief_members(went: Array, before: Dictionary, report: Dictionary, kit_of: Dictionary, hooked_before: Dictionary) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for c: Combatant in went:
+		var b: Dictionary = before.get(c.display_name, {})
+		var new_inj: Array = c.injuries.slice(int(b.get("injuries", c.injuries.size()))).map(func(i): return String(i.get("name", i.get("id", "injury"))))
+		var hooked: Array = c.addictions.filter(func(d): return not d in hooked_before.get(c.display_name, [])).map(
+			func(d): return String(RulesDB.gear("drugs", d).get("name", d)))
+		out.append({"name": c.display_name, "role": c.role, "look_seed": c.look_seed, "dead": c.dead,
+			"ip": 0 if c.dead else int(report.ip), "reputation": int(report.reputation.get(c.display_name, 0)),
+			"injuries": new_inj, "wound": WOUND_NAMES[c.wound_state()], "hp": c.hp, "max_hp": c.max_hp(),
+			"kit": kit_of.get(c.display_name, []), "addicted": hooked, "episode": c.display_name in report.episodes,
+			"humanity_lost": maxi(0, int(b.get("humanity", c.humanity)) - c.humanity) if c.tracks_humanity else 0})
+	return out
+
+
+## The book's Wound State names (p220), by Combatant.Wound.
+const WOUND_NAMES := ["Unhurt", "Lightly Wounded", "Seriously Wounded", "Mortally Wounded", "Dead"]
+
+
+## The debrief entry for `c` (empty after the next gig starts).
+func debrief_for(c: Combatant) -> Dictionary:
+	for m in debrief:
+		if String(m.get("name", "")) == c.display_name:
+			return m
+	return {}
+
+
+## Short marks for a crew card of what the last gig changed: "+30 IP", "REPUTATION 3", a new
+## Critical Injury, "ADDICTED: Synthcoke". Empty once the next gig starts.
+func marks_for(c: Combatant) -> Array[String]:
+	var m := debrief_for(c)
+	var out: Array[String] = []
+	if m.is_empty():
+		return out
+	if int(m.get("ip", 0)) > 0:
+		out.append("+%d IP" % int(m.ip))
+	if int(m.get("reputation", 0)) > 0:
+		out.append("REPUTATION %d" % int(m.reputation))
+	for i in m.get("injuries", []):
+		out.append(String(i))
+	for d in m.get("addicted", []):
+		out.append("ADDICTED: %s" % String(d))
+	if int(m.get("humanity_lost", 0)) > 0:
+		out.append("-%d HUMANITY" % int(m.humanity_lost))
+	return out
 
 
 # --- Downtime ---------------------------------------------------------------------
@@ -331,6 +407,24 @@ func rest(days := 1) -> void:
 	refresh_board()
 	update_market()
 	say("Rested %d day%s." % [days, "s" if days > 1 else ""])
+
+
+## Days of rest until everyone is back to full HP (BODY HP a day, p223). Critical Injuries need
+## Treatment, not rest.
+func days_to_recover() -> int:
+	var days := 0
+	for c in alive_crew():
+		if c.hp < c.max_hp():
+			days = maxi(days, ceili(float(c.max_hp() - c.hp) / float(maxi(1, c.raw_stat("BODY")))))
+	return days
+
+
+## Rest until everyone is healed. Returns the days it took.
+func recover_until_healed() -> int:
+	var days := days_to_recover()
+	if days > 0:
+		rest(days)
+	return days
 
 
 ## Who repairs the crew's armour: the best TECH + Basic Tech on the crew (armour falls under Basic
@@ -500,7 +594,7 @@ func buy(key: String) -> bool:
 		return false
 	eb -= Items.price(key)
 	_put(key)
-	say("Bought %s for the safehouse." % Items.display_name(key))
+	say("Bought %s" % Items.display_name(key))
 	return true
 
 
@@ -566,6 +660,16 @@ func equip_weapon(c: Combatant, key: String, at := -1) -> bool:
 	else:
 		c.weapons.insert(at, w)
 	say("%s takes %s." % [c.display_name, w.display_name()])
+	return true
+
+
+## Move a carried weapon to position `to` in their weapons (weapons[0] is the one drawn first).
+func reorder_weapon(c: Combatant, index: int, to: int) -> bool:
+	if c == null or index < 0 or index >= c.weapons.size() or to < 0 or to >= c.weapons.size() or index == to:
+		return false
+	var w: Weapon = c.weapons[index]
+	c.weapons.remove_at(index)
+	c.weapons.insert(to, w)
 	return true
 
 
@@ -707,7 +811,7 @@ func check_kits() -> void:
 
 ## After a gig: spent consumables leave storage; whoever didn't come back loses what they carried.
 ## Returns the names of what was used or lost.
-func _settle_kits() -> Array:
+func _settle_kits(per: Dictionary = {}) -> Array:
 	var gone := []
 	for m in crew:
 		for i in m.kit.size():
@@ -719,6 +823,7 @@ func _settle_kits() -> Array:
 				if int(stash[key]) == 0:
 					stash.erase(key)
 				gone.append(Items.display_name(key))
+				per[m.display_name] = per.get(m.display_name, []) + [Items.display_name(key)]
 	check_kits()
 	return gone
 
@@ -866,7 +971,7 @@ func upgrade_armor(owner: Combatant, loc: String) -> Dictionary:
 func to_dict() -> Dictionary:
 	return {"version": SaveMigrations.CURRENT, "seed": seed_value, "eb": eb, "day": day, "crew": crew.map(func(c): return c.to_dict()),
 		"fallen": fallen, "board": board, "recruits": recruits.map(func(c): return c.to_dict()), "log": log.slice(-50),
-		"rng_state": dice.rng.state, "stash": stash, "market": market}
+		"rng_state": dice.rng.state, "stash": stash, "market": market, "debrief": debrief}
 
 
 ## A campaign from a save dictionary, upgraded to the current format first (SaveMigrations).
@@ -898,6 +1003,9 @@ static func from_dict(raw: Dictionary) -> Campaign:
 			c.market[k] = int(c.market[k])
 	for l in d.get("log", []):
 		c.log.append(String(l))
+	for m in d.get("debrief", []):
+		if m is Dictionary:
+			c.debrief.append(m)
 	c.update_market()   # a save from before markets (v5) gets one now
 	return c
 

@@ -2731,15 +2731,16 @@ func _update_objective() -> void:
 		tag_n.position = cn.position + Vector3(0, 2.75, 0)
 
 
-## A board gig is over: settle it (pay, injuries, the dead), save, and go back to the board.
+## A board gig is over: settle it (pay, injuries, the dead), save, and go to the debrief (the
+## safehouse opens it first, BaseView).
 func _finish_gig() -> void:
-	hud.turn_banner("GIG %s  ·  BACK TO THE BOARD" % ("COMPLETE" if enc.state == "won" else ("ABANDONED" if enc.state == "fled" else "FAILED")), Hud.GREEN if enc.state == "won" else Hud.RED)
+	hud.turn_banner("GIG %s  ·  DEBRIEF" % ("COMPLETE" if enc.state == "won" else ("ABANDONED" if enc.state == "fled" else "FAILED")), Hud.GREEN if enc.state == "won" else Hud.RED)
 	await get_tree().create_timer(3.0).timeout
 	var camp := Campaign.current
 	var report := camp.resolve(enc)
 	camp.set_meta("report", report)
 	camp.save()
-	get_tree().change_scene_to_file("res://scenes/board.tscn")
+	get_tree().change_scene_to_file("res://scenes/base.tscn")
 
 
 # --- Juice: event playback ----------------------------------------------------------
