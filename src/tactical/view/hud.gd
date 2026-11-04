@@ -478,7 +478,8 @@ class ActBtn extends Button:
 		if pct >= 0 and not disabled:   # live hit chance for this mode on the hovered target
 			var pc := Hud.GREEN if pct >= 65 else (Hud.GOLD if pct >= 35 else Hud.RED)
 			draw_string(Hud.F_BOLD, Vector2(4, 16), "%d%%" % pct, HORIZONTAL_ALIGNMENT_LEFT, 40, 14, pc)
-		draw_string(Hud.F_TERM, Vector2(w - 42, 16), key, HORIZONTAL_ALIGNMENT_RIGHT, 38, 14, Color(Hud.TEXT if not disabled else Hud.DIM, 0.85 if not disabled else 0.5))
+		var kw := maxf(38.0, Hud.F_TERM.get_string_size(key, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x)   # room for "TAB 2/4"
+		draw_string(Hud.F_TERM, Vector2(w - kw - 4, 16), key, HORIZONTAL_ALIGNMENT_RIGHT, kw, 14, Color(Hud.TEXT if not disabled else Hud.DIM, 0.85 if not disabled else 0.5))
 
 
 func _build_bar() -> void:
@@ -719,6 +720,8 @@ func _refresh_tools(enc: Encounter, crew_turn: bool) -> void:
 		b.queue_redraw()
 	_buttons.visible = stage != "attack"
 	_atk_buttons.visible = stage == "attack"
+	if stage != "attack":
+		_wheel_idx = -1
 	if stage == "attack":
 		_build_attack_stage(enc, crew_turn and can_act)
 	_bar.reset_size()
@@ -730,6 +733,48 @@ func _refresh_tools(enc: Encounter, crew_turn: bool) -> void:
 
 
 var _atk_mode_btns := {}   ## mode id → ActBtn in the attack stage (for live hit chances)
+var _wheel: Control          ## the attack stage's weapon slot: one weapon shown, the rest stacked above/below
+var _wheel_col: VBoxContainer
+var _wheel_idx := -1         ## which weapon the slot shows (-1: not shown yet, so no slide)
+var _wheel_tw: Tween
+const WHEEL_W := 96.0
+const WHEEL_H := 66.0
+
+
+## One slot for the weapon in hand; Tab (or a click) slides the stack vertically to the next one
+## (owner: keeps the bar narrow). A "2/4" count in the corner says how many you carry.
+func _build_wheel(tabs: Array, drawn: Weapon, usable: bool) -> void:
+	if _wheel == null:
+		_wheel = Control.new()
+		_wheel.clip_contents = true
+		_wheel.custom_minimum_size = Vector2(WHEEL_W, WHEEL_H)
+		_wheel_col = VBoxContainer.new()
+		_wheel_col.add_theme_constant_override("separation", 0)
+		_wheel.add_child(_wheel_col)
+		_atk_buttons.add_child(_wheel)
+		_atk_buttons.move_child(_wheel, 0)
+	for ch in _wheel_col.get_children():
+		_wheel_col.remove_child(ch)
+		ch.queue_free()
+	var idx := tabs.size() - 1 if atk_mode == "brawl" else maxi(0, tabs.find(drawn))
+	for i in tabs.size():
+		var w: Weapon = tabs[i]
+		var nm := w.display_name().to_upper() if w else "BRAWLING"
+		var tb := ActBtn.new("melee" if w == null or w.is_melee() else "shot", nm, "TAB %d/%d" % [i + 1, tabs.size()], GOLD, WHEEL_W, WHEEL_H)
+		tb.toggle_mode = true
+		tb.set_pressed_no_signal(true)
+		tb.disabled = not usable
+		tb.pressed.connect(func(): action.emit("draw_next", null))
+		_wheel_col.add_child(tb)
+	var target := -idx * WHEEL_H
+	if _wheel_tw and _wheel_tw.is_valid():
+		_wheel_tw.kill()
+	if _wheel_idx < 0 or _wheel_idx == idx:
+		_wheel_col.position.y = target
+	else:   # slide: the next weapon comes up from below (back to the top after the last)
+		_wheel_tw = create_tween().set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
+		_wheel_tw.tween_property(_wheel_col, "position:y", target, 0.2)
+	_wheel_idx = idx
 
 
 ## The attack stage's weapon tabs in a stable order (as acquired; drawing reorders c.weapons) and
@@ -745,22 +790,15 @@ static func weapon_tabs(c: Combatant) -> Array:
 ## the drawn weapon's attacks by the book's names (F cycles), then BACK (Esc).
 func _build_attack_stage(enc: Encounter, usable: bool) -> void:
 	for ch in _atk_buttons.get_children():
+		if ch == _wheel:
+			continue   # the weapon slot persists so it can slide
 		_atk_buttons.remove_child(ch)
 		ch.queue_free()
 	_atk_mode_btns.clear()
 	var c: Combatant = enc.cur.c
 	var drawn: Weapon = c.weapons[0] if not c.weapons.is_empty() else null
 	var tabs := weapon_tabs(c)
-	for i in tabs.size():
-		var w: Weapon = tabs[i]
-		var on: bool = (w == drawn and atk_mode != "brawl") or (w == null and atk_mode == "brawl")
-		var nm := w.display_name().to_upper() if w else "BRAWLING"
-		var tb := ActBtn.new("melee" if w == null or w.is_melee() else "shot", nm, "TAB" if on else "", GOLD if on else Color("8a96a0"), 84, 66)
-		tb.toggle_mode = true
-		tb.set_pressed_no_signal(on)
-		tb.disabled = not usable
-		tb.pressed.connect(func(): action.emit("draw", i))
-		_atk_buttons.add_child(tb)
+	_build_wheel(tabs, drawn, usable)
 	var sep := ColorRect.new()
 	sep.custom_minimum_size = Vector2(1, 50)
 	sep.color = Color(CYAN, 0.35)
@@ -793,10 +831,10 @@ func _build_attack_stage(enc: Encounter, usable: bool) -> void:
 	var n := _atk_buttons.get_child_count() - 1
 	var badge := (hint_tab.size.x + 16.0) if hint_tab else 0.0
 	var room := get_viewport_rect().size.x - 28 - 96 - 420 - 2.0 * badge
-	var bw := clampf(room / maxf(1.0, n + tabs.size() * 0.25) - 5.0, 48.0, 66.0)
+	var bw := clampf((room - WHEEL_W) / maxf(1.0, n - 1) - 5.0, 48.0, 66.0)
 	for ch in _atk_buttons.get_children():
 		if ch is ActBtn:
-			(ch as ActBtn).custom_minimum_size.x = bw * (1.25 if (ch as ActBtn).key == "TAB" or (ch as ActBtn).glyph in ["melee", "shot"] and _atk_mode_btns.values().find(ch) < 0 else 1.0)
+			(ch as ActBtn).custom_minimum_size.x = bw
 
 
 ## Over the END TURN button, just above the bar's right end.
