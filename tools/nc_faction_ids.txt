@@ -1,0 +1,84 @@
+# Faction ids for the Night City 2045 pass (book factions + the corps/services that own or guard places).
+# id kind name
+6th_street gang 6th Street
+albino_alligators gang Albino Alligators
+andersons gang The Andersons
+arzin_tynon gang Arzin Tynon
+bozos gang The Bozos
+culper_ring gang Culper Ring
+deadwoods gang DeadWoods
+dirty_hippies gang The Dirty Hippies
+dragula_racers gang Dragula Racers
+enhanced gang The Enhanced
+eurotrashers gang Eurotrashers
+fixies_couriers gang Fixie’s Couriers
+g3 gang G3
+generation_red gang Generation Red
+gold_dragons gang Gold Dragons
+inquisitors gang Inquisitors
+iron_sights gang Iron Sights
+julliard_guild gang Julliard Guild
+kill_krashers gang Kill Krashers
+lightning_cats gang Lightning Cats
+maelstrom gang Maelstrom
+mudang_gumi gang Mudang Gumi
+muses gang The Muses
+philharmonic_vampyres gang Philharmonic Vampyres
+piranhas gang Piranhas
+prime_time_players gang The Prime-Time Players
+princesses_of_justice gang Princesses of Justice
+rat_kings gang Rat Kings
+reckoners gang Reckoners
+red_chrome_legion gang Red Chrome Legion
+scavvers gang Scavvers
+shroomers gang The Shroomers
+sinful_adams gang The Sinful Adams
+steel_vaqueros gang Steel Vaqueros
+street_queens gang The Street Queens
+toecutters gang The Toecutters
+tombstone_preservers gang Tombstone Preservers
+tyger_claws gang Tyger Claws
+undertow gang Undertow
+voodoo_boys gang Voodoo Boys
+wild_things gang Wild Things
+willows gang Willows
+yellow_brick_road_gang gang Yellow Brick Road Gang
+zoners gang The Zoners
+consortium crime The Consortium
+eastern_tigers_triad crime Eastern Tigers Triad
+el_norte_cartel crime El Norte Cartel
+kanzaki_family crime Kanzaki Family
+skiv_family crime Skiv Family
+weng_fang_tong crime Weng Fang Tong
+aldecaldo_peacekeepers security Aldecaldo Peacekeepers
+corporate_security security Corporate Security
+danger_gal security Danger Gal
+eri security Edgerunners Inc (ERI)
+kimen_gumi security Kimen-Gumi
+lazarus security Lazarus
+los_perros_guardianes security Los Perros Guardianes
+maxtac security MAX-TAC
+mccain_security security McCain Security
+militech security Militech
+ncu_campus_security security NCU Campus Security
+netwatch security Netwatch
+norcal_marshal_service security NorCal Marshal Service
+norcal_cog_military_police security NorCal COG Military Police
+protective_lightning security Protective Lightning
+san_luis_obispo_county_sheriff security San Luis Obispo County Sheriff
+scythe_security security Scythe Security
+sk_securities security SK Securities
+thelas_marines security Thelas Marines
+ward_security security Ward Security
+whitewater_security security Whitewater Security
+ncpd service NCPD
+trauma_team service Trauma Team
+arasaka corp Arasaka
+biotechnica corp Biotechnica
+petrochem corp Petrochem
+rocklin_augmentics corp Rocklin Augmentics
+night_corp corp Night Corp
+ziggurat corp Ziggurat
+continental_brands corp Continental Brands
+network_54 corp Network 54
+city_government service Night City government
