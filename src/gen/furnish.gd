@@ -67,12 +67,14 @@ const PROP_SIZES := {"car": [1, 2], "wreck": [2, 2], "container": [1, 3], "freig
 	"water_tank": [2, 2], "roof_hut": [2, 2], "solar": [1, 2], "scaffold": [1, 3]}
 
 
-static func run_structure(m: TacMap, dice: Dice, sid: int) -> void:
+## Furniture and devices for a structure's rooms (`first`: only rooms from that id on, e.g. the
+## basement storeys BasementGen adds under a building already furnished).
+static func run_structure(m: TacMap, dice: Dice, sid: int, first := 0) -> void:
 	var st: Dictionary = m.structures[sid]
 	var density: float = float(st.params.get("density", 0.35))
 	var rooms_def := RulesDB.gen("rooms.json")
 	for r in m.rooms:
-		if r.cells == 0 or r.get("structure", -1) != sid:
+		if r.cells == 0 or r.get("structure", -1) != sid or int(r.id) < first:
 			continue
 		var geo := {}
 		for spec in rooms_def.get(r.kind, {}).get("furniture", []):
@@ -89,7 +91,7 @@ static func run_structure(m: TacMap, dice: Dice, sid: int) -> void:
 				_place_props(m, dice, r, spec[0], n)
 			else:
 				_place(m, dice, r, spec[0], spec[1], n)
-	_devices(m, dice, sid)
+	_devices(m, dice, sid, first)
 
 
 static func room_cells(m: TacMap, r: Dictionary) -> Array[Vector2i]:
@@ -674,12 +676,12 @@ static func _stamp(m: TacMap, r: Dictionary, geo: Dictionary, a: Vector2i, face:
 # Every hackable device belongs to a `group`; NetGen turns each group into one Control Node,
 # data devices into Files, and access points into the nodes a Netrunner jacks in at (p198).
 
-static func _devices(m: TacMap, dice: Dice, sid: int) -> void:
+static func _devices(m: TacMap, dice: Dice, sid: int, first := 0) -> void:
 	var sec := int(m.structures[sid].security)
 	var rooms_def := RulesDB.gen("rooms.json")
 	var site_groups := {}
 	for r in m.rooms:
-		if r.cells == 0 or r.get("structure", -1) != sid:
+		if r.cells == 0 or r.get("structure", -1) != sid or int(r.id) < first:
 			continue
 		var z: int = r.zone
 		var zn: String = TacMap.ZONE_NAMES[z]
@@ -689,7 +691,7 @@ static func _devices(m: TacMap, dice: Dice, sid: int) -> void:
 			var group: String = spec.get("group", "")
 			if group.begins_with("site:"):
 				group = group.substr(5)
-				if site_groups.has(group):
+				if site_groups.has(group) or first > 0:   # a later batch of rooms: site-wide devices are placed
 					continue
 				site_groups[group] = true
 			elif group != "":
@@ -704,12 +706,12 @@ static func _devices(m: TacMap, dice: Dice, sid: int) -> void:
 		if sec >= 2 and (r.kind in ["data_vault", "vault", "bank_vault", "armored_car", "cargo_hold"] or (z >= TacMap.Zone.SECURE and dice.rng.randf() < 0.4)):
 			add_device(m, dice, r, "turret", "turrets_" + zn, true)
 	for d in m.doors:
-		if d.security and d.get("structure", -1) == sid:
+		if d.security and d.get("structure", -1) == sid and (first == 0 or int(d.b) >= first):
 			var zone := maxi(m.rooms[d.a].zone if d.a >= 0 else 0, m.rooms[d.b].zone)
 			m.devices.append({"id": m.devices.size(), "type": "door_lock", "floor": d.floor, "pos": d.pos,
 				"room": d.b, "zone": zone, "group": "locks_" + TacMap.ZONE_NAMES[zone], "structure": sid})
 	for v in m.verticals:
-		if v.type == "elevator" and v.get("structure", -1) == sid:
+		if v.type == "elevator" and v.get("structure", -1) == sid and first == 0:
 			m.devices.append({"id": m.devices.size(), "type": "elevator", "floor": 0, "pos": v.pos, "room": m.label(0, v.pos.x, v.pos.y),
 				"zone": TacMap.Zone.PUBLIC, "group": "elevator", "structure": sid})
 

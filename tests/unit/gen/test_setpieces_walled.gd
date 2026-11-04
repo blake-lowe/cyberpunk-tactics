@@ -31,7 +31,7 @@ func _part(m: TacMap, part: String) -> Dictionary:
 func _deploy(m: TacMap) -> Vector3i:
 	for e in m.entrances:
 		if e.kind == "deploy":
-			return Vector3i(e.pos.x, e.pos.y, 0)
+			return Vector3i(e.pos.x, e.pos.y, int(e.floor))   # street level (m.street)
 	return Vector3i(-1, -1, -1)
 
 
@@ -53,16 +53,16 @@ func test_combat_zone_is_a_walled_fake_city() -> void:
 		var holes := 0
 		for x in range(wall.position.x, wall.end.x):
 			for y in [wall.position.y, wall.end.y - 1]:
-				if m.t(0, x, y) != TacMap.T.WALL:
+				if m.t(m.street, x, y) != TacMap.T.WALL:
 					holes += 1
-					assert_eq(m.t(0, x, y), TacMap.T.DOOR, "%s: (%d, %d) on the wall is a gate" % [tag, x, y])
+					assert_eq(m.t(m.street, x, y), TacMap.T.DOOR, "%s: (%d, %d) on the wall is a gate" % [tag, x, y])
 				elif x > wall.position.x:
-					assert_eq(int(m.wall_mat[0][y * m.w + x]), 1, "%s: a concrete wall" % tag)
+					assert_eq(int(m.wall_mat[m.street][y * m.w + x]), 1, "%s: a concrete wall" % tag)
 		for y in range(wall.position.y, wall.end.y):
 			for x in [wall.position.x, wall.end.x - 1]:
-				if m.t(0, x, y) != TacMap.T.WALL:
+				if m.t(m.street, x, y) != TacMap.T.WALL:
 					holes += 1
-					assert_eq(m.t(0, x, y), TacMap.T.DOOR, "%s: (%d, %d) on the wall is a gate" % [tag, x, y])
+					assert_eq(m.t(m.street, x, y), TacMap.T.DOOR, "%s: (%d, %d) on the wall is a gate" % [tag, x, y])
 		assert_between(holes, 3, 3, "%s: main gate, side door, yard gate" % tag)
 		# the fake city: the district's buildings inside the set, none outside it
 		var set_blds := m.structures.filter(func(st): return st.kind == "building" and String(st.get("part", "")) == "" and city.encloses(st.rect))
@@ -77,7 +77,7 @@ func test_combat_zone_is_a_walled_fake_city() -> void:
 		var hatches := m.entrances.filter(func(e): return e.kind == "tunnel")
 		assert_true(hatches.size() >= 3, "%s: tunnel hatches (%d)" % [tag, hatches.size()])
 		for h in hatches:
-			assert_true(city.has_point(h.pos) and m.walkable(0, h.pos), "%s: hatch %s open, in the set" % [tag, h.pos])
+			assert_true(city.has_point(h.pos) and m.walkable(m.street, h.pos), "%s: hatch %s open, in the set" % [tag, h.pos])
 			assert_true(m.posts.any(func(p): return p.kind == "tunnel" and Vector2(p.pos).distance_to(Vector2(h.pos)) <= 1.0), "%s: a guard at hatch %s" % [tag, h.pos])
 		# broadcast: camera masts in the set's streets, cameras and turrets on its NET, an uplink dish
 		var masts := m.cover.filter(func(c): return c.kind == "camera_mast")
@@ -104,7 +104,7 @@ func test_combat_zone_mist_on_the_set_only() -> void:
 	assert_false(e.hazard.outside(cap.pos), "the bunker's prep cells are off the set: no MIST there")
 	var d := _deploy(m)
 	assert_false(e.hazard.outside(d), "nor on the street outside")
-	var far := Vector3i(e.hazard.area.position.x + 1, e.hazard.area.end.y - 2, 0)
+	var far := Vector3i(e.hazard.area.position.x + 1, e.hazard.area.end.y - 2, m.street)
 	assert_true(e.hazard.outside(far), "a corner of the set is outside the final circle")
 	assert_true(e.hazard.bites("captive", far), "the contestant's implant zaps them")
 

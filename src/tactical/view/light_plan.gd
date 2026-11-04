@@ -14,6 +14,7 @@ static func plan(m: TacMap, seed_value: int) -> Array:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value
 	var out := []
+	var sl := m.street   # outdoor lights stand at street level
 	var neon: Array = SceneTheme.colors(m, "neon", NEON)
 	var zone_light: Array = SceneTheme.colors(m, "zone_light", ZONE_LIGHT)
 	var lamps: Array = SceneTheme.colors(m, "lamp", LAMP)
@@ -47,13 +48,13 @@ static func plan(m: TacMap, seed_value: int) -> Array:
 	var spacing := 7 if bulkhead else int(SceneTheme.of(m).get("lamp_spacing", LAMP_SPACING))   # a park lights its walks closer
 	for y in m.h:
 		for x in m.w:
-			if m.t(0, x, y) != TacMap.T.OUTSIDE or not grounds.has(int(m.ground[y * m.w + x])) or m.has_cover_at(0, Vector2i(x, y)) or m.has_decor_at(0, Vector2i(x, y)):
+			if m.t(sl, x, y) != TacMap.T.OUTSIDE or not grounds.has(int(m.ground[y * m.w + x])) or m.has_cover_at(sl, Vector2i(x, y)) or m.has_decor_at(sl, Vector2i(x, y)):
 				continue
 			var p := Vector2i(x, y)
 			var face := Vector2i.ZERO   # bulkhead lamps hang on a wall: the direction out of it
 			if bulkhead:
 				for d in MapGen.DIRS:
-					if m.inb(x - d.x, y - d.y) and m.t(0, x - d.x, y - d.y) == TacMap.T.WALL:
+					if m.inb(x - d.x, y - d.y) and m.t(sl, x - d.x, y - d.y) == TacMap.T.WALL:
 						face = d
 						break
 				if face == Vector2i.ZERO:
@@ -63,32 +64,32 @@ static func plan(m: TacMap, seed_value: int) -> Array:
 			taken.append(p)
 			if rng.randf() > lamp_keep:   # the power's out in a burning district
 				continue
-			out.append({"kind": "lamp", "cell": Vector3i(x, y, 0), "out": face, "color": lamp_col, "energy": 1.1 if bulkhead else 0.9, "range": 6.0 if bulkhead else 7.0})
+			out.append({"kind": "lamp", "cell": Vector3i(x, y, sl), "out": face, "color": lamp_col, "energy": 1.1 if bulkhead else 0.9, "range": 6.0 if bulkhead else 7.0})
 	# Outdoor lots get a lamp of their own (owner round 6: empty dark lots): a work light on a
 	# construction site, park and plaza lamps, a sodium lamp over parking.
 	const LOT_LIGHT := {"construction_site": "ffc860", "park": "c8ffd8", "plaza": "ffd8a8", "parking_lot": "ffb070", "market": "ffc890",
 		"ride": "ffe0b0", "woods": "a890ff"}
 	for r in m.rooms:
-		if not r.get("outdoor", false) or r.floor != 0 or not LOT_LIGHT.has(String(r.kind)) or r.cells < 12:
+		if not r.get("outdoor", false) or r.floor != sl or not LOT_LIGHT.has(String(r.kind)) or r.cells < 12:
 			continue
 		var b: Rect2i = r.bounds
 		var spot := Vector2i(-1, -1)
 		for k in 30:   # a free square of the lot, toward its middle
 			var v := b.get_center() + Vector2i(rng.randi_range(-b.size.x / 4, b.size.x / 4), rng.randi_range(-b.size.y / 4, b.size.y / 4))
-			if m.inb(v.x, v.y) and m.label(0, v.x, v.y) == r.id and not m.has_cover_at(0, v):
+			if m.inb(v.x, v.y) and m.label(sl, v.x, v.y) == r.id and not m.has_cover_at(sl, v):
 				spot = v
 				break
 		if spot.x >= 0 and rng.randf() < lamp_keep:
-			out.append({"kind": "lamp", "cell": Vector3i(spot.x, spot.y, 0), "out": Vector2i.ZERO, "color": Color(LOT_LIGHT[String(r.kind)]), "energy": 1.2, "range": 8.0})
+			out.append({"kind": "lamp", "cell": Vector3i(spot.x, spot.y, sl), "out": Vector2i.ZERO, "color": Color(LOT_LIGHT[String(r.kind)]), "energy": 1.2, "range": 8.0})
 	# Outside the city (few lamps): a few burning barrels / fire pits near cover, for warm pools.
 	if out.filter(func(x): return x.kind == "lamp").size() < 2:
 		var spots: Array[Vector2i] = []
 		for c in m.cover:
-			if c.floor != 0:
+			if c.floor != sl:
 				continue
 			for d in MapGen.DIRS:
 				var v: Vector2i = Vector2i(c.pos.x, c.pos.y) + d
-				if m.inb(v.x, v.y) and m.t(0, v.x, v.y) == TacMap.T.OUTSIDE and not m.has_cover_at(0, v):
+				if m.inb(v.x, v.y) and m.t(sl, v.x, v.y) == TacMap.T.OUTSIDE and not m.has_cover_at(sl, v):
 					spots.append(v)
 					break
 		var placed: Array[Vector2i] = []
@@ -99,13 +100,13 @@ static func plan(m: TacMap, seed_value: int) -> Array:
 			if placed.any(func(q): return q.distance_to(v) < 12):
 				continue
 			placed.append(v)
-			out.append({"kind": "fire", "cell": Vector3i(v.x, v.y, 0), "out": Vector2i.ZERO, "color": fire_col, "energy": 2.2, "range": 7.0})
+			out.append({"kind": "fire", "cell": Vector3i(v.x, v.y, sl), "out": Vector2i.ZERO, "color": fire_col, "energy": 2.2, "range": 7.0})
 	# Burning scenes: wrecks, cars and rubble heaps on fire (one blaze per prop), spaced out.
 	if blaze > 0.0:
 		var lit := {}
 		var spots2: Array[Vector2i] = []
 		for cv in m.cover:
-			if cv.floor != 0 or not String(cv.kind) in ["wreck", "car", "rubble"]:
+			if cv.floor != sl or not String(cv.kind) in ["wreck", "car", "rubble"]:
 				continue
 			var key: int = int(cv.get("prop", -1))
 			if key >= 0 and lit.has(key):
@@ -117,7 +118,7 @@ static func plan(m: TacMap, seed_value: int) -> Array:
 			if spots2.any(func(q): return q.distance_to(v) < 6):
 				continue
 			spots2.append(v)
-			out.append({"kind": "blaze", "cell": Vector3i(v.x, v.y, 0), "out": Vector2i.ZERO, "color": fire_col, "energy": 2.8, "range": 9.0})
+			out.append({"kind": "blaze", "cell": Vector3i(v.x, v.y, sl), "out": Vector2i.ZERO, "color": fire_col, "energy": 2.8, "range": 9.0})
 	# One light per indoor room (big rooms get two), tinted by security level.
 	for r in m.rooms:
 		if r.cells < 4 or r.get("outdoor", false) or r.floor < 0 or r.kind == "void":

@@ -16,8 +16,8 @@ func _cell_at(m: TacMap, z: HazardZone, d: float) -> Vector3i:
 	for y in range(z.area.position.y, z.area.end.y):
 		for x in range(z.area.position.x, z.area.end.x):
 			var dist := Vector2(x + 0.5, y + 0.5).distance_to(z.center)
-			if m.walkable(0, Vector2i(x, y)) and ((d >= 0 and dist > d) or (d < 0 and dist < -d)):
-				return Vector3i(x, y, 0)
+			if m.walkable(m.street, Vector2i(x, y)) and ((d >= 0 and dist > d) or (d < 0 and dist < -d)):
+				return Vector3i(x, y, m.street)
 	return Vector3i(-1, -1, -1)
 
 

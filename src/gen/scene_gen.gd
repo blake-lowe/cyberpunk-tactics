@@ -53,6 +53,7 @@ static func generate(seed_value: int, scene: String, overrides: Dictionary = {})
 	var c := {"m": m, "dice": dice, "hints": [], "p": p, "reserved": {}, "overrides": overrides, "related": []}
 	if setpiece != "":
 		SetPieceGen.run(c)
+		BasementGen.run(c)   # storeys below the street, if the recipe has any: street level becomes m.street
 	else:
 		_plan(c, scene)
 	_link_nets(c)
@@ -76,7 +77,7 @@ static func _reseat_devices(m: TacMap) -> void:
 	var dep := Vector3i(-1, -1, -1)
 	for e in m.entrances:
 		if e.kind == "deploy":
-			dep = Vector3i(e.pos.x, e.pos.y, 0)
+			dep = Vector3i(e.pos.x, e.pos.y, m.street)
 			break
 	if dep.x < 0:
 		return
@@ -583,7 +584,7 @@ static func _ensure_public_access(m: TacMap) -> void:
 		return
 	var nav := Nav.new(m)
 	var origin: Vector2i = deploy[0].pos
-	var field: Dictionary = nav.distance_field([Vector3i(origin.x, origin.y, 0)], {}, 3000)
+	var field: Dictionary = nav.distance_field([Vector3i(origin.x, origin.y, m.street)], {}, 3000)
 	for st in m.structures:
 		if not st.target or not m.architectures.has(st.id):
 			continue
@@ -616,7 +617,7 @@ static func _ensure_public_access(m: TacMap) -> void:
 		if best.x < 0:   # fenced or walled-off sites: a field relay on the reachable square nearest the target
 			var tc := Vector2((st.rect as Rect2i).get_center()) if st.has("rect") else Vector2(m.w / 2.0, m.h / 2.0)
 			for cell in field:
-				var dd3: float = Vector2(cell.x, cell.y).distance_to(tc) + cell.z * 4.0
+				var dd3: float = Vector2(cell.x, cell.y).distance_to(tc) + absi(m.level(cell.z)) * 4.0
 				if dd3 < best_d and not m.has_cover_at(cell.z, Vector2i(cell.x, cell.y)):
 					best_d = dd3
 					best = cell
@@ -646,7 +647,7 @@ static func _deploy_zone(c: Dictionary) -> void:
 	var best_d := -1
 	for i in m.entrances.size():
 		var e: Dictionary = m.entrances[i]
-		if e.kind == "spawn" and m.walkable(0, e.pos):
+		if e.kind == "spawn" and m.walkable(m.street, e.pos):
 			var dd := absi(e.pos.x - door.x) + absi(e.pos.y - door.y)
 			if dd > best_d:
 				best_d = dd
@@ -662,7 +663,7 @@ static func _deploy_zone(c: Dictionary) -> void:
 		var v: Vector2i = q.pop_front()
 		for d in MapGen.DIRS:
 			var n: Vector2i = v + d
-			if not seen.has(n) and m.inb(n.x, n.y) and m.t(0, n.x, n.y) == TacMap.T.OUTSIDE and not m.has_cover_at(0, n):
+			if not seen.has(n) and m.inb(n.x, n.y) and m.t(m.street, n.x, n.y) == TacMap.T.OUTSIDE and not m.has_cover_at(m.street, n):
 				seen[n] = true
 				q.append(n)
 				if cells.size() < 6:

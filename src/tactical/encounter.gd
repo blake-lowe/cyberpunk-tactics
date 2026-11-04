@@ -113,7 +113,7 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 	var deploy: Dictionary = p_map.entrances.filter(func(x): return x.kind == "deploy")[0]
 	var cells: Array = deploy.get("cells", [deploy.pos])
 	for c0 in cells:
-		e.extract_cells[Vector3i(c0.x, c0.y, 0)] = true
+		e.extract_cells[Vector3i(c0.x, c0.y, p_map.street)] = true
 	e.lights_off = bool(opts.get("lights_off", false))   # HOUSE-RULE: Playland's Fright Nights (NC2045 p.306) read as lights down
 	e.leg = int(opts.get("leg", -1))
 	for i in crew.size():
@@ -122,7 +122,7 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 		else:
 			crew[i].gig_reset()
 		var c: Vector2i = cells[i % cells.size()]
-		e._add(crew[i], Vector3i(c.x, c.y, 0), 0)
+		e._add(crew[i], Vector3i(c.x, c.y, p_map.street), 0)
 	# Guards at posts, target building first.
 	var target_sid := -1
 	for st in p_map.structures:
@@ -741,16 +741,16 @@ func _crowd_cells(deploy: Vector2i) -> Array:
 	var cand: Array = []
 	for y in m.h:
 		for x in m.w:
-			var v := Vector3i(x, y, 0)
-			if not m.walkable(0, Vector2i(x, y)) or occupied().has(v) or Vector2(x - deploy.x, y - deploy.y).length() < 10:
+			var v := Vector3i(x, y, m.street)
+			if not m.walkable(m.street, Vector2i(x, y)) or occupied().has(v) or Vector2(x - deploy.x, y - deploy.y).length() < 10:
 				continue
-			var l := m.label(0, x, y)
+			var l := m.label(m.street, x, y)
 			var ok := false
 			if l >= 0:
 				var r: Dictionary = m.rooms[l]
 				ok = int(r.zone) == TacMap.Zone.PUBLIC and String(r.kind) not in ["roof", "corridor"]
 			else:
-				ok = m.t(0, x, y) == TacMap.T.OUTSIDE and m.ground[y * m.w + x] == TacMap.G.SIDEWALK
+				ok = m.t(m.street, x, y) == TacMap.T.OUTSIDE and m.ground[y * m.w + x] == TacMap.G.SIDEWALK
 			if ok:
 				cand.append(v)
 	return cand
@@ -974,14 +974,14 @@ func _av_clearing(near: Vector3i, lo: int, hi: int, rx: int, ry: int, occ: Dicti
 			for dy in range(-ry, ry + 1):
 				for dx in range(-rx, rx + 1):
 					var v := Vector2i(x + dx, y + dy)
-					if m.t(0, v.x, v.y) != TacMap.T.OUTSIDE or m.label(0, v.x, v.y) >= 0 or not m.walkable(0, v) or occ.has(Vector3i(v.x, v.y, 0)):
+					if m.t(m.street, v.x, v.y) != TacMap.T.OUTSIDE or m.label(m.street, v.x, v.y) >= 0 or not m.walkable(m.street, v) or occ.has(Vector3i(v.x, v.y, m.street)):
 						ok = false
 						break
 				if not ok:
 					break
 			if ok:
 				bd = d
-				best = Vector3i(x, y, 0)
+				best = Vector3i(x, y, m.street)
 	return [best, bd]
 
 
@@ -997,7 +997,7 @@ func _av_exits(c: Vector3i, n: int) -> Array:
 			for sgn in [1, -1]:
 				var d: Vector2i = side * dist * sgn + along * off
 				var v := c + Vector3i(d.x, d.y, 0)
-				if m.inb(v.x, v.y) and m.walkable(0, Vector2i(v.x, v.y)) and not occupied().has(v) and not out.has(v):
+				if m.inb(v.x, v.y) and m.walkable(v.z, Vector2i(v.x, v.y)) and not occupied().has(v) and not out.has(v):
 					out.append(v)
 				if out.size() >= n + 1:
 					return out
@@ -1013,7 +1013,7 @@ func _around(c: Vector3i, n: int) -> Array:
 	var out: Array = []
 	for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 1), Vector2i(-1, -1), Vector2i(1, -1), Vector2i(-1, 1)]:
 		var v := c + Vector3i(d.x, d.y, 0)
-		if m.walkable(0, Vector2i(v.x, v.y)) and not occupied().has(v):
+		if m.walkable(v.z, Vector2i(v.x, v.y)) and not occupied().has(v):
 			out.append(v)
 		if out.size() >= n + 1:
 			break
@@ -1067,8 +1067,8 @@ func _detonate(center: Vector3i, half: int, n_dice: int, by: int, total := 17) -
 ## building's most secure zone, as far from the deploy zone as walking gets (upper floors count
 ## through the distance field), off guard posts and cover.
 func secure_cell(target_sid: int, origin: Vector2i, role := "") -> Vector3i:
-	var field: Dictionary = nav.distance_field([Vector3i(origin.x, origin.y, 0)], {})
-	var best := Vector3i(origin.x, origin.y, 0)
+	var field: Dictionary = nav.distance_field([Vector3i(origin.x, origin.y, m.street)], {})
+	var best := Vector3i(origin.x, origin.y, m.street)
 	var best_d := -1.0
 	var occ := occupied()
 	# A site's own anchors (sites.json `anchors.<role>.<room kind>`: a bonus worth ~20 per security
@@ -1262,11 +1262,11 @@ func passing_as_public(u: Dictionary) -> bool:
 	if alarm > 0 or not _public_access or int(u.get("team", CREW)) != CREW:
 		return false
 	var p: Vector3i = u.pos
-	if p.z != 0:
+	if p.z != m.street:
 		return false
-	var l := m.label(0, p.x, p.y)
+	var l := m.label(m.street, p.x, p.y)
 	if l < 0:
-		return m.t(0, p.x, p.y) in [TacMap.T.OUTSIDE, TacMap.T.DOOR]
+		return m.t(m.street, p.x, p.y) in [TacMap.T.OUTSIDE, TacMap.T.DOOR]
 	return int(m.rooms[l].zone) <= TacMap.Zone.PUBLIC
 
 
@@ -1306,8 +1306,8 @@ func _compute_light() -> void:
 	if day:
 		for y in m.h:
 			for x in m.w:
-				if m.t(0, x, y) == TacMap.T.OUTSIDE and m.label(0, x, y) < 0:
-					lit[Vector3i(x, y, 0)] = true
+				if m.t(m.street, x, y) == TacMap.T.OUTSIDE and m.label(m.street, x, y) < 0:
+					lit[Vector3i(x, y, m.street)] = true
 
 
 ## Unalerted guards face somewhere sensible (into their room, or along the street) and some walk a
@@ -1324,11 +1324,11 @@ func _outer_patrols(deploy: Vector2i) -> void:
 	for st in m.structures:
 		if st.target:
 			tsid = st.id
-	var field: Dictionary = _keys(func(): return nav.distance_field([Vector3i(deploy.x, deploy.y, 0)], {}, 4000))
+	var field: Dictionary = _keys(func(): return nav.distance_field([Vector3i(deploy.x, deploy.y, m.street)], {}, 4000))
 	var cand: Array = []
 	for v in field:
 		var l := m.label(v.z, v.x, v.y)
-		if v.z == 0 and int(field[v]) > 16 and (l < 0 or m.rooms[l].structure != tsid) and not m.has_cover_at(0, Vector2i(v.x, v.y)):
+		if v.z == m.street and int(field[v]) > 16 and (l < 0 or m.rooms[l].structure != tsid) and not m.has_cover_at(v.z, Vector2i(v.x, v.y)):
 			cand.append(v)
 	if cand.is_empty():
 		return
@@ -2207,7 +2207,7 @@ func shoot_cover(cell: Vector3i, weapon: Weapon) -> Dictionary:
 	hp = maxi(0, hp - dmg)
 	los.wall_hp[cell] = hp
 	if hp == 0:
-		m.set_t(cell.z, cell.x, cell.y, TacMap.T.FLOOR if cell.z > 0 or m.label(cell.z, cell.x, cell.y) >= 0 else TacMap.T.OUTSIDE)
+		m.set_t(cell.z, cell.x, cell.y, TacMap.T.FLOOR if cell.z != m.street or m.label(cell.z, cell.x, cell.y) >= 0 else TacMap.T.OUTSIDE)
 		nav.locked.erase(cell)
 		say("The %s gives way." % wc.material)
 	events[-1]["left"] = hp

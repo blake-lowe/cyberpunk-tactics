@@ -32,7 +32,7 @@ func _part(m: TacMap, part: String) -> Dictionary:
 func _deploy(m: TacMap) -> Vector3i:
 	for e in m.entrances:
 		if e.kind == "deploy":
-			return Vector3i(e.pos.x, e.pos.y, 0)
+			return Vector3i(e.pos.x, e.pos.y, int(e.floor))   # street level (m.street)
 	return Vector3i(-1, -1, -1)
 
 
@@ -333,7 +333,7 @@ func test_fort_sumter_reads_as_a_school() -> void:
 		var lawn := 0
 		for y in range(rect.end.y, m.h):
 			for x in m.w:
-				if m.t(0, x, y) == TacMap.T.OUTSIDE and m.ground[y * m.w + x] == TacMap.G.GRASS:
+				if m.t(m.street, x, y) == TacMap.T.OUTSIDE and m.ground[y * m.w + x] == TacMap.G.GRASS:
 					lawn += 1
 		assert_true(lawn >= 40, "%s: a front lawn (%d squares)" % [tag, lawn])
 		assert_eq(_props_of(m, "bus").size(), 5, "%s: the old school bus across the lawn" % tag)
@@ -482,13 +482,13 @@ func test_eurasiabank_sunken_ruin() -> void:
 		var main := _part(m, "main")
 		var ground := {}
 		for r in m.rooms:
-			if r.cells > 0 and r.structure == main.id and r.floor == 0:
+			if r.cells > 0 and r.structure == main.id and r.floor < m.street:   # the drowned bank is below grade
 				ground[String(r.kind)] = true
 		for k in ["banking_hall", "bank_vault", "archive", "server_room"]:
-			assert_true(ground.has(k), "%s: the drowned %s at the bottom" % [tag, k])
+			assert_true(ground.has(k), "%s: the drowned %s below the street" % [tag, k])
 		assert_true(SetPieceDressing.look(m, int(main.id)).get("flooded", []).has("bank_vault"), "%s: the vaults stand in water" % tag)
-		var e0 := _extent(m, int(main.id), 0)
-		var e2 := _extent(m, int(main.id), 2)
+		var e0 := _extent(m, int(main.id), m.street)
+		var e2 := _extent(m, int(main.id), m.street + 2)
 		assert_true(e2.size.x * e2.size.y < e0.size.x * e0.size.y * 0.7, "%s: the crumbled top storey" % tag)
 		var terr := m.rooms.filter(func(r): return r.cells > 0 and r.kind == "terrace" and r.structure == main.id)
 		assert_true(terr.size() >= 1, "%s: rubble terraces to climb" % tag)
@@ -496,11 +496,11 @@ func test_eurasiabank_sunken_ruin() -> void:
 		var rect: Rect2i = main.rect
 		for y in range(rect.position.y, rect.end.y):
 			for x in [rect.position.x, rect.end.x - 1]:
-				if m.t(0, x, y) == TacMap.T.OUTSIDE:
+				if m.t(m.street, x, y) == TacMap.T.OUTSIDE:
 					breaches += 1
 		for x in range(rect.position.x, rect.end.x):
 			for y in [rect.position.y, rect.end.y - 1]:
-				if m.t(0, x, y) == TacMap.T.OUTSIDE:
+				if m.t(m.street, x, y) == TacMap.T.OUTSIDE:
 					breaches += 1
 		assert_true(breaches >= 2, "%s: breached walls (%d)" % [tag, breaches])
 

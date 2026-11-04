@@ -33,7 +33,7 @@ func _init(p_map: TacMap, p_los: Los) -> void:
 
 func _outdoor(f: int, x: int, y: int) -> bool:
 	var t := m.t(f, x, y)
-	if t in [TacMap.T.OUTSIDE, TacMap.T.ROOF, TacMap.T.WATER, TacMap.T.BRIDGE]:
+	if t in [TacMap.T.OUTSIDE, TacMap.T.ROOF, TacMap.T.BRIDGE] or (t == TacMap.T.WATER and f >= m.street):   # flooded basements are indoors
 		return true
 	var l := m.label(f, x, y)
 	return l >= 0 and m.rooms[l].get("outdoor", false)
@@ -42,7 +42,7 @@ func _outdoor(f: int, x: int, y: int) -> bool:
 func _touches_outdoor(f: int, x: int, y: int) -> bool:
 	for d in Nav.DIRS8:
 		var n: Vector2i = Vector2i(x, y) + d
-		if not m.inb(n.x, n.y) or m.t(f, n.x, n.y) == TacMap.T.VOID or _outdoor(f, n.x, n.y):
+		if not m.inb(n.x, n.y) or (m.t(f, n.x, n.y) == TacMap.T.VOID and f >= m.street) or _outdoor(f, n.x, n.y):   # below grade VOID is earth: the dug walls are not a known shell
 			return true
 	return false
 

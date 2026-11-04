@@ -37,7 +37,7 @@ static func from_spec(spec: Dictionary, m: TacMap, dice: Dice) -> HazardZone:
 	var cands: Array[Vector2i] = []
 	for y in range(mid.position.y, mid.end.y):
 		for x in range(mid.position.x, mid.end.x):
-			if m.t(0, x, y) == TacMap.T.OUTSIDE and m.walkable(0, Vector2i(x, y)):
+			if m.t(m.street, x, y) == TacMap.T.OUTSIDE and m.walkable(m.street, Vector2i(x, y)):
 				cands.append(Vector2i(x, y))
 	var c: Vector2i = z.area.get_center() if cands.is_empty() else cands[dice.rng.randi_range(0, cands.size() - 1)]
 	z.center = Vector2(c) + Vector2(0.5, 0.5)
