@@ -42,6 +42,9 @@ func _ready() -> void:
 			board_shot = true
 		if k == "scroll":   # --scroll=n: screenshots further down the board
 			_scroll_to = int(a.get_slice("=", 1))
+		if k == "report":   # --report: a sample results panel (screenshots)
+			report = {"won": true, "gig": {"title": "Retire a Biotechnica manager"}, "pay": 1500, "fees": 0, "rep": 1, "ip": 40,
+				"salvage": 320, "heat": 1, "dead": [], "hurt": ["Echo (Broken Arm)"], "kit_used": ["Flashbang"], "addicted": ["Wraith (Synthcoke)"], "episodes": []}
 		if k == "train":   # --train=n opens crew member n's training panel (screenshots)
 			_train_for = int(a.get_slice("=", 1))
 	if dev and not board_shot:
@@ -49,7 +52,7 @@ func _ready() -> void:
 		return
 	Hud._fonts()
 	camp = Campaign.ensure_current()
-	if camp.has_meta("report"):
+	if camp.has_meta("report") and report.is_empty():
 		report = camp.get_meta("report")
 		camp.remove_meta("report")
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
