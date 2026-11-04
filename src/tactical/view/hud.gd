@@ -43,7 +43,21 @@ var _bar: PanelContainer
 var _card: VBoxContainer
 var _econ: HBoxContainer
 var _buttons: HBoxContainer
-var _tool_buttons := {}   ## glyph → ActBtn for the M5 actions
+var _tool_buttons := {}   ## id → ActBtn on the main bar
+var _atk_buttons: HBoxContainer   ## the attack stage: weapon tabs, then the drawn weapon's attacks
+var stage := "main"       ## "main" or "attack" (set by the view before refresh)
+var atk_mode := "single"  ## the armed attack in the attack stage (Encounter.attack_modes ids)
+## Main-bar actions: [id, title, key, signal, arg, tint]. Order is fixed so nothing moves.
+const MAIN_ACTIONS := [["shot", "ATTACK", "F", "stage", "attack", Color("05d9e8")], ["reload", "RELOAD", "R", "reload", null, Color("05d9e8")],
+	["kit0", "KIT", "G", "kit", 0, Color("f9c80e")], ["jack", "JACK IN", "J", "jack_in", null, Color("d68cff")],
+	["interact", "INTERACT", "B", "interact", null, Color("f9c80e")], ["medic", "STABILIZE", "T", "tool", "stabilize", Color("39f0a0")],
+	["role", "ROLE", "V", "role", null, Color("39f0a0")]]
+## Attack-stage modes: id → [button title, glyph, the book's full name] (CPR core p.170-177).
+const ATK_MODES := {"single": ["SINGLE", "shot", "Single Shot"], "aim_head": ["AIM HEAD", "head", "Aimed Shot: head"],
+	"aim_leg": ["AIM LEG", "head", "Aimed Shot: leg"], "aim_held": ["AIM HELD", "head", "Aimed Shot: held item"],
+	"auto": ["AUTOFIRE", "auto", "Autofire"], "suppress": ["SUPPRESS", "suppress", "Suppressive Fire"],
+	"shell": ["SHELL", "shell", "Shotgun Shell"], "cover": ["COVER", "cover", "Shoot the cover in the way"],
+	"melee": ["MELEE", "melee", "Melee Attack"], "brawl": ["BRAWL", "melee", "Brawling"]}
 var tool := ""            ## active target-picking tool (set by the view before refresh)
 var _end_btn: Button
 var _withdraw_btn: Button   ## a gig-level choice, not a unit action: sits above END TURN, off the action bar
@@ -62,7 +76,6 @@ var _turn_banner: Label
 var _turn_rule: ColorRect
 var hint: PanelContainer
 var hint_tab: PanelContainer
-var _mode_buttons := {}
 var _hp_seen := {}            ## unit id → last HP fraction shown (for ghost drain)
 var _banner_tw: Tween
 var _flash: ColorRect
@@ -486,30 +499,20 @@ func _build_bar() -> void:
 	_buttons = HBoxContainer.new()
 	_buttons.add_theme_constant_override("separation", 5)
 	mid.add_child(_buttons)
-	for spec in [["shot", "SHOOT", "1", 0], ["auto", "AUTO", "2", 1], ["head", "HEAD", "3", 2]]:
-		var b := ActBtn.new(spec[0], spec[1], spec[2], CYAN)
-		b.toggle_mode = true
-		b.pressed.connect(func(): action.emit("mode", spec[3]))
-		_mode_buttons[spec[3]] = b
-		_buttons.add_child(b)
-	for spec in [["cover", "COVER", "X", "cover_mode", CYAN], ["reload", "RELOAD", "R", "reload", CYAN], ["jack", "JACK IN", "J", "jack_in", VIOLET]]:
-		var b2 := ActBtn.new(spec[0], spec[1], spec[2], spec[4])
-		if spec[3] == "cover_mode":
-			b2.toggle_mode = true
-		b2.pressed.connect(func(): action.emit(spec[3], null))
-		_buttons.add_child(b2)
-	# M5 actions: target-picking tools (toggle; right-click applies) and instant ones
-	for spec in [["melee", "MELEE", "F", "tool", "melee", CYAN], ["shell", "SHELL", "5", "tool", "shell", CYAN],
-			["suppress", "SUPPRESS", "4", "suppress", null, CYAN],
-			["medic", "STABILIZE", "T", "tool", "stabilize", GREEN], ["grab", "GRAB", "B", "grab", null, GOLD], ["free", "FREE", "B", "free", null, GOLD], ["plant", "PLANT", "B", "plant", null, RED], ["dose", "DOSE", "Y", "tool", "dose", GREEN], ["rig", "RIG", "U", "tool", "rig", CYAN], ["tamper", "CAMERA", "K", "tamper", null, CYAN], ["bypass", "BYPASS", "V", "bypass", null, CYAN], ["keycard", "KEYCARD", "P", "keycard", null, GOLD],
-			["kit0", "KIT", "G", "kit", 0, GOLD]]:
+	# Main bar: the core actions in a fixed order (letters only); a slot hides when it can't apply.
+	for spec in MAIN_ACTIONS:
 		var b3 := ActBtn.new(spec[0], spec[1], spec[2], spec[5])
-		b3.toggle_mode = spec[3] in ["tool", "kit"]
+		b3.toggle_mode = spec[3] in ["tool", "kit", "stage"]
 		var arg: Variant = spec[4]
 		var act: String = spec[3]
 		b3.pressed.connect(func(): action.emit(act, arg))
 		_tool_buttons[spec[0]] = b3
 		_buttons.add_child(b3)
+	# Attack stage: the weapons you carry (drawing one is free, p.128), then what the drawn one can do.
+	_atk_buttons = HBoxContainer.new()
+	_atk_buttons.add_theme_constant_override("separation", 5)
+	_atk_buttons.visible = false
+	mid.add_child(_atk_buttons)
 	_end_btn = ActBtn.new("end", "END TURN", "SPC", GOLD, 96, 66)
 	_end_btn.pressed.connect(func(): action.emit("end_turn", null))
 	row.add_child(_end_btn)
@@ -617,20 +620,12 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 		var exhausted := not act and mv == 0
 		(_end_btn as ActBtn).tint = GOLD if exhausted else Color("8a96a0")
 		var w: Weapon = c.weapons[0] if not c.weapons.is_empty() else null
+		if stage == "attack":
+			_econ.add_child(_text("▸ " + String(ATK_MODES.get(atk_mode, ["", "", ""])[2]).to_upper(), F_DISPLAY, 20, GOLD))
 		_econ.add_child(_text(("%s  %s" % [w.display_name().to_upper(), "JAMMED · R TO CLEAR" if w.jammed else (("%02d/%02d" % [w.ammo, int(w.def.get("mag", 0))]) if w.uses_ammo() else "")]) if w else "UNARMED", F_TERM, Hud.ts(20), TEXT))
 		if enc.runs.has(enc.cur.id):
 			_econ.add_child(_text("◆ NET %d" % enc.net_left, F_PIXEL, 20, Color("d68cff")))
-	for k in _mode_buttons:
-		_mode_buttons[k].set_pressed_no_signal((k == mode) and not cover_mode)
-	for b in _buttons.get_children():
-		if b is Button:
-			b.disabled = not crew_turn
-			b.queue_redraw()
-	(_buttons.get_child(3) as Button).set_pressed_no_signal(cover_mode)
 	_refresh_tools(enc, crew_turn)
-	var jack := _buttons.get_child(5) as Button
-	jack.visible = not enc.cur.is_empty() and NetRun.interface_rank(enc.cur.c) > 0   # hide role-impossible actions
-	jack.disabled = not crew_turn
 	_end_btn.disabled = not crew_turn
 	_end_btn.queue_redraw()
 	_log_lines = enc.log.duplicate()
@@ -650,39 +645,148 @@ static func objective_text(enc: Encounter) -> String:
 	return enc.obj.hud_text()
 
 
-## Show each M5 action only when it applies to the active unit; reflect the active tool.
+## The interact action that applies where the active unit stands (B): [signal, title, glyph], or [].
+static func interact_here(enc: Encounter) -> Array:
+	var objs := enc.obj_actions()
+	if not objs.is_empty():
+		return [String(objs[0]), String(objs[0]).to_upper(), String(objs[0])]
+	if enc.keycard_in_reach(enc.cur).size() > 0:
+		return ["keycard", "KEYCARD", "keycard"]
+	if enc.lock_in_reach(enc.cur).x >= 0:
+		return ["bypass", "BYPASS", "bypass"]
+	if not enc.camera_in_reach(enc.cur).is_empty():
+		return ["tamper", "CAMERA", "tamper"]
+	return []
+
+
+## The active unit's role ability on V: [tool, title, glyph] (Medtech Pharmaceuticals, Tech
+## Field Expertise), or [].
+static func role_action(c: Combatant) -> Array:
+	if c.role == "medtech" and c.doses > 0:
+		return ["dose", "DOSE", "dose"]
+	if int(c.maker.get("field", 0)) > 0:
+		return ["rig", "RIG", "rig"]
+	return []
+
+
+## Main bar: show what applies to the active unit, dim what costs an Action once it's spent.
+## Attack stage: the weapon tabs and the drawn weapon's attacks replace it.
 func _refresh_tools(enc: Encounter, crew_turn: bool) -> void:
 	if _tool_buttons.is_empty() or enc.cur.is_empty():
 		return
 	var c: Combatant = enc.cur.c
-	var w: Weapon = c.weapons[0] if not c.weapons.is_empty() else null
+	var t := enc.turn
+	var can_act := t.action_available or t.attacks_left > 0
 	var near_dying := enc.units.any(func(o): return o.team == enc.cur.team and o != enc.cur and not o.c.dead \
 		and o.c.wound_state() == Combatant.Wound.MORTAL and enc.can_reach_to_stabilize(enc.cur, o))
-	var show := {"melee": true, "shell": w != null and w.def.get("shotgun_shell", false),
-		"suppress": w != null and w.def.get("suppressive", false), "medic": near_dying,
-		"grab": enc.can_grab(), "free": enc.can_free(), "plant": enc.can_plant(), "dose": c.role == "medtech" and c.doses > 0, "rig": int(c.maker.get("field", 0)) > 0, "tamper": not enc.camera_in_reach(enc.cur).is_empty(),
-		"bypass": enc.lock_in_reach(enc.cur).x >= 0, "keycard": not enc.keycard_in_reach(enc.cur).is_empty(),
-		"kit0": enc.kit_action(0) in ["grenade", "dose"]}   # the packed consumable (slot 2's utility is passive)
+	var here := interact_here(enc)
+	var role := role_action(c)
+	var jacked := enc.runs.has(enc.cur.id)
+	var show := {"shot": true, "reload": not c.weapons.is_empty() and c.weapons[0].uses_ammo(), "kit0": enc.kit_action(0) in ["grenade", "dose"],
+		"jack": NetRun.interface_rank(c) > 0, "interact": not here.is_empty(), "medic": near_dying, "role": not role.is_empty()}
 	for k in _tool_buttons:
 		var b: ActBtn = _tool_buttons[k]
 		b.visible = show[k]
-		b.disabled = not crew_turn
-		b.set_pressed_no_signal(b.toggle_mode and tool == {"melee": "melee", "shell": "shell", "kit0": "grenade", "medic": "stabilize", "dose": "dose", "rig": "rig"}.get(k, "-"))
-		if k == "kit0" and b.visible:   # the packed item: its own name and glyph
-			var key: String = c.kit[0]
-			b.title = Items.short_name(key)
-			b.glyph = "grenade" if Items.use(key) == "grenade" else "dose"
+		b.disabled = not crew_turn or (k != "jack" and not can_act) or (k == "reload" and not t.action_available)
+		var armed: bool = {"shot": stage == "attack", "kit0": tool == "grenade", "medic": tool == "stabilize",
+			"role": not role.is_empty() and tool == String(role[0])}.get(k, false)
+		b.set_pressed_no_signal(b.toggle_mode and armed)
+		match k:
+			"kit0":
+				if b.visible:   # the packed item: its own name and glyph
+					b.title = Items.short_name(c.kit[0])
+					b.glyph = "grenade" if Items.use(c.kit[0]) == "grenade" else "dose"
+			"jack":
+				b.title = "JACK OUT" if jacked else "JACK IN"
+			"interact":
+				if b.visible:
+					b.title = String(here[1])
+					b.glyph = String(here[2])
+			"role":
+				if b.visible:
+					b.title = String(role[1])
+					b.glyph = String(role[2])
 		b.queue_redraw()
-	# Narrower buttons when many actions apply, so the bar never runs off the screen.
-	var shown := _buttons.get_children().filter(func(x): return x.visible).size()
-	var badge := (hint_tab.size.x + 16.0) if hint_tab else 0.0   # the centred bar must clear the H·HELP tab on both sides
-	var room := get_viewport_rect().size.x - 28 - 96 - 420 - 2.0 * badge   # end-turn button and the unit card
-	var bw := clampf(room / maxf(1.0, shown) - 5.0, 50.0, 66.0)
-	for b2 in _buttons.get_children():
-		(b2 as Control).custom_minimum_size.x = bw
+	_buttons.visible = stage != "attack"
+	_atk_buttons.visible = stage == "attack"
+	if stage == "attack":
+		_build_attack_stage(enc, crew_turn and can_act)
 	_bar.reset_size()
-	_withdraw_btn.visible = crew_turn and enc.can_withdraw()
+	_withdraw_btn.visible = true   # always there; usable once everyone standing is in the deploy zone
+	_withdraw_btn.disabled = not (crew_turn and enc.can_withdraw())
+	_withdraw_btn.tooltip_text = "" if not _withdraw_btn.disabled else "Get everyone still standing back to the deploy zone"
+	_withdraw_btn.queue_redraw()
 	_place_withdraw()
+
+
+var _atk_mode_btns := {}   ## mode id → ActBtn in the attack stage (for live hit chances)
+
+
+## The attack stage's weapon tabs in a stable order (as acquired; drawing reorders c.weapons) and
+## null for Brawling at the end.
+static func weapon_tabs(c: Combatant) -> Array:
+	var ws: Array = c.weapons.duplicate()
+	ws.sort_custom(func(a, b): return a.get_instance_id() < b.get_instance_id())
+	ws.append(null)
+	return ws
+
+
+## The attack stage: one tab per weapon carried plus Brawling (Tab cycles, drawing is free), then
+## the drawn weapon's attacks by the book's names (F cycles), then BACK (Esc).
+func _build_attack_stage(enc: Encounter, usable: bool) -> void:
+	for ch in _atk_buttons.get_children():
+		_atk_buttons.remove_child(ch)
+		ch.queue_free()
+	_atk_mode_btns.clear()
+	var c: Combatant = enc.cur.c
+	var drawn: Weapon = c.weapons[0] if not c.weapons.is_empty() else null
+	var tabs := weapon_tabs(c)
+	for i in tabs.size():
+		var w: Weapon = tabs[i]
+		var on: bool = (w == drawn and atk_mode != "brawl") or (w == null and atk_mode == "brawl")
+		var nm := w.display_name().to_upper() if w else "BRAWLING"
+		var tb := ActBtn.new("melee" if w == null or w.is_melee() else "shot", nm, "TAB" if on else "", GOLD if on else Color("8a96a0"), 84, 66)
+		tb.toggle_mode = true
+		tb.set_pressed_no_signal(on)
+		tb.disabled = not usable
+		tb.pressed.connect(func(): action.emit("draw", i))
+		_atk_buttons.add_child(tb)
+	var sep := ColorRect.new()
+	sep.custom_minimum_size = Vector2(1, 50)
+	sep.color = Color(CYAN, 0.35)
+	_atk_buttons.add_child(sep)
+	var modes := Encounter.attack_modes(null if atk_mode == "brawl" else drawn)
+	var aiming := atk_mode.begins_with("aim_")
+	for m in modes:
+		if m in ["aim_leg", "aim_held"]:
+			continue   # one AIMED SHOT button: clicking it again moves the aim (head → leg → held item)
+		var shown := atk_mode if (m == "aim_head" and aiming) else m
+		var spec: Array = ATK_MODES[shown]
+		var on: bool = shown == atk_mode or (m == "melee" and atk_mode == "brawl")
+		if m == "melee" and atk_mode == "brawl":
+			spec = ATK_MODES["brawl"]
+		var mb := ActBtn.new(String(spec[1]), String(spec[0]), "F" if on else "", CYAN)
+		mb.tooltip_text = String(spec[2])
+		mb.toggle_mode = true
+		mb.set_pressed_no_signal(on)
+		mb.disabled = not usable
+		var next := m
+		if m == "aim_head" and aiming:
+			next = {"aim_head": "aim_leg", "aim_leg": "aim_held", "aim_held": "aim_head"}[atk_mode]
+		mb.pressed.connect(func(): action.emit("atk_mode", next))
+		_atk_buttons.add_child(mb)
+		_atk_mode_btns[shown] = mb
+	var back := ActBtn.new("", "BACK", "ESC", Color("8a96a0"))
+	back.pressed.connect(func(): action.emit("stage", "main"))
+	_atk_buttons.add_child(back)
+	# fit the screen: narrower buttons when the weapon has many options
+	var n := _atk_buttons.get_child_count() - 1
+	var badge := (hint_tab.size.x + 16.0) if hint_tab else 0.0
+	var room := get_viewport_rect().size.x - 28 - 96 - 420 - 2.0 * badge
+	var bw := clampf(room / maxf(1.0, n + tabs.size() * 0.25) - 5.0, 48.0, 66.0)
+	for ch in _atk_buttons.get_children():
+		if ch is ActBtn:
+			(ch as ActBtn).custom_minimum_size.x = bw * (1.25 if (ch as ActBtn).key == "TAB" or (ch as ActBtn).glyph in ["melee", "shot"] and _atk_mode_btns.values().find(ch) < 0 else 1.0)
 
 
 ## Over the END TURN button, just above the bar's right end.
@@ -816,12 +920,18 @@ func hit_unit(uid: int) -> void:
 	create_tween().tween_property(card, "modulate", Color.WHITE, 0.18)
 
 
-## Hit chance per fire mode on the hotbar while a target is hovered (empty clears).
+## Hit chance per attack while a target is hovered (mode id → %; empty clears): on the attack
+## stage's buttons, and Single Shot's on the main bar's ATTACK.
 func mode_pcts(pcts: Dictionary) -> void:
-	for k in _mode_buttons:
-		var b: ActBtn = _mode_buttons[k]
-		b.pct = pcts.get(k, -1)
-		b.queue_redraw()
+	for k in _atk_mode_btns:
+		var b: ActBtn = _atk_mode_btns[k]
+		if is_instance_valid(b):
+			b.pct = pcts.get(k, -1)
+			b.queue_redraw()
+	var shot: ActBtn = _tool_buttons.get("shot")
+	if shot:
+		shot.pct = pcts.get(atk_mode, pcts.get("single", -1))
+		shot.queue_redraw()
 
 
 func toast(text: String, secs := 2.2) -> void:

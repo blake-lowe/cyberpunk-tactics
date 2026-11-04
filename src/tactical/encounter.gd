@@ -1534,11 +1534,47 @@ func melee_weapon(c: Combatant) -> Weapon:
 	return Weapon.brawling(c)
 
 
-## A melee attack on a neighbouring enemy (uses the normal attack, so ROF 2 means two swings).
-func melee(target: Dictionary) -> Dictionary:
+## A melee attack on a neighbouring enemy (uses the normal attack, so ROF 2 means two swings),
+## with `weapon` (a melee weapon or Brawling) or the first melee weapon carried.
+func melee(target: Dictionary, weapon: Weapon = null) -> Dictionary:
 	if not adjacent(cur.pos, target.pos):
 		return {"ok": false, "reason": "out of reach"}
-	return attack(target, melee_weapon(cur.c), Attack.Mode.SINGLE)
+	return attack(target, weapon if weapon != null else melee_weapon(cur.c), Attack.Mode.SINGLE)
+
+
+## Ready another carried weapon: it becomes the one in hand (weapons[0]). Drawing an easily
+## accessible weapon isn't an Action if you have a free hand (CPR core p.128).
+func draw(weapon: Weapon) -> bool:
+	if cur.is_empty() or not cur.c.weapons.has(weapon):
+		return false
+	cur.c.weapons.erase(weapon)
+	cur.c.weapons.insert(0, weapon)
+	return true
+
+
+## The attacks a weapon allows, by the book's names (CPR core p.170-177): Single Shot, Aimed Shot
+## (head, leg or held item, p.170), Autofire and Suppressive Fire when the weapon has them (p.173-174),
+## Shotgun Shell (p.174), shooting the cover in the way (cover has HP, p.182), Melee / Brawling.
+## `weapon` null means Brawling. Ids: single, aim_head, aim_leg, aim_held, auto, suppress, shell,
+## cover, melee.
+static func attack_modes(weapon: Weapon) -> Array[String]:
+	if weapon == null or weapon.is_melee():
+		return ["melee"]
+	var fx: Dictionary = weapon.def.get("fx", {})
+	var out: Array[String] = []
+	if not fx.get("autofire_only", false) and not fx.get("shell_only", false):
+		out.append("single")
+		if not fx.get("no_aimed_shot", false):   # a shotgun firing slugs can aim; its shells can't (p.174)
+			out.append_array(["aim_head", "aim_leg", "aim_held"])
+	if weapon.autofire_mult() > 0:
+		out.append("auto")
+	if weapon.def.get("suppressive", false):
+		out.append("suppress")
+	if weapon.def.get("shotgun_shell", false):
+		out.append("shell")
+	if not fx.get("shell_only", false):
+		out.append("cover")
+	return out
 
 
 ## Suppressive Fire (p174): everyone on the other side in sight within 25 m contests WILL +

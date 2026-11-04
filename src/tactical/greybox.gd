@@ -33,6 +33,8 @@ var cut_all := false   ## C cycles: AUTO (buildings open only with crew inside o
 var sight_mode := 0    ## Z cycles guards' sight lines: 0 near the hovered move / hovered guard, 1 always, 2 off
 var fog_on := true
 var mode := Attack.Mode.SINGLE
+var stage := "main"         ## action bar: "main" or "attack" (weapon tabs + the drawn weapon's attacks)
+var atk_mode := "single"    ## the armed attack (Encounter.attack_modes ids, or "brawl")
 var cover_mode := false
 var move_opts := {}
 var hover := Vector3i(-1, -1, -1)
@@ -225,6 +227,7 @@ var _demo_ms := 0
 var _reel := ""
 var tool := ""                  ## M5 target-picking action: melee, shell, grenade, stabilize ("" = normal attacks)
 var _dev_kit: PackedStringArray = []   ## --kit=a,b (review renders)
+var _dev_stage := ""                   ## --stage=attack (review renders)
 var blast_node: MeshInstance3D  ## the grenade's 5x5 blast preview under the cursor
 var _net_cleaned := false
 var _lf_dims := Vector3.ZERO
@@ -257,6 +260,7 @@ func _ready() -> void:
 			"faction": gig.faction = kv[1]   # the target faction (World id: militech, maelstrom, ...)
 			"site": gig.site = kv[1]   # lone_building: which building type (sites.json)
 			"kit": _dev_kit = kv[1].split(",")   # review renders: pack every crew member's kit slots
+			"stage": _dev_stage = kv[1]   # review renders: open the action bar on this stage (attack)
 			"security": gig.security = int(kv[1])
 			"objective": gig["objective"] = kv[1]
 			"twist": gig["twist"] = kv[1]
@@ -358,6 +362,8 @@ func _process(delta: float) -> void:
 			for u in enc.units:
 				if _foe(u) and (enc.vision.visible.has(u.pos) or not fog_on) and not u.c.dead:
 					_shot_hover = Vector2i(u.pos.x, u.pos.y)
+		if _frames == 2 and _dev_stage != "":
+			_on_hud("stage", _dev_stage)
 		if _frames == 3 and _shot_hover.x >= 0:
 			hover = Vector3i(_shot_hover.x, _shot_hover.y, view_floor)
 			mouse = _to_screen(Vector3(hover.x + 0.5, view_floor * FH, hover.y + 0.5))
@@ -460,7 +466,7 @@ func _build_view() -> void:
 	shields.fn = _draw_cover_shields
 	hud.add_child(shields)
 	hud.move_child(shields, 0)
-	hud.build_hint("WASD  PAN\nWHEEL  ZOOM\nQ / E  ROTATE 90\nMIDDLE-DRAG  ROTATE\nPGUP / PGDN  FLOOR\nC  CUTAWAY   F2  LOOK\nZ  GUARD SIGHT LINES\nLMB  MOVE   RMB  FIRE\nALT (HOLD)  INSPECT\nF4  NET STYLE   N  PEEK\nH  HIDE THIS")
+	hud.build_hint("LMB  MOVE   RMB  ATTACK / USE\nF  ATTACK (AGAIN: NEXT MODE)\nTAB  NEXT WEAPON   ESC  BACK\nR  RELOAD   G  KIT ITEM\nJ  JACK IN / OUT   B  INTERACT\nT  STABILIZE   V  ROLE ABILITY\nL  WITHDRAW   SPACE  END TURN\nWASD  PAN   WHEEL  ZOOM\nQ / E  ROTATE   PGUP / PGDN  FLOOR\nC  CUTAWAY   Z  SIGHT LINES\nALT (HOLD)  INSPECT   N  NET PEEK\nF2  LOOK   F4  NET STYLE   H  HIDE")
 	hud.build_settings(look, [["pixel", "Pixel scale (0 auto)", 0, 6, 1], ["palette", "Palette", 0, 1, 1], ["levels", "Channel steps", 0, 32, 1], ["dither", "Dither", 0, 1, 0.05], ["spill", "Light spill", 0, 2, 0.05],
 		["contrast", "Contrast", 0.6, 1.6, 0.05], ["saturation", "Saturation", 0, 2, 0.05], ["outline", "Outline", 0, 1, 0.05],
 		["bloom", "Bloom", 0, 2, 0.05], ["lights", "Light level", 0.2, 2, 0.05], ["ortho", "Orthographic", 0, 1, 1]], _apply_look)
@@ -1832,28 +1838,28 @@ func _unhandled_input(ev: InputEvent) -> void:
 				sight_mode = (sight_mode + 1) % 3
 				hud.toast("GUARD SIGHT LINES: " + ["NEAR YOUR MOVE", "ALWAYS", "OFF"][sight_mode])
 				_draw_grid()
-			KEY_1: _on_hud("mode", 0)
-			KEY_2: _on_hud("mode", 1)
-			KEY_3: _on_hud("mode", 2)
-			KEY_X: _on_hud("cover_mode", null)
-			KEY_F: _on_hud("tool", "melee")
+			# Letters only (owner): F attack (again: next attack), Tab next weapon, R reload, G kit,
+			# J jack in/out, B interact, T stabilize, V role ability, L withdraw, Space end turn.
+			KEY_F:
+				if stage == "attack":
+					_on_hud("atk_cycle", null)
+				else:
+					_on_hud("stage", "attack")
+			KEY_TAB:
+				if stage != "attack":
+					_on_hud("stage", "attack")
+				_on_hud("draw_next", null)
 			KEY_G: _on_hud("kit", 0)
-			KEY_5: _on_hud("tool", "shell")
-			KEY_4: _on_hud("suppress", null)
 			KEY_T: _on_hud("tool", "stabilize")
-			KEY_B: _on_hud(enc.obj_actions()[0] if enc and not enc.obj_actions().is_empty() else "grab", null)   # the objective's action here
-			KEY_Y: _on_hud("tool", "dose")
-			KEY_U: _on_hud("tool", "rig")
+			KEY_B: _on_hud("interact", null)
+			KEY_V: _on_hud("role", null)
 			KEY_L: _on_hud("withdraw", null)
-			KEY_V: _on_hud("bypass", null)
-			KEY_P: _on_hud("keycard", null)
-			KEY_K: _on_hud("tamper", null)
 			KEY_ESCAPE:
-				if tool != "":
-					tool = ""
+				if tool != "" or stage != "main" or cover_mode:
+					_back_to_main()
 					_refresh(); _update_hover()
 			KEY_R: _on_hud("reload", null)
-			KEY_J: _on_hud("jack_in", null)
+			KEY_J: _on_hud("jack_in", null)   # JACK OUT while jacked in
 			KEY_SPACE: _on_hud("end_turn", null)
 			KEY_F1: gig.seed += 1; new_gig()
 			KEY_F2: hud.settings.visible = not hud.settings.visible
@@ -1869,11 +1875,45 @@ func _on_hud(name: String, arg: Variant) -> void:
 	if busy:
 		return
 	match name:
-		"mode":
-			mode = [Attack.Mode.SINGLE, Attack.Mode.AUTOFIRE, Attack.Mode.AIMED_HEAD][int(arg)]
-			cover_mode = false
+		"stage":
+			if String(arg) == "attack" and stage != "attack":
+				if not _spend_check():
+					return
+				stage = "attack"
+				var w0: Weapon = enc.cur.c.weapons[0] if not enc.cur.c.weapons.is_empty() else null
+				_arm(Encounter.attack_modes(w0)[0] if w0 else "brawl")
+			else:
+				_back_to_main()
 			_refresh(); _update_hover()
-		"cover_mode": cover_mode = not cover_mode; _refresh(); _update_hover()
+		"atk_mode":
+			_arm(String(arg))
+			_refresh(); _update_hover()
+		"atk_cycle":
+			var ms := Encounter.attack_modes(null if atk_mode == "brawl" else (enc.cur.c.weapons[0] if not enc.cur.c.weapons.is_empty() else null))
+			_arm(ms[(ms.find(atk_mode if atk_mode != "brawl" else "melee") + 1) % ms.size()] if atk_mode != "brawl" else "brawl")
+			_refresh(); _update_hover()
+		"draw", "draw_next":   # drawing a carried weapon is free with a hand free (p.128)
+			var tabs := Hud.weapon_tabs(enc.cur.c)
+			var at := tabs.size() - 1 if atk_mode == "brawl" else tabs.find(enc.cur.c.weapons[0] if not enc.cur.c.weapons.is_empty() else null)
+			var pick: Variant = tabs[int(arg)] if name == "draw" else tabs[(at + 1) % tabs.size()]
+			if pick == null:
+				_arm("brawl")
+			else:
+				enc.draw(pick)
+				_arm(Encounter.attack_modes(pick)[0])
+			_refresh(); _update_hover()
+		"interact":
+			if _crew_turn() and _spend_check():
+				var here := Hud.interact_here(enc)
+				if here.is_empty():
+					hud.toast("NOTHING TO INTERACT WITH HERE")
+				else:
+					_on_hud(String(here[0]), null)
+		"role":
+			if _crew_turn() and _spend_check():
+				var ra := Hud.role_action(enc.cur.c)
+				if not ra.is_empty():
+					_on_hud("tool", String(ra[0]))
 		"tool":
 			tool = "" if tool == String(arg) else String(arg)
 			cover_mode = false
@@ -1941,7 +1981,11 @@ func _on_hud(name: String, arg: Variant) -> void:
 				enc.withdraw()
 				_after_action()
 		"reload": _reload()
-		"jack_in": _jack_in()
+		"jack_in":
+			if _crew_turn() and enc.runs.has(enc.cur.id):
+				_on_hud("net", "jack_out")
+			else:
+				_jack_in()
 		"end_turn": _end_turn()
 		"net":
 			if _crew_turn():
@@ -2038,7 +2082,10 @@ func _click_tool() -> void:
 	match tool:
 		"melee":
 			if not t.is_empty() and not enc.allied(t.team, enc.cur.team):
-				r = enc.melee(t)
+				r = enc.melee(t, Weapon.brawling(enc.cur.c) if atk_mode == "brawl" else (w if w and w.is_melee() else null))
+		"suppress":   # Suppressive Fire hits everyone in sight within 25 m: right-click anywhere
+			if w:
+				r = enc.suppress(w)
 		"shell":
 			if not t.is_empty() and not enc.allied(t.team, enc.cur.team) and w:
 				r = enc.shotgun_shell(t, w)
@@ -2530,12 +2577,46 @@ func _demo_attack() -> void:
 
 
 ## After any rules call: play what happened (moves, shots, alerts) as animation, then sync.
+## Encounter.attack_modes ids that are plain attacks → Attack.Mode.
+const ATK_ENUM := {"single": Attack.Mode.SINGLE, "aim_head": Attack.Mode.AIMED_HEAD, "aim_leg": Attack.Mode.AIMED_LEG,
+	"aim_held": Attack.Mode.AIMED_HELD, "auto": Attack.Mode.AUTOFIRE, "cover": Attack.Mode.SINGLE}
+
+
+## Arm an attack from the attack stage: plain shots set the fire mode (right-click a target);
+## the rest are target-picking tools; Shoot Cover aims at the cover in the way.
+func _arm(m: String) -> void:
+	atk_mode = m
+	mode = ATK_ENUM.get(m, Attack.Mode.SINGLE)
+	cover_mode = m == "cover"
+	tool = {"suppress": "suppress", "shell": "shell", "melee": "melee", "brawl": "melee"}.get(m, "")
+
+
+func _back_to_main() -> void:
+	stage = "main"
+	tool = ""
+	cover_mode = false
+	atk_mode = "single"
+	mode = Attack.Mode.SINGLE
+
+
+## True if the active unit can still act this turn; otherwise says so (spent buttons are dimmed).
+func _spend_check() -> bool:
+	if not _crew_turn():
+		return false
+	if not (enc.turn.action_available or enc.turn.attacks_left > 0):
+		hud.toast("NO ACTION LEFT")
+		return false
+	return true
+
+
 func _after_action() -> void:
 	busy = true
 	grid_node.visible = false
 	path_node.mesh = null
 	await _play_events()
 	busy = false
+	if stage == "attack" and (enc.cur.is_empty() or enc.cur.team != 0 or not (enc.turn.action_available or enc.turn.attacks_left > 0)):
+		_back_to_main()   # the attack is spent: back to the main bar (a ROF 2 second shot stays armed)
 	if _rebuild:
 		_rebuild = false
 		_build_world()
@@ -3468,6 +3549,8 @@ func _outcome(e: Dictionary, su: Dictionary, tu: Dictionary, tn: Node3D, at: Vec
 
 func _hud_refresh() -> void:
 	hud.tool = tool
+	hud.stage = stage
+	hud.atk_mode = atk_mode
 	hud.refresh(enc, mode, cover_mode, "%s  ·  FLOOR %d/%d" % [String(m.params.get("scene", gig.scene)).replace("_", " ").to_upper(), view_floor + 1, m.floors])
 
 
@@ -3736,23 +3819,22 @@ func _update_hover() -> void:
 	var w: Weapon = enc.cur.c.weapons[0]
 	var p := enc.preview(t, w, mode)
 	var pcts := {}
-	for k in 3:   # hit chance per fire mode, shown on the hotbar buttons
-		var pm := enc.preview(t, w, [Attack.Mode.SINGLE, Attack.Mode.AUTOFIRE, Attack.Mode.AIMED_HEAD][k])
-		pcts[k] = roundi(pm.chance * 100) if pm.ok else -1
+	for m in Encounter.attack_modes(w):   # hit chance per attack, shown on the bar's buttons
+		if ATK_ENUM.has(m):
+			var pm := enc.preview(t, w, ATK_ENUM[m])
+			pcts[m] = roundi(pm.chance * 100) if pm.ok else -1
 	hud.mode_pcts(pcts)
 	var c: Combatant = t.c
 	var lines := ["[b]%s[/b]  [color=#7d8a96]%s[/color]" % [c.display_name, c.kind_name()]]
 	if p.ok:
 		var pct := roundi(p.chance * 100)
 		var col := "#39f0a0" if pct >= 65 else ("#f9c80e" if pct >= 35 else "#ff3b4f")
-		lines.append("[code][font_size=44][color=%s]%d%%[/color][/font_size][/code]  to hit · %s" % [col, pct, ["Single", "Autofire", "Head shot", "Leg", "Held"][mode]])
+		lines.append("[code][font_size=44][color=%s]%d%%[/color][/font_size][/code]  to hit · %s" % [col, pct, ["Single Shot", "Autofire", "Aimed Shot: head", "Aimed Shot: leg", "Aimed Shot: held item"][mode]])
 		lines.append("Range %d m · DV %d · %s" % [roundi(Los.distance_m(p.from, t.pos)), int(p.dv), w.def.name])
 		if p.blocker.x >= 0 and p.from != enc.cur.pos:
 			lines.append("[color=#05d9e8]Leaning out of cover[/color]")
 	else:
 		lines.append("[color=#ff3b4f]%s[/color]" % String(p.reason).capitalize())
-		if p.get("blocker", Vector3i(-1, -1, -1)).x >= 0:
-			lines.append("[color=#7d8a96]X: shoot the cover in the way[/color]")
 	lines.append("HP %d/%d · SP head %d body %d" % [c.hp, c.max_hp(), c.sp("head"), c.sp("body")])
 	# CPR armour often stops everything: show what the weapon averages through it
 	var loc := "head" if mode == Attack.Mode.AIMED_HEAD else "body"
