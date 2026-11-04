@@ -144,18 +144,80 @@ func test_ripperdoc_foundations_humanity_and_therapy() -> void:
 	var solo: Combatant = c.crew[0]
 	solo.cyberware.clear()   # a clean slate (Role starting cyberware varies)
 	solo.weapons = solo.weapons.filter(func(w): return not w.is_melee())
-	assert_eq(c.install_block(solo, "pain_editor"), "not at the market", "chrome comes from the Night Market (p338)")
+	assert_eq(c.install_block(solo, "neural_link"), "not in storage", "chrome is installed from storage")
+	assert_false(c.buy("cyberware/pain_editor"), "not at this market (p338)")
+	for id in ["neural_link", "kerenzikov", "cyberarm", "wolvers"]:
+		assert_true(c.buy("cyberware/" + id), "bought like any other gear")
+	assert_eq(c.eb, 10000 - 500 - 500 - 500 - 500, "list price into storage")
+	assert_eq(c.stored("cyberware/kerenzikov"), 1)
 	assert_eq(c.install_block(solo, "kerenzikov"), "needs Neural Link", "speedware needs the foundation (p111)")
 	var hum0 := solo.humanity
+	var eb0 := c.eb
 	assert_true(c.install(solo, "neural_link") > 0)
 	assert_true(solo.humanity < hum0, "Humanity Loss rolled (p110)")
+	assert_eq(c.eb, eb0, "installing a Night Market piece costs nothing more (p338)")
+	assert_eq(c.stored("cyberware/neural_link"), 0, "out of storage, into them")
 	assert_true(c.install(solo, "kerenzikov") > 0)
 	assert_eq(c.install_block(solo, "kerenzikov"), "installed")
-	var eb0 := c.eb
 	c.install(solo, "cyberarm")
-	assert_eq(c.eb, eb0 - 500, "list price, installation free (p338, p110)")
 	c.install(solo, "wolvers")
 	assert_eq(solo.weapons.filter(func(w): return w.is_melee()).map(func(w): return w.id()), ["heavy_melee"])
+
+
+func test_cyberware_bought_into_storage_installs_on_anyone_once() -> void:
+	var c := Campaign.new_game(5)
+	c.eb = 10000
+	_market_with(c, ["cyberware/cybereye", "cyberware/targeting_scope"])
+	var a: Combatant = c.crew[0]
+	var b: Combatant = c.crew[1]
+	a.cyberware.clear()
+	b.cyberware.clear()
+	assert_true(c.buy("cyberware/cybereye"))
+	assert_true(c.buy("cyberware/cybereye"), "owning one doesn't stop a second")
+	assert_eq(c.cyberware_options(), ["cyberware/cybereye"])
+	assert_true(c.install(b, "cybereye") >= 0, "whoever needs it gets it")
+	assert_true(c.install(a, "cybereye") >= 0)
+	assert_eq(c.install(a, "cybereye"), -1, "nothing left in storage, and a second wouldn't stack (p111)")
+	assert_true(c.cyberware_options().is_empty())
+	assert_true(c.market_stock().any(func(x): return x.key == "cyberware/targeting_scope" and x.kind == "cyberware"))
+
+
+func test_removing_cyberware_destroys_it_and_keeps_the_humanity_lost() -> void:
+	var c := Campaign.new_game(5)
+	c.eb = 10000
+	_market_with(c, ["cyberware/cyberarm", "cyberware/wolvers", "cyberware/big_knucks", "cyberware/subdermal_armor", "cyberware/grafted_muscle_and_bone_lace"])
+	var solo: Combatant = c.crew[0]
+	solo.cyberware.clear()
+	solo.subdermal.clear()
+	solo.weapons = solo.weapons.filter(func(w): return not w.is_melee())
+	for id in ["cyberarm", "wolvers", "big_knucks", "subdermal_armor", "grafted_muscle_and_bone_lace"]:
+		c.buy("cyberware/" + id)
+		c.install(solo, id)
+	assert_eq(c.remove_block(solo, "cyberarm"), "Wolvers needs it", "options come out before their foundation (p111)")
+	assert_false(c.remove(solo, "cyberarm"))
+	var hum := solo.humanity
+	var cap := solo.max_humanity
+	assert_true(c.remove(solo, "wolvers"))
+	assert_false(solo.has_cyberware("wolvers"))
+	assert_eq(c.stored("cyberware/wolvers"), 0, "destroyed, not stored: never moved to someone else")
+	assert_eq(solo.humanity, hum, "Humanity lost to it isn't given back (p229-230: only therapy does)")
+	assert_eq(solo.max_humanity, cap + 2, "the cap it took comes back (p230)")
+	var melee := solo.weapons.filter(func(w): return w.is_melee())
+	assert_eq(melee.map(func(w): return w.id()), ["medium_melee"], "the Big Knucks take over")
+	assert_true(melee[0].builtin)
+	assert_true(c.remove(solo, "big_knucks"))
+	assert_true(solo.weapons.filter(func(w): return w.builtin).is_empty())
+	assert_true(c.remove(solo, "cyberarm"), "free once the options are out")
+	assert_eq(solo.sp("body"), maxi(11, solo.armor.body.sp if solo.armor.body else 0))
+	assert_true(c.remove(solo, "subdermal_armor"))
+	assert_true(solo.subdermal.is_empty(), "the armour under the skin goes with it")
+	solo.hp = solo.max_hp()
+	var hp0 := solo.max_hp()
+	assert_true(c.remove(solo, "grafted_muscle_and_bone_lace"))
+	assert_true(solo.max_hp() < hp0 and solo.hp == solo.max_hp(), "BODY drops, and HP over the new maximum with it")
+	assert_false(c.remove(solo, "grafted_muscle_and_bone_lace"), "not installed any more")
+	var back := Combatant.from_dict(JSON.parse_string(JSON.stringify(solo.to_dict())))
+	assert_true(back.cyberware.is_empty())
 
 
 func test_cyber_claws_stay_put_and_the_knife_they_replace_goes_to_storage() -> void:
@@ -166,6 +228,8 @@ func test_cyber_claws_stay_put_and_the_knife_they_replace_goes_to_storage() -> v
 	solo.cyberware.clear()
 	solo.weapons = solo.weapons.filter(func(w): return not w.is_melee())
 	solo.weapons.append(Weapon.from_id("light_melee", "poor"))
+	for id in ["cyberarm", "wolvers", "big_knucks"]:
+		c.buy("cyberware/" + id)
 	c.install(solo, "cyberarm")
 	c.install(solo, "wolvers")
 	assert_eq(c.stored("weapon/light_melee@poor"), 1, "the knife the claws replace goes into storage")

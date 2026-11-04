@@ -1,9 +1,12 @@
 class_name MedBayScreen
 extends SafehouseScreen
-## The Med Bay: the RIPPERDOC (cyberware on sale at the Night Market that's up, bought there and
-## installed free, CPR core p338; the price includes the surgery, p110; Humanity Loss on install),
-## THERAPY (Addiction and Humanity Loss Therapy by a Medtech, p229-230) and Treatment for
-## Critical Injuries (p223).
+## The Med Bay: the RIPPERDOC (cyberware bought at a Night Market waits in storage; installing it
+## costs nothing more, CPR core p338, the price includes the surgery, p110; Humanity Loss on install;
+## installed chrome can be removed, which destroys it, never moved to someone else), THERAPY
+## (Addiction and Humanity Loss Therapy by a Medtech, p229-230) and Treatment for Critical
+## Injuries (p223). The crew cards here show each member's last-gig health marks.
+
+var _confirm := ""   ## the installed piece whose REMOVE is waiting for a second press
 
 
 func room_name() -> String:
@@ -34,11 +37,26 @@ func _humanity_line(c: Combatant) -> String:
 
 # --- Ripperdoc --------------------------------------------------------------------------------
 
+## The crew cards' chips here: each member's conditions now (Critical Injuries, addictions) and
+## the last gig's health marks (a Humanity loss), not IP or Reputation.
+func _health_marks(m: Combatant) -> Array:
+	var out: Array = camp.marks_for(m).filter(func(x): return not (x.begins_with("+") or x.begins_with("REPUTATION")))
+	for inj in m.injuries:
+		var nm := String(inj.get("name", "injury"))
+		if not nm in out:
+			out.append(nm)
+	for d in m.addictions:
+		var a := "ADDICTED: %s" % String(RulesDB.gear("drugs", d).get("name", d))
+		if not a in out:
+			out.append(a)
+	return out
+
+
 func _ripperdoc(body: VBoxContainer) -> void:
 	var cols := UiKit.hbox(12)
 	cols.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	body.add_child(cols)
-	cols.add_child(crew_picker(_humanity_line))
+	cols.add_child(crew_picker(_humanity_line, 290, _health_marks))
 	var c := selected()
 	var right := UiKit.vbox(8)
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -51,59 +69,116 @@ func _ripperdoc(body: VBoxContainer) -> void:
 	tv.add_child(hl)
 	hl.add_child(UiKit.head(c.display_name, 30, Hud.TEXT))
 	if c.tracks_humanity:
-		hl.add_child(UiKit.label(_humanity_line(c), 15, _hum_colour(c)))
-	var have: Array = c.cyberware.map(func(x): return String(RulesDB.cyberware(String(x)).get("name", x)))
-	tv.add_child(UiKit.body("Installed: " + (", ".join(have) if not have.is_empty() else "none"), 15, Hud.VIOLET.lightened(0.35) if not have.is_empty() else Hud.DIM))
-	tv.add_child(UiKit.body("Cyberware is bought from the Night Market that has it on sale; its ripperdoc installs it free. Every piece costs Humanity.", 14, Hud.DIM))
+		var hu := UiKit.label(_humanity_line(c), 15, _hum_colour(c))
+		hu.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		hl.add_child(hu)
+	tv.add_child(UiKit.body("Cyberware bought at the Night Market waits in storage; installing it costs nothing more. Every piece costs Humanity. Once installed it stays theirs: it can be taken out, which destroys it, but never moved to someone else.", 14, Hud.DIM))
+	var lists := UiKit.hbox(10)
+	lists.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	right.add_child(lists)
+	# installed
+	var a := _list_panel(lists, "INSTALLED")
+	for id in c.cyberware:
+		a.add_child(_installed_row(c, String(id)))
+	if c.cyberware.is_empty():
+		a.add_child(none("No cyberware."))
+	# in storage
+	var st := _list_panel(lists, "IN STORAGE")
+	for k in camp.cyberware_options():
+		st.add_child(_stored_row(c, Items.base_id(k)))
+	if camp.cyberware_options().is_empty():
+		st.add_child(none("No cyberware in storage."))
+	var go := UiKit.button("NIGHT MARKET ›", UiKit.NAV, func(): navigate.emit("market"))
+	go.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	(st.get_parent().get_parent() as VBoxContainer).add_child(go)
+
+
+## A panel in `parent` with a heading and a scrolling list; returns the list.
+func _list_panel(parent: Control, heading: String) -> VBoxContainer:
 	var p := UiKit.panel(Hud.VIOLET, 10)
+	p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	p.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	right.add_child(p)
-	var pv := UiKit.vbox(6)
-	p.add_child(pv)
-	pv.add_child(section("AT THIS NIGHT MARKET", Hud.VIOLET.lightened(0.35)))
-	var list := UiKit.vbox(6)
-	pv.add_child(UiKit.scroller(list))
-	var away: Array[String] = []
-	for id in Campaign.RIPPERDOC:
-		if not camp.on_sale("cyberware/" + id):
-			away.append(String(RulesDB.cyberware(id).name))
-			continue
-		list.add_child(_chrome_row(c, id))
-	if list.get_child_count() == 0:
-		list.add_child(none("This Night Market has no cyberware the crew can use." if not camp.market.is_empty() else "No Night Market is up."))
-	if not away.is_empty():
-		pv.add_child(UiKit.body("Not on sale now: " + ", ".join(away), 13, Hud.DIM))
+	parent.add_child(p)
+	var v := UiKit.vbox(6)
+	p.add_child(v)
+	v.add_child(section(heading, Hud.VIOLET.lightened(0.35)))
+	var list := UiKit.vbox(8)
+	v.add_child(UiKit.scroller(list))
+	return list
 
 
-func _chrome_row(c: Combatant, id: String) -> Control:
+## What a piece does, in a line (Campaign.RIPPERDOC's paraphrase, else the data's).
+static func chrome_summary(id: String) -> String:
 	var d := RulesDB.cyberware(id)
+	return String(Campaign.RIPPERDOC[id][1]) if Campaign.RIPPERDOC.has(id) else String(d.get("effect", ""))
+
+
+func _chrome_text(v: VBoxContainer, id: String, extra := "") -> void:
+	var d := RulesDB.cyberware(id)
+	var nm := UiKit.label(String(d.get("name", id)), 16, Hud.VIOLET.lightened(0.35))
+	nm.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	nm.custom_minimum_size.x = 60
+	v.add_child(nm)
+	v.add_child(UiKit.body(chrome_summary(id) + extra, 13, Hud.DIM))
+
+
+func _installed_row(c: Combatant, id: String) -> Control:
 	var row := UiKit.hbox(10)
-	var v := UiKit.vbox(-2)
+	var v := UiKit.vbox(0)
 	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(v)
-	v.add_child(UiKit.fit(UiKit.label(String(d.name), 16, Hud.VIOLET.lightened(0.35))))
-	var need := String(Campaign.RIPPERDOC[id][0])
-	var sub := String(Campaign.RIPPERDOC[id][1]) + " Humanity Loss %s." % String(d.hl_dice)
-	if need != "":
-		sub += " Needs %s." % String(RulesDB.cyberware(need).name)
-	v.add_child(UiKit.body(sub, 13, Hud.DIM))
-	var why := camp.install_block(c, id)
-	var cost := int(d.cost)
-	if why == "installed":
-		row.add_child(UiKit.label("INSTALLED", 14, Hud.GREEN))
-	elif why.begins_with("needs"):
-		var l := UiKit.label(why, 13, Hud.DIM)
+	_chrome_text(v, id)
+	var why := camp.remove_block(c, id)
+	var nm := String(RulesDB.cyberware(id).get("name", id))
+	if why != "":
+		var l := UiKit.label(why, 12, Hud.DIM)
 		l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(l)
+	elif _confirm == id:
+		var bv := UiKit.vbox(4)
+		bv.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(bv)
+		var b := UiKit.button("DESTROY IT", UiKit.DANGER, Callable(), true, 14, true)
+		b.pressed.connect(func(): _confirm = ""; act(b, func(): camp.remove(c, id), nm + " removed", Hud.RED))
+		bv.add_child(b)
+		bv.add_child(UiKit.button("KEEP IT", UiKit.NAV, func(): _confirm = ""; _build(), true, 14, true))
 	else:
-		var b := UiKit.button(UiKit.price_text("INSTALL", cost), UiKit.NEUTRAL, Callable(), why == "")
-		b.custom_minimum_size.x = 170
+		var b := UiKit.button("REMOVE", UiKit.DANGER, func(): _confirm = id; _build(), true, 14, true)
+		b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(b)
+	return row
+
+
+func _stored_row(c: Combatant, id: String) -> Control:
+	var d := RulesDB.cyberware(id)
+	var row := UiKit.hbox(10)
+	var v := UiKit.vbox(0)
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(v)
+	var need := String(Campaign.RIPPERDOC.get(id, [""])[0])
+	var extra := " Humanity Loss %s." % String(d.get("hl_dice", ""))
+	if need != "":
+		extra += " Needs %s." % String(RulesDB.cyberware(need).name)
+	var n := camp.stored("cyberware/" + id)
+	if n > 1:
+		extra += "  ·  %d in storage" % n
+	_chrome_text(v, id, extra)
+	var why := camp.install_block(c, id)
+	if why == "":
+		var b := UiKit.button("INSTALL", UiKit.CHROME, Callable())
+		b.custom_minimum_size.x = 120
+		b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		var nm := String(d.name)
 		b.pressed.connect(func():
 			var lost := [0]
 			act(b, func(): lost[0] = camp.install(c, id), "")
 			toast(b, "%s installed · -%d Humanity" % [nm, lost[0]], Hud.VIOLET.lightened(0.35)))
 		row.add_child(b)
+	else:
+		var l := UiKit.label(why, 12, Hud.GREEN if why == "installed" else Hud.DIM)
+		l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(l)
 	return row
 
 
@@ -117,7 +192,7 @@ func _therapy(body: VBoxContainer) -> void:
 	var cols := UiKit.hbox(12)
 	cols.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	body.add_child(cols)
-	cols.add_child(crew_picker(func(m): return _humanity_line(m) if m.addictions.is_empty() else "ADDICTED · " + _humanity_line(m)))
+	cols.add_child(crew_picker(_humanity_line, 290, _health_marks))
 	var c := selected()
 	var p := UiKit.panel(Hud.CYAN, 12)
 	p.size_flags_horizontal = Control.SIZE_EXPAND_FILL

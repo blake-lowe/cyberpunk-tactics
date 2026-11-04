@@ -14,13 +14,15 @@ extends Control
 ## The safehouse is the hub (owner's UI audit): every between-gigs function is a full screen opened
 ## from its room (src/ui/screens/): Fixer Network → jobs, hire, Night Market; Armory → storage and
 ## loadouts; Med Bay → ripperdoc, therapy, Critical Injuries; Training Room → Improvement Points;
-## Bunks → the crew and resting; Workshop → the Tech's armor upgrades. Click a room (or its button
-## in the room list, right) to open its screen; click a crew member for theirs. After a gig the
-## debrief screen comes first.
+## Bunks → the crew and resting; Workshop → the Tech's armor upgrades. No sidebars (owner): hovering
+## a room highlights it and names what it holds; clicking opens its screen; click a crew member for
+## theirs. The crew's state (HP, conditions, last-gig marks) is on the room screens it belongs to
+## (Bunks, Med Bay, Training Room). After a gig the debrief screen comes first.
 ##
 ## Dev flags (with --shot=x.png for screenshots): --base stays here; --screen=<id> opens a screen
 ## (jobs, hire, market, storage, workshop, ripperdoc, therapy, injuries, training, crew, debrief);
-## --crew=n selects crew member n on it; --demo uses DemoState's sample campaign (never saved).
+## --crew=n selects crew member n on it; --hover=<room id> shows a room hovered; --demo uses
+## DemoState's sample campaign (never saved).
 
 const GB := preload("res://src/tactical/greybox.gd")
 const POST_SHADER := preload("res://src/tactical/view/post.gdshader")
@@ -60,7 +62,6 @@ var post: ShaderMaterial
 var cam: Camera3D
 var world: Node3D
 var ui: Control
-var roster: VBoxContainer
 var portraits: Portraits
 var outline: Node3D
 var labels := {}            ## room id → Label
@@ -96,6 +97,8 @@ func _ready() -> void:
 			stay = true
 		if k == "room":
 			selected = a.get_slice("=", 1)
+		if k == "hover":
+			hover = a.get_slice("=", 1)
 		if k == "yaw":
 			yaw = float(a.get_slice("=", 1))
 		if k == "screen":
@@ -138,13 +141,18 @@ func _process(_d: float) -> void:
 		var n: Node3D = crew_nodes[c]
 		var l: Label = crew_labels[c]
 		l.position = _to_screen(n.position + Vector3(0, 1.55, 0)) - Vector2(l.size.x / 2, l.size.y)
+	var vs := get_viewport_rect().size
+	var top := (_top.position.y + _top.size.y + 4) if _top else 0.0
 	for id in labels:
 		var r := _rect(id)
 		var l: Label = labels[id]
 		var dir := Vector2(sin(deg_to_rad(yaw)), cos(deg_to_rad(yaw)))
 		var far := r.get_center() - dir * (r.size.x * 0.42)   # label at the room's far edge
-		l.position = _to_screen(Vector3(far.x, LOW + 0.3, far.y)) - Vector2(l.size.x / 2, l.size.y)
-		l.modulate = Color(1, 1, 1, 1.0 if id == hover or id == selected else 0.75)
+		var at := _to_screen(Vector3(far.x, LOW + 0.3, far.y)) - Vector2(l.size.x / 2, l.size.y)
+		l.position = at.clamp(Vector2(6, top), vs - l.size - Vector2(6, 30))   # never clipped by the edges or the top bar
+		l.modulate = Color(1, 1, 1, 1.0 if id == selected else 0.75)
+		l.visible = id != hover   # the hover card takes its place
+	_place_hover_card()
 	_update_outline()
 	if _shot_path != "":
 		_frames += 1
@@ -660,7 +668,8 @@ func _crew_label(c: Combatant) -> Label:
 	return l
 
 
-## Gold rim around the hovered / selected room.
+## The hovered / selected room lit up: a rim in its colour on the floor and along the tops of its
+## cutaway walls (so it reads past the furniture), and a light in its colour over it.
 func _update_outline() -> void:
 	if outline == null:
 		return
@@ -674,22 +683,29 @@ func _update_outline() -> void:
 		return
 	var r := _rect(id).grow(-0.08)
 	var col := Color(ROOMS[id][1])
-	for e in [[Vector3(r.get_center().x, 0.03, r.position.y), Vector3(r.size.x, 0.02, 0.05)],
-			[Vector3(r.get_center().x, 0.03, r.end.y), Vector3(r.size.x, 0.02, 0.05)],
-			[Vector3(r.position.x, 0.03, r.get_center().y), Vector3(0.05, 0.02, r.size.y)],
-			[Vector3(r.end.x, 0.03, r.get_center().y), Vector3(0.05, 0.02, r.size.y)]]:
-		_box(outline, e[1], e[0], col, 2.0 if id == selected else 1.0)
+	for y in [0.03, LOW + 0.02]:
+		for e in [[Vector3(r.get_center().x, y, r.position.y), Vector3(r.size.x, 0.03, 0.06)],
+				[Vector3(r.get_center().x, y, r.end.y), Vector3(r.size.x, 0.03, 0.06)],
+				[Vector3(r.position.x, y, r.get_center().y), Vector3(0.06, 0.03, r.size.y)],
+				[Vector3(r.end.x, y, r.get_center().y), Vector3(0.06, 0.03, r.size.y)]]:
+			_box(outline, e[1], e[0], col, 2.0)
+	var glow := OmniLight3D.new()
+	glow.position = Vector3(r.get_center().x, 1.8, r.get_center().y)
+	glow.light_color = col.lerp(Color.WHITE, 0.3)
+	glow.omni_range = 4.5
+	glow.light_energy = 1.6
+	outline.add_child(glow)
 
 
 # --- UI -------------------------------------------------------------------------------------
 
 ## Room → the screen it opens (owner: every between-gigs function is a full screen opened from its
-## room) and the line under its name in the room list.
+## room) and what it holds (shown on hover).
 const ROOM_SCREENS := {
 	"intel": ["jobs", "Jobs · Hire · Night Market"],
-	"armory": ["storage", "Storage & loadouts"],
-	"med_bay": ["ripperdoc", "Ripperdoc · Therapy · Injuries"],
-	"training": ["training", "Spend Improvement Points"],
+	"armory": ["storage", "Storage · Loadouts"],
+	"med_bay": ["ripperdoc", "Ripperdoc · Therapy · Critical Injuries"],
+	"training": ["training", "Improvement Points · Role Rank · Perks"],
 	"bunks": ["crew", "Crew · Recover"],
 	"workshop": ["workshop", "Armor upgrades"],
 }
@@ -709,9 +725,9 @@ static func _make_screen(id: String) -> SafehouseScreen:
 	return null
 
 var _screen: SafehouseScreen
-var _rooms_box: PanelContainer
-var _log_box: PanelContainer
 var _top: PanelContainer
+var _hover_card: PanelContainer
+var _hover_for := "~"
 
 
 func _text(s: String, font: Font, size: int, col := Hud.TEXT) -> Label:
@@ -744,9 +760,7 @@ func _build_ui() -> void:
 		ui.add_child(l)
 	for c in crew_nodes:
 		crew_labels[c] = _crew_label(c)
-	roster = UiKit.vbox(6)
-	ui.add_child(roster)
-	var hint := UiKit.label("CLICK A ROOM OR A CREW MEMBER · Q/E ROTATE · WHEEL ZOOM", 13, Hud.DIM)
+	var hint := UiKit.label("HOVER A ROOM · CLICK TO OPEN IT OR A CREW MEMBER · Q/E ROTATE · WHEEL ZOOM", 13, Hud.DIM)
 	hint.name = "hint"
 	hint.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
 	hint.add_theme_constant_override("shadow_offset_x", 1)
@@ -765,22 +779,6 @@ func _refresh_ui() -> void:
 	ui.add_child(_top)
 	_top.reset_size()
 	_top.size.x = vs.x - 24
-	var y0 := 10 + _top.get_combined_minimum_size().y + 10
-	# rooms, right: every room's screen as a button (the 3D rooms open the same screens)
-	if _rooms_box:
-		_rooms_box.queue_free()
-	_rooms_box = _rooms_panel()
-	ui.add_child(_rooms_box)
-	_rooms_box.reset_size()
-	_rooms_box.position = Vector2(vs.x - _rooms_box.size.x - 12, y0)
-	roster.position = Vector2(12, y0)
-	_build_roster()
-	if _log_box:
-		_log_box.queue_free()
-	_log_box = _log_panel()
-	ui.add_child(_log_box)
-	_log_box.reset_size()
-	_log_box.position = Vector2(vs.x - _log_box.size.x - 12, _rooms_box.position.y + _rooms_box.size.y + 8)
 	var hint: Label = ui.get_node("hint")
 	hint.reset_size()
 	hint.position = Vector2(vs.x / 2 - hint.size.x / 2, vs.y - 26)
@@ -788,92 +786,41 @@ func _refresh_ui() -> void:
 		(crew_labels[c] as Label).modulate = Color(1, 1, 1, 0.85)
 
 
-func _rooms_panel() -> PanelContainer:
-	var p := UiKit.panel(Hud.CYAN, 8)
-	var v := UiKit.vbox(4)
-	p.add_child(v)
-	v.add_child(UiKit.label("ROOMS", 13, Hud.CYAN))
-	for id in ["intel", "armory", "med_bay", "training", "bunks", "workshop"]:
-		var rid: String = id
-		var b := Button.new()
-		b.focus_mode = Control.FOCUS_NONE
-		b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-		b.custom_minimum_size = Vector2(250, 44)
-		var on := rid == hover
-		b.add_theme_stylebox_override("normal", CutBox.make(Color(0.03, 0.045, 0.06, 0.95), Color(Hud.GOLD if on else Hud.CYAN, 0.5), 7, 0b0101))
-		b.add_theme_stylebox_override("hover", CutBox.make(Color(0.1, 0.085, 0.02, 0.97), Hud.GOLD, 7, 0b0101))
-		b.add_theme_stylebox_override("pressed", CutBox.make(Color(0.14, 0.11, 0.02, 0.97), Hud.GOLD, 7, 0b0101))
-		b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
-		b.mouse_entered.connect(func(): hover = rid)
-		b.pressed.connect(func(): open_room(rid))
-		var row := UiKit.hbox(8)
-		row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		row.offset_left = 10
-		row.offset_right = -8
-		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		b.add_child(row)
-		var tick := ColorRect.new()   # the room's light colour, small
-		tick.color = Color(ROOMS[rid][1])
-		tick.custom_minimum_size = Vector2(4, 26)
-		tick.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		tick.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		row.add_child(tick)
-		var tv := UiKit.vbox(-3)
-		tv.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		tv.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		row.add_child(tv)
-		tv.add_child(UiKit.label(String(ROOMS[rid][2]), 15, Hud.TEXT))
-		var sub := String(ROOM_SCREENS[rid][1])
-		if rid == "workshop" and camp.best_tech() == null:
-			sub = "Needs a Tech on the crew"
-		tv.add_child(UiKit.body(sub, 12, Hud.DIM, false))
-		v.add_child(b)
-	return p
+## The hovered room's name and what it holds, in place of its label: "MED BAY / Ripperdoc · Therapy ·
+## Critical Injuries". Rebuilt when the hover changes, placed every frame.
+func _place_hover_card() -> void:
+	if _hover_for != hover:
+		_hover_for = hover
+		if _hover_card:
+			_hover_card.queue_free()
+			_hover_card = null
+		if hover != "" and ROOMS.has(hover) and ui:
+			_hover_card = _room_card(hover)
+			ui.add_child(_hover_card)
+			_hover_card.reset_size()
+	if _hover_card == null:
+		return
+	var l: Label = labels[hover]
+	var vs := get_viewport_rect().size
+	var top := (_top.position.y + _top.size.y + 4) if _top else 0.0
+	var at := Vector2(l.position.x + l.size.x / 2 - _hover_card.size.x / 2, l.position.y + l.size.y - _hover_card.size.y)
+	_hover_card.position = at.clamp(Vector2(6, top), vs - _hover_card.size - Vector2(6, 30))
 
 
-func _log_panel() -> PanelContainer:
-	var p := UiKit.panel(Hud.CYAN, 6)
+func _room_card(id: String) -> PanelContainer:
+	var col := Color(ROOMS[id][1])
+	var p := UiKit.panel(col, 8)
 	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var v := UiKit.vbox(0)
+	var v := UiKit.vbox(1)
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	p.add_child(v)
-	for l in camp.log.slice(-3):
-		var lb := UiKit.body(l, 13, Color(Hud.TEXT, 0.7), false)
-		lb.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-		lb.custom_minimum_size.x = _rooms_box.size.x - 16 if _rooms_box else 250.0
-		lb.clip_text = true
-		v.add_child(lb)
+	v.add_child(UiKit.label(String(ROOMS[id][2]), 16, col))
+	var sub := String(ROOM_SCREENS[id][1])
+	if id == "workshop" and camp.best_tech() == null:
+		sub = "Needs a Tech on the crew"
+	v.add_child(UiKit.body(sub, 14, Hud.TEXT, false))
+	v.add_child(UiKit.label("CLICK TO OPEN", 11, Hud.DIM))
 	return p
-
-
-## The crew down the left: name, role, HP, Reputation, and what the last gig changed. Click: the
-## Bunks' crew screen on them.
-func _build_roster() -> void:
-	for ch in roster.get_children():
-		ch.queue_free()
-	var crew := camp.alive_crew()
-	for i in crew.size():
-		var c: Combatant = crew[i]
-		var card := UiKit.panel(Hud.CYAN, 7)
-		card.custom_minimum_size = Vector2(250, 0)
-		var row := UiKit.hbox(8)
-		card.add_child(row)
-		row.add_child(UiKit.portrait(portraits, c, 1000 + maxi(0, c.look_seed), 46))
-		var v := UiKit.vbox(0)
-		v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row.add_child(v)
-		v.add_child(UiKit.head(c.display_name, 28))
-		v.add_child(UiKit.role_hp(c))
-		v.add_child(UiKit.label("REPUTATION %d · %d IP" % [c.reputation, c.ip], 12, Hud.CYAN))
-		var marks := camp.marks_for(c)
-		if not marks.is_empty():
-			var f := UiKit.flow(4)
-			f.custom_minimum_size.x = 180
-			for m in marks:
-				f.add_child(CrewScreen.mark_chip(m))
-			v.add_child(f)
-		var idx := i
-		UiKit.clickable(card, func(): open_screen("crew", idx))
-		roster.add_child(card)
 
 
 ## Open a room's screen.
@@ -923,7 +870,7 @@ func _take_gig(i: int) -> void:
 
 
 ## Glide in on the hovered room (or back out to the whole floor).
-func _overview() -> Vector3:   # the whole floor, nudged down (clear of the top bar), centred between roster and rooms
+func _overview() -> Vector3:   # the whole floor, nudged down (clear of the top bar), centred on screen
 	_place_camera()
 	var dir := Vector3(sin(deg_to_rad(yaw)), 0, cos(deg_to_rad(yaw)))
 	return Vector3(W / 2, 0, D / 2) - dir * 1.0

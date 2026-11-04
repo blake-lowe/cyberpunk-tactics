@@ -25,7 +25,8 @@ func build_body(body: VBoxContainer) -> void:
 	var cols := UiKit.hbox(12)
 	cols.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	body.add_child(cols)
-	cols.add_child(crew_picker(func(m): return "%d IP" % m.ip, 250))
+	cols.add_child(crew_picker(func(m): return "%d IP · REPUTATION %d" % [m.ip, m.reputation], 250,
+		func(m): return camp.marks_for(m).filter(func(x): return x.begins_with("+") or x.begins_with("REPUTATION"))))
 	var c := selected()
 	# Role Rank and perks
 	var mid := UiKit.panel(Hud.CYAN, 12)

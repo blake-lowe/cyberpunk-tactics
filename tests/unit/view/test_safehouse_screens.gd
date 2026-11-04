@@ -16,9 +16,18 @@ func _open(s: SafehouseScreen, camp: Campaign, tab := "") -> SafehouseScreen:
 func _buttons(n: Node, prefix: String) -> Array[Button]:
 	var out: Array[Button] = []
 	for b in n.find_children("*", "Button", true, false):
-		if (b as Button).text.begins_with(prefix) and not (b as Button).disabled and not b.is_queued_for_deletion():
+		if (b as Button).text.begins_with(prefix) and not (b as Button).disabled and not _stale(b):
 			out.append(b)
 	return out
+
+
+## Part of a layout a rebuild has thrown away (it or an ancestor is queued for deletion).
+func _stale(n: Node) -> bool:
+	while n:
+		if n.is_queued_for_deletion():
+			return true
+		n = n.get_parent()
+	return false
 
 
 func test_every_screen_builds() -> void:
@@ -55,6 +64,62 @@ func test_market_buy_goes_to_storage() -> void:
 	assert_eq(after, total + 1, "one more item in storage")
 	assert_true(camp.eb < eb, "paid for it")
 	assert_true(camp.log[-1].begins_with("Bought "))
+	s.free()
+
+
+func test_market_cyberware_has_a_buy_button_and_goes_to_storage() -> void:
+	var camp := DemoState.make()
+	var s := _open(FixerScreen.new(), camp, "market")
+	var chrome: Array = camp.market_stock().filter(func(x): return x.kind == "cyberware" and not x.staple)
+	assert_false(chrome.is_empty(), "the demo market has cyberware")
+	var price := UiKit.price_text("BUY", int(chrome[0].cost))
+	assert_true(_buttons(s, "RIPPERDOC").is_empty(), "no separate ripperdoc button: bought like other gear")
+	var before := camp.cyberware_options().size()
+	var n0 := camp.stored(String(chrome[0].key))
+	for b in _buttons(s, price):
+		var row := b.get_parent().get_parent()
+		if row.find_children("*", "Label", true, false).any(func(l): return (l as Label).text == UiKit.caps(String(chrome[0].name))):
+			b.pressed.emit()
+			break
+	assert_eq(camp.stored(String(chrome[0].key)), n0 + 1, "the piece goes into storage")
+	assert_true(camp.cyberware_options().size() >= before)
+	for l in s.find_children("*", "Label", true, false):
+		assert_false((l as Label).text.contains("OF EXACTLY") or (l as Label).text.contains("OR LESS"), "no listing sub-headings: %s" % (l as Label).text)
+	s.free()
+
+
+func test_ripperdoc_installs_from_storage_and_removes_on_a_second_press() -> void:
+	var camp := DemoState.make()
+	var c: Combatant = camp.alive_crew()[0]
+	camp.stash["cyberware/cybereye"] = 1
+	c.cyberware.erase("cybereye")
+	var s := _open(MedBayScreen.new(), camp, "ripperdoc")
+	var eb := camp.eb
+	var inst := _buttons(s, "INSTALL")
+	assert_false(inst.is_empty())
+	var n := c.cyberware.size()
+	inst[0].pressed.emit()
+	assert_eq(c.cyberware.size(), n + 1, "installed on the selected crew member")
+	assert_eq(camp.eb, eb, "free (p338)")
+	var rm := _buttons(s, "REMOVE")
+	assert_false(rm.is_empty())
+	rm[0].pressed.emit()
+	assert_eq(c.cyberware.size(), n + 1, "the first press only asks")
+	var confirm := _buttons(s, "DESTROY IT")
+	assert_eq(confirm.size(), 1)
+	confirm[0].pressed.emit()
+	assert_eq(c.cyberware.size(), n, "the second takes it out")
+	s.free()
+
+
+func test_consumable_and_utility_terms() -> void:
+	var camp := DemoState.make()
+	var s := _open(StorageScreen.new(), camp, "loadouts")
+	var texts: Array = s.find_children("*", "Label", true, false).map(func(l): return (l as Label).text)
+	texts.append_array(s.find_children("*", "Button", true, false).map(func(b): return (b as Button).text))
+	assert_true("CONSUMABLE" in texts and "UTILITY" in texts)
+	assert_false(texts.any(func(t): return String(t).contains("PACK") or String(t).begins_with("KIT ")), "no PACK/UNPACK or KIT 1/2")
+	assert_false(_buttons(s, "EQUIP").is_empty())
 	s.free()
 
 

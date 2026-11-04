@@ -109,3 +109,28 @@ func test_storage_keys_for_weapons_and_armor_survive_a_save() -> void:
 	assert_eq(back.stash, {"weapon/assault_rifle@poor": 1, "armor/kevlar@upgraded@sp3": 2, "drugs/synthcoke": 1}, "unknown keys are dropped")
 	assert_eq(NightMarket.keys_of(back.market), NightMarket.keys_of(c.market), "the same market is up")
 	assert_eq(back.market.closes, c.market.closes)
+
+
+## A save as the v6 build wrote it: chrome was installed as it was bought, so storage never held
+## any; a stray "cyberware/" key there was ignored on load.
+func test_v6_drops_stray_cyberware_from_storage_and_keeps_installed_chrome() -> void:
+	var c0 := Campaign.new_game(4)
+	c0.crew[0].install_cyberware("neural_link")
+	var d := c0.to_dict()
+	d["version"] = 6
+	d["stash"] = {"ammo/flashbang_ammo": 2, "cyberware/neural_link": 1}
+	d["debrief"] = [{"name": "Wraith", "dead": true, "kit": ["Smoke Grenade"]}, {"name": "Nix", "dead": false, "kit": ["Flashbang"]}]
+	var c := Campaign.from_dict(JSON.parse_string(JSON.stringify(d)))
+	assert_eq(c.stash, {"ammo/flashbang_ammo": 2}, "no free chrome out of an old save")
+	assert_true(c.crew[0].has_cyberware("neural_link"), "installed chrome stays installed")
+	assert_eq(c.debrief[0].lost, ["Smoke Grenade"], "a fallen member's lost kit is their lost gear")
+	assert_eq(c.debrief[1].lost, [], "the living lost nothing")
+	assert_eq(int(c.to_dict().version), SaveMigrations.CURRENT)
+
+
+func test_stored_cyberware_survives_a_save() -> void:
+	var c := Campaign.new_game(4)
+	c.stash = {"cyberware/wolvers": 2, "cyberware/nonsense": 1, "cyberware/wolvers@x": 1}
+	var back := Campaign.from_dict(JSON.parse_string(JSON.stringify(c.to_dict())))
+	assert_eq(back.stash, {"cyberware/wolvers": 2}, "a stored piece keeps; unknown ones are dropped")
+	assert_eq(back.cyberware_options(), ["cyberware/wolvers"])

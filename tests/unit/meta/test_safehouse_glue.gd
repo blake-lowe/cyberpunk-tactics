@@ -80,6 +80,13 @@ func test_debrief_lists_each_member_and_what_changed() -> void:
 	var mb: Dictionary = r.members.filter(func(m): return m.name == b.display_name)[0]
 	assert_true(mb.dead)
 	assert_eq(int(mb.ip), 0)
+	for w in b.weapons:
+		assert_true(w.display_name() in mb.lost or w.builtin, "lost gear lists each weapon they carried: %s" % [mb.lost])
+	if b.armor.body:
+		assert_true((b.armor.body as ArmorPiece).name in mb.lost, "and the armour they wore")
+	for cw in b.cyberware:
+		assert_true(String(RulesDB.cyberware(cw).name) in mb.lost, "and their chrome")
+	assert_eq(ma.lost, [], "the living lost nothing")
 	var marks := c.marks_for(a)
 	assert_true("+%d IP" % int(Campaign.IP_GROUP.barely) in marks, "crew card mark: %s" % [marks])
 	assert_true("Broken Arm" in marks)

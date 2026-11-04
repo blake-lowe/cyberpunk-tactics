@@ -1,8 +1,9 @@
 class_name StorageScreen
 extends SafehouseScreen
 ## The Armory: safehouse storage on the left, a loadout per crew member on the right (weapons
-## carried in order, head and body armor, kit slot 1 a consumable and slot 2 a utility). Pick a crew
-## member, then take gear from storage; STORE puts it back. The WORKSHOP tab is the crew Tech's
+## carried in order, head and body armor, a consumable and a utility). Pick a crew member, then
+## take gear from storage (CARRY a weapon, WEAR armor, EQUIP a consumable or utility); STORE puts it
+## back. Cyberware waits here until the Med Bay installs it. The WORKSHOP tab is the crew Tech's
 ## armor upgrades (Upgrade Expertise, CPR core p148), opened from the Workshop room.
 
 
@@ -56,7 +57,8 @@ func _storage() -> PanelContainer:
 	v.add_child(UiKit.scroller(list))
 	var c := selected()
 	var groups := [["WEAPONS", camp.weapon_options()], ["ARMOR", camp.armor_options()],
-		["KIT 1 · CONSUMABLES", _kit_keys(0)], ["KIT 2 · UTILITIES", _kit_keys(1)]]
+		[Items.slot_name(0).to_upper(), _kit_keys(0)], [Items.slot_name(1).to_upper(), _kit_keys(1)],
+		["CYBERWARE", camp.cyberware_options()]]
 	var any := false
 	for g in groups:
 		if (g[1] as Array).is_empty():
@@ -66,7 +68,7 @@ func _storage() -> PanelContainer:
 		for k in g[1]:
 			list.add_child(_storage_row(String(k), c))
 	if not any:
-		list.add_child(none("Storage is empty. The Night Market and the always-on-sale stock are at the Fixer Network."))
+		list.add_child(none("Storage is empty. Gear is bought at the Fixer Network: the Night Market's, and anything up to Premium any time."))
 	var go := UiKit.button("NIGHT MARKET ›", UiKit.NAV, func(): navigate.emit("market"))
 	go.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	v.add_child(go)
@@ -88,12 +90,16 @@ func _storage_row(key: String, c: Combatant) -> Control:
 	row.add_child(v)
 	var n := camp.stored(key)
 	var kit := Items.is_item(key)
-	var packed := n - camp.unpacked(key) if kit else 0
-	v.add_child(UiKit.fit(UiKit.label("%s  ×%d" % [Items.display_name(key), n], 15, Hud.TEXT)))
+	var equipped := n - camp.unpacked(key) if kit else 0
+	var chrome := Items.is_cyberware(key)
+	v.add_child(UiKit.fit(UiKit.label("%s  ×%d" % [Items.display_name(key), n], 15, Hud.VIOLET.lightened(0.3) if chrome else Hud.TEXT)))
 	var info := Campaign.item_info(key)
-	if packed > 0:
-		info = ("%d packed · " % packed) + info
+	if equipped > 0:
+		info = ("%d equipped · " % equipped) + info
 	v.add_child(UiKit.fit(UiKit.body(info, 13, Hud.DIM, false)))
+	if chrome:   # installed at the Med Bay, on whoever it's for
+		row.add_child(_small("MED BAY ›", UiKit.CHROME, func(_b): navigate.emit("ripperdoc")))
+		return row
 	if c == null:
 		return row
 	if Items.is_weapon(key):
@@ -106,8 +112,8 @@ func _storage_row(key: String, c: Combatant) -> Control:
 		var slot := 0 if Items.fits(0, key) else 1
 		var has := c.kit[slot] == key
 		var free := camp.unpacked(key, c, slot) > 0 and not has
-		row.add_child(_small("PACK" if free else ("PACKED" if has else "ALL PACKED"), UiKit.NEUTRAL,
-			func(bt): act(bt, func(): camp.set_kit(c, slot, key), "Packed in kit %d" % (slot + 1)), free))
+		row.add_child(_small("EQUIP" if free else ("EQUIPPED" if has else "ALL EQUIPPED"), UiKit.NEUTRAL,
+			func(bt): act(bt, func(): camp.set_kit(c, slot, key), "%s equips it" % c.display_name), free))
 	return row
 
 
@@ -160,8 +166,8 @@ func _loadout(c: Combatant, i: int) -> PanelContainer:
 		var key: String = c.kit[slot]
 		var btns := UiKit.hbox(4)
 		if key != "":
-			btns.add_child(_small("UNPACK", UiKit.NEUTRAL, func(b): act(b, func(): camp.set_kit(c, s, ""), "Unpacked")))
-		_slot_row(grid, "KIT %d" % (slot + 1), Items.display_name(key) if key != "" else "empty",
+			btns.add_child(_small("STORE", UiKit.NEUTRAL, func(b): act(b, func(): camp.set_kit(c, s, ""), "To storage")))
+		_slot_row(grid, Items.slot_name(slot), Items.display_name(key) if key != "" else "empty",
 			btns, Hud.TEXT if key != "" else Hud.DIM)
 	var idx2 := i
 	UiKit.clickable(p, func(): sel = idx2; _build())

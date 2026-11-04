@@ -2,8 +2,8 @@ class_name DebriefScreen
 extends SafehouseScreen
 ## After a gig, before the safehouse: how it went (pay, Improvement Points, the Reputation the deed
 ## earned, CPR core p193 and p410) and, per crew member, what it cost them (Critical Injuries, Wound
-## State, kit used or lost, a new addiction, Humanity, death). CONTINUE goes to the safehouse; the
-## crew cards keep the marks until the next gig (Campaign.marks_for).
+## State, consumables used, a new addiction, Humanity, death; the fallen's LOST GEAR one item a line). CONTINUE goes to the safehouse; the
+## room screens' crew cards keep the marks until the next gig (Campaign.marks_for).
 
 var report: Dictionary = {}
 
@@ -52,7 +52,7 @@ func build_body(body: VBoxContainer) -> void:
 	body.add_child(sc)
 	var bottom := UiKit.hbox(12)
 	body.add_child(bottom)
-	bottom.add_child(UiKit.body("The crew cards in the safehouse keep these marks until the next gig.", 14, Hud.DIM, false))
+	bottom.add_child(UiKit.body("The crew cards in the Bunks, Med Bay and Training Room keep these marks until the next gig.", 14, Hud.DIM, false))
 	bottom.add_child(UiKit.spacer())
 	var b := UiKit.button("CONTINUE  ›", UiKit.PRIMARY, func(): closed.emit(), true, 17)
 	b.custom_minimum_size = Vector2(220, 44)
@@ -88,9 +88,11 @@ func _member(m: Dictionary) -> PanelContainer:
 	nv.add_child(UiKit.label(String(m.get("role", "")), 13, Hud.DIM))
 	if dead:
 		v.add_child(UiKit.head("Flatlined", 30, Hud.RED))
-		var lost: Array = m.get("kit", [])
+		var lost: Array = m.get("lost", m.get("kit", []))
 		if not lost.is_empty():
-			v.add_child(UiKit.body("Lost with them: " + ", ".join(lost), 14, Hud.DIM))
+			v.add_child(UiKit.label("LOST GEAR", 12, Hud.DIM))
+			for item in lost:
+				v.add_child(UiKit.body(String(item), 15, Hud.TEXT))
 		return p
 	var hpc := Hud.GREEN if int(m.get("hp", 0)) >= int(m.get("max_hp", 1)) else (Hud.GOLD if String(m.get("wound", "")) == "Lightly Wounded" else Hud.RED)
 	v.add_child(UiKit.label("HP %d/%d · %s" % [int(m.get("hp", 0)), int(m.get("max_hp", 0)), String(m.get("wound", ""))], 15, hpc))
@@ -99,7 +101,7 @@ func _member(m: Dictionary) -> PanelContainer:
 	var inj: Array = m.get("injuries", [])
 	_line(v, "CRITICAL INJURIES", ", ".join(inj) if not inj.is_empty() else "none", Hud.RED if not inj.is_empty() else Hud.DIM)
 	var kit: Array = m.get("kit", [])
-	_line(v, "KIT USED", ", ".join(kit) if not kit.is_empty() else "none", Hud.TEXT if not kit.is_empty() else Hud.DIM)
+	_line(v, "CONSUMABLES USED", ", ".join(kit) if not kit.is_empty() else "none", Hud.TEXT if not kit.is_empty() else Hud.DIM)
 	var hooked: Array = m.get("addicted", [])
 	if not hooked.is_empty():
 		_line(v, "ADDICTED", ", ".join(hooked), Hud.RED)

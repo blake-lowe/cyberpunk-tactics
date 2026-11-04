@@ -344,7 +344,7 @@ func resolve(e: Encounter) -> Dictionary:
 
 ## One crew member's debrief: {name, role, look_seed, dead, ip, reputation (the new Level, 0 if
 ## unchanged), injuries (Critical Injuries taken on this gig), wound (Wound State name), hp,
-## max_hp, kit (used or lost), addicted (drug names newly hooked on), episode, humanity_lost}.
+## max_hp, kit (used or lost), lost (everything a fallen member had on them), addicted (drug names newly hooked on), episode, humanity_lost}.
 func _debrief_members(went: Array, before: Dictionary, report: Dictionary, kit_of: Dictionary, hooked_before: Dictionary) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	for c: Combatant in went:
@@ -355,8 +355,25 @@ func _debrief_members(went: Array, before: Dictionary, report: Dictionary, kit_o
 		out.append({"name": c.display_name, "role": c.role, "look_seed": c.look_seed, "dead": c.dead,
 			"ip": 0 if c.dead else int(report.ip), "reputation": int(report.reputation.get(c.display_name, 0)),
 			"injuries": new_inj, "wound": WOUND_NAMES[c.wound_state()], "hp": c.hp, "max_hp": c.max_hp(),
-			"kit": kit_of.get(c.display_name, []), "addicted": hooked, "episode": c.display_name in report.episodes,
+			"kit": kit_of.get(c.display_name, []), "lost": _lost_gear(c, kit_of) if c.dead else [], "addicted": hooked, "episode": c.display_name in report.episodes,
 			"humanity_lost": maxi(0, int(b.get("humanity", c.humanity)) - c.humanity) if c.tracks_humanity else 0})
+	return out
+
+
+## Everything a crew member who didn't come back had on them, one name per item: weapons (not
+## the built-in ones, which are cyberware), worn armour, installed cyberware, consumable and utility.
+static func _lost_gear(c: Combatant, kit_of: Dictionary) -> Array:
+	var out: Array = []
+	for w in c.weapons:
+		if not w.builtin:
+			out.append(w.display_name())
+	for loc in ["head", "body"]:
+		var a: ArmorPiece = c.armor.get(loc)
+		if a:
+			out.append(a.name + (" +1" if a.upgraded else ""))
+	for cw in c.cyberware:
+		out.append(String(RulesDB.cyberware(String(cw)).get("name", cw)))
+	out.append_array(kit_of.get(c.display_name, []))
 	return out
 
 
@@ -543,7 +560,7 @@ func on_sale(key: String) -> bool:
 ## Everything for sale now, the market's listings first, then the fixer's staples:
 ## {key, name, cost, kind: weapon|armor|kit|cyberware, kit: consumable|utility|"", listing (the
 ## book's row it came from), staple, owned (in storage), info}. Prices are list prices (p385 Market
-## Price). Cyberware is bought at the Ripperdoc (install), which fits it for free (p338).
+## Price). Cyberware is bought into storage like the rest; the Med Bay installs it free (p338).
 func market_stock() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	var seen := {}
@@ -588,7 +605,7 @@ static func item_info(key: String) -> String:
 
 
 ## Buy one into safehouse storage at list price. Nothing is bought for anyone, and owning one never
-## stops you buying another. Cyberware is bought through install() instead.
+## stops you buying another. Cyberware too: it waits in storage until the Med Bay installs it.
 func buy(key: String) -> bool:
 	if not Items.is_stored(key) or not on_sale(key) or eb < Items.price(key):
 		return false
@@ -598,8 +615,9 @@ func buy(key: String) -> bool:
 	return true
 
 
-## How many of `key` storage holds (kit counts include packed items; equipped weapons and armour
-## are on the crew member, not in storage).
+## How many of `key` storage holds (kit counts include equipped consumables and utilities;
+## equipped weapons and armour are on the crew member, not in storage; installed cyberware is part
+## of them).
 func stored(key: String) -> int:
 	return int(stash.get(key, 0))
 
@@ -622,6 +640,15 @@ func weapon_options() -> Array[String]:
 	var out: Array[String] = []
 	for k in stash:
 		if Items.is_weapon(String(k)) and stored(String(k)) > 0:
+			out.append(String(k))
+	return out
+
+
+## Cyberware keys in storage, waiting to be installed.
+func cyberware_options() -> Array[String]:
+	var out: Array[String] = []
+	for k in stash:
+		if Items.is_cyberware(String(k)) and stored(String(k)) > 0:
 			out.append(String(k))
 	return out
 
@@ -706,7 +733,7 @@ func unequip_armor(c: Combatant, loc: String) -> bool:
 
 
 ## Storage validation: drop keys it can't hold (old or unknown items) and empty counts, then
-## unpack kits storage no longer backs.
+## clear consumable and utility slots storage no longer backs.
 func check_stash() -> void:
 	for k in stash.keys():
 		if not Items.is_stored(String(k)) or int(stash[k]) <= 0:
@@ -719,8 +746,9 @@ func check_stash() -> void:
 ## What the ripperdoc installs: pieces whose effects the rules use, with the foundation each needs
 ## (p111-116: neuralware needs a Neural Link, cyberoptics a Cybereye, chipware a Chipware Socket,
 ## arm options a Cyberarm). A piece is bought from the Night Market that has it on sale (with the
-## foundations it needs, p338) and the seller's ripperdoc installs it for free (p338; the price
-## includes the surgery, p110). Short effect summaries are our paraphrase.
+## foundations it needs, p338) into safehouse storage like any gear; installing it later at the Med
+## Bay costs nothing more (a Night Market sale includes the install, p338; the price includes the
+## surgery, p110). Short effect summaries are our paraphrase.
 const RIPPERDOC := {
 	"neural_link": ["", "Foundation for neuralware."],
 	"kerenzikov": ["neural_link", "+2 Initiative."],
@@ -739,27 +767,30 @@ const RIPPERDOC := {
 const HUMANITY_THERAPY := {"standard": "standard_humanity_therapy", "extreme": "extreme_humanity_therapy"}
 
 
-## Why `c` can't get this piece now ("" if they can).
+## Why `c` can't have this stored piece installed now ("" if they can): already installed (the
+## benefits of a second don't stack, p111), none in storage, or its foundation missing (p111).
 func install_block(c: Combatant, id: String) -> String:
+	if c == null or not c in alive_crew():
+		return "not on the crew"
 	if c.has_cyberware(id):
 		return "installed"
-	if not on_sale("cyberware/" + id):
-		return "not at the market"
-	var need: String = RIPPERDOC[id][0]
+	if stored("cyberware/" + id) <= 0:
+		return "not in storage"
+	var need: String = String(RIPPERDOC.get(id, ["", ""])[0])
 	if need != "" and not c.has_cyberware(need):
 		return "needs " + String(RulesDB.cyberware(need).name)
-	if eb < int(RulesDB.cyberware(id).cost):
-		return "%d eb" % int(RulesDB.cyberware(id).cost)
 	return ""
 
 
-## Buy a piece at the Night Market and have it installed free (p338): pay, roll the Humanity Loss
-## (p110), and arm any built-in melee weapon (a hand-held melee weapon it replaces goes to storage).
+## Install a piece from storage. Free: it came from a Night Market, whose sale includes the
+## install (p338). Rolls the Humanity Loss (p110) and arms any built-in melee weapon (a hand-held
+## melee weapon it replaces goes to storage). From then on it's part of `c`: it can be removed
+## (remove), never moved to someone else. Returns the Humanity lost, -1 if it can't be done.
 func install(c: Combatant, id: String) -> int:
 	if install_block(c, id) != "":
 		return -1
 	var d := RulesDB.cyberware(id)
-	eb -= int(d.cost)
+	_take("cyberware/" + id)
 	var before := c.weapons.duplicate()
 	var loss := c.install_cyberware(id, dice)
 	for w in before:
@@ -769,9 +800,35 @@ func install(c: Combatant, id: String) -> int:
 	return loss
 
 
+## Why this installed piece can't come out now ("" if it can): an installed option still needs it
+## as its foundation (p111).
+func remove_block(c: Combatant, id: String) -> String:
+	if c == null or not c.has_cyberware(id):
+		return "not installed"
+	for other in c.cyberware:
+		if String(RIPPERDOC.get(other, [""])[0]) == id:
+			return "%s needs it" % String(RulesDB.cyberware(other).get("name", other))
+	return ""
+
+
+## Take an installed piece out at the Med Bay. It is destroyed, not stored: harvested chrome is
+## worthless without a Cybertech repair (p226), and installed chrome is never moved to someone else
+## (owner's ruling). The book prices no removal (p226 prices installing supplied chrome only), so
+## it costs nothing (HOUSE-RULE: the crew's ripperdoc does it). Humanity lost isn't returned
+## (Combatant.remove_cyberware).
+func remove(c: Combatant, id: String) -> bool:
+	if remove_block(c, id) != "":
+		return false
+	var nm := String(RulesDB.cyberware(id).get("name", id))
+	c.remove_cyberware(id)
+	say("%s has %s taken out." % [c.display_name, nm])
+	return true
+
+
 # --- Safehouse storage and kits (owner's design: 2 slots, 1 consumable + 1 utility) ---
 
-## How many of `key` in storage aren't already packed by someone (except `skip_c`'s `skip_slot`).
+## How many of `key` in storage nobody has equipped as their consumable or utility (except
+## `skip_c`'s `skip_slot`).
 func unpacked(key: String, skip_c: Combatant = null, skip_slot := -1) -> int:
 	var n := int(stash.get(key, 0))
 	for m in alive_crew():
@@ -781,8 +838,8 @@ func unpacked(key: String, skip_c: Combatant = null, skip_slot := -1) -> int:
 	return n
 
 
-## Pack (or with "" unpack) a kit slot. The slot must accept the item's kind and storage must
-## have one that nobody else has packed.
+## Equip (or with "" put back) a consumable or utility. The slot must accept the item's kind and
+## storage must have one that nobody else has equipped.
 func set_kit(c: Combatant, slot: int, key: String) -> bool:
 	if slot < 0 or slot >= c.kit.size() or not Items.fits(slot, key):
 		return false
@@ -792,7 +849,7 @@ func set_kit(c: Combatant, slot: int, key: String) -> bool:
 	return true
 
 
-## Items each slot could take for `c` right now (owned, unpacked, the right kind).
+## Items each slot could take for `c` right now (owned, not equipped by anyone else, the right kind).
 func kit_options(c: Combatant, slot: int) -> Array[String]:
 	var out: Array[String] = []
 	for key in stash:
@@ -801,7 +858,7 @@ func kit_options(c: Combatant, slot: int) -> Array[String]:
 	return out
 
 
-## Drop packed items storage can no longer back (spent or lost on the last gig).
+## Clear equipped consumables and utilities storage can no longer back (spent or lost on the last gig).
 func check_kits() -> void:
 	for m in alive_crew():
 		for i in m.kit.size():

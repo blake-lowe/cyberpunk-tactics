@@ -19,8 +19,13 @@ extends RefCounted
 ##     back. The stash may now hold weapons ("weapon/<id>[@quality]") and armour ("armor/<id>..."),
 ##     which old saves never had, so it carries over as is and the crew keep what they carry. The
 ##     campaign gains a Night Market (Campaign rolls one on load when it's empty).
+## v7: cyberware is bought like other gear. The stash may now hold "cyberware/<id>" pieces waiting
+##     to be installed at the Med Bay. A v6 stash never held any (chrome was installed as it was
+##     bought), so any "cyberware/..." key in one is junk the v6 loader ignored; it is dropped here so
+##     it can't turn into a free piece. Installed chrome stays installed. Debrief entries gain "lost"
+##     (what a fallen member had on them): v6 entries list their lost kit there.
 
-const CURRENT := 6
+const CURRENT := 7
 
 
 ## Upgrade `d` (a parsed save) to CURRENT. Returns {} for a save from a newer build, which this
@@ -37,6 +42,7 @@ static func migrate(d: Dictionary) -> Dictionary:
 			3: _v3_to_v4(d)
 			4: _v4_to_v5(d)
 			5: _v5_to_v6(d)
+			6: _v6_to_v7(d)
 		v += 1
 		d["version"] = v
 	return d
@@ -133,3 +139,13 @@ static func _v5_to_v6(d: Dictionary) -> void:
 	d["eb"] = int(d.get("eb", 0)) + refund
 	if not d.has("market"):
 		d["market"] = {}
+
+
+static func _v6_to_v7(d: Dictionary) -> void:
+	var stash: Dictionary = d.get("stash", {})
+	for k in stash.keys():
+		if String(k).begins_with("cyberware/"):
+			stash.erase(k)
+	for m in d.get("debrief", []):
+		if m is Dictionary and not (m as Dictionary).has("lost"):
+			m["lost"] = (m.get("kit", []) as Array).duplicate() if m.get("dead", false) else []

@@ -59,6 +59,9 @@ static func make() -> Campaign:
 		a.kit[0] = cons[0]
 	if not util.is_empty():
 		b.kit[1] = util[0]
+	# cyberware bought at the market, waiting in storage for the Med Bay
+	for k in NightMarket.keys_of(c.market).filter(func(k): return Items.is_cyberware(k)).slice(0, 3):
+		c.stash[k] = 1
 	c.fallen.append({"name": "Wraith", "role": "solo", "day": 9, "gig": "Retire a Biotechnica manager"})
 	for line in ["Rested 2 days.", "Bought %s" % Items.display_name(cons[0]) if not cons.is_empty() else "Bought gear", "Bought %s" % Items.display_name(cons[0]) if not cons.is_empty() else "Bought gear"]:
 		c.say(line)
@@ -80,6 +83,7 @@ static func report(c: Campaign) -> Dictionary:
 		"injuries": ["Concussion"], "wound": Campaign.WOUND_NAMES[c.crew[2].wound_state()], "hp": c.crew[2].hp, "max_hp": c.crew[2].max_hp(),
 		"kit": [], "addicted": [], "episode": false, "humanity_lost": 0})
 	members.append({"name": "Wraith", "role": "solo", "look_seed": 9, "dead": true, "ip": 0, "reputation": 0, "injuries": [], "wound": "Dead",
-		"hp": 0, "max_hp": 40, "kit": ["Smoke Grenade"], "addicted": [], "episode": false, "humanity_lost": 0})
+		"hp": 0, "max_hp": 40, "kit": ["Smoke Grenade"], "lost": ["Assault Rifle", "Heavy Pistol", "Light Armorjack", "Wolvers", "Smoke Grenade"],
+		"addicted": [], "episode": false, "humanity_lost": 0})
 	return {"won": true, "gig": {"title": "Retire a Biotechnica manager", "fixer": "Mr. Blue", "security": 2}, "pay": 1500, "ip": 30,
 		"reputation": {a.display_name: 3}, "dead": ["Wraith"], "hurt": [], "episodes": [], "kit_used": ["Flashbang"], "addicted": [], "members": members}

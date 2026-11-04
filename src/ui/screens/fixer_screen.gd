@@ -1,9 +1,10 @@
 class_name FixerScreen
 extends SafehouseScreen
 ## The Fixer Network room: JOBS (the fixers' gig offers), HIRE (recruits) and the NIGHT MARKET
-## that's up (CPR core p.337-339: its two categories of goods, listings grouped by category) beside
-## the always-on-sale staples (p.385: anything up to Premium, 100eb). Every purchase goes to safehouse
-## storage; nothing is bought for a crew member and owning one never blocks buying another.
+## that's up (CPR core p.337-339: a column per category of goods, its items listed directly) beside
+## everything up to Premium, which needs no Night Market (p.385). Each item shows its Price
+## Category (p.385). Every purchase, cyberware included, goes to safehouse storage; nothing is
+## bought for a crew member and owning one never blocks buying another.
 
 const OBJECTIVE_TEXT := {"data": "Download the target file, or eliminate all hostiles",
 	"eliminate": "Eliminate all hostiles, including reinforcements",
@@ -159,9 +160,7 @@ func _market(body: VBoxContainer) -> void:
 	if cats.is_empty():
 		info.add_child(UiKit.body("No Night Market is up.", 15, Hud.DIM, false))
 	else:
-		info.add_child(UiKit.label("UP UNTIL DAY %d" % int(camp.market.get("closes", camp.day)), 15, Hud.CYAN))
-		for cid in cats:
-			info.add_child(UiKit.chip(String(NightMarket.category(String(cid)).get("name", cid)), Hud.CYAN))
+		info.add_child(UiKit.label("NIGHT MARKET UP UNTIL DAY %d" % int(camp.market.get("closes", camp.day)), 15, Hud.CYAN))
 	info.add_child(UiKit.spacer())
 	info.add_child(UiKit.label("Everything bought goes to storage (Armory)", 13, Hud.DIM))
 	var cols := UiKit.hbox(10)
@@ -170,18 +169,21 @@ func _market(body: VBoxContainer) -> void:
 	var stock := {}
 	for it in camp.market_stock():
 		stock[String(it.key)] = it
-	for cid in cats:
-		var listings: Array = camp.market.get("listings", []).filter(func(l): return String(l.get("category", "")) == String(cid))
-		cols.add_child(_column(String(NightMarket.category(String(cid)).get("name", cid)), listings, stock))
-	var staples: Array = []
-	for grp in [["weapon", "Weapons"], ["armor", "Armor"], ["ammo", "Ammunition"], ["drugs", "Street Drugs"], ["gear", "Gear"]]:
-		var ks: Array = NightMarket.staples().filter(func(k): return Items.section(k) == grp[0])
-		if not ks.is_empty():
-			staples.append({"name": grp[1], "keys": ks})
-	cols.add_child(_column("Always on sale", staples, stock, "Anything up to 100 eb can be had without a Night Market."))
+	for cid in cats:   # p338: two categories of goods; their items listed directly, no sub-headings
+		var keys: Array[String] = []
+		for l in camp.market.get("listings", []):
+			if String(l.get("category", "")) == String(cid):
+				for k in l.get("keys", []):
+					if stock.has(String(k)) and not String(k) in keys:
+						keys.append(String(k))
+		cols.add_child(_column(String(NightMarket.category(String(cid)).get("name", cid)), keys, stock))
+	var cap := int(NightMarket.data().staples.get("max_cost", 100))
+	var tier := Items.price_tier(cap)
+	cols.add_child(_column("Up to " + tier, NightMarket.staples(), stock,
+		"%s and cheaper (up to %s eb) needs no Night Market (p.385)." % [tier, UiKit.money(cap)]))
 
 
-func _column(heading: String, listings: Array, stock: Dictionary, note := "") -> PanelContainer:
+func _column(heading: String, keys: Array, stock: Dictionary, note := "") -> PanelContainer:
 	var p := UiKit.panel(Hud.CYAN, 10)
 	p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	p.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -190,38 +192,66 @@ func _column(heading: String, listings: Array, stock: Dictionary, note := "") ->
 	v.add_child(UiKit.head(heading, 28, Hud.TEXT))
 	if note != "":
 		v.add_child(UiKit.body(note, 13, Hud.DIM))
-	var list := UiKit.vbox(4)
+	var list := UiKit.vbox(6)
 	v.add_child(UiKit.scroller(list))
-	for l in listings:
-		if String(l.get("name", "")) != "":
-			list.add_child(section(String(l.name)))
-		if (l.get("keys", []) as Array).is_empty():
-			list.add_child(none("Nothing the crew can use."))
-		for k in l.get("keys", []):
-			if stock.has(String(k)):
-				list.add_child(_item_row(stock[String(k)]))
+	for k in keys:
+		if stock.has(String(k)):
+			list.add_child(_item_row(stock[String(k)]))
+	if list.get_child_count() == 0:
+		list.add_child(none("Nothing here the crew can use."))
 	return p
 
 
-## One listing: one item at its set quality, BUY · price (neutral), how many storage holds.
+## One item at its set quality: its name beside BUY · price, then its Price Category (p.385) and a
+## description with room to wrap (owner: entries twice as tall, nothing cut off), and how many
+## storage holds. Cyberware is bought the same way and installed
+## later at the Med Bay.
 func _item_row(it: Dictionary) -> Control:
-	var row := UiKit.hbox(8)
-	var v := UiKit.vbox(-2)
-	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(v)
+	var p := PanelContainer.new()
+	var box := StyleBoxFlat.new()
+	box.bg_color = Color(1, 1, 1, 0.025)
+	box.border_color = Color(Hud.CYAN, 0.12)
+	box.border_width_bottom = 1
+	box.content_margin_left = 8
+	box.content_margin_right = 4
+	box.content_margin_top = 4
+	box.content_margin_bottom = 6
+	p.add_theme_stylebox_override("panel", box)
+	p.custom_minimum_size.y = 72
+	var v := UiKit.vbox(2)
+	p.add_child(v)
+	var top := UiKit.hbox(8)
+	v.add_child(top)
 	var chrome: bool = it.kind == "cyberware"
-	v.add_child(UiKit.fit(UiKit.label(String(it.name), 15, Hud.VIOLET.lightened(0.3) if chrome else Hud.TEXT)))
-	var sub := ("%s eb · " % UiKit.money(int(it.cost)) if chrome else "") + String(it.info)
-	if int(it.owned) > 0:
-		sub += ("  ·  " if sub != "" else "") + "%d in storage" % int(it.owned)
-	v.add_child(UiKit.fit(UiKit.body(sub, 13, Hud.DIM, false)))
+	var nm := UiKit.label(String(it.name), 15, Hud.VIOLET.lightened(0.3) if chrome else Hud.TEXT)
+	nm.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	nm.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	nm.custom_minimum_size.x = 60
+	top.add_child(nm)
 	var key: String = it.key
-	if chrome:   # bought and fitted at the Med Bay's Ripperdoc (p338: installed free)
-		row.add_child(UiKit.button("RIPPERDOC ›", UiKit.CHROME, func(): navigate.emit("ripperdoc")))
-	else:
-		var b := UiKit.button(UiKit.price_text("BUY", int(it.cost)), UiKit.NEUTRAL, Callable(), camp.eb >= int(it.cost))
-		b.custom_minimum_size.x = 132
-		var nm := String(it.name)
-		b.pressed.connect(func(): act(b, func(): camp.buy(key), "Bought " + nm))
-		row.add_child(b)
-	return row
+	var b := UiKit.button(UiKit.price_text("BUY", int(it.cost)), UiKit.NEUTRAL, Callable(), camp.eb >= int(it.cost))
+	b.custom_minimum_size.x = 132
+	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var nm2 := String(it.name)
+	b.pressed.connect(func(): act(b, func(): camp.buy(key), "Bought " + nm2))
+	top.add_child(b)
+	var desc := String(it.info)
+	if chrome:
+		var id := Items.base_id(key)
+		var need := String(Campaign.RIPPERDOC.get(id, [""])[0])
+		desc += (" " if desc != "" else "") + "Humanity Loss %s." % String(RulesDB.cyberware(id).get("hl_dice", ""))
+		if need != "":
+			desc += " Needs %s." % String(RulesDB.cyberware(need).name)
+		desc += " Installed at the Med Bay."
+	if int(it.owned) > 0:
+		desc += ("  ·  " if desc != "" else "") + "%d in storage" % int(it.owned)
+	var line := UiKit.hbox(8)
+	v.add_child(line)
+	var tier := UiKit.label(Items.price_tier(int(it.cost)), 12, Hud.CYAN)
+	tier.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	tier.custom_minimum_size.y = 20
+	tier.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	line.add_child(tier)
+	line.add_child(UiKit.body(desc, 13, Hud.DIM))
+	return p

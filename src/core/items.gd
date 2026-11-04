@@ -8,7 +8,8 @@ extends RefCounted
 ## Weapons: "weapon/<id>" (Standard Quality) or "weapon/<id>@poor" / "@excellent" (p.342).
 ## Armour: "armor/<id>", plus "@upgraded" for a piece a Tech has upgraded (+1 SP, p148) and
 ## "@sp<N>" for a piece put away ablated to N SP (it stays that way until worn and repaired).
-## Cyberware: "cyberware/<id>" names a Night Market listing; it is installed, never stored.
+## Cyberware: "cyberware/<id>", bought like any other gear and kept in storage until the Med Bay's
+## ripperdoc installs it (then it's part of that crew member: removable, never moved to anyone else).
 
 const SECTIONS := ["ammo", "drugs", "gear"]
 
@@ -122,9 +123,31 @@ static func is_cyberware(key: String) -> bool:
 	return section(key) == "cyberware" and (RulesDB.load_json("cyberware.json")["cyberware"] as Dictionary).has(base_id(key))
 
 
-## Anything safehouse storage can hold: a kit item, a weapon or an armour piece.
+## Anything safehouse storage can hold: a kit item, a weapon, an armour piece or a piece of
+## cyberware waiting to be installed.
 static func is_stored(key: String) -> bool:
-	return is_item(key) or is_weapon(key) or is_armor(key)
+	return is_item(key) or is_weapon(key) or is_armor(key) or (is_cyberware(key) and tags(key).is_empty())
+
+
+## The book's Price Categories (CPR core p.385), cheapest first: [name, eb]. Super Luxury is
+## 10,000eb and up.
+const PRICE_TIERS := [["Cheap", 10], ["Everyday", 20], ["Costly", 50], ["Premium", 100], ["Expensive", 500],
+	["Very Expensive", 1000], ["Luxury", 5000], ["Super Luxury", 10000]]
+
+
+## The Price Category a price falls in (p.385): the dearest category it reaches.
+static func price_tier(eb: int) -> String:
+	var out := String(PRICE_TIERS[0][0])
+	for t in PRICE_TIERS:
+		if eb >= int(t[1]):
+			out = String(t[0])
+	return out
+
+
+## What a kit slot is called (gear.json kit_rules: slot 1 "Consumable", slot 2 "Utility").
+static func slot_name(slot: int) -> String:
+	var kinds := slot_kinds()
+	return String((kinds[slot] as Array)[0]).capitalize() if slot >= 0 and slot < kinds.size() else ""
 
 
 static func weapon_key(weapon_id: String, quality := "standard") -> String:

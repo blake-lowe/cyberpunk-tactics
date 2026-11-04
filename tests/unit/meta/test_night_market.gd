@@ -97,7 +97,9 @@ func test_buying_goes_into_storage_and_never_blocks_another() -> void:
 	assert_eq(c.crew[0].weapons.size(), weapons0, "bought for nobody")
 	assert_eq(c.eb, 4000, "list price")
 	assert_false(c.buy("weapon/sniper_rifle"), "not on sale (over 100eb, not listed)")
-	assert_false(c.buy("cyberware/neural_link"), "chrome is fitted at the ripperdoc, not stored")
+	assert_true(c.buy("cyberware/neural_link"), "chrome is bought into storage like the rest")
+	assert_eq(c.stored("cyberware/neural_link"), 1)
+	c.eb += 500
 	assert_true(c.buy("ammo/flashbang_ammo"), "a staple")
 	c.eb = 10
 	assert_false(c.buy("armor/kevlar"), "can't overspend")
@@ -160,7 +162,7 @@ func test_check_stash_drops_what_storage_cant_hold() -> void:
 	c.crew[0].kit[0] = "drugs/synthcoke"
 	c.crew[1].kit[0] = "drugs/synthcoke"
 	c.check_stash()
-	assert_eq(c.stash, {"drugs/synthcoke": 1})
+	assert_eq(c.stash, {"drugs/synthcoke": 1, "cyberware/neural_link": 1}, "a stored piece of chrome is kept")
 	assert_eq(c.crew.filter(func(m): return m.kit[0] == "drugs/synthcoke").size(), 1, "one dose can't go with two people")
 
 
@@ -217,3 +219,13 @@ func test_everything_up_to_premium_is_always_on_sale() -> void:
 	for k in st:
 		assert_true(Items.price(k) <= 100, "%s is Premium or less" % k)
 	assert_false("weapon/assault_rifle" in st, "500eb waits for a Night Market")
+
+
+func test_price_tiers_are_the_books() -> void:
+	assert_eq(Items.price_tier(10), "Cheap", "p.385")
+	assert_eq(Items.price_tier(50), "Costly")
+	assert_eq(Items.price_tier(100), "Premium")
+	assert_eq(Items.price_tier(1000), "Very Expensive")
+	assert_eq(Items.price_tier(25000), "Super Luxury", "10,000eb and up")
+	assert_eq(Items.slot_name(0), "Consumable")
+	assert_eq(Items.slot_name(1), "Utility")

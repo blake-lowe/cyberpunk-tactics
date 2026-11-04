@@ -19,7 +19,7 @@ func build_body(body: VBoxContainer) -> void:
 	var cols := UiKit.hbox(12)
 	cols.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	body.add_child(cols)
-	var left := crew_picker(func(m): return "REPUTATION %d · %d IP" % [m.reputation, m.ip], 270)
+	var left := crew_picker(func(m): return "REPUTATION %d · %d IP" % [m.reputation, m.ip], 270, camp.marks_for)
 	cols.add_child(left)
 	if not camp.fallen.is_empty():
 		left.add_child(section("FLATLINED", Hud.DIM))
@@ -40,13 +40,6 @@ func build_body(body: VBoxContainer) -> void:
 	head.add_child(hv)
 	hv.add_child(UiKit.head(c.display_name, 36))
 	hv.add_child(UiKit.label("%s · RANK %d · %d IP · REPUTATION %d" % [c.role, c.role_rank, c.ip, c.reputation], 15, Hud.CYAN))
-	var marks := camp.marks_for(c)
-	if not marks.is_empty():
-		var f := UiKit.flow()
-		f.add_child(UiKit.label("LAST GIG", 12, Hud.DIM))
-		for m in marks:
-			f.add_child(mark_chip(m))
-		hv.add_child(f)
 	head.add_child(_recover())
 	var grid := UiKit.hbox(10)
 	grid.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -54,17 +47,6 @@ func build_body(body: VBoxContainer) -> void:
 	grid.add_child(_stats_col(c))
 	grid.add_child(_condition_col(c))
 	grid.add_child(_gear_col(c))
-
-
-## A last-gig mark in its colour meaning: IP and Reputation are information (cyan), injuries and
-## addictions danger (red), Humanity chrome (violet).
-static func mark_chip(m: String) -> PanelContainer:
-	var col := Hud.CYAN
-	if m.begins_with("ADDICTED") or not (m.begins_with("+") or m.begins_with("REPUTATION") or m.ends_with("HUMANITY")):
-		col = Hud.RED
-	elif m.ends_with("HUMANITY"):
-		col = Hud.VIOLET.lightened(0.3)
-	return UiKit.chip(m, col)
 
 
 func _recover() -> VBoxContainer:
@@ -155,9 +137,9 @@ func _gear_col(c: Combatant) -> PanelContainer:
 		v.add_child(UiKit.fit(UiKit.label("%s · %s" % [loc, StorageScreen.short_armor(a) if a else "none"], 14, Hud.TEXT if a else Hud.DIM)))
 		if a and a.sp < a.max_sp:
 			v.add_child(UiKit.label("   " + StorageScreen.repair_text(a), 12, Hud.CYAN))
-	v.add_child(section("KIT"))
 	for s in c.kit.size():
-		v.add_child(UiKit.fit(UiKit.label("%d · %s" % [s + 1, Items.display_name(c.kit[s]) if c.kit[s] != "" else "empty"], 14, Hud.TEXT if c.kit[s] != "" else Hud.DIM)))
+		v.add_child(section(Items.slot_name(s)))
+		v.add_child(UiKit.fit(UiKit.label(Items.display_name(c.kit[s]) if c.kit[s] != "" else "none", 14, Hud.TEXT if c.kit[s] != "" else Hud.DIM)))
 	var b := UiKit.button("LOADOUTS ›", UiKit.NAV, func(): navigate.emit("storage"))
 	b.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	v.add_child(b)

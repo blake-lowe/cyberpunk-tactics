@@ -445,6 +445,49 @@ func has_cyberware(cyber_id: String) -> bool:
 	return cyber_id in cyberware
 
 
+## Take a piece out (a Medtech's harvest, CPR core p226: the piece doesn't survive it in this game,
+## see Campaign.remove). What it gave goes with it: subdermal armour, a built-in weapon (the next
+## hardest-hitting one left takes its place), a STAT bonus (HP over the new maximum is lost).
+## Humanity lost to it is not given back: the book returns Humanity only through therapy
+## (p229-230). The cap it took (2, Borgware 4, p230) comes back so therapy can restore it
+## (RULES-UNVERIFIED: p230 doesn't say whether the cap recalculates on removal; docs/rules/cyber-net.md).
+## Returns false if it isn't installed.
+func remove_cyberware(cyber_id: String) -> bool:
+	if not cyber_id in cyberware:
+		return false
+	cyberware.erase(cyber_id)
+	var d: Dictionary = RulesDB.cyberware(cyber_id)
+	var fx: Dictionary = d.get("fx", {})
+	if fx.has("armor_sp"):
+		subdermal.clear()
+		for cid in cyberware:   # another subdermal piece still under the skin
+			var ofx: Dictionary = RulesDB.cyberware(cid).get("fx", {})
+			if ofx.has("armor_sp") and (subdermal.is_empty() or int(ofx.armor_sp) > (subdermal["body"] as ArmorPiece).max_sp):
+				for loc in ["body", "head"]:
+					var a := ArmorPiece.new()
+					a.id = cid
+					a.name = RulesDB.cyberware(cid)["name"]
+					a.max_sp = int(ofx["armor_sp"])
+					a.sp = a.max_sp
+					subdermal[loc] = a
+	if fx.has("weapon"):
+		weapons.assign(weapons.filter(func(w): return not w.builtin))
+		var best: Weapon = null
+		for cid in cyberware:
+			var ofx: Dictionary = RulesDB.cyberware(cid).get("fx", {})
+			if ofx.has("weapon"):
+				var nw := Weapon.from_id(String(ofx["weapon"]))
+				if best == null or nw.dice() > best.dice():
+					best = nw
+		if best:
+			best.builtin = true
+			weapons.append(best)
+	if tracks_humanity and int(d.get("hl_flat", 0)) > 0:
+		max_humanity += 4 if d.get("borgware", false) else 2
+	hp = mini(hp, max_hp())
+	return true
+
+
 func lose_humanity(amount: int) -> void:
 	if tracks_humanity:
 		humanity -= amount

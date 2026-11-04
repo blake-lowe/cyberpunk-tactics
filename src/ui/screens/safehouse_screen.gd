@@ -158,11 +158,15 @@ func act(b: Button, cb: Callable, msg := "", col := Hud.GREEN) -> void:
 # --- Shared pieces -----------------------------------------------------------------------
 
 ## The crew down the left: compact cards (portrait, name, role, HP); the selected one in gold.
-## `extra` (optional) gives one more line per member.
-func crew_picker(extra := Callable(), width := 290) -> VBoxContainer:
+## `extra` (optional) gives one more line per member; `marks` (optional) the last-gig marks to show
+## as chips (Campaign.marks_for, filtered to what the room is about).
+func crew_picker(extra := Callable(), width := 290, marks := Callable()) -> VBoxContainer:
 	var col := UiKit.vbox(6)
 	col.custom_minimum_size.x = width
 	col.add_child(UiKit.label("CREW", 14, Hud.CYAN))
+	var cards := UiKit.vbox(6)   # scrolls if the marks make the cards taller than the screen
+	var sc := UiKit.scroller(cards)
+	col.add_child(sc)
 	var crew := camp.alive_crew()
 	for i in crew.size():
 		var c: Combatant = crew[i]
@@ -180,10 +184,29 @@ func crew_picker(extra := Callable(), width := 290) -> VBoxContainer:
 			var e: Variant = extra.call(c)
 			if e is String and e != "":
 				v.add_child(UiKit.fit(UiKit.label(String(e), 13, Hud.CYAN)))
+		if marks.is_valid():
+			var ms: Array = marks.call(c)
+			if not ms.is_empty():
+				var f := UiKit.flow(4)
+				for m in ms:
+					f.add_child(mark_chip(String(m)))
+				v.add_child(f)
 		var idx := i
 		UiKit.clickable(card, func(): sel = idx; _build())
-		col.add_child(card)
+		card.mouse_filter = Control.MOUSE_FILTER_PASS   # the wheel still scrolls the list
+		cards.add_child(card)
 	return col
+
+
+## A last-gig mark in its colour meaning: IP and Reputation are information (cyan), injuries and
+## addictions danger (red), Humanity chrome (violet).
+static func mark_chip(m: String) -> PanelContainer:
+	var col := Hud.CYAN
+	if m.begins_with("ADDICTED") or not (m.begins_with("+") or m.begins_with("REPUTATION") or m.ends_with("HUMANITY")):
+		col = Hud.RED
+	elif m.ends_with("HUMANITY"):
+		col = Hud.VIOLET.lightened(0.3)
+	return UiKit.chip(m, col)
 
 
 func selected() -> Combatant:
