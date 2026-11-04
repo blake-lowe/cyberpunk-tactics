@@ -14,40 +14,52 @@ const YARDS := {"market": [G.CONCRETE, "market"], "park": [G.GRASS, "park"], "pl
 	"construction": [G.DIRT, "construction_site"], "ride": [G.CONCRETE, "ride"], "woods": [G.GRASS, "woods"]}
 ## Outdoor lots walled in with a chain-link fence and one gate (a substation, a ride enclosure).
 const FENCED := ["substation", "ride"]
+## Ground names a profile may use for its walks (path, verge).
+const GROUNDS := {"sidewalk": G.SIDEWALK, "dirt": G.DIRT, "gravel": G.GRAVEL, "grass": G.GRASS, "concrete": G.CONCRETE, "dock": G.DOCK}
 
 
 static func generate(c: Dictionary, profile_name: String) -> void:
 	var m: TacMap = c.m
+	c.p["profile"] = profile_name
 	var look := DistrictLook.of_params(c.p)
 	var prof: Dictionary = DistrictLook.profile(RulesDB.gen("districts.json")[profile_name], look, int(c.p.floors))
-	c.p["profile"] = profile_name
-	SceneGen.ground(c, Rect2i(0, 0, m.w, m.h), G.SIDEWALK)
+	SceneGen.ground(c, Rect2i(0, 0, m.w, m.h), GROUNDS.get(String(prof.get("ground", "sidewalk")), G.SIDEWALK))   # a wood's floor is grass
 	var roads := {}
 	var hw := float(prof.road_w) / 2.0
 	if bool(prof.get("midway", false)):
 		c["midway"] = true   # theme parks: the "roads" are paved pedestrian walks
+		# the walk's middle and its edge (a wood's dark earth paths between grass verges)
+		c["path_g"] = GROUNDS.get(String(prof.get("path", "sidewalk")), G.SIDEWALK)
+		c["verge_g"] = GROUNDS.get(String(prof.get("verge", "sidewalk")), G.SIDEWALK)
 	var lines := _road_network(c, prof, hw)
 	for ln in lines:
 		_raster(c, ln, roads)
 	if bool(prof.get("shore", false)):
-		_shore(c, roads)
+		_shore(c, prof, roads)
 	var lots := _lots(c, prof, roads)
 	_fill_lots(c, prof, lots)
 	if not bool(prof.get("midway", false)):
 		_footbridges(c, lines)
+	else:
+		ParkGen.midway(c, prof, roads)
+		ParkGen.forest(c, prof)
 	_parked(c, prof, roads)
 	_street_furniture(c, look, prof.get("street_props", {}))
 	_street_trees(c, look, roads)
 	_street_rubble(c, look)
 	_edge_spawns(c)
-	c.erase("midway")
+	if c.get("midway", false):
+		ParkGen.tidy_roofs(c)   # last: prop ids are the cover count at placement, so nothing may be placed after a removal
+	for k in ["midway", "path_g", "verge_g", "pier", "park_rides"]:
+		c.erase(k)
 
 
 ## The seafront (theme parks by the sea: Playland's boardwalk, NC2045 p.302): the bottom rows are
-## sea, the strip above them a boardwalk; both stay out of the lots.
-static func _shore(c: Dictionary, roads: Dictionary) -> void:
+## sea, the strip above them a boardwalk; both stay out of the lots. A profile with `pier` runs a
+## pier out over the sea with the big wheel on it (ParkGen), and benches line the boardwalk.
+static func _shore(c: Dictionary, prof: Dictionary, roads: Dictionary) -> void:
 	var m: TacMap = c.m
-	var sea := maxi(3, m.h / 14)
+	var sea := maxi(3, m.h / int(prof.get("sea_div", 14)))
 	var walk := 3
 	for y in range(m.h - sea - walk, m.h):
 		for x in m.w:
@@ -61,6 +73,10 @@ static func _shore(c: Dictionary, roads: Dictionary) -> void:
 				m.set_ground(x, y, G.DOCK)
 				if not roads.has(v):
 					roads[v] = false
+	if bool(prof.get("pier", false)):
+		c["pier"] = ParkGen.pier(c, roads, m.h - sea, sea)
+	if bool(prof.get("midway", false)):
+		ParkGen.boardwalk(c, m.h - sea)
 
 
 # --- Road networks -------------------------------------------------------------
@@ -176,7 +192,10 @@ static func _road_cell(c: Dictionary, roads: Dictionary, v: Vector2i, d: float, 
 	var m: TacMap = c.m
 	var core := d <= hw - 1.0
 	if core or not roads.has(v):
-		m.set_ground(v.x, v.y, G.SIDEWALK if not core or c.get("midway", false) else G.ASPHALT)
+		if c.get("midway", false):
+			m.set_ground(v.x, v.y, int(c.path_g) if core else int(c.verge_g))
+		else:
+			m.set_ground(v.x, v.y, G.SIDEWALK if not core else G.ASPHALT)
 	if core:
 		roads[v] = true
 	elif not roads.has(v):
@@ -270,7 +289,9 @@ static func _fill_lots(c: Dictionary, prof: Dictionary, lots: Array) -> void:
 	for piece in pieces:
 		var bb := _bbox(piece)
 		if hub != "" and c.has("plaza_center") and piece.has(Vector2i(c.plaza_center)):
-			_yard_lot(c, piece, hub)   # the hub every land opens off (a theme park's central plaza)
+			var hr := _yard_lot(c, piece, hub)   # the hub every land opens off (a theme park's central plaza)
+			if c.get("midway", false):
+				ParkGen.hub(c, hr)
 			continue
 		var use: String = names[c.dice.rng.rand_weighted(wts)]
 		var is_target := not target_done and mini(bb.size.x, bb.size.y) >= 12
@@ -281,6 +302,8 @@ static func _fill_lots(c: Dictionary, prof: Dictionary, lots: Array) -> void:
 			# leftover small lots: a pocket park, a bit of parking or a paved square, not bare ground
 			var pockets: Array = prof.get("pockets", ["park", "plaza", "parking_lot", "park"])
 			var small: String = pockets[c.dice.rng.randi() % pockets.size()] if mini(bb.size.x, bb.size.y) >= 5 else String(pockets[0])
+			if use == "ride" and mini(bb.size.x, bb.size.y) < 8:
+				use = small   # too small for a ride behind its fence
 			_yard_lot(c, piece, use if YARDS.has(use) else small)
 			continue
 		if not is_target and not use in BIG_SITES and maxi(bb.size.x, bb.size.y) >= 15 and c.dice.rng.randf() < float(prof.get("cluster", 0.0)):
@@ -356,7 +379,7 @@ static func _cut(c: Dictionary, piece: Dictionary, r: Rect2i, out: Array[Rect2i]
 		else Rect2i(r.position.x, r.position.y + cut + gap, r.size.x, r.size.y - cut - gap), out)
 
 
-static func _yard_lot(c: Dictionary, cells: Dictionary, use: String) -> void:
+static func _yard_lot(c: Dictionary, cells: Dictionary, use: String) -> Dictionary:
 	var m: TacMap = c.m
 	var spec: Array = YARDS[use]
 	for v in cells:
@@ -374,7 +397,9 @@ static func _yard_lot(c: Dictionary, cells: Dictionary, use: String) -> void:
 			m.labels[0][v.y * m.w + v.x] = id
 			room.cells += 1
 	if use in FENCED:
-		# Fenced: the lot's outer ring becomes fence with one gate toward the street.
+		# Fenced: the lot's outer ring becomes fence with one gate toward the street: the lowest
+		# fence square with the lot on one side and open ground on the other, toward the middle (on
+		# a slanted lot the bottom corner square has neither, and a gate there led nowhere).
 		var bb := _bbox(cells)
 		var gate := Vector2i(-1, -1)
 		for v in cells:
@@ -384,20 +409,44 @@ static func _yard_lot(c: Dictionary, cells: Dictionary, use: String) -> void:
 				m.wall_mat[0][v.y * m.w + v.x] = 3
 				m.labels[0][v.y * m.w + v.x] = -1
 				room.cells -= 1
-				if gate.x < 0 and v.y == bb.end.y - 1 and v.x > bb.position.x + 1 and v.x < bb.end.x - 2:
-					gate = v
-		if gate.x < 0:
-			for v in cells:
-				if m.t(0, v.x, v.y) == TacMap.T.WALL and MapGen.DIRS.any(func(d): return m.t(0, v.x + d.x, v.y + d.y) == TacMap.T.OUTSIDE and m.label(0, v.x + d.x, v.y + d.y) == -1) \
-						and MapGen.DIRS.any(func(d): return m.label(0, v.x + d.x, v.y + d.y) == id):
-					gate = v
-					break
+		var best := -INF
+		for v in cells:
+			if m.t(0, v.x, v.y) != TacMap.T.WALL or not MapGen.DIRS.any(func(d): return m.label(0, v.x + d.x, v.y + d.y) == id) \
+					or not MapGen.DIRS.any(func(d): return m.t(0, v.x + d.x, v.y + d.y) == TacMap.T.OUTSIDE and m.label(0, v.x + d.x, v.y + d.y) == -1):
+				continue
+			var score: float = v.y * 100.0 - absf(v.x + 0.5 - bb.get_center().x)
+			if score > best:
+				best = score
+				gate = v
 		if gate.x >= 0:
 			m.set_t(0, gate.x, gate.y, TacMap.T.DOOR)
 			m.doors.append({"floor": 0, "pos": gate, "a": -1, "b": id, "security": false, "structure": sid, "gate": true})
+			# squares the fence cut off from the gate (a slanted lot's corners) become fence too
+			var seen := {}
+			var q: Array[Vector2i] = []
+			for d in MapGen.DIRS:
+				if m.label(0, gate.x + d.x, gate.y + d.y) == id:
+					seen[gate + d] = true
+					q.append(gate + d)
+			while not q.is_empty():
+				var u: Vector2i = q.pop_back()
+				for d in MapGen.DIRS:
+					var n: Vector2i = u + d
+					if not seen.has(n) and m.label(0, n.x, n.y) == id:
+						seen[n] = true
+						q.append(n)
+			for v in cells:
+				if m.label(0, v.x, v.y) == id and not seen.has(v):
+					m.set_t(0, v.x, v.y, TacMap.T.WALL)
+					m.wall_mat[0][v.y * m.w + v.x] = 3
+					m.labels[0][v.y * m.w + v.x] = -1
+					room.cells -= 1
+		if use == "ride" and c.get("midway", false):
+			ParkGen.ride(c, room, gate)   # the ride itself, before its benches and planters
 	Furnish.run_structure(m, c.dice, sid)
 	if m.devices.any(func(d): return d.structure == sid) and use == "substation":
 		m.architectures[sid] = NetGen.generate(m, c.dice, sid)
+	return room
 
 
 static func _bbox(cells: Dictionary) -> Rect2i:
@@ -500,7 +549,8 @@ static func _street_trees(c: Dictionary, look: Dictionary, roads: Dictionary) ->
 			continue
 		if MapGen.DIRS.any(func(d): return m.inb(v.x + d.x, v.y + d.y) and m.t(0, v.x + d.x, v.y + d.y) == TacMap.T.DOOR):
 			continue
-		if Furnish.try_prop(m, 0, Rect2i(v, Vector2i.ONE), "tree" if c.dice.rng.randf() < 0.7 else "planter", -1, {}, c.reserved):
+		var tree := String(look.get("tree", "tree"))   # a look's own street tree (the Haunted Woods' fake pines)
+		if Furnish.try_prop(m, 0, Rect2i(v, Vector2i.ONE), tree if c.dice.rng.randf() < 0.7 or tree != "tree" else "planter", -1, {}, c.reserved):
 			placed.append(v)
 
 

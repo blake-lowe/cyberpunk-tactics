@@ -27,6 +27,7 @@ uniform int mode = 0;
 uniform float explored_dim = 0.6;
 uniform float fog_sat = 0.3;        // colour kept in explored-but-unseen areas (1 = full colour)
 uniform float fog_cool = 1.0;       // 1: unseen areas shift blue (night scenes); 0: same hue, just dimmer
+uniform float fog_hue = 0.0;        // per material: colour kept out of sight whatever fog_sat says (lawns, foliage: grey grass read as black voids)
 uniform bool cuttable = false;
 uniform bool shell = false;
 uniform sampler2D lightfield : filter_linear, repeat_disable;
@@ -195,6 +196,7 @@ void fragment() {
 	vec4 lfs = (texture(lightfield, luv) * 2.0 + texture(lightfield, luv + vec2(t.x, 0)) + texture(lightfield, luv - vec2(t.x, 0))
 		+ texture(lightfield, luv + vec2(0, t.y)) + texture(lightfield, luv - vec2(0, t.y))) / 6.0;
 	vec3 lf = lfs.rgb;
+	if (pattern == 10) lf *= 0.5;   // water: lamp light as a dim sheen, not a lit floor
 	if (up && local_h < 0.2 && mode != 2) base *= 1.0 - 0.45 * clamp(lfs.a, 0.0, 1.0);
 	if (!up) lf *= 1.0 - 0.45 * clamp(local_h / 1.6, 0.0, 1.0);
 	float pk = max(lf.r, max(lf.g, lf.b));
@@ -209,7 +211,7 @@ void fragment() {
 	if (lq >= 0.75) emit += (lf / max(pk, 1e-3)) * 0.12;   // hot core: pools have a coloured centre
 	if (k < 1.0) {
 		float l = dot(base, vec3(0.3, 0.59, 0.11));
-		base = mix(vec3(l), base, mix(fog_sat, 1.0, vis)) * k * mix(mix(vec3(1.0), vec3(0.8, 0.9, 1.15), fog_cool), vec3(1.0), vis);
+		base = mix(vec3(l), base, mix(max(fog_sat, fog_hue), 1.0, vis)) * k * mix(mix(vec3(1.0), vec3(0.8, 0.9, 1.15), fog_cool * step(fog_hue, 0.0)), vec3(1.0), vis);
 		emit *= mix(mix(0.4, 0.85, 1.0 - fog_cool), 1.0, vis);
 	}
 	if (flat_shade) NORMAL = normalize(cross(dFdy(VERTEX), dFdx(VERTEX)));

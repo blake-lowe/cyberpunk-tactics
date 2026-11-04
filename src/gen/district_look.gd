@@ -10,7 +10,7 @@ extends RefCounted
 const RANGES := {"signs": [0.0, 2.0], "grime": [0.0, 2.0], "ruin": [0.0, 1.0], "height": [-1, 2], "green": [0.0, 1.0],
 	"props": [0.0, 2.0], "cars": [0.0, 2.0]}
 ## Optional numeric keys, with their allowed range.
-const OPTIONAL := {"lamp_keep": [0.0, 1.0], "blaze": [0.0, 1.0], "wrecks": [0.0, 1.0]}
+const OPTIONAL := {"lamp_keep": [0.0, 1.0], "blaze": [0.0, 1.0], "wrecks": [0.0, 1.0], "green_lots": [0.0, 1.0]}
 ## Street furniture without a district (DistrictGen's old fixed set).
 const STREET := ["vending", "vending", "bench", "kiosk", "barrel"]
 
@@ -29,10 +29,24 @@ static func of(id: String) -> Dictionary:
 
 
 ## The look of the district a map's gig is in ({} if none, or if the scene has a theme of its own).
+## A neighbourhood profile with a look of its own (districts.json `look`: Playland's midways, the
+## Haunted Woods) wears it over the district's: its keys win, and its mats/light/walls entries
+## replace the district's one by one.
 static func of_params(p: Dictionary) -> Dictionary:
 	if RulesDB.gen("themes.json")["themes"].has(String(p.get("scene", ""))):
 		return {}
-	return of(String(p.get("district", "")))
+	var base := of(String(p.get("district", "")))
+	var prof: Variant = RulesDB.gen("districts.json").get(String(p.get("profile", "")), {})
+	var own: Dictionary = (prof as Dictionary).get("look", {}) if prof is Dictionary else {}
+	if own.is_empty():
+		return base
+	var out := base.duplicate(true)
+	for k in own:
+		if k in ["mats", "light", "walls"] and out.get(k) is Dictionary:
+			(out[k] as Dictionary).merge(own[k], true)
+		else:
+			out[k] = own[k]
+	return out
 
 
 ## A numeric look value, `fallback` when the look doesn't set it.
@@ -50,7 +64,7 @@ static func profile(prof: Dictionary, look: Dictionary, cap: int) -> Dictionary:
 	var mix: Dictionary = p.mix
 	for k in look.get("mix", {}):
 		mix[k] = float(mix.get(k, 0.0)) + float(look.mix[k])
-	var green := num(look, "green", 0.0)
+	var green := num(look, "green_lots", num(look, "green", 0.0))   # a look may green its streets without turning lots into parks
 	if green > 0.0:
 		mix["park"] = float(mix.get("park", 0.0)) + green * 3.0
 	if look.has("ruin"):
