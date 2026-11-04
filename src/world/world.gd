@@ -121,11 +121,41 @@ static func locations() -> Dictionary:
 	return RulesDB.world("locations.json").get("locations", {})
 
 
+## A named place (docs/world/nc_*.md, NC2045). Where it plays (site / profile / scene) comes from
+## its type (locations.types) unless the entry names one; its 1-3 security level for the older
+## systems from its Security Code (n ≤ 4 → 1, 5-7 → 2, 8+ → 3; our reading).
 static func location(id: String) -> Dictionary:
 	var l: Dictionary = (locations().get(id, {}) as Dictionary).duplicate()
-	if not l.is_empty():
-		l["id"] = id
+	if l.is_empty():
+		return l
+	l["id"] = id
+	if not (l.has("site") or l.has("profile") or l.has("scene")):
+		var t: Dictionary = location_types().get(String(l.get("type", "")), {})
+		for k in t:
+			l[k] = t[k]
+	if not l.has("security"):
+		var code: Variant = l.get("security_code")
+		var n := int(code.get("n", 5)) if code is Dictionary else 5
+		var lv := 1 if n <= 4 else (2 if n <= 7 else 3)
+		l["security"] = [lv, lv]
 	return l
+
+
+## Location type → generator (docs/world/locations.md).
+static func location_types() -> Dictionary:
+	return RulesDB.world("locations.json").get("types", {})
+
+
+## The city's districts (docs/world/city.md + nc_*.md), id → data.
+static func districts() -> Dictionary:
+	return RulesDB.world("city.json").get("districts", {})
+
+
+static func district(id: String) -> Dictionary:
+	var d: Dictionary = (districts().get(id, {}) as Dictionary).duplicate()
+	if not d.is_empty():
+		d["id"] = id
+	return d
 
 
 ## Locations `faction` owns where a `gig_kind` job can happen, in data order.
