@@ -22,7 +22,8 @@ extends Control
 ## Dev flags (with --shot=x.png for screenshots): --base stays here; --screen=<id> opens a screen
 ## (jobs, hire, market, storage, workshop, ripperdoc, therapy, injuries, training, crew, debrief);
 ## --crew=n selects crew member n on it; --hover=<room id> shows a room hovered; --demo uses
-## DemoState's sample campaign (never saved).
+## DemoState's sample campaign (never saved); with it the Armory also takes --slot=<slot id>,
+## --pick=<storage key> and --filter=<chip> (StorageScreen.setup).
 
 const GB := preload("res://src/tactical/greybox.gd")
 const POST_SHADER := preload("res://src/tactical/view/post.gdshader")

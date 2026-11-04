@@ -123,15 +123,26 @@ func test_consumable_and_utility_terms() -> void:
 	s.free()
 
 
-func test_carry_and_recover_buttons() -> void:
+func test_equip_and_recover_buttons() -> void:
 	var camp := DemoState.make()
-	var s := _open(StorageScreen.new(), camp, "loadouts")
+	var s: StorageScreen = _open(StorageScreen.new(), camp, "loadouts")
 	var c: Combatant = camp.alive_crew()[0]
 	var n := c.weapons.size()
-	var carry := _buttons(s, "CARRY")
-	assert_false(carry.is_empty())
-	carry[0].pressed.emit()
+	assert_true(_buttons(s, "CARRY").is_empty() and _buttons(s, "WEAR").is_empty(), "one verb: EQUIP")
+	s._select_slot("wadd")
+	var eq := _buttons(s, "EQUIP · ENTER")
+	assert_eq(eq.size(), 1, "one EQUIP, in the detail panel")
+	var key := s.pick
+	assert_true(Items.is_weapon(key), "the weapon slot picks a weapon from storage")
+	eq[0].pressed.emit()
 	assert_eq(c.weapons.size(), n + 1, "the selected crew member carries it")
+	assert_eq(s.slot, "w%d" % n, "the new weapon's slot is selected")
+	assert_true(_buttons(s, "MED BAY").size() >= 1, "installed chrome goes to the Med Bay, not storage")
+	var st := _buttons(s, "STORE CURRENT · DEL")
+	assert_eq(st.size(), 1)
+	st[0].pressed.emit()
+	assert_eq(c.weapons.size(), n, "STORE puts it back")
+	assert_eq(camp.stored(key), 1)
 	s.free()
 	var cs := _open(CrewScreen.new(), camp)
 	var rec := _buttons(cs, "RECOVER UNTIL HEALED")
@@ -139,3 +150,61 @@ func test_carry_and_recover_buttons() -> void:
 	rec[0].pressed.emit()
 	assert_eq(camp.days_to_recover(), 0, "everyone healed")
 	cs.free()
+
+
+func test_armor_goes_to_the_clicked_slot_and_the_list_follows_the_slot() -> void:
+	var camp := DemoState.make()
+	var s: StorageScreen = _open(StorageScreen.new(), camp, "loadouts")
+	var c: Combatant = camp.alive_crew()[0]
+	s._select_slot("head")
+	assert_true(s._keys.all(func(k): return Items.is_armor(k)), "the head slot lists armour")
+	assert_eq(s.pick, "armor/leathers")
+	var old := Items.key_of_armor(c.armor.head)
+	_buttons(s, "EQUIP · ENTER")[0].pressed.emit()
+	assert_eq((c.armor.head as ArmorPiece).id, "leathers", "worn on the head: the slot that was clicked")
+	assert_eq(camp.stored(old), 1, "what was there goes to storage")
+	assert_false(_buttons(s, "UPGRADE +1 SP").is_empty(), "the Workshop upgrade is in the armour slot's detail")
+	s._select_slot("k1")
+	assert_true(s._keys.all(func(k): return Items.fits(1, k)), "the utility slot lists utilities")
+	s._pick("ammo/flashbang_ammo")
+	assert_eq(s.slot, "k0", "picking a consumable under ALL selects the consumable slot")
+	s.free()
+
+
+func _key(s: SafehouseScreen, code: Key, ctrl := false) -> void:
+	var ev := InputEventKey.new()
+	ev.keycode = code
+	ev.pressed = true
+	ev.ctrl_pressed = ctrl
+	s._unhandled_input(ev)
+
+
+func test_armory_keyboard() -> void:
+	var camp := DemoState.make()
+	var s: StorageScreen = _open(StorageScreen.new(), camp, "loadouts")
+	var crew := camp.alive_crew()
+	_key(s, KEY_E)
+	assert_eq(s.sel, 1, "E: next crew member")
+	_key(s, KEY_Q)
+	_key(s, KEY_Q)
+	assert_eq(s.sel, crew.size() - 1, "Q wraps round")
+	_key(s, KEY_E)
+	var c: Combatant = crew[0]
+	var first := c.weapons[0].id()
+	_key(s, KEY_DOWN)
+	assert_eq(s.slot, "w1", "↓: next slot")
+	_key(s, KEY_UP, true)
+	assert_eq(c.weapons[0].id(), "heavy_pistol", "Ctrl+↑ draws it first")
+	assert_eq(s.slot, "w0", "the selection follows the weapon")
+	assert_eq(c.weapons[1].id(), first)
+	_key(s, KEY_DELETE)
+	assert_eq(camp.stored("weapon/heavy_pistol"), 2, "Del stores the slot's item")
+	_key(s, KEY_RIGHT)
+	var picked := s.pick
+	_key(s, KEY_ENTER)
+	assert_eq(camp.stored(picked), 1 if picked == "weapon/heavy_pistol" else 0, "Enter equips the picked item")
+	var closed := []
+	s.closed.connect(func(): closed.append(true))
+	_key(s, KEY_ESCAPE)
+	assert_eq(closed.size(), 1, "Esc goes back")
+	s.free()
