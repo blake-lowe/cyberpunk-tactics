@@ -485,7 +485,7 @@ static func _terrace_lights(wb: WorldBuilder, f: int, sid: int, col: Color) -> v
 ## A crown of tall fins round the top roof's edge, their tips glowing.
 static func _crown(wb: WorldBuilder, f: int, sid: int, col: Color) -> void:
 	var m := wb.m
-	if f != int(m.structures[sid].floors):
+	if f != m.street + int(m.structures[sid].floors):   # the top roof: `floors` counts storeys from the street
 		return
 	var y0 := f * FH
 	var r: Rect2i = m.structures[sid].rect
@@ -509,7 +509,7 @@ static func _crown(wb: WorldBuilder, f: int, sid: int, col: Color) -> void:
 ## Merlons on alternate squares along every roof edge of a castle's buildings.
 static func _crenels(wb: WorldBuilder, f: int, sid: int) -> void:
 	var m := wb.m
-	if f == 0:
+	if f <= m.street:
 		return
 	var y0 := f * FH
 	var r: Rect2i = m.structures[sid].rect

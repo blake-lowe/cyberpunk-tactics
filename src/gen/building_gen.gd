@@ -526,6 +526,7 @@ static func _connect(m: TacMap, dice: Dice, hints: Array, p: Dictionary, first: 
 		if absi(za - zb) <= 1 and maxi(za, zb) < TacMap.Zone.VAULT and dice.rng.randf() < float(p.loops) and _door_ok(m, key.x, key.y):
 			_add_door(m, dice, cands, key.x, key.y)
 	# Rooms the tree never reached are sealed off: solid structure.
+	var sealed := {}
 	for r in mine:
 		if not in_tree.has(r.id):
 			r.kind = "void"
@@ -533,7 +534,12 @@ static func _connect(m: TacMap, dice: Dice, hints: Array, p: Dictionary, first: 
 				if m.labels[r.floor][i] == r.id:
 					m.tiles[r.floor][i] = TacMap.T.WALL
 					m.labels[r.floor][i] = -1
+					sealed[Vector3i(i % m.w, i / m.w, r.floor)] = true
 			r.cells = 0
+	# A stair shaft in a sealed room went solid with it: it no longer links its floors.
+	if not sealed.is_empty():
+		m.verticals.assign(m.verticals.filter(func(v): return not range(int(v.from_floor), int(v.to_floor) + 1).any(
+				func(f): return sealed.has(Vector3i(v.pos.x, v.pos.y, f)))))
 
 
 static func _add_door(m: TacMap, dice: Dice, cands: Dictionary, a: int, b: int) -> void:

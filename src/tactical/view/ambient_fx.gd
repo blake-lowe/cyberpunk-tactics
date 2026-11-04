@@ -13,7 +13,9 @@ func build(m: TacMap, kinds: Array, seed_value: int) -> void:
 	_flames.clear()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value * 61 + 5
-	var mid := Vector3(m.w / 2.0, 0, m.h / 2.0)
+	var gy := m.street * WorldBuilder.FH   # everything rises from the street, not the lowest basement
+	var sf := m.street
+	var mid := Vector3(m.w / 2.0, gy, m.h / 2.0)
 	for k in kinds:
 		match String(k):
 			"embers":
@@ -42,18 +44,18 @@ func build(m: TacMap, kinds: Array, seed_value: int) -> void:
 				p.scale_amount_min = 0.05
 				p.scale_amount_max = 0.09
 				p.color_ramp = _ramp([Color(1, 1, 1, 0), Color(1, 1, 1, 0.8), Color(1, 0.95, 0.95, 0)], [0.0, 0.5, 1.0])
-				_shafts(m, rng)
+				_shafts(m, rng, gy)
 			"steam":
 				var spots: Array = []
 				for i in 400:
 					var v := Vector2i(rng.randi_range(0, m.w - 1), rng.randi_range(0, m.h - 1))
-					if m.t(0, v.x, v.y) == TacMap.T.WATER and spots.all(func(q): return q.distance_to(v) > 7):
+					if m.t(sf, v.x, v.y) == TacMap.T.WATER and spots.all(func(q): return q.distance_to(v) > 7):
 						spots.append(v)
 					if spots.size() >= 9:
 						break
 				for v in spots:
 					var s := _particles(10, 4.5, _soft_quad(Color("c8f0d0")))
-					s.position = Vector3(v.x + 0.5, 0.1, v.y + 0.5)
+					s.position = Vector3(v.x + 0.5, gy + 0.1, v.y + 0.5)
 					s.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
 					s.emission_sphere_radius = 0.6
 					s.direction = Vector3.UP
@@ -69,14 +71,14 @@ func build(m: TacMap, kinds: Array, seed_value: int) -> void:
 				var pts := PackedVector3Array()
 				for i in 1600:
 					var v := Vector2i(rng.randi_range(1, m.w - 2), rng.randi_range(1, m.h - 2))
-					if not m.walkable_tile(m.t(0, v.x, v.y)) and m.t(0, v.x, v.y) != TacMap.T.WATER:
+					if not m.walkable_tile(m.t(sf, v.x, v.y)) and m.t(sf, v.x, v.y) != TacMap.T.WATER:
 						continue
 					var by_wall := false
 					for d in MapGen.DIRS:
-						if m.t(0, v.x + d.x, v.y + d.y) == TacMap.T.WALL:
+						if m.t(sf, v.x + d.x, v.y + d.y) == TacMap.T.WALL:
 							by_wall = true
 					if by_wall:
-						pts.append(Vector3(v.x + rng.randf(), 0, v.y + rng.randf()) - mid)
+						pts.append(Vector3(v.x + rng.randf(), gy, v.y + rng.randf()) - mid)
 					if pts.size() >= 160:
 						break
 				if not pts.is_empty():
@@ -161,7 +163,7 @@ func _process(_d: float) -> void:
 
 
 ## Arcology: shafts of light falling from the atrium's roof, slanted, additive and faint.
-func _shafts(m: TacMap, rng: RandomNumberGenerator) -> void:
+func _shafts(m: TacMap, rng: RandomNumberGenerator, gy: float) -> void:
 	var mt := StandardMaterial3D.new()
 	mt.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mt.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
@@ -175,7 +177,7 @@ func _shafts(m: TacMap, rng: RandomNumberGenerator) -> void:
 		bm.size = Vector3(rng.randf_range(2.5, 4.5), 16.0, rng.randf_range(2.5, 4.5))
 		bm.material = mt
 		mi.mesh = bm
-		mi.position = Vector3(rng.randf_range(6, m.w - 6), 8.0, rng.randf_range(6, m.h - 6))
+		mi.position = Vector3(rng.randf_range(6, m.w - 6), gy + 8.0, rng.randf_range(6, m.h - 6))
 		mi.rotation = Vector3(deg_to_rad(14), deg_to_rad(20), 0)
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(mi)
