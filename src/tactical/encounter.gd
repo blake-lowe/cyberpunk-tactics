@@ -116,7 +116,9 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 		if st.target:
 			site = String(st.get("site", ""))
 	var posts := p_map.posts.duplicate()
-	posts.sort_custom(func(a, b): return int(a.structure == target_sid) > int(b.structure == target_sid))
+	# A set piece's own posts (roof snipers, AA gunners: SetPieceGen.posts) are manned first.
+	var post_rank := func(q: Dictionary) -> int: return int(q.get("priority", false)) * 2 + int(q.structure == target_sid)
+	posts.sort_custom(func(a, b): return post_rank.call(a) > post_rank.call(b))
 	var sec := mini(3, int(p_map.params.get("security", 1)))
 	e.code = SecurityCode.normalise(opts.get("security_code"))
 	if e.code.is_empty():
@@ -161,7 +163,11 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 	for i in n:
 		var tier: String = roster[i]
 		var g := World.npc(p_dice, e.post_faction, tier, i + 1, "", e._hardened_posts)
+		if posts[i].has("weapon"):   # a set piece's post hands its guard a weapon (roof snipers' rifles)
+			g.weapons.insert(0, Weapon.from_id(String(posts[i].weapon)))
 		e._add(g, Vector3i(posts[i].pos.x, posts[i].pos.y, posts[i].floor), OPFOR)
+		if posts[i].has("facing"):   # a nest: stays put, watching out over the parapet
+			e.units[-1]["hold"] = Vector2(posts[i].facing)
 	# Objective: a module per kind (data/gen/objectives.json) places what the job needs.
 	e.obj = Objective.make(kind, e)
 	e.objective = e.obj.o
@@ -664,7 +670,8 @@ func _place_civilians(deploy: Vector2i) -> void:
 				cand.append(v)
 	if cand.is_empty():
 		return
-	var n := clampi(int(m.w * m.h / 650.0) + (3 if scene == "arcology" else 0), 3, 12)
+	var extra := int(SetPieces.rule(m, "civilians", 0))   # a set piece's public floor draws a crowd
+	var n := clampi(int(m.w * m.h / 650.0) + (3 if scene == "arcology" else 0) + extra, 3, 12 + extra)
 	var placed: Array = []
 	for k in n * 6:
 		if placed.size() >= n:
@@ -969,11 +976,11 @@ func secure_cell(target_sid: int, origin: Vector2i, role := "") -> Vector3i:
 	# A site's own anchors (sites.json `anchors.<role>.<room kind>`: a bonus worth ~20 per security
 	# level): where its mark sits (vip), its captive is held, its package or machine is kept.
 	var anchors: Dictionary = {}
-	if target_sid >= 0 and target_sid < m.structures.size():
-		anchors = RulesDB.gen("sites.json").get(String(m.structures[target_sid].get("site", "")), {}).get("anchors", {}).get(role, {})
+	if target_sid >= 0 and target_sid < m.structures.size():   # a set piece's building: its recipe's anchors
+		anchors = SetPieces.structure_def(m.structures[target_sid]).get("anchors", {}).get(role, {})
 	for cell in field:
 		var l := m.label(cell.z, cell.x, cell.y)
-		if l < 0 or m.rooms[l].structure != target_sid or m.rooms[l].get("kind", "") == "roof" or occ.has(cell) \
+		if l < 0 or m.rooms[l].structure != target_sid or m.rooms[l].get("kind", "") == "roof" or m.rooms[l].get("outdoor", false) or occ.has(cell) \
 				or m.has_cover_at(cell.z, Vector2i(cell.x, cell.y)):
 			continue
 		var score := float(field[cell]) + 20.0 * int(m.rooms[l].get("zone", 0)) \
@@ -1090,7 +1097,7 @@ func _camera_spots() -> Dictionary:
 			continue
 		var cp := Vector3i(d.pos.x, d.pos.y, d.floor)
 		for u in alive(0):
-			if not camera_sees(d, u.pos):
+			if not camera_sees(d, u.pos) or passing_as_public(u):
 				continue
 			var key := ["cam", d.id, u.id, init.round_num if init else 0]
 			if not _spot_rolls.has(key):
@@ -1124,6 +1131,8 @@ const DARK_PENALTY := 4         ## "Task obscured by smoke or darkness" (CPR p? 
 func _spots(g: Dictionary, u: Dictionary) -> bool:
 	if u.pos.z != g.pos.z:
 		return false
+	if passing_as_public(u):
+		return false
 	var d := Vector2(u.pos.x - g.pos.x, u.pos.y - g.pos.y)
 	var dist := d.length()
 	if dist > SPOT_RANGE or not los.trace(g.pos, u.pos).clear:
@@ -1140,6 +1149,27 @@ func _spots(g: Dictionary, u: Dictionary) -> bool:
 	if not _spot_rolls.has(key):
 		_spot_rolls[key] = Check.opposed(dice, base, sneak).success
 	return _spot_rolls[key]
+
+
+## HOUSE-RULE (set pieces with `public_access`: Ziggurat's museum floor, Fort Sumter's petition
+## floor): while no alarm is up, crew in the public rooms of the ground floor or out on the open
+## street and grounds pass as visitors; guards only take them for intruders past the first
+## restricted door (any room above the public zone, any upper floor).
+var _public_access = null   ## the set piece's rule, read once
+
+
+func passing_as_public(u: Dictionary) -> bool:
+	if _public_access == null:
+		_public_access = bool(SetPieces.rule(m, "public_access", false))
+	if alarm > 0 or not _public_access or int(u.get("team", CREW)) != CREW:
+		return false
+	var p: Vector3i = u.pos
+	if p.z != 0:
+		return false
+	var l := m.label(0, p.x, p.y)
+	if l < 0:
+		return m.t(0, p.x, p.y) in [TacMap.T.OUTSIDE, TacMap.T.DOOR]
+	return int(m.rooms[l].zone) <= TacMap.Zone.PUBLIC
 
 
 ## Squares an unalerted guard is watching (view-side helper, no dice): within SPOT_RANGE on their
@@ -1229,6 +1259,9 @@ func _post_guards() -> void:
 		if not is_guard(g):
 			continue
 		var dirs := [Vector2(1, 0), Vector2(-1, 0), Vector2(0, 1), Vector2(0, -1), Vector2(1, 1).normalized(), Vector2(-1, 1).normalized(), Vector2(1, -1).normalized(), Vector2(-1, -1).normalized()]
+		if g.has("hold"):
+			g.facing = g.hold
+			continue
 		var l := m.label(g.pos.z, g.pos.x, g.pos.y)
 		if l >= 0:   # face the middle of the room
 			var b: Rect2i = m.rooms[l].bounds

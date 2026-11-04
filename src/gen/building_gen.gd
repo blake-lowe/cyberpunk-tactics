@@ -13,10 +13,11 @@ const DIAG: Array[Vector2i] = [Vector2i(1, 1), Vector2i(-1, -1), Vector2i(1, -1)
 
 
 ## ctx: {shell: Rect2i, site, floors, security, base_zone, target: bool, entry_side ("" = any),
-##       params (density, loops, verticality, algorithm override, net_scale, net_threat)}
+##       params (density, loops, verticality, algorithm override, net_scale, net_threat),
+##       setpiece + part (a set piece's building: SetPieces.site_def puts its keys over the site's)}
 ## `hints` is the scene-wide room hint list (index = global room id). Returns the structure dict.
 static func build(m: TacMap, dice: Dice, hints: Array, ctx: Dictionary) -> Dictionary:
-	var sdef: Dictionary = RulesDB.gen("sites.json")[ctx.site]
+	var sdef: Dictionary = SetPieces.site_def(String(ctx.site), String(ctx.get("setpiece", "")), String(ctx.get("part", "")))
 	var p: Dictionary = MapGen.DEFAULTS.duplicate()
 	p.merge(sdef["layout"], true)
 	p.merge(ctx.get("params", {}), true)
@@ -34,9 +35,13 @@ static func build(m: TacMap, dice: Dice, hints: Array, ctx: Dictionary) -> Dicti
 		"security": p.security, "target": ctx.get("target", false), "base_zone": int(ctx.get("base_zone", TacMap.Zone.PUBLIC)),
 		"params": p, "algorithm": p.algorithm,
 		"max_zone": maxi(mini(MapGen.max_zone(int(p.security)), int(ctx.get("base_zone", TacMap.Zone.PUBLIC)) + int(p.levels) - 1), int(ctx.get("base_zone", TacMap.Zone.PUBLIC)))}
+	if String(ctx.get("setpiece", "")) != "":
+		st["setpiece"] = String(ctx.setpiece)
+		st["part"] = String(ctx.get("part", ""))
+		st["name"] = String(sdef.get("name", ctx.site))
 	m.structures.append(st)
 
-	var fps := _massing(dice, fp, floors, String(ctx.site))   # each floor's footprint (setbacks)
+	var fps := _massing(dice, fp, floors, sdef.get("massing", {}))   # each floor's footprint (setbacks)
 	var first_id := hints.size()
 	var entry_side := String(ctx.get("entry_side", ""))
 	if p.algorithm == "program":
@@ -46,6 +51,7 @@ static func build(m: TacMap, dice: Dice, hints: Array, ctx: Dictionary) -> Dicti
 		p["entry_side"] = entry_side
 		p["floors"] = floors
 		p["plan"] = Layouts.program_plan(dice, inner, p)
+		_keep(fps, fp, inner, p, floors)
 	for f in floors:
 		var local := PackedInt32Array()
 		local.resize(m.w * m.h)
@@ -78,9 +84,9 @@ static func build(m: TacMap, dice: Dice, hints: Array, ctx: Dictionary) -> Dicti
 	_service_door(m, dice, fp, door.side, sid, int(st.base_zone), p.get("service", []))
 	_wall_materials(m, fps, floors, int(sdef.get("exterior", 1)))
 	_glass_fronts(m, first_id)
-	_room_kinds(m, String(ctx.site), first_id, root)
+	_room_kinds(m, sdef["zones"], first_id, root)
 	_terraces(m, hints, fps, floors, sid)
-	_roof(m, dice, hints, fps[floors - 1], floors, sid, int(st.base_zone), String(ctx.site))
+	_roof(m, dice, hints, fps[floors - 1], floors, sid, int(st.base_zone), String(ctx.site), bool(p.get("roof_access", false)))
 	_windows(m, dice, fps, floors, float(sdef.get("windows", 0.5)), bool(sdef.get("armored_windows", false)))
 	var cy: Rect2i = ctx.get("courtyard", Rect2i())
 	if cy.has_area():
@@ -606,8 +612,7 @@ static func _wall_materials(m: TacMap, fps: Array, floors: int, exterior_mat: in
 				m.wall_mat[f][y * m.w + x] = mat
 
 
-static func _room_kinds(m: TacMap, site: String, first: int, entrance_room: int) -> void:
-	var zones: Dictionary = RulesDB.gen("sites.json")[site]["zones"]
+static func _room_kinds(m: TacMap, zones: Dictionary, first: int, entrance_room: int) -> void:
 	var by_zone := {}
 	for r in m.rooms.slice(first):
 		if r.cells > 0:
@@ -640,7 +645,7 @@ static func _room_kinds(m: TacMap, site: String, first: int, entrance_room: int)
 ## Roof level above the top floor: walkable ROOF over the whole footprint, reached by extending
 ## the stair shaft (roof hatch) and/or an external ladder / fire escape from the street. A roof
 ## with no way up is left as plain structure (no room, no furniture).
-static func _roof(m: TacMap, dice: Dice, hints: Array, fp: Footprint, floors: int, sid: int, base_zone: int, site := "") -> void:
+static func _roof(m: TacMap, dice: Dice, hints: Array, fp: Footprint, floors: int, sid: int, base_zone: int, site := "", force := false) -> void:
 	var shell := fp.shell
 	var rf := floors
 	if rf >= m.floors:
@@ -652,7 +657,7 @@ static func _roof(m: TacMap, dice: Dice, hints: Array, fp: Footprint, floors: in
 	var access := false
 	for v in m.verticals:
 		# only a shaft that still runs up to the top floor (room connection can wall off a dead one)
-		if v.get("structure", -1) == sid and v.type == "stairs" and m.t(rf - 1, v.pos.x, v.pos.y) == TacMap.T.STAIRS and dice.rng.randf() < 0.6:
+		if v.get("structure", -1) == sid and v.type == "stairs" and m.t(rf - 1, v.pos.x, v.pos.y) == TacMap.T.STAIRS and (dice.rng.randf() < 0.6 or force):
 			v.to_floor = rf
 			m.set_t(rf, v.pos.x, v.pos.y, TacMap.T.STAIRS)
 			access = true
@@ -844,11 +849,10 @@ static func _fix_fragments(m: TacMap, f: int, fp: Footprint, hints: Array) -> vo
 ## set back on all sides: a tower on a base), "step" (set back on one or two sides from some
 ## floor up), "wing" (only part of the building rises: a low wing beside a taller block) or none.
 ## Upper footprints keep at least 9 squares a side so rooms and a stair still fit.
-static func _massing(dice: Dice, fp: Footprint, floors: int, site: String) -> Array:
+static func _massing(dice: Dice, fp: Footprint, floors: int, w: Dictionary) -> Array:
 	var out := []
 	for f in floors:
 		out.append(fp)
-	var w: Dictionary = RulesDB.gen("sites.json")[site].get("massing", {})
 	var sh := fp.shell
 	if floors < 2 or w.is_empty() or fp.hole.has_area() or mini(sh.size.x, sh.size.y) < 11:
 		return out
@@ -899,6 +903,24 @@ static func _massing(dice: Dice, fp: Footprint, floors: int, site: String) -> Ar
 	for f in range(start, floors):
 		out[f] = up
 	return out
+
+
+## A set piece's program keeps only part of the plan on some storeys (Layouts.program_keep): those
+## floors stand on that part of the footprint (its outer ring becomes the new exterior wall).
+static func _keep(fps: Array, fp: Footprint, inner: Rect2i, p: Dictionary, floors: int) -> void:
+	if not p.program.has("keep"):
+		return
+	for f in floors:
+		var r := Layouts.program_keep(inner, p, f).grow(1)
+		if not r.has_area():
+			continue
+		var mask := {}
+		for y in range(r.position.y, r.end.y):
+			for x in range(r.position.x, r.end.x):
+				if (fps[f] as Footprint).has(Vector2i(x, y)):
+					mask[Vector2i(x, y)] = true
+		if mask.size() >= 25:
+			fps[f] = Footprint.make(fp.shell, mask)
 
 
 ## Where an upper floor is set back, the roof of the floor below becomes a terrace: walkable roof,

@@ -30,6 +30,9 @@ const PIECES := {
 	# programmed sites: a service / teller counter (bullet-resistant, like the book's thick
 	# wooden reception desk), a restaurant booth (upholstered wooden bench), a kitchen range
 	"counter": ["wood", true], "booth": ["wood", true], "stove": ["steel", false],
+	# set pieces: a deck-mounted anti-aircraft gun (armoured mount: thick steel), an aerodyne
+	# cyberbike parked on its pad (a vehicle body: thin steel, like a car)
+	"aa_gun": ["steel", true], "cyberbike": ["steel", false],
 }
 
 ## Pieces that are also hazards (explosive: blows up when destroyed; resolved in M3).

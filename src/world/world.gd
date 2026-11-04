@@ -136,6 +136,11 @@ static func location(id: String) -> Dictionary:
 	if not l.has("security") and not code.is_empty():
 		var lv := SecurityCode.level(code)
 		l["security"] = [lv, lv]
+	# A famous place with an authored recipe (data/gen/setpieces.json): play it as that set piece
+	# (SceneGen overrides {setpiece, location}; the recipe picks the scene and the target).
+	var sp := SetPieces.for_location(id)
+	if sp != "":
+		l["setpiece"] = sp
 	return l
 
 

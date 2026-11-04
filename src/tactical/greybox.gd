@@ -211,6 +211,7 @@ var _frames := 0
 var _reveal := false
 var _walk := 0
 var _focus := ""
+var _shot_floor := -1
 var _attack_demo := false
 var _jack_demo := false
 var _av_demo := ""
@@ -259,6 +260,9 @@ func _ready() -> void:
 			"seed": gig.seed = int(kv[1])
 			"faction": gig.faction = kv[1]   # the target faction (World id: militech, maelstrom, ...)
 			"site": gig.site = kv[1]   # lone_building: which building type (sites.json)
+			"setpiece": gig["setpiece"] = kv[1]   # a set piece (setpieces.json): its scene, buildings and faction
+			"location": gig["location"] = kv[1]   # with --setpiece: the World location it is played for
+			"floor": _shot_floor = int(kv[1])   # review renders: look at this storey
 			"kit": _dev_kit = kv[1].split(",")   # review renders: pack every crew member's kit slots
 			"stage": _dev_stage = kv[1]   # review renders: open the action bar on this stage (attack)
 			"security": gig.security = int(kv[1])
@@ -550,6 +554,11 @@ func new_gig() -> void:
 		o["profile"] = gig.profile
 	if String(gig.site) != "":
 		o["site"] = gig.site
+	if String(gig.get("setpiece", "")) != "":
+		o["setpiece"] = gig.setpiece
+		o["location"] = String(gig.get("location", ""))
+		if String(gig.get("faction", "")) == "":
+			gig.faction = String(SetPieces.get_def(String(gig.setpiece)).get("faction", ""))
 	var camp := Campaign.current
 	var campaign_gig: bool = camp != null and not camp.active_gig.is_empty() and _reel == "" and _shot_path == ""
 	if campaign_gig:   # a gig taken from the fixer board: its scene, security and crew
@@ -657,6 +666,9 @@ func new_gig() -> void:
 		cam_target = Vector3(fc.x, 0, fc.y)
 		_place_camera()
 		_last_cur = enc.cur.id
+	if _shot_floor >= 0:   # review renders: a storey of the building (with --cut=all, the floors above cut away)
+		view_floor = mini(_shot_floor, m.floors - 1)
+		_place_camera()
 	_after_action()
 
 
@@ -3560,7 +3572,10 @@ func _hud_refresh() -> void:
 	hud.tool = tool
 	hud.stage = stage
 	hud.atk_mode = atk_mode
-	hud.refresh(enc, mode, cover_mode, "%s  ·  FLOOR %d/%d" % [String(m.params.get("scene", gig.scene)).replace("_", " ").to_upper(), view_floor + 1, m.floors])
+	var place := String(m.params.get("scene", gig.scene)).replace("_", " ")
+	if SetPieces.has(String(m.params.get("setpiece", ""))):   # a famous place goes by its name
+		place = String(SetPieces.get_def(String(m.params.setpiece)).name)
+	hud.refresh(enc, mode, cover_mode, "%s  ·  FLOOR %d/%d" % [place.to_upper(), view_floor + 1, m.floors])
 
 
 ## Recoil: kick the weapon back and the chest up; autofire climbs, capped; settles with a spring.

@@ -978,6 +978,20 @@ func _piece(kind: String, p: Vector3, yaw: float, f: int, h0: int) -> void:
 			box(D, p + Vector3(0, 0.63, -0.02), Vector3(0.92, 0.04, 0.64), yaw + 0.1)
 		"crane_leg":
 			box(mat("steel", f, false, {"color": Color("b08020")}), p + Vector3(0, 2.0, 0), Vector3(0.5, 4.0, 0.5))
+		"aa_gun":   # a deck mount: armoured ring, turret, twin barrels raised to the sky
+			var gray := mat("steel", f, false, {"color": Color("4a5056")})
+			put("cyl", gray, Transform3D(Basis.from_scale(Vector3(0.95, 0.3, 0.95)), p + Vector3(0, 0.15, 0)))
+			box(gray, p + Vector3(0, 0.5, 0), Vector3(0.6, 0.4, 0.55), yaw)
+			for sx in [-0.14, 0.14]:
+				var tip := Vector3(sx, 0, 0).rotated(Vector3.UP, yaw)
+				put("cyl", D, Transform3D(Basis(Vector3.UP, yaw) * Basis(Vector3.RIGHT, -0.75) * Basis.from_scale(Vector3(0.09, 1.3, 0.09)), p + tip + Vector3(0, 0.95, 0) + Vector3(0, 0, -0.3).rotated(Vector3.UP, yaw)))
+			box(mat("dark", f, false, {"glow": 2.0, "emit": Color("ff3030")}), p + Vector3(0, 0.72, 0.28).rotated(Vector3.UP, yaw), Vector3(0.12, 0.05, 0.02), yaw)
+		"cyberbike":   # an aerodyne cyberbike on its pad: a low fairing over two lift fans
+			box(mat("steel", f, false, {"color": Color("8a1a1a")}), p + Vector3(0, 0.35, 0), Vector3(0.95, 0.22, 0.32), yaw)
+			for e in [-0.38, 0.38]:
+				put("cyl", D, Transform3D(Basis.from_scale(Vector3(0.34, 0.1, 0.34)), p + Vector3(e, 0.25, 0).rotated(Vector3.UP, yaw)))
+				put("cyl", mat("dark", f, false, {"glow": 1.6, "emit": Color("4fd8ff")}), Transform3D(Basis.from_scale(Vector3(0.26, 0.02, 0.26)), p + Vector3(e, 0.19, 0).rotated(Vector3.UP, yaw)))
+			box(mat("glass", f, false, {"color": Color("0e1820"), "alpha": 0.85}), p + Vector3(-0.1, 0.52, 0).rotated(Vector3.UP, yaw), Vector3(0.3, 0.12, 0.24), yaw)
 		"stack":   # industrial exhaust: a tall banded flue with a warning light
 			put("cyl", mat("steel", f, false, {"color": Color("5a5650")}), Transform3D(Basis.from_scale(Vector3(0.5, 2.2, 0.5)), p + Vector3(0, 1.1, 0)))
 			for hb in [0.6, 1.5]:
