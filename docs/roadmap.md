@@ -13,6 +13,7 @@ Check-ins (🔶) are where work pauses for a user decision or review.
 | M5 | Gameplay depth (owner's "c"): suppressive fire, shotgun shells, melee/brawling, grenades, stabilisation, reload in play; AI uses them; guards from the book's NPC tiers on the p399 budget | ✅ built overnight | 🔶 overnight review page |
 | M6 | Gig loop, first slice: fixer board, gig → encounter → results (pay, rep, IP, injuries, permadeath), rest/treat/train/hire, saves | ✅ first slice built overnight | 🔶 overnight review page |
 | M7 | Stealth phase (facing, vision cones, Perception vs Stealth with light, patrols, alarm, backup, NCPD escalation, withdrawal); Medtech Medicine and Tech Maker in play; heat; downtime episodes; gig objectives (data / eliminate / snatch-and-extract); twists; per-fixer rep; night market + salvage; safehouse facilities; ripperdoc + therapy; Role perk trees + Role Rank | ✅ built overnight (second night) | 🔶 overnight review page |
+| M7b | Data-driven world (prep for the Night City 2047 overhaul): factions with relations (sides replace team numbers; three-way fights), objectives as plug-in modules, security doctrines, docs/world → data/world pipeline with validation, locations registry (empty until 2047), save versioning + migrations, catalogue renders | ✅ built | 🔶 catalogue review page |
 | M8+ | Fabrication/Invention, story gigs and fixer betrayals, downtime assignments, civilians/hazards/weather, vehicles, equipment models (owner: keep painted clothes for now), economy tuning, story gigs | — | per feature |
 
 ## Decisions log
@@ -231,3 +232,13 @@ Check-ins (🔶) are where work pauses for a user decision or review.
   away from the mount, tamper from 3 squares); allies can be passed through (HOUSE-RULE). Open: 4 of 72
   gigs put every target terminal behind locked security doors (shoot the door or come in through the
   NET elsewhere); guns, not ICE, are what down runners now.
+
+### M7b: data-driven world (owner approved the approach)
+- Catalogue review page: https://claude.ai/artifact/8TvGyfvdQcxBTKT8AqJVXB (verdicts in its db collection `verdicts`,
+  one doc per item `cat_<section>_<id>`, plus `cat_factions__choice` and `cat_sites__choice` for the two open
+  questions). Read them with ArtifactData list before acting.
+- Open findings on that page: corps look alike (only sleeve colour differs); Maelstrom and MaxTac too dark at night;
+  beige bystander jackets read as skin; small site types (shack, booths, ship, train) render as big blocks in raids.
+- Rebuild it: `tools/catalogue.gd` (faction looks), greybox `--promo=1` shots with `--site=` / `--profile=`,
+  `tools/catalogue_page.py <dir> <out.html> [notes.json]`.
+
