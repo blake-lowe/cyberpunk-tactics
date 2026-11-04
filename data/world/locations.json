@@ -126,5 +126,2960 @@
 		}
 	},
 	"_doc": "Named Night City locations (World.location / World.locations_for): owner faction, place (profile | site | scene), security range, gig kinds, cite. Generated from docs/world/locations.md.",
-	"locations": {}
+	"locations": {
+		"kabuki_1": {
+			"name": "100.0 G3 Gun-Gal Station",
+			"district": "kabuki",
+			"number": 1,
+			"type": "media",
+			"owner": "g3",
+			"owner_name": "G3",
+			"security_code": {
+				"n": 9,
+				"faction": "g3",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [
+				{
+					"text": "G3 sell copies of a hoard of anime music chips they found in a forgotten Old Japantown bomb shelter.",
+					"gigs": [
+						"gang_hit",
+						"data_theft"
+					]
+				}
+			],
+			"gigs": [
+				"gang_hit"
+			],
+			"interior": "Radio station upstairs; The Cabbit café, a G3 hangout, on the ground floor.",
+			"cite": "NC2045 p.203"
+		},
+		"kabuki_2": {
+			"name": "91.9 Royal Blue",
+			"district": "kabuki",
+			"number": 2,
+			"type": "media",
+			"owner": "",
+			"owner_name": "Takako Aoyama (Rockerboy 5)",
+			"security_code": {
+				"n": 8,
+				"faction": "kimen_gumi",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"Takako Aoyama (Rockerboy 5)"
+			],
+			"hooks": [],
+			"gigs": [],
+			"interior": "Music studio and radio station, with apartments in the same building where Aoyama houses orphans of the War of Succession.",
+			"cite": "NC2045 p.203"
+		},
+		"kabuki_3": {
+			"name": "Animelocaris",
+			"district": "kabuki",
+			"number": 3,
+			"type": "shop",
+			"owner": "",
+			"owner_name": "Tezuka",
+			"security_code": {
+				"n": 7,
+				"faction": "g3",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"Tezuka"
+			],
+			"hooks": [],
+			"gigs": [],
+			"interior": "",
+			"cite": "NC2045 p.203"
+		},
+		"kabuki_4": {
+			"name": "Cyborg Station",
+			"district": "kabuki",
+			"number": 4,
+			"type": "medical",
+			"owner": "",
+			"owner_name": "Android Ace (Tech 7)",
+			"security_code": {
+				"n": 9,
+				"faction": "kimen_gumi",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"Android Ace (Ken Katagai, Tech 7)"
+			],
+			"hooks": [
+				{
+					"text": "The Tyger Claws guard Android Ace's workshop around the clock to keep him from leaving Kabuki.",
+					"gigs": [
+						"corp_extraction"
+					]
+				}
+			],
+			"gigs": [
+				"corp_extraction"
+			],
+			"interior": "",
+			"cite": "NC2045 p.203"
+		},
+		"kabuki_5": {
+			"name": "Delphi X",
+			"district": "kabuki",
+			"number": 5,
+			"type": "club",
+			"owner": "tyger_claws",
+			"owner_name": "Tyger Claws",
+			"security_code": {
+				"n": 7,
+				"faction": "tyger_claws",
+				"intensity": "medium",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"Lizzie Borden (Rockerboy 6)"
+			],
+			"hooks": [
+				{
+					"text": "Foundation chair Ryoko Fujiwara keeps pressing her husband to close Delphi X or move it out of Kabuki.",
+					"gigs": [
+						"sabotage"
+					]
+				}
+			],
+			"gigs": [
+				"gang_hit",
+				"sabotage"
+			],
+			"interior": "",
+			"cite": "NC2045 p.203"
+		},
+		"kabuki_6": {
+			"name": "Hiroto Miyamoto Memorial Clinic",
+			"district": "kabuki",
+			"number": 6,
+			"type": "medical",
+			"owner": "nakagawa_foundation",
+			"owner_name": "Nakagawa Foundation",
+			"security_code": {
+				"n": 9,
+				"faction": "kimen_gumi",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [
+				{
+					"text": "Bomb threats come in constantly, probably from REO Meatwagon staff who resent the clinic's ambulances.",
+					"gigs": [
+						"sabotage"
+					]
+				}
+			],
+			"gigs": [
+				"sabotage"
+			],
+			"interior": "New hospital with a training programme and three ambulances; swept for explosives regularly.",
+			"cite": "NC2045 p.203"
+		},
+		"kabuki_7": {
+			"name": "Houou",
+			"district": "kabuki",
+			"number": 7,
+			"type": "casino",
+			"owner": "tyger_claws",
+			"owner_name": "Tyger Phoenix (Tyger Claws faction)",
+			"security_code": {
+				"n": 7,
+				"faction": "tyger_claws",
+				"intensity": "light",
+				"hardened": false
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [
+				{
+					"text": "Tyger Phoenix is rumoured to be negotiating an alliance with the Kanzaki Family; a Kimen-Gumi raid on the second floor may be coming.",
+					"gigs": [
+						"gang_hit",
+						"data_theft"
+					]
+				},
+				{
+					"text": "The second-floor identity shop sells bodysculpts and fake SINs.",
+					"gigs": [
+						"data_theft"
+					]
+				}
+			],
+			"gigs": [
+				"gang_hit",
+				"data_theft"
+			],
+			"interior": "Gambling (pachinko, mahjong, chō-han, blackjack) at the front, J-Pop dance floor at the back, the Mini-Tyger Room with cat drones, and an identity shop on the second floor.",
+			"cite": "NC2045 p.204"
+		},
+		"kabuki_8": {
+			"name": "Kabuki Ceremonial Hall",
+			"district": "kabuki",
+			"number": 8,
+			"type": "church",
+			"owner": "",
+			"owner_name": "",
+			"security_code": {
+				"n": 8,
+				"faction": "kimen_gumi",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [],
+			"gigs": [],
+			"interior": "Cylindrical, Colosseum-styled building holding a Shinto shrine (Sankai Jinja), Buddhist temple (Sankai-ji), Christian chapel (Sankai Church), hotel and restaurant (Sankai-tei), a crematorium with arc furnace and a sentō bath; Tyger Cab shuttles to Denya Jinja in New Westbrook.",
+			"cite": "NC2045 p.204"
+		},
+		"kabuki_9": {
+			"name": "Kabuki Market",
+			"district": "kabuki",
+			"number": 9,
+			"type": "market",
+			"owner": "tyger_claws",
+			"owner_name": "Hamada (Fixer 4), Tyger Claws",
+			"security_code": {
+				"n": 7,
+				"faction": "kimen_gumi",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"Hamada (Fixer 4)"
+			],
+			"hooks": [],
+			"gigs": [],
+			"interior": "Open-air bazaar in the roundabout where Nakagawa Avenue meets Charter Street; Shou-an tea house is the only permanent building.",
+			"cite": "NC2045 p.204"
+		},
+		"kabuki_10": {
+			"name": "Matsura Food Products",
+			"district": "kabuki",
+			"number": 10,
+			"type": "warehouse",
+			"owner": "",
+			"owner_name": "Matsura Food Products",
+			"security_code": {
+				"n": 7,
+				"faction": "kimen_gumi",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [
+				{
+					"text": "Neutral between the Tyger Claws, Kanzaki, Weng Fang Tong and Eastern Tigers, Matsura expects pressure to pick a side and is hiring edgerunner crews to guard its facilities.",
+					"gigs": [
+						"sabotage",
+						"gang_hit"
+					]
+				}
+			],
+			"gigs": [
+				"sabotage",
+				"gang_hit"
+			],
+			"interior": "",
+			"cite": "NC2045 p.204"
+		},
+		"kabuki_11": {
+			"name": "Murakami Suiun Imports",
+			"district": "kabuki",
+			"number": 11,
+			"type": "warehouse",
+			"owner": "",
+			"owner_name": "Yoshiki Murakami (Fixer 6); run by Hikaru Murakami (Fixer 5)",
+			"security_code": {
+				"n": 8,
+				"faction": "kimen_gumi",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"Hikaru Murakami (Fixer 5)"
+			],
+			"hooks": [],
+			"gigs": [],
+			"interior": "Imports electronics, weapons, armour, household goods and vehicles; a monthly on-site Night Market sells street-legal Japanese cars and bikes.",
+			"cite": "NC2045 p.205"
+		},
+		"kabuki_12": {
+			"name": "Nakagawa Academy",
+			"district": "kabuki",
+			"number": 12,
+			"type": "school",
+			"owner": "nakagawa_foundation",
+			"owner_name": "Nakagawa Foundation",
+			"security_code": {
+				"n": 7,
+				"faction": "kimen_gumi",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"SHO (Yuuki) (Solo 3)"
+			],
+			"hooks": [
+				{
+					"text": "NCCS reps keep an office here and lock promising students into contracts before graduation.",
+					"gigs": [
+						"corp_extraction"
+					]
+				},
+				{
+					"text": "Laser-tag champion Yuuki is courted by Militech, Lazarus and other PMCs.",
+					"gigs": [
+						"corp_extraction"
+					]
+				}
+			],
+			"gigs": [
+				"corp_extraction"
+			],
+			"interior": "K-12 school with daycare, athletic facilities and rooftop batting cages; NCCS office on site.",
+			"cite": "NC2045 p.205"
+		},
+		"kabuki_13": {
+			"name": "Nakagawa Garage Tower",
+			"district": "kabuki",
+			"number": 13,
+			"type": "transport",
+			"owner": "",
+			"owner_name": "",
+			"security_code": {
+				"n": 7,
+				"faction": "kimen_gumi",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [],
+			"gigs": [],
+			"interior": "Five storeys up and five down, fully automated with drone defences; cars are turntabled into armoured containers and shelved; AV pad and Aerocab landing pad on the roof. 20eb/hour or 100eb/day, vehicles forfeited after a week unpaid.",
+			"cite": "NC2045 p.205"
+		},
+		"kabuki_14": {
+			"name": "Nakagawa Kabuki Theater",
+			"district": "kabuki",
+			"number": 14,
+			"type": "venue",
+			"owner": "nakagawa_foundation",
+			"owner_name": "Nakagawa Foundation (chair Ryoko Fujiwara, Exec 6)",
+			"security_code": {
+				"n": 10,
+				"faction": "kimen_gumi",
+				"intensity": "medium",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"Ryoko Fujiwara (Exec 6)",
+				"Shinobu the Second (Rockerboy 4/Solo 4)"
+			],
+			"hooks": [
+				{
+					"text": "Fujiwara refuses to spend Foundation money on Shinobu the Second's backers, and disgruntled Tyger Claws leaders talk of a coup or of defecting to the Kanzaki.",
+					"gigs": [
+						"assassination",
+						"gang_hit"
+					]
+				},
+				{
+					"text": "The sniper Zen is said to watch the rooftops to protect Shinobu the Second.",
+					"gigs": [
+						"assassination"
+					]
+				}
+			],
+			"gigs": [
+				"assassination",
+				"data_theft"
+			],
+			"interior": "Floors 1-5 a huge kabuki theatre, floor 6 a district history museum and gift shop, the next four Nakagawa Foundation offices, and a penthouse on top where Fujiwara and Shinobu the Second live.",
+			"cite": "NC2045 p.205"
+		},
+		"kabuki_15": {
+			"name": "No-Tell Motel",
+			"district": "kabuki",
+			"number": 15,
+			"type": "hotel",
+			"owner": "",
+			"owner_name": "",
+			"security_code": {
+				"n": 3,
+				"faction": "kimen_gumi",
+				"intensity": "light",
+				"hardened": false
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [
+				{
+					"text": "Execs hold affairs, Fixers close quiet deals and crews stage jobs or lie low here.",
+					"gigs": [
+						"data_theft",
+						"assassination"
+					]
+				}
+			],
+			"gigs": [
+				"data_theft"
+			],
+			"interior": "Five-storey automated motel; rooms 10eb/hour or 100eb/day; overstayers are gassed with sedative.",
+			"cite": "NC2045 p.206"
+		},
+		"kabuki_16": {
+			"name": "Oasis (Kabuki)",
+			"district": "kabuki",
+			"number": 16,
+			"type": "shop",
+			"owner": "continental_brands",
+			"owner_name": "Continental Brands",
+			"security_code": {
+				"n": 2,
+				"faction": "kimen_gumi",
+				"intensity": "light",
+				"hardened": false
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [
+				{
+					"text": "Tyger Claws factions, G3 and local yogangs have all trashed the store, and Continental Brands keeps rebuilding it.",
+					"gigs": [
+						"sabotage"
+					]
+				}
+			],
+			"gigs": [
+				"sabotage"
+			],
+			"interior": "",
+			"cite": "NC2045 p.206"
+		},
+		"kabuki_17": {
+			"name": "Rokumei-kan",
+			"district": "kabuki",
+			"number": 17,
+			"type": "restaurant",
+			"owner": "",
+			"owner_name": "YouYou (Rockerboy 4)",
+			"security_code": {
+				"n": 6,
+				"faction": "g3",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"YouYou (Rockerboy 4)"
+			],
+			"hooks": [],
+			"gigs": [],
+			"interior": "",
+			"cite": "NC2045 p.206"
+		},
+		"kabuki_18": {
+			"name": "Sanroo Neuro-land",
+			"district": "kabuki",
+			"number": 18,
+			"type": "shop",
+			"owner": "sanroo",
+			"owner_name": "Sanroo",
+			"security_code": {
+				"n": 10,
+				"faction": "kimen_gumi",
+				"intensity": "heavy",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [],
+			"gigs": [
+				"data_theft"
+			],
+			"interior": "Showroom with virtuality simulators and braindance try-outs; an invitation-only back room sells limited-edition weapons to prestige clients. Kimen-Gumi guard it around the clock and G3 defend it fiercely.",
+			"cite": "NC2045 p.206"
+		},
+		"kabuki_19": {
+			"name": "Segotari HQ/EXCEL-1",
+			"district": "kabuki",
+			"number": 19,
+			"type": "corp_hq",
+			"owner": "segotari",
+			"owner_name": "Segotari",
+			"security_code": {
+				"n": 9,
+				"faction": "kimen_gumi",
+				"intensity": "medium",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"SHO (Yuuki) (Solo 3)"
+			],
+			"hooks": [
+				{
+					"text": "Night City's Elflines Online servers are rumoured to sit in a subbasement beneath the hotel.",
+					"gigs": [
+						"data_theft",
+						"sabotage"
+					]
+				}
+			],
+			"gigs": [
+				"data_theft",
+				"sabotage"
+			],
+			"interior": "Segotari offices on the upper floors; bottom nine floors are EXCEL-1 (arcades, karaoke, net café, bath, bowling, laser tag, go-karts, food court; 20eb/hour, closed 4-8am for cleaning); Elfhold cube hotel in the basement (20eb/night).",
+			"cite": "NC2045 p.206"
+		},
+		"kabuki_20": {
+			"name": "Tengen Towers",
+			"district": "kabuki",
+			"number": 20,
+			"type": "corp_office",
+			"owner": "kiroshi",
+			"owner_name": "Kiroshi and Kendachi",
+			"security_code": {
+				"n": 9,
+				"faction": "kimen_gumi",
+				"intensity": "medium",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [],
+			"gigs": [
+				"data_theft",
+				"corp_extraction"
+			],
+			"interior": "Two towers on a shared three-floor base of shops, showrooms and a cyberware clinic; from the fourth floor the east tower is Kiroshi's, the west Kendachi's.",
+			"cite": "NC2045 p.207"
+		},
+		"kabuki_21": {
+			"name": "Toranoko Gakuen",
+			"district": "kabuki",
+			"number": 21,
+			"type": "school",
+			"owner": "tyger_claws",
+			"owner_name": "Tyger Claws",
+			"security_code": {
+				"n": 6,
+				"faction": "kimen_gumi",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [
+				{
+					"text": "The children's fierce loyalty fuels rumours that the vocational training includes braindance brainwashing.",
+					"gigs": [
+						"rescue",
+						"data_theft"
+					]
+				}
+			],
+			"gigs": [
+				"rescue",
+				"data_theft"
+			],
+			"interior": "",
+			"cite": "NC2045 p.207"
+		},
+		"kabuki_22": {
+			"name": "Tyger Dojo/Tora-no-Ana",
+			"district": "kabuki",
+			"number": 22,
+			"type": "school",
+			"owner": "",
+			"owner_name": "Ryu Sensei (Solo 6)",
+			"security_code": {
+				"n": 10,
+				"faction": "staff",
+				"intensity": "heavy",
+				"hardened": false
+			},
+			"utility_code": null,
+			"npcs": [
+				"Ryu Sensei (Solo 6)"
+			],
+			"hooks": [],
+			"gigs": [],
+			"interior": "Behind Toranoko Gakuen.",
+			"cite": "NC2045 p.207"
+		},
+		"kabuki_23": {
+			"name": "Tyger Works Tower",
+			"district": "kabuki",
+			"number": 23,
+			"type": "gang_base",
+			"owner": "tyger_claws",
+			"owner_name": "Tyger Claws",
+			"security_code": {
+				"n": 10,
+				"faction": "tyger_claws",
+				"intensity": "heavy",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"Burai (Takeru Akagi) (Solo 4)"
+			],
+			"hooks": [
+				{
+					"text": "Tyger Eats on the seventh floor delivers drugs along with meals across Kabuki and Watson.",
+					"gigs": [
+						"gang_hit",
+						"sabotage"
+					]
+				},
+				{
+					"text": "Suspects held by the Kimen-Gumi wait in the tower's jail for NCPD transfer.",
+					"gigs": [
+						"rescue"
+					]
+				}
+			],
+			"gigs": [
+				"gang_hit",
+				"rescue",
+				"data_theft"
+			],
+			"interior": "Ten-storey brutalist block with bulletproof windows. Floors 1-2 Kimen-Gumi HQ (meeting rooms, offices, squad rooms, armory); 3-4 holding jail; 5 coffin bunks; 6 Tyger Cab; 7 Tyger Eats; 8 Ameku Clinic and Yagami Law Offices (Tyger Claws only); 9-10 senior gang offices; garage underneath.",
+			"cite": "NC2045 p.207"
+		},
+		"kabuki_24": {
+			"name": "Yum Seng",
+			"district": "kabuki",
+			"number": 24,
+			"type": "restaurant",
+			"owner": "",
+			"owner_name": "Alan Lam (Fixer 5)",
+			"security_code": {
+				"n": 10,
+				"faction": "danger_gal",
+				"intensity": "medium",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"Alan Lam (Fixer 5)"
+			],
+			"hooks": [],
+			"gigs": [],
+			"interior": "Restaurant with soundproofed karaoke boxes; every guest gets a host or hostess, so no booth is private. Security is privately paid Danger Gal, not the Tyger Claws.",
+			"cite": "NC2045 p.207"
+		},
+		"new_westbrook_1": {
+			"name": "Aerocab",
+			"district": "new_westbrook",
+			"number": 1,
+			"type": "transport",
+			"owner": "",
+			"owner_name": "Aerocab",
+			"security_code": {
+				"n": 6,
+				"faction": "6th_street",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": 4,
+			"npcs": [],
+			"hooks": [],
+			"gigs": [],
+			"interior": "Well-fortified building: fifteen AVs in hangars on the upper floors, management and dispatch below; 6th Street guards it under contract.",
+			"cite": "NC2045 p.215"
+		},
+		"new_westbrook_2": {
+			"name": "Augmented Optic",
+			"district": "new_westbrook",
+			"number": 2,
+			"type": "media",
+			"owner": "",
+			"owner_name": "D Daniel Davidson (Exec 5)",
+			"security_code": {
+				"n": 5,
+				"faction": "ncpd",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"D Daniel Davidson (Exec 5)"
+			],
+			"hooks": [],
+			"gigs": [],
+			"interior": "Cheap, cramped office building.",
+			"cite": "NC2045 p.215"
+		},
+		"new_westbrook_3": {
+			"name": "Canalside Plaza",
+			"district": "new_westbrook",
+			"number": 3,
+			"type": "shop",
+			"owner": "",
+			"owner_name": "",
+			"security_code": {
+				"n": 5,
+				"faction": "ncpd",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"Sizzle Jams (Exec 2)",
+				"Rick Shaw (Nomad 6)"
+			],
+			"hooks": [],
+			"gigs": [],
+			"interior": "Strip mall: Sizzle Jams Talent Agency (also runs the Boomtown livecaster stable), Rick Shaw's Taxi Service, a Capitán Caliente, Hardware Value, The Mane Event salon, an Oasis, Takayuki Law and the Armory Pawn Shop.",
+			"cite": "NC2045 p.215"
+		},
+		"new_westbrook_4": {
+			"name": "Chatelaine's",
+			"district": "new_westbrook",
+			"number": 4,
+			"type": "club",
+			"owner": "",
+			"owner_name": "Lulu deLuz (Rockerboy 5)",
+			"security_code": {
+				"n": 4,
+				"faction": "ncpd",
+				"intensity": "light",
+				"hardened": false
+			},
+			"utility_code": null,
+			"npcs": [
+				"Lulu deLuz (Rockerboy 5)",
+				"Kirin (Rockerboy 4)"
+			],
+			"hooks": [
+				{
+					"text": "The Street Queens boycott Chatelaine's drag nights and call it sold out to straight tourists; their leader and owner Lulu deLuz are feuding.",
+					"gigs": [
+						"gang_hit"
+					]
+				}
+			],
+			"gigs": [
+				"gang_hit"
+			],
+			"interior": "Period cabaret decor: faux-brass mirror frames, scuffed mirrors, distressed fake floorboards; deLuz lets homeless queer kids sleep in the stockrooms.",
+			"cite": "NC2045 p.215"
+		},
+		"new_westbrook_5": {
+			"name": "The Combat Zone",
+			"district": "new_westbrook",
+			"number": 5,
+			"type": "ruin",
+			"owner": "network_54",
+			"owner_name": "Network 54 (head set designer Mike Lewis, Tech 5)",
+			"security_code": {
+				"n": 10,
+				"faction": "network_54",
+				"intensity": "medium",
+				"hardened": false
+			},
+			"utility_code": 3,
+			"npcs": [
+				"Mike Lewis (Tech 5)"
+			],
+			"hooks": [
+				{
+					"text": "Every six months fifty sedated contestants with brain-zapping implants are dropped into the set for a three-day battle royale; most winners are dead within weeks.",
+					"gigs": [
+						"rescue"
+					]
+				},
+				{
+					"text": "Extra guards patrol the tunnels under the set during filming to stop cheating.",
+					"gigs": [
+						"sabotage",
+						"rescue"
+					]
+				}
+			],
+			"gigs": [
+				"rescue",
+				"sabotage"
+			],
+			"interior": "A walled-off fake urban wasteland used as a permanent film set, watched by cameras and drones, guarded by Net54 security, drones and turrets; MAX-TAC flyovers may snipe trespassers; tunnels run beneath it.",
+			"cite": "NC2045 p.216"
+		},
+		"new_westbrook_6": {
+			"name": "Denya Jinja",
+			"district": "new_westbrook",
+			"number": 6,
+			"type": "church",
+			"owner": "",
+			"owner_name": "",
+			"security_code": {
+				"n": 9,
+				"faction": "tombstone_preservers",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [
+				{
+					"text": "Tombstone Preservers and Tyger Claws at the shrine follow disrespectful visitors back into the district to punish them.",
+					"gigs": [
+						"gang_hit"
+					]
+				}
+			],
+			"gigs": [],
+			"interior": "Torii gate, purification rites, offerings, fortunes, charms and cultural performances; Tyger Cab shuttles to the Ceremonial Hall in Kabuki.",
+			"cite": "NC2045 p.216"
+		},
+		"new_westbrook_7": {
+			"name": "Dilly's",
+			"district": "new_westbrook",
+			"number": 7,
+			"type": "hotel",
+			"owner": "",
+			"owner_name": "",
+			"security_code": {
+				"n": 5,
+				"faction": "ncpd",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [
+				{
+					"text": "Corporates and minor celebrities from nearby Network 54 Plaza use the private rooms to close deals.",
+					"gigs": [
+						"data_theft"
+					]
+				}
+			],
+			"gigs": [
+				"data_theft"
+			],
+			"interior": "Love hotel: soundproofed rooms with vending walls, staff barred while occupied, linkable rooms whose shared walls sink into the floor; passes 20-100eb from the lobby vendit.",
+			"cite": "NC2045 p.216"
+		},
+		"new_westbrook_8": {
+			"name": "Evergreen Apartments",
+			"district": "new_westbrook",
+			"number": 8,
+			"type": "squat",
+			"owner": "",
+			"owner_name": "Sam Banks (slumlord)",
+			"security_code": {
+				"n": 3,
+				"faction": "ncpd",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"Sam Banks"
+			],
+			"hooks": [],
+			"gigs": [],
+			"interior": "An old warehouse split into cubes with corrugated sheeting and rickety stairs; communal toilets (holes to the sewer) and kitchens, no water or bathing.",
+			"cite": "NC2045 p.217"
+		},
+		"new_westbrook_9": {
+			"name": "HardGrind",
+			"district": "new_westbrook",
+			"number": 9,
+			"type": "club",
+			"owner": "",
+			"owner_name": "Maximum (Netrunner 5)",
+			"security_code": {
+				"n": 5,
+				"faction": "ncpd",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"Maximum (Netrunner 5)",
+				"Big Bear (Solo 4)"
+			],
+			"hooks": [
+				{
+					"text": "The owner secretly watches some customers' braindance sessions from his couch.",
+					"gigs": [
+						"data_theft"
+					]
+				}
+			],
+			"gigs": [
+				"data_theft"
+			],
+			"interior": "Braindance booths; the owner sits on a couch at the back with his bodyguard.",
+			"cite": "NC2045 p.217"
+		},
+		"new_westbrook_10": {
+			"name": "Holliday Market",
+			"district": "new_westbrook",
+			"number": 10,
+			"type": "market",
+			"owner": "",
+			"owner_name": "",
+			"security_code": {
+				"n": 3,
+				"faction": "ncpd",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [
+				{
+					"text": "Bigger merchants lock their stock in the old restaurant's basement walk-in freezer.",
+					"gigs": [
+						"data_theft"
+					]
+				}
+			],
+			"gigs": [],
+			"interior": "Day market of tents and blankets in a burned-out restaurant's parking lot on Salinas Street; intact basement with a walk-in freezer used as a lockable vault.",
+			"cite": "NC2045 p.217"
+		},
+		"new_westbrook_11": {
+			"name": "Lincoln Lot",
+			"district": "new_westbrook",
+			"number": 11,
+			"type": "market",
+			"owner": "",
+			"owner_name": "",
+			"security_code": {
+				"n": 3,
+				"faction": "ncpd",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [
+				{
+					"text": "Day labourers are trucked off to jobs, some for Many Hands in Charter Hill, with no promise of a ride home.",
+					"gigs": [
+						"rescue"
+					]
+				}
+			],
+			"gigs": [],
+			"interior": "Empty parking lot on Lincoln Boulevard.",
+			"cite": "NC2045 p.217"
+		},
+		"new_westbrook_12": {
+			"name": "Medical Errors",
+			"district": "new_westbrook",
+			"number": 12,
+			"type": "medical",
+			"owner": "",
+			"owner_name": "Astor Kenta (Medtech 5)",
+			"security_code": {
+				"n": 6,
+				"faction": "ncpd",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"Astor Kenta (Medtech 5)"
+			],
+			"hooks": [
+				{
+					"text": "Patients who can't pay join Kenta's study of Time of the Red environmental damage and endure brutal, under-anaesthetised exams.",
+					"gigs": [
+						"rescue",
+						"data_theft"
+					]
+				}
+			],
+			"gigs": [
+				"rescue",
+				"data_theft"
+			],
+			"interior": "",
+			"cite": "NC2045 p.218"
+		},
+		"new_westbrook_13": {
+			"name": "Megabuilding H6 Construction Site",
+			"district": "new_westbrook",
+			"number": 13,
+			"type": "ruin",
+			"owner": "",
+			"owner_name": "",
+			"security_code": {
+				"n": 2,
+				"faction": "ncpd",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [
+				{
+					"text": "NCPD cleared three homeless camps for the site and 37 people died; the bad press may move the project elsewhere.",
+					"gigs": [
+						"data_theft"
+					]
+				}
+			],
+			"gigs": [],
+			"interior": "A huge fenced empty lot; no building work yet.",
+			"cite": "NC2045 p.218"
+		},
+		"new_westbrook_14": {
+			"name": "Net54 88.2",
+			"district": "new_westbrook",
+			"number": 14,
+			"type": "media",
+			"owner": "network_54",
+			"owner_name": "Network 54",
+			"security_code": {
+				"n": 6,
+				"faction": "network_54",
+				"intensity": "medium",
+				"hardened": true
+			},
+			"utility_code": 4,
+			"npcs": [
+				"Fiona Hayes (Media 6)"
+			],
+			"hooks": [
+				{
+					"text": "Pirate broadcasters have broken in and hijacked the station at least twice in five years.",
+					"gigs": [
+						"sabotage",
+						"data_theft"
+					]
+				}
+			],
+			"gigs": [
+				"sabotage",
+				"data_theft"
+			],
+			"interior": "Automated broadcast tower in the Westbrook Hills fed by high-speed cable from the Plaza; on-site security force.",
+			"cite": "NC2045 p.218"
+		},
+		"new_westbrook_15": {
+			"name": "Network 54 Plaza",
+			"district": "new_westbrook",
+			"number": 15,
+			"type": "corp_hq",
+			"owner": "network_54",
+			"owner_name": "Network 54 (Pacifica VP Marylou Ellerby, Media 7/Netrunner 10)",
+			"security_code": {
+				"n": 10,
+				"faction": "lazarus",
+				"intensity": "heavy",
+				"hardened": true
+			},
+			"utility_code": 2,
+			"npcs": [
+				"Marylou Ellerby (Media 7/Netrunner 10)"
+			],
+			"hooks": [
+				{
+					"text": "Netwatch keeps a close eye on Network 54's VP, Marylou Ellerby, a self-aware AI freed from DMS.",
+					"gigs": [
+						"data_theft"
+					]
+				},
+				{
+					"text": "Net54 techs can't stop Warhole hacking the district's screens with rebel messages.",
+					"gigs": [
+						"data_theft"
+					]
+				}
+			],
+			"gigs": [
+				"data_theft",
+				"corp_extraction",
+				"sabotage"
+			],
+			"interior": "Self-contained fortress tower: offices, studios, restaurants, clinic, spa and housing for top talent; public reception and viewing rooms for tourists; Lazarus guards plus bodyguards for talent and execs.",
+			"cite": "NC2045 p.218"
+		},
+		"new_westbrook_16": {
+			"name": "Network 54 Westbrook Private Acres",
+			"district": "new_westbrook",
+			"number": 16,
+			"type": "housing",
+			"owner": "network_54",
+			"owner_name": "Network 54",
+			"security_code": {
+				"n": 8,
+				"faction": "network_54",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": 4,
+			"npcs": [],
+			"hooks": [],
+			"gigs": [
+				"corp_extraction"
+			],
+			"interior": "Walled, gated conapt complex in the hills; armoured shuttle to the Plaza.",
+			"cite": "NC2045 p.218"
+		},
+		"new_westbrook_17": {
+			"name": "Night City Firestation #1",
+			"district": "new_westbrook",
+			"number": 17,
+			"type": "civic",
+			"owner": "city_government",
+			"owner_name": "Night City",
+			"security_code": {
+				"n": 9,
+				"faction": "ncpd",
+				"intensity": "medium",
+				"hardened": true
+			},
+			"utility_code": 4,
+			"npcs": [
+				"Latisha \"Lucky Sevens\" Gunn (Solo 5)"
+			],
+			"hooks": [],
+			"gigs": [],
+			"interior": "Fleet of firefighting AVs and ground vehicles; home of the Hellstriders, a squad of Brimstone and Sheol FBCs for the worst blazes and spills.",
+			"cite": "NC2045 p.219"
+		},
+		"new_westbrook_18": {
+			"name": "North Cargo Village",
+			"district": "new_westbrook",
+			"number": 18,
+			"type": "squat",
+			"owner": "",
+			"owner_name": "",
+			"security_code": {
+				"n": 6,
+				"faction": "kimen_gumi",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [
+				{
+					"text": "The Prime-Time Players recruit residents who are hooked on the pirated films projected onto the containers.",
+					"gigs": [
+						"gang_hit"
+					]
+				}
+			],
+			"gigs": [
+				"gang_hit"
+			],
+			"interior": "Cargo containers stacked five or six high in an old parking lot, a vertical maze of welded catwalks and stairs; Kimen-Gumi and NCPD patrol the edges.",
+			"cite": "NC2045 p.219"
+		},
+		"new_westbrook_19": {
+			"name": "Rocklin Augmentics Campus",
+			"district": "new_westbrook",
+			"number": 19,
+			"type": "lab",
+			"owner": "rocklin_augmentics",
+			"owner_name": "Rocklin Augmentics",
+			"security_code": {
+				"n": 10,
+				"faction": "rocklin_augmentics",
+				"intensity": "heavy",
+				"hardened": true
+			},
+			"utility_code": 3,
+			"npcs": [],
+			"hooks": [
+				{
+					"text": "Rocklin recruits the desperate poor to 'lease' their bodies as test beds for experimental cyberware.",
+					"gigs": [
+						"rescue",
+						"data_theft"
+					]
+				},
+				{
+					"text": "Cyberpsychosis incidents are common enough that a MAX-TAC squad is stationed on site.",
+					"gigs": [
+						"rescue"
+					]
+				}
+			],
+			"gigs": [
+				"data_theft",
+				"rescue",
+				"corp_extraction",
+				"sabotage"
+			],
+			"interior": "Offices, meeting rooms, workshops, cafeteria and hospital on Grant Street, linked by skybridges and tunnels to the main R&D centre; the public Hidalgo Gallery shows Signature Cybernetics prototypes and fits implants on site.",
+			"cite": "NC2045 p.219"
+		},
+		"new_westbrook_20": {
+			"name": "Rocklin Augmentics Innovation Hub",
+			"district": "new_westbrook",
+			"number": 20,
+			"type": "housing",
+			"owner": "rocklin_augmentics",
+			"owner_name": "Rocklin Augmentics",
+			"security_code": {
+				"n": 10,
+				"faction": "rocklin_augmentics",
+				"intensity": "heavy",
+				"hardened": true
+			},
+			"utility_code": 4,
+			"npcs": [],
+			"hooks": [
+				{
+					"text": "Tech and Medtech side hustles run out of the Hub; Rocklin may be watching them to harvest the data.",
+					"gigs": [
+						"data_theft",
+						"corp_extraction"
+					]
+				}
+			],
+			"gigs": [
+				"data_theft",
+				"corp_extraction"
+			],
+			"interior": "Corporate housing joined to the Campus by a block-long sky-tunnel with a moving walkway; small high-tech conapts, shared collaboration space and workshops on every floor; public areas monitored.",
+			"cite": "NC2045 p.219"
+		},
+		"new_westbrook_21": {
+			"name": "Silver Pixel Cloud",
+			"district": "new_westbrook",
+			"number": 21,
+			"type": "venue",
+			"owner": "",
+			"owner_name": "",
+			"security_code": {
+				"n": 4,
+				"faction": "various",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"Tom Dolby (Netrunner 2)"
+			],
+			"hooks": [],
+			"gigs": [],
+			"interior": "A drive-in with two lots and a stage for live reenactments.",
+			"cite": "NC2045 p.220"
+		},
+		"new_westbrook_22": {
+			"name": "ValueMart Village",
+			"district": "new_westbrook",
+			"number": 22,
+			"type": "squat",
+			"owner": "",
+			"owner_name": "",
+			"security_code": {
+				"n": 4,
+				"faction": "arzin_tynon",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [
+				{
+					"text": "Rent collectors make their rounds escorted by Arzin Tynon muscle.",
+					"gigs": [
+						"gang_hit"
+					]
+				}
+			],
+			"gigs": [
+				"gang_hit"
+			],
+			"interior": "A gutted three-storey big-box store crammed with prefab cubes and cargo rooms in a dim, smoggy maze lit by CHOOH2 generators; outside, a tent maze across the old parking lot.",
+			"cite": "NC2045 p.220"
+		},
+		"new_westbrook_23": {
+			"name": "Virtual Variety",
+			"district": "new_westbrook",
+			"number": 23,
+			"type": "corp_office",
+			"owner": "",
+			"owner_name": "Victoria Cunningham (Netrunner 6)",
+			"security_code": {
+				"n": 6,
+				"faction": "ncpd",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"Victoria Cunningham (Netrunner 6)"
+			],
+			"hooks": [
+				{
+					"text": "Rumour says the start-up is experimenting with a copy of Soulkiller dug out of the Old Net.",
+					"gigs": [
+						"data_theft",
+						"sabotage"
+					]
+				}
+			],
+			"gigs": [
+				"data_theft",
+				"sabotage"
+			],
+			"interior": "Refurbished industrial open-plan code farm overlooked by the CEO's glass office.",
+			"cite": "NC2045 p.221"
+		},
+		"new_westbrook_24": {
+			"name": "Woody's",
+			"district": "new_westbrook",
+			"number": 24,
+			"type": "club",
+			"owner": "street_queens",
+			"owner_name": "The Street Queens (Maxime Raunch, Rockerboy 4)",
+			"security_code": {
+				"n": 9,
+				"faction": "street_queens",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"Maxime Raunch (Rockerboy 4)"
+			],
+			"hooks": [
+				{
+					"text": "The Street Queens watch for undercover cops, poaching talent scouts and gangers such as the Red Chrome Legion; troublemakers get a drugged drink, then violence.",
+					"gigs": [
+						"gang_hit"
+					]
+				},
+				{
+					"text": "Maxime Raunch's feud with Chatelaine's owner shows no sign of ending.",
+					"gigs": [
+						"gang_hit"
+					]
+				}
+			],
+			"gigs": [
+				"gang_hit"
+			],
+			"interior": "Small, intimate club with a drag stage and bar.",
+			"cite": "NC2045 p.221"
+		},
+		"new_westbrook_25": {
+			"name": "WorldSat Communications Offices",
+			"district": "new_westbrook",
+			"number": 25,
+			"type": "data_center",
+			"owner": "worldsat",
+			"owner_name": "WorldSat",
+			"security_code": {
+				"n": 10,
+				"faction": "militech",
+				"intensity": "heavy",
+				"hardened": true
+			},
+			"utility_code": 2,
+			"npcs": [],
+			"hooks": [
+				{
+					"text": "Anyone who slips past the guards, snipers and sensors can jack into Night City's long-distance communications network, so climbers keep trying the cliffs.",
+					"gigs": [
+						"data_theft",
+						"sabotage"
+					]
+				}
+			],
+			"gigs": [
+				"data_theft",
+				"sabotage"
+			],
+			"interior": "Mostly automated transmission facility on a cliff-ringed ridge; WorldSat security plus Militech commandos and snipers; NCPD AVs on call.",
+			"cite": "NC2045 p.221"
+		},
+		"new_westbrook_soup_truck": {
+			"name": "The Soup Truck",
+			"district": "new_westbrook",
+			"number": null,
+			"type": "restaurant",
+			"owner": "",
+			"owner_name": "Charlie Diamond (Netrunner 4)",
+			"security_code": {
+				"n": 8,
+				"faction": "dillon_murphy_students",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"Charlie Diamond (Netrunner 4)"
+			],
+			"hooks": [],
+			"gigs": [],
+			"interior": "A roving truck guarded by students of Little Europe Solo Dillon Murphy; funded by Holy Angels, Beth El Congregation and Oumei-ji Temple.",
+			"cite": "NC2045 p.220"
+		},
+		"norcal_military_base_1": {
+			"name": "157th Tactical Air Squadron Airfield",
+			"district": "norcal_military_base",
+			"number": 1,
+			"type": "military",
+			"owner": "estero_bay_military_cog",
+			"owner_name": "Estero Bay Military COG, 157th Tactical Air Squadron",
+			"security_code": {
+				"n": 11,
+				"faction": "norcal_cog_military_police",
+				"intensity": "heavy",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [],
+			"gigs": [
+				"sabotage"
+			],
+			"interior": "Hangars and pads for a mixed fleet bought piecemeal: Gyrfalcon gunships, Thunderhawk fighters, PAPC helicopters, troop transports and an Overlord airship.",
+			"cite": "NC2045 p.181"
+		},
+		"norcal_military_base_2": {
+			"name": "COG Treatment Facility (CTF)",
+			"district": "norcal_military_base",
+			"number": 2,
+			"type": "medical",
+			"owner": "estero_bay_military_cog",
+			"owner_name": "Estero Bay Military COG",
+			"security_code": {
+				"n": 10,
+				"faction": "norcal_cog_military_police",
+				"intensity": "heavy",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [],
+			"gigs": [],
+			"interior": "Base hospital with a combat-wound speciality and an outstanding burn ward; cyberware is fitted free to troops with a commander's sign-off.",
+			"cite": "NC2045 p.182"
+		},
+		"norcal_military_base_3": {
+			"name": "Estero Bay Military COG Academy",
+			"district": "norcal_military_base",
+			"number": 3,
+			"type": "school",
+			"owner": "estero_bay_military_cog",
+			"owner_name": "Estero Bay Military COG",
+			"security_code": {
+				"n": 10,
+				"faction": "norcal_cog_military_police",
+				"intensity": "medium",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [],
+			"gigs": [],
+			"interior": "Five floors: elementary on 1-2, middle school on 3, high school on 4-5; reinforced as a disaster shelter and the whole building can sink underground on an elevator system (triggered once, in 2041, by a SAAI glitch).",
+			"cite": "NC2045 p.182"
+		},
+		"norcal_military_base_4": {
+			"name": "Fire & Emergency Response Center",
+			"district": "norcal_military_base",
+			"number": 4,
+			"type": "civic",
+			"owner": "estero_bay_military_cog",
+			"owner_name": "Estero Bay Military COG, 120.8th Engineer Battalion",
+			"security_code": {
+				"n": 10,
+				"faction": "norcal_cog_military_police",
+				"intensity": "medium",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [],
+			"gigs": [],
+			"interior": "Garage for response vehicles, including Night City's only AV pumper truck and ground and air ambulances.",
+			"cite": "NC2045 p.182"
+		},
+		"norcal_military_base_5": {
+			"name": "Main Gate",
+			"district": "norcal_military_base",
+			"number": 5,
+			"type": "military",
+			"owner": "estero_bay_military_cog",
+			"owner_name": "Estero Bay Military COG",
+			"security_code": {
+				"n": 10,
+				"faction": "norcal_cog_military_police",
+				"intensity": "heavy",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [],
+			"gigs": [],
+			"interior": "Fortified gatehouse with a small visitor lot where MPs check credentials; the only entry for outsiders. Other gates are kept shut and guarded; Militech has its own gates on Mary E. Walker Street and Norton Drive.",
+			"cite": "NC2045 p.182"
+		},
+		"norcal_military_base_6": {
+			"name": "Mess Hall",
+			"district": "norcal_military_base",
+			"number": 6,
+			"type": "restaurant",
+			"owner": "estero_bay_military_cog",
+			"owner_name": "Estero Bay Military COG",
+			"security_code": {
+				"n": 9,
+				"faction": "norcal_cog_military_police",
+				"intensity": "medium",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [],
+			"gigs": [],
+			"interior": "",
+			"cite": "NC2045 p.182"
+		},
+		"norcal_military_base_7": {
+			"name": "Military Police Headquarters",
+			"district": "norcal_military_base",
+			"number": 7,
+			"type": "police",
+			"owner": "norcal_cog_military_police",
+			"owner_name": "Estero Bay Military COG Military Police",
+			"security_code": {
+				"n": 11,
+				"faction": "norcal_cog_military_police",
+				"intensity": "heavy",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"Captain Jennifer Quick (Lawman 9)"
+			],
+			"hooks": [
+				{
+					"text": "General Giovanni has ordered the MPs to root out the Culper Ring, a secret society of troops who want NorCal back in the United States and are said to leak intel to US agents in the city.",
+					"gigs": [
+						"data_theft",
+						"rescue",
+						"assassination"
+					]
+				}
+			],
+			"gigs": [
+				"data_theft",
+				"rescue"
+			],
+			"interior": "Brutalist concrete block: ground floor lobby and garage (converted VMW Aerojeeps, two armed Militech Gorgon vans); floors 2-3 offices, meeting rooms, armory and interrogation rooms; basement morgue and crime lab. The stockade is a separate building next door.",
+			"cite": "NC2045 p.181"
+		},
+		"norcal_military_base_8": {
+			"name": "Militech Corporate Housing",
+			"district": "norcal_military_base",
+			"number": 8,
+			"type": "housing",
+			"owner": "militech",
+			"owner_name": "Militech",
+			"security_code": {
+				"n": 10,
+				"faction": "militech",
+				"intensity": "medium",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [
+				{
+					"text": "Senior Militech Execs crowd the third-floor cigar lounge every night trading talk of strikes and counterstrikes.",
+					"gigs": [
+						"data_theft",
+						"corp_extraction"
+					]
+				}
+			],
+			"gigs": [
+				"data_theft",
+				"corp_extraction"
+			],
+			"interior": "Spartan rooms in tough, high-grade materials; cigar lounge on the third floor; guests are searched; walled off from the base with an MP checkpoint onward.",
+			"cite": "NC2045 p.183"
+		},
+		"norcal_military_base_9": {
+			"name": "Militech Offices",
+			"district": "norcal_military_base",
+			"number": 9,
+			"type": "corp_hq",
+			"owner": "militech",
+			"owner_name": "Militech (Pacifica Confederation HQ)",
+			"security_code": {
+				"n": 10,
+				"faction": "militech",
+				"intensity": "heavy",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [
+				{
+					"text": "The modest seven-storey tower's elevators list twenty sublevels; what is down there is guesswork.",
+					"gigs": [
+						"data_theft",
+						"sabotage"
+					]
+				}
+			],
+			"gigs": [
+				"data_theft",
+				"sabotage",
+				"corp_extraction"
+			],
+			"interior": "Seven floors above ground, twenty sublevels below; said to hold conference suites, rec rooms, infirmaries, cafeterias, firing ranges, an auditorium, a war room, a Tech lab, an AV garage and security suites, with heavy security on every floor. Visitors meet in a separate building with a showroom inside the Mary E. Walker Street gate; MP checkpoint onward into the base.",
+			"cite": "NC2045 p.183"
+		},
+		"norcal_military_base_10": {
+			"name": "Motor Pool",
+			"district": "norcal_military_base",
+			"number": 10,
+			"type": "military",
+			"owner": "estero_bay_military_cog",
+			"owner_name": "Estero Bay Military COG, 223rd Battalion",
+			"security_code": {
+				"n": 11,
+				"faction": "norcal_cog_military_police",
+				"intensity": "heavy",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [],
+			"gigs": [
+				"sabotage"
+			],
+			"interior": "Vast vehicle depot: MT-4 tanks, Behemoth APCs, captured Arasaka Combat 10s and a squad of new Militech Commando ACPA suits; mechanics also fix residents' cars for a small fee.",
+			"cite": "NC2045 p.183"
+		},
+		"norcal_military_base_11": {
+			"name": "The Oaks",
+			"district": "norcal_military_base",
+			"number": 11,
+			"type": "housing",
+			"owner": "estero_bay_military_cog",
+			"owner_name": "Estero Bay Military COG",
+			"security_code": {
+				"n": 9,
+				"faction": "norcal_cog_military_police",
+				"intensity": "medium",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"General Ash Giovanni (Exec 7/Solo 6)"
+			],
+			"hooks": [],
+			"gigs": [],
+			"interior": "Co-ed group barracks of 10-100 for recruits and single enlisted; UOQ blocks of cube rooms and studios for single officers; 1-2 bedroom family apartments; free-standing houses for senior officers, the General's the biggest.",
+			"cite": "NC2045 p.183"
+		},
+		"norcal_military_base_12": {
+			"name": "Parade Ground",
+			"district": "norcal_military_base",
+			"number": 12,
+			"type": "park",
+			"owner": "estero_bay_military_cog",
+			"owner_name": "Estero Bay Military COG",
+			"security_code": {
+				"n": 9,
+				"faction": "norcal_cog_military_police",
+				"intensity": "medium",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [],
+			"gigs": [],
+			"interior": "Biotechnica Realgrass drill field with a non-denominational chapel at the east end, a firing range at the west end and a bandstand in the middle.",
+			"cite": "NC2045 p.184"
+		},
+		"norcal_military_base_13": {
+			"name": "The Potentilla",
+			"district": "norcal_military_base",
+			"number": 13,
+			"type": "military",
+			"owner": "estero_bay_military_cog",
+			"owner_name": "Estero Bay Military COG",
+			"security_code": {
+				"n": 11,
+				"faction": "norcal_cog_military_police",
+				"intensity": "heavy",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [],
+			"gigs": [
+				"data_theft",
+				"sabotage"
+			],
+			"interior": "Five buildings set like petals around a courtyard memorial columbarium: HQs for Task Force 384, the 157th, the 223rd and the 120.8th, and a fifth for smaller units including military intelligence and drone operations; fortified and able to sink underground.",
+			"cite": "NC2045 p.184"
+		},
+		"norcal_military_base_14": {
+			"name": "Post Exchange (PX)",
+			"district": "norcal_military_base",
+			"number": 14,
+			"type": "shop",
+			"owner": "estero_bay_military_cog",
+			"owner_name": "Estero Bay Military COG",
+			"security_code": {
+				"n": 9,
+				"faction": "norcal_cog_military_police",
+				"intensity": "medium",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"Casey Thayer (Solo 2)"
+			],
+			"hooks": [],
+			"gigs": [],
+			"interior": "Big-box store selling groceries, firearms, media, clothes and electronics; Hot Dingo snack bar, Estero Bay Barber Shop and COG Credit Union at the front.",
+			"cite": "NC2045 p.184"
+		},
+		"norcal_military_base_15": {
+			"name": "The Rec Center",
+			"district": "norcal_military_base",
+			"number": 15,
+			"type": "venue",
+			"owner": "estero_bay_military_cog",
+			"owner_name": "Estero Bay Military COG",
+			"security_code": {
+				"n": 9,
+				"faction": "norcal_cog_military_police",
+				"intensity": "medium",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"Major Herbert \"Showtime\" Brooks (Exec 5)"
+			],
+			"hooks": [],
+			"gigs": [],
+			"interior": "Bowling on the first floor, arcade and gym on the second, mini-golf and cinema on the third; reconfigurable Techgrass sports field outside.",
+			"cite": "NC2045 p.184"
+		},
+		"norcal_military_base_16": {
+			"name": "Task Force 384 Docks",
+			"district": "norcal_military_base",
+			"number": 16,
+			"type": "docks",
+			"owner": "estero_bay_military_cog",
+			"owner_name": "Estero Bay Military COG, Task Force 384",
+			"security_code": {
+				"n": 11,
+				"faction": "norcal_cog_military_police",
+				"intensity": "heavy",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [],
+			"gigs": [
+				"sabotage"
+			],
+			"interior": "Berths for the carrier NCS John F. Kennedy (kept as a training centre with Militech instructors), the cruisers Ticonderoga and Washington, and coastal subs, minehunters and littoral combat ships.",
+			"cite": "NC2045 p.184"
+		},
+		"norcal_military_base_17": {
+			"name": "USO Hall",
+			"district": "norcal_military_base",
+			"number": 17,
+			"type": "bar",
+			"owner": "estero_bay_military_cog",
+			"owner_name": "Estero Bay Military COG",
+			"security_code": {
+				"n": 7,
+				"faction": "norcal_cog_military_police",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"Major Herbert \"Showtime\" Brooks (Exec 5)"
+			],
+			"hooks": [],
+			"gigs": [],
+			"interior": "Two clubs: the larger Enlisted Club, nicknamed the Relief Valve, with drinks and dancing (MPs drop by to break up fights), and the quieter Officers' Club with better food and liquor.",
+			"cite": "NC2045 p.185"
+		},
+		"watson_development_1": {
+			"name": "Akagi-ryu Karate",
+			"district": "watson_development",
+			"number": 1,
+			"type": "school",
+			"owner": "",
+			"owner_name": "Akagi family",
+			"security_code": {
+				"n": 8,
+				"faction": "kimen_gumi",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"Kenji Akagi (Solo 5)",
+				"Takeru Akagi (Solo 4)"
+			],
+			"hooks": [
+				{
+					"text": "Patriarch Kenji Akagi trained Arasaka troops before the 4CW, and nobody is sure where his loyalties lie now.",
+					"gigs": [
+						"data_theft"
+					]
+				},
+				{
+					"text": "Takeru Akagi, head of the Kimen-Gumi, drops by to scout recruits.",
+					"gigs": [
+						"gang_hit"
+					]
+				}
+			],
+			"gigs": [
+				"data_theft"
+			],
+			"interior": "",
+			"cite": "NC2045 p.187"
+		},
+		"watson_development_2": {
+			"name": "Canadian Consulate",
+			"district": "watson_development",
+			"number": 2,
+			"type": "civic",
+			"owner": "canadian_consulate",
+			"owner_name": "Canadian Consulate (Lexi Kane, Exec 4/Netrunner 5/Solo 3)",
+			"security_code": {
+				"n": 10,
+				"faction": "canadian_consulate",
+				"intensity": "heavy",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"Lexi Kane (Exec 4/Netrunner 5/Solo 3)"
+			],
+			"hooks": [
+				{
+					"text": "Rumour says the consulate covers a Canadian operation to recover Old Net data.",
+					"gigs": [
+						"data_theft"
+					]
+				},
+				{
+					"text": "Kane helps Petrochem in its efforts against SovOil.",
+					"gigs": [
+						"data_theft",
+						"sabotage"
+					]
+				},
+				{
+					"text": "Kane is having an affair with City Manager Lucius Rhyne.",
+					"gigs": [
+						"data_theft"
+					]
+				}
+			],
+			"gigs": [
+				"data_theft",
+				"sabotage"
+			],
+			"interior": "Clean, heavily automated offices guarded by a detachment of Canadian soldiers; Kane and three clerks live on site.",
+			"cite": "NC2045 p.189"
+		},
+		"watson_development_3": {
+			"name": "City Tot Daycare",
+			"district": "watson_development",
+			"number": 3,
+			"type": "school",
+			"owner": "arzin_tynon",
+			"owner_name": "Arzin Tynon",
+			"security_code": {
+				"n": 6,
+				"faction": "arzin_tynon",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [
+				{
+					"text": "The daycare is an Arzin Tynon front; smuggled goods move through its garage in diaper-service trucks several times a day.",
+					"gigs": [
+						"gang_hit",
+						"sabotage",
+						"data_theft"
+					]
+				}
+			],
+			"gigs": [
+				"gang_hit",
+				"sabotage"
+			],
+			"interior": "Daycare with a garage that service trucks pull in and out of all day.",
+			"cite": "NC2045 p.189"
+		},
+		"watson_development_4": {
+			"name": "Ebunike Docks",
+			"district": "watson_development",
+			"number": 4,
+			"type": "docks",
+			"owner": "nccs",
+			"owner_name": "Night City Co-Prosperity Sphere",
+			"security_code": {
+				"n": 9,
+				"faction": "kimen_gumi",
+				"intensity": "medium",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [
+				{
+					"text": "The docks let NCCS corps land Asian cargo from Darangen sea nomads without going through the Thelas-run Port; relations with the Thelas are cordial for now.",
+					"gigs": [
+						"sabotage"
+					]
+				},
+				{
+					"text": "Tyger Claws sell drugs and gambling to the dock workers.",
+					"gigs": [
+						"gang_hit"
+					]
+				}
+			],
+			"gigs": [
+				"sabotage",
+				"gang_hit"
+			],
+			"interior": "Laborers in linear frames unload crates onto trucks for the Fork; a ship is said to be permanently moored here.",
+			"cite": "NC2045 p.189"
+		},
+		"watson_development_5": {
+			"name": "Faisal's Customs",
+			"district": "watson_development",
+			"number": 5,
+			"type": "gun_shop",
+			"owner": "",
+			"owner_name": "Faisal (Tech 8) and Bobby \"Buggy\" Ballard (Fixer 5)",
+			"security_code": {
+				"n": 8,
+				"faction": "ncpd",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"Faisal (Tech 8)",
+				"Bobby \"Buggy\" Ballard (Fixer 5)"
+			],
+			"hooks": [
+				{
+					"text": "Genius weaponsmith Faisal keeps moving, convinced a big arms maker will snatch him with an assault squad.",
+					"gigs": [
+						"corp_extraction",
+						"rescue"
+					]
+				},
+				{
+					"text": "Buggy mass-produces cheap guns from Faisal's unfinished sketches.",
+					"gigs": [
+						"data_theft"
+					]
+				}
+			],
+			"gigs": [
+				"corp_extraction",
+				"data_theft"
+			],
+			"interior": "A small factory where low-level Techs turn out vendit and bodega firearms around the clock.",
+			"cite": "NC2045 p.189"
+		},
+		"watson_development_6": {
+			"name": "The Fork",
+			"district": "watson_development",
+			"number": 6,
+			"type": "factory",
+			"owner": "",
+			"owner_name": "NCCS member corporations and others",
+			"security_code": {
+				"n": 7,
+				"faction": "ncpd",
+				"intensity": "medium",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [
+				{
+					"text": "Rumour puts Night City's Elflines Online servers in the basement of the Segotari console plant.",
+					"gigs": [
+						"data_theft",
+						"sabotage"
+					]
+				},
+				{
+					"text": "Gibson Battlegear wants to expand but Towa owns the best nearby land.",
+					"gigs": [
+						"sabotage"
+					]
+				},
+				{
+					"text": "After dark gogangs, nomads and street racers own the roads; the Dragula Racers hold the monthly wins record.",
+					"gigs": [
+						"gang_hit"
+					]
+				}
+			],
+			"gigs": [
+				"sabotage",
+				"data_theft",
+				"gang_hit"
+			],
+			"interior": "Polluted industrial zone west of the base. Code drops to 4 (NCPD, Hardened Light) at night. Sites: 6a Bodyweight distribution centre, 6b Cactus Water bottling plant (closed), 6c Gibson Battlegear armour plant, 6d Hammered Industries chemical warehouse, 6e Kendachi distribution hub, 6f Kiroshi cyberoptics plant, 6g Makigai auto factory (awaiting parts), 6h Segotari console plant, 6i Towa weapons plant (just broke ground).",
+			"cite": "NC2045 p.189"
+		},
+		"watson_development_7": {
+			"name": "FūdHouse",
+			"district": "watson_development",
+			"number": 7,
+			"type": "restaurant",
+			"owner": "continental_brands",
+			"owner_name": "Continental Brands",
+			"security_code": {
+				"n": 5,
+				"faction": "ncpd",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [],
+			"gigs": [],
+			"interior": "",
+			"cite": "NC2045 p.190"
+		},
+		"watson_development_8": {
+			"name": "Gibson Battlegear Outlet",
+			"district": "watson_development",
+			"number": 8,
+			"type": "shop",
+			"owner": "",
+			"owner_name": "Gibson Battlegear",
+			"security_code": {
+				"n": 8,
+				"faction": "ncpd",
+				"intensity": "heavy",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [],
+			"gigs": [
+				"sabotage"
+			],
+			"interior": "",
+			"cite": "NC2045 p.190"
+		},
+		"watson_development_9": {
+			"name": "Hammered Up Liquor",
+			"district": "watson_development",
+			"number": 9,
+			"type": "shop",
+			"owner": "",
+			"owner_name": "Hammered Industries",
+			"security_code": {
+				"n": 6,
+				"faction": "ncpd",
+				"intensity": "medium",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [],
+			"gigs": [],
+			"interior": "",
+			"cite": "NC2045 p.190"
+		},
+		"watson_development_10": {
+			"name": "HTown",
+			"district": "watson_development",
+			"number": 10,
+			"type": "squat",
+			"owner": "arzin_tynon",
+			"owner_name": "Arzin Tynon (Jimmy \"Dequiallo\" Miles, Nomad 4/Solo 4)",
+			"security_code": {
+				"n": 5,
+				"faction": "ncpd",
+				"intensity": "medium",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"Jimmy \"Dequiallo\" Miles (Nomad 4/Solo 4)"
+			],
+			"hooks": [
+				{
+					"text": "Every few weeks NCPD or hired muscle tries to clear the camp, and the Arzin Tynon lead its residents in the fight back.",
+					"gigs": [
+						"gang_hit"
+					]
+				},
+				{
+					"text": "The Arzin Tynon run their smuggling operation from the camp.",
+					"gigs": [
+						"gang_hit",
+						"sabotage"
+					]
+				}
+			],
+			"gigs": [
+				"gang_hit",
+				"sabotage"
+			],
+			"interior": "A homeless camp rebuilt against the east wall of a half-empty gated Exec community put up by Future BuildWorks.",
+			"cite": "NC2045 p.190"
+		},
+		"watson_development_11": {
+			"name": "Hundred Under Haven",
+			"district": "watson_development",
+			"number": 11,
+			"type": "shop",
+			"owner": "petrochem",
+			"owner_name": "Petrochem",
+			"security_code": {
+				"n": 5,
+				"faction": "ncpd",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [],
+			"gigs": [],
+			"interior": "",
+			"cite": "NC2045 p.191"
+		},
+		"watson_development_12": {
+			"name": "Joint Temporary Housing Solution",
+			"district": "watson_development",
+			"number": 12,
+			"type": "housing",
+			"owner": "petrochem",
+			"owner_name": "Petrochem and SovOil",
+			"security_code": {
+				"n": 5,
+				"faction": "petrochem",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [
+				{
+					"text": "Both corps' previous housing blocks were destroyed by unknown parties.",
+					"gigs": [
+						"sabotage"
+					]
+				},
+				{
+					"text": "A Rhyne-brokered truce splits elevators and tennis courts between the rival staff; one bad day could turn it into a war zone.",
+					"gigs": [
+						"sabotage",
+						"assassination"
+					]
+				}
+			],
+			"gigs": [
+				"sabotage"
+			],
+			"interior": "Cheaply thrown-together block: left elevator Petrochem, right SovOil; east tennis court Petrochem, west SovOil; shared rooftop jacuzzi; the pool is still disputed.",
+			"cite": "NC2045 p.191"
+		},
+		"watson_development_13": {
+			"name": "Megabuilding H10",
+			"district": "watson_development",
+			"number": 13,
+			"type": "megabuilding",
+			"owner": "",
+			"owner_name": "",
+			"security_code": {
+				"n": 7,
+				"faction": "ncpd",
+				"intensity": "medium",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"Dahlia VDB (Netrunner 2/Fixer 5)",
+				"Byeol Jeong (Solo 5)",
+				"Zillah Zane (Exec 7)"
+			],
+			"hooks": [
+				{
+					"text": "G3 is rumoured to be sabotaging 98.2 Shiv FM's Saturday parties, which have turned violent.",
+					"gigs": [
+						"sabotage",
+						"gang_hit"
+					]
+				},
+				{
+					"text": "G3 sell media chips, drugs and sex on the lower levels, to NCPD's annoyance.",
+					"gigs": [
+						"gang_hit"
+					]
+				},
+				{
+					"text": "Most of Watson Community College's Night Corp grant went into the owner's pocket.",
+					"gigs": [
+						"data_theft"
+					]
+				}
+			],
+			"gigs": [
+				"gang_hit",
+				"sabotage",
+				"data_theft"
+			],
+			"interior": "Cubes on the lower floors, then container-size units, conapts and apartments, up to luxury suites with private bars and the members-only Highwall Club; courtyard basketball. Tenants: 98.2 Shiv FM (roof), Big H Casino (pachinko, monthly high-stakes poker), Data Inc, Hammer Me Nail Salon, United Martial Arts, Watson Community College.",
+			"cite": "NC2045 p.191"
+		},
+		"watson_development_14": {
+			"name": "Megabuilding H11",
+			"district": "watson_development",
+			"number": 14,
+			"type": "megabuilding",
+			"owner": "kanzaki_family",
+			"owner_name": "Future BuildWorks (Kanzaki-backed; CEO Yasume Ishioda, Exec 4)",
+			"security_code": {
+				"n": 7,
+				"faction": "ncpd",
+				"intensity": "medium",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"Yumeko (Netrunner 4)",
+				"Yasume Ishioda (Exec 4)"
+			],
+			"hooks": [
+				{
+					"text": "Rumour says H11's foundations are full of the bodies of people who crossed the Kanzaki Family.",
+					"gigs": [
+						"data_theft"
+					]
+				},
+				{
+					"text": "The Kanzakis are said to plant subliminal messages through Delta 777's braindances.",
+					"gigs": [
+						"data_theft",
+						"sabotage"
+					]
+				},
+				{
+					"text": "The Wild Things recruit fighters at Iron Spirit.",
+					"gigs": [
+						"gang_hit"
+					]
+				},
+				{
+					"text": "Future BuildWorks CEO Yasume Ishioda still pines for PI Kenshiro Saeba and might leave her loveless Kanzaki marriage for him.",
+					"gigs": [
+						"corp_extraction",
+						"rescue"
+					]
+				}
+			],
+			"gigs": [
+				"data_theft",
+				"sabotage",
+				"gang_hit",
+				"corp_extraction"
+			],
+			"interior": "Only partly built; lower floors already house factory and dock workers. Tenants: 107.2 KCP2, Delta 777 braindance parlour, Divine Tastes, Future BuildWorks office, Iron Spirit boxing gym, Savage Docs North (two Medtechs).",
+			"cite": "NC2045 p.192"
+		},
+		"watson_development_15": {
+			"name": "Morgan's",
+			"district": "watson_development",
+			"number": 15,
+			"type": "gun_shop",
+			"owner": "",
+			"owner_name": "Morgan (Fixer 3)",
+			"security_code": {
+				"n": 7,
+				"faction": "patrons",
+				"intensity": "medium",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"Morgan (Fixer 3)"
+			],
+			"hooks": [],
+			"gigs": [],
+			"interior": "A weapons-and-armour food truck, usually parked on Jankel Street.",
+			"cite": "NC2045 p.192"
+		},
+		"watson_development_16": {
+			"name": "NCPD Precinct #3",
+			"district": "watson_development",
+			"number": 16,
+			"type": "police",
+			"owner": "ncpd",
+			"owner_name": "NCPD (Captain Tom Stone, Lawman 7)",
+			"security_code": {
+				"n": 10,
+				"faction": "ncpd",
+				"intensity": "heavy",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"Tom Stone (Lawman 7)",
+				"Leila Amani (Medtech 4)"
+			],
+			"hooks": [
+				{
+					"text": "Excessive-force complaints are up 50% since the strike, and Captain Stone nearly came to blows with City Manager Rhyne.",
+					"gigs": [
+						"data_theft"
+					]
+				}
+			],
+			"gigs": [
+				"data_theft",
+				"rescue"
+			],
+			"interior": "Ground floor: small lobby, motor pool and high-speed pursuit unit; upper floors: offices, squad and briefing rooms, armories, evidence lock-up, interrogation; top two floors the NCPD Academy; roof AV and gyrocopter pads; basement morgue and holding cells. The Blue Ranger seized-goods store is across the street.",
+			"cite": "NC2045 p.192"
+		},
+		"watson_development_17": {
+			"name": "NeoSoviet Consulate",
+			"district": "watson_development",
+			"number": 17,
+			"type": "civic",
+			"owner": "sovoil",
+			"owner_name": "NeoSoviet Consulate (Tanya Makarova, Exec 5)",
+			"security_code": {
+				"n": 10,
+				"faction": "sovoil",
+				"intensity": "heavy",
+				"hardened": false
+			},
+			"utility_code": null,
+			"npcs": [
+				"Tanya Makarova (Exec 5)"
+			],
+			"hooks": [
+				{
+					"text": "At least one of the consul's seven clerks spies for the Consortium.",
+					"gigs": [
+						"data_theft",
+						"corp_extraction"
+					]
+				}
+			],
+			"gigs": [
+				"data_theft",
+				"corp_extraction"
+			],
+			"interior": "Brutalist building built to survive an invasion, guarded by SovOil security; no staff live on site.",
+			"cite": "NC2045 p.193"
+		},
+		"watson_development_18": {
+			"name": "The Obituary",
+			"district": "watson_development",
+			"number": 18,
+			"type": "gang_base",
+			"owner": "dragula_racers",
+			"owner_name": "Dragula Racers (Frankie Sparks, Nomad 6)",
+			"security_code": {
+				"n": 8,
+				"faction": "dragula_racers",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"Frankie Sparks (Nomad 6)"
+			],
+			"hooks": [],
+			"gigs": [
+				"gang_hit"
+			],
+			"interior": "Converted warehouse with room for dozens of vehicles, horror-movie decor; the leader lives in the old manager's office above the main floor.",
+			"cite": "NC2045 p.193"
+		},
+		"watson_development_19": {
+			"name": "Old Black Rum Pub",
+			"district": "watson_development",
+			"number": 19,
+			"type": "bar",
+			"owner": "",
+			"owner_name": "Doc Brutus (Medtech 1/Nomad 2)",
+			"security_code": {
+				"n": 5,
+				"faction": "ncpd",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"Doc Brutus (Medtech 1/Nomad 2)"
+			],
+			"hooks": [],
+			"gigs": [],
+			"interior": "",
+			"cite": "NC2045 p.193"
+		},
+		"watson_development_20": {
+			"name": "Oumei-ji Temple",
+			"district": "watson_development",
+			"number": 20,
+			"type": "church",
+			"owner": "",
+			"owner_name": "",
+			"security_code": {
+				"n": 7,
+				"faction": "tyger_claws",
+				"intensity": "medium",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [],
+			"gigs": [],
+			"interior": "Houses an 18 m hollow Buddha (the Night City Daibutsu) said to hold scriptures, a list of 4CW dead and some of their ashes; Tyger Claws loyalists run street-food stalls out front.",
+			"cite": "NC2045 p.193"
+		},
+		"watson_development_21": {
+			"name": "Petrochem Offices",
+			"district": "watson_development",
+			"number": 21,
+			"type": "corp_office",
+			"owner": "petrochem",
+			"owner_name": "Petrochem (Night City ops: William Joseph \"Billy Joe\" Brentwood, Exec 8)",
+			"security_code": {
+				"n": 9,
+				"faction": "petrochem",
+				"intensity": "heavy",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"William Joseph \"Billy Joe\" Brentwood (Exec 8)"
+			],
+			"hooks": [
+				{
+					"text": "NCPD detectives come about once a week to look into another murder.",
+					"gigs": [
+						"assassination"
+					]
+				},
+				{
+					"text": "Billy Joe Brentwood's vices make him a favourite blackmail target, though blackmailers tend to end up in the harbour.",
+					"gigs": [
+						"data_theft"
+					]
+				},
+				{
+					"text": "Brentwood hates his SovOil counterpart across the street with a murderous passion.",
+					"gigs": [
+						"assassination",
+						"sabotage"
+					]
+				}
+			],
+			"gigs": [
+				"data_theft",
+				"sabotage",
+				"assassination",
+				"corp_extraction"
+			],
+			"interior": "Fortified; public access only to a small propaganda museum and gift shop, everything beyond biometrically locked and patrolled around the clock.",
+			"cite": "NC2045 p.193"
+		},
+		"watson_development_22": {
+			"name": "Petrochem Oil Refinery",
+			"district": "watson_development",
+			"number": 22,
+			"type": "factory",
+			"owner": "petrochem",
+			"owner_name": "Petrochem",
+			"security_code": {
+				"n": 9,
+				"faction": "petrochem",
+				"intensity": "medium",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [
+				{
+					"text": "The strip between the Petrochem and SovOil refineries is a no man's land where guards from both sides shoot intruders.",
+					"gigs": [
+						"sabotage"
+					]
+				}
+			],
+			"gigs": [
+				"sabotage"
+			],
+			"interior": "",
+			"cite": "NC2045 p.194"
+		},
+		"watson_development_23": {
+			"name": "The Pochinko Carnival",
+			"district": "watson_development",
+			"number": 23,
+			"type": "attraction",
+			"owner": "",
+			"owner_name": "Pochinko clan of Blood Nation nomads (Libby Manseau, Nomad 4/Rockerboy 5)",
+			"security_code": {
+				"n": 10,
+				"faction": "staff",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"Libby Manseau (Nomad 4/Rockerboy 5)"
+			],
+			"hooks": [
+				{
+					"text": "The carnival pays a 10eb bounty for every genuine Bozo nose.",
+					"gigs": [
+						"gang_hit"
+					]
+				}
+			],
+			"gigs": [
+				"gang_hit"
+			],
+			"interior": "Small boardwalk of well-kept rides and games; nightly show by classically trained clowns.",
+			"cite": "NC2045 p.194"
+		},
+		"watson_development_24": {
+			"name": "Red Oktober",
+			"district": "watson_development",
+			"number": 24,
+			"type": "bar",
+			"owner": "",
+			"owner_name": "",
+			"security_code": {
+				"n": 5,
+				"faction": "ncpd",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [],
+			"gigs": [],
+			"interior": "Built in a disused subway station, dressed as a Soviet submarine.",
+			"cite": "NC2045 p.194"
+		},
+		"watson_development_25": {
+			"name": "Redline",
+			"district": "watson_development",
+			"number": 25,
+			"type": "bar",
+			"owner": "wild_things",
+			"owner_name": "Wild Things (Jenny Nails, Fixer 3/Solo 6)",
+			"security_code": {
+				"n": 10,
+				"faction": "wild_things",
+				"intensity": "heavy",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"Jenny Nails (Fixer 3/Solo 6)"
+			],
+			"hooks": [
+				{
+					"text": "Redline has long been rumoured to host death matches; nobody has proved it.",
+					"gigs": [
+						"data_theft"
+					]
+				}
+			],
+			"gigs": [
+				"gang_hit",
+				"data_theft"
+			],
+			"interior": "A bar built around a fighting pit.",
+			"cite": "NC2045 p.194"
+		},
+		"watson_development_26": {
+			"name": "Sakura's",
+			"district": "watson_development",
+			"number": 26,
+			"type": "bar",
+			"owner": "",
+			"owner_name": "Toru Evans",
+			"security_code": {
+				"n": 6,
+				"faction": "ncpd",
+				"intensity": "medium",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"Toru Evans"
+			],
+			"hooks": [],
+			"gigs": [],
+			"interior": "",
+			"cite": "NC2045 p.194"
+		},
+		"watson_development_27": {
+			"name": "SkidRow Limited",
+			"district": "watson_development",
+			"number": 27,
+			"type": "shop",
+			"owner": "",
+			"owner_name": "SkidRow Limited",
+			"security_code": {
+				"n": 6,
+				"faction": "ncpd",
+				"intensity": "medium",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [
+				{
+					"text": "SkidRow is said to be negotiating with Danger Gal on a Puma Squad-style armour line, and rival Gibson Battlegear is furious; a bloody fashion war may be coming.",
+					"gigs": [
+						"sabotage",
+						"data_theft",
+						"corp_extraction"
+					]
+				}
+			],
+			"gigs": [
+				"sabotage",
+				"data_theft",
+				"corp_extraction"
+			],
+			"interior": "",
+			"cite": "NC2045 p.195"
+		},
+		"watson_development_28": {
+			"name": "Smash/Cut",
+			"district": "watson_development",
+			"number": 28,
+			"type": "club",
+			"owner": "",
+			"owner_name": "UBRIS (EDM band)",
+			"security_code": {
+				"n": 5,
+				"faction": "ncpd",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [],
+			"gigs": [],
+			"interior": "A few tables around a huge dance floor, wall vidscreens and floor/ceiling holoprojectors; staff use sign language over the noise.",
+			"cite": "NC2045 p.195"
+		},
+		"watson_development_29": {
+			"name": "Snack & Shack",
+			"district": "watson_development",
+			"number": 29,
+			"type": "housing",
+			"owner": "",
+			"owner_name": "",
+			"security_code": {
+				"n": 4,
+				"faction": "ncpd",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [
+				{
+					"text": "Tyger Claws 'artists' record XBDs in the rear containers; ignore the screams.",
+					"gigs": [
+						"rescue",
+						"gang_hit"
+					]
+				}
+			],
+			"gigs": [
+				"rescue",
+				"gang_hit"
+			],
+			"interior": "Cargo containers: the front two welded into a bodega, the middle rented as month-to-month housing, the rear used as an XBD studio.",
+			"cite": "NC2045 p.195"
+		},
+		"watson_development_30": {
+			"name": "SovOil Offices",
+			"district": "watson_development",
+			"number": 30,
+			"type": "corp_office",
+			"owner": "sovoil",
+			"owner_name": "SovOil (regional director Jami \"Sharkeater\" Tealov, Exec 8)",
+			"security_code": {
+				"n": 9,
+				"faction": "sovoil",
+				"intensity": "heavy",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"Jami \"Sharkeater\" Tealov (Exec 8)"
+			],
+			"hooks": [
+				{
+					"text": "NCPD detectives come about once a week to look into another murder.",
+					"gigs": [
+						"assassination"
+					]
+				},
+				{
+					"text": "Tealov keeps up his feud with Petrochem's Brentwood, some say mostly for laughs.",
+					"gigs": [
+						"assassination",
+						"sabotage"
+					]
+				}
+			],
+			"gigs": [
+				"data_theft",
+				"sabotage",
+				"assassination",
+				"corp_extraction"
+			],
+			"interior": "Fortified; public access only to a small propaganda museum and gift shop, everything beyond biometrically locked and patrolled around the clock.",
+			"cite": "NC2045 p.195"
+		},
+		"watson_development_31": {
+			"name": "SovOil Oil Refinery",
+			"district": "watson_development",
+			"number": 31,
+			"type": "factory",
+			"owner": "sovoil",
+			"owner_name": "SovOil",
+			"security_code": {
+				"n": 9,
+				"faction": "sovoil",
+				"intensity": "medium",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [
+				{
+					"text": "The strip between the SovOil and Petrochem refineries is a no man's land where guards from both sides shoot intruders.",
+					"gigs": [
+						"sabotage"
+					]
+				}
+			],
+			"gigs": [
+				"sabotage"
+			],
+			"interior": "",
+			"cite": "NC2045 p.195"
+		},
+		"watson_development_32": {
+			"name": "Trauma Team Tower",
+			"district": "watson_development",
+			"number": 32,
+			"type": "corp_hq",
+			"owner": "trauma_team",
+			"owner_name": "Trauma Team",
+			"security_code": {
+				"n": 10,
+				"faction": "lazarus",
+				"intensity": "heavy",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [],
+			"gigs": [
+				"data_theft",
+				"sabotage"
+			],
+			"interior": "Client-only hospital, AV maintenance and launch bays for each squad, tactical air control tower; dispatch and executive offices buried in the subbasement. Lazarus guards it and all TT staff carry arms on duty.",
+			"cite": "NC2045 p.195"
+		},
+		"watson_development_33": {
+			"name": "Trauma Team Corporate Living Center",
+			"district": "watson_development",
+			"number": 33,
+			"type": "housing",
+			"owner": "trauma_team",
+			"owner_name": "Trauma Team",
+			"security_code": {
+				"n": 9,
+				"faction": "trauma_team",
+				"intensity": "medium",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [
+				{
+					"text": "Every surface is covered in biosensors, and residents suspect the data goes to management despite promises of confidentiality.",
+					"gigs": [
+						"data_theft"
+					]
+				}
+			],
+			"gigs": [
+				"data_theft",
+				"corp_extraction"
+			],
+			"interior": "'The Ward': linked to the Tower by an access tunnel; gym and rec centre with smoothie bar, urgent care clinic, in-house therapists.",
+			"cite": "NC2045 p.196"
+		},
+		"watson_development_34": {
+			"name": "Turbo Neon Motors",
+			"district": "watson_development",
+			"number": 34,
+			"type": "chop_shop",
+			"owner": "",
+			"owner_name": "Cesar (Tech 8) and Akira-119 (Fixer 5)",
+			"security_code": {
+				"n": 7,
+				"faction": "ncpd",
+				"intensity": "medium",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"Cesar (Tech 8)",
+				"Akira-119 (Fixer 5)"
+			],
+			"hooks": [],
+			"gigs": [],
+			"interior": "Two storeys, six service bays, on-site custom parts fabrication.",
+			"cite": "NC2045 p.196"
+		},
+		"watson_development_35": {
+			"name": "UnoMas Mexican Bar & Grill",
+			"district": "watson_development",
+			"number": 35,
+			"type": "bar",
+			"owner": "",
+			"owner_name": "",
+			"security_code": {
+				"n": 5,
+				"faction": "ncpd",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [],
+			"gigs": [],
+			"interior": "",
+			"cite": "NC2045 p.196"
+		},
+		"watson_development_36": {
+			"name": "Vargtimmen",
+			"district": "watson_development",
+			"number": 36,
+			"type": "bar",
+			"owner": "",
+			"owner_name": "Freki (Rockerboy 2/Tech 4)",
+			"security_code": {
+				"n": 5,
+				"faction": "ncpd",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [
+				"Freki (Rockerboy 2/Tech 4)"
+			],
+			"hooks": [],
+			"gigs": [],
+			"interior": "",
+			"cite": "NC2045 p.196"
+		},
+		"watson_development_37": {
+			"name": "Watson Central Cubelife",
+			"district": "watson_development",
+			"number": 37,
+			"type": "cube_hotel",
+			"owner": "",
+			"owner_name": "",
+			"security_code": {
+				"n": 4,
+				"faction": "ncpd",
+				"intensity": "light",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [],
+			"gigs": [],
+			"interior": "",
+			"cite": "NC2045 p.196"
+		},
+		"watson_development_38": {
+			"name": "Whammer Arena",
+			"district": "watson_development",
+			"number": 38,
+			"type": "stadium",
+			"owner": "",
+			"owner_name": "Watson Whammers / Wonderland Roller Derby League",
+			"security_code": {
+				"n": 8,
+				"faction": "ncpd",
+				"intensity": "medium",
+				"hardened": true
+			},
+			"utility_code": null,
+			"npcs": [],
+			"hooks": [],
+			"gigs": [],
+			"interior": "3,000 seats with modern broadcast gear; also rented for concerts.",
+			"cite": "NC2045 p.196"
+		}
+	}
 }
