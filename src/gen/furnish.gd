@@ -733,6 +733,8 @@ static func _reachable_in_room(m: TacMap, r: Dictionary) -> Dictionary:
 
 
 static func add_device(m: TacMap, dice: Dice, r: Dictionary, type: String, group: String, wall: bool, extra: Dictionary = {}) -> void:
+	if type in ["camera", "turret"] and bool(m.params.get("no_drones", false)):
+		return   # a place the drones can't see into (Playland's Haunted Woods, NC2045 p.308)
 	var taken := {}
 	for d in m.devices:
 		if d.floor == r.floor:

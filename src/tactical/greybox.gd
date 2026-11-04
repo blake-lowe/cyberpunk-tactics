@@ -592,6 +592,8 @@ func new_gig() -> void:
 		var parts := String(gig.complication).split(":")
 		eo["complication"] = {"tier": parts[0], "roll": int(parts[1])} if parts.size() > 1 else {"roll": int(parts[0])}
 	enc = Encounter.setup(m, dice, crew, kind, eo)
+	if campaign_gig and Campaign.is_operation(camp.active_gig):
+		_brief_leg(camp)
 	_log_seen = 0
 	var lk := _scene_look()
 	env.ambient_light_color = Color(lk.ambient)
@@ -2754,9 +2756,62 @@ func _update_objective() -> void:
 		tag_n.position = cn.position + Vector3(0, 2.75, 0)
 
 
+## An operation's leg starts: the briefing goes in the log (which leg, what for, the event on, and
+## on the first leg what the gate made them leave in the van).
+func _brief_leg(camp: Campaign) -> void:
+	var g := camp.active_gig
+	var i := int(g.get("leg", 0))
+	enc.say("Leg %d of %d: %s. %s" % [i + 1, (g.legs as Array).size(), String(g.get("leg_title", "")), String(g.get("line", ""))])
+	if i == 0:
+		var ev: Dictionary = g.get("event", {})
+		if not ev.is_empty():
+			enc.say("%s (%s): %s" % [String(ev.name), String(ev.when), String(ev.text)])
+		var van := camp.van_list()
+		enc.say(("No weapons past the gate. In the van: %s." % ", ".join(van)) if not van.is_empty() else "No weapons past the gate: what the crew carries is all concealable.")
+	if bool(g.get("no_drones", false)):
+		enc.say("The fake trees blind the park's drones here: no cameras, no turrets.")
+
+
+var _leg_panel: Control = null
+
+## A won leg with another after it: NEXT goes straight on to that map (Campaign.next_leg, saved
+## between legs); WITHDRAW ends the operation here (the legs done are paid) and goes home.
+func _leg_done() -> void:
+	if _leg_panel != null:
+		return
+	var camp := Campaign.current
+	var nxt := camp.next_leg_info()
+	hud.turn_banner("LEG COMPLETE  ·  NEXT: %s" % String(nxt.get("leg_title", "")).to_upper(), Hud.GREEN)
+	_leg_panel = UiKit.panel(Hud.GREEN, 16)
+	var v := UiKit.vbox(10)
+	_leg_panel.add_child(v)
+	v.add_child(UiKit.head("Leg %d of %d complete" % [int(camp.active_gig.leg) + 1, (camp.active_gig.legs as Array).size()], 30, Hud.GREEN))
+	v.add_child(UiKit.body("Next: %s. %s" % [String(nxt.get("leg_title", "")), String(nxt.get("line", ""))], 16))
+	v.add_child(UiKit.body("%d minutes on the streetcar. No time to patch up: the crew goes on as it stands." % int(Campaign.operation_def(camp.active_gig).get("streetcar_minutes", 5)), 14, Hud.DIM))
+	var row := UiKit.hbox(12)
+	v.add_child(row)
+	row.add_child(UiKit.button("NEXT: %s  ›" % String(nxt.get("land_name", "")).to_upper(), UiKit.PRIMARY, func():
+		camp.next_leg(enc)
+		camp.save()
+		get_tree().reload_current_scene()))
+	row.add_child(UiKit.button("WITHDRAW", UiKit.NEUTRAL, func():
+		_leg_panel.queue_free()
+		_settle_gig()))
+	hud.add_child(_leg_panel)
+	_leg_panel.reset_size()
+	_leg_panel.position = (hud.size - _leg_panel.size) / 2.0
+
+
 ## A board gig is over: settle it (pay, injuries, the dead), save, and go to the debrief (the
-## safehouse opens it first, BaseView).
+## safehouse opens it first, BaseView). An operation's won leg with another to come asks first.
 func _finish_gig() -> void:
+	if enc.state == "won" and Campaign.current.has_next_leg():
+		_leg_done()
+		return
+	_settle_gig()
+
+
+func _settle_gig() -> void:
 	hud.turn_banner("GIG %s  ·  DEBRIEF" % ("COMPLETE" if enc.state == "won" else ("ABANDONED" if enc.state == "fled" else "FAILED")), Hud.GREEN if enc.state == "won" else Hud.RED)
 	await get_tree().create_timer(3.0).timeout
 	var camp := Campaign.current

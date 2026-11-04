@@ -77,6 +77,7 @@ var _hardened_posts := false        ## the posts use Hardened blocks (a Hardened
 var _spot_rolls := {}               ## [guard id, crew id, round] → result: one stealth roll per pair per round
 var jack_pos := {}                  ## runner unit id → the square of the device they jacked in at
 var disabled_devices := {}          ## device id → true (turrets/cameras under the runner's control)
+var lights_off := false             ## the site's lights are down for the whole gig (opts.lights_off)
 
 
 ## opts: {faction: the gig's target faction id (World), default generic private security;
@@ -88,7 +89,12 @@ var disabled_devices := {}          ## device id → true (turrets/cameras under
 ## every time unless utilities: true, which rolls it only on one gig in SecurityCode.UTILITY_CHANCE_IN;
 ## complications: true to roll for one of the book's complications (Complication.CHANCE_IN);
 ## complication: {tier?, roll?} to force one; district: the gig's district, whose civilians make up
-## the crowd and the people the objectives need (Recruit.civilian_blocks)}.
+## the crowd and the people the objectives need (Recruit.civilian_blocks); carry: true for the next
+## leg of an operation (Campaign), where the crew comes straight from the last map: kit already
+## used, drugs in the system and doses spent carry over (no Combatant.gig_reset); crowd: extra
+## bystanders; civilians: stat blocks (npcs.json) added to the crowd, one each; police: uniformed
+## NCPD officers among the crowd, unalerted, who answer trouble as the police do; lights_off: the
+## site's lights are down}.
 static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "data", opts: Dictionary = {}) -> Encounter:
 	var e := Encounter.new()
 	e.opfor_faction = String(opts.get("faction", World.DEFAULT_OPFOR))
@@ -105,8 +111,12 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 	var cells: Array = deploy.get("cells", [deploy.pos])
 	for c0 in cells:
 		e.extract_cells[Vector3i(c0.x, c0.y, 0)] = true
+	e.lights_off = bool(opts.get("lights_off", false))
 	for i in crew.size():
-		crew[i].gig_reset()
+		if bool(opts.get("carry", false)):
+			crew[i].leg_reset()
+		else:
+			crew[i].gig_reset()
 		var c: Vector2i = cells[i % cells.size()]
 		e._add(crew[i], Vector3i(c.x, c.y, 0), 0)
 	# Guards at posts, target building first.
@@ -191,7 +201,8 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 	if bool(e.doctrine.get("keycards", true)):
 		e._hand_out_keycards()
 	e._trauma_cards()
-	e._place_civilians(cells[0])
+	e._place_civilians(cells[0], int(opts.get("crowd", 0)), opts.get("civilians", []))
+	e._place_police(cells[0], int(opts.get("police", 0)))
 	e.refresh_vision()
 	e.update_alerts()
 	return e
@@ -652,28 +663,14 @@ var _counted := {}
 ## Civilians (HOUSE-RULE): bystanders in the public rooms and on the street, more where people
 ## gather (bars, clubs, markets), few in the badlands or the tunnels. They take no turns: each round
 ## the ones that have panicked run for the map edge.
-func _place_civilians(deploy: Vector2i) -> void:
+func _place_civilians(deploy: Vector2i, crowd := 0, extra_blocks: Array = []) -> void:
 	var scene := String(m.params.get("scene", ""))
 	if scene in ["badlands", "undercity"]:
 		return
-	var cand: Array = []
-	for y in m.h:
-		for x in m.w:
-			var v := Vector3i(x, y, 0)
-			if not m.walkable(0, Vector2i(x, y)) or occupied().has(v) or Vector2(x - deploy.x, y - deploy.y).length() < 10:
-				continue
-			var l := m.label(0, x, y)
-			var ok := false
-			if l >= 0:
-				var r: Dictionary = m.rooms[l]
-				ok = int(r.zone) == TacMap.Zone.PUBLIC and String(r.kind) not in ["roof", "corridor"]
-			else:
-				ok = m.t(0, x, y) == TacMap.T.OUTSIDE and m.ground[y * m.w + x] == TacMap.G.SIDEWALK
-			if ok:
-				cand.append(v)
+	var cand := _crowd_cells(deploy)
 	if cand.is_empty():
 		return
-	var extra := int(SetPieces.rule(m, "civilians", 0))   # a set piece's public floor draws a crowd
+	var extra := int(SetPieces.rule(m, "civilians", 0)) + crowd   # a set piece's public floor draws a crowd
 	var n := clampi(int(m.w * m.h / 650.0) + (3 if scene == "arcology" else 0) + extra, 3, 12 + extra)
 	# Who's about (NC2045's civilian blocks): two in three are the district's own, the rest from
 	# anywhere in the city (HOUSE-RULE: most districts print one or two, so a crowd of only those
@@ -690,18 +687,70 @@ func _place_civilians(deploy: Vector2i) -> void:
 		if placed.any(func(q): return Vector2(q.x - v.x, q.y - v.y).length() < 4.0):
 			continue
 		var pool: Array[String] = local if dice.d(3) <= 2 else city
-		var c := Recruit.civilian(dice, pool[dice.d(pool.size()) - 1])
-		if not locals_armed:
-			c.weapons.clear()
-		c.faction = "bystanders"
-		_add(c, v, CIV_TEAM)
-		var u: Dictionary = units[-1]
-		u.alerted = false
-		u["civ"] = true
-		u["panic"] = false
-		if locals_armed:
-			u["local"] = true
+		_add_civilian(Recruit.civilian(dice, pool[dice.d(pool.size()) - 1]), v, locals_armed)
 		placed.append(v)
+	# Named extras (an event's guests: Playland's job-fair recruiters), one each where there's room.
+	for b in extra_blocks:
+		if not RulesDB.load_json("npcs.json")["blocks"].has(String(b)):
+			continue
+		for k in 12:
+			var v: Vector3i = cand[dice.d(cand.size()) - 1]
+			if not occupied().has(v):
+				_add_civilian(Recruit.civilian(dice, String(b)), v, locals_armed)
+				break
+
+
+## Where bystanders stand: public rooms on the ground floor and the street's pavements, 10+
+## squares from the deploy zone.
+func _crowd_cells(deploy: Vector2i) -> Array:
+	var cand: Array = []
+	for y in m.h:
+		for x in m.w:
+			var v := Vector3i(x, y, 0)
+			if not m.walkable(0, Vector2i(x, y)) or occupied().has(v) or Vector2(x - deploy.x, y - deploy.y).length() < 10:
+				continue
+			var l := m.label(0, x, y)
+			var ok := false
+			if l >= 0:
+				var r: Dictionary = m.rooms[l]
+				ok = int(r.zone) == TacMap.Zone.PUBLIC and String(r.kind) not in ["roof", "corridor"]
+			else:
+				ok = m.t(0, x, y) == TacMap.T.OUTSIDE and m.ground[y * m.w + x] == TacMap.G.SIDEWALK
+			if ok:
+				cand.append(v)
+	return cand
+
+
+func _add_civilian(c: Combatant, v: Vector3i, armed: bool) -> void:
+	if not armed:
+		c.weapons.clear()
+	c.faction = "bystanders"
+	_add(c, v, CIV_TEAM)
+	var u: Dictionary = units[-1]
+	u.alerted = false
+	u["civ"] = true
+	u["panic"] = false
+	if armed:
+		u["local"] = true
+
+
+## Uniformed NCPD among the crowd (an event that draws off-duty cops: Playland's NCPD Night,
+## NC2045 p.305): `n` officers on the police's side, unalerted, standing about like the
+## bystanders; they answer trouble the way police responders do (World.npc's NCPD block).
+func _place_police(deploy: Vector2i, n: int) -> void:
+	if n <= 0:
+		return
+	var cand := _crowd_cells(deploy)
+	if cand.is_empty():
+		return
+	var team := side_for("ncpd", "guard", true)
+	for i in n:
+		for k in 12:
+			var v: Vector3i = cand[dice.d(cand.size()) - 1]
+			if not occupied().has(v):
+				_add(World.npc(dice, "ncpd", "mook", i + 1), v, team)
+				units[-1].alerted = false
+				break
 
 
 func _panic_near(at: Vector3i) -> void:
@@ -1408,7 +1457,7 @@ const POWERED := ["camera", "turret"]
 
 ## Is the power out? The lights are off and cameras and turrets dead.
 func lights_out() -> bool:
-	return "power" in outages
+	return "power" in outages or lights_off
 
 
 func _unpowered(dev: Dictionary) -> bool:

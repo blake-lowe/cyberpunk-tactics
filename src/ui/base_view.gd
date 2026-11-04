@@ -116,6 +116,9 @@ func _ready() -> void:
 		camp = DemoState.make()
 	else:
 		camp = Campaign.ensure_current()
+		if Campaign.is_operation(camp.active_gig) and not stay:   # saved between an operation's legs: back to it
+			get_tree().change_scene_to_file.call_deferred(GREYBOX)
+			return
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	portraits = Portraits.new()
 	add_child(portraits)

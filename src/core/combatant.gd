@@ -294,6 +294,18 @@ func gig_reset() -> void:
 	drug_fx.clear()
 
 
+## Straight on to the next map of an operation (Campaign): only what a short ride clears goes
+## (the fire is out, a jammed cyberlimb has come back, a stabilized friend has come round, nobody
+## is still lying prone); kit used, drugs taken, doses spent and Stim stay as they were.
+func leg_reset() -> void:
+	burning = 0
+	cyber_off.clear()
+	prone = false
+	if unconscious and not dead and hp > 0:
+		unconscious = false
+		wake_in = 0
+
+
 func rank_raise_cost() -> int:
 	return 60 * (role_rank + 1)   # CPR core p411
 

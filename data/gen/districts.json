@@ -1,5 +1,5 @@
 {
-  "_doc": "Neighbourhood profiles for DistrictGen (loosely after Night City in the Time of the Red). pattern: grid | organic | radial. block: [min, max] block size in squares. road_w: road width incl. sidewalks. diag/curve: chance of a diagonal avenue / curved road on top. alley: chance a lot split leaves a 2-wide alley. floors/security/decay: [min, max] ranges for non-target buildings (floors capped by the scene). cars: parked-car density; wreck_ratio: share of those that are wrecks. mix: weights over building site types and outdoor lots (market, park, plaza, parking_lot, rubble_field, substation). target: site type of the gig target.",
+  "_doc": "Neighbourhood profiles for DistrictGen (loosely after Night City in the Time of the Red). pattern: grid | organic | radial. block: [min, max] block size in squares. road_w: road width incl. sidewalks. diag/curve: chance of a diagonal avenue / curved road on top. alley: chance a lot split leaves a 2-wide alley. floors/security/decay: [min, max] ranges for non-target buildings (floors capped by the scene). cars: parked-car density; wreck_ratio: share of those that are wrecks. mix: weights over building site types and outdoor lots (market, park, plaza, parking_lot, rubble_field, substation). target: site type of the gig target. Optional (theme parks, after real park plans: a hub plaza with lands off it, wide pedestrian midways, fenced ride enclosures with queue benches, kiosks along the walks, a boardwalk on the sea): midway (roads are paved walks, not asphalt), hub (the lot at a radial pattern's centre becomes this yard), shore (a boardwalk and the sea along the bottom edge), street_props {rate, pieces} (what stands along the walks, instead of the city's vending machines and benches), pockets (what the leftover small lots become, instead of park/plaza/parking); the outdoor lots `ride` (a fenced ride enclosure with one gate) and `woods` (a dense stand of trees: the Haunted Woods' fake forest).",
   "corporate_center": {"cluster": 0.15, "name": "Corporate Center", "pattern": "grid", "block": [34, 46], "road_w": 8, "diag": 0.3, "curve": 0.1, "alley": 0.2,
     "floors": [2, 4], "security": [1, 3], "decay": [0, 0], "cars": 0.25, "wreck_ratio": 0.0,
     "mix": {"construction": 1, "corp_office": 5, "corp_hq": 2, "data_center": 2, "ncpd_precinct": 1, "shop": 1, "clinic": 1, "plaza": 2, "park": 1, "parking_lot": 1}, "target": "corp_hq"},
@@ -26,5 +26,13 @@
     "mix": {"factory": 4, "warehouse": 4, "chop_shop": 2, "substation": 2, "parking_lot": 1}, "target": "factory"},
   "pacifica": {"cluster": 0.75, "name": "Pacifica", "pattern": "radial", "block": [28, 42], "road_w": 8, "diag": 0.1, "curve": 0.4, "alley": 0.4,
     "floors": [1, 4], "security": [0, 1], "decay": [0.2, 0.6], "cars": 0.06, "wreck_ratio": 0.8,
-    "mix": {"construction": 2, "apartments": 3, "squat": 2, "gang_hideout": 2, "market": 1, "park": 1, "rubble_field": 2, "bar": 1, "temple": 1}, "target": "gang_hideout"}
+    "mix": {"construction": 2, "apartments": 3, "squat": 2, "gang_hideout": 2, "market": 1, "park": 1, "rubble_field": 2, "bar": 1, "temple": 1}, "target": "gang_hideout"},
+  "theme_park": {"cluster": 0.3, "name": "Theme park land (Playland by the Sea)", "pattern": "radial", "block": [18, 28], "road_w": 8, "diag": 0.0, "curve": 0.3, "alley": 0.2,
+    "floors": [1, 2], "security": [0, 1], "decay": [0, 0], "cars": 0, "wreck_ratio": 0,
+    "midway": true, "hub": "plaza", "shore": true, "street_props": {"rate": 0.12, "pieces": ["kiosk", "kiosk", "bench", "planter", "vending", "tree"]},
+    "pockets": ["park", "plaza"], "mix": {"ride": 5, "club": 2, "restaurant": 2, "shop": 2, "market": 1, "park": 1, "bar": 1}, "target": "club"},
+  "haunted_woods": {"cluster": 0.2, "name": "Haunted Woods (Playland's fake forest)", "pattern": "organic", "block": [20, 30], "road_w": 6, "diag": 0.0, "curve": 0.6, "alley": 0.2,
+    "floors": [1, 2], "security": [0, 1], "decay": [0, 0.1], "cars": 0, "wreck_ratio": 0,
+    "midway": true, "street_props": {"rate": 0.14, "pieces": ["tree", "tree", "tree", "kiosk", "bench"]},
+    "pockets": ["woods", "park"], "mix": {"woods": 6, "club": 3, "ride": 2, "restaurant": 1, "shop": 1}, "target": "club"}
 }

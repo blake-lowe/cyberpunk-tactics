@@ -156,7 +156,7 @@ func test_v9_save_gets_a_safehouse_district_and_a_clock() -> void:
 	assert_true(c != null)
 	assert_eq(c.safehouse_district, Campaign.DEFAULT_SAFEHOUSE, "an old crew lives in the default district (v10)")
 	assert_eq(c.minutes, 0)
-	assert_eq(int(c.to_dict().version), 10)
+	assert_eq(int(c.to_dict().version), SaveMigrations.CURRENT)
 
 
 func test_safehouse_district_and_clock_survive_a_save() -> void:

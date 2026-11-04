@@ -98,7 +98,10 @@ func _gig_card(i: int, ready: bool) -> PanelContainer:
 	var mid := UiKit.vbox(6)
 	mid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(mid)
-	mid.add_child(UiKit.body("★ " + String(OBJECTIVE_TEXT.get(Campaign.objective_for(g), "")), 15, Hud.TEXT))
+	if Campaign.is_operation(g):
+		_operation_lines(mid, g)
+	else:
+		mid.add_child(UiKit.body("★ " + String(OBJECTIVE_TEXT.get(Campaign.objective_for(g), "")), 15, Hud.TEXT))
 	if g.get("unique", false):
 		mid.add_child(UiKit.body("Personal job: %s has heard of the crew. Double pay." % String(g.fixer), 14, Hud.CYAN))
 	var right := UiKit.vbox(6)
@@ -110,6 +113,28 @@ func _gig_card(i: int, ready: bool) -> PanelContainer:
 	var b := UiKit.button("TAKE THE GIG", UiKit.PRIMARY, func(): take_gig.emit(i), ready)
 	right.add_child(b)
 	return p
+
+
+## An operation's card: its legs in order (land · place, what for, the place's code), the event
+## on, and the gate rule with what the crew would leave in the van.
+func _operation_lines(v: VBoxContainer, g: Dictionary) -> void:
+	var legs: Array = g.legs
+	v.add_child(UiKit.label("OPERATION · %d MAPS BACK TO BACK, NO REST BETWEEN" % legs.size(), 12, Hud.GOLD))
+	for k in legs.size():
+		var l: Dictionary = legs[k]
+		v.add_child(UiKit.body("%d. %s: %s" % [k + 1, String(l.leg_title), String(l.line)], 14, Hud.TEXT))
+		v.add_child(UiKit.label("    ★ %s · %s · %s eb" % [String(OBJECTIVE_TEXT.get(Campaign.objective_for(l), "")),
+			Campaign.code_label(l), UiKit.money(int(l.pay))], 11, Hud.DIM))
+	var ev: Dictionary = g.get("event", {})
+	if not ev.is_empty():
+		v.add_child(UiKit.body("Event: %s (%s). %s" % [String(ev.name), String(ev.when), String(ev.text)], 13, Hud.CYAN))
+	if String(Campaign.operation_def(g).get("gate", "")) == "conceal":
+		var van: Array[String] = []
+		for c in camp.alive_crew():
+			for w in Campaign.banned_weapons(c):
+				van.append("%s's %s" % [c.display_name, w])
+		v.add_child(UiKit.body("No weapons past the gate: only concealable ones get in. %s" % (
+			("Stays in the van: %s." % ", ".join(van)) if not van.is_empty() else "Everything the crew carries can be hidden."), 13, Hud.RED if not van.is_empty() else Hud.DIM))
 
 
 # --- Hire -----------------------------------------------------------------------------------
