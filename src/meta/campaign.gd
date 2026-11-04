@@ -131,8 +131,16 @@ func refresh_board() -> void:
 			"blurb": _fill(String(t.blurb), slots), "security": sec, "twist": twist,
 			"pay": int(int(g.pay[str(sec)]) * (1.0 + frep * 0.05) * mult), "rep": sec, "seed": dice.rng.randi_range(1, 99999),
 			"setup": frep == 0 and dice.rng.randf() < float(g.get("betrayal_chance", 0.0))})
-		board[-1].merge(_place_for(String(t.kind), g))
+		board[-1].merge(_place_for(String(t.kind), g, String(slots.faction)))
+		_fit_location_security(board[-1])
 	_unique_offer(g)
+
+
+## A gig at a named location keeps to that place's security range.
+static func _fit_location_security(gig: Dictionary) -> void:
+	var l := World.location(String(gig.get("location", "")))
+	if l.has("security"):
+		gig.security = clampi(int(gig.security), int(l.security[0]), int(l.security[1]))
 
 
 ## A fixer who trusts the crew (rep >= unique_rep) sometimes has a personal job: security 3, double
@@ -148,7 +156,7 @@ func _unique_offer(g: Dictionary) -> void:
 	board.append({"id": "%d-u" % day, "kind": t.kind, "fixer": slots.fixer, "faction": slots.faction, "title": _fill(_pick(_titles_for(t, String(slots.faction))), slots),
 		"blurb": _fill(String(t.blurb), slots), "security": sec, "twist": "", "unique": true,
 		"pay": int(int(g.pay[str(sec)]) * float(t.pay_mult)), "rep": int(t.rep), "seed": dice.rng.randi_range(1, 99999), "setup": false})
-	board[-1].merge(_place_for(String(t.kind), g))
+	board[-1].merge(_place_for(String(t.kind), g, String(slots.faction)))
 
 
 ## The gig's target (World faction able to be the target of this kind) and the {corp}/{gang}
@@ -220,7 +228,13 @@ func _salvage_mult() -> float:
 
 ## Where a gig happens: any scene whose tags fit the job (gigs.json scene_tags / kind_tags), or
 ## (raid_chance) a raid on a single site picked for the job. Returns {scene, profile, site}.
-func _place_for(kind: String, g: Dictionary) -> Dictionary:
+func _place_for(kind: String, g: Dictionary, faction := "") -> Dictionary:
+	var owned := World.locations_for(faction, kind)   # the target's own places first (data/world/locations.json)
+	if not owned.is_empty() and dice.rng.randf() < float(g.get("location_chance", 0.6)):
+		var lid: String = _pick(owned)
+		var l := World.location(lid)
+		return {"scene": String(l.get("scene", "neighborhood" if l.has("profile") else "lone_building")),
+			"profile": String(l.get("profile", "")), "site": String(l.get("site", "")), "location": lid}
 	if dice.rng.randf() < float(g.get("raid_chance", 0.0)) and g.raid_sites.has(kind):
 		return {"scene": "lone_building", "profile": "", "site": _pick(g.raid_sites[kind])}
 	var want: Array = g.kind_tags.get(kind, [])
@@ -233,6 +247,8 @@ func _place_for(kind: String, g: Dictionary) -> Dictionary:
 
 ## The gig's place as the board shows it: a site, a neighbourhood or a scene.
 static func place_name(gig: Dictionary) -> String:
+	if String(gig.get("location", "")) != "":
+		return String(World.location(String(gig.location)).get("name", gig.location))
 	if String(gig.get("site", "")) != "":
 		return String(RulesDB.gen("sites.json").get(gig.site, {}).get("name", String(gig.site).replace("_", " ")))
 	if String(gig.get("profile", "")) != "":

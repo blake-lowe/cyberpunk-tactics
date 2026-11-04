@@ -501,9 +501,9 @@ func _apply_look() -> void:
 	if pname == "sunset":
 		hexes = PALETTE_SUNSET
 		nn = PALETTE_SUNSET_NEUTRALS
-	elif SceneTheme.PALETTES.has(pname):
-		nn = int(SceneTheme.PALETTES[pname][0])
-		hexes = SceneTheme.PALETTES[pname][1]
+	elif SceneTheme.palettes().has(pname):
+		nn = int(SceneTheme.palettes()[pname][0])
+		hexes = SceneTheme.palettes()[pname][1]
 	var pal := PackedVector3Array()
 	for h in hexes:
 		pal.append(_oklab(Color(h)))

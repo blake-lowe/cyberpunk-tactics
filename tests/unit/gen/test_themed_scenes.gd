@@ -60,11 +60,11 @@ func test_arcology_has_a_security_line_and_a_pool() -> void:
 
 
 func test_theme_palettes_and_recolours() -> void:
-	for th in SceneTheme.THEMES:
-		var pal := String(SceneTheme.THEMES[th].get("palette", ""))
-		assert_true(SceneTheme.PALETTES.has(pal), "%s palette %s exists" % [th, pal])
-	for name in SceneTheme.PALETTES:
-		var p: Array = SceneTheme.PALETTES[name]
+	for th in SceneTheme.themes():
+		var pal := String(SceneTheme.themes()[th].get("palette", ""))
+		assert_true(SceneTheme.palettes().has(pal), "%s palette %s exists" % [th, pal])
+	for name in SceneTheme.palettes():
+		var p: Array = SceneTheme.palettes()[name]
 		assert_true(int(p[0]) < (p[1] as Array).size() and (p[1] as Array).size() <= 64, "%s fits the post shader" % name)
 		for h in p[1]:
 			assert_true(Color.html_is_valid(h), "%s: %s" % [name, h])

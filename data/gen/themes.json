@@ -1,0 +1,478 @@
+{
+	"_doc": "Per-scene visual identity (SceneTheme): material recolours (LIB name -> color/color2/pattern/scale/rough/metal/glow/emit), light colours for LightPlan (lamp/neon/zone_light/fire), lamp_style (pole | bulkhead), surround (skyline | desert | bedrock | atrium | ruins), ambient effects (embers, steam, drips, motes), blaze share, lamp_keep share, and the post-process palette name. Palettes: [neutral count, hex colours]: neutral ramps first; saturated ramps after them are only used by saturated pixels. Scenes without an entry keep the night-city defaults.",
+	"themes": {
+		"undercity": {
+			"palette": "toxic",
+			"surround": "bedrock",
+			"lamp_style": "bulkhead",
+			"lamp": [
+				"ffa830"
+			],
+			"neon": [
+				"39f06a",
+				"ffb02e",
+				"2ae8d0"
+			],
+			"zone_light": [
+				"ffa830",
+				"ffb860",
+				"c8ffd0",
+				"6affb0",
+				"ff3030"
+			],
+			"ambient": [
+				"steam",
+				"drips"
+			],
+			"mats": {
+				"concrete": {
+					"color": "34403a",
+					"color2": "1e2622",
+					"pattern": 1,
+					"scale": 0.5
+				},
+				"sidewalk": {
+					"color": "4a544a",
+					"color2": "2c342c",
+					"pattern": 4,
+					"scale": 1.2
+				},
+				"dock": {
+					"color": "3a2a1c",
+					"color2": "1c140e"
+				},
+				"water": {
+					"color": "0c2a18",
+					"color2": "06200f",
+					"glow": 0.24,
+					"emit": "28c858"
+				},
+				"wall_concrete": {
+					"color": "3e4a40",
+					"color2": "1e2620"
+				},
+				"wall_plaster": {
+					"color": "4a4a3a",
+					"color2": "2a2a20"
+				},
+				"wall_int": {
+					"color": "56584a",
+					"color2": "3a3c32"
+				},
+				"cornice": {
+					"color": "c88a1a",
+					"color2": "c88a1a"
+				},
+				"skirt": {
+					"color": "141a14",
+					"color2": "141a14"
+				},
+				"roof": {
+					"color": "1e241f",
+					"color2": "121612"
+				},
+				"bedrock": {
+					"color": "141914",
+					"color2": "0c0f0c"
+				},
+				"floor_concrete": {
+					"color": "2c322c",
+					"color2": "1a1e1a"
+				}
+			}
+		},
+		"arcology": {
+			"palette": "clinical",
+			"surround": "atrium",
+			"lamp_style": "pole",
+			"lamp": [
+				"e8f2ff"
+			],
+			"neon": [
+				"ff2a3a",
+				"f0f4ff",
+				"ff2a3a",
+				"05d9e8"
+			],
+			"zone_light": [
+				"c8d4e8",
+				"d0ccc4",
+				"b8c8e0",
+				"ff9090",
+				"ff2030"
+			],
+			"ambient": [
+				"motes"
+			],
+			"mats": {
+				"concrete": {
+					"color": "6a6e74",
+					"color2": "b8bcc0",
+					"pattern": 1,
+					"scale": 0.5,
+					"rough": 0.2
+				},
+				"sidewalk": {
+					"color": "c4c4c0",
+					"color2": "9a9a96",
+					"pattern": 1,
+					"scale": 0.5,
+					"rough": 0.2
+				},
+				"asphalt": {
+					"color": "34363a",
+					"color2": "26282c",
+					"pattern": 1,
+					"scale": 0.5,
+					"rough": 0.3
+				},
+				"grass": {
+					"color": "2a4a2a",
+					"color2": "3a5a30"
+				},
+				"water": {
+					"color": "0a2a3a",
+					"color2": "0a2a3a",
+					"glow": 0.4,
+					"emit": "3a9ac8"
+				},
+				"wall_concrete": {
+					"color": "e6e6e2",
+					"color2": "c8c8c4",
+					"pattern": 0
+				},
+				"wall_plaster": {
+					"color": "dcdcd6",
+					"color2": "c0c0ba",
+					"pattern": 0
+				},
+				"wall_steel": {
+					"color": "8e959e",
+					"color2": "6a7078"
+				},
+				"wall_int": {
+					"color": "d2d4d6",
+					"color2": "b8babc"
+				},
+				"cornice": {
+					"color": "c8102e",
+					"color2": "c8102e",
+					"glow": 0.6,
+					"emit": "ff2a3a"
+				},
+				"skirt": {
+					"color": "1a1c20",
+					"color2": "1a1c20"
+				},
+				"roof": {
+					"color": "868c94",
+					"color2": "6c727a",
+					"pattern": 1,
+					"scale": 0.3
+				},
+				"floor_tile": {
+					"color": "d8d8d4",
+					"color2": "bcbcb8",
+					"rough": 0.15
+				},
+				"floor_carpet": {
+					"color": "3a0810",
+					"color2": "3a0810"
+				},
+				"floor_concrete": {
+					"color": "b8b8b4",
+					"color2": "9e9e9a"
+				},
+				"floor_metal": {
+					"color": "9aa0a8",
+					"color2": "7a8088"
+				},
+				"floor_wood": {
+					"color": "6a4a34",
+					"color2": "4a3222"
+				},
+				"frame": {
+					"color": "2a2c30",
+					"color2": "2a2c30"
+				},
+				"glass": {
+					"color": "c8e8ff",
+					"alpha": 0.18,
+					"glow": 0.15
+				},
+				"post": {
+					"color": "c8c8c8",
+					"color2": "c8c8c8"
+				},
+				"stone": {
+					"color": "e0deda",
+					"color2": "c4c2be"
+				},
+				"atrium": {
+					"color": "eceae6",
+					"color2": "d4d2ce"
+				}
+			}
+		},
+		"warzone": {
+			"palette": "inferno",
+			"surround": "ruins",
+			"lamp_style": "pole",
+			"lamp": [
+				"ff8a30"
+			],
+			"neon": [
+				"ff6b1a",
+				"ff2a3a",
+				"f9c80e"
+			],
+			"zone_light": [
+				"ff9a50",
+				"ffb070",
+				"ffc890",
+				"ff7040",
+				"ff3030"
+			],
+			"fire": "ff7a24",
+			"blaze": 0.85,
+			"lamp_keep": 0.25,
+			"ambient": [
+				"embers"
+			],
+			"mats": {
+				"asphalt": {
+					"color": "222022",
+					"color2": "121112"
+				},
+				"sidewalk": {
+					"color": "3a3636",
+					"color2": "242222"
+				},
+				"concrete": {
+					"color": "3c3836",
+					"color2": "262322"
+				},
+				"gravel": {
+					"color": "3a322a",
+					"color2": "241f1a"
+				},
+				"dirt": {
+					"color": "46382a",
+					"color2": "2a2018"
+				},
+				"grass": {
+					"color": "2e2a1c",
+					"color2": "3a3220"
+				},
+				"wall_concrete": {
+					"color": "5a514a",
+					"color2": "2a2420"
+				},
+				"wall_plaster": {
+					"color": "6a5a4a",
+					"color2": "3a2e24"
+				},
+				"wall_int": {
+					"color": "6a6058",
+					"color2": "4a423c"
+				},
+				"cornice": {
+					"color": "2a2420",
+					"color2": "2a2420"
+				},
+				"roof": {
+					"color": "2e2a28",
+					"color2": "1a1716"
+				},
+				"rock": {
+					"color": "4a423c",
+					"color2": "2e2824"
+				},
+				"tower": {
+					"color": "120e0c",
+					"color2": "0a0807"
+				},
+				"tower_top": {
+					"color": "0e0a08",
+					"color2": "0e0a08"
+				},
+				"far_ground": {
+					"color": "140e0b",
+					"color2": "0a0706"
+				}
+			}
+		}
+	},
+	"palettes": {
+		"toxic": {
+			"neutrals": 30,
+			"colors": [
+				"040605",
+				"090e0b",
+				"0f1712",
+				"16211a",
+				"1e2c23",
+				"28392d",
+				"344839",
+				"435947",
+				"566b58",
+				"6e8270",
+				"8a9c88",
+				"aab8a4",
+				"cfd8c6",
+				"eef2e4",
+				"22241f",
+				"33362f",
+				"484b41",
+				"62665a",
+				"2a1a10",
+				"46291a",
+				"643c24",
+				"8a5430",
+				"b07040",
+				"8a5a40",
+				"c08a68",
+				"3a2c22",
+				"2a2414",
+				"4a4224",
+				"6a5e34",
+				"fff2d0",
+				"062a12",
+				"0e5a24",
+				"22a844",
+				"4af07a",
+				"c0ffd0",
+				"062e30",
+				"0a5e5e",
+				"2ae8d0",
+				"b0fff0",
+				"3a2406",
+				"8a5a08",
+				"ffb02e",
+				"ffe0a0",
+				"5a0a10",
+				"c81e2a",
+				"ff3b4f",
+				"0a4a5a",
+				"05d9e8",
+				"aaf6ff",
+				"5a1040",
+				"ff2a6d",
+				"4a1a6a",
+				"b537f2"
+			]
+		},
+		"clinical": {
+			"neutrals": 30,
+			"colors": [
+				"06070a",
+				"0e1014",
+				"171a1f",
+				"22262c",
+				"2e333a",
+				"3c424a",
+				"4c535c",
+				"5e666f",
+				"727a84",
+				"88909a",
+				"9ea6ae",
+				"b4bac0",
+				"c8cdd2",
+				"dadee2",
+				"e8ebee",
+				"f6f8fa",
+				"e6e0d6",
+				"d0c8bc",
+				"b8ae9e",
+				"8a5a40",
+				"c08a68",
+				"3a2a1f",
+				"6a4a34",
+				"1f3a24",
+				"2f5a32",
+				"4a7a44",
+				"3a4a5e",
+				"5a7088",
+				"8aa4c0",
+				"c4d8ec",
+				"2a0408",
+				"5a0a14",
+				"a00c24",
+				"e8142e",
+				"ff5a6a",
+				"ffc0c8",
+				"062430",
+				"0a4a5a",
+				"05d9e8",
+				"aaf6ff",
+				"6a4a08",
+				"f9c80e",
+				"5a1040",
+				"ff2a6d",
+				"4a1a6a",
+				"b537f2",
+				"0e5a3a",
+				"39f0a0"
+			]
+		},
+		"inferno": {
+			"neutrals": 32,
+			"colors": [
+				"050303",
+				"0c0807",
+				"140e0c",
+				"1e1612",
+				"281e19",
+				"342720",
+				"42322a",
+				"524036",
+				"665044",
+				"7c6454",
+				"947a66",
+				"b09684",
+				"d0b8a4",
+				"f0e0d0",
+				"242222",
+				"383534",
+				"504b48",
+				"6c6662",
+				"8e8780",
+				"b4aca4",
+				"3a1e14",
+				"5a2c1c",
+				"7a3e26",
+				"8a5a40",
+				"c08a68",
+				"2e2a1a",
+				"4a4428",
+				"6a6038",
+				"1a1418",
+				"2e2430",
+				"4a3a4c",
+				"6a5a6a",
+				"2e0c04",
+				"5e1a06",
+				"a8340a",
+				"ff6b1a",
+				"ffa050",
+				"ffd8a0",
+				"4a3006",
+				"a07008",
+				"f9c80e",
+				"fff0a0",
+				"4a080c",
+				"a01420",
+				"ff3b4f",
+				"0a4a5a",
+				"05d9e8",
+				"aaf6ff",
+				"5a1040",
+				"ff2a6d",
+				"4a1a6a",
+				"b537f2",
+				"0e5a3a",
+				"39f0a0"
+			]
+		}
+	}
+}

@@ -3,6 +3,12 @@
 # Fails if any assertion fails OR Godot reports a script/parse error.
 set -uo pipefail
 cd "$(dirname "$0")/.."
+# data/world/ is generated from docs/world/: fail if someone edited one without the other.
+if command -v python3 >/dev/null 2>&1; then
+  if ! python3 tools/gen_world_data.py --check; then
+    echo "FAIL: data/world is out of date with docs/world (run python3 tools/gen_world_data.py)"; exit 1
+  fi
+fi
 # Refresh the import cache so class_name globals resolve.
 godot --headless --path . --import >/dev/null 2>&1
 out=$(timeout 900 godot --headless --path . -s tests/run_tests.gd -- "${1:-}" 2>&1)

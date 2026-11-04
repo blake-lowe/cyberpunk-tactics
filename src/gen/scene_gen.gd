@@ -8,6 +8,10 @@ extends RefCounted
 const G := TacMap.G
 
 
+## Every scene id generate() can build (its match below), for data validation.
+const PLANNERS := ["lone_building", "skirmish", "street_block", "city_district", "neighborhood", "megablock",
+	"shipyard", "badlands", "rail_yard", "corp_campus", "undercity", "arcology", "warzone"]
+
 static func scene_types() -> Array:
 	return RulesDB.gen("scenes.json").keys().filter(func(k): return not k.begins_with("_"))
 

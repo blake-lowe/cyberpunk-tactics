@@ -122,3 +122,27 @@ static func responder(id: String) -> Dictionary:
 ## What the view dresses the faction in (see factions.json look).
 static func look(id: String) -> Dictionary:
 	return faction(id).get("look", {})
+
+
+# --- Locations (data/world/locations.json) ----------------------------------------------
+
+static func locations() -> Dictionary:
+	return RulesDB.world("locations.json").get("locations", {})
+
+
+static func location(id: String) -> Dictionary:
+	var l: Dictionary = (locations().get(id, {}) as Dictionary).duplicate()
+	if not l.is_empty():
+		l["id"] = id
+	return l
+
+
+## Locations `faction` owns where a `gig_kind` job can happen, in data order.
+static func locations_for(faction: String, gig_kind: String) -> Array[String]:
+	var out: Array[String] = []
+	for id in locations():
+		var l: Dictionary = locations()[id]
+		if String(l.get("owner", "")) == faction and gig_kind in (l.get("gigs", []) as Array):
+			out.append(String(id))
+	return out
+
