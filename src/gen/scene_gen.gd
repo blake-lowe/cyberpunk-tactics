@@ -63,9 +63,9 @@ static func generate(seed_value: int, scene: String, overrides: Dictionary = {})
 	return m
 
 
-## Devices on the target structure that the crew can't reach from the deploy zone (boxed in by
-## props placed after them) move to the nearest reachable free square in their room, else in their
-## structure. Door locks sit on doors and stay put.
+## Devices the crew can't reach from the deploy zone (boxed in by props placed after them) move to
+## the nearest reachable free square in their room, else in their structure; grounds devices move to
+## the nearest reachable open-air square within 8. Door locks sit on doors and stay put.
 static func _reseat_devices(m: TacMap) -> void:
 	var dep := Vector3i(-1, -1, -1)
 	for e in m.entrances:
@@ -80,17 +80,21 @@ static func _reseat_devices(m: TacMap) -> void:
 		used[Vector3i(dv.pos.x, dv.pos.y, dv.floor)] = true
 	for dv in m.devices:
 		var at := Vector3i(dv.pos.x, dv.pos.y, dv.floor)
-		if dv.type == "door_lock" or reach.has(at) or int(dv.get("structure", -1)) < 0 or not m.structures[dv.structure].target:
+		if dv.type == "door_lock" or reach.has(at):
 			continue
+		var sid := int(dv.get("structure", -1))
 		var best := Vector3i(-1, -1, -1)
 		var best_d := INF
 		for cell in reach:
 			if cell.z != dv.floor or used.has(cell) or m.has_cover_at(cell.z, Vector2i(cell.x, cell.y)):
 				continue
 			var l := m.label(cell.z, cell.x, cell.y)
-			if l < 0 or m.rooms[l].get("structure", -1) != dv.structure:
+			var cs: int = -1 if l < 0 else int(m.rooms[l].get("structure", -1))
+			if cs != sid:
 				continue
 			var dd := Vector2(cell.x - at.x, cell.y - at.y).length() + (0.0 if l == int(dv.get("room", -2)) else 50.0)
+			if sid < 0 and dd > 8.0:
+				continue
 			if dd < best_d:
 				best_d = dd
 				best = cell

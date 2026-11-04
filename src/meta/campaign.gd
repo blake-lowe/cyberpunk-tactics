@@ -519,6 +519,9 @@ static func scene_opts(gig: Dictionary) -> Dictionary:
 		o["profile"] = gig.profile
 	if String(gig.get("site", "")) != "":
 		o["site"] = gig.site
+	if String(gig.get("setpiece", "")) != "":   # a famous place builds its own recipe
+		o["setpiece"] = gig.setpiece
+		o["location"] = String(gig.get("location", ""))
 	return o
 
 

@@ -266,6 +266,16 @@ func test_a_gig_at_a_famous_place_plays_as_its_set_piece() -> void:
 	assert_false(Campaign._place_at("little_europe_1").has("setpiece"), "ordinary places stay procedural")
 
 
+func test_campaign_scene_opts_build_the_set_piece() -> void:
+	var gig := {"security": 2, "scene": "lone_building"}
+	gig.merge(Campaign._place_at("south_night_city_4"))
+	var o := Campaign.scene_opts(gig)
+	assert_eq(String(o.get("setpiece", "")), "fort_sumter", "scene_opts carries the set piece")
+	assert_eq(String(o.get("location", "")), "south_night_city_4", "and its location")
+	var m := SceneGen.generate(9, String(gig.get("scene", "lone_building")), o)
+	assert_eq(String(m.params.get("setpiece", "")), "fort_sumter", "the campaign map is the set piece")
+
+
 # --- Visual identity: the shapes the looks hang on ------------------------------------------------
 
 ## A building's indoor squares on storey f, as their bounding box.

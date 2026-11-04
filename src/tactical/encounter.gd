@@ -166,7 +166,8 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 	for i in n:
 		var tier: String = roster[i]
 		var g := World.npc(p_dice, e.post_faction, tier, i + 1, "", e._hardened_posts)
-		if posts[i].has("weapon"):   # a set piece's post hands its guard a weapon (roof snipers' rifles)
+		# HOUSE-RULE: a set piece's post can hand its guard a weapon the printed block lacks (roof snipers' rifles)
+		if posts[i].has("weapon"):
 			g.weapons.insert(0, Weapon.from_id(String(posts[i].weapon)))
 		e._add(g, Vector3i(posts[i].pos.x, posts[i].pos.y, posts[i].floor), OPFOR)
 		if posts[i].has("facing"):   # a nest: stays put, watching out over the parapet

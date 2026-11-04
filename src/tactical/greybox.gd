@@ -39,6 +39,7 @@ var cover_mode := false
 var move_opts := {}
 var hover := Vector3i(-1, -1, -1)
 var mouse := Vector2.ZERO
+var _security_flag := false   # --security= given: it overrides a set piece's own level
 var gig := {"scene": "skirmish", "profile": "", "seed": 11, "security": 1, "faction": "", "site": ""}
 var look := {"pixel": 0.0, "palette": 1.0, "levels": 0.0, "dither": 0.3, "contrast": 1.0, "saturation": 1.1, "outline": 0.35,
 	"bloom": 1.2, "ortho": 1.0, "lights": 1.0, "dim": 0.5, "spill": 1.0, "net_style": 7.0}
@@ -265,7 +266,9 @@ func _ready() -> void:
 			"floor": _shot_floor = int(kv[1])   # review renders: look at this storey
 			"kit": _dev_kit = kv[1].split(",")   # review renders: pack every crew member's kit slots
 			"stage": _dev_stage = kv[1]   # review renders: open the action bar on this stage (attack)
-			"security": gig.security = int(kv[1])
+			"security":
+				gig.security = int(kv[1])
+				_security_flag = true
 			"objective": gig["objective"] = kv[1]
 			"complication": gig["complication"] = kv[1]   # force one: mook:2, lieutenant:1, mini_boss:4
 			"fog": fog_on = kv[1] != "0"
@@ -557,6 +560,8 @@ func new_gig() -> void:
 	if String(gig.get("setpiece", "")) != "":
 		o["setpiece"] = gig.setpiece
 		o["location"] = String(gig.get("location", ""))
+		if not _security_flag:   # review renders show the recipe's own security level
+			o.erase("security")
 		if String(gig.get("faction", "")) == "":
 			gig.faction = String(SetPieces.get_def(String(gig.setpiece)).get("faction", ""))
 	var camp := Campaign.current
