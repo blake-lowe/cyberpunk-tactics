@@ -294,6 +294,12 @@ func gig_reset() -> void:
 	drug_fx.clear()
 
 
+## A flashbang's or teargas's injuries last "for the next minute" (p.346-347; Attack `expires_in`
+## rounds, counted down on the victim's own turns). Once the fight is over that minute has passed.
+func expire_brief_injuries() -> void:
+	injuries.assign(injuries.filter(func(i): return not i.has("expires_in")))
+
+
 func rank_raise_cost() -> int:
 	return 60 * (role_rank + 1)   # CPR core p411
 
@@ -718,7 +724,8 @@ static func from_dict(d: Dictionary) -> Combatant:
 		c.weapons.append(w)
 	c.role = String(d.role)
 	c.role_rank = int(d.role_rank)
-	c.awareness = d.awareness
+	for k in d.awareness:   # JSON numbers come back as floats
+		c.awareness[String(k)] = int(d.awareness[k])
 	c.tracks_humanity = bool(d.tracks_humanity)
 	c.humanity = int(d.humanity)
 	c.max_humanity = int(d.max_humanity)

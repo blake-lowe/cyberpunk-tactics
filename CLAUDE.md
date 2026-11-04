@@ -7,6 +7,10 @@ Design source of truth: `docs/design-spec.md`. Milestones and status: `docs/road
 - `tools/install_godot.sh` — installs pinned Godot to /opt/godot (cloud containers start without it).
 - `tools/test.sh [filter]` — headless unit tests. Must pass before every commit.
 - Tests live in `tests/unit/**/test_*.gd`, extend `TestCase`, methods named `test_*`.
+- `tools/soak.sh [--campaigns=30 --gigs=6 --rounds=12 --plan=board,setpiece]` — integration soak of the whole
+  gig loop (SoakDriver: board offers, forced gigs at every set piece; AI both sides; resolve/save/reload;
+  invariants, determinism). ~10 s a gig: run it in the background after gig-loop changes.
+  `tests/unit/test_soak.gd` is its small pass. Campaign gigs are built by `GigSetup.for_campaign` (greybox and soak share it).
 - Gotcha: a parse error in any script a `-s` main script depends on makes Godot hang in the debugger instead of exiting. Always wrap ad-hoc `godot -s` runs in `timeout`, and run code through `tools/test.sh` first to surface parse errors.
 - No GPU in the cloud container: verify logic with tests, not screenshots. Visual work is reviewed by the user locally.
 
