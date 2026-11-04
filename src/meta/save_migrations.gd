@@ -24,8 +24,11 @@ extends RefCounted
 ##     bought), so any "cyberware/..." key in one is junk the v6 loader ignored; it is dropped here so
 ##     it can't turn into a free piece. Installed chrome stays installed. Debrief entries gain "lost"
 ##     (what a fallen member had on them): v6 entries list their lost kit there.
+## v8: Night City 2045 Security and Utility Codes (NC2045 p.7-8). Board gigs carry `district`,
+##     `security_code`, `district_code` and `utility_code`; older offers get them from their
+##     location, else the fallback for their 1-3 security level (Campaign.codes_for), which stays.
 
-const CURRENT := 7
+const CURRENT := 8
 
 
 ## Upgrade `d` (a parsed save) to CURRENT. Returns {} for a save from a newer build, which this
@@ -43,6 +46,7 @@ static func migrate(d: Dictionary) -> Dictionary:
 			4: _v4_to_v5(d)
 			5: _v5_to_v6(d)
 			6: _v6_to_v7(d)
+			7: _v7_to_v8(d)
 		v += 1
 		d["version"] = v
 	return d
@@ -149,3 +153,10 @@ static func _v6_to_v7(d: Dictionary) -> void:
 	for m in d.get("debrief", []):
 		if m is Dictionary and not (m as Dictionary).has("lost"):
 			m["lost"] = (m.get("kit", []) as Array).duplicate() if m.get("dead", false) else []
+
+
+static func _v7_to_v8(d: Dictionary) -> void:
+	for g in d.get("board", []):
+		if g is Dictionary and not (g as Dictionary).has("security_code"):
+			var did := String(World.location(String(g.get("location", ""))).get("district", ""))
+			(g as Dictionary).merge(Campaign.codes_for(g, did), true)

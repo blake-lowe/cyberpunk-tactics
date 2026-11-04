@@ -50,18 +50,32 @@ var vision: Vision                  ## what the crew can see (drives fog and hid
 var events: Array[Dictionary] = []
 var lit := {}                       ## Vector3i → true where a light reaches (darkness: -4 to spot, p? task table)
 var alarm := 0                      ## 0 quiet, 1 a guard is onto the crew, 2 backup called
-var backup_in := -1                 ## rounds until reinforcements arrive (-1 none scheduled)
+## Security Codes (NC2045 p.7, SecurityCode): the site's code answers the call (its roll, faction,
+## intensity, Hardened); the district's code can send a second, street-level response after it.
+var code: Dictionary = {}
+var street_code: Dictionary = {}    ## {} when there is no separate street roll
+var utility_code := 0               ## NC2045 p.8: 1d10 per utility, under it that utility is out
+var outages: Array[String] = []     ## utilities out this gig: power, water, citinet
+var backup_in := -1                 ## rounds until the site code's response arrives (-1 none coming)
+var backup_label := "BACKUP"        ## who that is, for the HUD
 var _backup_round := 0
 var _patrol_round := -1
-var reinforcements := true          ## backup/NCPD on (balance tests switch them off)
-var ncpd_in := -1                   ## rounds until the NCPD response (after backup has arrived)
+var reinforcements := true          ## responses on (balance tests switch them off)
+var ncpd_in := -1                   ## rounds until the street-level (district code) response; -2 once it came
+var ncpd_label := "NCPD"
 var _ncpd_round := 0
+var _response: Dictionary = {}      ## the planned responses: {code, fid, own, label, rank}
+var _street: Dictionary = {}
+var _hardened_posts := false        ## the site's own guards use Hardened blocks (a Hardened code of theirs)
 var _spot_rolls := {}               ## [guard id, crew id, round] → result: one stealth roll per pair per round
 var jack_pos := {}                  ## runner unit id → the square of the device they jacked in at
 var disabled_devices := {}          ## device id → true (turrets/cameras under the runner's control)
 
 
-## opts: {faction: the gig's target faction id (World), default generic private security}.
+## opts: {faction: the gig's target faction id (World), default generic private security;
+## security_code: the site's Security Code (SecurityCode; default the fallback for the map's
+## security level); district_code: the street's code ({} for none; default SecurityCode.STREET_FALLBACK);
+## utility_code: the Utility Code (default 0, nothing goes out)}.
 static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "data", p_twists: Array = [], opts: Dictionary = {}) -> Encounter:
 	var e := Encounter.new()
 	e.twists = p_twists.duplicate()
@@ -95,7 +109,17 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 	var posts := p_map.posts.duplicate()
 	posts.sort_custom(func(a, b): return int(a.structure == target_sid) > int(b.structure == target_sid))
 	var sec := mini(3, int(p_map.params.get("security", 1)) + (1 if "heavy" in p_twists else 0))
-	var roster := Security.roster(e.doctrine, crew.size(), sec)   # CPR p399 budget, strongest first (target building posts)
+	e.code = SecurityCode.normalise(opts.get("security_code"))
+	if e.code.is_empty():
+		e.code = SecurityCode.from_level(int(p_map.params.get("security", 1)))
+	if String(e.code.faction) == "":
+		e.code.faction = e.opfor_faction   # the fallback's "the site's own people"
+	e.street_code = SecurityCode.normalise(opts.get("district_code")) if opts.has("district_code") else SecurityCode.STREET_FALLBACK.duplicate()
+	e.utility_code = int(opts.get("utility_code", 0))
+	e._hardened_posts = bool(e.code.hardened) and String(e.code.faction) == e.opfor_faction
+	# CPR p399 budget, strongest first (target building posts), for the crew as the code's
+	# intensity counts it (NC2045 p.7: Light 1-2 smaller, Heavy 1 larger).
+	var roster := Security.roster(e.doctrine, SecurityCode.budget_crew_size(crew.size(), String(e.code.intensity), p_dice), sec)
 	var want := roster.size()
 	if posts.size() < want:
 		# Not enough posts (small sites with no guard rooms or security doors): spread the rest over
@@ -120,7 +144,7 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 	var n := mini(posts.size(), want)
 	for i in n:
 		var tier: String = roster[i]
-		var g := World.npc(p_dice, e.opfor_faction, tier, i + 1)
+		var g := World.npc(p_dice, e.opfor_faction, tier, i + 1, "", e._hardened_posts)
 		e._add(g, Vector3i(posts[i].pos.x, posts[i].pos.y, posts[i].floor), OPFOR)
 	# Objective: a module per kind (data/gen/objectives.json) places what the job needs.
 	e.obj = Objective.make(kind, e)
@@ -137,6 +161,8 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 		if u.alerted:
 			e.init.add(u.c)
 	e.vision = Vision.new(p_map, e.los)
+	e.outages = SecurityCode.roll_utilities(p_dice, e.utility_code)
+	e._apply_outages()
 	e._compute_light()
 	e._outer_patrols(cells[0])
 	e._post_guards()
@@ -1067,7 +1093,8 @@ const VIEW_HALF_ANGLE := 60.0   ## HOUSE-RULE: a guard watches a 120° cone ahea
 const AWARE_RANGE := 2.0        ## ...but notices anyone within 2 squares, any direction
 const DARK_PENALTY := 4         ## "Task obscured by smoke or darkness" (CPR p? task modifiers)
 const SHIFT_CHANGE_ROUND := 6    ## HOUSE-RULE twist: the next shift arrives and raises the alarm
-## Radio range, backup timing and escalation come from the doctrine (data/world/security.json).
+## Radio and shouting range come from the doctrine (data/world/security.json); who answers the
+## call, and when, from the Security Codes (_call_it_in).
 
 
 ## Can guard `g` spot crew member `u` right now? Inside the guard's view (cone or close), in clear
@@ -1120,7 +1147,7 @@ func watched_cells(g: Dictionary) -> Dictionary:
 func _compute_light() -> void:
 	lit.clear()
 	var day: bool = bool(m.params.get("daylight", false)) or String(m.params.get("scene", "")) == "badlands"
-	for e in ([] if "blackout" in twists else LightPlan.plan(m, m.seed_value)):
+	for e in ([] if lights_out() else LightPlan.plan(m, m.seed_value)):
 		var c: Vector3i = e.cell
 		var r := float(e.range) * 0.6
 		for dy in range(-int(r), int(r) + 1):
@@ -1171,7 +1198,7 @@ func _outer_patrols(deploy: Vector2i) -> void:
 			if spot.x < 0:
 				continue
 			n += 1
-			var g := World.npc(dice, opfor_faction, "mook", n, "Patrol")
+			var g := World.npc(dice, opfor_faction, "mook", n, "Patrol", _hardened_posts)
 			_add(g, spot, OPFOR)
 			taken.append(spot)
 			units[-1]["outer"] = true
@@ -1229,19 +1256,51 @@ func patrol_step() -> void:
 	update_alerts()
 
 
-## A guard who knows the crew is here calls it in; backup arrives a few rounds later at the
-## entrance farthest from the crew (spec: alarm levels, reinforcements).
+## A guard who knows the crew is here calls it in: the incident (NC2045 p.7). The radio rouses the
+## caller's side within the doctrine's radio range; the site's Security Code is rolled once (1d10
+## under its number: its faction responds, after 1d6 or 1d10 minutes at 2 rounds a minute, doubled
+## if CitiNet is down), and the district's code once, for a street-level response after that.
+## Gunfire rouses guards (_noise), who call it in on their turn.
 func _call_it_in(g: Dictionary) -> void:
 	if alarm >= 2 or g.c.dead or not reinforcements:
 		return
 	alarm = 2
-	backup_in = int(doctrine.backup.rounds)
 	# The radio call rouses guards within the doctrine's radio range of the caller: the rest hold posts.
 	var radio := float(doctrine.alarm.radio_range)
 	_rouse(units.filter(func(o): return is_guard(o) and allied(int(o.team), int(g.team)) and not o.alerted and not o.c.dead and Vector2(o.pos.x - g.pos.x, o.pos.y - g.pos.y).length() <= radio))
 	_backup_round = init.round_num
-	say("%s calls it in. Backup in %d rounds." % [g.c.display_name, backup_in])
+	_ncpd_round = init.round_num
+	var slow := 2 if "citinet" in outages else 1   # OWNER-ACCEPTED: CitiNet out doubles response time
+	var msg := "%s calls it in." % g.c.display_name
+	if SecurityCode.responds(dice, code):
+		_response = _plan_response(code)
+		backup_label = String(_response.label)
+		backup_in = SecurityCode.response_rounds(dice, SecurityCode.quick(code)) * slow
+		msg += " %s in %d rounds." % [String(_response.label).capitalize(), backup_in]
+	else:
+		msg += " Nobody answers."
+	if not street_code.is_empty() and ncpd_in == -1 and SecurityCode.responds(dice, street_code):
+		_street = _plan_response(street_code)
+		ncpd_label = String(_street.label)
+		ncpd_in = maxi(backup_in, 0) + SecurityCode.response_rounds(dice, SecurityCode.quick(street_code)) * slow
+		msg += " The street noticed: %s in %d." % [SecurityCode.faction_name(String(street_code.faction)), ncpd_in]
+	say(msg)
 	events.append({"type": "alarm", "unit": g.id, "rounds": backup_in})
+
+
+## Who a code sends: the site's own people come as BACKUP on the opposition's side; anyone else on
+## their own side (World.relation decides whether they also go after the guards). A faction not in
+## factions.json yet turns up as generic security under its printed name.
+func _plan_response(c: Dictionary) -> Dictionary:
+	var fid := String(c.faction)
+	var known := World.has_faction(fid)
+	var spawn_fid := fid if known else World.DEFAULT_OPFOR
+	var own := fid == opfor_faction or spawn_fid == opfor_faction
+	var rank := "Backup"
+	if not own:
+		rank = String(World.responder(spawn_fid).get("rank", "")) if known else SecurityCode.faction_name(fid)
+	return {"code": c, "fid": spawn_fid, "own": own, "rank": rank,
+		"label": "BACKUP" if own else SecurityCode.faction_name(fid).to_upper()}
 
 
 func _tick_backup() -> void:
@@ -1250,7 +1309,7 @@ func _tick_backup() -> void:
 		ncpd_in -= 1
 		if ncpd_in == 0:
 			ncpd_in = -2   # once per gig
-			_ncpd_wave(String(doctrine.escalation.responder))
+			_arrive(_street)
 	if backup_in < 0 or init.round_num == _backup_round:
 		return
 	_backup_round = init.round_num
@@ -1258,18 +1317,45 @@ func _tick_backup() -> void:
 	if backup_in > 0:
 		return
 	backup_in = -1
-	var bk: Dictionary = doctrine.backup
-	var sec := int(m.params.get("security", 1)) + (1 if "heavy" in twists else 0)
-	var roster: Array[String] = []
-	for i in int(bk.per_level) * sec + int(bk.get("extra", 0)):
-		roster.append(String(bk.tier))
-	_spawn_wave(roster, "BACKUP", OPFOR, opfor_faction, "Backup")
-	# Escalation: keep fighting and the city notices, if the site matters (the doctrine's
-	# min_security; data/world/security.json).
-	var esc: Dictionary = doctrine.escalation
-	if ncpd_in == -1 and sec >= int(esc.min_security):
-		ncpd_in = int(esc.rounds)
-		_ncpd_round = init.round_num
+	_arrive(_response)
+
+
+## A planned response turns up at the far entrance, sized by its code's intensity for the crew
+## still standing (SecurityCode.response_roster), Hardened if the code is.
+func _arrive(r: Dictionary) -> void:
+	if r.is_empty():
+		return
+	var roster := SecurityCode.response_roster(dice, r.code, maxi(1, alive(CREW).size()))
+	var team := OPFOR if bool(r.own) else side_for(String(r.fid), "guard", true)
+	_spawn_wave(roster, String(r.label), team, String(r.fid), String(r.rank), bool(r.code.get("hardened", false)))
+
+
+# --- Utility Codes (NC2045 p.8) ------------------------------------------------------------
+
+const POWERED := ["camera", "turret"]
+
+
+## Is the power out (or the blackout twist on)? The lights are off and cameras and turrets dead.
+func lights_out() -> bool:
+	return "blackout" in twists or "power" in outages
+
+
+func _unpowered(dev: Dictionary) -> bool:
+	return "power" in outages and String(dev.type) in POWERED
+
+
+## OWNER-ACCEPTED effects: power out kills cameras, turrets and the site's lights (mechanical locks
+## hold); CitiNet out doubles response times (_call_it_in); water out is flavour.
+func _apply_outages() -> void:
+	for d in m.devices:
+		if _unpowered(d):
+			disabled_devices[d.id] = true
+	if "power" in outages:
+		say("The power's out: cameras and turrets are dead and the lights are off.")
+	if "citinet" in outages:
+		say("CitiNet is down here: any call for help will be slow.")
+	if "water" in outages:
+		say("The water's off.")
 
 
 ## Reinforcements enter at the entrance farthest from the crew, alerted and in the initiative order.
@@ -1303,7 +1389,7 @@ func _ncpd_wave(fid := "ncpd") -> void:
 
 
 ## Reinforcements for side `team` (faction `fid`), named "<rank> <n>".
-func _spawn_wave(roster: Array[String], label: String, team: int, fid: String, rank := "") -> void:
+func _spawn_wave(roster: Array[String], label: String, team: int, fid: String, rank := "", hardened := false) -> void:
 	var crew_c := Vector2.ZERO
 	for u in alive(0):
 		crew_c += Vector2(u.pos.x, u.pos.y)
@@ -1323,7 +1409,7 @@ func _spawn_wave(roster: Array[String], label: String, team: int, fid: String, r
 	var cells: Array = reach.keys().filter(func(v): return v.z == spawn.z)
 	cells.sort_custom(func(a, b): return int(reach[a]) < int(reach[b]))
 	for i in mini(roster.size(), cells.size()):
-		var g := World.npc(dice, fid, roster[i], i + 1, rank)
+		var g := World.npc(dice, fid, roster[i], i + 1, rank, hardened)
 		_add(g, cells[i], team)
 		var u: Dictionary = units[-1]
 		u.alerted = true
@@ -2197,8 +2283,9 @@ func _drop_run(uid: int, unsafe: bool, keep_met := Vector2i(-1, -1)) -> void:
 	if run == null:
 		return
 	for did in run.controlled_devices():
-		disabled_devices.erase(did)
 		var dev: Dictionary = m.devices[did]
+		if not _unpowered(dev):   # a dead camera stays dead when the runner lets go
+			disabled_devices.erase(did)
 		var cell := Vector3i(dev.pos.x, dev.pos.y, dev.floor)
 		if dev.type == "door_lock" and not los.open_doors.has(cell) and m.t(cell.z, cell.x, cell.y) == TacMap.T.DOOR:
 			nav.locked[cell] = true

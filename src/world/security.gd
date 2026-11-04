@@ -1,8 +1,9 @@
 class_name Security
 extends RefCounted
-## Security doctrines (data/world/security.json): how a faction guards a site and answers trouble.
-## Pure lookups; Encounter reads a doctrine at setup and the numbers drive guards, patrols,
-## alarms, backup and escalation.
+## Security doctrines (data/world/security.json): how a faction guards its own site.
+## Pure lookups; Encounter reads a doctrine at setup and the numbers drive guards, patrols, radio
+## and shouting range, Trauma Team cards and keycards. Who answers a call comes from the gig's
+## Security Codes (SecurityCode, NC2045 p.7), not from the doctrine.
 
 const CORP_SITES := ["corp_office", "corp_hq", "data_center", "clinic"]
 const CORP_SCENES := ["arcology", "corp_campus"]

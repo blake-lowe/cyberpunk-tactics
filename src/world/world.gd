@@ -91,8 +91,9 @@ static func rank(id: String, tier: String) -> String:
 
 ## One of the faction's people at `tier`: a stat block from its roster's pool for the tier (or the
 ## tier's default pool, npcs.json), named "<rank> <n>". Everything they carry comes from the block.
-static func npc(dice: Dice, id: String, tier: String, n: int, rank_override := "") -> Combatant:
-	var pool: Array = (faction(id).get("roster", {}).get("blocks", {}) as Dictionary).get(tier, [])
+## `hardened` (a Hardened Security Code, NC2045 p.7) prefers the Hardened blocks (SecurityCode.tier_pool).
+static func npc(dice: Dice, id: String, tier: String, n: int, rank_override := "", hardened := false) -> Combatant:
+	var pool: Array = SecurityCode.tier_pool(id, tier, hardened)
 	var name := "%s %d" % [rank_override if rank_override != "" else rank(id, tier), n]
 	var c := Recruit.npc(dice, tier, name, pool)
 	c.faction = faction(id).id
@@ -121,11 +122,45 @@ static func locations() -> Dictionary:
 	return RulesDB.world("locations.json").get("locations", {})
 
 
+## A location with its id and what the game derives from the data: where it's played (site /
+## profile / scene from its `type`, locations.types) and the old 1-3 security range (from its
+## Security Code's intensity, SecurityCode.level) when the entry doesn't name them itself.
 static func location(id: String) -> Dictionary:
 	var l: Dictionary = (locations().get(id, {}) as Dictionary).duplicate()
-	if not l.is_empty():
-		l["id"] = id
+	if l.is_empty():
+		return l
+	l["id"] = id
+	if not (l.has("site") or l.has("profile") or l.has("scene")):
+		var types: Dictionary = RulesDB.world("locations.json").get("types", {})
+		l.merge(types.get(String(l.get("type", "")), {}))
+	var code := SecurityCode.normalise(l.get("security_code"))
+	if not l.has("security") and not code.is_empty():
+		var lv := SecurityCode.level(code)
+		l["security"] = [lv, lv]
 	return l
+
+
+# --- Districts (data/world/city.json) ----------------------------------------------------
+
+static func districts() -> Dictionary:
+	return RulesDB.world("city.json").get("districts", {})
+
+
+## A district with its id filled in ({} if unknown).
+static func district(id: String) -> Dictionary:
+	var d: Dictionary = (districts().get(id, {}) as Dictionary).duplicate()
+	if not d.is_empty():
+		d["id"] = id
+	return d
+
+
+## Districts whose neighbourhood generator is `profile` (data/gen/districts.json), in data order.
+static func districts_with_profile(profile: String) -> Array[String]:
+	var out: Array[String] = []
+	for id in districts():
+		if String((districts()[id] as Dictionary).get("profile", "")) == profile:
+			out.append(String(id))
+	return out
 
 
 ## Locations `faction` owns where a `gig_kind` job can happen, in data order.

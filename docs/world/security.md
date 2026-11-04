@@ -1,16 +1,18 @@
 # Security doctrines
 
-How a faction guards a site and answers trouble. Factions name their doctrine in `factions.md`. All numbers are **HOUSE-RULE** tuning until the Night City 2047 pass gives us per-faction security detail. Data blocks build `data/world/security.json`.
+How a faction guards its own site: guard budget, officers, patrols, radio, Trauma Team cards, keycards. Factions name their doctrine in `factions.md`. Data blocks build `data/world/security.json`. All numbers are **HOUSE-RULE** tuning: the Night City 2045 book has no per-faction guard detail.
+
+**Who answers trouble is not a doctrine any more** (M9 P2): it comes from the Security Codes (NC2045 p.7, `src/world/security_code.gd`). When the alarm goes up (a guard who knows the crew is there calls it in; gunfire rouses guards, who then call it in), the gig's site code is rolled once: 1d10 under `n` and its faction arrives after 1d6 (code 7+, our reading of "higher codes are faster") or 1d10 minutes, 1 minute = 2 rounds (HOUSE-RULE pacing), sized by intensity on the p.399 budget (Light: the crew counts 1-2 smaller, Mooks and the odd Lieutenant; Medium: as is, Lieutenants and occasionally a Mini Boss; Heavy: at least 1 larger, anything) and built from Hardened blocks if the code is Hardened. The district's code (city.json) is rolled too, for a street-level second response (often NCPD) that arrives after the first. The doctrine's old `backup` and `escalation` blocks are gone. A code's intensity also sizes the on-site guards: the budget below is spent for the crew size `SecurityCode.budget_crew_size` gives, and a Hardened code whose faction is the site's own puts Hardened guards on the posts. Utility Codes (p.8) are rolled at gig start: power out kills cameras, turrets and lights; CitiNet out doubles response times; water out is flavour.
 
 ```world security._doc
-"Security doctrines (Security.doctrine): how a faction guards a site and answers trouble. A faction names its doctrine in factions.json; anything a doctrine leaves out comes from 'default'. All numbers are HOUSE-RULE until the Night City 2047 pass. budget: the guard roster is crew_size x (base + per_level x security) edgerunners' worth (CPR p399 costs: Mook 1, Lieutenant 2, Mini Boss 3), with officers by security level and at least min_mooks Mooks. outer_patrols: pairs of Mooks out in the open, one pair per area_per_pair squares over area_start, at most max_pairs. alarm: radio_range rouses the caller's side within that many squares, shout_range spreads an alert on a floor. backup: rounds after the call, then tier x (per_level x security + extra) at the far entrance. escalation: who answers if the fight keeps going (responder faction), at what site security (min_security), and how many rounds after backup arrives. trauma_cards: the mark holds one (mark), officers (Lieutenants and Mini Bosses) at this chance. keycards: guards carry their zone's keycard."
+"Security doctrines (Security.doctrine): how a faction guards a site and answers trouble. A faction names its doctrine in factions.json; anything a doctrine leaves out comes from 'default'. All numbers are HOUSE-RULE (the Night City 2045 book has no per-faction guard detail). budget: the guard roster is crew_size x (base + per_level x security) edgerunners' worth (CPR p399 costs: Mook 1, Lieutenant 2, Mini Boss 3), with officers by security level and at least min_mooks Mooks. outer_patrols: pairs of Mooks out in the open, one pair per area_per_pair squares over area_start, at most max_pairs. The crew size is first adjusted by the Security Code's intensity (SecurityCode.budget_crew_size, NC2045 p.7). alarm: radio_range rouses the caller's side within that many squares, shout_range spreads an alert on a floor. Who responds to the call, and when, comes from the gig's Security Codes (SecurityCode), not the doctrine. trauma_cards: the mark holds one (mark), officers (Lieutenants and Mini Bosses) at this chance. keycards: guards carry their zone's keycard."
 ```
 
 ## Doctrines
 
 ### Private security (`default`)
 
-The baseline every doctrine starts from: today's tuned numbers (HOUSE-RULE).
+The baseline every doctrine starts from: the tuned numbers (HOUSE-RULE).
 
 ```world security.doctrines.default
 {
@@ -38,17 +40,6 @@ The baseline every doctrine starts from: today's tuned numbers (HOUSE-RULE).
 		"radio_range": 20,
 		"shout_range": 8
 	},
-	"backup": {
-		"rounds": 5,
-		"tier": "mook",
-		"per_level": 1,
-		"extra": 0
-	},
-	"escalation": {
-		"responder": "ncpd",
-		"min_security": 2,
-		"rounds": 12
-	},
 	"trauma_cards": {
 		"mark": false,
 		"officers": 0.0
@@ -73,7 +64,7 @@ Corporate site security: the baseline, plus Trauma Team cards for the mark and h
 
 ### Militarised corporate security (`corp_military`)
 
-A militarised corp (Militech): more guards and patrols, wider radio net, quicker and bigger backup, every officer carded.
+A militarised corp (Militech): more guards and patrols, wider radio net, every officer carded.
 
 ```world security.doctrines.corp_military
 {
@@ -92,17 +83,6 @@ A militarised corp (Militech): more guards and patrols, wider radio net, quicker
 		"radio_range": 30,
 		"shout_range": 10
 	},
-	"backup": {
-		"rounds": 4,
-		"tier": "mook",
-		"per_level": 1,
-		"extra": 1
-	},
-	"escalation": {
-		"responder": "ncpd",
-		"min_security": 2,
-		"rounds": 10
-	},
 	"trauma_cards": {
 		"mark": true,
 		"officers": 1.0
@@ -112,7 +92,7 @@ A militarised corp (Militech): more guards and patrols, wider radio net, quicker
 
 ### Gang turf (`gang_den`)
 
-Gang turf: more bodies, shouting instead of radios, friends called in fast, police only for big fights; no keycards.
+Gang turf: more bodies and shouting instead of radios; no keycards.
 
 ```world security.doctrines.gang_den
 {
@@ -130,17 +110,6 @@ Gang turf: more bodies, shouting instead of radios, friends called in fast, poli
 	"alarm": {
 		"radio_range": 12,
 		"shout_range": 10
-	},
-	"backup": {
-		"rounds": 4,
-		"tier": "mook",
-		"per_level": 1,
-		"extra": 1
-	},
-	"escalation": {
-		"responder": "ncpd",
-		"min_security": 3,
-		"rounds": 14
 	},
 	"keycards": false
 }

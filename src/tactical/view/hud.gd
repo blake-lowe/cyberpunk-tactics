@@ -584,11 +584,13 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 	_round_box.add_child(_text("ROUND %02d" % maxi(1, enc.init.round_num), F_TERM, Hud.ts(20), CYAN))
 	var state := "UNDETECTED"
 	if enc.alarm >= 2:
-		state = "ALARM · BACKUP %d" % enc.backup_in if enc.backup_in > 0 else ("ALARM · NCPD %d" % enc.ncpd_in if enc.ncpd_in > 0 else "ALARM")
+		state = "ALARM · %s %d" % [enc.backup_label, enc.backup_in] if enc.backup_in > 0 else ("ALARM · %s %d" % [enc.ncpd_label, enc.ncpd_in] if enc.ncpd_in > 0 else "ALARM")
 	elif enc.engaged():
 		state = "ENGAGED"
 	_round_box.add_child(_text(state, F_DISPLAY, 20, RED if state != "UNDETECTED" else CYAN))
 	_round_box.add_child(_text(objective_text(enc), F_TERM, Hud.ts(18), GOLD))
+	if not enc.outages.is_empty():   # Utility Codes (NC2045 p.8)
+		_round_box.add_child(_text(" · ".join(enc.outages.map(func(o): return String(o).to_upper() + " OUT")), F_TERM, Hud.ts(18), RED))
 	for tw in enc.twists:
 		var nm := String(RulesDB.gen("gigs.json").twists.get(tw, {}).get("name", "IT'S A SETUP" if tw == "setup" else tw)).to_upper()
 		if tw == "shift_change" and enc.alarm < 2:
