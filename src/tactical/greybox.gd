@@ -239,6 +239,9 @@ var _reel := ""
 var tool := ""                  ## M5 target-picking action: melee, shell, grenade, stabilize ("" = normal attacks)
 var _dev_kit: PackedStringArray = []   ## --kit=a,b (review renders)
 var _dev_stage := ""                   ## --stage=attack (review renders)
+var _dev_end := ""                     ## --end=won|lost|fled|withdraw (review renders): end the gig, show what follows
+var _jack_turret := false              ## --jack=turret (review renders): the runner also holds a turret's Control Node
+var _campaign_gig := false             ## this map is the campaign's active gig (a board gig or an operation's leg)
 var blast_node: MeshInstance3D  ## the grenade's 5x5 blast preview under the cursor
 var _net_cleaned := false
 var _lf_dims := Vector3.ZERO
@@ -278,6 +281,10 @@ func _ready() -> void:
 			"floor": _shot_floor = int(kv[1])   # review renders: look at this storey
 			"kit": _dev_kit = kv[1].split(",")   # review renders: pack every crew member's kit slots
 			"stage": _dev_stage = kv[1]   # review renders: open the action bar on this stage (attack)
+			"op": gig["op"] = kv[1]   # review renders: an operation (operations.json id) taken by DemoState's crew
+			"leg": gig["leg"] = int(kv[1])   # with --op: play this leg (0-based), the ones before it done
+			"end": _dev_end = kv[1]   # review renders: the gig ends this way (won | lost | fled | withdraw)
+			"peace": _dev_end = "peace"   # review renders: --peace=broken: the crew breaks a neutral house's peace (Totentanz)
 			"security":
 				gig.security = int(kv[1])
 				_security_flag = true
@@ -302,8 +309,9 @@ func _ready() -> void:
 				_focus = kv[1]
 			"attack":  # review renders: the active crew member fires at the nearest guard
 				_attack_demo = true
-			"jack":  # review renders: the Netrunner jacks in at the nearest terminal
+			"jack":  # review renders: the Netrunner jacks in at the nearest terminal (turret: one holding a turret's node)
 				_jack_demo = true
+				_jack_turret = kv[1] == "turret"
 			"av":  # review renders: an AV lands (trauma | maxtac); --shot-delay sets when to capture
 				_av_demo = kv[1]
 			"reel":  # review videos: script one combat scene, then quit (record with --write-movie)
@@ -317,6 +325,9 @@ func _ready() -> void:
 			"hover":
 				if kv[1] == "guard":
 					_shot_hover = Vector2i(-2, -2)
+					continue
+				if kv[1] == "turret":   # the nearest turret in sight
+					_shot_hover = Vector2i(-3, -3)
 					continue
 				var xy := kv[1].split(",")
 				_shot_hover = Vector2i(int(xy[0]), int(xy[1]))
@@ -379,10 +390,19 @@ func _process(delta: float) -> void:
 			_run_reel()
 	elif _shot_path != "":
 		_frames += 1
-		if _frames == 2 and _shot_hover == Vector2i(-2, -2):  # --hover=guard: the nearest guard in sight
+		if _frames == 2 and _shot_hover.x <= -2:  # --hover=guard / turret: the nearest one in sight
+			var want_turret := _shot_hover.x == -3
+			var best := INF
 			for u in enc.units:
-				if _foe(u) and (enc.vision.visible.has(u.pos) or not fog_on) and not u.c.dead:
-					_shot_hover = Vector2i(u.pos.x, u.pos.y)
+				if (u.has("turret") if want_turret else _foe(u)) and (enc.vision.visible.has(u.pos) or not fog_on) and not u.c.dead:
+					var d := Vector2(u.pos.x - enc.cur.pos.x, u.pos.y - enc.cur.pos.y).length()
+					if d < best:
+						best = d
+						_shot_hover = Vector2i(u.pos.x, u.pos.y)
+						if want_turret:   # turrets stand on roofs and decks: look at its storey
+							view_floor = u.pos.z
+							cam_target = Vector3(u.pos.x, 0, u.pos.y)
+							_place_camera()
 		if _frames == 2 and _dev_stage != "":
 			_on_hud("stage", _dev_stage)
 		if _frames == 3 and _shot_hover.x >= 0:
@@ -400,7 +420,9 @@ func _process(delta: float) -> void:
 			_demo_jack()
 		if _frames == 10 and _av_demo != "":
 			_demo_av()
-		var shoot_now: bool = _frames >= 12 if not (_attack_demo or _jack_demo or _av_demo != "") else (_demo_ms > 0 and Time.get_ticks_msec() - _demo_ms >= int(_shot_delay * 1000.0 / Engine.time_scale))
+		if _frames == 10 and _dev_end != "":
+			_demo_end()
+		var shoot_now: bool = _frames >= 12 if not (_attack_demo or _jack_demo or _av_demo != "" or _dev_end != "") else (_demo_ms > 0 and Time.get_ticks_msec() - _demo_ms >= int(_shot_delay * 1000.0 / Engine.time_scale))
 		if shoot_now:
 			get_viewport().get_texture().get_image().save_png(_shot_path)
 			get_tree().quit()
@@ -583,8 +605,11 @@ func new_gig() -> void:
 			o["variant"] = String(gig.variant)
 		if String(gig.get("faction", "")) == "":
 			gig.faction = String(SetPieces.get_def(String(gig.setpiece)).get("faction", ""))
+	if gig.has("op") and _shot_path != "" and Campaign.current == null:   # review renders: DEV-ONLY, never saved
+		Campaign.current = DemoState.operation(DemoState.make(), String(gig.op), int(gig.get("leg", 0)))
 	var camp := Campaign.current
-	var campaign_gig: bool = camp != null and not camp.active_gig.is_empty() and _reel == "" and _shot_path == ""
+	var campaign_gig: bool = camp != null and not camp.active_gig.is_empty() and _reel == "" and (_shot_path == "" or gig.has("op"))
+	_campaign_gig = campaign_gig
 	if campaign_gig:   # a gig taken from the fixer board: its scene, security and crew
 		gig.scene = String(camp.active_gig.scene)
 		gig.seed = int(camp.active_gig.seed)
@@ -621,6 +646,8 @@ func new_gig() -> void:
 		_brief_leg(camp)
 	if _hazard_stage >= 0 and enc.hazard != null:
 		enc.hazard.force_stage(_hazard_stage)
+		if _hazard_stage > 0:   # the round it closed on, so CLOSES IN counts from there
+			enc.init.round_num = enc.hazard.close_round(_hazard_stage)
 	hazard_view = null
 	_log_seen = 0
 	var lk := _scene_look()
@@ -686,6 +713,16 @@ func new_gig() -> void:
 						best = d
 						fc = Vector2(u.pos.x, u.pos.y)
 						view_floor = u.pos.z
+		elif _focus == "mist" and enc.hazard != null:   # review renders: where the crew meets the MIST's edge
+			var c2: Vector2 = enc.hazard.center
+			var r := enc.hazard.radius() if enc.hazard.stage > 0 else enc.hazard.next_radius()
+			var best_d := INF
+			for k in 72:   # the point of the edge inside the area (where it's drawn) nearest the crew
+				var p := c2 + Vector2.RIGHT.rotated(TAU * k / 72.0) * r
+				var d := p.distance_to(Vector2(enc.cur.pos.x, enc.cur.pos.y))
+				if Rect2(enc.hazard.area).grow(-2).has_point(p) and d < best_d:
+					best_d = d
+					fc = p
 		elif _focus == "center":
 			for st in m.structures:
 				if st.target and st.has("rect"):
@@ -698,6 +735,7 @@ func new_gig() -> void:
 		_last_cur = enc.cur.id
 	if _shot_floor >= 0:   # review renders: a storey of the building (with --cut=all, the floors above cut away)
 		view_floor = mini(_shot_floor, m.floors - 1)
+		_last_cur = enc.cur.id if not enc.cur.is_empty() else -1   # the first turn keeps this storey (it would frame the crew's)
 		_place_camera()
 	_after_action()
 
@@ -1176,6 +1214,58 @@ func _anim_av_land(e: Dictionary) -> void:
 		await get_tree().create_timer(0.18).timeout
 	_float(enc.units[e.units[0]], "MAXTAC" if e.kind == "maxtac" else "TRAUMA TEAM", Hud.RED if e.kind == "maxtac" else Color("7fd0ff"))
 	await get_tree().create_timer(0.5).timeout
+
+
+## Review renders (--end=): the gig ends that way and the view does what follows (the leg-complete
+## panel, the end banner); withdraw is a won leg, then WITHDRAW. A shot stops at the banner.
+func _demo_end() -> void:
+	_demo_ms = Time.get_ticks_msec()
+	if _dev_end == "peace":   # --peace=broken: the house turns, as the crew's first shot inside would do
+		if enc.neutral != null:
+			enc._break_peace(enc.cur)
+			_play_events()
+			_refresh()
+		return
+	enc.state = "won" if _dev_end == "withdraw" else _dev_end
+	_refresh()
+	if _dev_end == "withdraw":
+		_leg_chosen = true
+		_settle_gig()
+	elif Campaign.current and not Campaign.current.active_gig.is_empty():
+		_finish_gig()
+	_demo_ms = Time.get_ticks_msec()
+
+
+## Review renders (--jack=turret): a Control Node of `a` with a turret on it (-1: none).
+func _turret_node_of(a: NetArchitecture) -> int:
+	var turrets := {}
+	for u in enc.units:
+		if u.has("turret") and not u.c.dead:
+			turrets[int(u.turret)] = true
+	for n in a.nodes:
+		if String(n.type) == "control" and (n.get("devices", []) as Array).any(func(d): return turrets.has(int(d))):
+			return int(n.id)
+	return -1
+
+
+## Review renders (--jack=turret): if the held turret has nothing in its sights, walk the nearest
+## foe into them, so the NET panel shows its FIRE TURRET rows.
+func _demo_turret_target(runner: Dictionary) -> void:
+	for ht in enc.held_turrets(runner.id):
+		if not (ht.targets as Array).is_empty():
+			return
+		var tu: Dictionary = enc.units[int(ht.id)]
+		for o in enc.units:
+			if o.has("turret") or o.c.dead or not enc.hostile(int(tu.team), int(o.team)):
+				continue
+			for r in range(3, 9):
+				for dy in range(-r, r + 1):
+					for dx in range(-r, r + 1):
+						var v := Vector3i(tu.pos.x + dx, tu.pos.y + dy, tu.pos.z)
+						if m.inb(v.x, v.y) and m.walkable(v.z, Vector2i(v.x, v.y)) and not enc.occupied().has(v) and enc.los.sight(tu.pos, v).visible:
+							o.pos = v
+							enc.refresh_vision()
+							return
 
 
 func _demo_av() -> void:
@@ -1849,12 +1939,28 @@ func _make_caret() -> MeshInstance3D:
 	return mi
 
 
-## The HUD's floor label: "FLOOR 2/4" (storeys counted from the street, the roof level included);
-## a map with basements names the storey and counts levels from the bottom: "FLOOR B1 · 2/5".
+## The HUD's floor label, plain (owner): "FLOOR 1", "FLOOR 2" ... from the street up, "FLOOR B1",
+## "FLOOR B2" below it; no counter, on every map.
 static func floor_label(mp: TacMap, f: int) -> String:
-	if mp.basements == 0:
-		return "FLOOR %d/%d" % [f + 1, mp.floors]
-	return "FLOOR %s · %d/%d" % [mp.floor_name(f), f + 1, mp.floors]
+	return "FLOOR %s" % mp.floor_name(f)
+
+
+## The HUD's place label: an operation's leg goes by its location (the leg count is on the round
+## tab, leg_label), a set piece by its name (an estate by its owner's), a board gig by its place
+## (Campaign.place_name), anything else by its scene.
+static func place_label(mp: TacMap, active: Dictionary, scene: String) -> String:
+	if SetPieces.has(String(mp.params.get("setpiece", ""))):
+		return SetPieces.place_name(mp)
+	if not active.is_empty():
+		return Campaign.place_name(active)
+	return String(mp.params.get("scene", scene)).replace("_", " ")
+
+
+## The round tab's leg line for an operation: "LEG 2/3" ("" for any other gig).
+static func leg_label(active: Dictionary) -> String:
+	if not Campaign.is_operation(active):
+		return ""
+	return "LEG %d/%d" % [int(active.get("leg", 0)) + 1, (active.legs as Array).size()]
 
 
 ## Height of the walkable surface of a square (sidewalks are raised by a kerb).
@@ -2323,6 +2429,8 @@ func _demo_jack() -> void:
 	var best := Vector3i(-1, -1, -1)
 	for sid in m.architectures:
 		var a: NetArchitecture = m.architectures[sid]
+		if _jack_turret and _turret_node_of(a) < 0:
+			continue
 		for ap in a.access_points:
 			var d: Dictionary = m.devices[ap.device]
 			for dy in range(-2, 3):
@@ -2345,6 +2453,11 @@ func _demo_jack() -> void:
 			if run.can_move_to(nb) and run.arch.neighbors(nb).size() > 1:
 				enc.net_move(nb)
 				break
+		var tn := _turret_node_of(run.arch) if _jack_turret else -1
+		if tn >= 0:   # the turret's node taken (as a CONTROL would)
+			run.held[tn] = true
+			enc._retake_turrets()
+			_demo_turret_target(runner)
 	enc.refresh_vision()
 	_frame_unit(runner)
 	_refresh()
@@ -2854,18 +2967,30 @@ func _update_objective() -> void:
 ## An operation's leg starts: the briefing goes in the log (which leg, what for, the event on, and
 ## on the first leg what the gate made them leave in the van).
 func _brief_leg(camp: Campaign) -> void:
-	var g := camp.active_gig
+	for line in brief_lines(camp.active_gig, camp.van_list()):
+		enc.say(line)
+
+
+## The briefing lines for the leg `g` is on: which leg and what for; on the first leg the event
+## (and what it changes) and the gate; on every later leg what is still in the van (it stays there
+## the whole operation, and the log is the only place the map shows it).
+static func brief_lines(g: Dictionary, van: Array[String]) -> Array[String]:
+	var out: Array[String] = []
 	var i := int(g.get("leg", 0))
-	enc.say("Leg %d of %d: %s. %s" % [i + 1, (g.legs as Array).size(), String(g.get("leg_title", "")), String(g.get("line", ""))])
+	out.append("Leg %d of %d: %s. %s" % [i + 1, (g.legs as Array).size(), String(g.get("leg_title", "")), String(g.get("line", ""))])
+	var gate := String(Campaign.operation_def(g).get("gate", "")) == "conceal"
 	if i == 0:
 		var ev: Dictionary = g.get("event", {})
 		if not ev.is_empty():
-			enc.say("%s (%s): %s" % [String(ev.name), String(ev.when), String(ev.text)])
-		var van := camp.van_list()
-		if String(Campaign.operation_def(g).get("gate", "")) == "conceal":
-			enc.say(("No weapons past the gate. In the van: %s." % ", ".join(van)) if not van.is_empty() else "No weapons past the gate: what the crew carries is all concealable.")
+			var fx := FixerScreen.event_effects(ev)
+			out.append("%s (%s): %s%s" % [String(ev.name), String(ev.when), String(ev.text), (" " + fx) if fx != "" else ""])
+		if gate:
+			out.append(("No weapons past the gate. In the van: %s." % ", ".join(van)) if not van.is_empty() else "No weapons past the gate: what the crew carries is all concealable.")
+	elif gate and not van.is_empty():
+		out.append("Still in the van: %s." % ", ".join(van))
 	if bool(g.get("no_drones", false)):
-		enc.say("The fake trees blind the park's drones here: no cameras, no turrets.")
+		out.append("The fake trees blind the park's drones here: no cameras, no turrets.")
+	return out
 
 
 var _leg_panel: Control = null
@@ -2882,12 +3007,16 @@ static func gig_end_step(state: String, more_legs: bool, leg_chosen: bool, settl
 
 ## The banner over the settling: {text, good}. An operation not done to the end says so, with how
 ## many of its legs were (a won leg then WITHDRAW is an operation ended early, not a gig complete).
+## `head` is the headline alone, for the toast that stays up (Hud.end_toast) and the debrief's
+## wording (DebriefScreen.outcome).
 static func end_banner(state: String, gig: Dictionary, more_legs: bool) -> Dictionary:
 	if Campaign.is_operation(gig) and (state != "won" or more_legs):
 		var done := (gig.get("done", []) as Array).size() + (1 if state == "won" else 0)
-		return {"text": "OPERATION %s  ·  %d OF %d LEGS DONE  ·  DEBRIEF" % ["FAILED" if state == "lost" else "ENDED EARLY", done,
-			(gig.legs as Array).size()], "good": false}
-	return {"text": "GIG %s  ·  DEBRIEF" % ("COMPLETE" if state == "won" else ("ABANDONED" if state == "fled" else "FAILED")), "good": state == "won"}
+		var head := "OPERATION %s" % ("FAILED" if state == "lost" else "ENDED EARLY")
+		return {"text": "%s  ·  %d OF %d LEGS DONE  ·  DEBRIEF" % [head, done, (gig.legs as Array).size()], "good": false, "head": head}
+	var what := "OPERATION" if Campaign.is_operation(gig) else "GIG"
+	var head := "%s %s" % [what, "COMPLETE" if state == "won" else ("ABANDONED" if state == "fled" else "FAILED")]
+	return {"text": head + "  ·  DEBRIEF", "good": state == "won", "head": head}
 
 
 ## A won leg with another after it: NEXT goes straight on to that map (Campaign.next_leg, saved
@@ -2897,12 +3026,20 @@ func _leg_done() -> void:
 		return
 	var camp := Campaign.current
 	var nxt := camp.next_leg_info()
-	hud.turn_banner("LEG COMPLETE  ·  NEXT: %s" % String(nxt.get("leg_title", "")).to_upper(), Hud.GREEN)
+	var n := (camp.active_gig.legs as Array).size()
+	hud.end_toast = "LEG %d OF %d COMPLETE" % [int(camp.active_gig.leg) + 1, n]   # the headline stays up; the panel is the choice
+	hud.toast(hud.end_toast, 1e9)
 	_leg_panel = UiKit.panel(Hud.GREEN, 16)
+	_leg_panel.custom_minimum_size.x = 560   # a fixed width: wrapped lines size the height, centred on screen
 	var v := UiKit.vbox(10)
 	_leg_panel.add_child(v)
-	v.add_child(UiKit.head("Leg %d of %d complete" % [int(camp.active_gig.leg) + 1, (camp.active_gig.legs as Array).size()], 30, Hud.GREEN))
-	v.add_child(UiKit.body("Next: %s. %s" % [String(nxt.get("leg_title", "")), String(nxt.get("line", ""))], 16))
+	v.add_child(UiKit.label("NEXT · LEG %d OF %d" % [int(camp.active_gig.leg) + 2, n], 13, Hud.GREEN))
+	var h := UiKit.head(String(nxt.get("leg_title", "")), 28, Hud.TEXT)
+	h.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	h.custom_minimum_size.x = 100
+	v.add_child(h)
+	v.add_child(UiKit.body(String(nxt.get("line", "")), 16))
+	v.add_child(UiKit.body("★ %s · %s" % [String(FixerScreen.OBJECTIVE_TEXT.get(Campaign.objective_for(nxt), "")), Campaign.code_label(nxt)], 14, Hud.GOLD))
 	v.add_child(UiKit.body("%d minutes on the streetcar. No time to patch up: the crew goes on as it stands." % int(Campaign.operation_def(camp.active_gig).get("streetcar_minutes", 5)), 14, Hud.DIM))
 	var row := UiKit.hbox(12)
 	v.add_child(row)
@@ -2920,9 +3057,17 @@ func _leg_done() -> void:
 		_leg_panel.queue_free()
 		_leg_panel = null
 		_settle_gig()))
+	_leg_panel.modulate.a = 0.0   # shown once it has its real height
 	hud.add_child(_leg_panel)
-	_leg_panel.reset_size()
-	_leg_panel.position = (hud.size - _leg_panel.size) / 2.0
+	# Wrapped lines only know their height once they've been laid out at the panel's width: size
+	# it a frame later (sized at once it came out screen-tall, its top cut off).
+	var p := _leg_panel
+	await get_tree().process_frame
+	if not is_instance_valid(p):
+		return
+	p.reset_size()
+	p.position = ((hud.size - p.size) / 2.0).floor()
+	p.modulate.a = 1.0
 
 
 ## A board gig is over: settle it (pay, injuries, the dead), save, and go to the debrief (the
@@ -2939,7 +3084,11 @@ func _settle_gig() -> void:
 	_settling = true
 	var camp := Campaign.current
 	var b := end_banner(enc.state, camp.active_gig, camp.has_next_leg())
+	hud.end_toast = String(b.head)   # the toast that stays up says what the banner says (not GIG COMPLETE over ENDED EARLY)
+	hud.toast(hud.end_toast, 1e9)
 	hud.turn_banner(String(b.text), Hud.GREEN if b.good else (Hud.GOLD if enc.state == "won" else Hud.RED))
+	if _shot_path != "":   # review renders: the banner only; nothing is settled or saved
+		return
 	await get_tree().create_timer(3.0).timeout
 	var report := camp.resolve(enc)
 	camp.set_meta("report", report)
@@ -3061,7 +3210,7 @@ func _ev_hazard(_e: Dictionary) -> void:
 
 ## The first fight in a neutral house (NeutralGround: Totentanz): a banner, and the bouncers shout.
 func _ev_peace_broken(e: Dictionary) -> void:
-	hud.turn_banner("%s: THE HOUSE TURNS" % enc.neutral.name, Hud.RED)
+	hud.turn_banner(enc.neutral.hud_text(), Hud.RED)   # the round tab's line, word for word
 	_ui_snd("sfx_ui_error", -8.0)
 	for id in e.get("units", []):
 		var g: Dictionary = enc.units[int(id)]
@@ -3775,9 +3924,9 @@ func _hud_refresh() -> void:
 	hud.tool = tool
 	hud.stage = stage
 	hud.atk_mode = atk_mode
-	var place := String(m.params.get("scene", gig.scene)).replace("_", " ")
-	if SetPieces.has(String(m.params.get("setpiece", ""))):   # a famous place goes by its name
-		place = SetPieces.place_name(m)
+	var active: Dictionary = Campaign.current.active_gig if _campaign_gig and Campaign.current else {}
+	var place := place_label(m, active, String(gig.scene))
+	hud.leg_text = leg_label(active)
 	if hazard_view and is_instance_valid(hazard_view):
 		hazard_view.update(enc.hazard)
 	hud.refresh(enc, mode, cover_mode, "%s  ·  %s" % [place.to_upper(), floor_label(m, view_floor)])

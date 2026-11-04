@@ -88,6 +88,8 @@ var roster_on := false    ## the crew roster slides in while Alt is held (owner:
 var log_hold := false     ## the view holds the log while an action plays, so lines land with the callouts
 var _overlay_lbl: Label   ## which overlays are on (sight lines, cutaway), under the round tab
 var _log_tw: Tween
+var end_toast := ""        ## the view's headline once the gig is over ("" = the plain GIG COMPLETE / ABANDONED / FAILED)
+var leg_text := ""         ## an operation's leg on the round tab ("LEG 2/3"), set by the view
 var _round_box: VBoxContainer              ## unit id → party card (hit shake)
 
 
@@ -538,8 +540,11 @@ func _layout() -> void:
 	_place_withdraw()
 	# log: bottom left, above the bar
 	_log_panel.position = Vector2(14, _bar.position.y - _log_panel.size.y - 10)
-	_net_panel.position = Vector2(s.x - _net_panel.size.x - 14, _round_tab.position.y + _round_tab.size.y + 30)
-	_toast.position = Vector2(s.x / 2 - 400, 120)
+	_net_panel.reset_size()   # it shrinks as rows go (a held turret's targets come and go)
+	var net_y := _round_tab.position.y + _round_tab.size.y + 30
+	net_y = maxf(_round_tab.position.y + _round_tab.size.y + _overlay_lbl.size.y + 10, minf(net_y, _bar.position.y - _net_panel.size.y - 10))   # never over the action bar or the overlay line
+	_net_panel.position = Vector2(s.x - _net_panel.size.x - 14, net_y)
+	_toast.position = Vector2(s.x / 2 - 400, 148)   # under the turn banner and its rule (y 100-136), never over them
 	_toast.size = Vector2(800, 40)
 	_banner_panel.position = Vector2(14, 12)
 	_round_tab.position = Vector2(s.x - _round_tab.size.x - 14, 12)
@@ -592,7 +597,7 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 		slot.modulate = Portraits.tint(c.wound_state())
 		_init_strip.add_child(slot)
 	_clear(_round_box)   # round and stealth state: top right corner
-	_round_box.add_child(_text("ROUND %02d" % maxi(1, enc.init.round_num), F_TERM, Hud.ts(20), CYAN))
+	_round_box.add_child(_text("ROUND %02d" % maxi(1, enc.init.round_num) + ("  ·  " + leg_text if leg_text != "" else ""), F_TERM, Hud.ts(20), CYAN))
 	var state := "UNDETECTED"
 	if enc.alarm >= 2:
 		state = "ALARM · %s %d" % [enc.backup_label, enc.backup_in] if enc.backup_in > 0 else ("ALARM · %s %d" % [enc.ncpd_label, enc.ncpd_in] if enc.ncpd_in > 0 else "ALARM")
@@ -660,12 +665,12 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 		_log_lines = enc.log.duplicate()
 		_show_log(fresh)
 	_banner.text = floor_text
-	_banner.add_theme_color_override("font_color", GOLD if not floor_text.ends_with("1/%s" % floor_text.get_slice("/", 1)) else Color("9fb4c4"))
+	_banner.add_theme_color_override("font_color", GOLD if not floor_text.ends_with("FLOOR 1") else Color("9fb4c4"))   # gold off the street floor
 	_net_refresh(enc)
 	for u2 in enc.units:   # remember what the bars showed, for the next ghost drain
 		_hp_seen[u2.id] = float(maxi(u2.c.hp, 0)) / u2.c.max_hp()
 	if enc.state != "playing":
-		toast("GIG %s" % ("COMPLETE" if enc.state == "won" else ("ABANDONED" if enc.state == "fled" else "FAILED")), 1e9)
+		toast(end_toast if end_toast != "" else "GIG %s" % ("COMPLETE" if enc.state == "won" else ("ABANDONED" if enc.state == "fled" else "FAILED")), 1e9)
 	_layout.call_deferred()
 
 
@@ -936,14 +941,15 @@ static func stat_block(c: Combatant, full: bool, extra: Array = []) -> String:
 	const K := "[color=#7d8a96]%s[/color]"
 	var out: Array[String] = ["[b]%s[/b]  [color=#7d8a96]%s[/color]" % [c.display_name, c.kind_name()]]
 	var stats: Array = ["INT", "REF", "DEX", "TECH", "COOL", "WILL", "LUCK", "MOVE", "BODY", "EMP"] if full else ["REF", "DEX", "BODY", "MOVE"]
-	var tb := "[table=%d]" % mini(5, stats.size())   # rows of five, like the book's STAT line split in two
-	for row in range(0, stats.size(), 5):
-		var part: Array = stats.slice(row, row + 5)
-		for st in part:
-			tb += "[cell][code]" + (K % st) + "  [/code][/cell]"
-		for st in part:
-			tb += "[cell][code]%d[/code][/cell]" % c.stat(st)
-	out.append(tb + "[/table]")
+	if stats.any(func(st): return c.stat(st) != 0):   # a turret has no STATs (p.214): no row of zeros
+		var tb := "[table=%d]" % mini(5, stats.size())   # rows of five, like the book's STAT line split in two
+		for row in range(0, stats.size(), 5):
+			var part: Array = stats.slice(row, row + 5)
+			for st in part:
+				tb += "[cell][code]" + (K % st) + "  [/code][/cell]"
+			for st in part:
+				tb += "[cell][code]%d[/code][/cell]" % c.stat(st)
+		out.append(tb + "[/table]")
 	var hp := (K % "HP") + " %d/%d" % [c.hp, c.max_hp()]
 	if full:
 		hp += "  [color=#7d8a96]·[/color] " + ["Unhurt", "Lightly Wounded", "Seriously Wounded", "Mortally Wounded", "Dead"][c.wound_state()] + "  " + (K % "DEATH SAVE") + " %d" % c.death_save_target()   # Seriously Wounded is always half HP: not worth a line (owner)
@@ -1196,7 +1202,9 @@ func _net_refresh(enc: Encounter) -> void:
 	_net_box.add_child(acts)
 	# Turrets on held Control Nodes: a NET Action fires one, each node once a turn, with the
 	# runner's own Skill (p.199, p.213-214; Encounter.fire_turret)
+	var turret_rows := 0
 	for ht in enc.held_turrets(enc.cur.id):
+		turret_rows += 1 + mini(4, (ht.targets as Array).size())
 		var tu: Dictionary = enc.units[int(ht.id)]
 		var tw: Weapon = tu.c.weapons[0]
 		var why := String(ht.why)
@@ -1228,7 +1236,7 @@ func _net_refresh(enc: Encounter) -> void:
 	var dist := run.route()
 	var ids := dist.keys()
 	ids.sort_custom(func(x, y): return int(dist[x]) < int(dist[y]) or (int(dist[x]) == int(dist[y]) and _is_target(enc, run, x)))
-	for id in ids.slice(0, 6):
+	for id in ids.slice(0, maxi(2, 6 - turret_rows)):   # fewer route rows while turret rows take the room
 		var nid: int = id
 		var b := _net_button("%s %s" % ["›".repeat(mini(3, int(dist[id]))), _node_label(run.arch.nodes[nid], enc, run)], func(): action.emit("net_move", nid), 296, 24)
 		if _is_target(enc, run, nid):

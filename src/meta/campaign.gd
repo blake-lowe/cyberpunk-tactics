@@ -1054,7 +1054,7 @@ func resolve(e: Encounter) -> Dictionary:
 			legs_done.append(_leg_summary(int(gig.get("leg", 0))))
 		won = won and not has_next_leg()   # won a leg, then withdrew: the job isn't done
 		_unload_van()
-	var report := {"gig": gig, "won": won, "pay": 0, "reputation": {}, "ip": 0, "dead": [], "hurt": [], "episodes": []}
+	var report := {"gig": gig, "won": won, "state": e.state, "pay": 0, "reputation": {}, "ip": 0, "dead": [], "hurt": [], "episodes": []}
 	if op:
 		report["legs"] = legs_done
 		report["leg_count"] = (gig.legs as Array).size()

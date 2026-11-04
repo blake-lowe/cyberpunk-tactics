@@ -17,15 +17,15 @@ func title() -> String:
 
 
 func build_body(body: VBoxContainer) -> void:
-	var won: bool = report.get("won", false)
 	var gig: Dictionary = report.get("gig", {})
-	var top := UiKit.panel(Hud.GREEN if won else Hud.RED, 14)
+	var out := outcome(report)
+	var top := UiKit.panel(out[1], 14)
 	body.add_child(top)
 	var tv := UiKit.vbox(6)
 	top.add_child(tv)
 	var h := UiKit.hbox(16)
 	tv.add_child(h)
-	var res := UiKit.head("Gig complete" if won else "Gig failed", 36, Hud.GREEN if won else Hud.RED)
+	var res := UiKit.head(String(out[0]), 36, out[1])
 	h.add_child(res)
 	var t := UiKit.head(String(gig.get("title", "")), 30, Hud.TEXT)
 	t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -43,6 +43,8 @@ func build_body(body: VBoxContainer) -> void:
 		tv.add_child(UiKit.label("OPERATION · %d OF %d LEGS DONE" % [legs.size(), int(report.get("leg_count", legs.size()))], 12, Hud.GOLD))
 		for l in legs:
 			tv.add_child(UiKit.body("✓ %s: %s  ·  %s eb" % [String(l.title), String(l.line), UiKit.money(int(l.pay))], 14, Hud.TEXT))
+		for l in (gig.get("legs", []) as Array).slice(legs.size()):   # the rest of the job, not reached
+			tv.add_child(UiKit.body("✗ %s: %s  ·  not done" % [String(l.get("leg_title", "")), String(l.get("line", ""))], 14, Hud.DIM))
 	var members: Array = report.get("members", [])
 	var grid := GridContainer.new()
 	grid.columns = clampi(members.size(), 1, 4)
@@ -60,6 +62,22 @@ func build_body(body: VBoxContainer) -> void:
 	var b := UiKit.button("CONTINUE  ›", UiKit.PRIMARY, func(): closed.emit(), true, 17)
 	b.custom_minimum_size = Vector2(220, 44)
 	bottom.add_child(b)
+
+
+## The headline and its colour, worded as the map's end banner was (greybox end_banner): an
+## operation says so, and one not done to the end says how it ended (Campaign.resolve `state`).
+static func outcome(rep: Dictionary) -> Array:
+	var won: bool = rep.get("won", false)
+	var state := String(rep.get("state", "won" if won else "lost"))
+	if rep.has("legs"):
+		if won:
+			return ["Operation complete", Hud.GREEN]
+		if state == "lost":
+			return ["Operation failed", Hud.RED]
+		return ["Operation ended early", Hud.GOLD if not (rep.legs as Array).is_empty() else Hud.RED]
+	if won:
+		return ["Gig complete", Hud.GREEN]
+	return ["Gig abandoned" if state == "fled" else "Gig failed", Hud.RED]
 
 
 func _sum(row: HBoxContainer, k: String, v: String, col: Color) -> void:

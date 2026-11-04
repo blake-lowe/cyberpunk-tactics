@@ -35,7 +35,10 @@ func check_end() -> String:
 
 
 func actions() -> Array[String]:
-	return ["free"] if not o.freed and _crew_beside(e.units[int(o.captive)].pos) else []
+	var out: Array[String] = []   # typed: a bare [] from a ternary comes back untyped
+	if not o.freed and _crew_beside(e.units[int(o.captive)].pos):
+		out.append("free")
+	return out
 
 
 func act(action: String) -> Dictionary:

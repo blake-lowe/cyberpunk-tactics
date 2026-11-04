@@ -20,6 +20,13 @@ func test_every_registered_kind_loads_sets_up_and_reports() -> void:
 			assert_true(mk.get("extract", false) or (mk.has("cell") and mk.has("label") and String(mk.tone) in ["gold", "red", "cyan"]), "%s: well-formed marks" % kind)
 		e.next_turn()
 		assert_eq(e.state, "playing", "%s: playable" % kind)
+		var acts := e.obj.actions()   # typed even when empty: the HUD's interact slot keeps it as Array[String]
+		assert_true(acts.is_typed() and acts.get_typed_builtin() == TYPE_STRING, "%s: actions() is an Array[String]" % kind)
+		var none := e.obj_actions()
+		assert_true(none.is_typed(), "%s: obj_actions() is an Array[String]" % kind)
+		e.state = "won"
+		assert_true(e.obj_actions().is_typed() and e.obj_actions().is_empty(), "%s: nothing to do once it's over, still typed" % kind)
+		assert_true(Hud.interact_here(e) is Array, "%s: the interact slot reads it" % kind)
 
 
 func test_unknown_kinds_play_as_elimination() -> void:

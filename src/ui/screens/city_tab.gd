@@ -172,6 +172,10 @@ func _job(v: VBoxContainer, i: int) -> void:
 		return
 	var g: Dictionary = camp.board[i]
 	v.add_child(UiKit.label("JOB OFFER %d" % (i + 1), 13, Hud.GOLD))
+	if Campaign.is_operation(g):   # owner: a gig that chains maps reads as one before it's taken
+		var tag := UiKit.hbox(8)
+		tag.add_child(UiKit.chip(FixerScreen.op_tag(g), Hud.GOLD))
+		v.add_child(tag)
 	var t := UiKit.head(String(g.title), 28, Hud.TEXT)
 	t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	t.custom_minimum_size.x = 100
@@ -182,8 +186,13 @@ func _job(v: VBoxContainer, i: int) -> void:
 		v.add_child(UiKit.label(String(World.district(did).get("name", did)), 13, Hud.DIM))
 	v.add_child(code_block(g, 15, 12))
 	v.add_child(UiKit.body(String(g.get("blurb", "")), 14))
+	if Campaign.is_operation(g):   # each map's land in order, and what carries between them
+		var legs: Array = g.legs
+		for k in legs.size():
+			v.add_child(UiKit.body("%d. %s" % [k + 1, String(legs[k].get("leg_title", ""))], 13, Hud.TEXT))
+		v.add_child(UiKit.body(FixerScreen.CARRY_LINE, 13, Hud.GOLD))
 	var obj := String(FixerScreen.OBJECTIVE_TEXT.get(Campaign.objective_for(g), ""))
-	if obj != "":
+	if obj != "" and not Campaign.is_operation(g):
 		v.add_child(UiKit.body("★ " + obj, 14, Hud.TEXT))
 	v.add_child(UiKit.label("PAY  %s eb" % UiKit.money(int(g.get("pay", 0))), 18, Hud.TEXT))
 	v.add_child(UiKit.label("CLICK THE PIN TO OPEN IT IN JOBS", 12, Hud.DIM))
@@ -319,6 +328,9 @@ func _offer_row(i: int) -> Control:
 	h.add_child(t)
 	t.add_child(UiKit.body(String(g.title), 13, Hud.TEXT))
 	var did := String(g.get("district", ""))
-	t.add_child(UiKit.label("%s · %s eb" % [String(World.district(did).get("name", "Night City")) if did != "" else "Night City", UiKit.money(int(g.get("pay", 0)))], 11, Hud.DIM))
+	var sub := "%s · %s eb" % [String(World.district(did).get("name", "Night City")) if did != "" else "Night City", UiKit.money(int(g.get("pay", 0)))]
+	if Campaign.is_operation(g):
+		sub = FixerScreen.op_tag(g) + " · " + sub
+	t.add_child(UiKit.label(sub, 11, Hud.GOLD if Campaign.is_operation(g) else Hud.DIM))
 	UiKit.clickable(p, func(): open_job.emit(i))
 	return p
