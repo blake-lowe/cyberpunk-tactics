@@ -42,7 +42,7 @@ func _initialize() -> void:
 		var tw: Array = [] if String(gig.get("twist", "")) == "" else [String(gig.twist)]
 		if gig.get("setup", false):
 			tw.append_array(["setup", "heavy"])
-		var e := Encounter.setup(m, camp.dice, crew, Campaign.objective_for(gig), tw)
+		var e := Encounter.setup(m, camp.dice, crew, Campaign.objective_for(gig), tw, {"faction": String(gig.get("faction", ""))})
 		e.heat = camp.heat
 		e.nav.locked = {}   # stand-in for a player who hacks or shoots security doors (the AI crew can't)
 		e.next_turn()
@@ -56,7 +56,7 @@ func _initialize() -> void:
 			e.next_turn()
 			turns += 1
 			if OS.get_cmdline_user_args().has("--trace") and turns % 20 == 0:
-				print("  turn %d round %d alarm %d crew up %d guards %d" % [turns, e.init.round_num, e.alarm, e.alive(0).size(), e.alive(1).size()])
+				print("  turn %d round %d alarm %d crew up %d guards %d" % [turns, e.init.round_num, e.alarm, e.alive(0).size(), e.opfor().size()])
 		if e.state == "playing":   # stalemate: the crew pulls out
 			e.state = "fled"
 		var r := camp.resolve(e)

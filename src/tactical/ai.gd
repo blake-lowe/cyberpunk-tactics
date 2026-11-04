@@ -64,9 +64,9 @@ static func _special(e: Encounter, u: Dictionary, w: Weapon) -> bool:
 			var friends := 0
 			for o in e.units:
 				if not o.c.dead and o.pos.z == cell.z and maxi(absi(o.pos.x - cell.x), absi(o.pos.y - cell.y)) <= Encounter.BLAST_HALF:
-					if o.team == u.team:
+					if e.allied(int(o.team), int(u.team)):
 						friends += 1
-					else:
+					elif e.hostile(int(o.team), int(u.team)):
 						n += 1
 			if friends == 0 and n > best_n:
 				best_n = n
@@ -95,7 +95,7 @@ static func _special(e: Encounter, u: Dictionary, w: Weapon) -> bool:
 
 static func _enemies(e: Encounter, u: Dictionary) -> Array:
 	var psycho: bool = e.turn != null and e.turn.psychotic
-	return e.units.filter(func(o): return o != u and not o.c.dead and (psycho or o.team != u.team))
+	return e.units.filter(func(o): return o != u and not o.c.dead and (psycho or e.hostile(int(u.team), int(o.team))))
 
 
 static func _shoot(e: Encounter, u: Dictionary, w: Weapon) -> bool:
@@ -160,7 +160,7 @@ static func _advance(e: Encounter, u: Dictionary) -> void:
 ## Snatch gigs: guards close on whoever carries the package, and a few hang back to guard it while
 ## it's still on the floor.
 static func _objective_pull(e: Encounter, u: Dictionary, cell: Vector3i) -> float:
-	if u.team != 1 or e.objective.get("kind", "") != "snatch":
+	if u.team != Encounter.OPFOR or e.objective.get("kind", "") != "snatch":
 		return 0.0
 	var carrier: int = e.objective.get("carrier", -1)
 	if carrier >= 0:

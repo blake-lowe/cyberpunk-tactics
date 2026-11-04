@@ -17,6 +17,7 @@ const CYAN := Color("05d9e8")
 const MAGENTA := Color("ff2a6d")
 const GOLD := Color("f9c80e")
 const RED := Color("ff3b4f")
+const NEUTRAL := Color("c8d0d8")   # bystanders, medics: neither crew nor foe
 const GREEN := Color("39f0a0")
 const VIOLET := Color("b537f2")
 const DIM := Color("8796a4")   # secondary text: ~6.7:1 on the panel ink (was 6f7d8a, ~4.8:1)
@@ -539,8 +540,10 @@ func _clear(c: Node) -> void:
 
 # --- Updates -----------------------------------------------------------------------
 
-func _team_col(u: Dictionary) -> Color:
-	return UnitLook.CREW_ACCENTS[u.id % 4] if u.team == 0 else RED
+func _team_col(u: Dictionary, enc: Encounter = null) -> Color:
+	if u.team == 0:
+		return UnitLook.CREW_ACCENTS[u.id % 4]
+	return RED if enc == null or enc.hostile(Encounter.CREW, int(u.team)) else NEUTRAL
 
 
 func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) -> void:
@@ -553,7 +556,7 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 		if c.dead:
 			continue
 		var u := enc.unit_of(c)
-		var slot := Slot.new(portraits.tex(u), _team_col(u), u == enc.cur, float(maxi(c.hp, 0)) / c.max_hp(), c.display_name.to_upper(), c.dead)
+		var slot := Slot.new(portraits.tex(u), _team_col(u, enc), u == enc.cur, float(maxi(c.hp, 0)) / c.max_hp(), c.display_name.to_upper(), c.dead)
 		slot.material = portraits.material()
 		slot.modulate = Portraits.tint(c.wound_state())
 		_init_strip.add_child(slot)
@@ -642,7 +645,7 @@ static func objective_text(enc: Encounter) -> String:
 		"snatch":
 			return "OBJECTIVE · CARRY THE PACKAGE TO THE EXTRACTION ZONE" if int(o.get("carrier", -1)) >= 0 else "OBJECTIVE · RECOVER THE PACKAGE"
 		"eliminate":
-			return "OBJECTIVE · ELIMINATE ALL HOSTILES (%d LEFT)" % enc.alive(1).size()
+			return "OBJECTIVE · ELIMINATE ALL HOSTILES (%d LEFT)" % enc.opfor().size()
 		"assassinate":
 			if o.get("done", false):
 				if not enc.tt.is_empty() and String(enc.tt.state) in ["called", "landed"]:

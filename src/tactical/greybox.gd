@@ -37,7 +37,7 @@ var cover_mode := false
 var move_opts := {}
 var hover := Vector3i(-1, -1, -1)
 var mouse := Vector2.ZERO
-var gig := {"scene": "skirmish", "profile": "", "seed": 11, "security": 1}
+var gig := {"scene": "skirmish", "profile": "", "seed": 11, "security": 1, "faction": ""}
 var look := {"pixel": 0.0, "palette": 1.0, "levels": 0.0, "dither": 0.3, "contrast": 1.0, "saturation": 1.1, "outline": 0.35,
 	"bloom": 1.2, "ortho": 1.0, "lights": 1.0, "dim": 0.5, "spill": 1.0, "net_style": 7.0}
 const NET_STYLES := ["", "POINTILLIST", "OBRA DINN", "WIRE · PIXEL", "BLACKWALL", "GHOST", "STARGATE", "WIRE · CRISP", "WIRE · BLUEPRINT", "WIRE · SCAN"]
@@ -253,6 +253,7 @@ func _ready() -> void:
 			"scene": gig.scene = kv[1]
 			"profile": gig.profile = kv[1]
 			"seed": gig.seed = int(kv[1])
+			"faction": gig.faction = kv[1]   # the target faction (World id: militech, maelstrom, ...)
 			"security": gig.security = int(kv[1])
 			"objective": gig["objective"] = kv[1]
 			"twist": gig["twist"] = kv[1]
@@ -352,7 +353,7 @@ func _process(delta: float) -> void:
 		_frames += 1
 		if _frames == 2 and _shot_hover == Vector2i(-2, -2):  # --hover=guard: the nearest guard in sight
 			for u in enc.units:
-				if u.team == 1 and (enc.vision.visible.has(u.pos) or not fog_on) and not u.c.dead:
+				if _foe(u) and (enc.vision.visible.has(u.pos) or not fog_on) and not u.c.dead:
 					_shot_hover = Vector2i(u.pos.x, u.pos.y)
 		if _frames == 3 and _shot_hover.x >= 0:
 			hover = Vector3i(_shot_hover.x, _shot_hover.y, view_floor)
@@ -561,7 +562,10 @@ func new_gig() -> void:
 		tw = [] if String(camp.active_gig.get("twist", "")) == "" else [String(camp.active_gig.twist)]
 		if camp.active_gig.get("setup", false):   # hidden until it springs
 			tw.append_array(["setup", "heavy"])
-	enc = Encounter.setup(m, dice, crew, kind, tw)
+	var fid := String(gig.get("faction", ""))
+	if campaign_gig:
+		fid = String(camp.active_gig.get("faction", ""))
+	enc = Encounter.setup(m, dice, crew, kind, tw, {"faction": fid} if fid != "" else {})
 	if campaign_gig:
 		enc.heat = camp.heat
 	_log_seen = 0
@@ -724,17 +728,8 @@ func _build_world() -> void:
 func _unit_node(u: Dictionary) -> CharModel:
 	if unit_nodes.has(u.id):
 		return unit_nodes[u.id]
-	var look_team: int = 0 if u.team in [2, 3] else (1 if u.team == 4 else u.team)
-	var look_role := String(u.c.role)
-	if u.get("vip", false):
-		look_role = "exec"
-	elif u.get("civ", false):
-		look_role = "civilian"
-	elif u.get("tt", false):
-		look_role = "trauma"
-	elif u.get("maxtac", false):
-		look_role = "maxtac"
-	var n := CharModel.build(look_team, u.c.look_seed if u.c.look_seed >= 0 else u.id, look_role, u.c.weapons[0].id() if not u.c.weapons.is_empty() else "heavy_pistol")
+	var look_role := "exec" if u.get("vip", false) else String(u.c.role)
+	var n := CharModel.build(UnitLook.seed_team(u), u.c.look_seed if u.c.look_seed >= 0 else u.id, look_role, u.c.weapons[0].id() if not u.c.weapons.is_empty() else "heavy_pistol", u.c.faction)
 	if u.c.weapons.is_empty() and n.gun:   # the unarmed (captives) carry nothing
 		n.gun.visible = false
 	decals[u.id] = _decal(Color("05d9e8"), 0.95, false, 0.0)
@@ -908,7 +903,7 @@ func _refresh() -> void:
 		var dc: MeshInstance3D = decals[u.id]
 		dc.visible = false
 		n.set_meta("wound", u.c.wound_state())
-		n.set_meta("calm", u.team == 1 and not u.alerted)
+		n.set_meta("calm", enc.is_guard(u) and not u.alerted)
 		n.set_meta("jack", enc.runs.has(u.id))
 		if u.c.dead:
 			if not n.get_meta("fallen", false):   # died out of sight: just lie there
@@ -919,11 +914,11 @@ func _refresh() -> void:
 		n.scale = Vector3.ONE * 1.3   # a touch larger than life, still in scale with 1.15-high doors
 		dc.position = n.position + Vector3(0, 0.03, 0)
 		n.set_meta("slump_goal", 1.0 if u.c.wound_state() == Combatant.Wound.MORTAL else 0.0)
-		n.set_meta("crouch_goal", 1.0 if _beside_cover(u.pos) or u.team == 2 else 0.0)   # crouching reads as "in cover"; captives kneel
+		n.set_meta("crouch_goal", 1.0 if _beside_cover(u.pos) or u.team == Encounter.CAPTIVE else 0.0)   # crouching reads as "in cover"; captives kneel
 		if true:
 			n.rotation.x = 0
-			var foes := enc.alive(1 - u.team).filter(func(o): return o.alerted or u.team == 1)
-			if u.team == 1 and not u.alerted:
+			var foes := enc.foes(u).filter(func(o): return o.alerted or enc.is_guard(u))
+			if enc.is_guard(u) and not u.alerted:
 				foes = []
 				var fc: Vector2 = u.get("facing", Vector2.ZERO)   # watching their sector
 				if fc != Vector2.ZERO:
@@ -1121,7 +1116,7 @@ func _demo_av() -> void:
 		enc._maxtac_drop()
 	else:   # down the first guard, give them a card, call the team and fast-forward to the landing
 		for g in enc.units:
-			if g.team == 1:
+			if g.team == Encounter.OPFOR:
 				g["trauma_card"] = true
 				g.c.hp = 0
 				g.c.unconscious = true
@@ -1319,7 +1314,7 @@ func _inspect(v: Vector3i) -> void:
 			lines.append("%s · %dd6 · ROF %d%s" % [w.def.name, w.dice(), w.rof(), (" · %d/%d" % [w.ammo, int(w.def.get("mag", 0))]) if w.uses_ammo() else ""])
 		if not c.injuries.is_empty():
 			lines.append("[color=#ff3b4f]%s[/color]" % ", ".join(c.injuries.map(func(i): return String(i.get("name", i.id)))))
-		head = "// INSPECT · " + ("CREW" if u.team == 0 else "HOSTILE")
+		head = "// INSPECT · " + ("CREW" if u.team == 0 else ("%s · %s" % [World.display_name(enc.faction_of(u)), "HOSTILE" if _foe(u) else "NEUTRAL"]).to_upper())
 	var cover_hp: int = enc.los.cover_hp.get(v, 0)
 	for cv in m.cover:
 		if cv.floor == v.z and cv.pos == Vector2i(v.x, v.y) and cover_hp > 0:
@@ -1476,7 +1471,7 @@ func _update_xray() -> void:
 			continue
 		var seen: bool = u.team == 0 or not fog_on or enc.vision.visible.has(u.pos)
 		var closed := _indoor_structure(u.pos) >= 0 and not (cutaway and open_cells.has(Vector2i(u.pos.x, u.pos.y)))
-		(n as CharModel).set_xray(seen and closed and not _promo, Hud.CYAN if u.team == 0 else Hud.RED)
+		(n as CharModel).set_xray(seen and closed and not _promo, Hud.CYAN if u.team == 0 else (Hud.RED if _foe(u) else Hud.NEUTRAL))
 
 
 ## Door leaves: closed in the wall line, or swung open 90° on the hinge; a lock light on the frame.
@@ -1715,7 +1710,7 @@ func _watch_map() -> Dictionary:
 	if not _watchers.is_empty() or enc.alarm >= 2:
 		return _watchers
 	for g in enc.units:
-		if g.team == 1 and not g.alerted and g.c.can_act() and g.pos.z == view_floor and (not fog_on or enc.vision.visible.has(g.pos)):
+		if enc.is_guard(g) and _foe(g) and not g.alerted and g.c.can_act() and g.pos.z == view_floor and (not fog_on or enc.vision.visible.has(g.pos)):
 			_watchers["g%d" % g.id] = enc.watched_cells(g)
 	for d in m.devices:   # live cameras the crew has seen watch their floor too
 		var cp := Vector3i(d.pos.x, d.pos.y, d.floor)
@@ -1732,7 +1727,7 @@ func _relevant_watchers() -> Array:
 		return out
 	var w := _watch_map()
 	var hu := _unit_at(hover)
-	if not hu.is_empty() and hu.team == 1 and w.has("g%d" % hu.id):
+	if not hu.is_empty() and _foe(hu) and w.has("g%d" % hu.id):
 		out.append("g%d" % hu.id)
 	var dest := hover if (move_opts.has(hover) or dash_opts.has(hover)) else Vector3i(-1, -1, -1)
 	if dest.x < 0:
@@ -2058,10 +2053,10 @@ func _click_tool() -> void:
 	var r := {"ok": false, "reason": "pick a target"}
 	match tool:
 		"melee":
-			if not t.is_empty() and t.team != enc.cur.team:
+			if not t.is_empty() and not enc.allied(t.team, enc.cur.team):
 				r = enc.melee(t)
 		"shell":
-			if not t.is_empty() and t.team != enc.cur.team and w:
+			if not t.is_empty() and not enc.allied(t.team, enc.cur.team) and w:
 				r = enc.shotgun_shell(t, w)
 		"grenade":
 			if hover.x >= 0:
@@ -2122,23 +2117,23 @@ func _tool_hover() -> void:
 			var dv := maxi(10, RulesDB.range_dv("grenade_launcher", dist))
 			var pct := roundi(Check.chance_vs_dv(c.skill_base("athletics") - c.action_penalty(), dv) * 100)
 			var caught := enc.units.filter(func(o): return not o.c.dead and o.pos.z == hover.z and maxi(absi(o.pos.x - hover.x), absi(o.pos.y - hover.y)) <= Encounter.BLAST_HALF)
-			var names := caught.map(func(o): return ("[color=#39f0a0]%s[/color]" if o.team == enc.cur.team else "[color=#ff3b4f]%s[/color]") % o.c.display_name)
+			var names := caught.map(func(o): return ("[color=#39f0a0]%s[/color]" if enc.allied(o.team, enc.cur.team) else "[color=#ff3b4f]%s[/color]") % o.c.display_name)
 			hud.tip(("[code][font_size=44]%d%%[/font_size][/code] on target · DV %d · %d m\n6d6 in a 5x5 blast (a miss scatters it)\n%s" % [pct, dv, roundi(dist), ", ".join(names) if not names.is_empty() else "nobody in the blast"]) if ok else "[color=#ff3b4f]Out of reach or no clear throw[/color]", mouse, "// GRENADE ×%d" % c.grenades, Hud.GOLD)
 		"melee":
-			if t.is_empty() or t.team == enc.cur.team:
+			if t.is_empty() or enc.allied(t.team, enc.cur.team):
 				hud.tip("Pick a neighbouring enemy", mouse, "// MELEE", Hud.CYAN)
 				return
 			var mw := enc.melee_weapon(c)
 			var p := enc.preview(t, mw, Attack.Mode.SINGLE)
 			hud.tip(("[code][font_size=44]%d%%[/font_size][/code]  %s · %dd6" % [roundi(p.chance * 100), mw.def.name, mw.dice()]) if p.ok else "[color=#ff3b4f]%s[/color]" % String(p.reason).capitalize(), mouse, "// MELEE", Hud.CYAN)
 		"shell":
-			if t.is_empty() or t.team == enc.cur.team:
+			if t.is_empty() or enc.allied(t.team, enc.cur.team):
 				hud.tip("Pick an enemy: everyone in a 90° cone to 6 m is caught", mouse, "// SHOTGUN SHELL", Hud.CYAN)
 				return
 			var pct2 := roundi(Check.chance_vs_dv(c.skill_base(enc.cur.c.weapons[0].skill()) - c.action_penalty(), Attack.SHOTGUN_SHELL_DV) * 100)
 			hud.tip("[code][font_size=44]%d%%[/font_size][/code] vs DV13 · 3d6 to everyone in the cone" % pct2, mouse, "// SHOTGUN SHELL", Hud.CYAN)
 		"rig":
-			if t.is_empty() or t.team != enc.cur.team:
+			if t.is_empty() or not enc.allied(t.team, enc.cur.team):
 				hud.tip("Pick yourself or a neighbouring ally with worn armour", mouse, "// JURY-RIG", Hud.CYAN)
 				return
 			var loc := enc.rig_target_loc(t)
@@ -2149,7 +2144,7 @@ func _tool_hover() -> void:
 			var pr := roundi(Check.chance_vs_dv(Encounter.rig_base(c), ArmorPiece.maker_dv(ap.price())) * 100)
 			hud.tip("[code][font_size=44]%d%%[/font_size][/code] %s SP %d → %d · TECH + Basic Tech + Field vs DV%d" % [pr, loc.to_upper(), ap.sp, ap.max_sp, ArmorPiece.maker_dv(ap.price())], mouse, "// JURY-RIG", Hud.CYAN)
 		"dose":
-			if t.is_empty() or t.team != enc.cur.team:
+			if t.is_empty() or not enc.allied(t.team, enc.cur.team):
 				hud.tip("Pick yourself or a neighbouring ally (%d doses)" % c.doses, mouse, "// PHARMACEUTICALS", Hud.GREEN)
 				return
 			var drug := enc.best_dose(t)
@@ -2159,7 +2154,7 @@ func _tool_hover() -> void:
 			var what := "+%d HP (BODY + WILL)" % mini(t.c.max_hp() - t.c.hp, t.c.raw_stat("BODY") + t.c.raw_stat("WILL")) if drug == "speedheal" else "ignore Seriously Wounded penalties"
 			hud.tip("%s · %s · %d doses left" % [drug.to_upper(), what, c.doses], mouse, "// PHARMACEUTICALS", Hud.GREEN)
 		"stabilize":
-			if t.is_empty() or t.team != enc.cur.team or t.c.wound_state() != Combatant.Wound.MORTAL:
+			if t.is_empty() or not enc.allied(t.team, enc.cur.team) or t.c.wound_state() != Combatant.Wound.MORTAL:
 				hud.tip("Pick a Mortally Wounded ally in reach", mouse, "// STABILIZE", Hud.GREEN)
 				return
 			var pct3 := roundi(Check.chance_vs_dv(maxi(c.skill_base("first_aid"), c.skill_base("paramedic")) - c.action_penalty(), t.c.stabilization_dv()) * 100)
@@ -2324,7 +2319,7 @@ func _run_reel() -> void:
 		"enemy":
 			enc.attack(g, enc.cur.c.weapons[0], Attack.Mode.SINGLE)   # gunfire rouses the guards into initiative
 			await _act()
-			var others: Array = enc.units.filter(func(o): return o.team == 1 and not o.alerted and not o.c.dead)
+			var others: Array = enc.units.filter(func(o): return enc.is_guard(o) and _foe(o) and not o.alerted and not o.c.dead)
 			enc._rouse(others.slice(0, 3))
 			await _act()
 			for k in 4:   # end crew turns: the guards act in between (AI turns play out inside _after_action)
@@ -2447,12 +2442,12 @@ func _run_reel() -> void:
 			await _act()
 		"backup":
 			await get_tree().create_timer(0.4).timeout
-			var gs := enc.alive(1)
+			var gs := enc.opfor()
 			if not gs.is_empty():
 				enc._call_it_in(gs[0])
 			await _act()
 			var roster: Array[String] = ["mook", "mook", "mook"]
-			enc._spawn_wave(roster, "Backup", "BACKUP")
+			enc._spawn_wave(roster, "BACKUP", Encounter.OPFOR, enc.opfor_faction, "Backup")
 			await _act()
 			tail = 2.5
 		"watch":   # the stealth overlay: a guard's watched squares while the crew plans a move
@@ -2496,7 +2491,7 @@ func _act() -> void:
 func _nearest_guard() -> Dictionary:
 	var best := {}
 	for u in enc.units:
-		if u.team == 1 and not u.c.dead and (best.is_empty() or Vector2(u.pos.x - enc.cur.pos.x, u.pos.y - enc.cur.pos.y).length() < Vector2(best.pos.x - enc.cur.pos.x, best.pos.y - enc.cur.pos.y).length()):
+		if enc.is_guard(u) and _foe(u) and not u.c.dead and (best.is_empty() or Vector2(u.pos.x - enc.cur.pos.x, u.pos.y - enc.cur.pos.y).length() < Vector2(best.pos.x - enc.cur.pos.x, best.pos.y - enc.cur.pos.y).length()):
 			best = u
 	return best
 
@@ -2525,7 +2520,7 @@ func _reel_setup_shot(g: Dictionary) -> void:
 func _demo_attack() -> void:
 	var best := {}
 	for u in enc.units:
-		if u.team == 1 and not u.c.dead and (best.is_empty() or Vector2(u.pos.x - enc.cur.pos.x, u.pos.y - enc.cur.pos.y).length() < Vector2(best.pos.x - enc.cur.pos.x, best.pos.y - enc.cur.pos.y).length()):
+		if enc.is_guard(u) and _foe(u) and not u.c.dead and (best.is_empty() or Vector2(u.pos.x - enc.cur.pos.x, u.pos.y - enc.cur.pos.y).length() < Vector2(best.pos.x - enc.cur.pos.x, best.pos.y - enc.cur.pos.y).length()):
 			best = u
 	if best.is_empty():
 		return
@@ -2698,6 +2693,11 @@ var _callout_stack := {}              ## unit id → [count, msec] so callouts s
 var _flash_lights := {}               ## unit id → pooled muzzle OmniLight3D
 
 
+## Would this unit shoot the crew? (Red in the view; bystanders and medics are neutral.)
+func _foe(u: Dictionary) -> bool:
+	return enc.hostile(Encounter.CREW, int(u.team))
+
+
 func _seen(v: Vector3i) -> bool:
 	return not fog_on or enc.vision.visible.has(v)
 
@@ -2711,7 +2711,7 @@ func _play_events() -> void:
 	while not enc.events.is_empty():
 		var e: Dictionary = enc.events.pop_front()
 		var u: Dictionary = enc.units[e.unit]
-		if u.team == 1 and not hostile_shown and String(e.type) not in ["alert", "death", "camera", "tt_call", "av_land", "av_leave", "tt_pickup", "panic", "civ_gone"] and not e.get("patrol", false) and _event_visible(e):
+		if enc.is_guard(u) and _foe(u) and not hostile_shown and String(e.type) not in ["alert", "death", "camera", "tt_call", "av_land", "av_leave", "tt_pickup", "panic", "civ_gone"] and not e.get("patrol", false) and _event_visible(e):
 			hostile_shown = true
 			hud.enemy_phase(true)
 			hud.turn_banner("HOSTILE ACTIVITY", Hud.RED)
@@ -2998,7 +2998,7 @@ func _anim_attack(e: Dictionary) -> void:
 	if su.team == 0 and su.pos.z != view_floor:   # follow a crew shooter to their floor (XCOM-style)
 		view_floor = su.pos.z
 		_refresh()
-	elif su.team == 1 and maxi(su.pos.z, tu.pos.z) > view_floor and _seen(su.pos):   # a guard firing from above: lift the view for the shot
+	elif enc.is_guard(su) and maxi(su.pos.z, tu.pos.z) > view_floor and _seen(su.pos):   # a guard firing from above: lift the view for the shot
 		restore_floor = view_floor
 		view_floor = maxi(su.pos.z, tu.pos.z)
 		_update_fog()
@@ -3575,7 +3575,7 @@ func _update_audio() -> void:
 	var a: Array = AMBIENCE.get(String(m.params.get("scene", "")), ["amb_city", 0.45, 0.12])
 	ad.ambience(String(a[0]))
 	ad.set_space(float(a[1]), float(a[2]))
-	var fighting: bool = enc.alarm >= 1 or enc.units.any(func(g): return g.team == 1 and g.alerted and not g.c.dead)
+	var fighting: bool = enc.alarm >= 1 or enc.engaged()
 	ad.music("" if enc.state != "playing" else ("combat" if fighting else "explore"))
 
 
@@ -3584,7 +3584,7 @@ func _on_hover_changed() -> void:
 	_draw_watch(grid_node != null and grid_node.visible)
 	var hs := -1
 	var hu := _unit_at(hover)
-	if _crew_turn() and (move_opts.has(hover) or dash_opts.has(hover) or (not hu.is_empty() and hu.team == 1)):
+	if _crew_turn() and (move_opts.has(hover) or dash_opts.has(hover) or (not hu.is_empty() and _foe(hu))):
 		hs = _indoor_structure(hover)
 	if hs != _hover_sid:
 		_hover_sid = hs

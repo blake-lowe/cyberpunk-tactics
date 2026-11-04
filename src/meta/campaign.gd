@@ -112,8 +112,9 @@ func refresh_board() -> void:
 	for i in n:
 		var t: Dictionary = g.templates[dice.d(g.templates.size()) - 1]
 		var willing: Array = g.fixers.filter(func(f): return rep_with(String(f)) >= 0)   # not the ones who sold you out
-		var slots := {"fixer": _pick(willing if not willing.is_empty() else g.fixers), "corp": _pick(g.corps), "gang": _pick(g.gangs), "data": _pick(g.data),
+		var slots := {"fixer": _pick(willing if not willing.is_empty() else g.fixers), "data": _pick(g.data),
 			"place": _pick(t.get("places", ["site"])), "target": _pick(t.get("targets", ["target"]))}
+		slots.merge(_target_slots(String(t.kind)))
 		var frep := maxi(0, rep_with(String(slots.fixer)))   # better jobs come from fixers who know you
 		var sec := 1
 		for s in [3, 2]:
@@ -125,8 +126,8 @@ func refresh_board() -> void:
 			var keys: Array = g.twists.keys()
 			twist = keys[dice.d(keys.size()) - 1]
 		var mult := float(g.twists[twist].pay) if twist != "" else 1.0
-		var title := _fill(_pick(t.titles), slots)
-		board.append({"id": "%d-%d" % [day, i], "kind": t.kind, "fixer": slots.fixer, "title": title,
+		var title := _fill(_pick(_titles_for(t, String(slots.faction))), slots)
+		board.append({"id": "%d-%d" % [day, i], "kind": t.kind, "fixer": slots.fixer, "faction": slots.faction, "title": title,
 			"blurb": _fill(String(t.blurb), slots), "security": sec, "twist": twist,
 			"pay": int(int(g.pay[str(sec)]) * (1.0 + frep * 0.05) * mult), "rep": sec, "seed": dice.rng.randi_range(1, 99999),
 			"setup": frep == 0 and dice.rng.randf() < float(g.get("betrayal_chance", 0.0))})
@@ -141,13 +142,33 @@ func _unique_offer(g: Dictionary) -> void:
 	if trusted.is_empty() or dice.d(3) != 1:
 		return
 	var t: Dictionary = g.unique_templates[dice.d(g.unique_templates.size()) - 1]
-	var slots := {"fixer": _pick(trusted), "corp": _pick(g.corps), "gang": _pick(g.gangs), "data": _pick(g.data),
-		"place": _pick(t.get("places", ["site"]))}
+	var slots := {"fixer": _pick(trusted), "data": _pick(g.data), "place": _pick(t.get("places", ["site"]))}
+	slots.merge(_target_slots(String(t.kind)))
 	var sec := int(t.security)
-	board.append({"id": "%d-u" % day, "kind": t.kind, "fixer": slots.fixer, "title": _fill(_pick(t.titles), slots),
+	board.append({"id": "%d-u" % day, "kind": t.kind, "fixer": slots.fixer, "faction": slots.faction, "title": _fill(_pick(_titles_for(t, String(slots.faction))), slots),
 		"blurb": _fill(String(t.blurb), slots), "security": sec, "twist": "", "unique": true,
 		"pay": int(int(g.pay[str(sec)]) * float(t.pay_mult)), "rep": int(t.rep), "seed": dice.rng.randi_range(1, 99999), "setup": false})
 	board[-1].merge(_place_for(String(t.kind), g))
+
+
+## The gig's target (World faction able to be the target of this kind) and the {corp}/{gang}
+## names its text uses: the target's own name in its slot, another faction's in the other.
+func _target_slots(kind: String) -> Dictionary:
+	var ids := World.targets_for(kind)
+	var fid: String = _pick(ids) if not ids.is_empty() else World.DEFAULT_OPFOR
+	var corps: Array = World.factions().keys().filter(func(f): return World.kind(f) in ["corp", "service"] and not World.targets_for_any(f).is_empty())
+	var gangs: Array = World.factions().keys().filter(func(f): return World.kind(f) == "gang")
+	var gang_target := World.kind(fid) == "gang"
+	return {"faction": fid,
+		"corp": World.display_name(fid if not gang_target else String(_pick(corps))),
+		"gang": World.display_name(fid if gang_target else String(_pick(gangs)))}
+
+
+## Titles that name the target's kind of slot (or neither): no "Wetwork: Militech" on a gang hit.
+static func _titles_for(t: Dictionary, fid: String) -> Array:
+	var other := "{corp}" if World.kind(fid) == "gang" else "{gang}"
+	var ok: Array = (t.titles as Array).filter(func(x): return not String(x).contains(other))
+	return ok if not ok.is_empty() else t.titles
 
 
 static func objective_for(g: Dictionary) -> String:
@@ -184,7 +205,7 @@ static func gig_heat(e: Encounter) -> int:
 		h += 1
 	if e.ncpd_in == -2:
 		h += 1
-	var bodies := e.units.filter(func(u): return u.team == 1 and u.c.dead).size()
+	var bodies := e.units.filter(func(u): return e.hostile(int(u.team), Encounter.CREW) and e.is_guard(u) and u.c.dead).size()
 	h += bodies / 4
 	h += e.civ_casualties   # HOUSE-RULE: every bystander hurt is a headline
 	return h
@@ -292,7 +313,7 @@ func resolve(e: Encounter) -> Dictionary:
 			report.fees = int(ECON.rescue_fee)
 	if won:   # loot: the opposition's guns and armour, fenced
 		for u in e.units:
-			if u.team == 1 and (u.c.dead or u.c.wound_state() >= Combatant.Wound.MORTAL or u.c.unconscious):
+			if e.is_guard(u) and e.hostile(int(u.team), Encounter.CREW) and (u.c.dead or u.c.wound_state() >= Combatant.Wound.MORTAL or u.c.unconscious):
 				var value := 0
 				for w in u.c.weapons:
 					value += int(w.def.get("cost", 0))

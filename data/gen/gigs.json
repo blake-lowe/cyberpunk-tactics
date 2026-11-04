@@ -1,352 +1,335 @@
 {
-  "_doc": "Gig templates for the fixer board (M6). A gig picks a template, a scene from its list, a security level weighted by reputation, and fills the title/blurb slots. Pay and rewards are HOUSE-RULE economy numbers until checked against the book's job rates. Twists (procedural complications, spec Narrative Structure) are HOUSE-RULE content; pay multiplies by the twist's pay. Unique offers (spec: 'occasional unique offers' from fixers who trust you) appear at unique_rep with that fixer. Betrayal (spec: lowered by betrayals; HOUSE-RULE): a small chance a low-rep fixer's gig is a setup (heavy twist hidden, pay withheld). Scenes for a gig come from scene_tags matching kind_tags (owner-approved: objectives work on every map type); raid_chance of gigs are a single-site raid (lone_building with a site from raid_sites).",
-  "fixers": [
-    "Rogue's Cousin",
-    "Mama Lou",
-    "Padre",
-    "Hex Kowalski",
-    "Tanaka-san",
-    "Dakota"
-  ],
-  "corps": [
-    "Biotechnica",
-    "Petrochem",
-    "Militech",
-    "Zetatech",
-    "Kang Tao",
-    "Trauma Team",
-    "Rocklin Augmentics"
-  ],
-  "gangs": [
-    "Maelstrom",
-    "Tyger Claws",
-    "Valentinos",
-    "6th Street",
-    "Wraiths",
-    "Bozos"
-  ],
-  "data": [
-    "payroll ledger",
-    "prototype schematics",
-    "blackmail archive",
-    "clinical trial data",
-    "shipping manifests",
-    "black book"
-  ],
-  "templates": [
-    {
-      "kind": "data_theft",
-      "titles": [
-        "Data theft: {corp}",
-        "Steal {corp}'s {data}",
-        "Download the {data}"
-      ],
-      "blurb": "{fixer} has a buyer for {corp}'s {data}. Download it through their NET, or clear the building and take it by hand."
-    },
-    {
-      "kind": "gang_hit",
-      "titles": [
-        "Gang hit: {gang}",
-        "Clear the {gang} out of the {place}"
-      ],
-      "blurb": "The {gang} have taken over a {place}. {fixer} wants them gone, along with anyone they call for help.",
-      "places": [
-        "camp",
-        "docks",
-        "yard",
-        "bar"
-      ]
-    },
-    {
-      "kind": "corp_extraction",
-      "titles": [
-        "Package job: {corp}",
-        "Steal the {data} drive from {corp}"
-      ],
-      "blurb": "A {corp} insider will leave a door open tonight. Find the {data} drive inside and carry it back to where you came in."
-    },
-    {
-      "kind": "assassination",
-      "titles": [
-        "Wetwork: {gang}",
-        "Retire a {corp} manager",
-        "Take down the {gang}'s lieutenant"
-      ],
-      "blurb": "{fixer} has a name and an address. The mark is inside with bodyguards. Put them down before they bolt for an exit, then get out."
-    },
-    {
-      "kind": "rescue",
-      "titles": [
-        "Extraction: someone {fixer} owes",
-        "Get them out of the {place}",
-        "Hostage pull from the {gang}"
-      ],
-      "blurb": "Someone {fixer} cares about is being held inside. Find them, cut them loose and walk them out alive.",
-      "places": [
-        "warehouse",
-        "clinic",
-        "hideout",
-        "basement"
-      ]
-    },
-    {
-      "kind": "sabotage",
-      "titles": [
-        "Sabotage: {corp}",
-        "Blow {corp}'s {target}",
-        "Lights out at the {place}"
-      ],
-      "blurb": "{fixer} wants {corp}'s {target} wrecked before morning. Get to it, plant the charge, and be somewhere else when it goes.",
-      "places": [
-        "plant",
-        "depot",
-        "tower",
-        "yard"
-      ],
-      "targets": [
-        "server core",
-        "backup generator",
-        "substation"
-      ]
-    }
-  ],
-  "pay": {
-    "1": 1000,
-    "2": 2000,
-    "3": 4000
-  },
-  "rep_for_security": {
-    "1": 0,
-    "2": 2,
-    "3": 5
-  },
-  "twists": {
-    "heavy": {
-      "name": "Heavy security",
-      "desc": "They doubled the guard. Opposition one security level up.",
-      "pay": 1.5
-    },
-    "blackout": {
-      "name": "Blackout",
-      "desc": "The grid's down in the area: no lights but the moon. Easier to sneak, harder to see.",
-      "pay": 1.0
-    },
-    "shift_change": {
-      "name": "Shift change",
-      "desc": "The next shift walks in on round 6 and calls it in, quiet or not.",
-      "pay": 1.15
-    }
-  },
-  "twist_chance": 0.35,
-  "unique_templates": [
-    {
-      "kind": "corp_extraction",
-      "titles": [
-        "Personal job: {corp} prototype"
-      ],
-      "blurb": "{fixer} trusts you with this one. A {corp} prototype is in storage tonight; bring it back. Double pay.",
-      "scenes": [
-        "corp_campus",
-        "megablock"
-      ],
-      "security": 3,
-      "pay_mult": 2.0,
-      "rep": 3,
-      "tags": [
-        "corp",
-        "industrial"
-      ]
-    },
-    {
-      "kind": "gang_hit",
-      "titles": [
-        "Personal job: wipe out the {gang}"
-      ],
-      "blurb": "{fixer} wants the {gang} gone for good. Their main crew is at the {place}. Double pay.",
-      "scenes": [
-        "shipyard",
-        "rail_yard",
-        "badlands"
-      ],
-      "places": [
-        "warehouse",
-        "depot",
-        "camp"
-      ],
-      "security": 3,
-      "pay_mult": 2.0,
-      "rep": 3,
-      "tags": [
-        "gang",
-        "wild"
-      ]
-    },
-    {
-      "kind": "data_theft",
-      "titles": [
-        "Personal job: {corp}'s {data}"
-      ],
-      "blurb": "{fixer}'s client wants {corp}'s {data}. Expect a deep NET and heavy Black ICE. Double pay.",
-      "scenes": [
-        "corp_campus",
-        "lone_building"
-      ],
-      "security": 3,
-      "pay_mult": 2.0,
-      "rep": 3,
-      "tags": [
-        "corp",
-        "industrial",
-        "residential"
-      ]
-    }
-  ],
-  "unique_rep": 3,
-  "betrayal_chance": 0.08,
-  "scene_tags": {
-    "skirmish": [
-      "gang",
-      "residential"
-    ],
-    "lone_building": [
-      "corp",
-      "residential",
-      "gang",
-      "industrial"
-    ],
-    "street_block": [
-      "residential",
-      "gang"
-    ],
-    "megablock": [
-      "residential"
-    ],
-    "shipyard": [
-      "industrial",
-      "gang"
-    ],
-    "badlands": [
-      "wild",
-      "gang"
-    ],
-    "rail_yard": [
-      "industrial",
-      "gang"
-    ],
-    "corp_campus": [
-      "corp"
-    ],
-    "neighborhood:corporate_center": [
-      "corp"
-    ],
-    "neighborhood:executive_zone": [
-      "corp"
-    ],
-    "neighborhood:market_streets": [
-      "residential",
-      "gang"
-    ],
-    "neighborhood:mixed_residential": [
-      "residential"
-    ],
-    "neighborhood:combat_zone": [
-      "gang"
-    ],
-    "neighborhood:hot_zone": [
-      "gang",
-      "wild"
-    ],
-    "neighborhood:industrial": [
-      "industrial"
-    ],
-    "neighborhood:pacifica": [
-      "gang",
-      "residential"
-    ],
-    "undercity": [
-      "gang",
-      "industrial"
-    ],
-    "arcology": [
-      "corp"
-    ],
-    "warzone": [
-      "gang",
-      "wild"
-    ]
-  },
-  "kind_tags": {
-    "data_theft": [
-      "corp",
-      "industrial",
-      "residential"
-    ],
-    "gang_hit": [
-      "gang",
-      "wild"
-    ],
-    "corp_extraction": [
-      "corp",
-      "industrial"
-    ],
-    "assassination": [
-      "gang",
-      "corp",
-      "wild"
-    ],
-    "rescue": [
-      "gang",
-      "industrial",
-      "residential",
-      "corp"
-    ],
-    "sabotage": [
-      "corp",
-      "industrial"
-    ]
-  },
-  "raid_sites": {
-    "data_theft": [
-      "corp_office",
-      "data_center",
-      "clinic",
-      "corp_hq"
-    ],
-    "gang_hit": [
-      "gang_hideout",
-      "bar",
-      "club",
-      "chop_shop",
-      "bd_parlor",
-      "squat"
-    ],
-    "corp_extraction": [
-      "corp_office",
-      "warehouse",
-      "clinic",
-      "villa",
-      "factory"
-    ],
-    "assassination": [
-      "gang_hideout",
-      "club",
-      "villa",
-      "corp_office",
-      "bar"
-    ],
-    "rescue": [
-      "gang_hideout",
-      "warehouse",
-      "clinic",
-      "chop_shop",
-      "squat"
-    ],
-    "sabotage": [
-      "data_center",
-      "factory",
-      "warehouse",
-      "corp_office"
-    ]
-  },
-  "raid_chance": 0.3
+	"_doc": "Gig templates for the fixer board (M6). A gig picks a template, a scene from its list, a security level weighted by reputation, and fills the title/blurb slots. Pay and rewards are HOUSE-RULE economy numbers until checked against the book's job rates. Twists (procedural complications, spec Narrative Structure) are HOUSE-RULE content; pay multiplies by the twist's pay. Unique offers (spec: 'occasional unique offers' from fixers who trust you) appear at unique_rep with that fixer. Betrayal (spec: lowered by betrayals; HOUSE-RULE): a small chance a low-rep fixer's gig is a setup (heavy twist hidden, pay withheld). Scenes for a gig come from scene_tags matching kind_tags (owner-approved: objectives work on every map type); raid_chance of gigs are a single-site raid (lone_building with a site from raid_sites). Target factions come from data/world/factions.json (each faction lists the gig kinds it can be the target of); {corp}/{gang} slots are filled with the target's name, and titles naming the other kind of slot are skipped.",
+	"fixers": [
+		"Rogue's Cousin",
+		"Mama Lou",
+		"Padre",
+		"Hex Kowalski",
+		"Tanaka-san",
+		"Dakota"
+	],
+	"data": [
+		"payroll ledger",
+		"prototype schematics",
+		"blackmail archive",
+		"clinical trial data",
+		"shipping manifests",
+		"black book"
+	],
+	"templates": [
+		{
+			"kind": "data_theft",
+			"titles": [
+				"Data theft: {corp}",
+				"Steal {corp}'s {data}",
+				"Download the {data}"
+			],
+			"blurb": "{fixer} has a buyer for {corp}'s {data}. Download it through their NET, or clear the building and take it by hand."
+		},
+		{
+			"kind": "gang_hit",
+			"titles": [
+				"Gang hit: {gang}",
+				"Clear the {gang} out of the {place}"
+			],
+			"blurb": "The {gang} have taken over a {place}. {fixer} wants them gone, along with anyone they call for help.",
+			"places": [
+				"camp",
+				"docks",
+				"yard",
+				"bar"
+			]
+		},
+		{
+			"kind": "corp_extraction",
+			"titles": [
+				"Package job: {corp}",
+				"Steal the {data} drive from {corp}"
+			],
+			"blurb": "A {corp} insider will leave a door open tonight. Find the {data} drive inside and carry it back to where you came in."
+		},
+		{
+			"kind": "assassination",
+			"titles": [
+				"Wetwork: {gang}",
+				"Retire a {corp} manager",
+				"Take down the {gang}'s lieutenant"
+			],
+			"blurb": "{fixer} has a name and an address. The mark is inside with bodyguards. Put them down before they bolt for an exit, then get out."
+		},
+		{
+			"kind": "rescue",
+			"titles": [
+				"Extraction: someone {fixer} owes",
+				"Get them out of the {place}",
+				"Hostage pull from the {gang}"
+			],
+			"blurb": "Someone {fixer} cares about is being held inside. Find them, cut them loose and walk them out alive.",
+			"places": [
+				"warehouse",
+				"clinic",
+				"hideout",
+				"basement"
+			]
+		},
+		{
+			"kind": "sabotage",
+			"titles": [
+				"Sabotage: {corp}",
+				"Blow {corp}'s {target}",
+				"Lights out at the {place}"
+			],
+			"blurb": "{fixer} wants {corp}'s {target} wrecked before morning. Get to it, plant the charge, and be somewhere else when it goes.",
+			"places": [
+				"plant",
+				"depot",
+				"tower",
+				"yard"
+			],
+			"targets": [
+				"server core",
+				"backup generator",
+				"substation"
+			]
+		}
+	],
+	"pay": {
+		"1": 1000,
+		"2": 2000,
+		"3": 4000
+	},
+	"rep_for_security": {
+		"1": 0,
+		"2": 2,
+		"3": 5
+	},
+	"twists": {
+		"heavy": {
+			"name": "Heavy security",
+			"desc": "They doubled the guard. Opposition one security level up.",
+			"pay": 1.5
+		},
+		"blackout": {
+			"name": "Blackout",
+			"desc": "The grid's down in the area: no lights but the moon. Easier to sneak, harder to see.",
+			"pay": 1.0
+		},
+		"shift_change": {
+			"name": "Shift change",
+			"desc": "The next shift walks in on round 6 and calls it in, quiet or not.",
+			"pay": 1.15
+		}
+	},
+	"twist_chance": 0.35,
+	"unique_templates": [
+		{
+			"kind": "corp_extraction",
+			"titles": [
+				"Personal job: {corp} prototype"
+			],
+			"blurb": "{fixer} trusts you with this one. A {corp} prototype is in storage tonight; bring it back. Double pay.",
+			"scenes": [
+				"corp_campus",
+				"megablock"
+			],
+			"security": 3,
+			"pay_mult": 2.0,
+			"rep": 3,
+			"tags": [
+				"corp",
+				"industrial"
+			]
+		},
+		{
+			"kind": "gang_hit",
+			"titles": [
+				"Personal job: wipe out the {gang}"
+			],
+			"blurb": "{fixer} wants the {gang} gone for good. Their main crew is at the {place}. Double pay.",
+			"scenes": [
+				"shipyard",
+				"rail_yard",
+				"badlands"
+			],
+			"places": [
+				"warehouse",
+				"depot",
+				"camp"
+			],
+			"security": 3,
+			"pay_mult": 2.0,
+			"rep": 3,
+			"tags": [
+				"gang",
+				"wild"
+			]
+		},
+		{
+			"kind": "data_theft",
+			"titles": [
+				"Personal job: {corp}'s {data}"
+			],
+			"blurb": "{fixer}'s client wants {corp}'s {data}. Expect a deep NET and heavy Black ICE. Double pay.",
+			"scenes": [
+				"corp_campus",
+				"lone_building"
+			],
+			"security": 3,
+			"pay_mult": 2.0,
+			"rep": 3,
+			"tags": [
+				"corp",
+				"industrial",
+				"residential"
+			]
+		}
+	],
+	"unique_rep": 3,
+	"betrayal_chance": 0.08,
+	"scene_tags": {
+		"skirmish": [
+			"gang",
+			"residential"
+		],
+		"lone_building": [
+			"corp",
+			"residential",
+			"gang",
+			"industrial"
+		],
+		"street_block": [
+			"residential",
+			"gang"
+		],
+		"megablock": [
+			"residential"
+		],
+		"shipyard": [
+			"industrial",
+			"gang"
+		],
+		"badlands": [
+			"wild",
+			"gang"
+		],
+		"rail_yard": [
+			"industrial",
+			"gang"
+		],
+		"corp_campus": [
+			"corp"
+		],
+		"neighborhood:corporate_center": [
+			"corp"
+		],
+		"neighborhood:executive_zone": [
+			"corp"
+		],
+		"neighborhood:market_streets": [
+			"residential",
+			"gang"
+		],
+		"neighborhood:mixed_residential": [
+			"residential"
+		],
+		"neighborhood:combat_zone": [
+			"gang"
+		],
+		"neighborhood:hot_zone": [
+			"gang",
+			"wild"
+		],
+		"neighborhood:industrial": [
+			"industrial"
+		],
+		"neighborhood:pacifica": [
+			"gang",
+			"residential"
+		],
+		"undercity": [
+			"gang",
+			"industrial"
+		],
+		"arcology": [
+			"corp"
+		],
+		"warzone": [
+			"gang",
+			"wild"
+		]
+	},
+	"kind_tags": {
+		"data_theft": [
+			"corp",
+			"industrial",
+			"residential"
+		],
+		"gang_hit": [
+			"gang",
+			"wild"
+		],
+		"corp_extraction": [
+			"corp",
+			"industrial"
+		],
+		"assassination": [
+			"gang",
+			"corp",
+			"wild"
+		],
+		"rescue": [
+			"gang",
+			"industrial",
+			"residential",
+			"corp"
+		],
+		"sabotage": [
+			"corp",
+			"industrial"
+		]
+	},
+	"raid_sites": {
+		"data_theft": [
+			"corp_office",
+			"data_center",
+			"clinic",
+			"corp_hq"
+		],
+		"gang_hit": [
+			"gang_hideout",
+			"bar",
+			"club",
+			"chop_shop",
+			"bd_parlor",
+			"squat"
+		],
+		"corp_extraction": [
+			"corp_office",
+			"warehouse",
+			"clinic",
+			"villa",
+			"factory"
+		],
+		"assassination": [
+			"gang_hideout",
+			"club",
+			"villa",
+			"corp_office",
+			"bar"
+		],
+		"rescue": [
+			"gang_hideout",
+			"warehouse",
+			"clinic",
+			"chop_shop",
+			"squat"
+		],
+		"sabotage": [
+			"data_center",
+			"factory",
+			"warehouse",
+			"corp_office"
+		]
+	},
+	"raid_chance": 0.3
 }

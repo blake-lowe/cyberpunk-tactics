@@ -102,8 +102,14 @@ static func _default_awareness(c: Combatant) -> void:
 
 ## An NPC from the book's tiers (npcs.json: mook, lieutenant, mini_boss; CPR p399, p411-415).
 ## The book prints Skill Bases (STAT + skill), so each skill level is the base minus its stat.
-static func npc(dice: Dice, tier: String, handle: String = "") -> Combatant:
-	var td: Dictionary = RulesDB.load_json("npcs.json")["tiers"][tier]
+## `gear` overrides the tier's kit list and armour (a faction's roster: World.npc):
+## {kits: [[weapon ids]], armor: armour id}.
+static func npc(dice: Dice, tier: String, handle: String = "", gear: Dictionary = {}) -> Combatant:
+	var td: Dictionary = (RulesDB.load_json("npcs.json")["tiers"][tier] as Dictionary).duplicate()
+	if gear.has("kits"):
+		td["weapons"] = gear.kits
+	if gear.has("armor"):
+		td["armor"] = gear.armor
 	var stats: Dictionary = (td["stats"] as Dictionary).duplicate()
 	var skills := {}
 	for s in td["skills"]:

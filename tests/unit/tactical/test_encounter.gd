@@ -126,7 +126,8 @@ func test_guard_in_sight_joins_initiative() -> void:
 	g.facing = Vector2(-1, 0)   # looking down the corridor at the crew
 	g.alerted = false
 	var spotted := false
-	for k in 30:   # Perception vs Stealth: a contest, not a certainty
+	for k in 30:   # Perception vs Stealth: a contest, not a certainty (one roll per round)
+		e.init.round_num += 1
 		if not e.update_alerts().is_empty():
 			spotted = true
 			break

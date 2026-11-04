@@ -26,6 +26,17 @@ static func gen(file: String) -> Dictionary:
 	return _cache[key]
 
 
+## World content (Night City: factions, later locations and security doctrines) lives in
+## res://data/world/.
+static func world(file: String) -> Dictionary:
+	var key := "world/" + file
+	if not _cache.has(key):
+		var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://data/world/" + file))
+		assert(parsed is Dictionary, "Failed to parse " + file)
+		_cache[key] = parsed
+	return _cache[key]
+
+
 static func weapon(id: String) -> Dictionary:
 	var w: Dictionary = load_json("weapons.json")["weapons"][id].duplicate()
 	w["id"] = id

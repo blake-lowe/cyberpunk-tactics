@@ -21,7 +21,15 @@ var dice: Dice
 var nav: Nav
 var los: Los
 var init: Initiative
-var units: Array[Dictionary] = []   ## {id, c, pos: Vector3i, team (0 crew, 1 guards), alerted}
+var units: Array[Dictionary] = []   ## {id, c, pos: Vector3i, team (a side: see `sides`), alerted}
+## Sides in this encounter, indexed by a unit's `team`. Each is a World faction playing a part:
+## {faction, ai: crew|guard|captive|civilian|trauma, opfor: counts as the opposition to beat}.
+## The first five are always there (CREW, OPFOR, CAPTIVE, CIV_TEAM, TT_TEAM); responders and
+## third parties (NCPD, MaxTac, a rival gang) get their own side when they turn up. Who fights
+## whom comes from World.relation, never from comparing team numbers.
+var sides: Array[Dictionary] = []
+var _rel := {}                      ## Vector2i(a, b) → "hostile" | "neutral" | "ally" (both orders)
+var opfor_faction := World.DEFAULT_OPFOR   ## the gig's target faction: whose guards these are
 var cur: Dictionary = {}
 var turn: TurnState
 var log: Array[String] = []
@@ -53,9 +61,14 @@ var jack_pos := {}                  ## runner unit id → the square of the devi
 var disabled_devices := {}          ## device id → true (turrets/cameras under the runner's control)
 
 
-static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "data", p_twists: Array = []) -> Encounter:
+## opts: {faction: the gig's target faction id (World), default generic private security}.
+static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "data", p_twists: Array = [], opts: Dictionary = {}) -> Encounter:
 	var e := Encounter.new()
 	e.twists = p_twists.duplicate()
+	e.opfor_faction = String(opts.get("faction", World.DEFAULT_OPFOR))
+	if not World.has_faction(e.opfor_faction):
+		e.opfor_faction = World.DEFAULT_OPFOR
+	e._init_sides()
 	e.m = p_map
 	e.dice = p_dice
 	e.nav = Nav.new(p_map)
@@ -102,11 +115,10 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 	var n := mini(posts.size(), want)
 	for i in n:
 		var tier: String = roster[i]
-		var g := Recruit.npc(p_dice, tier, "%s %d" % [RulesDB.load_json("npcs.json")["tiers"][tier]["name"], i + 1])
-		g.team = 1
-		if tier == "mook" and p_dice.d(3) == 1:
-			g.grenades = 1   # HOUSE-RULE: about a third of Mooks carry a frag grenade
-		e._add(g, Vector3i(posts[i].pos.x, posts[i].pos.y, posts[i].floor), 1)
+		var g := World.npc(p_dice, e.opfor_faction, tier, i + 1)
+		if tier == "mook" and p_dice.rng.randf() < World.grenade_chance(e.opfor_faction):
+			g.grenades = 1   # HOUSE-RULE: about a third of Mooks carry a frag grenade (per faction roster)
+		e._add(g, Vector3i(posts[i].pos.x, posts[i].pos.y, posts[i].floor), OPFOR)
 	# Objective: the target NET's most valuable File (data), everyone down, or the package.
 	e.objective = {"kind": kind, "done": false}
 	if kind == "data" and p_map.architectures.has(target_sid):
@@ -126,7 +138,7 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 		e._place_sab_target(target_sid, cells[0])
 	if "setup" in p_twists:   # HOUSE-RULE: a fixer sold the crew out; the guards are waiting
 		for u in e.units:
-			if u.team == 1:
+			if u.team == OPFOR:
 				u.alerted = true
 		e.alarm = 1
 		e.say("It's a setup. They knew you were coming.")
@@ -171,6 +183,90 @@ func alive(team: int) -> Array[Dictionary]:
 	return out
 
 
+# --- Sides and relations ---------------------------------------------------------------
+
+const CREW := 0
+const OPFOR := 1
+const CAPTIVE := 2
+
+
+func _init_sides() -> void:
+	sides.clear()
+	_rel.clear()
+	add_side("crew", "crew", false)                  # CREW
+	add_side(opfor_faction, "guard", true)           # OPFOR: the gig's target, hostile to the crew
+	add_side("captive", "captive", false)            # CAPTIVE (rescue)
+	add_side("bystanders", "civilian", false)        # CIV_TEAM
+	add_side("trauma_team", "trauma", false)         # TT_TEAM (responders, neutral until shot)
+
+
+## A new side for `faction` playing `ai`; returns its team index. Relations to every existing side
+## come from World.relation, except that the gig's opposition is always hostile to the crew.
+func add_side(faction: String, ai: String, opfor: bool) -> int:
+	var t := sides.size()
+	sides.append({"faction": faction, "ai": ai, "opfor": opfor})
+	for o in t + 1:
+		var r := "ally" if o == t else World.relation(faction, String(sides[o].faction))
+		if (o == CREW and opfor) or (t == CREW and bool(sides[o].opfor)):
+			r = "hostile"
+		_rel[Vector2i(t, o)] = r
+		_rel[Vector2i(o, t)] = r
+	return t
+
+
+## The side a faction plays `ai` on, added if it isn't here yet (NCPD and MaxTac turning up).
+func side_for(faction: String, ai: String, opfor: bool) -> int:
+	for t in sides.size():
+		if String(sides[t].faction) == faction and String(sides[t].ai) == ai:
+			return t
+	return add_side(faction, ai, opfor)
+
+
+func relation(a: int, b: int) -> String:
+	return String(_rel.get(Vector2i(a, b), "neutral"))
+
+
+func set_relation(a: int, b: int, r: String) -> void:
+	_rel[Vector2i(a, b)] = r
+	_rel[Vector2i(b, a)] = r
+
+
+func hostile(a: int, b: int) -> bool:
+	return relation(a, b) == "hostile"
+
+
+func allied(a: int, b: int) -> bool:
+	return a == b or relation(a, b) == "ally"
+
+
+## Run by the guard AI (the opposition, police, MaxTac): patrols, spots, raises alarms, fights.
+func is_guard(u: Dictionary) -> bool:
+	return String(sides[int(u.team)].ai) == "guard"
+
+
+func faction_of(u: Dictionary) -> String:
+	return String(sides[int(u.team)].faction)
+
+
+## The opposition still standing: what "put every guard down" means (the gig's guards, their
+## backup, and police or MaxTac who join in against the crew).
+func opfor() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for u in units:
+		if bool(sides[int(u.team)].opfor) and not u.c.dead and u.c.wound_state() != Combatant.Wound.MORTAL:
+			out.append(u)
+	return out
+
+
+## Everyone still standing who would shoot `u`.
+func foes(u: Dictionary) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for o in units:
+		if o != u and hostile(int(u.team), int(o.team)) and not o.c.dead and o.c.wound_state() != Combatant.Wound.MORTAL:
+			out.append(o)
+	return out
+
+
 func occupied(except: Dictionary = {}) -> Dictionary:
 	var occ := {}
 	for u in units:
@@ -197,7 +293,7 @@ func next_turn() -> void:
 			_ice_round = init.round_num
 			_patrol_ice()
 		if "shift_change" in twists and init.round_num >= SHIFT_CHANGE_ROUND and alarm < 2:
-			var gs := alive(1)
+			var gs := opfor()
 			if not gs.is_empty():
 				say("Shift change: the new shift finds the place wrong.")
 				_call_it_in(gs[0])
@@ -213,7 +309,7 @@ func next_turn() -> void:
 		net_left = 0
 		_netting = false
 		_slid_this_turn = false
-		if cur.team == 1 and cur.alerted and turn.survived and c.can_act():
+		if cur.team == OPFOR and cur.alerted and turn.survived and c.can_act():
 			_call_it_in(cur)
 		if not turn.survived:
 			say("%s fails a Death Save and dies." % c.display_name)
@@ -222,7 +318,7 @@ func next_turn() -> void:
 			_ice_turn(cur)
 			if cur.has("suppressed_by"):
 				_take_cover(cur)
-			if cur.team == TT_TEAM:
+			if String(sides[cur.team].ai) == "trauma":
 				AI.trauma(self, cur)
 				end_turn()
 				continue
@@ -230,7 +326,7 @@ func next_turn() -> void:
 				AI.follow(self, cur)
 				end_turn()
 				continue
-			if cur.team == 1 or turn.psychotic:
+			if is_guard(cur) or turn.psychotic:
 				AI.act(self, cur)
 				end_turn()
 				continue
@@ -290,12 +386,12 @@ func _check_end() -> void:
 			objective.done = true
 			events.append({"type": "target_down", "unit": vip.id})
 			say("%s is down. Get out." % objective.name)
-		if objective.done and (alive(1).is_empty() or _crew_out()):
+		if objective.done and (opfor().is_empty() or _crew_out()):
 			state = "won"
 			say("The crew gets clear. The job's done.")
 		return
 	if objective.get("kind", "") == "sabotage":
-		if objective.done and (alive(1).is_empty() or _crew_out()):
+		if objective.done and (opfor().is_empty() or _crew_out()):
 			state = "won"
 			say("The crew gets clear. The job's done.")
 		return
@@ -316,7 +412,7 @@ func _check_end() -> void:
 			state = "won"
 			say("%s gets the package out." % units[carrier].c.display_name)
 		return
-	if alive(1).is_empty():
+	if opfor().is_empty():
 		if objective.get("kind", "data") == "eliminate" and backup_in > 0:
 			return   # HOUSE-RULE: a gang hit isn't done while backup is still on its way
 		state = "won"
@@ -391,7 +487,7 @@ func _hand_out_keycards() -> void:
 	for z in zones:
 		var best: Dictionary = {}
 		for g in units:
-			if g.team != 1 or given.has(g.id):
+			if g.team != OPFOR or given.has(g.id):
 				continue
 			var l := m.label(g.pos.z, g.pos.x, g.pos.y)
 			var here: bool = l >= 0 and m.rooms[l].structure == zones[z]
@@ -483,8 +579,8 @@ func _place_vip(target_sid: int, origin: Vector2i, sec: int) -> void:
 	var cell := _package_cell(target_sid, origin)
 	var name: String = VIP_NAMES[dice.d(VIP_NAMES.size()) - 1]
 	var vip := Recruit.npc(dice, "mini_boss" if sec >= 2 else "lieutenant", name)
-	vip.team = 1
-	_add(vip, cell, 1)
+	vip.faction = opfor_faction
+	_add(vip, cell, OPFOR)
 	var vu: Dictionary = units[-1]
 	vu["vip"] = true
 	var guards := 0
@@ -493,9 +589,8 @@ func _place_vip(target_sid: int, origin: Vector2i, sec: int) -> void:
 			break
 		var v := cell + Vector3i(d.x, d.y, 0)
 		if m.walkable(v.z, Vector2i(v.x, v.y)) and not occupied().has(v) and m.label(v.z, v.x, v.y) >= 0:
-			var g := Recruit.npc(dice, "lieutenant" if sec >= 3 else "mook", "Bodyguard %d" % (guards + 1))
-			g.team = 1
-			_add(g, v, 1)
+			var g := World.npc(dice, opfor_faction, "lieutenant" if sec >= 3 else "mook", guards + 1, "Bodyguard")
+			_add(g, v, OPFOR)
 			units[-1]["bodyguard"] = true
 			guards += 1
 	var exits: Array = []
@@ -570,6 +665,7 @@ func _place_civilians(deploy: Vector2i) -> void:
 		var c := Recruit.generate(dice, ["media", "fixer", "exec", "rockerboy", "tech"][dice.d(5) - 1], "edgerunner", "Bystander")
 		c.weapons.clear()
 		c.grenades = 0
+		c.faction = "bystanders"
 		_add(c, v, CIV_TEAM)
 		var u: Dictionary = units[-1]
 		u.alerted = false
@@ -634,7 +730,7 @@ func _trauma_cards() -> void:
 			site = String(st.get("site", ""))
 	var corp: bool = site in CORP_SITES or String(m.params.get("scene", "")) in ["arcology", "corp_campus"]
 	for u in units:
-		if u.team != 1:
+		if u.team != OPFOR:
 			continue
 		if u.get("vip", false) and corp:
 			u["trauma_card"] = true
@@ -665,18 +761,9 @@ func _tick_trauma() -> void:
 	if spot.x < 0:
 		tt.state = "cancelled"
 		return
-	var ids := []
-	var cells := _av_exits(spot, 3)
-	for i in mini(3, cells.size()):
-		var g := Recruit.npc(dice, "lieutenant", "Trauma Team %d" % (i + 1))
-		g.armor["body"] = ArmorPiece.from_id("heavy_armorjack")
-		g.armor["head"] = ArmorPiece.from_id("heavy_armorjack")
-		_add(g, cells[i], TT_TEAM)
-		var u: Dictionary = units[-1]
-		u.alerted = true
-		u["tt"] = true
-		init.add(g)
-		ids.append(u.id)
+	var ids := _responders("trauma_team", TT_TEAM, _av_exits(spot, 3), 3)
+	for id in ids:
+		units[id]["tt"] = true
 	tt.merge({"state": "landed", "av": spot, "av_fit": av_fit.duplicate(), "units": ids, "carrier": -1}, true)
 	events.append({"type": "av_land", "unit": ids[0] if not ids.is_empty() else 0, "kind": "trauma", "cell": spot, "units": ids, "yaw": av_fit.yaw, "scale": av_fit.scale})
 	say("Trauma Team lands. Stay out of their way.")
@@ -709,22 +796,11 @@ func _maxtac_drop() -> void:
 		return
 	var spot := av_spot(crew[0].pos, 6, 40)
 	if spot.x < 0:
-		var waves: Array[String] = ["lieutenant", "mook", "mook"]
-		_spawn_wave(waves, "NCPD Officer", "NCPD")
+		_ncpd_wave()
 		return
-	var ids := []
-	var cells := _av_exits(spot, 3)
-	for i in mini(4, cells.size()):
-		var g := Recruit.npc(dice, "mini_boss", "MaxTac %d" % (i + 1))
-		g.team = 1
-		g.armor["body"] = ArmorPiece.from_id("metalgear")
-		g.armor["head"] = ArmorPiece.from_id("metalgear")
-		_add(g, cells[i], 1)
-		var u: Dictionary = units[-1]
-		u.alerted = true
-		u["maxtac"] = true
-		init.add(g)
-		ids.append(u.id)
+	var ids := _responders("maxtac", side_for("maxtac", "guard", true), _av_exits(spot, 3), 4)
+	for id in ids:
+		units[id]["maxtac"] = true
 	events.append({"type": "av_land", "unit": ids[0] if not ids.is_empty() else 0, "kind": "maxtac", "cell": spot, "units": ids, "yaw": av_fit.yaw, "scale": av_fit.scale})
 	say("MaxTac drops in. This just became a very bad night.")
 
@@ -912,7 +988,7 @@ func _detonate(center: Vector3i, half: int, n_dice: int, by: int) -> void:
 	for o in caught:
 		before[o.id] = [o.c.hp, o.c.wound_state()]
 	var results := Attack.explosion_rolled(dice, 17, faces, caught.map(func(o): return o.c))
-	_rouse(caught.filter(func(o): return o.team == 1))
+	_rouse(caught.filter(func(o): return is_guard(o)))
 	_noise(center)
 	var hits: Array = []
 	for res in results:
@@ -937,7 +1013,8 @@ func _place_captive(target_sid: int, origin: Vector2i) -> void:
 	c.weapons.clear()
 	c.grenades = 0
 	c.hp = maxi(1, c.max_hp() / 2)   # roughed up
-	_add(c, cell, 2)
+	c.faction = "captive"
+	_add(c, cell, CAPTIVE)
 	var cu: Dictionary = units[-1]
 	cu["captive"] = true
 	cu.alerted = false
@@ -1031,7 +1108,7 @@ func _drop_package() -> void:
 func update_alerts() -> Array:
 	var fresh := []
 	for g in units:
-		if g.alerted or g.c.dead or g.team != 1:
+		if g.alerted or g.c.dead or not is_guard(g) or not hostile(int(g.team), CREW):
 			continue
 		for u in alive(0):
 			if _spots(g, u):
@@ -1138,7 +1215,7 @@ func _camera_spots() -> Dictionary:
 			if _spot_rolls[key]:
 				var best: Dictionary = {}
 				for g in units:
-					if g.team == 1 and not g.alerted and not g.c.dead and (best.is_empty() or Vector3(g.pos - cp).length() < Vector3(best.pos - cp).length()):
+					if is_guard(g) and hostile(int(g.team), CREW) and not g.alerted and not g.c.dead and (best.is_empty() or Vector3(g.pos - cp).length() < Vector3(best.pos - cp).length()):
 						best = g
 				if not best.is_empty():
 					say("A camera catches %s. %s is on the way." % [u.c.display_name, best.c.display_name])
@@ -1259,16 +1336,15 @@ func _outer_patrols(deploy: Vector2i) -> void:
 			if spot.x < 0:
 				continue
 			n += 1
-			var g := Recruit.npc(dice, "mook", "Patrol %d" % n)
-			g.team = 1
-			_add(g, spot, 1)
+			var g := World.npc(dice, opfor_faction, "mook", n, "Patrol")
+			_add(g, spot, OPFOR)
 			taken.append(spot)
 			units[-1]["outer"] = true
 
 
 func _post_guards() -> void:
 	for g in units:
-		if g.team != 1:
+		if not is_guard(g):
 			continue
 		var dirs := [Vector2(1, 0), Vector2(-1, 0), Vector2(0, 1), Vector2(0, -1), Vector2(1, 1).normalized(), Vector2(-1, 1).normalized(), Vector2(1, -1).normalized(), Vector2(-1, -1).normalized()]
 		var l := m.label(g.pos.z, g.pos.x, g.pos.y)
@@ -1293,7 +1369,7 @@ func _post_guards() -> void:
 ## their route (and look where they're going), then look around.
 func patrol_step() -> void:
 	for g in units:
-		if g.team != 1 or g.alerted or g.c.dead or not g.has("patrol"):
+		if not is_guard(g) or g.alerted or g.c.dead or not g.has("patrol"):
 			continue
 		var goal: Vector3i = g.patrol[g.patrol_i]
 		if g.pos == goal:
@@ -1326,7 +1402,7 @@ func _call_it_in(g: Dictionary) -> void:
 	alarm = 2
 	backup_in = BACKUP_ROUNDS
 	# The radio call rouses guards within RADIO_RANGE of the caller (HOUSE-RULE): the rest hold posts.
-	_rouse(units.filter(func(o): return o.team == 1 and not o.alerted and not o.c.dead and Vector2(o.pos.x - g.pos.x, o.pos.y - g.pos.y).length() <= RADIO_RANGE))
+	_rouse(units.filter(func(o): return is_guard(o) and allied(int(o.team), int(g.team)) and not o.alerted and not o.c.dead and Vector2(o.pos.x - g.pos.x, o.pos.y - g.pos.y).length() <= RADIO_RANGE))
 	_backup_round = init.round_num
 	say("%s calls it in. Backup in %d rounds." % [g.c.display_name, backup_in])
 	events.append({"type": "alarm", "unit": g.id, "rounds": backup_in})
@@ -1341,8 +1417,7 @@ func _tick_backup() -> void:
 			if heat >= MAXTAC_HEAT:
 				_maxtac_drop()
 			else:
-				var waves: Array[String] = ["lieutenant", "mook", "mook"]
-				_spawn_wave(waves, "NCPD Officer", "NCPD")
+				_ncpd_wave()
 	if backup_in < 0 or init.round_num == _backup_round:
 		return
 	_backup_round = init.round_num
@@ -1353,7 +1428,7 @@ func _tick_backup() -> void:
 	var roster: Array[String] = []
 	for i in int(m.params.get("security", 1)) + (1 if "heavy" in twists else 0):
 		roster.append("mook")
-	_spawn_wave(roster, "Backup", "BACKUP")
+	_spawn_wave(roster, "BACKUP", OPFOR, opfor_faction, "Backup")
 	# Escalation: keep fighting and the city notices, if the site matters or the crew is already wanted
 	# (HOUSE-RULE: a low-security scuffle doesn't bring NCPD unless heat >= 3).
 	if ncpd_in == -1 and (int(m.params.get("security", 1)) >= 2 or "heavy" in twists or heat >= 3):   # (heat >= MAXTAC_HEAT sends MaxTac instead)
@@ -1362,7 +1437,37 @@ func _tick_backup() -> void:
 
 
 ## Reinforcements enter at the entrance farthest from the crew, alerted and in the initiative order.
-func _spawn_wave(roster: Array[String], prefix: String, label: String) -> void:
+## People a faction sends when called (World.responder: Trauma Team, MaxTac), placed on `cells`
+## on side `team`, alerted and in the initiative order. Returns their unit ids.
+func _responders(fid: String, team: int, cells: Array, cap: int) -> Array:
+	var r := World.responder(fid)
+	var tiers: Array = r.tiers
+	var ids := []
+	for i in mini(mini(cap, tiers.size()), cells.size()):
+		var g := World.npc(dice, fid, String(tiers[i]), i + 1, String(r.get("rank", "")))
+		if r.has("armor"):
+			g.armor["body"] = ArmorPiece.from_id(String(r.armor))
+			g.armor["head"] = ArmorPiece.from_id(String(r.armor))
+		_add(g, cells[i], team)
+		var u: Dictionary = units[-1]
+		u.alerted = true
+		init.add(g)
+		ids.append(u.id)
+	return ids
+
+
+## The NCPD answering the escalation: their responder squad, on their own side (World.relation
+## decides whether they also go after the guards: police and gangs don't mix).
+func _ncpd_wave() -> void:
+	var r := World.responder("ncpd")
+	var tiers: Array[String] = []
+	for t in r.tiers:
+		tiers.append(String(t))
+	_spawn_wave(tiers, "NCPD", side_for("ncpd", "guard", true), "ncpd", String(r.get("rank", "")))
+
+
+## Reinforcements for side `team` (faction `fid`), named "<rank> <n>".
+func _spawn_wave(roster: Array[String], label: String, team: int, fid: String, rank := "") -> void:
 	var crew_c := Vector2.ZERO
 	for u in alive(0):
 		crew_c += Vector2(u.pos.x, u.pos.y)
@@ -1382,9 +1487,8 @@ func _spawn_wave(roster: Array[String], prefix: String, label: String) -> void:
 	var cells: Array = reach.keys().filter(func(v): return v.z == spawn.z)
 	cells.sort_custom(func(a, b): return int(reach[a]) < int(reach[b]))
 	for i in mini(roster.size(), cells.size()):
-		var g := Recruit.npc(dice, roster[i], "%s %d" % [prefix, i + 1])
-		g.team = 1
-		_add(g, cells[i], 1)
+		var g := World.npc(dice, fid, roster[i], i + 1, rank)
+		_add(g, cells[i], team)
 		var u: Dictionary = units[-1]
 		u.alerted = true
 		init.add(g)
@@ -1409,20 +1513,20 @@ func _rouse(fresh: Array) -> void:
 	var q := fresh.duplicate()
 	while not q.is_empty():
 		var g: Dictionary = q.pop_front()
-		if g.alerted:
+		if g.alerted or not is_guard(g):   # bystanders panic instead; captives and medics don't fight
 			continue
 		g.alerted = true
 		alarm = maxi(alarm, 1)
 		init.add(g.c)
 		events.append({"type": "alert", "unit": g.id})
 		for o in units:
-			if not o.alerted and not o.c.dead and o.team == g.team and o.pos.z == g.pos.z \
+			if not o.alerted and not o.c.dead and is_guard(o) and allied(int(o.team), int(g.team)) and o.pos.z == g.pos.z \
 					and Vector2(o.pos.x - g.pos.x, o.pos.y - g.pos.y).length() <= SHOUT_RANGE:
 				q.append(o)
 
 
 func engaged() -> bool:
-	return units.any(func(u): return u.team == 1 and u.alerted and not u.c.dead)
+	return units.any(func(u): return is_guard(u) and hostile(int(u.team), CREW) and u.alerted and not u.c.dead)
 
 
 # --- Movement ----------------------------------------------------------------------
@@ -1430,7 +1534,7 @@ func engaged() -> bool:
 ## Guards carry the keys to their own security doors; the crew needs them hacked or shot open.
 func _with_locks(callable: Callable) -> Variant:
 	var saved := nav.locked
-	if not cur.is_empty() and cur.team == 1:
+	if not cur.is_empty() and is_guard(cur):
 		nav.locked = {}
 	var r: Variant = callable.call()
 	nav.locked = saved
@@ -1458,7 +1562,7 @@ func move_options() -> Dictionary:
 func _blocking(u: Dictionary) -> Dictionary:
 	var occ := {}
 	for o in units:
-		if o != u and not o.c.dead and o.team != u.team:
+		if o != u and not o.c.dead and not allied(int(o.team), int(u.team)):
 			occ[o.pos] = true
 	return occ
 
@@ -1526,8 +1630,9 @@ func attack(target: Dictionary, weapon: Weapon, mode: Attack.Mode) -> Dictionary
 	if turn.attacks_left <= 0 and not turn.start_attack(weapon, mode != Attack.Mode.SINGLE or weapon.rof() < 2):
 		return {"ok": false, "reason": "no action left"}
 	turn.use_attack()
-	if int(target.team) == TT_TEAM and cur.team == 0:
+	if int(target.team) == TT_TEAM and cur.team == CREW:
 		tt_hostile = true
+		set_relation(TT_TEAM, CREW, "hostile")
 	_rouse([target])
 	_noise(cur.pos)
 	var hp_before: int = target.c.hp
@@ -1598,7 +1703,7 @@ func suppress(weapon: Weapon) -> Dictionary:
 	if not turn.action_available:
 		return {"ok": false, "reason": "no action left"}
 	var targets: Array = []
-	for o in alive(1 - cur.team):
+	for o in foes(cur):
 		if Los.distance_m(cur.pos, o.pos) <= Attack.SUPPRESSIVE_RANGE_M and los.sight(cur.pos, o.pos).visible:
 			targets.append(o)
 	if targets.is_empty():
@@ -1639,7 +1744,7 @@ func shotgun_shell(target: Dictionary, weapon: Weapon) -> Dictionary:
 	if not r.ok:
 		return r
 	turn.use_action()
-	_rouse(cone.filter(func(o): return o.team != cur.team))
+	_rouse(cone.filter(func(o): return not allied(int(o.team), int(cur.team))))
 	_noise(cur.pos)
 	var hits: Array = []
 	for res in r.results:
@@ -1700,7 +1805,7 @@ func throw_grenade(cell: Vector3i) -> Dictionary:
 	for o in caught:
 		before[o.id] = [o.c.hp, o.c.wound_state()]
 	var results := Attack.explosion_rolled(dice, check.total, faces, caught.map(func(o): return o.c))
-	_rouse(caught.filter(func(o): return o.team != cur.team))
+	_rouse(caught.filter(func(o): return not allied(int(o.team), int(cur.team))))
 	_noise(center)
 	var hits: Array = []
 	for res in results:
@@ -1732,7 +1837,7 @@ func jury_rig(target: Dictionary) -> Dictionary:
 	var c: Combatant = cur.c
 	if int(c.maker.get("field", 0)) < 1:
 		return {"ok": false, "reason": "needs a Tech's Field Expertise"}
-	if target.team != cur.team or target.c.dead or (target != cur and not adjacent(cur.pos, target.pos)):
+	if not allied(int(target.team), int(cur.team)) or target.c.dead or (target != cur and not adjacent(cur.pos, target.pos)):
 		return {"ok": false, "reason": "pick yourself or an ally next to you"}
 	var loc := rig_target_loc(target)
 	if loc == "":
@@ -1760,7 +1865,7 @@ func dose(target: Dictionary, drug: String) -> Dictionary:
 	var c: Combatant = cur.c
 	if not c.knows_drug(drug) or c.doses <= 0:
 		return {"ok": false, "reason": "no %s doses" % drug}
-	if target.team != cur.team or target.c.dead or (target != cur and not adjacent(cur.pos, target.pos)):
+	if not allied(int(target.team), int(cur.team)) or target.c.dead or (target != cur and not adjacent(cur.pos, target.pos)):
 		return {"ok": false, "reason": "pick yourself or an ally next to you"}
 	var t: Combatant = target.c
 	match drug:
@@ -1815,7 +1920,7 @@ func can_reach_to_stabilize(u: Dictionary, target: Dictionary) -> bool:
 ## Stabilize (p169, p222): TECH + First Aid (or Paramedic, whichever is better) vs the wound's DV
 ## on a neighbouring ally. Mortally Wounded → 1 HP, Unconscious, no more Death Saves.
 func stabilize(target: Dictionary) -> Dictionary:
-	if not can_reach_to_stabilize(cur, target) or target.team != cur.team or target.c.dead:
+	if not can_reach_to_stabilize(cur, target) or not allied(int(target.team), int(cur.team)) or target.c.dead:
 		return {"ok": false, "reason": "not next to a wounded ally"}
 	if target.c.wound_state() != Combatant.Wound.MORTAL:
 		return {"ok": false, "reason": "not Mortally Wounded"}

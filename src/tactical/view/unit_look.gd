@@ -13,7 +13,9 @@ const STYLES := ["buzz", "mohawk", "long", "undercut", "bob", "ponytail", "curly
 const HEADS := [Vector3(0.135, 0.19, 0.155), Vector3(0.16, 0.18, 0.165), Vector3(0.14, 0.2, 0.155), Vector3(0.155, 0.175, 0.16), Vector3(0.15, 0.185, 0.158)]
 
 
-static func make(id: int, team: int, role: String) -> Dictionary:
+## `team` seeds the face and picks the casual (0: crew, bystanders, captives) or uniformed (1)
+## defaults; `faction` (World id) then dresses them from data/world/factions.json look.
+static func make(id: int, team: int, role: String, faction := "") -> Dictionary:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(id * 7919 + team * 31 + 17)
 	var look := {
@@ -26,21 +28,32 @@ static func make(id: int, team: int, role: String) -> Dictionary:
 		"head_w": 6 + rng.randi() % 2,
 		"style": STYLES[rng.randi() % STYLES.size()],
 	}
-	# factions with their own clothes: bystanders in street colours, Trauma Team in white and
-	# medical blue, MaxTac in black with hazard yellow
-	match role:
-		"civilian":
-			look.jacket = [Color("6a5a4a"), Color("4a5a6a"), Color("7a6a5a"), Color("5a4a5a"), Color("3a4a3a"), Color("8a7a6a"), Color("6a3a3a")][rng.randi() % 7]
-			look.accent = look.jacket.lightened(0.3)
-		"trauma":
-			look.jacket = Color("dfe6ea")
-			look.accent = Color("2a8cff")
-		"maxtac":
-			look.jacket = Color("17191e")
-			look.accent = Color("ffcc00")
-	look["visor"] = role in ["netrunner", "trauma", "maxtac"] or (role != "civilian" and rng.randf() < 0.4)
+	look["visor"] = role == "netrunner" or rng.randf() < 0.4
 	look["eye_glow"] = rng.randf() < 0.5
 	look["cyber"] = rng.randi() % 3   # 0 chrome jaw, 1 cheek port, 2 none
 	look["head"] = HEADS[rng.randi() % HEADS.size()]
 	look["jaw"] = rng.randf_range(0.85, 1.15)
+	if faction != "" and faction != "crew":   # a faction's colours and kit (its own rng: faces stay put)
+		var fl := World.look(faction)
+		look["faction_look"] = fl
+		var r2 := RandomNumberGenerator.new()
+		r2.seed = hash(id * 104729 + 5)
+		if fl.has("jacket"):
+			look.jacket = Color(String(fl.jacket))
+		elif fl.has("jackets"):
+			look.jacket = Color(String(fl.jackets[r2.randi() % (fl.jackets as Array).size()]))
+		if fl.has("accent"):
+			look.accent = Color(String(fl.accent))
+		elif fl.has("accent_from_jacket"):
+			look.accent = (look.jacket as Color).lightened(float(fl.accent_from_jacket))
+		if fl.has("visor"):
+			look.visor = r2.randf() < float(fl.visor)
 	return look
+
+
+## The seed team for a unit's look: 0 for the crew and people in street clothes (bystanders,
+## captives), 1 for everyone in a uniform or gang colours.
+static func seed_team(u: Dictionary) -> int:
+	if int(u.team) == 0 and String(u.c.faction) == "crew":
+		return 0
+	return 0 if World.kind(String(u.c.faction)) in ["crew", "civilian", "captive"] else 1

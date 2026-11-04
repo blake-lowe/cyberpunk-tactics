@@ -27,7 +27,7 @@ func tex(u: Dictionary, _state := 0) -> Texture2D:
 	vp.msaa_3d = Viewport.MSAA_DISABLED
 	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 	add_child(vp)
-	var model := CharModel.build(u.team, u.c.look_seed if u.c.look_seed >= 0 else u.id, String(u.c.role), u.c.weapons[0].id() if not u.c.weapons.is_empty() else "assault_rifle")
+	var model := CharModel.build(UnitLook.seed_team(u), u.c.look_seed if u.c.look_seed >= 0 else u.id, String(u.c.role), u.c.weapons[0].id() if not u.c.weapons.is_empty() else "assault_rifle", u.c.faction)
 	var look: Dictionary = model.look
 	for mt in model.get_meta("mats", []):
 		(mt as ShaderMaterial).set_shader_parameter("use_field", false)
@@ -53,7 +53,7 @@ func tex(u: Dictionary, _state := 0) -> Texture2D:
 	rim.position = Vector3(0.35, 1.05, -0.45)
 	rim.omni_range = 1.6
 	rim.light_energy = 2.2
-	rim.light_color = accent if u.team == 0 else Color("ff3030")
+	rim.light_color = accent
 	rim.light_cull_mask = 0xFFFFF
 	vp.add_child(rim)
 	var fill := OmniLight3D.new()

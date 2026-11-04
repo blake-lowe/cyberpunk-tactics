@@ -76,15 +76,16 @@ const PALM := Vector3(0.0, 0.08, 0.03)      ## palm centre in hand-bone space (f
 const GRIP_TILT := 0.35                     ## pistol grip angle: barrel above the finger line
 
 
-static func build(team: int, index: int, role := "", weapon := "assault_rifle") -> CharModel:
+static func build(team: int, index: int, role := "", weapon := "assault_rifle", faction := "") -> CharModel:
 	var c := CharModel.new()
-	c._make(team, index, role, weapon)
+	c._make(team, index, role, weapon, faction)
 	return c
 
 
-func _make(team: int, idx: int, role: String, weapon: String) -> void:
+func _make(team: int, idx: int, role: String, weapon: String, faction := "") -> void:
 	index = idx
-	look = UnitLook.make(idx, team, role)
+	look = UnitLook.make(idx, team, role, faction)
+	var fl: Dictionary = look.get("faction_look", {})   # a faction's kit (vest, helmet, gloves, pants)
 	set_meta("team", team)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(idx * 131 + team * 7 + 3)
@@ -97,10 +98,11 @@ func _make(team: int, idx: int, role: String, weapon: String) -> void:
 	# --- outfit: colours per team/role, a few cut options
 	var jacket: Color = look.jacket
 	var accent: Color = look.accent
-	var o := {"short": team == 0 and rng.randf() < 0.3, "gloves": team == 1 or rng.randf() < 0.5,
+	var o := {"short": team == 0 and rng.randf() < 0.3, "gloves": bool(fl.gloves) if fl.has("gloves") else (team == 1 or rng.randf() < 0.5),
 		"coat": role == "netrunner"}
-	var pants: Color = jacket.darkened(0.5).lerp(Color("3a4660"), 0.5) if team == 0 else Color("3a4048")
-	var vest := role == "solo" or team == 1   # armour vest over the jacket: torso dark, sleeves in colour
+	var pants: Color = Color(String(fl.pants)) if fl.has("pants") else (jacket.darkened(0.5).lerp(Color("3a4660"), 0.5) if team == 0 else Color("3a4048"))
+	var helmet: bool = bool(fl.helmet) if fl.has("helmet") else team == 1
+	var vest := role == "solo" or (bool(fl.vest) if fl.has("vest") else team == 1)   # armour vest over the jacket: torso dark, sleeves in colour
 	var cloth := {"skin": look.skin, "jacket": Color("23262c") if vest else jacket, "sleeve": jacket,
 		"forearm": look.skin if o.short else jacket.darkened(0.1), "pants": pants, "boots": Color("22262c"),
 		"gloves": Color("1a1c20") if o.gloves else look.skin,
@@ -124,7 +126,7 @@ func _make(team: int, idx: int, role: String, weapon: String) -> void:
 				mi.material_override = m
 	# --- hair (rigged to the head bone: rebind its mesh to our skeleton)
 	var style := String(look.style)
-	if team == 1:
+	if helmet:
 		style = "bald"   # under the helmet
 	if HAIR_MESH.get(style, "") != "":
 		_add_hair(HAIR_MESH[style], look.hair)
@@ -134,7 +136,7 @@ func _make(team: int, idx: int, role: String, weapon: String) -> void:
 	var kit := Color("1e2126")
 	var metal := Color("6a6e74")
 	var hb := _bone("Head")
-	if team == 1:
+	if helmet:
 		_part(hb, _sphere(0.132, 0.24), Vector3(0, 0.125, -0.01), Vector3(1.0, 0.85, 1.08), Color("2e333a"), 0.0, 0.7)    # ballistic helmet
 		_part(hb, _box(Vector3(0.19, 0.06, 0.03)), Vector3(0, 0.085, 0.11), Vector3.ONE, Color("0c0e10"), 0.0, 0.12)        # smoked visor
 	elif look.get("visor", false):
