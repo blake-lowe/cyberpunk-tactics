@@ -88,6 +88,7 @@ var lightfield: Texture2D   ## set by the greybox after baking (LightField)
 var _sid_grid := PackedInt32Array()   ## building structure id per square (-1 none): per-building looks
 var neon: Array = []    ## this scene's sign colours (SceneTheme), for facade dressing and the skyline
 var emitters: Array = []  ## extra light-field sources from dressing: {cell, color, energy, range}
+var _sp_looks := {}      ## structure id → its set-piece look (SetPieceDressing.look), cached
 
 
 func _init(p_map: TacMap, p_vision: Vision, p_fog: Texture2D) -> void:
@@ -321,6 +322,7 @@ func build(root: Node3D) -> Array[Node3D]:
 				_nature_scatter()
 		_roof_clutter(f)
 		_facade_dressing(f)
+		SetPieceDressing.dress(self, f)
 		flush(fn)
 	var sky := Node3D.new()
 	sky.name = "skyline"
@@ -364,7 +366,16 @@ func _site_of(sid: int) -> String:
 	return String(m.structures[sid].get("site", "")) if sid >= 0 and sid < m.structures.size() else ""
 
 
+## A set piece's building wears its recipe's look (setpieces.json sites.<part>.look).
+func _sp_look(sid: int) -> Dictionary:
+	if not _sp_looks.has(sid):
+		_sp_looks[sid] = SetPieceDressing.look(m, sid)
+	return _sp_looks[sid]
+
+
 func _roof_look(sid: int) -> Dictionary:
+	if sid >= 0 and _sp_look(sid).has("roof"):
+		return SetPieceDressing.mat_over(_sp_look(sid).roof)
 	if sid < 0 or SceneTheme.of(m).get("mats", {}).has("roof"):
 		return {}
 	var site := _site_of(sid)
@@ -376,6 +387,8 @@ func _roof_look(sid: int) -> Dictionary:
 
 
 func _wall_look(name: String, sid: int) -> Dictionary:
+	if sid >= 0 and _sp_look(sid).has("wall"):
+		return SetPieceDressing.mat_over(_sp_look(sid).wall)
 	if sid < 0 or not WALL_LOOKS.has(name) or SceneTheme.of(m).get("mats", {}).has(name):
 		return {}
 	var list: Array = WALL_LOOKS[name]
@@ -715,8 +728,11 @@ func _run(f: int, horiz: bool, a: int, b0: int, b1: int, glass: bool, k: int) ->
 		var sill := 0.32
 		var lintel := 1.32
 		var gsh := {"shell": true} if ext else {}
-		box(mat("wall_concrete" if ext else "wall_int", f, true, gsh), c + Vector3(0, y0 + sill / 2, 0), size.call(sill, t))
-		box(mat("wall_concrete" if ext else "wall_int", f, true, gsh), c + Vector3(0, y0 + (lintel + FH - WALL_GAP) / 2, 0), size.call(FH - lintel - WALL_GAP, t))
+		var wsh := gsh
+		if ext:   # a set piece's sill and lintel wear its wall look
+			wsh = gsh.merged(_sp_wall(_sid_grid[clampi(a if horiz else b0, 0, m.h - 1) * m.w + clampi(b0 if horiz else a, 0, m.w - 1)]))
+		box(mat("wall_concrete" if ext else "wall_int", f, true, wsh), c + Vector3(0, y0 + sill / 2, 0), size.call(sill, t))
+		box(mat("wall_concrete" if ext else "wall_int", f, true, wsh), c + Vector3(0, y0 + (lintel + FH - WALL_GAP) / 2, 0), size.call(FH - lintel - WALL_GAP, t))
 		box(mat("glass", f, true, gsh), c + Vector3(0, y0 + (sill + lintel) / 2, 0), size.call(lintel - sill, 0.05))
 		box(mat("frame", f, true, gsh), c + Vector3(0, y0 + sill + 0.02, 0), size.call(0.04, t + 0.06))
 		var n := maxi(1, roundi(length / 0.62))
@@ -744,15 +760,32 @@ func _run(f: int, horiz: bool, a: int, b0: int, b1: int, glass: bool, k: int) ->
 		return
 	var name := "wall_int"
 	var sh := {"shell": true} if ext else {}
+	var trim := sh
 	if ext:
 		name = ["wall_plaster", "wall_concrete", "wall_steel", "wall_concrete", "wall_concrete", "wall_concrete", "wall_concrete"][k]
 		var cx: int = x0 if horiz else a
 		var cy: int = a if horiz else b0
-		sh.merge(_wall_look(name, _sid_grid[clampi(cy, 0, m.h - 1) * m.w + clampi(cx, 0, m.w - 1)]))
+		var wsid := _sid_grid[clampi(cy, 0, m.h - 1) * m.w + clampi(cx, 0, m.w - 1)]
+		sh.merge(_wall_look(name, wsid))
+		trim = _trim_look(wsid, sh)
 	box(mat(name, f, true, sh), c + Vector3(0, y0 + (FH - WALL_GAP) / 2, 0), size.call(FH - WALL_GAP, t))
-	box(mat("skirt", f, true, sh), c + Vector3(0, y0 + 0.06, 0), size.call(0.12, t + 0.04))
+	box(mat("skirt", f, true, trim), c + Vector3(0, y0 + 0.06, 0), size.call(0.12, t + 0.04))
 	if ext:
-		box(mat("cornice", f, true, sh), c + Vector3(0, y0 + FH - 0.04 - WALL_GAP, 0), size.call(0.08, t + 0.1))
+		box(mat("cornice", f, true, trim), c + Vector3(0, y0 + FH - 0.04 - WALL_GAP, 0), size.call(0.08, t + 0.1))
+
+
+## A set piece's trim (cornices, skirting, parapets: a colour, or a look that may glow), else `fallback`.
+func _trim_look(sid: int, fallback: Dictionary) -> Dictionary:
+	if sid >= 0 and _sp_look(sid).has("trim"):
+		var o := SetPieceDressing.mat_over(_sp_look(sid).trim)
+		o["shell"] = true
+		return o
+	return fallback
+
+
+## A set piece's wall look ({} for any other building).
+func _sp_wall(sid: int) -> Dictionary:
+	return SetPieceDressing.mat_over(_sp_look(sid).wall) if sid >= 0 and _sp_look(sid).has("wall") else {}
 
 
 func _door_frame(f: int, p: Vector2i) -> void:
@@ -764,6 +797,8 @@ func _door_frame(f: int, p: Vector2i) -> void:
 	var head := 1.15
 	var lintel := Vector3(1, FH - head, t) if horiz else Vector3(t, FH - head, 1)
 	var dsh := {"shell": true} if ext else {}
+	if ext:
+		dsh.merge(_sp_wall(_sid_grid[p.y * m.w + p.x]))
 	box(mat("wall_concrete" if ext else "wall_int", f, true, dsh), c + Vector3(0, head + (FH - head) / 2, 0), lintel)
 	for side in [-1, 1]:
 		var off := Vector3(side * 0.47, 0, 0) if horiz else Vector3(0, 0, side * 0.47)
@@ -998,6 +1033,9 @@ func _piece(kind: String, p: Vector3, yaw: float, f: int, h0: int) -> void:
 				put("cyl", mat("steel", f, false, {"color": Color("8a3a22")}), Transform3D(Basis.from_scale(Vector3(0.54, 0.14, 0.54)), p + Vector3(0, hb, 0)))
 			box(mat("dark", f, false, {"glow": 2.5, "emit": Color("ff2020")}), p + Vector3(0, 2.25, 0), Vector3(0.08, 0.08, 0.08))
 		_:
+			if SetPieceDressing.has_piece(kind):   # a set piece's own prop (cupola, mast, ...)
+				SetPieceDressing.piece(self, kind, p, yaw, f, h0)
+				return
 			box(mat("concrete_prop", f, false), p + Vector3(0, 0.25, 0), Vector3(0.7, 0.5, 0.7), yaw)
 
 
@@ -1065,7 +1103,10 @@ func _multi(kind: String, r: Rect2, f: int, h0: int) -> void:
 			if kind == "freight_car":
 				box(mat("dark", f, false), c + Vector3(0, 0.1, 0), Vector3(L * 0.9, 0.2, Wd * 0.6), yaw)
 		_:
-			_piece(kind, c, yaw, f, h0)
+			if SetPieceDressing.has_piece(kind):
+				SetPieceDressing.multi(self, kind, r, f, h0)
+			else:
+				_piece(kind, c, yaw, f, h0)
 
 
 # --- Off-grid clutter --------------------------------------------------------------------
@@ -1127,7 +1168,7 @@ func _roof_clutter(f: int) -> void:
 				var n: Vector2i = Vector2i(x, y) + d
 				if not m.inb(n.x, n.y) or m.t(f, n.x, n.y) in [TacMap.T.VOID, TacMap.T.OUTSIDE]:
 					var off := Vector3(d.x, 0, d.y) * 0.44
-					box(mat("cornice", f, true, {"shell": true}), Vector3(x + 0.5, y0 + 0.14, y + 0.5) + off, Vector3(1.0 if d.x == 0 else 0.12, 0.28, 1.0 if d.y == 0 else 0.12))
+					box(mat("cornice", f, true, _trim_look(_sid_grid[y * m.w + x], {"shell": true})), Vector3(x + 0.5, y0 + 0.14, y + 0.5) + off, Vector3(1.0 if d.x == 0 else 0.12, 0.28, 1.0 if d.y == 0 else 0.12))
 			rng.seed = hash(Vector3i(x, y, f)) + 5
 			var roll := rng.randf()
 			var p := Vector3(x + rng.randf_range(0.2, 0.8), y0, y + rng.randf_range(0.2, 0.8))
@@ -1161,7 +1202,7 @@ func _roof_marks(f: int) -> void:
 	for sid in boxes:
 		var r: Rect2i = boxes[sid]
 		var site := _site_of(sid)
-		if site in ["corp_hq", "corp_office"] and mini(r.size.x, r.size.y) >= 8 and f + 1 >= m.floors:
+		if site in ["corp_hq", "corp_office"] and mini(r.size.x, r.size.y) >= 8 and f + 1 >= m.floors and String(_sp_look(sid).get("roof_mark", "")) != "none":
 			var c := Vector3(r.get_center().x, y0 + 0.02, r.get_center().y)
 			var paint := mat("dark", f, true, {"color": Color("d8d4c8"), "glow": 0.3, "emit": Color("d8d4c8")})
 			for i in 16:   # the ring

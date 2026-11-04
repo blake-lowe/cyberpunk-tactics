@@ -9,7 +9,7 @@ render_mode cull_disabled;
 // lightfield: baked RGB light spill per floor (4 texels per square), blocked by walls; it adds
 // colour where the compatibility renderer's per-mesh light limit would drop real lights.
 // pattern: 0 plain, 1 tiles, 2 planks, 3 asphalt, 4 slabs, 5 earth, 6 grating, 7 panels,
-//          8 corrugated, 9 tower windows, 10 water
+//          8 corrugated, 9 tower windows, 10 water, 11 brick
 
 uniform vec4 albedo : source_color = vec4(0.5, 0.5, 0.5, 1.0);
 uniform vec4 albedo2 : source_color = vec4(0.4, 0.4, 0.4, 1.0);
@@ -169,6 +169,12 @@ void fragment() {
 		rough = 0.22 + r * 0.1;
 		float caust = smoothstep(0.6, 0.82, noise(p * vec2(5.5, 7.0) - vec2(TIME * 0.3, TIME * 0.08)));   // glowing water: brighter ripples
 		emit *= 0.6 + r * 0.15 + caust * 0.22;
+	} else if (pattern == 11) {           // brick: running-bond courses, mortar joints (set pieces)
+		vec2 q = vec2(p.x * 2.6, p.y * 5.0);
+		q.x += step(1.0, mod(floor(q.y), 2.0)) * 0.5;
+		float g = max(line(q.y, 0.08), line(q.x, 0.04));
+		base *= 0.82 + hash(floor(q)) * 0.3 + n * 0.06;
+		base = mix(base, albedo2.rgb, g);
 	}
 	if (tex_mix > 0.0) base = mix(base, texture(tex, UV).rgb * albedo.rgb, tex_mix);
 	// --- grounding: contact darkening at wall/prop bases, a light edge on top faces

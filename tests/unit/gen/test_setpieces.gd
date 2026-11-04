@@ -1,5 +1,6 @@
 extends TestCase
-## Set pieces (data/gen/setpieces.json): Fort Sumter, Ziggurat HQ, Main Port and Flotsam. Every
+## Set pieces (data/gen/setpieces.json): Fort Sumter, Ziggurat HQ, Main Port and Flotsam, the
+## Potentilla, MAX-TAC HQ, Trauma Team Tower, Totentanz and Eurasiabank Plaza. Every
 ## seed must build the recipe: its key rooms, everything reachable from the crew's deploy zone,
 ## every objective placed where the recipe anchors it, and the recipe's posts and rules.
 
@@ -46,7 +47,9 @@ func test_every_set_piece_has_a_location_and_valid_data() -> void:
 		for loc in sp.locations:
 			assert_false(World.location(loc).is_empty(), "%s: location %s exists" % [id, loc])
 			assert_eq(String(World.location(loc).get("setpiece", "")), id, "%s: World.location(%s) names it" % [id, loc])
-			assert_eq(String(World.location(loc).get("owner", "")), String(sp.faction), "%s: the location's owner guards it" % id)
+			# the location's owner guards it; an unowned ruin is held by whoever the recipe names
+			var owner := String(World.location(loc).get("owner", ""))
+			assert_true(owner == String(sp.faction) or owner == "", "%s: the location's owner (%s) guards it" % [id, owner])
 		for part in sp.sites:
 			assert_true(sites.has(String(sp.sites[part].base)), "%s/%s: base site" % [id, part])
 		for part in sp.key_rooms:
@@ -261,3 +264,238 @@ func test_a_gig_at_a_famous_place_plays_as_its_set_piece() -> void:
 	assert_eq(String(Campaign._place_at("south_night_city_4").get("setpiece", "")), "fort_sumter", "Fort Sumter")
 	assert_eq(String(Campaign._place_at("upper_marina_40").get("setpiece", "")), "ziggurat_hq", "Ziggurat HQ")
 	assert_false(Campaign._place_at("little_europe_1").has("setpiece"), "ordinary places stay procedural")
+
+
+# --- Visual identity: the shapes the looks hang on ------------------------------------------------
+
+## A building's indoor squares on storey f, as their bounding box.
+func _extent(m: TacMap, sid: int, f: int) -> Rect2i:
+	var r := Rect2i()
+	for y in m.h:
+		for x in m.w:
+			var l := m.label(f, x, y)
+			if l >= 0 and int(m.rooms[l].structure) == sid and not m.rooms[l].get("outdoor", false):
+				r = Rect2i(x, y, 1, 1) if not r.has_area() else r.expand(Vector2i(x, y)).expand(Vector2i(x + 1, y + 1))
+	return r
+
+
+func _props_of(m: TacMap, kind: String) -> Array:
+	return m.cover.filter(func(c): return c.kind == kind)
+
+
+func test_ziggurat_is_a_stepped_pyramid() -> void:
+	for s in SEEDS:
+		var m := _map("ziggurat_hq", s)
+		var tag := "ziggurat_hq seed %d" % s
+		var main := _part(m, "main")
+		var ext := []
+		for f in 6:
+			ext.append(_extent(m, int(main.id), f))
+		for f in range(2, 6):   # every storey from the third steps in at both ends
+			assert_true(ext[f].position.x > ext[f - 1].position.x and ext[f].end.x < ext[f - 1].end.x, "%s: floor %d set back at both ends (%s in %s)" % [tag, f, ext[f], ext[f - 1]])
+		assert_true(ext[3].end.y < ext[2].end.y and ext[5].end.y < ext[4].end.y, "%s: the street front steps back too" % tag)
+		var terraces := {}
+		for r in m.rooms:
+			if r.cells > 0 and r.kind == "terrace" and r.structure == main.id:
+				terraces[int(r.floor)] = true
+		assert_true(terraces.size() >= 4, "%s: a terrace on every step (%s)" % [tag, terraces.keys()])
+		var spire := _props_of(m, "spire")
+		assert_eq(spire.size(), 9, "%s: a 3x3 spire crowns it" % tag)
+		if not spire.is_empty():
+			assert_eq(int(spire[0].floor), 6, "%s: on the top roof" % tag)
+
+
+func test_fort_sumter_reads_as_a_school() -> void:
+	for s in SEEDS:
+		var m := _map("fort_sumter", s)
+		var tag := "fort_sumter seed %d" % s
+		var main := _part(m, "main")
+		var cupola := _props_of(m, "cupola")
+		assert_eq(cupola.size(), 9, "%s: a bell cupola" % tag)
+		for c in cupola:
+			var l := m.label(c.floor, c.pos.x, c.pos.y)
+			assert_true(l >= 0 and m.rooms[l].kind == "roof" and m.rooms[l].structure == main.id, "%s: on the school roof" % tag)
+		var pole := _props_of(m, "flagpole")
+		assert_eq(pole.size(), 1, "%s: a flagpole" % tag)
+		var rect: Rect2i = main.rect
+		if not pole.is_empty():
+			assert_true(pole[0].pos.y >= rect.end.y, "%s: the flagpole stands in front of the school" % tag)
+		var lawn := 0
+		for y in range(rect.end.y, m.h):
+			for x in m.w:
+				if m.t(0, x, y) == TacMap.T.OUTSIDE and m.ground[y * m.w + x] == TacMap.G.GRASS:
+					lawn += 1
+		assert_true(lawn >= 40, "%s: a front lawn (%d squares)" % [tag, lawn])
+		assert_eq(_props_of(m, "bus").size(), 5, "%s: the old school bus across the lawn" % tag)
+
+
+func test_sakata_maru_is_a_warship() -> void:
+	for s in SEEDS:
+		var m := _map("main_port", s, {"location": "port_of_night_city_5"})
+		var tag := "sakata seed %d" % s
+		var sak := _part(m, "sakata_maru")
+		var hull: Rect2i = sak.rect
+		var deck := -1
+		for r in m.rooms:
+			if r.cells > 0 and r.kind == "terrace" and r.structure == sak.id:
+				deck = int(r.floor) if deck < 0 else mini(deck, int(r.floor))
+		var turrets := _props_of(m, "turret")
+		assert_eq(turrets.size(), 8, "%s: two gun turrets" % tag)
+		for t in turrets:
+			assert_eq(int(t.floor), deck, "%s: turrets on the main deck" % tag)
+		assert_eq(_props_of(m, "mast").size(), 1, "%s: a mast" % tag)
+		assert_eq(_props_of(m, "funnel").size(), 4, "%s: a funnel" % tag)
+		var sup := _extent(m, int(sak.id), 1)
+		assert_true(sup.position.x - hull.position.x >= 8 and hull.end.x - sup.end.x >= 12, "%s: the superstructure stands amidships (%s on %s)" % [tag, sup, hull])
+		# the raked bow: the eastern end narrows to a point
+		var bow_w := 0
+		for y in range(hull.position.y, hull.end.y):
+			if m.label(0, hull.end.x - 2, y) >= 0 and m.rooms[m.label(0, hull.end.x - 2, y)].structure == sak.id:
+				bow_w += 1
+		assert_true(bow_w <= 4, "%s: a pointed bow (%d wide)" % [tag, bow_w])
+
+
+# --- Batch 2 ---------------------------------------------------------------------------------------
+
+func test_potentilla_is_five_petals_round_the_memorial() -> void:
+	for s in SEEDS:
+		var m := _map("norcal_potentilla", s)
+		var tag := "potentilla seed %d" % s
+		var court := {}
+		for r in m.rooms:
+			if r.cells > 0 and r.kind == "courtyard":
+				court = r
+		assert_false(court.is_empty(), "%s: the courtyard" % tag)
+		var cc := Vector2((court.bounds as Rect2i).get_center())
+		var angles := []
+		for part in ["main", "navy_hq", "air_hq", "armor_hq", "engineer_hq"]:
+			var st := _part(m, part)
+			assert_false(st.is_empty(), "%s: petal %s" % [tag, part])
+			if st.is_empty():
+				continue
+			var v := Vector2((st.rect as Rect2i).get_center()) - cc
+			angles.append(rad_to_deg(v.angle()))
+		angles.sort()
+		for i in angles.size():
+			var gap: float = (angles[0] + 360.0 - angles[i]) if i == angles.size() - 1 else angles[i + 1] - angles[i]
+			assert_true(gap >= 40.0, "%s: the petals ring the court (%s)" % [tag, angles])
+		var col := _props_of(m, "columbarium")
+		assert_eq(col.size(), 9, "%s: the memorial columbarium" % tag)
+		for c in col:
+			assert_eq(m.label(0, c.pos.x, c.pos.y), int(court.id), "%s: in the courtyard" % tag)
+		var main := _part(m, "main")
+		assert_true(Vector2((main.rect as Rect2i).get_center()).y < cc.y, "%s: the intelligence petal heads the flower" % tag)
+
+
+func test_maxtac_castle_round_its_garden() -> void:
+	for s in SEEDS:
+		var m := _map("maxtac_hq", s)
+		var tag := "maxtac seed %d" % s
+		var court := {}
+		for r in m.rooms:
+			if r.cells > 0 and r.kind == "courtyard":
+				court = r
+		var cc := Vector2((court.bounds as Rect2i).get_center())
+		assert_true(Vector2((_part(m, "west_tower").rect as Rect2i).get_center()).x < cc.x, "%s: the armory tower to the west" % tag)
+		assert_true(Vector2((_part(m, "east_tower").rect as Rect2i).get_center()).x > cc.x, "%s: the vehicle tower to the east" % tag)
+		assert_true(_props_of(m, "planter").filter(func(c): return m.label(0, c.pos.x, c.pos.y) == int(court.id)).size() >= 6, "%s: roses in the garden" % tag)
+		assert_true(int(court.zone) >= TacMap.Zone.SECURE, "%s: the garden is the castle's secret heart" % tag)
+		var av := _props_of(m, "av")
+		assert_true(av.size() >= 9, "%s: an AV on the east tower's pad" % tag)
+		for c in av:
+			var l := m.label(c.floor, c.pos.x, c.pos.y)
+			assert_true(l >= 0 and m.rooms[l].structure == _part(m, "east_tower").id, "%s: on the vehicle tower" % tag)
+		# the curtain wall: solid concrete (not chain-link) all round the grounds
+		var wall := 0
+		for x in m.w:
+			if m.t(0, x, 1) == TacMap.T.WALL and m.wall_mat[0][1 * m.w + x] == 1:
+				wall += 1
+		assert_true(wall >= m.w - 4, "%s: a concrete curtain wall" % tag)
+
+
+func test_trauma_team_tower_launch_terraces() -> void:
+	for s in SEEDS:
+		var m := _map("trauma_team_tower", s)
+		var tag := "tt tower seed %d" % s
+		var main := _part(m, "main")
+		var by_floor := {}
+		for r in m.rooms:
+			if r.cells > 0 and r.structure == main.id:
+				by_floor.get_or_add(int(r.floor), {})[String(r.kind)] = true
+		for k in ["lobby", "clinic_waiting", "dispatch_office", "exec_office", "security_post"]:
+			assert_true(by_floor[0].has(k), "%s: %s on the ground floor" % [tag, k])
+		assert_true(by_floor[3].has("vehicle_bay"), "%s: the squads' AV bays open on the launch terrace" % tag)
+		assert_true(by_floor[5].has("control_room"), "%s: air control at the top" % tag)
+		var av := _props_of(m, "av")
+		assert_true(av.size() >= 18, "%s: AVs on the pads (%d squares)" % [tag, av.size()])
+		for c in av:
+			var l := m.label(c.floor, c.pos.x, c.pos.y)
+			assert_true(l >= 0 and m.rooms[l].kind == "terrace", "%s: AVs stand on terraces" % tag)
+		var e0 := _extent(m, int(main.id), 0)
+		var e5 := _extent(m, int(main.id), 5)
+		assert_true(e5.size.x < e0.size.x * 0.75 and e5.size.y < e0.size.y, "%s: the tower steps back to its air-control top" % tag)
+
+
+func test_totentanz_safe_inside_dangerous_outside() -> void:
+	var m := _map("totentanz", SEEDS[0])
+	var dice := Dice.new(4)
+	var e := Encounter.setup(m, dice, _crew(dice), "assassinate", {"faction": "maelstrom"})
+	var crew: Dictionary = e.alive(0)[0]
+	var main := _part(m, "main")
+	var cell_of := func(kind: String, f: int) -> Vector2i:
+		for r in m.rooms:
+			if r.cells > 0 and r.kind == kind and int(r.floor) == f:
+				return Furnish.room_cells(m, r)[0]
+		return Vector2i(-1, -1)
+	for k in ["dance_floor", "bar", "foyer", "plaza"]:
+		var v: Vector2i = cell_of.call(k, 0)
+		assert_true(v.x >= 0, "a %s" % k)
+		crew.pos = Vector3i(v.x, v.y, 0)
+		assert_true(e.passing_as_public(crew), "a patron on the %s" % k)
+	var out: Vector2i = cell_of.call("rubble_field", 0)
+	crew.pos = Vector3i(out.x, out.y, 0)
+	assert_false(e.passing_as_public(crew), "off the path, in Maelstrom's ruins")
+	var back: Vector2i = cell_of.call("backstage", 0)
+	crew.pos = Vector3i(back.x, back.y, 0)
+	assert_false(e.passing_as_public(crew), "backstage")
+	var lookouts := m.posts.filter(func(p): return p.kind == "lookout" and m.label(0, p.pos.x, p.pos.y) >= 0 and m.rooms[m.label(0, p.pos.x, p.pos.y)].kind == "rubble_field")
+	assert_true(lookouts.size() >= 2, "Maelstrom lookouts out in the ruins")
+	var crowd := e.units.filter(func(u): return u.team == Encounter.CIV_TEAM)
+	assert_true(crowd.size() >= 4, "a crowd on the club floor (%d)" % crowd.size())
+	assert_true(_extent(m, int(main.id), 4).size.x < _extent(m, int(main.id), 2).size.x, "the broken top of Burleson Tower")
+
+
+func test_eurasiabank_sunken_ruin() -> void:
+	for s in SEEDS:
+		var m := _map("eurasiabank_plaza", s)
+		var tag := "eurasiabank seed %d" % s
+		var main := _part(m, "main")
+		var ground := {}
+		for r in m.rooms:
+			if r.cells > 0 and r.structure == main.id and r.floor == 0:
+				ground[String(r.kind)] = true
+		for k in ["banking_hall", "bank_vault", "archive", "server_room"]:
+			assert_true(ground.has(k), "%s: the drowned %s at the bottom" % [tag, k])
+		assert_true(SetPieceDressing.look(m, int(main.id)).get("flooded", []).has("bank_vault"), "%s: the vaults stand in water" % tag)
+		var e0 := _extent(m, int(main.id), 0)
+		var e2 := _extent(m, int(main.id), 2)
+		assert_true(e2.size.x * e2.size.y < e0.size.x * e0.size.y * 0.7, "%s: the crumbled top storey" % tag)
+		var terr := m.rooms.filter(func(r): return r.cells > 0 and r.kind == "terrace" and r.structure == main.id)
+		assert_true(terr.size() >= 1, "%s: rubble terraces to climb" % tag)
+		var breaches := 0
+		var rect: Rect2i = main.rect
+		for y in range(rect.position.y, rect.end.y):
+			for x in [rect.position.x, rect.end.x - 1]:
+				if m.t(0, x, y) == TacMap.T.OUTSIDE:
+					breaches += 1
+		for x in range(rect.position.x, rect.end.x):
+			for y in [rect.position.y, rect.end.y - 1]:
+				if m.t(0, x, y) == TacMap.T.OUTSIDE:
+					breaches += 1
+		assert_true(breaches >= 2, "%s: breached walls (%d)" % [tag, breaches])
+
+
+func test_batch_two_locations_play_as_their_set_pieces() -> void:
+	for pair in [["norcal_military_base_13", "norcal_potentilla"], ["south_night_city_9", "maxtac_hq"], ["watson_development_32", "trauma_team_tower"],
+			["hot_zone_11", "totentanz"], ["hot_zone_6", "eurasiabank_plaza"]]:
+		assert_eq(String(Campaign._place_at(pair[0]).get("setpiece", "")), pair[1], pair[0])
