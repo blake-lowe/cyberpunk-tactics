@@ -602,38 +602,31 @@ func new_gig() -> void:
 	var camp := Campaign.current
 	var campaign_gig: bool = camp != null and not camp.active_gig.is_empty() and _reel == "" and _shot_path == ""
 	_campaign_gig = campaign_gig
-	if campaign_gig:   # a gig taken from the fixer board: its scene, security and crew
+	var eo: Dictionary = {}
+	if gig.has("complication"):   # review renders: --complication=<tier>:<roll> (or just the roll)
+		var parts := String(gig.complication).split(":")
+		eo["complication"] = {"tier": parts[0], "roll": int(parts[1])} if parts.size() > 1 else {"roll": int(parts[0])}
+	if campaign_gig:   # a gig taken from the fixer board, built as every campaign gig is (GigSetup, shared with the soak)
 		gig.scene = String(camp.active_gig.scene)
 		gig.seed = int(camp.active_gig.seed)
 		gig.security = int(camp.active_gig.security)
 		gig.profile = ""
-		o = Campaign.scene_opts(camp.active_gig)
-	m = SceneGen.generate(gig.seed, "neighborhood" if gig.profile != "" else gig.scene, o)
+		var gs := GigSetup.for_campaign(camp, _dev_kit, eo)
+		m = gs.map
+		dice = gs.dice
+		enc = gs.enc
+	else:
+		m = SceneGen.generate(gig.seed, "neighborhood" if gig.profile != "" else gig.scene, o)
+		dice = Dice.new(gig.seed + 1)
+		var crew: Array[Combatant] = [Recruit.generate(dice, "solo", "edgerunner", "Vex"), Recruit.generate(dice, "netrunner", "edgerunner", "Patch")]
+		for cm in crew:   # review renders: everyone packs the same kit
+			for i in mini(2, _dev_kit.size()):
+				cm.kit[i] = _dev_kit[i]
+		var fid := String(gig.get("faction", ""))
+		if fid != "":
+			eo["faction"] = fid
+		enc = Encounter.setup(m, dice, crew, gig.get("objective", "data") as String, eo)
 	view_floor = m.street   # the crew goes in at street level
-	if campaign_gig and String(camp.active_gig.get("profile", "")) != "":
-		m.params["scene"] = "neighborhood"
-	dice = Dice.new(gig.seed + 1)
-	var crew: Array[Combatant] = [Recruit.generate(dice, "solo", "edgerunner", "Vex"), Recruit.generate(dice, "netrunner", "edgerunner", "Patch")]
-	if campaign_gig:
-		camp.check_kits()   # only what safehouse storage still holds goes along
-		crew.clear()
-		for c in camp.alive_crew():
-			if c.can_act():
-				crew.append(c)
-	var kind := gig.get("objective", "data") as String
-	if campaign_gig:
-		kind = Campaign.objective_for(camp.active_gig)
-	var fid := String(gig.get("faction", ""))
-	if campaign_gig:
-		fid = String(camp.active_gig.get("faction", ""))
-	for cm in crew:   # review renders: everyone packs the same kit
-		for i in mini(2, _dev_kit.size()):
-			cm.kit[i] = _dev_kit[i]
-	var eo: Dictionary = Campaign.encounter_opts(camp.active_gig) if campaign_gig else ({"faction": fid} if fid != "" else {})
-	if gig.has("complication"):   # review renders: --complication=<tier>:<roll> (or just the roll)
-		var parts := String(gig.complication).split(":")
-		eo["complication"] = {"tier": parts[0], "roll": int(parts[1])} if parts.size() > 1 else {"roll": int(parts[0])}
-	enc = Encounter.setup(m, dice, crew, kind, eo)
 	_log_seen = 0
 	var lk := _scene_look()
 	env.ambient_light_color = Color(lk.ambient)

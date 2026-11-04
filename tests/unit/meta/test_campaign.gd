@@ -51,6 +51,48 @@ func test_the_dead_stay_dead_and_the_dying_are_stabilized() -> void:
 	assert_eq(b.reputation, 0, "no deed in a failure")
 
 
+## Soak finds: after a settled gig (a debrief, the wall, the market) a reloaded campaign's to_dict is
+## the saved one's to the digit. The 64-bit dice state lost its low bits as a JSON number (so a
+## reload rolled differently from the campaign saved), and offers, the wall, the debrief, the
+## market and the crew's Awareness came back as floats.
+func test_a_save_reloads_to_the_same_campaign_exactly() -> void:
+	var c := Campaign.new_game(31)
+	var e := _finish(c, false)
+	c.crew[1].dead = true
+	c.resolve(e)
+	assert_false(c.debrief.is_empty() or c.fallen.is_empty() or c.market.is_empty() or c.board.is_empty())
+	var path := "user://test_campaign_exact.json"
+	assert_true(c.save(path))
+	var d := Campaign.load_from(path)
+	DirAccess.remove_absolute(path)
+	assert_eq(JSON.stringify(d.to_dict(), "", true), JSON.stringify(c.to_dict(), "", true), "to_dict after a reload")
+	assert_eq(d.dice.rng.state, c.dice.rng.state, "the dice state, every bit")
+	assert_eq(d.dice.d(1000000), c.dice.d(1000000), "and the next roll")
+
+
+func test_an_older_saves_numeric_dice_state_still_loads() -> void:
+	var d := Campaign.new_game(4).to_dict()
+	d["rng_state"] = 123456789   # a save from before the state was a string
+	var back := Campaign.from_dict(JSON.parse_string(JSON.stringify(d)))
+	assert_eq(back.dice.rng.state, 123456789)
+	assert_eq(back.to_dict().rng_state, "123456789", "saved as a string from now on")
+
+
+## Soak find: a flashbang's or teargas's injuries last "for the next minute" (p.346-347) and count
+## down on the victim's own turns, so one taken late in a fight came home and stayed for good.
+func test_a_minutes_injuries_are_gone_after_the_gig() -> void:
+	var c := Campaign.new_game(32)
+	var e := _finish(c, true)
+	var a: Combatant = c.crew[0]
+	var brief := a.add_injury({"id": "damaged_eye", "name": "Damaged Eye", "fx": {}}, "head", false)
+	brief["expires_in"] = 12
+	a.add_injury({"id": "broken_ribs", "name": "Broken Ribs", "fx": {}}, "body", false)
+	var r := c.resolve(e)
+	assert_eq(a.injuries.map(func(i): return String(i.id)), ["broken_ribs"], "the minute's injury is gone, the real one stays")
+	var mine: Dictionary = (r.members as Array).filter(func(m): return m.name == a.display_name)[0]
+	assert_eq(mine.injuries, ["Broken Ribs"], "the debrief lists only what lasts")
+
+
 func test_rest_heals_body_per_day() -> void:
 	var c := Campaign.new_game(8)
 	var a: Combatant = c.crew[0]

@@ -614,6 +614,7 @@ func resolve(e: Encounter) -> Dictionary:
 		c.unconscious = false
 		c.wake_in = 0
 		c.dsp = c.base_dsp
+		c.expire_brief_injuries()   # a flashbang's minute is long over by the time they're home
 		if c.hp < c.max_hp() or not c.injuries.is_empty():
 			report.hurt.append(c.display_name)
 	if won:
@@ -1331,7 +1332,7 @@ func to_dict() -> Dictionary:
 	return {"version": SaveMigrations.CURRENT, "seed": seed_value, "eb": eb, "day": day, "minutes": minutes,
 		"safehouse_district": safehouse_district, "crew": crew.map(func(c): return c.to_dict()),
 		"fallen": fallen, "board": board, "recruits": recruits.map(func(c): return c.to_dict()), "log": log.slice(-50),
-		"rng_state": dice.rng.state, "stash": stash, "market": market, "debrief": debrief}
+		"rng_state": str(dice.rng.state), "stash": stash, "market": market, "debrief": debrief}
 
 
 ## A campaign from a save dictionary, upgraded to the current format first (SaveMigrations).
@@ -1343,7 +1344,11 @@ static func from_dict(raw: Dictionary) -> Campaign:
 	var c := Campaign.new()
 	c.seed_value = int(d.seed)
 	c.dice = Dice.new(c.seed_value)
-	c.dice.rng.state = int(d.get("rng_state", c.dice.rng.state))
+	var st: Variant = d.get("rng_state")
+	if st is String:   # a decimal string: a JSON number (a double) loses the 64-bit state's low bits
+		c.dice.rng.state = (st as String).to_int()
+	elif st != null:   # an older save's number, already rounded: the nearest state is the best there is
+		c.dice.rng.state = int(st)
 	c.eb = int(d.eb)
 	c.day = int(d.day)
 	c.minutes = clampi(int(d.get("minutes", 0)), 0, DAY_MINUTES - 1)
@@ -1352,27 +1357,39 @@ static func from_dict(raw: Dictionary) -> Campaign:
 	for cd in d.crew:
 		c.crew.append(Combatant.from_dict(cd))
 	for f in d.fallen:
-		c.fallen.append(f)
+		c.fallen.append(_ints(f))   # the day they fell: an int again
 	for b in d.board:
-		c.board.append(code_loaded_gig(b))
+		c.board.append(code_loaded_gig(_ints(b)))   # pay, security, seed, codes: ints again, as offered
 	for r in d.get("recruits", []):
 		c.recruits.append(Combatant.from_dict(r))
 	for k in d.get("stash", {}):
 		if Items.is_stored(String(k)) and int(d.stash[k]) > 0:
 			c.stash[String(k)] = int(d.stash[k])
-	c.market = d.get("market", {})
-	for k in ["opened", "closes"]:   # JSON numbers come back as floats
-		if c.market.has(k):
-			c.market[k] = int(c.market[k])
+	c.market = _ints(d.get("market", {}))   # JSON numbers come back as floats (opened, closes, rows)
 	for l in d.get("log", []):
 		c.log.append(String(l))
 	for m in d.get("debrief", []):
 		if m is Dictionary:
-			c.debrief.append(m)
+			c.debrief.append(_ints(m))   # hp, IP, Reputation: ints again
 	c.update_market()   # a save from before markets (v5) gets one now
 	if bool(d.get("refill_board", false)):   # v14 dropped its generic offers: canon ones take their places
 		c._fill_board(RulesDB.gen("gigs.json"), {})
 	return c
+
+
+## `v` with every whole-number float (as JSON hands numbers back) an int again, in Dictionaries and
+## Arrays all the way down: a reloaded campaign holds what the saved one did.
+static func _ints(v: Variant) -> Variant:
+	if v is float and v == roundf(v) and absf(v) < 9.0e15:
+		return int(v)
+	if v is Dictionary:
+		var out := {}
+		for k in v:
+			out[k] = _ints(v[k])
+		return out
+	if v is Array:
+		return (v as Array).map(func(x): return _ints(x))
+	return v
 
 
 ## A loaded offer with its Night City 2045 codes: one saved before v8 has none, so it gets them
