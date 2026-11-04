@@ -20,10 +20,11 @@ extends Control
 ## (Bunks, Med Bay, Training Room). After a gig the debrief screen comes first.
 ##
 ## Dev flags (with --shot=x.png for screenshots): --base stays here; --screen=<id> opens a screen
-## (jobs, hire, market, storage, workshop, ripperdoc, therapy, injuries, training, crew, debrief);
+## (jobs, hire, market, city, storage, workshop, ripperdoc, therapy, injuries, training, crew, debrief);
 ## --crew=n selects crew member n on it; --hover=<room id> shows a room hovered; --demo uses
 ## DemoState's sample campaign (never saved); with it the Armory also takes --slot=<slot id>,
-## --pick=<storage key> and --filter=<chip> (StorageScreen.setup).
+## --pick=<storage key> and --filter=<chip> (StorageScreen.setup), and the city map --district=<id> or
+## --pin=<board index> (CityTab.setup).
 
 const GB := preload("res://src/tactical/greybox.gd")
 const POST_SHADER := preload("res://src/tactical/view/post.gdshader")
@@ -711,13 +712,13 @@ const ROOM_SCREENS := {
 	"workshop": ["workshop", "Armor upgrades"],
 }
 ## Screen id → the screen's tab.
-const SCREEN_TABS := {"jobs": "jobs", "hire": "hire", "market": "market", "storage": "loadouts", "workshop": "workshop",
+const SCREEN_TABS := {"jobs": "jobs", "hire": "hire", "market": "market", "city": "city", "storage": "loadouts", "workshop": "workshop",
 	"ripperdoc": "ripperdoc", "therapy": "therapy", "injuries": "injuries", "training": "", "crew": "", "debrief": ""}
 
 
 static func _make_screen(id: String) -> SafehouseScreen:
 	match id:
-		"jobs", "hire", "market": return FixerScreen.new()
+		"jobs", "hire", "market", "city": return FixerScreen.new()
 		"storage", "workshop": return StorageScreen.new()
 		"ripperdoc", "therapy", "injuries": return MedBayScreen.new()
 		"training": return TrainingScreen.new()

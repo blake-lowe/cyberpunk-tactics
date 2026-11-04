@@ -15,24 +15,48 @@ const OBJECTIVE_TEXT := {"data": "Download the target file, or eliminate all hos
 
 signal take_gig(index: int)
 
+var focus_gig := -1   ## a job opened from the CITY map: JOBS scrolls to it and marks it gold
+
 
 func room_name() -> String:
 	return "FIXER NETWORK"
 
 
 func title() -> String:
-	return {"jobs": "Jobs", "hire": "Hire", "market": "Night Market"}.get(tab, "Fixer Network")
+	return {"jobs": "Jobs", "hire": "Hire", "market": "Night Market", "city": "City"}.get(tab, "Fixer Network")
 
 
 func tabs() -> Array:
-	return [["jobs", "JOBS"], ["hire", "HIRE"], ["market", "NIGHT MARKET"]]
+	return [["jobs", "JOBS"], ["hire", "HIRE"], ["market", "NIGHT MARKET"], ["city", "CITY"]]
 
 
+## CITY: the Night City map (CityTab); clicking a job pin opens it in JOBS.
 func build_body(body: VBoxContainer) -> void:
+	if tab != "jobs":
+		focus_gig = -1
 	match tab:
-		"jobs": _jobs(body)
+		"jobs":
+			_jobs(body)
+			_focus_job(body)
 		"hire": _hire(body)
 		"market": _market(body)
+		"city":
+			var city := CityTab.new().setup(camp)
+			city.open_job.connect(func(i: int): focus_gig = i; tab = "jobs"; _build.call_deferred())
+			body.add_child(city)
+
+
+## The job picked on the CITY map: its card edged in gold and scrolled into view.
+func _focus_job(body: VBoxContainer) -> void:
+	var scs := body.find_children("*", "ScrollContainer", true, false)
+	if focus_gig < 0 or scs.is_empty():
+		return
+	var sc: ScrollContainer = scs[0]
+	var list := sc.get_child(0)
+	if focus_gig < list.get_child_count():
+		var card := list.get_child(focus_gig) as PanelContainer
+		card.add_theme_stylebox_override("panel", CutBox.make(Color(0.07, 0.06, 0.02, 0.95), Hud.GOLD, 12, 0b0101, Hud.GOLD, 12))
+		sc.ensure_control_visible.call_deferred(card)
 
 
 # --- Jobs -----------------------------------------------------------------------------------
