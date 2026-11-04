@@ -2075,6 +2075,12 @@ func _on_hud(name: String, arg: Variant) -> void:
 				if not enc.net_move(int(arg)):
 					hud.toast("Blocked by a firewall or ICE.")
 				_after_action()
+		"net_turret":   # [turret unit id, target unit id]: fire a held turret (Encounter.fire_turret)
+			if _crew_turn():
+				var rt: Dictionary = enc.fire_turret(int(arg[0]), int(arg[1]))
+				if not rt.get("ok", false):
+					hud.toast(String(rt.get("reason", "can't")).to_upper())
+				_after_action()
 		"net_slide":
 			if _crew_turn():
 				var rs := enc.net_action("slide", int(arg))
@@ -2659,8 +2665,12 @@ func _unit_conditions(u: Dictionary) -> Array:
 	var out: Array = []
 	if u.has("suppressed_by"):
 		out.append("suppressed")
-	if u.team != 0 and not u.get("alerted", true):
+	if u.team != 0 and not u.get("alerted", true) and not u.has("held_by"):
 		out.append("unaware")
+	if u.has("held_by"):   # a turret a Netrunner operates (Encounter.fire_turret)
+		out.append("held by %s's deck" % enc.units[int(u.held_by)].c.display_name)
+	if u.has("turret") and not u.c.weapons.is_empty() and u.c.weapons[0].uses_ammo() and u.c.weapons[0].ammo <= 0:
+		out.append("out of ammunition")
 	return out
 
 

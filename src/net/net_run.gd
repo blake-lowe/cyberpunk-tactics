@@ -14,6 +14,7 @@ var current := -1
 var revealed := {}   ## node id → true
 var broken := {}     ## firewalls Backdoored
 var held := {}       ## control nodes taken
+var activated := {}  ## control node id → Round its devices were last operated: once per Turn per Node (p199)
 var identified := {} ## files Eye-Dee'd
 var met := {}        ## Vector2i(structure, ice id) → true: Black ICE met (an unsafe jack-out suffers them all, p198)
 var armor_rez := 0   ## Armor program running (REZ 7, -4 brain damage, p203); 0 = not running
