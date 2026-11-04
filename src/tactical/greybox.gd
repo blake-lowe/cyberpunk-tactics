@@ -206,6 +206,8 @@ var fog_tex: ImageTexture
 var builder: WorldBuilder
 var _log_seen := 0
 var _shot_path := ""
+var hazard_view: HazardView      ## the hazard zone's ring (null when the gig has none)
+var _hazard_stage := -1          ## review renders: --hazard=<n> jumps the hazard zone to its n-th close
 var _shot_hover := Vector2i(-1, -1)
 var _frames := 0
 var _reveal := false
@@ -262,6 +264,8 @@ func _ready() -> void:
 			"site": gig.site = kv[1]   # lone_building: which building type (sites.json)
 			"setpiece": gig["setpiece"] = kv[1]   # a set piece (setpieces.json): its scene, buildings and faction
 			"location": gig["location"] = kv[1]   # with --setpiece: the World location it is played for
+			"variant": gig["variant"] = kv[1]   # with --setpiece: one of its variants by id (the Estates: 1a-1l)
+			"hazard": _hazard_stage = int(kv[1])   # review renders: the hazard zone (the MIST) already closed n times
 			"floor": _shot_floor = int(kv[1])   # review renders: look at this storey
 			"kit": _dev_kit = kv[1].split(",")   # review renders: pack every crew member's kit slots
 			"stage": _dev_stage = kv[1]   # review renders: open the action bar on this stage (attack)
@@ -557,6 +561,8 @@ func new_gig() -> void:
 	if String(gig.get("setpiece", "")) != "":
 		o["setpiece"] = gig.setpiece
 		o["location"] = String(gig.get("location", ""))
+		if gig.has("variant"):
+			o["variant"] = String(gig.variant)
 		if String(gig.get("faction", "")) == "":
 			gig.faction = String(SetPieces.get_def(String(gig.setpiece)).get("faction", ""))
 	var camp := Campaign.current
@@ -592,6 +598,9 @@ func new_gig() -> void:
 		var parts := String(gig.complication).split(":")
 		eo["complication"] = {"tier": parts[0], "roll": int(parts[1])} if parts.size() > 1 else {"roll": int(parts[0])}
 	enc = Encounter.setup(m, dice, crew, kind, eo)
+	if _hazard_stage >= 0 and enc.hazard != null:
+		enc.hazard.force_stage(_hazard_stage)
+	hazard_view = null
 	_log_seen = 0
 	var lk := _scene_look()
 	env.ambient_light_color = Color(lk.ambient)
@@ -707,6 +716,10 @@ func _build_world() -> void:
 	for s in builder.surfaces():
 		floor_nodes[int(s.get_meta("floor", 0))].add_child(s)
 	builder.lightfield = LightField.bake(m, enc.los, LightPlan.plan(m, m.seed_value) + builder.emitters)
+	if enc.hazard != null:   # the safe circle's edge and the haze outside it
+		hazard_view = HazardView.new()
+		world.add_child(hazard_view)
+		hazard_view.build(m, enc.hazard)
 	devices = DeviceView.new()
 	world.add_child(devices)
 	devices.build(m, func(v: Vector3i) -> float: return _gy(v))
@@ -2797,7 +2810,7 @@ func _body_pos(u: Dictionary) -> Vector3:
 
 ## Events that don't count as "hostile activity" for the enemy-phase banner (bookkeeping, third
 ## parties, things the crew caused).
-const QUIET_EVENTS := ["alert", "death", "camera", "tt_call", "av_land", "av_leave", "tt_pickup", "panic", "civ_gone"]
+const QUIET_EVENTS := ["alert", "death", "camera", "tt_call", "av_land", "av_leave", "tt_pickup", "panic", "civ_gone", "hazard"]
 
 var _handlers: Dictionary = {}
 
@@ -2839,6 +2852,7 @@ func _event_handlers() -> Dictionary:
 			"av_leave": _anim_av_leave,
 			"target_down": _ev_target_down,
 			"escape": _ev_escape,
+			"hazard": _ev_hazard,
 		}
 	return _handlers
 
@@ -2866,6 +2880,15 @@ func _play_events() -> void:
 
 
 # --- Event handlers (registered in _event_handlers) ---------------------------------------
+
+## The hazard zone closes in (HazardZone: the Combat Zone's MIST): the ring moves, a banner.
+func _ev_hazard(_e: Dictionary) -> void:
+	if hazard_view:
+		hazard_view.update(enc.hazard)
+	hud.turn_banner("THE %s CLOSES IN" % enc.hazard.name, Hud.RED)
+	_ui_snd("sfx_ui_error", -8.0)
+	await get_tree().create_timer(0.6).timeout
+
 
 func _ev_rig(e: Dictionary) -> void:
 	var u: Dictionary = enc.units[e.unit]
@@ -3574,7 +3597,9 @@ func _hud_refresh() -> void:
 	hud.atk_mode = atk_mode
 	var place := String(m.params.get("scene", gig.scene)).replace("_", " ")
 	if SetPieces.has(String(m.params.get("setpiece", ""))):   # a famous place goes by its name
-		place = String(SetPieces.get_def(String(m.params.setpiece)).name)
+		place = SetPieces.place_name(m)
+	if hazard_view and is_instance_valid(hazard_view):
+		hazard_view.update(enc.hazard)
 	hud.refresh(enc, mode, cover_mode, "%s  ·  FLOOR %d/%d" % [place.to_upper(), view_floor + 1, m.floors])
 
 

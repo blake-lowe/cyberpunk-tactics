@@ -5,7 +5,10 @@ extends RefCounted
 ## annexes (Fort Sumter, Ziggurat HQ, Totentanz, Trauma Team Tower, Eurasiabank Plaza); `port`:
 ## quays, moored and anchored ships and the floats between them (Main Port and Flotsam);
 ## `compound`: buildings round a central court inside a perimeter wall (the Potentilla's five
-## petals, MAX-TAC's castle wings). After the scene's own guard posts, posts() adds the recipe's
+## petals, MAX-TAC's castle wings); `arena`: a walled block of fake city (DistrictGen's streets and
+## ruins inside a perimeter wall) with its owner's production yard at the back (the Combat Zone).
+## A plot may carry a pool in the back garden and a gatehouse inside its gate (the Estates); a set
+## piece with `variants` draws one per seed (an estate's owner) into the map's params. After the scene's own guard posts, posts() adds the recipe's
 ## posts (roof snipers, AA gunners, checkpoints), which the guards man first. Set pieces have props
 ## of their own (PIECES: a school cupola, a flagpole, a warship's turret ...), real cover the view
 ## draws with SetPieceDressing.
@@ -23,9 +26,12 @@ const ROAD := 6   ## street depth (SceneGen.road: sidewalks either side)
 ## steel thin, like a car).
 const PIECES := {"cupola": ["concrete", true], "flagpole": ["steel", false], "spire": ["steel", true],
 	"turret": ["steel", true], "mast": ["steel", true], "funnel": ["steel", true], "columbarium": ["stone", true],
-	"av": ["steel", false], "bus": ["steel", false]}
+	"av": ["steel", false], "bus": ["steel", false],
+	# A broadcast camera mast (steel thin), an uplink dish (steel thick), a garden fountain (stone).
+	"camera_mast": ["steel", false], "dish": ["steel", true], "fountain": ["stone", true]}
 ## Multi-square set-piece props: piece → [w, h] squares.
-const SIZES := {"cupola": [3, 3], "spire": [3, 3], "turret": [2, 2], "funnel": [2, 2], "columbarium": [3, 3], "av": [3, 3], "bus": [1, 5]}
+const SIZES := {"cupola": [3, 3], "spire": [3, 3], "turret": [2, 2], "funnel": [2, 2], "columbarium": [3, 3], "av": [3, 3], "bus": [1, 5],
+	"dish": [2, 2], "fountain": [3, 3]}
 
 
 static func _sp(c: Dictionary) -> Dictionary:
@@ -41,8 +47,12 @@ static func _roll(dice: Dice, r: Variant) -> int:
 ## Map size: a plot set piece is its main building's footprint, the front yard, margins, its
 ## annexes and the street; the port's are in its params. The recipe owns the size
 ## (SetPieces.overrides drops a caller's w / h / floors).
-static func size(dice: Dice, p: Dictionary, _overrides: Dictionary) -> void:
+static func size(dice: Dice, p: Dictionary, overrides: Dictionary) -> void:
 	var sp := SetPieces.get_def(String(p.setpiece))
+	_variant(dice, p, overrides, sp)
+	if String(sp.get("base", {}).get("planner", "")) == "arena":
+		_arena_size(dice, p, sp)
+		return
 	if String(sp.get("base", {}).get("planner", "")) == "compound":
 		_compound_size(dice, p, sp)
 		return
@@ -68,7 +78,12 @@ static func size(dice: Dice, p: Dictionary, _overrides: Dictionary) -> void:
 		annexes.append(ad)
 	var side := _roll(dice, plot.get("side_yard", 0))   # open ground beside the building (a schoolyard)
 	w += side
-	p["_plot"] = {"fw": fw, "fd": fd, "margin": margin, "front": front, "annexes": annexes, "side": side}
+	var pool := {}
+	if plot.has("pool"):   # a pool in the back garden, on a deck, `gap` squares behind the house
+		var pd: Dictionary = plot.pool
+		pool = {"w": _roll(dice, pd.get("w", 10)), "d": _roll(dice, pd.get("d", 5)), "gap": _roll(dice, pd.get("gap", 3))}
+		h += int(pool.d) + int(pool.gap) + 2
+	p["_plot"] = {"fw": fw, "fd": fd, "margin": margin, "front": front, "annexes": annexes, "side": side, "pool": pool}
 	p.w = w
 	p.h = h
 
@@ -77,6 +92,7 @@ static func run(c: Dictionary) -> void:
 	match String(_sp(c).get("base", {}).get("planner", "plot")):
 		"port": port(c)
 		"compound": compound(c)
+		"arena": arena(c)
 		_: plot(c)
 	_props(c)
 
@@ -103,6 +119,9 @@ static func plot(c: Dictionary) -> void:
 			behind = int(a.d) + int(a.gap)
 		else:
 			beside += int(a.w) + int(a.gap)
+	var pool: Dictionary = pl.get("pool", {})
+	if not pool.is_empty():
+		behind += int(pool.d) + int(pool.gap) + 2
 	var main_shell := Rect2i(margin, margin + behind, int(pl.fw), int(pl.fd))
 	main_shell.size = Vector2i(mini(main_shell.size.x, m.w - margin * 2 - beside), mini(main_shell.size.y, road_y - int(pl.front) - main_shell.position.y))
 	var mst := SceneGen.building(c, main_shell, String(sp.sites.main.base), int(c.p.floors), sec, true, TacMap.Zone.PUBLIC, "S", {}, "main")
@@ -117,6 +136,12 @@ static func plot(c: Dictionary) -> void:
 			shell = Rect2i(main_shell.end.x + int(a.gap), main_shell.end.y - int(a.d), int(a.w), int(a.d))
 		var ast := SceneGen.building(c, shell, String(sp.sites[a.part].base), int(a.floors), maxi(sec - 1, 0), false, TacMap.Zone.PUBLIC, "S", {}, String(a.part))
 		SceneGen.related(c, ast.id, sid, 0.6)
+	if not pool.is_empty():   # the pool behind the house, centred on it, its deck round it
+		var pw := mini(int(pool.w), main_shell.size.x)
+		var water := Rect2i(main_shell.get_center().x - pw / 2, main_shell.position.y - int(pool.gap) - int(pool.d), pw, int(pool.d))
+		SceneGen.ground(c, water.grow(2), G.CONCRETE)
+		SceneGen.water(c, water)
+		SceneGen.yard(c, water.grow(2), String(plot_def.pool.get("kind", "pool_deck")), Layouts._zone_of(String(plot_def.get("zone", "public"))), sid)
 	# The front path from the street to the main door stays clear.
 	var door := m.main_entrance()
 	var gate := Vector2i(m.w / 2, road_y - 1)
@@ -141,6 +166,13 @@ static func plot(c: Dictionary) -> void:
 		var ap: Dictionary = plot_def.approach
 		SceneGen.yard(c, Rect2i(door.pos.x - path_w / 2, door.pos.y + 1, path_w, road_y - door.pos.y - 1 - (1 if fenced else 0)),
 			String(ap.get("kind", "plaza")), Layouts._zone_of(String(ap.get("zone", "public"))), sid)
+	if plot_def.get("gatehouse", false):   # a guard house just inside the gate, beside the path
+		for bx in [gate.x + path_w / 2 + 2, gate.x - path_w / 2 - 7, 3, m.w - 8]:
+			var booth := Rect2i(bx, road_y - 6, 5, 4)
+			if _free(m, booth.grow(1)) and not _any_reserved(c, booth.grow(1)):
+				var bst := SceneGen.building(c, booth, "guard_booth", 1, maxi(sec - 1, 0), false, TacMap.Zone.STAFF)
+				SceneGen.related(c, bst.id, sid, 0.9)
+				break
 	var kind := String(plot_def.get("yard", "compound_yard"))
 	var zone := Layouts._zone_of(String(plot_def.get("zone", "public")))
 	var yard_room := SceneGen.yard(c, Rect2i(0, 0, m.w, road_y - (1 if fenced else 0)), kind, zone, sid)
@@ -175,10 +207,11 @@ static func plot(c: Dictionary) -> void:
 	SceneGen.spawn(c, Vector2i(m.w - 1, m.h - 3))
 
 
-## Scatter one-square props over a yard's own squares inside `r` (never indoors).
-static func _dress(c: Dictionary, room: Dictionary, r: Rect2i, piece: String, n: int) -> void:
+## Scatter one-square props over a yard's own squares inside `r` (never indoors; only on `only`'s
+## squares when given).
+static func _dress(c: Dictionary, room: Dictionary, r: Rect2i, piece: String, n: int, only: Dictionary = {}) -> void:
 	var m: TacMap = c.m
-	var cells := Furnish.room_cells(m, room).filter(func(v): return r.has_point(v))
+	var cells := Furnish.room_cells(m, room).filter(func(v): return r.has_point(v) and (only.is_empty() or only.has(v)))
 	var allowed := {}
 	for v in cells:
 		allowed[v] = true
@@ -323,6 +356,15 @@ static func compound(c: Dictionary) -> void:
 	SceneGen.spawn(c, Vector2i(m.w - 1, m.h - 3))
 
 
+## Any square of `r` reserved (a path kept clear)?
+static func _any_reserved(c: Dictionary, r: Rect2i) -> bool:
+	for y in range(r.position.y, r.end.y):
+		for x in range(r.position.x, r.end.x):
+			if c.reserved.has(Vector2i(x, y)):
+				return true
+	return false
+
+
 ## Every square of `r` is open, unlabelled ground (nothing built there yet).
 static func _free(m: TacMap, r: Rect2i) -> bool:
 	for y in range(r.position.y, r.end.y):
@@ -330,6 +372,221 @@ static func _free(m: TacMap, r: Rect2i) -> bool:
 			if not m.inb(x, y) or m.t(0, x, y) != T.OUTSIDE or m.label(0, x, y) >= 0:
 				return false
 	return true
+
+
+# --- Variants: one of a set piece's named places per seed -------------------------------------
+
+## A set piece with `variants` (the Estates: one owner's estate per gig) draws one (or takes the
+## one overrides.variant names by id): it rides in the
+## map's params as `variant` (SetPieces.variant: the HUD's name, its Security Code), and its
+## `params` (NET threat, ...) go over the scene's.
+static func _variant(dice: Dice, p: Dictionary, overrides: Dictionary, sp: Dictionary) -> void:
+	var vs: Array = sp.get("variants", [])
+	if vs.is_empty():
+		return
+	var pick: Dictionary = vs[dice.rng.randi_range(0, vs.size() - 1)]
+	var want := String(overrides.get("variant", "")) if overrides.get("variant", "") is String else ""
+	for cand in vs:   # a caller may name one (overrides.variant: its id, e.g. "1i")
+		if want != "" and String(cand.get("id", "")) == want:
+			pick = cand
+	var v: Dictionary = pick.duplicate(true)
+	p["variant"] = v
+	for k in v.get("params", {}):
+		p[k] = v.params[k]
+		overrides[k] = v.params[k]   # SceneGen.building reads a site's NET tuning from the overrides
+
+
+# --- Arena: a walled block of fake city -----------------------------------------------------------
+
+## The arena's layout, drawn once: map size from the recipe (`arena` {w, h, outside, forecourt,
+## track, yard}), the set's buildings up to `floors` storeys.
+static func _arena_size(dice: Dice, p: Dictionary, sp: Dictionary) -> void:
+	var a: Dictionary = sp.get("arena", {})
+	p.w = _roll(dice, a.get("w", 90))
+	p.h = _roll(dice, a.get("h", 92))
+	p.floors = maxi(int(p.floors), _roll(dice, a.get("floors", 3)))
+	p["_arena"] = {"outside": int(a.get("outside", 2)), "forecourt": int(a.get("forecourt", 5)), "track": int(a.get("track", 2)),
+		"yard": _roll(dice, a.get("yard", 16))}
+
+
+## A high wall round a block of fake city (a Combat Zone district from DistrictGen, its streets one
+## outdoor room the cameras and turrets watch), a service track inside the wall, and the owner's
+## production yard at the back behind a chain-link fence with the target building (part main) in
+## it. The street runs past the front of the wall; a checkpoint booth stands at the main gate, a
+## service door is cut in the side wall near the front corner and the yard has its own gate on the
+## far side. Tunnel hatches in the set's streets are entrances (reinforcements come up them) with a
+## guard post beside each. The set's area is the map's `hazard_area` (HazardZone).
+static func arena(c: Dictionary) -> void:
+	var m: TacMap = c.m
+	var sp := _sp(c)
+	var a: Dictionary = sp.get("arena", {})
+	var lay: Dictionary = c.p._arena
+	var sec := int(c.p.security)
+	var rng: RandomNumberGenerator = c.dice.rng
+	var o := int(lay.outside)
+	var road_y := m.h - ROAD
+	var wall := Rect2i(o, o, m.w - 2 * o, road_y - int(lay.forecourt) - o)   # the wall stands on this rect's border
+	var inside := wall.grow(-1)
+	var yard := Rect2i(inside.position, Vector2i(inside.size.x, int(lay.yard)))
+	var fence_y := yard.end.y
+	var city := Rect2i(inside.position.x, fence_y + 1, inside.size.x, inside.end.y - fence_y - 1)
+	var area := city.grow(-int(lay.track))
+	# The fake city: a district inside the area. Its own target, main door and edge spawns go.
+	var dc := c.duplicate()
+	dc["overrides"] = {}
+	dc["area"] = area
+	DistrictGen.generate(dc, String(a.get("profile", "combat_zone")))
+	for st in m.structures:
+		st.target = false
+	m.entrances = m.entrances.filter(func(e): return e.kind != "spawn")
+	for e in m.entrances:
+		e.main = false
+	# Everything outside the area starts over: no props, no reserved lanes, plain ground.
+	var drop := {}
+	for cv in m.cover:
+		if int(cv.floor) == 0 and not area.has_point(Vector2i(cv.pos.x, cv.pos.y)):
+			drop[_prop_key(m, cv)] = true
+	for cv in m.cover.duplicate():
+		if int(cv.floor) == 0 and drop.has(_prop_key(m, cv)):
+			m.remove_cover_at(0, Vector2i(cv.pos.x, cv.pos.y))
+	for y in m.h:
+		for x in m.w:
+			var v := Vector2i(x, y)
+			if area.has_point(v):
+				continue
+			c.reserved.erase(v)
+			var g := G.SIDEWALK
+			if city.has_point(v):
+				g = G.GRAVEL
+			elif yard.has_point(v):
+				g = G.CONCRETE
+			SceneGen.ground(c, Rect2i(v, Vector2i.ONE), g)
+	SceneGen.road(c, Rect2i(0, road_y, m.w, ROAD), true)
+	var sid := SceneGen.outdoor_structure(c, "arena", maxi(sec - 1, 0), city)
+	var ysid := SceneGen.outdoor_structure(c, "grounds", sec, yard)
+	# The target building in the yard, facing the set across the fence.
+	var main_def := SetPieces.site_def("", String(c.p.setpiece), "main")
+	var fw := mini(_roll(c.dice, main_def.footprint.w), yard.size.x - 10)
+	var fd := mini(_roll(c.dice, main_def.footprint.d), yard.size.y - 6)
+	var shell := Rect2i(yard.get_center().x - fw / 2 + rng.randi_range(-6, 6), yard.position.y + 2, fw, fd)
+	var fl: Array = main_def.get("floors", [2, 2])
+	var mst := SceneGen.building(c, shell, String(sp.sites.main.base), rng.randi_range(int(fl[0]), int(fl[1])), sec, true, TacMap.Zone.PUBLIC, "S", {}, "main")
+	SceneGen.related(c, mst.id, ysid, 0.8)
+	SceneGen.related(c, sid, ysid, 0.6)
+	var door := m.main_entrance()
+	if not door.is_empty():   # the way from the door to the fence stays clear
+		SceneGen.reserve(c, Rect2i(door.pos.x - 1, door.pos.y + 1, 3, fence_y - door.pos.y - 1))
+	# The gates: the main gate in the front wall, a service door in a side wall near the front, the
+	# yard's own gate in the far side wall, two gates in the fence between the yard and the set.
+	var main_gate := Vector2i(m.w / 2 + rng.randi_range(-8, 8), wall.end.y - 1)
+	var side_x := wall.position.x if rng.randf() < 0.5 else wall.end.x - 1
+	var side_door := Vector2i(side_x, wall.end.y - 1 - rng.randi_range(4, 10))
+	var yard_gate := Vector2i(wall.end.x - 1 if side_x == wall.position.x else wall.position.x, yard.get_center().y)
+	var fx: int = door.pos.x if not door.is_empty() else m.w / 2
+	var fx2 := clampi(fx + (-1 if fx > m.w / 2 else 1) * (area.size.x / 3), area.position.x + 2, area.end.x - 3)
+	for bx in [main_gate.x + 3, main_gate.x - 8]:   # the checkpoint booth on the forecourt beside the main gate
+		var booth := Rect2i(bx, wall.end.y + 1, 5, 3)
+		if booth.position.x >= 1 and booth.end.x < m.w - 1:
+			var bst := SceneGen.building(c, booth, "guard_booth", 1, maxi(sec - 1, 0), false, TacMap.Zone.STAFF)
+			SceneGen.related(c, bst.id, sid, 0.9)
+			break
+	var city_room := SceneGen.yard(c, city, String(a.get("street_kind", "arena_street")), TacMap.Zone.STAFF, sid)
+	var yard_room := SceneGen.yard(c, yard, String(a.get("yard_kind", "production_lot")), TacMap.Zone.STAFF, ysid)
+	_wall_line(c, wall, 1)
+	_wall_line(c, Rect2i(inside.position.x, fence_y, inside.size.x, 1), 3)
+	_gate(c, main_gate, city_room)
+	_gate(c, side_door, city_room)
+	_gate(c, yard_gate, yard_room)
+	_gate(c, Vector2i(fx, fence_y), yard_room, city_room)
+	_gate(c, Vector2i(fx2, fence_y), yard_room, city_room)
+	# Dressing and devices: the set's streets (rubble, wrecks, barricades: one piece per `per` open
+	# squares, only where all round is open ground, so no alley is blocked), cameras and turrets.
+	var open_cells := {}
+	for v in Furnish.room_cells(m, city_room):
+		if area.has_point(v) and _all_open(m, Rect2i(v - Vector2i(2, 2), Vector2i(5, 5))):
+			open_cells[v] = true
+	for d in a.get("dress", []):
+		_dress(c, city_room, area, String(d.piece), int(open_cells.size() / float(d.get("per", 100))), open_cells)
+	Furnish.run_structure(m, c.dice, sid)
+	Furnish.run_structure(m, c.dice, ysid)
+	for s in [sid, ysid]:
+		if m.devices.any(func(d): return d.structure == s):
+			m.architectures[s] = NetGen.generate(m, c.dice, s)
+	# Tunnel hatches in the set's streets, well apart, a guard post beside each.
+	var inner := area.grow(-2)
+	var cand: Array = Furnish.room_cells(m, city_room).filter(func(v): return inner.has_point(v) and _hatch_ok(c, v))
+	Layouts._shuffle(c.dice, cand)
+	var hatches: Array[Vector2i] = []
+	var n := _roll(c.dice, a.get("hatches", [3, 4]))
+	for v in cand:
+		if hatches.size() >= n:
+			break
+		if hatches.any(func(h): return Vector2(h).distance_to(Vector2(v)) < area.size.x / 3.5) or not _hatch_ok(c, v):
+			continue
+		hatches.append(v)
+		m.entrances.append({"floor": 0, "pos": v, "main": false, "kind": "tunnel", "structure": sid})
+		SceneGen.reserve(c, Rect2i(v - Vector2i.ONE, Vector2i(3, 3)))
+		for d in MapGen.DIRS:
+			var pv: Vector2i = v + d
+			if m.walkable(0, pv) and not m.has_cover_at(0, pv):
+				m.posts.append({"floor": 0, "pos": pv, "structure": sid, "zone": TacMap.Zone.STAFF, "kind": "tunnel", "priority": true})
+				break
+	m.params["hazard_area"] = [city.position.x, city.position.y, city.size.x, city.size.y]
+	SceneGen.spawn(c, Vector2i(0, m.h - 3))
+	SceneGen.spawn(c, Vector2i(m.w - 1, m.h - 3))
+	SceneGen.spawn(c, Vector2i(yard_gate.x + (1 if yard_gate.x > m.w / 2 else -1), yard_gate.y))
+
+
+## One key per prop: a multi-square prop's id, else its square.
+static func _prop_key(m: TacMap, cv: Dictionary) -> int:
+	var prop := int(cv.get("prop", -1))
+	return prop if prop >= 0 else -2 - int(cv.pos.y) * m.w - int(cv.pos.x)
+
+
+## Every square of `r` open outdoor ground (no wall, building or water).
+static func _all_open(m: TacMap, r: Rect2i) -> bool:
+	for y in range(r.position.y, r.end.y):
+		for x in range(r.position.x, r.end.x):
+			if not m.inb(x, y) or m.t(0, x, y) != T.OUTSIDE:
+				return false
+	return true
+
+
+## A hatch square: open street, no cover or reserved lane on it or round it.
+static func _hatch_ok(c: Dictionary, v: Vector2i) -> bool:
+	var m: TacMap = c.m
+	for y in range(v.y - 1, v.y + 2):
+		for x in range(v.x - 1, v.x + 2):
+			if m.t(0, x, y) != T.OUTSIDE or m.has_cover_at(0, Vector2i(x, y)) or c.reserved.has(Vector2i(x, y)):
+				return false
+	return true
+
+
+## Wall (material `mat`: 1 concrete, 3 chain-link) on every open square of `r`'s border.
+static func _wall_line(c: Dictionary, r: Rect2i, mat: int) -> void:
+	var m: TacMap = c.m
+	for y in range(r.position.y, r.end.y):
+		for x in range(r.position.x, r.end.x):
+			if (x == r.position.x or y == r.position.y or x == r.end.x - 1 or y == r.end.y - 1) and m.t(0, x, y) == T.OUTSIDE:
+				m.remove_cover_at(0, Vector2i(x, y))
+				m.set_t(0, x, y, T.WALL)
+				m.wall_mat[0][y * m.w + x] = mat
+				m.labels[0][y * m.w + x] = -1
+
+
+## A gate in a wall square into `room` (from `from`'s side: a fence gate between two yards), the
+## squares round it kept clear.
+static func _gate(c: Dictionary, g: Vector2i, room: Dictionary, from: Dictionary = {}) -> void:
+	var m: TacMap = c.m
+	m.set_t(0, g.x, g.y, T.DOOR)
+	m.labels[0][g.y * m.w + g.x] = -1
+	m.doors.append({"floor": 0, "pos": g, "a": int(from.get("id", -1)), "b": room.id, "security": false, "structure": room.structure, "gate": true})
+	m.entrances.append({"floor": 0, "pos": g, "main": false, "kind": "gate", "structure": room.structure})
+	for d in MapGen.DIRS:
+		var v: Vector2i = g + d
+		if m.inb(v.x, v.y) and m.t(0, v.x, v.y) == T.OUTSIDE:
+			m.remove_cover_at(0, v)
+			c.reserved[v] = true
 
 
 # --- Port: quays, ships and Flotsam --------------------------------------------------------------

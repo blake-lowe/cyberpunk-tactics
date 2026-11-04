@@ -1831,5 +1831,9 @@
  "ceo_suite": {"furniture": [["desk", "center", 60], ["sofa", "wall", 26], ["planter", "wall", 40], ["safe", "wall", 80]], "devices": [{"t": "terminal", "ap": true, "file": 4}, {"t": "camera", "group": "cameras", "wall": true}], "post": true},
  "drone_hangar": {"furniture": [["rack", "wall", 16], ["crate", "scatter", 30], ["lift", "scatter", 60]], "devices": [{"t": "camera", "group": "cameras", "wall": true, "per_cells": 80}, {"t": "shutter_control", "group": "site:shutters", "wall": true}]},
  "comms_room": {"furniture": [["console", "row", 6], ["rack", "wall", 10]], "devices": [{"t": "terminal", "ap": true, "file": 3}, {"t": "camera", "group": "cameras", "wall": true}]},
- "float": {"furniture": [["barrel", "scatter", 70], ["crate", "scatter", 90]], "devices": [{"t": "floodlight", "group": "site:floodlights", "p": 0.6}]}
+ "float": {"furniture": [["barrel", "scatter", 70], ["crate", "scatter", 90]], "devices": [{"t": "floodlight", "group": "site:floodlights", "p": 0.6}]},
+ "arena_street": {"furniture": [], "devices": [{"t": "camera", "group": "cameras", "per_cells": 260}, {"t": "turret", "group": "turrets", "per_cells": 1100}]},
+ "production_lot": {"furniture": [["container", "scatter", 150], ["crate", "scatter", 70], ["barrier", "scatter", 160]], "devices": [{"t": "floodlight", "group": "site:floodlights"}, {"t": "camera", "group": "cameras", "per_cells": 220}]},
+ "estate_grounds": {"furniture": [["tree", "scatter", 45], ["planter", "scatter", 80], ["seat", "scatter", 140]], "devices": [{"t": "camera", "group": "cameras", "per_cells": 160}, {"t": "turret", "group": "turrets", "per_cells": 450}, {"t": "floodlight", "group": "site:floodlights", "p": 0.7}]},
+ "pool_deck": {"furniture": [["seat", "scatter", 12], ["planter", "scatter", 40]], "devices": [{"t": "camera", "group": "cameras", "p": 0.6}]}
 }

@@ -1,5 +1,5 @@
 {
-	"_doc": "Set pieces: authored layout recipes for famous Night City places (SetPieces, SetPieceGen). The book gives no floor plans, so a set piece is a recipe the generators follow: the place stays recognisable while the rooms vary per seed. Keys: name; locations {location id (data/world/locations.json): params that location adds, e.g. which structure is the target}; faction (the Security Code's faction, the default opposition); base {scene (scenes.json; its theme, doctrine and civilians), planner (SetPieceGen: plot = a building plot with its annexes, port = quays and anchored ships, compound = buildings round a court inside a perimeter wall)}; params (scene params; the caller's win); plot (the building plot: margin, front yard depth, side_yard (open ground beside the building), fence along the street (fence_mat), yard kind, zone and ground, front_ground (a lawn), approach {kind, zone, w} (a yard of its own over the path to the door), dress [{piece, count, area: front | lot}], flagpole, annexes behind or beside the main building); compound (court {w, d, kind, ground, zone}, buildings [{part, at [x, y] round the court, w along its entrance facade, d, floors, gap, entry}], margin, ground, zone, yard, wall_mat (1 concrete, 3 chain-link), booth, dress [{piece, count, area: court | yard}]); sites {part: {base: a sites.json site, then site keys that replace the base's (layout replaces key by key)}}: part main is the target building unless locations say otherwise; posts [{where: roof | deck | room:<kind>, part (_scene: the outdoor rooms), kind, count [a, b], weapon (the guard posted there carries it as their primary), cover (sandbags round the post), spread (anywhere in the room, not its middle)}]: posts the guards man first; props [{where (also top: the highest roof), part, piece (Furnish's or SetPieceGen.PIECES: cupola, flagpole, spire, turret, mast, funnel, columbarium, av), count, at: center | door}]; key_rooms {part (or _scene: the outdoor rooms): [room kinds every seed must have]}; anchors {objective kind: {room kind: score}} (a site part may carry its own; Encounter.secure_cell, which only reaches rooms without a locked security door, so anchors name staff-zone rooms; data uses the NET instead, eliminate needs no anchor); rules (special rules the engine honours: public_access, civilians); todo (rules the engine can't honour yet); look (tags; wall_crenels, graffiti_walls for the perimeter wall); a part's own look (SetPieceDressing: wall / roof {color, color2, pattern (11 brick), scale}, trim, roof_mark none, graffiti, crown, terrace_lights, crenels, pads, waterline, sign, flooded [room kinds]); cite; _why: which book detail each element follows and what is ours. Program keys only set pieces use (Layouts.program): keep {floor: {bands: [first, last]} | {u: [from, to]}} keeps only those bands (or that share of the facade) on a storey, so upper floors step back and the roofs below become terraces; secret {group: note}: items tagged secret: group are built on one floor only, drawn per seed; mirror: false fixes the plan's handedness; an item's steady: true takes its exact share of the band (no jitter), so a central stair core sits on the same squares on every storey.",
+	"_doc": "Set pieces: authored layout recipes for famous Night City places (SetPieces, SetPieceGen). The book gives no floor plans, so a set piece is a recipe the generators follow: the place stays recognisable while the rooms vary per seed. Keys: name; locations {location id (data/world/locations.json): params that location adds, e.g. which structure is the target}; faction (the Security Code's faction, the default opposition); base {scene (scenes.json; its theme, doctrine and civilians), planner (SetPieceGen: plot = a building plot with its annexes, port = quays and anchored ships, compound = buildings round a court inside a perimeter wall, arena = a walled block of fake city from a district profile with the owner's production yard at the back)}; arena (w, h, floors, profile (districts.json), outside / forecourt / track (squares round the wall), yard (depth of the production yard), hatches (tunnel hatches: entrances reinforcements come up), street_kind, yard_kind, dress [{piece, per: one per that many open squares}]); variants [{id, name, owner, note, security_code (the encounter's code and post holders for that variant), params (scene params over the recipe's), look}]: one drawn per seed (or overrides.variant by id), kept in the map's params; params (scene params; the caller's win); plot (the building plot: margin, front yard depth, side_yard (open ground beside the building), fence along the street (fence_mat), yard kind, zone and ground, front_ground (a lawn), approach {kind, zone, w} (a yard of its own over the path to the door), dress [{piece, count, area: front | lot}], flagpole, annexes behind or beside the main building, pool {w, d, gap, kind} (water on a deck behind the house), gatehouse (a guard booth inside the gate)); compound (court {w, d, kind, ground, zone}, buildings [{part, at [x, y] round the court, w along its entrance facade, d, floors, gap, entry}], margin, ground, zone, yard, wall_mat (1 concrete, 3 chain-link), booth, dress [{piece, count, area: court | yard}]); sites {part: {base: a sites.json site, then site keys that replace the base's (layout replaces key by key)}}: part main is the target building unless locations say otherwise; posts [{where: roof | deck | room:<kind>, part (_scene: the outdoor rooms), kind, count [a, b], weapon (the guard posted there carries it as their primary), cover (sandbags round the post), spread (anywhere in the room, not its middle)}]: posts the guards man first; props [{where (also top: the highest roof), part, piece (Furnish's or SetPieceGen.PIECES: cupola, flagpole, spire, turret, mast, funnel, columbarium, av), count, at: center | door}]; key_rooms {part (or _scene: the outdoor rooms): [room kinds every seed must have]}; anchors {objective kind: {room kind: score}} (a site part may carry its own; Encounter.secure_cell, which only reaches rooms without a locked security door, so anchors name staff-zone rooms; data uses the NET instead, eliminate needs no anchor); rules (special rules the engine honours: public_access, civilians, hazard_zone {name, start, every, steps, final_r, dice, spare}: a shrinking safe circle over the map's hazard_area, HazardZone); todo (rules the engine can't honour yet); look (tags; wall_crenels, graffiti_walls for the perimeter wall); a part's own look (SetPieceDressing: wall / roof {color, color2, pattern (11 brick), scale}, trim, roof_mark none, graffiti, crown, terrace_lights, crenels, pads, waterline, sign, flooded [room kinds]); cite; _why: which book detail each element follows and what is ours. Program keys only set pieces use (Layouts.program): keep {floor: {bands: [first, last]} | {u: [from, to]}} keeps only those bands (or that share of the facade) on a storey, so upper floors step back and the roofs below become terraces; secret {group: note}: items tagged secret: group are built on one floor only, drawn per seed; mirror: false fixes the plan's handedness; an item's steady: true takes its exact share of the band (no jitter), so a central stair core sits on the same squares on every storey.",
 
 	"fort_sumter": {
 		"name": "Fort Sumter", "locations": {"south_night_city_4": {}}, "faction": "deadwoods", "base": {"scene": "lone_building", "planner": "plot"},
@@ -1543,5 +1543,234 @@
 		"look": {"burn_barrels": true, "tags": ["sunken_ruin", "crater_floor", "flooded_vaults", "rubble", "scavver_tags", "collapsed_top"]},
 		"cite": "NC2045 p.93-95",
 		"_why": "Book (NC2045 p.93, Hot Zone #6): Eurasiabank Plaza, Security Code 2 NCPD Hardened Heavy (a response almost never comes): unlike the towers that toppled or pancaked in the nuke, the bank's tower sank straight down, driving six of its floors underground before its upper half crumbled; scavvers find many sunken floors passable though partly flooded, far more extensive than anyone guessed, and the drowned vaults, server rooms and file stores are deadly to explore; half the doomba trips into the Zone start with a rumour about a bank, and some explorers never come back (rescue anchors in the vaults, snatch anchors on the vault and counting room for the hard currency and gold). Who's there: Maelstrom's Diggers, the gang's Hot Zone scavvers under Ripper, who guards his turf with murderous zeal (p.95; the location has no owner). Ours: the map is the bottom of the pit, a gravel and rubble crater floor round the stump's three exposed storeys (no below-grade storeys: see todo); the vault level is the ground floor with standing water over the banking hall, vaults, file store (archive) and server room; above it the file-store floor and the Diggers' camp (squat rooms, a stash) on the broken top, the collapsed parts of each storey rubble-strewn terraces to climb over, breached walls and holed roofs (decay), lookouts on the stump and in the rubble."
+	},
+
+	"combat_zone": {
+		"name": "The Combat Zone", "locations": {"new_westbrook_5": {}}, "faction": "network_54",
+		"base": {"scene": "warzone", "planner": "arena"}, "params": {"security": 2, "floors": 3},
+		"arena": {
+			"w": [88, 92], "h": [90, 94], "floors": 3, "profile": "combat_zone", "outside": 2, "forecourt": 5, "track": 2, "yard": [20, 21],
+			"hatches": [3, 4], "street_kind": "arena_street", "yard_kind": "production_lot",
+			"dress": [
+				{"piece": "rubble", "per": 45}, {"piece": "wreck", "per": 110}, {"piece": "barrier", "per": 130}, {"piece": "sandbags", "per": 160},
+				{"piece": "barrel", "per": 220}
+			]
+		},
+		"sites": {
+			"main": {
+				"base": "corp_office", "name": "Network 54 production bunker", "footprint": {"w": [28, 32], "d": [13, 13]}, "floors": [2, 2],
+				"exterior": 1, "windows": 0.12, "armored_windows": true, "levels": 3, "net_chance": 1.0, "density": 0.35, "massing": {},
+				"shapes": {"rect": 1},
+				"layout": {
+					"algorithm": "program", "loops": 0.1, "verticality": 1, "stairs": 1, "roof_access": true, "stair_in": ["stair_hall"],
+					"enter": ["security_post"], "service": ["hallway"],
+					"program": {
+						"ground": [
+							{
+								"cells": 5,
+								"rooms": [
+									{"room": "comms_room", "zone": "staff", "w": 1.2, "min": 4, "doors": ["hallway"]},
+									{"room": "content_control", "zone": "staff", "w": 2.6, "min": 8, "doors": ["hallway", "server_room"]},
+									{"room": "security_post", "zone": "staff", "w": 1, "min": 4},
+									{"room": "server_room", "zone": "staff", "w": 1.2, "min": 4, "doors": ["content_control", "hallway"]}
+								]
+							},
+							{"cells": 3, "rooms": [{"room": "hallway", "zone": "staff"}]},
+							{
+								"w": 1, "min": 4,
+								"rooms": [
+									{"room": "armory", "zone": "staff", "w": 1, "min": 4, "doors": ["hallway"]},
+									{"room": "holding_cells", "zone": "staff", "w": 1.8, "min": 6, "doors": ["hallway", "surgery"]},
+									{"room": "surgery", "zone": "staff", "w": 1.4, "min": 5, "doors": ["hallway", "holding_cells"]},
+									{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["hallway"]},
+									{"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["hallway"]}
+								]
+							}
+						],
+						"upper": [
+							{
+								"rooms": [
+									{"room": "crew_quarters", "zone": "staff", "w": 2, "min": 6, "doors": ["hallway"]},
+									{"room": "break_room", "zone": "staff", "w": 1.3, "min": 4, "doors": ["hallway"]},
+									{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["hallway"]},
+									{"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["hallway"]}
+								]
+							},
+							{"rooms": [{"room": "hallway", "zone": "staff"}]},
+							{
+								"rooms": [
+									{"room": "meeting", "zone": "staff", "w": 1.6, "min": 5, "doors": ["hallway"]},
+									{"room": "manager_office", "zone": "staff", "w": 1.6, "min": 5, "doors": ["hallway"]},
+									{"room": "restroom", "zone": "staff", "cells": 3, "doors": ["hallway"]}
+								]
+							}
+						]
+					}
+				},
+				"zones": {"public": {"rotation": ["hallway"]}, "staff": {"rotation": ["storage"]}, "secure": {"rotation": ["server_room"]}, "vault": {"rotation": ["server_room"]}},
+				"look": {
+					"wall": {"color": "4a4e54", "color2": "2a2c30", "pattern": 5, "scale": 1.4}, "trim": "f2c200",
+					"roof": {"color": "2c2e32", "color2": "1c1e20", "pattern": 5, "scale": 1.8}, "sign": "ff2a2a"
+				}
+			}
+		},
+		"posts": [{"where": "roof", "part": "main", "kind": "sniper", "count": [1, 2], "weapon": "sniper_rifle", "cover": "sandbags"}],
+		"props": [
+			{"where": "roof", "part": "main", "piece": "dish", "count": [1, 2]},
+			{"where": "room:arena_street", "part": "_scene", "piece": "camera_mast", "count": [9, 12]}
+		],
+		"key_rooms": {
+			"main": ["security_post", "content_control", "comms_room", "server_room", "holding_cells", "surgery", "armory", "manager_office", "roof"],
+			"_scene": ["arena_street", "production_lot"]
+		},
+		"anchors": {
+			"assassinate": {"manager_office": 130, "meeting": 70}, "rescue": {"holding_cells": 140, "surgery": 80},
+			"snatch": {"server_room": 140, "content_control": 60}, "sabotage": {"comms_room": 140, "content_control": 100}
+		},
+		"rules": {
+			"civilians": 0,
+			"hazard_zone": {
+				"name": "MIST", "start": 3, "every": 3, "steps": 4, "final_r": 6, "dice": [1, 2, 3, 4], "spare": ["guard", "civilian", "trauma"],
+				"_cite": "NC2045 p.216: switched on on day two of three, shrinks until the last contestants cannot hide, its implant zap hurts and in the end kills. No numbers given.",
+				"_house_rule": "HOUSE-RULE: the gig plays as the MIST comes on: it first closes at round 3, then every 3 rounds, 4 closes down to a 6-square circle (day two to the end of day three); outside it at the end of your turn, 1d6 straight to HP (no armour: it is a zap through the implant), +1d6 each close. Network 54's people carry transponders and are spared; the crew is hurt too (the set's drones and turrets work the closed ground)."
+			}
+		},
+		"todo": [
+			"Contestants: the show's fifty implanted contestants loose in the set (a hostile third side fighting everyone) are not on the map; the rescue's captive is one, held in the bunker's prep cells before the drop.",
+			"Drones: Network 54's camera drones and MAX-TAC flyovers (authorised to snipe trespassers when the set is not filming) have no flying units yet; camera masts and ground cameras stand in for them.",
+			"Tunnels: the guard tunnels under the set are hatches (entrances where the response comes up, a post beside each); no storey below the street to walk them.",
+			"Turrets are devices a Netrunner can take over; they don't fire on their own yet (no turret attack rules)."
+		],
+		"look": {"graffiti_walls": 0.12, "broadcast": true, "tags": ["fake_ruins", "broadcast_masts", "high_wall", "tunnel_hatches", "production_bunker", "mist_ring"]},
+		"cite": "NC2045 p.216",
+		"_why": "Book (NC2045 p.216, New Westbrook #5): a large section of the district walled off from the rest by a high wall; inside, one of the largest permanent film sets ever built, a whole fake urban wasteland Network 54 owns and films its shows in, The Combat Zone above all; Security Code 10 Net54 Security, Medium; heavily guarded by Network 54 security, drones and automated turrets; cameras and drones everywhere film every minute; extra guards in the tunnels under the set during filming; every six months fifty contestants are stripped, sedated and fitted with an implant, then dropped in for a three-day battle royale; on day two the producers switch on the MIST, a shrinking circle outside which the implant zaps them, ending in death; by the end of day three it is so small the survivors cannot hide. Ours: the wall is the map's perimeter (concrete, a storey high, tagged here and there) with New Westbrook's street past its front, a Net54 checkpoint booth at the main gate and a service door near a front corner; the fake city is a Combat Zone district from DistrictGen (ruins, squats, rubble fields, wrecks) inside a gravel service track, its streets one outdoor room furnished as a battlefield (rubble, wrecks, barricades, sandbags) and watched by cameras, camera masts and a few turrets; at the back, behind a chain-link fence with two gates, Network 54's production yard with its own gate in the far side wall and the production bunker, the target: the broadcast gallery (content_control), the uplink (comms_room, an uplink dish on the roof), footage servers, the prep cells and surgery where contestants are sedated and fitted with the implant (the rescue's captive is held there), the producers' offices upstairs, an overwatch rifle on the roof. Gigs, as the location's hooks have them: rescue a contestant, sabotage the broadcast; the other kinds anchor in the bunker too. The tunnels are hatches in the streets (see todo). The MIST is a generic encounter rule (rules.hazard_zone, HazardZone) over the set's area; its numbers are a HOUSE-RULE (the book gives none), see rules.hazard_zone._house_rule."
+	},
+
+	"the_estates": {
+		"name": "The Estates", "locations": {"executive_zone_1": {}}, "faction": "lazarus",
+		"base": {"scene": "lone_building", "planner": "plot"}, "params": {"security": 3, "floors": 3},
+		"variants": [
+			{"id": "1a", "name": "Artyom Sokolov's estate", "owner": "Artyom Sokolov (Exec 10/Tech 6)", "note": "Zhirafa's CEO keeps estates like this round the world as a show of wealth; nobody has seen him sleep here.", "security_code": {"n": 10, "faction": "lazarus", "intensity": "heavy", "hardened": true}},
+			{"id": "1b", "name": "Denny's estate", "owner": "Denny (Rockerboy 8)", "note": "The ex-drummer of Samurai and Mastermind; her ex Henry sleeps off benders here now and then.", "security_code": {"n": 10, "faction": "lazarus", "intensity": "heavy", "hardened": true}},
+			{"id": "1c", "name": "Eran Malour's estate", "owner": "Eran Malour (Tech 10)", "note": "The mostly retired gun designer tinkers with new designs in his workshop; his granddaughter Marie-Louise (Netrunner 4) lives with him.", "security_code": {"n": 10, "faction": "lazarus", "intensity": "heavy", "hardened": true}},
+			{"id": "1d", "name": "Kerry Eurodyne's estate", "owner": "Kerry Eurodyne (Rockerboy 9)", "note": "The rock legend owns it but is seldom here, or in Night City at all.", "security_code": {"n": 10, "faction": "lazarus", "intensity": "heavy", "hardened": true}},
+			{"id": "1e", "name": "Franklin M'bolu's estate", "owner": "Franklin M'bolu (Exec 7/Tech 8)", "note": "Orbital Air's man on the spaceport project; last year someone sprayed 'Save Morro Rock' over his outer walls.", "security_code": {"n": 10, "faction": "lazarus", "intensity": "heavy", "hardened": true}, "look": {"graffiti_walls": 0.35}},
+			{"id": "1f", "name": "Heather Stein's estate", "owner": "Heather Stein (Exec 5/Tech 4)", "note": "Biotechnica's Realgrass inventor, ex-president of the HOA, campaigning to take the gavel back.", "security_code": {"n": 10, "faction": "lazarus", "intensity": "heavy", "hardened": true}},
+			{"id": "1g", "name": "Jami Tealov's estate", "owner": "Jami \"Sharkeater\" Tealov (Exec 8)", "note": "SovOil's Night City chief; his estate borders Petrochem's man Brentwood's.", "security_code": {"n": 10, "faction": "lazarus", "intensity": "heavy", "hardened": true}},
+			{"id": "1h", "name": "Karen Davies' estate", "owner": "Karen Davies (Exec 6)", "note": "Pol-Bud's regional director and the HOA's president: every centimetre keeps to the HOA's rules.", "security_code": {"n": 10, "faction": "lazarus", "intensity": "heavy", "hardened": true}},
+			{"id": "1i", "name": "Michiko Sanderson's estate", "owner": "Michiko Sanderson (Exec 10)", "note": "The one estate guarded by Danger Gal, not Lazarus.", "security_code": {"n": 10, "faction": "danger_gal", "intensity": "heavy", "hardened": true}},
+			{"id": "1j", "name": "Mister Kernaghan's estate", "owner": "Mister Kernaghan (Fixer 9)", "note": "The city's top high-end Fixer: whatever the residents want, he gets.", "security_code": {"n": 10, "faction": "lazarus", "intensity": "heavy", "hardened": true}},
+			{"id": "1k", "name": "Billy Joe Brentwood's estate", "owner": "William Joseph \"Billy Joe\" Brentwood (Exec 8)", "note": "Petrochem's Night City chief; his estate borders SovOil's man Tealov's.", "security_code": {"n": 10, "faction": "lazarus", "intensity": "heavy", "hardened": true}},
+			{"id": "1l", "name": "UR's estate", "owner": "UR (Exec 10/Rockerboy 7)", "note": "Ziggurat's CEO runs the place with drones instead of servants, all under what may be the city's most elaborate NET Architecture.", "security_code": {"n": 10, "faction": "lazarus", "intensity": "heavy", "hardened": true}, "params": {"net_threat": 1.6}}
+		],
+		"plot": {
+			"margin": 4, "front": [12, 13], "fence": true, "fence_mat": 1, "yard": "estate_grounds", "zone": "staff", "ground": "grass", "front_ground": "grass",
+			"gatehouse": true, "pool": {"w": [9, 12], "d": [4, 5], "gap": [3, 4], "kind": "pool_deck"},
+			"dress": [
+				{"piece": "fountain", "count": [1, 1], "area": "front"}, {"piece": "tree", "count": [8, 11], "area": "lot"},
+				{"piece": "planter", "count": [4, 6], "area": "front"}, {"piece": "seat", "count": [2, 3], "area": "lot"}
+			],
+			"annexes": [{"part": "garage", "where": "beside", "gap": [3, 4], "w": [11, 13], "d": [9, 10], "floors": 1}]
+		},
+		"sites": {
+			"main": {
+				"base": "villa", "name": "The mansion", "footprint": {"w": [27, 30], "d": [17, 19]}, "floors": [2, 3], "exterior": 1, "windows": 0.75,
+				"armored_windows": true, "net_chance": 1.0, "levels": 4, "density": 0.3, "massing": {}, "shapes": {"rect": 1},
+				"layout": {
+					"algorithm": "program", "loops": 0.15, "verticality": 1, "stairs": 1, "roof_access": true, "stair_in": ["stair_hall"],
+					"enter": ["foyer"], "service": ["hallway"],
+					"program": {
+						"keep": {"2": {"bands": [1, 2]}},
+						"ground": [
+							{
+								"cells": 7,
+								"rooms": [
+									{"room": "study", "zone": "staff", "w": 1.2, "min": 5, "doors": ["hallway"]},
+									{"room": "foyer", "zone": "public", "w": 1.2, "min": 5},
+									{"room": "living_room", "zone": "public", "w": 2.6, "min": 8, "doors": ["foyer", "hallway"]}
+								]
+							},
+							{"cells": 3, "rooms": [{"room": "hallway", "zone": "public"}]},
+							{
+								"w": 1, "min": 6,
+								"rooms": [
+									{"room": "stair_hall", "zone": "public", "cells": 4, "doors": ["hallway"]},
+									{"room": "security_office", "zone": "staff", "w": 1.1, "min": 4, "doors": ["hallway"]},
+									{"room": "kitchen", "zone": "staff", "w": 1.4, "min": 5, "doors": ["hallway", "dining_room"]},
+									{"room": "dining_room", "zone": "public", "w": 2, "min": 6, "doors": ["hallway", "kitchen"]}
+								]
+							}
+						],
+						"upper": [
+							{
+								"rooms": [
+									{"room": "bedroom", "zone": "staff", "w": 1.4, "min": 5, "doors": ["hallway"]},
+									{"room": "bedroom", "zone": "staff", "w": 1.4, "min": 5, "doors": ["hallway"]},
+									{"room": "lounge", "zone": "staff", "w": 1.6, "min": 5, "doors": ["hallway"]},
+									{"room": "restroom", "zone": "staff", "cells": 3, "doors": ["hallway"]}
+								]
+							},
+							{"rooms": [{"room": "hallway", "zone": "staff"}]},
+							{
+								"rooms": [
+									{"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["hallway"]},
+									{"room": "suite", "zone": "staff", "w": 2.6, "min": 8, "doors": ["hallway", "panic_room"]},
+									{"room": "panic_room", "zone": "vault", "w": 1, "min": 4, "doors": ["suite"]}
+								]
+							}
+						]
+					}
+				},
+				"zones": {"public": {"rotation": ["hallway"]}, "staff": {"rotation": ["bedroom"]}, "secure": {"rotation": ["study"]}, "vault": {"rotation": ["panic_room"]}},
+				"look": {
+					"wall": {"color": "e6e0d4", "color2": "b8b0a2", "pattern": 5, "scale": 1.2}, "trim": "f6f2ea",
+					"roof": {"color": "3a4a52", "color2": "28343a", "pattern": 5, "scale": 1.6}, "terrace_lights": "ffe0a8", "roof_mark": "none"
+				}
+			},
+			"garage": {
+				"base": "chop_shop", "name": "Garage and workshop", "massing": {}, "shapes": {"rect": 1}, "windows": 0.3, "networked": false,
+				"layout": {
+					"algorithm": "program", "loops": 0.2, "enter": ["garage"], "service": ["workshop"], "stair_in": ["storage"],
+					"program": {
+						"ground": [
+							{
+								"w": 1,
+								"rooms": [
+									{"room": "garage", "zone": "staff", "w": 3, "min": 7},
+									{
+										"stack": [
+											{"room": "workshop", "zone": "staff", "w": 1.5, "doors": ["garage", "storage"]},
+											{"room": "storage", "zone": "staff", "w": 1, "doors": ["workshop"]}
+										],
+										"w": 1.2, "min": 4
+									}
+								]
+							}
+						]
+					}
+				},
+				"look": {"wall": {"color": "e6e0d4", "color2": "b8b0a2", "pattern": 5, "scale": 1.2}, "trim": "f6f2ea"}
+			}
+		},
+		"posts": [{"where": "room:estate_grounds", "part": "_scene", "kind": "patrol", "count": [2, 2], "spread": true}],
+		"key_rooms": {
+			"main": ["foyer", "living_room", "dining_room", "kitchen", "study", "security_office", "bedroom", "suite", "panic_room", "roof"],
+			"garage": ["garage", "workshop"],
+			"_scene": ["estate_grounds", "pool_deck"]
+		},
+		"anchors": {
+			"assassinate": {"suite": 140, "bedroom": 80, "study": 60}, "rescue": {"bedroom": 130, "lounge": 50},
+			"snatch": {"study": 140, "suite": 60}, "sabotage": {"security_office": 130, "kitchen": 60}
+		},
+		"rules": {"civilians": 0},
+		"todo": [
+			"Lazarus drones over the grounds: no flying units; cameras, floodlights and automated turrets on the lawns stand in (the turrets are devices a Netrunner can take over, they don't fire on their own yet).",
+			"Decontamination sprayers: an arch over the drive inside the gate, dressing only (no gas rules for it).",
+			"Sprawling multi-building complexes and neighbouring estates (Tealov's borders Brentwood's): one mansion per map with its garage, gatehouse and pool.",
+			"Each owner's own security on top of Lazarus (the book's 'whatever else the owner buys') and UR's drone servants: only UR's NET is tougher (net_threat)."
+		],
+		"look": {"decon_gate": true, "pool_lights": true, "tags": ["white_villa", "landscaped_lawn", "concrete_wall", "gatehouse", "pool", "fountain", "decon_arch"]},
+		"cite": "NC2045 p.235",
+		"_why": "Book (NC2045 p.235, Executive Zone #1): about twenty estates, from compact multilevel mansions to sprawling multi-building complexes, each guarded by Lazarus drones, automated turrets and decontamination sprayers plus whatever security the owner adds; Security Code 10 Lazarus, Hardened Heavy; the guide confirms twelve owners (A-L), Michiko Sanderson's guarded by Danger Gal (Security Code 10, Hardened Heavy) instead. Each gig draws one estate (variants: the owner, a line about them, the estate's Security Code; Sanderson's brings Danger Gal to the posts and the response; UR's NET is tougher; M'bolu's outer walls carry the 'Save Morro Rock' tags). Ours: one mansion per map, the villa site (growth layout) two or three storeys in white render under a slate roof on a landscaped lawn behind a concrete wall with one gate, a gatehouse just inside it, a fountain and planters on the front lawn, trees round the grounds, a pool on a deck in the back garden, a garage with a workshop beside the house; Lazarus patrols, cameras, floodlights and turrets on the grounds; a decon arch over the drive. Objectives: the owner (assassinate) in a bedroom or the living room, a hostage held in a bedroom, the target's data in the study, sabotage in the kitchen or garage."
 	}
 }
