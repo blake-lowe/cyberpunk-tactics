@@ -84,6 +84,10 @@ var _cards := {}
 var _round_tab: PanelContainer
 var _log_lines: Array = []
 var _log_open := false
+var roster_on := false    ## the crew roster slides in while Alt is held (owner: strip only by default)
+var log_hold := false     ## the view holds the log while an action plays, so lines land with the callouts
+var _overlay_lbl: Label   ## which overlays are on (sight lines, cutaway), under the round tab
+var _log_tw: Tween
 var _round_box: VBoxContainer              ## unit id → party card (hit shake)
 
 
@@ -146,16 +150,17 @@ func _ready() -> void:
 	_round_box.add_theme_constant_override("separation", 0)
 	_round_tab.add_child(_round_box)
 	add_child(_round_tab)
+	_overlay_lbl = _text("", F_TERM, Hud.ts(16), DIM)
+	add_child(_overlay_lbl)
 	_log_panel = _panel(CYAN, 0b0100)
 	var lv := VBoxContainer.new()
 	_log_panel.add_child(lv)
-	lv.add_child(_text("// COMBAT LOG", F_PIXEL, 20, DIM))
-	_log = _text("", F_TERM, Hud.ts(20), Color("9fb4c4"))
-	_log.custom_minimum_size = Vector2(320, 0)
+	_log = _text("", F_TERM, Hud.ts(19), Color("9fb4c4"))
+	_log.custom_minimum_size = Vector2(380, 0)
 	_log.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lv.add_child(_log)
 	add_child(_log_panel)
-	# top right, left of the round tab; hovering expands it to more history (owner)
+	# bottom left above the bar's end: the last 3 lines, fading; hovering expands it (owner)
 	_log_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	_log_panel.mouse_entered.connect(func(): _log_open = true; _show_log())
 	_log_panel.mouse_exited.connect(func(): _log_open = false; _show_log())
@@ -166,7 +171,7 @@ func _ready() -> void:
 	_net_panel.visible = false
 	add_child(_net_panel)
 	_tip = PanelContainer.new()
-	_tip.add_theme_stylebox_override("panel", CutBox.make(INK, Color(CYAN, 0.7), 8, 0b0101, CYAN, 8))
+	_tip.add_theme_stylebox_override("panel", CutBox.make(Color(INK, 1.0), Color(CYAN, 0.7), 8, 0b0101, CYAN, 8))   # opaque: nothing shows through
 	var tv := VBoxContainer.new()
 	_tip.add_child(tv)
 	_tip_head = _text("", F_PIXEL, 20, CYAN)
@@ -525,21 +530,24 @@ func _build_bar() -> void:
 
 func _layout() -> void:
 	var s := size
-	_party.position = Vector2(14, 70)
+	_party.position = Vector2(14 if roster_on else -_party.size.x - 30, (hint_tab.position.y + hint_tab.size.y + 10) if hint_tab else 70.0)
 	_init_strip.position = Vector2(s.x / 2 - _init_strip.size.x / 2, 12)
 	_bar.position = Vector2(s.x / 2 - _bar.size.x / 2, s.y - _bar.size.y - 12)
 	_place_withdraw()
-	# log: flush above the hotbar's right end
-	_log_panel.position = Vector2(s.x - _round_tab.size.x - _log_panel.size.x - 22, 12)
-	_net_panel.position = Vector2(s.x - _net_panel.size.x - 14, 110)
+	# log: bottom left, above the bar
+	_log_panel.position = Vector2(14, _bar.position.y - _log_panel.size.y - 10)
+	_net_panel.position = Vector2(s.x - _net_panel.size.x - 14, _round_tab.position.y + _round_tab.size.y + 30)
 	_toast.position = Vector2(s.x / 2 - 400, 120)
 	_toast.size = Vector2(800, 40)
 	_banner_panel.position = Vector2(14, 12)
 	_round_tab.position = Vector2(s.x - _round_tab.size.x - 14, 12)
-	if hint:
+	_overlay_lbl.reset_size()
+	_overlay_lbl.position = Vector2(s.x - _overlay_lbl.size.x - 20, _round_tab.position.y + _round_tab.size.y + 4)
+	if hint:   # top left, under the banner: clear of the unit card however wide the bar gets
 		hint.reset_size()
-		hint.position = Vector2(14, s.y - hint.size.y - 12)
-		hint_tab.position = Vector2(14, s.y - hint_tab.size.y - 12)
+		var top := _banner_panel.position.y + _banner_panel.size.y + 8
+		hint.position = Vector2(14, top)
+		hint_tab.position = Vector2(14, top)
 
 
 func _clear(c: Node) -> void:
@@ -613,7 +621,7 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 		_econ.add_child(_text("◆ ACTION" if act else "◇ ACTION", F_DISPLAY, 20, CYAN if act else Color(DIM, 0.6)))
 		var mv := t.squares_available()
 		var mvmax := maxi(1, c.stat("MOVE"))
-		_econ.add_child(_text("MOVE %d" % mv, F_DISPLAY, 20, CYAN if mv > 0 else Color(DIM, 0.6)))
+		_econ.add_child(_text("MOVE %d · %d M" % [mv, mv * 2], F_DISPLAY, 20, CYAN if mv > 0 else Color(DIM, 0.6)))   # a square is 2 m (p.127)
 		var mm := Meter.new(float(mv) / mvmax, mvmax, CYAN, 100, 11)
 		mm.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		_econ.add_child(mm)
@@ -628,8 +636,10 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 	_refresh_tools(enc, crew_turn)
 	_end_btn.disabled = not crew_turn
 	_end_btn.queue_redraw()
-	_log_lines = enc.log.duplicate()
-	_show_log()
+	if not log_hold:
+		var fresh := enc.log.size() != _log_lines.size()
+		_log_lines = enc.log.duplicate()
+		_show_log(fresh)
 	_banner.text = floor_text
 	_banner.add_theme_color_override("font_color", GOLD if not floor_text.ends_with("1/%s" % floor_text.get_slice("/", 1)) else Color("9fb4c4"))
 	_net_refresh(enc)
@@ -842,7 +852,75 @@ func _party_card(u: Dictionary, active: bool) -> Control:
 	hr.add_child(hm)
 	hr.add_child(_text("%d/%d" % [c.hp, c.max_hp()], F_TERM, Hud.ts(20), _hp_col(c)))
 	v.add_child(hr)
+	var w: Weapon = c.weapons[0] if not c.weapons.is_empty() else null
+	v.add_child(_text(("%s %s" % [w.display_name().to_upper(), ("%d/%d" % [w.ammo, int(w.def.get("mag", 0))]) if w.uses_ammo() else ""]) if w else "UNARMED", F_TERM, Hud.ts(16), DIM))
+	var cond := conditions(c)
+	if not cond.is_empty():
+		var cl := _text(" · ".join(cond).to_upper(), F_TERM, Hud.ts(16), RED)
+		cl.custom_minimum_size.x = 200
+		cl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		v.add_child(cl)
 	return p
+
+
+## A combatant as a dark take on the book's NPC stat blocks (CPR core p.412-416): labels dim,
+## values bright. `full` (Alt inspect) adds every STAT, Seriously Wounded / Death Save, all the
+## weapons, the top skills, cyberware and kit; the compact one is for hovering a target.
+static func stat_block(c: Combatant, full: bool) -> String:
+	const K := "[color=#7d8a96]%s[/color]"
+	var out: Array[String] = ["[b]%s[/b]  [color=#7d8a96]%s[/color]" % [c.display_name, c.kind_name()]]
+	var stats: Array = ["INT", "REF", "DEX", "TECH", "COOL", "WILL", "LUCK", "MOVE", "BODY", "EMP"] if full else ["REF", "DEX", "BODY", "MOVE"]
+	var tb := "[table=%d]" % mini(5, stats.size())   # rows of five, like the book's STAT line split in two
+	for row in range(0, stats.size(), 5):
+		var part: Array = stats.slice(row, row + 5)
+		for st in part:
+			tb += "[cell][code]" + (K % st) + "  [/code][/cell]"
+		for st in part:
+			tb += "[cell][code]%d[/code][/cell]" % c.stat(st)
+	out.append(tb + "[/table]")
+	var hp := (K % "HP") + " %d/%d" % [c.hp, c.max_hp()]
+	if full:
+		hp += "  " + (K % "SERIOUSLY WOUNDED") + " %d  " % c.seriously_wounded_threshold() + (K % "DEATH SAVE") + " %d" % c.death_save_target()
+	else:
+		hp += "  [color=#7d8a96]·[/color] " + ["Unhurt", "Lightly Wounded", "Seriously Wounded", "Mortally Wounded", "Dead"][c.wound_state()]
+	out.append(hp)
+	out.append((K % "ARMOR") + " head SP %d · body SP %d" % [c.sp("head"), c.sp("body")])
+	var ws: Array = c.weapons if full else c.weapons.slice(0, 1)
+	for w in ws:
+		var q := "" if w.quality == "standard" else " (%s)" % w.quality.capitalize()
+		out.append((K % "WEAPON") + " %s%s · %dd6 · ROF %d%s" % [w.def.name, q, w.dice(), w.rof(), (" · %d/%d" % [w.ammo, int(w.def.get("mag", 0))]) if w.uses_ammo() else ""])
+	if full:
+		var sk: Array = c.skills.keys().filter(func(k): return int(c.skills[k]) > 0)
+		sk.sort_custom(func(a, b): return c.skill_base(a) > c.skill_base(b))
+		if not sk.is_empty():
+			out.append((K % "SKILLS") + " " + ", ".join(sk.slice(0, 8).map(func(k): return "%s %d" % [String(k).replace("_", " ").capitalize(), c.skill_base(k)])))
+		if not c.cyberware.is_empty():
+			out.append((K % "CYBERWARE") + " " + ", ".join(c.cyberware.map(func(x): return String(RulesDB.cyberware(String(x)).get("name", x)))))
+		var kit: Array = c.kit.filter(func(k): return k != "")
+		if not kit.is_empty():
+			out.append((K % "KIT") + " " + ", ".join(kit.map(func(k): return Items.display_name(String(k)))))
+	var cond := conditions(c)
+	if not cond.is_empty():
+		out.append("[color=#ff3b4f]%s[/color]" % ", ".join(cond))
+	return "\n".join(out)
+
+
+## What's wrong with someone at a glance: injuries, status, drugs, chrome knocked out.
+static func conditions(c: Combatant) -> Array[String]:
+	var out: Array[String] = []
+	if c.unconscious:
+		out.append("unconscious")
+	if c.prone:
+		out.append("prone")
+	if c.burning > 0:
+		out.append("on fire")
+	for i in c.injuries:
+		out.append(String(i.get("name", i.id)))
+	for d in c.drugs_taken:
+		out.append(String(d).replace("_", " "))
+	if not c.cyber_off.is_empty():
+		out.append("chrome offline")
+	return out
 
 
 ## Cursor tooltip: a small pixel header and a bbcode body. Empty text hides it.
@@ -855,7 +933,16 @@ func tip(text: String, at: Vector2, head := "", head_col := CYAN) -> void:
 	_tip_head.add_theme_color_override("font_color", head_col)
 	_tip_label.text = text
 	_tip.reset_size()
-	_tip.position = (at + Vector2(24, 20)).clamp(Vector2.ZERO, size - _tip.size - Vector2(4, 4))
+	var pos := at + Vector2(28, 20)   # beside the cursor; flips left / up rather than covering it
+	if pos.x + _tip.size.x > size.x - 4:
+		pos.x = at.x - 28 - _tip.size.x
+	if pos.y + _tip.size.y > size.y - 4:
+		pos.y = at.y - 20 - _tip.size.y
+	pos = pos.clamp(Vector2.ZERO, size - _tip.size - Vector2(4, 4))
+	for r in [_round_tab.get_rect(), _init_strip.get_rect(), _net_panel.get_rect() if _net_panel.visible else Rect2()]:   # never cover the fixed panels
+		if r.size.x > 0 and Rect2(pos, _tip.size).intersects(r):
+			pos.y = r.end.y + 8
+	_tip.position = pos.clamp(Vector2.ZERO, size - _tip.size - Vector2(4, 4))
 
 
 ## Turn banner, tucked under the turn-order strip (owner: less obtrusive, keep the style). It
@@ -888,11 +975,32 @@ func turn_banner(text: String, col: Color) -> void:
 	tw.parallel().tween_property(_turn_rule, "modulate:a", 0.0, 0.25)
 
 
-func _show_log() -> void:
+func _show_log(fresh := false) -> void:
 	var n := 14 if _log_open else 3
 	_log.text = "\n".join(_log_lines.slice(maxi(0, _log_lines.size() - n)).map(func(l): return "> " + l))
 	_log_panel.visible = not _log_lines.is_empty()
 	_log_panel.reset_size()
+	if _log_tw and _log_tw.is_valid():
+		_log_tw.kill()
+	if _log_open or fresh:   # new lines show at full strength, then fade back after a few seconds
+		_log_panel.modulate.a = 1.0
+	if not _log_open:
+		_log_tw = create_tween()
+		_log_tw.tween_interval(5.0)
+		_log_tw.tween_property(_log_panel, "modulate:a", 0.35, 0.6)
+	_layout.call_deferred()
+
+
+## Slide the crew roster in (Alt held) or out.
+func show_roster(on: bool) -> void:
+	roster_on = on
+	var tw := create_tween().set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
+	tw.tween_property(_party, "position:x", 14.0 if on else -_party.size.x - 30, 0.16)
+
+
+## Which view overlays are on, shown small under the round tab.
+func set_overlays(text: String) -> void:
+	_overlay_lbl.text = text
 	_layout.call_deferred()
 
 
@@ -967,7 +1075,7 @@ func _net_refresh(enc: Encounter) -> void:
 	if run == null:
 		return
 	var ice_db: Dictionary = RulesDB.load_json("black_ice.json")["ice"]
-	_net_box.add_child(_text("// NET SESSION · %d ACTION%s LEFT" % [enc.net_left, "" if enc.net_left == 1 else "S"], F_PIXEL, 20, MAGENTA))
+	_net_box.add_child(_text("// JACKED IN · %d NET ACTION%s" % [enc.net_left, "" if enc.net_left == 1 else "S"], F_PIXEL, 20, MAGENTA))
 	var here := run.cur_node()
 	_net_box.add_child(_text(_node_label(here, enc, run, true).to_upper(), F_DISPLAY, 20, Color("e2c8ff")))
 	var status: Array[String] = []
@@ -990,11 +1098,13 @@ func _net_refresh(enc: Encounter) -> void:
 		_net_box.add_child(_text("!! %s  ATK %d DEF %d PER %d · REZ %d/%d" % [String(i.kind).to_upper(), int(st.atk), int(st.def), int(st.per), int(i.get("rez", st.rez)), int(st.rez)], F_TERM, Hud.ts(18), RED))
 		_net_box.add_child(_text("   " + String(st.get("effect", "")), F_TERM, Hud.ts(16), Color(RED, 0.75)))
 	# Only the actions that apply here, each with its odds.
-	var acts := GridContainer.new()
-	acts.columns = 2
+	var acts := VBoxContainer.new()   # one row per option (owner)
+	acts.add_theme_constant_override("separation", 3)
 	var none := enc.net_left <= 0
 	var add := func(label: String, kind: String, enabled := true):
-		acts.add_child(_net_button(label, func(): action.emit("net", kind), 148, 28, none or not enabled))
+		var nb := _net_button(label, func(): action.emit("net", kind), 296, 28, none or not enabled)
+		nb.tooltip_text = "DV: the Difficulty Value; Interface + 1d10 must beat it" if label.contains("DV") else ""
+		acts.add_child(nb)
 	match String(here.type):
 		"firewall":
 			if not run.broken.has(run.current):
@@ -1013,11 +1123,12 @@ func _net_refresh(enc: Encounter) -> void:
 		if run.has_program("sword"):
 			add.call("SWORD %d%% · 3d6" % roundi(Check.chance_opposed(run.rank() + 1, int(st0.def)) * 100), "sword")
 	if run.has_program("armor") and not run.armor_used:
-		add.call("ARMOR · -4 BRAIN DMG", "armor")
+		add.call("ARMOR (PROGRAM) · -4 BRAIN DAMAGE", "armor")
 	add.call("PATHFINDER", "pathfinder")
 	add.call("JACK OUT", "jack_out", run.kraken_until < enc.init.round_num)
 	_net_box.add_child(acts)
-	var unsafe := _net_button("PULL THE PLUG · UNSAFE: EVERY ICE MET HITS", func(): action.emit("net", "jack_out_unsafe"), 296, 24)
+	var unsafe := _net_button("UNSAFE JACK OUT", func(): action.emit("net", "jack_out_unsafe"), 296, 24)
+	unsafe.tooltip_text = "Every Black ICE you've met gets an attack on the way out (p.198)"
 	unsafe.add_theme_color_override("font_color", RED)
 	_net_box.add_child(unsafe)
 	if not ice.is_empty():   # pinned: Slide is the way out (p200)
@@ -1028,11 +1139,11 @@ func _net_refresh(enc: Encounter) -> void:
 			var id: int = nb
 			_net_box.add_child(_net_button("» " + _node_label(run.arch.nodes[id], enc, run), func(): action.emit("net_slide", id), 296, 24, none or enc._slid_this_turn))
 		return
-	_net_box.add_child(_text("ROUTE (MOVING IS FREE)", F_PIXEL, 20, DIM))
+	_net_box.add_child(_text("ROUTE (FREE)", F_PIXEL, 20, DIM))
 	var dist := run.route()
 	var ids := dist.keys()
 	ids.sort_custom(func(x, y): return int(dist[x]) < int(dist[y]) or (int(dist[x]) == int(dist[y]) and _is_target(enc, run, x)))
-	for id in ids.slice(0, 10):
+	for id in ids.slice(0, 6):
 		var nid: int = id
 		var b := _net_button("%s %s" % ["›".repeat(mini(3, int(dist[id]))), _node_label(run.arch.nodes[nid], enc, run)], func(): action.emit("net_move", nid), 296, 24)
 		if _is_target(enc, run, nid):
@@ -1044,9 +1155,21 @@ static func _is_target(enc: Encounter, run: NetRun, id: int) -> bool:
 	return int(enc.objective.get("node", -1)) == id and int(enc.objective.get("structure", -1)) == run.arch.structure
 
 
+## A control node's group id ("cameras_public_f0") as words ("cameras, public, floor 1").
+static func control_name(group: String) -> String:
+	var parts := group.split("_")
+	var out: Array[String] = []
+	for p in parts:
+		if p.length() > 1 and p[0] == "f" and p.substr(1).is_valid_int():
+			out.append("floor %d" % (int(p.substr(1)) + 1))
+		else:
+			out.append(p)
+	return ", ".join(out) if out.size() > 1 else group
+
+
 static func _node_label(n: Dictionary, enc: Encounter = null, run: NetRun = null, here := false) -> String:
 	var dv_known: bool = run == null or not run.scouted.has(int(n.id))   # Pathfinder shows contents, not DVs (p200)
-	var dv := (" DV%d" % int(n.dv)) if dv_known and n.has("dv") else ""
+	var dv := (" · DV %d" % int(n.dv)) if dv_known and n.has("dv") else ""
 	var star := "★ TARGET " if enc != null and run != null and _is_target(enc, run, int(n.id)) else ""
 	match n.type:
 		"firewall":
@@ -1057,7 +1180,7 @@ static func _node_label(n: Dictionary, enc: Encounter = null, run: NetRun = null
 			return "%sFile%s%s%s" % [star, dv, (" · " + String(n.get("label", "data")).to_upper()) if known or star != "" else "", " · IDENTIFIED" if known else ""]
 		"control":
 			var held := run != null and run.held.has(int(n.id))
-			return "Control: %s%s%s" % [String(n.group).replace("_", " "), "" if held else dv, " · HELD" if held else ""]
+			return "Control Node: %s%s%s" % [control_name(String(n.group)), "" if held else dv, " · HELD" if held else ""]
 		"socket":
 			var nm := "linked site"
 			if enc != null:

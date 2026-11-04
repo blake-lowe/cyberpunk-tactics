@@ -66,7 +66,7 @@ func hud_text() -> String:
 func marks(_fog: bool) -> Array:
 	if o.get("freed", false):
 		return [_extract_mark()]
-	return [{"cell": e.units[int(o.captive)].pos, "h": 1.4, "label": "CAPTIVE", "tone": "gold"}]
+	return [{"cell": e.units[int(o.captive)].pos, "h": 1.4, "label": String(e.units[int(o.captive)].c.display_name).to_upper(), "tone": "gold"}]
 
 
 func focus_unit() -> int:

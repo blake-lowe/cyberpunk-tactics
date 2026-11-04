@@ -1492,13 +1492,20 @@ func attack(target: Dictionary, weapon: Weapon, mode: Attack.Mode) -> Dictionary
 		"stunned": r.get("stunned", false), "status": r.get("status", {}), "self_hurt": String(r.get("self_hurt", ""))})
 	if r.get("jammed", false):
 		say("%s's %s jams." % [cur.c.display_name, weapon.display_name()])
-	var who := "%s → %s" % [cur.c.display_name, target.c.display_name]
+	# "Vex → Guard 2 · Autofire · 10 rds · 12 vs 15 · MISS" (the roll against the DV, rounds spent)
+	var mname: String = ["Single Shot", "Autofire", "Aimed Shot (head)", "Aimed Shot (leg)", "Aimed Shot (held item)"][mode] if not weapon.is_melee() else "Melee"
+	var who := "%s → %s · %s" % [cur.c.display_name, target.c.display_name, mname]
+	var rds := maxi(0, ammo_before - weapon.ammo)
+	if rds > 1:
+		who += " · %d rds" % rds
+	if r.get("check") != null:
+		who += " · %d vs %d" % [int(r.check.total), int(r.check.dv)]
 	if r.dodged:
-		say("%s: DODGE" % who)
+		say("%s · DODGED" % who)
 	elif not r.hit:
-		say("%s: miss (%d%%)" % [who, roundi(p.chance * 100)])
+		say("%s · MISS" % who)
 	else:
-		say("%s: hit for %d, %d through%s" % [who, r.damage, r.through, (", " + ", ".join(r.crits.map(func(x): return x.name))) if not r.crits.is_empty() else ""])
+		say("%s · HIT %d, %d through%s" % [who, r.damage, r.through, (" · " + ", ".join(r.crits.map(func(x): return x.name))) if not r.crits.is_empty() else ""])
 	_check_end()
 	return r
 

@@ -51,4 +51,4 @@ func marks(_fog: bool) -> Array:
 			best = dp
 	if best.x < 0:
 		return []
-	return [{"cell": best, "h": 0.7, "label": "JACK POINT", "tone": "cyan"}]
+	return [{"cell": best, "h": 0.7, "label": "★ JACK POINT", "tone": "cyan"}]

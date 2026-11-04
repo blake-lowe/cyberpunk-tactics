@@ -336,6 +336,8 @@ func _process(delta: float) -> void:
 	_update_shake(delta)
 	# hold Alt to inspect what's under the cursor (owner: a dwell timer would be annoying)
 	var alt := Input.is_key_pressed(KEY_ALT) or _inspect_demo
+	if hud and alt != hud.roster_on:
+		hud.show_roster(alt)   # Alt slides the crew roster in (owner)
 	if enc and hover.x >= 0 and alt and (not _inspected or hover != _inspect_cell):
 		_inspected = true
 		_inspect_cell = hover
@@ -899,6 +901,8 @@ func _build_lights() -> void:
 # --- Refresh: fog, cutaway, units, grid, HUD -------------------------------------
 
 func _refresh() -> void:
+	if hud:   # which overlays are on, so a toggled-off one isn't a mystery
+		hud.set_overlays("SIGHT LINES %s [Z]  ·  CUTAWAY %s [C]" % [["NEAR MOVE", "ALWAYS", "OFF"][sight_mode], "OFF" if not cutaway else ("ALL" if cut_all else "AUTO")])
 	_update_fog()
 	_update_cut()
 	_update_objective()
@@ -1106,7 +1110,7 @@ func _anim_av_land(e: Dictionary) -> void:
 	world.add_child(av)
 	_avs[String(e.kind)] = av
 	await _pan_to(at, 0.5)
-	hud.toast("MAXTAC" if e.kind == "maxtac" else "TRAUMA TEAM", 2.0)
+	hud.turn_banner("MAXTAC HAS LANDED" if e.kind == "maxtac" else "TRAUMA TEAM HAS LANDED", Hud.RED if e.kind == "maxtac" else Color("2a8cff"))
 	_snd("sfx_jack_in", at, -2.0, 0.0, 0)
 	var tw := av.land(at, float(e.get("yaw", 0.0)), float(e.get("scale", 1.0)))
 	await tw.finished
@@ -1245,9 +1249,11 @@ func _draw_markers(c: Control) -> void:
 			var p := ctr + dir * k
 			var side := Vector2(-dir.y, dir.x)
 			c.draw_colored_polygon(PackedVector2Array([p + dir * 14, p - dir * 6 + side * 10, p - dir * 6 - side * 10]), col)
-			var tag := "%s %dM" % [mk[1], dist]
-			c.draw_string_outline(Hud.F_BOLD, p - dir * 34 - Vector2(80, -6), tag, HORIZONTAL_ALIGNMENT_CENTER, 160, 16, 5, Color(0, 0, 0, 0.85))
-			c.draw_string(Hud.F_BOLD, p - dir * 34 - Vector2(80, -6), tag, HORIZONTAL_ALIGNMENT_CENTER, 160, 16, col)
+			var tag := "%s %d M" % [mk[1], dist]
+			var tw := Hud.F_BOLD.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
+			var at := p - dir * (22.0 + tw * 0.5 * absf(dir.x) + 10.0 * absf(dir.y))   # clear of the arrow, whichever edge
+			c.draw_string_outline(Hud.F_BOLD, at - Vector2(tw * 0.5, -6), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, 5, Color(0, 0, 0, 0.85))
+			c.draw_string(Hud.F_BOLD, at - Vector2(tw * 0.5, -6), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, col)
 
 
 func _draw_cover_shields(c: Control) -> void:
@@ -1279,16 +1285,7 @@ func _inspect(v: Vector3i) -> void:
 	var head := "// INSPECT"
 	var u := _unit_at(v)
 	if not u.is_empty():
-		var c: Combatant = u.c
-		var w: Weapon = c.weapons[0] if not c.weapons.is_empty() else null
-		lines.append("[b]%s[/b]  [color=#7d8a96]%s[/color]" % [c.display_name, c.kind_name()])
-		lines.append("[code]REF %d  DEX %d  BODY %d  MOVE %d[/code]" % [c.stat("REF"), c.stat("DEX"), c.stat("BODY"), c.stat("MOVE")])
-		lines.append("HP %d/%d · %s" % [c.hp, c.max_hp(), ["Unhurt", "Lightly wounded", "Seriously wounded", "Mortally wounded", "Dead"][c.wound_state()]])
-		lines.append("Armor: head SP %d · body SP %d" % [c.sp("head"), c.sp("body")])
-		if w:
-			lines.append("%s · %dd6 · ROF %d%s" % [w.def.name, w.dice(), w.rof(), (" · %d/%d" % [w.ammo, int(w.def.get("mag", 0))]) if w.uses_ammo() else ""])
-		if not c.injuries.is_empty():
-			lines.append("[color=#ff3b4f]%s[/color]" % ", ".join(c.injuries.map(func(i): return String(i.get("name", i.id)))))
+		lines.append(Hud.stat_block(u.c, true))
 		head = "// INSPECT · " + ("CREW" if u.team == 0 else ("%s · %s" % [World.display_name(enc.faction_of(u)), "HOSTILE" if _foe(u) else "NEUTRAL"]).to_upper())
 	var cover_hp: int = enc.los.cover_hp.get(v, 0)
 	for cv in m.cover:
@@ -2611,10 +2608,12 @@ func _spend_check() -> bool:
 
 func _after_action() -> void:
 	busy = true
+	hud.log_hold = true   # log lines land with their callouts, not before the animation
 	grid_node.visible = false
 	path_node.mesh = null
 	await _play_events()
 	busy = false
+	hud.log_hold = false
 	if stage == "attack" and (enc.cur.is_empty() or enc.cur.team != 0 or not (enc.turn.action_available or enc.turn.attacks_left > 0)):
 		_back_to_main()   # the attack is spent: back to the main bar (a ROF 2 second shot stays armed)
 	if _rebuild:
@@ -2994,7 +2993,7 @@ func _ev_tt_call(e: Dictionary) -> void:
 	var u: Dictionary = enc.units[e.unit]
 	if _seen(u.pos):
 		_float(u, "TRAUMA CARD", Color("2a8cff"))
-	hud.toast("TRAUMA TEAM INBOUND · %d ROUNDS" % Encounter.TT_ROUNDS)
+	hud.turn_banner("TRAUMA TEAM INBOUND FOR %s · %d ROUNDS" % [u.c.display_name.to_upper(), Encounter.TT_ROUNDS], Color("2a8cff"))
 	_ui_snd("sfx_beep", -4.0)
 
 
@@ -3825,7 +3824,7 @@ func _update_hover() -> void:
 			pcts[m] = roundi(pm.chance * 100) if pm.ok else -1
 	hud.mode_pcts(pcts)
 	var c: Combatant = t.c
-	var lines := ["[b]%s[/b]  [color=#7d8a96]%s[/color]" % [c.display_name, c.kind_name()]]
+	var lines: Array[String] = []
 	if p.ok:
 		var pct := roundi(p.chance * 100)
 		var col := "#39f0a0" if pct >= 65 else ("#f9c80e" if pct >= 35 else "#ff3b4f")
@@ -3835,10 +3834,10 @@ func _update_hover() -> void:
 			lines.append("[color=#05d9e8]Leaning out of cover[/color]")
 	else:
 		lines.append("[color=#ff3b4f]%s[/color]" % String(p.reason).capitalize())
-	lines.append("HP %d/%d · SP head %d body %d" % [c.hp, c.max_hp(), c.sp("head"), c.sp("body")])
 	# CPR armour often stops everything: show what the weapon averages through it
 	var loc := "head" if mode == Attack.Mode.AIMED_HEAD else "body"
 	var avg := w.dice() * 3.5
 	var thru := maxf(0.0, avg - c.sp(loc)) * (2.0 if loc == "head" else 1.0)
 	lines.append("[code]%dd6 vs SP %d: ~%d through[/code]" % [w.dice(), c.sp(loc), roundi(thru)] + ("  [color=#ff3b4f]armor likely stops it[/color]" if thru < 1.0 else ""))
+	lines.append(Hud.stat_block(c, false))
 	hud.tip("\n".join(lines), mouse, "// TARGET · HOSTILE", Hud.RED)
