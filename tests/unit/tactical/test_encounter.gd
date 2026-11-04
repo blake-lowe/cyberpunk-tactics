@@ -187,7 +187,8 @@ func test_skirmish_always_has_guards() -> void:
 	for seed in [11, 12, 13]:
 		var m := SceneGen.generate(seed, "skirmish", {"security": 1})
 		var dice := Dice.new(seed)
-		var e := Encounter.setup(m, dice, _crew(dice))
+		# A Medium code budgets for the crew as it is (a Light one would count it 1-2 smaller).
+		var e := Encounter.setup(m, dice, _crew(dice), "data", [], {"security_code": {"n": 4, "faction": "", "intensity": "medium", "hardened": false}})
 		assert_eq(e.units.filter(func(u): return u.team == 1).size(), Recruit.opposition(2, 1).size(), "the full budget is placed even without posts")
 
 
@@ -212,7 +213,7 @@ func test_failed_death_save_emits_a_death_event() -> void:
 func test_alerted_guard_calls_in_backup_which_arrives_rounds_later() -> void:
 	var m := SceneGen.generate(11, "street_block", {"security": 1})
 	var dice := Dice.new(1)
-	var e := Encounter.setup(m, dice, _crew(dice))
+	var e := Encounter.setup(m, dice, _crew(dice), "data", [], {"security_code": {"n": 11, "faction": "", "intensity": "light", "hardened": false}})
 	var before := e.units.size()
 	var g: Dictionary = e.units.filter(func(u): return u.team == 1)[0]
 	e._rouse([g])
@@ -357,14 +358,15 @@ func test_spot_roll_is_once_per_round() -> void:
 
 
 func test_ncpd_follows_backup_if_the_fight_goes_on() -> void:
-	var m := SceneGen.generate(11, "street_block", {"security": 2})   # the doctrine's min_security
+	var m := SceneGen.generate(11, "street_block", {"security": 2})
 	var dice := Dice.new(1)
-	var e := Encounter.setup(m, dice, _crew(dice))
-	e.alarm = 2
-	e.backup_in = 1
-	e._backup_round = -5
-	e.next_turn()
-	assert_eq(e.ncpd_in, int(e.doctrine.escalation.rounds), "backup arrived and the clock started")
+	# The site's own people always answer (code 11), and so does the district's NCPD.
+	var e := Encounter.setup(m, dice, _crew(dice), "data", [], {"security_code": {"n": 11, "faction": "", "intensity": "medium", "hardened": false},
+		"district_code": {"n": 11, "faction": "ncpd", "intensity": "medium", "hardened": true}})
+	e._call_it_in(e.units.filter(func(u): return u.team == Encounter.OPFOR)[0])
+	assert_true(e.backup_in >= 2, "backup is on its way")
+	assert_true(e.ncpd_in > e.backup_in, "the street response comes after the site's (NC2045 p.7)")
+	assert_eq(e.ncpd_label, "NCPD")
 	var cops := false
 	for k in 200:
 		for u in e.units:
@@ -398,15 +400,20 @@ func test_withdraw_needs_everyone_up_in_the_zone_and_leaves_the_rest() -> void:
 	assert_true(crew[1].c.dead, "left behind")
 
 
-func test_low_security_brings_no_ncpd() -> void:
+func test_a_failed_code_roll_brings_nobody() -> void:
 	var m := SceneGen.generate(11, "street_block", {"security": 1})
 	var dice := Dice.new(1)
-	var e := Encounter.setup(m, dice, _crew(dice))
-	e.alarm = 2
-	e.backup_in = 1
-	e._backup_round = -5
-	e.next_turn()
-	assert_eq(e.ncpd_in, -1, "no NCPD clock for a quiet security-1 site")
+	var never := {"n": 1, "faction": "ncpd", "intensity": "medium", "hardened": false}   # 1d10 is never under 1
+	var e := Encounter.setup(m, dice, _crew(dice), "data", [], {"security_code": never, "district_code": never})
+	var before := e.units.size()
+	e._call_it_in(e.units.filter(func(u): return u.team == Encounter.OPFOR)[0])
+	assert_eq(e.alarm, 2, "the call still goes out")
+	assert_eq(e.backup_in, -1, "nobody answers the site's code")
+	assert_eq(e.ncpd_in, -1, "nor the street's")
+	for k in 30:
+		e._tick_backup()
+		e.init.round_num += 1
+	assert_eq(e.units.size(), before, "and nobody turns up")
 
 
 func _jacked() -> Array:

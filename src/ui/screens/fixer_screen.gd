@@ -81,7 +81,10 @@ func _gig_card(i: int, ready: bool) -> PanelContainer:
 	var right := UiKit.vbox(6)
 	right.custom_minimum_size.x = 190
 	row.add_child(right)
-	right.add_child(UiKit.label("SECURITY %d/3" % int(g.security), 15, Hud.CYAN))
+	var sc := UiKit.label(Campaign.code_label(g), 15, Hud.CYAN)   # NC2045 p.7 Security Code
+	sc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	sc.custom_minimum_size.x = 190
+	right.add_child(sc)
 	right.add_child(UiKit.label("PAY", 12, Hud.DIM))
 	right.add_child(UiKit.label("%s eb" % UiKit.money(int(g.pay)), 22, Hud.TEXT))
 	var b := UiKit.button("TAKE THE GIG", UiKit.PRIMARY, func(): take_gig.emit(i), ready)

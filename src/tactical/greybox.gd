@@ -582,7 +582,8 @@ func new_gig() -> void:
 	for cm in crew:   # review renders: everyone packs the same kit
 		for i in mini(2, _dev_kit.size()):
 			cm.kit[i] = _dev_kit[i]
-	enc = Encounter.setup(m, dice, crew, kind, tw, {"faction": fid} if fid != "" else {})
+	var eo: Dictionary = Campaign.encounter_opts(camp.active_gig) if campaign_gig else ({"faction": fid} if fid != "" else {})
+	enc = Encounter.setup(m, dice, crew, kind, tw, eo)
 	_log_seen = 0
 	var lk := _scene_look()
 	env.ambient_light_color = Color(lk.ambient)
@@ -909,7 +910,7 @@ func _refresh() -> void:
 		_update_keycards()
 	for l in lights:  # rooms stay dark until explored, so a reveal reads as lights coming on
 		var cell: Vector3i = l[1]
-		l[0].visible = not _net_cleaned and not ("blackout" in enc.twists) and (l[2] != "room" or not fog_on or enc.vision.explored.has(cell))
+		l[0].visible = not _net_cleaned and not enc.lights_out() and (l[2] != "room" or not fog_on or enc.vision.explored.has(cell))
 	_build_doors()
 	for u in enc.units:
 		var n: Node3D = _unit_node(u)

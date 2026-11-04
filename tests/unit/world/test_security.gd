@@ -17,13 +17,13 @@ func test_doctrines_resolve() -> void:
 	var tiers: Dictionary = RulesDB.load_json("npcs.json")["tiers"]
 	for id in Security.ids():
 		var d := Security.doctrine(id)
-		for k in ["budget", "officers", "outer_patrols", "alarm", "backup", "escalation", "trauma_cards"]:
+		for k in ["budget", "officers", "outer_patrols", "alarm", "trauma_cards"]:
 			assert_true(d.has(k), "%s: %s (from default if not its own)" % [id, k])
+		for k in ["backup", "escalation"]:
+			assert_false(d.has(k), "%s: %s is the Security Codes' job now (NC2045 p.7)" % [id, k])
 		for lv in d.officers:
 			for t in d.officers[lv]:
 				assert_true(tiers.has(t), "%s: officer tier %s" % [id, t])
-		assert_true(tiers.has(String(d.backup.tier)), "%s: backup tier" % id)
-		assert_true(World.has_faction(String(d.escalation.responder)), "%s: responder faction" % id)
 	for f in World.factions():
 		var did := String(World.faction(f).get("doctrine", "default"))
 		assert_true(did in Security.ids(), "%s: doctrine %s exists" % [f, did])
@@ -57,13 +57,11 @@ func test_corporate_sites_carry_trauma_cards_by_doctrine() -> void:
 	assert_false(gang.units.any(func(u): return u.get("trauma_card", false)), "gangers don't")
 
 
-func test_backup_follows_the_doctrine() -> void:
+func test_the_radio_range_still_comes_from_the_doctrine() -> void:
 	var e := _enc("militech")
+	assert_eq(float(e.doctrine.alarm.radio_range), 30.0, "Militech's wider radio net")
 	var g: Dictionary = e.units.filter(func(u): return u.team == Encounter.OPFOR)[0]
 	e._call_it_in(g)
-	assert_eq(e.backup_in, int(e.doctrine.backup.rounds), "Militech backup is quicker")
-	e.backup_in = 1
-	e._backup_round = -5
-	var before := e.units.size()
-	e._tick_backup()
-	assert_eq(e.units.size() - before, int(e.doctrine.backup.per_level) * 2 + int(e.doctrine.backup.extra), "and bigger")
+	assert_eq(e.alarm, 2)
+	var near := e.units.filter(func(u): return u.team == Encounter.OPFOR and Vector2(u.pos.x - g.pos.x, u.pos.y - g.pos.y).length() <= 30.0)
+	assert_true(near.all(func(u): return u.alerted), "the call rouses the guards within the radio range")

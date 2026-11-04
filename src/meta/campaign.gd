@@ -139,6 +139,7 @@ func refresh_board() -> void:
 			"setup": known == 0 and dice.rng.randf() < float(g.get("betrayal_chance", 0.0))})
 		board[-1].merge(_place_for(String(t.kind), g, String(slots.faction)))
 		_fit_location_security(board[-1])
+		_code_gig(board[-1])
 	_unique_offer(g)
 
 
@@ -147,6 +148,46 @@ static func _fit_location_security(gig: Dictionary) -> void:
 	var l := World.location(String(gig.get("location", "")))
 	if l.has("security"):
 		gig.security = clampi(int(gig.security), int(l.security[0]), int(l.security[1]))
+
+
+## The gig's Night City 2045 codes (NC2045 p.7-8): its district (the location's, else one whose
+## neighbourhood generator is the gig's profile, if the city has one) and the codes
+## SecurityCode.for_gig reads from the location, else the district, else the fallback for the
+## gig's security level.
+func _code_gig(gig: Dictionary) -> void:
+	var did := String(World.location(String(gig.get("location", ""))).get("district", ""))
+	if did == "" and String(gig.get("profile", "")) != "":
+		var ds := World.districts_with_profile(String(gig.profile))
+		if not ds.is_empty():
+			did = _pick(ds)
+	gig.merge(codes_for(gig, did), true)
+
+
+## {district, security_code, district_code, utility_code} for `gig` in district `did` ("" none).
+## The fallback code names the gig's target as the site's own people.
+static func codes_for(gig: Dictionary, did: String) -> Dictionary:
+	var c := SecurityCode.for_gig(World.location(String(gig.get("location", ""))), World.district(did),
+		int(gig.get("security", 1)), String(gig.get("faction", "")))
+	return {"district": did, "security_code": c.security_code, "district_code": c.district_code, "utility_code": c.utility_code}
+
+
+## The board's line for a gig's Security Code: "SECURITY 6 · NCPD · HARDENED MEDIUM".
+static func code_label(gig: Dictionary) -> String:
+	var c: Variant = gig.get("security_code")
+	if SecurityCode.normalise(c).is_empty():
+		c = SecurityCode.from_level(int(gig.get("security", 1)), String(gig.get("faction", "")))
+	return SecurityCode.label(c, String(gig.get("faction", "")))
+
+
+## Encounter.setup options for a gig: its target faction and its codes.
+static func encounter_opts(gig: Dictionary) -> Dictionary:
+	var o := {}
+	if String(gig.get("faction", "")) != "":
+		o["faction"] = String(gig.faction)
+	for k in ["security_code", "district_code", "utility_code"]:
+		if gig.has(k):
+			o[k] = gig[k]
+	return o
 
 
 ## A crew with a name (best Reputation >= unique_rep) sometimes gets a fixer's personal job:
@@ -162,6 +203,7 @@ func _unique_offer(g: Dictionary) -> void:
 		"blurb": _fill(String(t.blurb), slots), "security": sec, "twist": "", "unique": true,
 		"pay": int(int(g.pay[str(sec)]) * float(t.pay_mult)), "seed": dice.rng.randi_range(1, 99999), "setup": false})
 	board[-1].merge(_place_for(String(t.kind), g, String(slots.faction)))
+	_code_gig(board[-1])
 
 
 ## The gig's target (World faction able to be the target of this kind) and the {corp}/{gang}
