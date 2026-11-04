@@ -45,8 +45,14 @@ extends RefCounted
 ##     gains per-weapon jams/special rounds and armour rigging, which older saves simply lack);
 ##     `operation.present` a list of crew indices. A v11 handle maps to the first crew member with
 ##     it: a v11 save with a repeated handle had already merged their entries.
+## v13: multi-map operations and Playland by the Sea are descoped (owner). The operation in progress
+##     and what it carried between legs (`operation`) are dropped: the crew records already hold
+##     how each member stood, and the leg being played was never saved (as a quit single gig).
+##     Operation offers (gigs with `legs`) leave the board. Weapons the park's gate left in the van go
+##     to safehouse storage so nothing is lost; a kit grenade in the van never left storage (a kit
+##     slot only names what storage holds), so it goes back in its owner's slot if that is still empty.
 
-const CURRENT := 12
+const CURRENT := 13
 
 
 ## Upgrade `d` (a parsed save) to CURRENT. Returns {} for a save from a newer build, which this
@@ -69,6 +75,7 @@ static func migrate(d: Dictionary) -> Dictionary:
 			9: _v9_to_v10(d)
 			10: _v10_to_v11(d)
 			11: _v11_to_v12(d)
+			12: _v12_to_v13(d)
 		v += 1
 		d["version"] = v
 	return d
@@ -226,3 +233,28 @@ static func _v11_to_v12(d: Dictionary) -> void:
 			if (present as Dictionary).has(names[i]):
 				idx.append(i)
 		op["present"] = idx
+
+
+static func _v12_to_v13(d: Dictionary) -> void:
+	var op: Variant = d.get("operation", {})
+	if op is Dictionary:
+		var stash: Dictionary = d.get("stash", {})
+		d["stash"] = stash
+		var crew: Array = d.get("crew", [])
+		var van: Variant = (op as Dictionary).get("van", [])
+		for it in (van if van is Array else []):
+			if not it is Dictionary or String(it.get("key", "")) == "":
+				continue
+			var key := String(it.key)
+			if not (it as Dictionary).has("slot"):
+				stash[key] = int(stash.get(key, 0)) + 1   # the weapon comes home to storage
+				continue
+			var k := int(it.get("crew", -1))
+			var s := int(it.slot)
+			if k >= 0 and k < crew.size() and crew[k] is Dictionary:
+				var kit: Array = crew[k].get("kit", [])
+				if s >= 0 and s < kit.size() and String(kit[s]) == "":
+					kit[s] = key
+	d.erase("operation")
+	var board: Array = d.get("board", [])
+	d["board"] = board.filter(func(g): return not (g is Dictionary and g.get("legs") is Array and (g.legs as Array).size() > 1))

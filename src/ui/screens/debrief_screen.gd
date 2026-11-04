@@ -38,13 +38,6 @@ func build_body(body: VBoxContainer) -> void:
 	_sum(sums, "IMPROVEMENT POINTS", "%d each" % int(report.get("ip", 0)), Hud.CYAN)
 	if String(gig.get("fixer", "")) != "":
 		_sum(sums, "FIXER", String(gig.fixer), Hud.TEXT)
-	if report.has("legs"):   # an operation: every leg it got through, with its share of the pay
-		var legs: Array = report.legs
-		tv.add_child(UiKit.label("OPERATION · %d OF %d LEGS DONE" % [legs.size(), int(report.get("leg_count", legs.size()))], 12, Hud.GOLD))
-		for l in legs:
-			tv.add_child(UiKit.body("✓ %s: %s  ·  %s eb" % [String(l.title), String(l.line), UiKit.money(int(l.pay))], 14, Hud.TEXT))
-		for l in (gig.get("legs", []) as Array).slice(legs.size()):   # the rest of the job, not reached
-			tv.add_child(UiKit.body("✗ %s: %s  ·  not done" % [String(l.get("leg_title", "")), String(l.get("line", ""))], 14, Hud.DIM))
 	var members: Array = report.get("members", [])
 	var grid := GridContainer.new()
 	grid.columns = clampi(members.size(), 1, 4)
@@ -64,17 +57,11 @@ func build_body(body: VBoxContainer) -> void:
 	bottom.add_child(b)
 
 
-## The headline and its colour, worded as the map's end banner was (greybox end_banner): an
-## operation says so, and one not done to the end says how it ended (Campaign.resolve `state`).
+## The headline and its colour, worded as the map's end banner was (greybox end_banner): a gig
+## not done says how it ended (Campaign.resolve `state`).
 static func outcome(rep: Dictionary) -> Array:
 	var won: bool = rep.get("won", false)
 	var state := String(rep.get("state", "won" if won else "lost"))
-	if rep.has("legs"):
-		if won:
-			return ["Operation complete", Hud.GREEN]
-		if state == "lost":
-			return ["Operation failed", Hud.RED]
-		return ["Operation ended early", Hud.GOLD if not (rep.legs as Array).is_empty() else Hud.RED]
 	if won:
 		return ["Gig complete", Hud.GREEN]
 	return ["Gig abandoned" if state == "fled" else "Gig failed", Hud.RED]

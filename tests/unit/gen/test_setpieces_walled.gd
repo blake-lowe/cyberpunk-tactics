@@ -45,8 +45,8 @@ func test_combat_zone_is_a_walled_fake_city() -> void:
 	for s in SEEDS:
 		var m := _map("combat_zone", s)
 		var tag := "combat_zone seed %d" % s
-		var a: Array = m.params.get("hazard_area", [])
-		assert_eq(a.size(), 4, "%s: the set's area is the hazard area" % tag)
+		var a: Array = m.params.get("set_area", [])
+		assert_eq(a.size(), 4, "%s: the set's area is recorded" % tag)
 		var city := Rect2i(int(a[0]), int(a[1]), int(a[2]), int(a[3]))
 		# the wall: concrete all round the set and the yard, but for its gates
 		var wall := Rect2i(city.position.x - 1, 2, city.size.x + 2, city.end.y - 1)
@@ -90,23 +90,15 @@ func test_combat_zone_is_a_walled_fake_city() -> void:
 		assert_true(m.cover.filter(func(c): return city.has_point(c.pos) and c.kind in ["rubble", "wreck", "barrier", "sandbags"]).size() >= 20, "%s: a battlefield to fight over" % tag)
 
 
-func test_combat_zone_mist_on_the_set_only() -> void:
+func test_combat_zone_plays_as_an_ordinary_map() -> void:
 	var m := _map("combat_zone", SEEDS[0])
 	var dice := Dice.new(9)
 	var e := Encounter.setup(m, dice, _crew(dice), "rescue", {"faction": "network_54"})
-	assert_true(e.hazard != null, "the MIST is the set piece's rule")
-	assert_eq(e.hazard.name, "MIST", "named")
 	assert_eq(e.post_faction, "network_54", "Net54 Security on the posts")
-	var a: Array = m.params.hazard_area
-	assert_eq(e.hazard.area, Rect2i(int(a[0]), int(a[1]), int(a[2]), int(a[3])), "only over the set")
-	e.hazard.force_stage(4)
-	var cap: Dictionary = e.units[int(e.objective.captive)]
-	assert_false(e.hazard.outside(cap.pos), "the bunker's prep cells are off the set: no MIST there")
-	var d := _deploy(m)
-	assert_false(e.hazard.outside(d), "nor on the street outside")
-	var far := Vector3i(e.hazard.area.position.x + 1, e.hazard.area.end.y - 2, m.street)
-	assert_true(e.hazard.outside(far), "a corner of the set is outside the final circle")
-	assert_true(e.hazard.bites("captive", far), "the contestant's implant zaps them")
+	var rules: Dictionary = SetPieces.get_def("combat_zone").get("rules", {})
+	assert_false(rules.has("hazard_zone"), "the MIST is out of scope: no shrinking zone")
+	assert_true(rules.has("free_for_all"), "the contestants still roam the set")
+	assert_eq(e.state, "playing")
 
 
 func test_estates_draw_a_named_owner() -> void:

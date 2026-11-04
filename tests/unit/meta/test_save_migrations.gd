@@ -171,3 +171,74 @@ func test_safehouse_district_and_clock_survive_a_save() -> void:
 	d["safehouse_district"] = "atlantis"
 	assert_eq(Campaign.from_dict(JSON.parse_string(JSON.stringify(d))).safehouse_district, Campaign.DEFAULT_SAFEHOUSE,
 		"a district the city doesn't have falls back to the default")
+
+
+# --- v13: multi-map operations descoped ---------------------------------------------------
+
+const GRENADE := "ammo/flashbang_ammo"
+var _gun := ""   ## the van's weapon in _operation_save (its storage key)
+
+
+## A save from the operations builds (v11/v12) with an operation under way between legs: an
+## operation offer on the board, the active operation with a weapon and a kit grenade left in the
+## van at the park's gate, what the crew carried between legs and who went. v11 keyed the van,
+## carry-over and presence by handle; v12 by place in the crew.
+func _operation_save(version: int) -> Dictionary:
+	var c := Campaign.new_game(4)
+	var d: Dictionary = JSON.parse_string(JSON.stringify(c.to_dict()))
+	var names: Array = d.crew.map(func(m): return String(m.name))
+	var gun := Items.key_of_weapon(c.crew[0].weapons[0])
+	_gun = gun
+	d.crew[1].kit[0] = ""   # the gate took the grenade out of this slot
+	d.stash[GRENADE] = 1   # it never left storage
+	var legs := [{"leg_title": "Thrill Hill · Eco-Coaster", "kind": "data_theft", "security": 1, "pay": 1000},
+		{"leg_title": "Grand Junction · Trolley Yard", "kind": "rescue", "security": 2, "pay": 2000}]
+	var offer: Dictionary = (d.board[0] as Dictionary).duplicate(true)
+	offer["id"] = "1-playland"
+	offer["op"] = "playland"
+	offer["legs"] = legs
+	d.board.append(offer)
+	var op: Dictionary = offer.duplicate(true)
+	op["leg"] = 1
+	op["done"] = [{"title": "Thrill Hill · Eco-Coaster", "line": "", "pay": 1000}]
+	if version == 11:
+		op["van"] = {names[0]: [{"key": gun, "ammo": 3, "at": 0}], names[1]: [{"key": GRENADE, "slot": 0}]}
+		op["carry"] = {names[0]: {"kit_spent": [true, false]}}
+		op["present"] = {names[0]: true, names[1]: true}
+	else:
+		op["van"] = [{"crew": 0, "key": gun, "ammo": 3, "at": 0}, {"crew": 1, "key": GRENADE, "slot": 0}]
+		op["carry"] = [{"name": names[0], "kit_spent": [true, false]}, {"name": names[1]}]
+		op["present"] = [0, 1]
+	d["operation"] = op
+	d["version"] = version
+	return JSON.parse_string(JSON.stringify(d))   # as it comes off disk
+
+
+func test_v11_and_v12_saves_with_an_operation_load_without_it() -> void:
+	assert_eq(Items.use(GRENADE), "grenade", "the test's kit grenade is one")
+	for v in [11, 12]:
+		var d := _operation_save(v)
+		var gun := _gun
+		var stored := int(d.get("stash", {}).get(gun, 0))
+		var board_n := (d.board as Array).size()
+		var c := Campaign.from_dict(d)
+		assert_true(c != null, "v%d loads" % v)
+		assert_true(c.active_gig.is_empty(), "v%d: the operation in progress is dropped" % v)
+		assert_eq(c.board.size(), board_n - 1, "v%d: the operation offer leaves the board" % v)
+		assert_false(c.board.any(func(g): return g.has("legs")), "v%d: no gig with legs" % v)
+		assert_eq(c.stored(gun), stored + 1, "v%d: the van's weapon is back in storage" % v)
+		assert_eq(c.crew[1].kit[0], GRENADE, "v%d: the van's grenade is back in its slot" % v)
+		var out := c.to_dict()
+		assert_eq(int(out.version), SaveMigrations.CURRENT, "v%d saves back as the current version" % v)
+		assert_false(out.has("operation"), "v%d: no between-legs state is saved" % v)
+
+
+func test_v12_migration_leaves_a_save_without_an_operation_alone() -> void:
+	var d := Campaign.new_game(4).to_dict()
+	d["version"] = 12
+	d["operation"] = {}
+	var c := Campaign.from_dict(JSON.parse_string(JSON.stringify(d)))
+	for k in d.stash:
+		assert_eq(c.stored(String(k)), int(d.stash[k]), "storage unchanged: " + String(k))
+	assert_eq(c.board.size(), (d.board as Array).size(), "the board unchanged")
+	assert_false(c.to_dict().has("operation"))

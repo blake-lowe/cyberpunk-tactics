@@ -415,7 +415,7 @@ static func _arena_size(dice: Dice, p: Dictionary, sp: Dictionary) -> void:
 ## it. The street runs past the front of the wall; a checkpoint booth stands at the main gate, a
 ## service door is cut in the side wall near the front corner and the yard has its own gate on the
 ## far side. Tunnel hatches in the set's streets are entrances (reinforcements come up them) with a
-## guard post beside each. The set's area is the map's `hazard_area` (HazardZone).
+## guard post beside each. The set's area is the map's `set_area` (where FreeForAll starts its fighters).
 static func arena(c: Dictionary) -> void:
 	var m: TacMap = c.m
 	var sp := _sp(c)
@@ -531,7 +531,7 @@ static func arena(c: Dictionary) -> void:
 			if m.walkable(0, pv) and not m.has_cover_at(0, pv):
 				m.posts.append({"floor": 0, "pos": pv, "structure": sid, "zone": TacMap.Zone.STAFF, "kind": "tunnel", "priority": true})
 				break
-	m.params["hazard_area"] = [city.position.x, city.position.y, city.size.x, city.size.y]
+	m.params["set_area"] = [city.position.x, city.position.y, city.size.x, city.size.y]
 	SceneGen.spawn(c, Vector2i(0, m.h - 3))
 	SceneGen.spawn(c, Vector2i(m.w - 1, m.h - 3))
 	SceneGen.spawn(c, Vector2i(yard_gate.x + (1 if yard_gate.x > m.w / 2 else -1), yard_gate.y))

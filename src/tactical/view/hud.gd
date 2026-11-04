@@ -90,7 +90,6 @@ var log_hold := false     ## the view holds the log while an action plays, so li
 var _overlay_lbl: Label   ## which overlays are on (sight lines, cutaway), under the round tab
 var _log_tw: Tween
 var end_toast := ""        ## the view's headline once the gig is over ("" = the plain GIG COMPLETE / ABANDONED / FAILED)
-var leg_text := ""         ## an operation's leg on the round tab ("LEG 2/3"), set by the view
 var _round_box: VBoxContainer              ## unit id → party card (hit shake)
 
 
@@ -577,17 +576,6 @@ func _team_col(u: Dictionary, enc: Encounter = null) -> Color:
 	return RED if enc == null or enc.hostile(Encounter.CREW, int(u.team)) else NEUTRAL
 
 
-## The hazard zone's line on the round tab: "MIST CLOSES IN 2", "MIST · FINAL CIRCLE", and when
-## the active crew member stands outside it, what that costs a turn.
-static func hazard_text(enc: Encounter) -> String:
-	var z := enc.hazard
-	var n := z.closes_in(enc.init.round_num)
-	var s := "%s CLOSES IN %d" % [z.name, n] if n > 0 else ("%s CLOSING" % z.name if n == 0 else "%s · FINAL CIRCLE" % z.name)
-	if not enc.cur.is_empty() and enc.cur.team == Encounter.CREW and z.bites("crew", enc.cur.pos):
-		s += " · OUTSIDE %dD6" % z.damage_dice()
-	return s
-
-
 func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) -> void:
 	_clear(_party)
 	for u in enc.units:
@@ -603,7 +591,7 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 		slot.modulate = Portraits.tint(c.wound_state())
 		_init_strip.add_child(slot)
 	_clear(_round_box)   # round and stealth state: top right corner
-	_round_box.add_child(_text("ROUND %02d" % maxi(1, enc.init.round_num) + ("  ·  " + leg_text if leg_text != "" else ""), F_TERM, Hud.ts(20), CYAN))
+	_round_box.add_child(_text("ROUND %02d" % maxi(1, enc.init.round_num), F_TERM, Hud.ts(20), CYAN))
 	var state := "UNDETECTED"
 	if enc.alarm >= 2:
 		state = "ALARM · %s %d" % [enc.backup_label, enc.backup_in] if enc.backup_in > 0 else ("ALARM · %s %d" % [enc.ncpd_label, enc.ncpd_in] if enc.ncpd_in > 0 else "ALARM")
@@ -613,8 +601,6 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 	_round_box.add_child(_text(objective_text(enc), F_TERM, Hud.ts(18), GOLD))
 	if not enc.outages.is_empty():   # Utility Codes (NC2045 p.8)
 		_round_box.add_child(_text(" · ".join(enc.outages.map(func(o): return String(o).to_upper() + " OUT")), F_TERM, Hud.ts(18), RED))
-	if enc.hazard != null:   # a shrinking safe circle (HazardZone: the Combat Zone's MIST)
-		_round_box.add_child(_text(hazard_text(enc), F_TERM, Hud.ts(18), RED if enc.hazard.stage > 0 else GOLD))
 	if enc.neutral != null:   # a house where nobody fights (NeutralGround: Totentanz's club floor)
 		_round_box.add_child(_text(enc.neutral.hud_text(), F_TERM, Hud.ts(18), GOLD if enc.neutral.holds else RED))
 	if not enc.complication.is_empty():   # the book's complication (Complication), shown once it springs
