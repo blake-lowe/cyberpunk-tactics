@@ -11,7 +11,7 @@ func _crew(dice: Dice) -> Array[Combatant]:
 func _enc(faction: String, kind := "eliminate", scene := "street_block") -> Encounter:
 	var m := SceneGen.generate(7, scene, {"security": 2})
 	var dice := Dice.new(5)
-	return Encounter.setup(m, dice, _crew(dice), kind, [], {"faction": faction})
+	return Encounter.setup(m, dice, _crew(dice), kind, {"faction": faction})
 
 
 # --- data integrity --------------------------------------------------------------------

@@ -176,3 +176,32 @@ static func locations_for(faction: String, gig_kind: String) -> Array[String]:
 			out.append(String(id))
 	return out
 
+
+
+# --- Fixers (data/world/fixers.json) ------------------------------------------------------
+
+static func fixers() -> Dictionary:
+	return RulesDB.world("fixers.json").get("fixers", {})
+
+
+## A fixer with its id filled in ({} if unknown).
+static func fixer(id: String) -> Dictionary:
+	var f: Dictionary = (fixers().get(id, {}) as Dictionary).duplicate()
+	if not f.is_empty():
+		f["id"] = id
+	return f
+
+
+## Fixers who work district `did` (their own district or one of their `also`), in data order.
+static func fixers_in(did: String) -> Array[String]:
+	var out: Array[String] = []
+	for id in fixers():
+		var f: Dictionary = fixers()[id]
+		if String(f.get("district", "")) == did or did in (f.get("also", []) as Array):
+			out.append(String(id))
+	return out
+
+
+## Districts next to `did` on the city map (city.map.districts.<id>.neighbours).
+static func neighbours(did: String) -> Array:
+	return ((RulesDB.world("city.json").get("map", {}) as Dictionary).get("districts", {}) as Dictionary).get(did, {}).get("neighbours", [])

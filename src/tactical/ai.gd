@@ -116,6 +116,8 @@ static func _shoot(e: Encounter, u: Dictionary, w: Weapon) -> bool:
 			if t.c.wound_state() == Combatant.Wound.MORTAL:
 				score *= 0.5
 			score *= e.obj.ai_target_mult(t)   # e.g. stop the package leaving
+			if int(t.id) == e.focus_id and e.hostile(int(u.team), Encounter.CREW):
+				score *= 2.0   # a Lieutenant's focus_fire tactic (Complication)
 			if score > best_score:
 				best_score = score
 				best = t
@@ -152,7 +154,9 @@ static func _advance(e: Encounter, u: Dictionary) -> void:
 		for f in foes:
 			if f.pos.z == cell.z and Vector2(cell.x - f.pos.x, cell.y - f.pos.y).length() < 25 and e.los.trace(f.pos, cell).clear and not covered:
 				exposed += 1
-		var score := -dmin + (8.0 if sees else 0.0) + (5.0 if covered else 0.0) - exposed * 2.0 + e.obj.ai_pull(u, cell)
+		var score := -dmin + (8.0 if sees else 0.0) + e.obj.ai_pull(u, cell)
+		if not u.get("reckless", false):   # a complication's reckless unit or wild charge ignores cover
+			score += (5.0 if covered else 0.0) - exposed * 2.0
 		if score > best_score:
 			best_score = score
 			best = cell

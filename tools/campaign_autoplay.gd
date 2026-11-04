@@ -26,8 +26,8 @@ func _initialize() -> void:
 			for s in ["handgun", "shoulder_arms", "evasion"]:
 				c.raise_skill(s)
 		var gi := 0
-		var cost := func(b: Dictionary) -> int: return int(b.security) * 2 + (2 if String(b.get("twist", "")) != "" else 0)
-		for i in camp.board.size():   # the easiest gig, twists counted against it
+		var cost := func(b: Dictionary) -> int: return int(b.security)
+		for i in camp.board.size():   # the easiest gig
 			if cost.call(camp.board[i]) < cost.call(camp.board[gi]):
 				gi = i
 		var gig := camp.accept(gi)
@@ -37,10 +37,7 @@ func _initialize() -> void:
 		for c in camp.alive_crew():
 			if c.can_act():
 				crew.append(c)
-		var tw: Array = [] if String(gig.get("twist", "")) == "" else [String(gig.twist)]
-		if gig.get("setup", false):
-			tw.append_array(["setup", "heavy"])
-		var e := Encounter.setup(m, camp.dice, crew, Campaign.objective_for(gig), tw, {"faction": String(gig.get("faction", ""))})
+		var e := Encounter.setup(m, camp.dice, crew, Campaign.objective_for(gig), Campaign.encounter_opts(gig))
 		e.nav.locked = {}   # stand-in for a player who hacks or shoots security doors (the AI crew can't)
 		e.next_turn()
 		var turns := 0
@@ -60,7 +57,7 @@ func _initialize() -> void:
 		if r.won:
 			wins += 1
 		print("gig %d %-16s %-9s %-6s sec %d %s: %d turns, %+d eb, best rep %d, dead %s, crew %d, eb %d" % [n + 1,
-			gig.scene, Campaign.objective_for(gig), e.state, int(gig.security), String(gig.get("twist", "")), turns,
+			gig.scene, Campaign.objective_for(gig), e.state, int(gig.security), String(e.complication.get("text", "")).left(24), turns,
 			int(r.pay), camp.best_reputation(), r.dead, camp.crew.size(), camp.eb])
 	print("won %d/%d · day %d · eb %d · best rep %d · fallen %d" % [wins, gigs, camp.day, camp.eb, camp.best_reputation(), camp.fallen.size()])
 	quit()

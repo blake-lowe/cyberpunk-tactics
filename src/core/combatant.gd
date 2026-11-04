@@ -327,8 +327,9 @@ func wound_state() -> Wound:
 ## Penalty applied to every Action check (wound state + crits like Concussion).
 func action_penalty() -> int:
 	var w := wound_state()
-	if w == Wound.SERIOUS and (stimmed or _cyber_fx().any(func(fx): return fx.get("ignore_seriously_wounded", false))):
-		w = Wound.LIGHT  # Pain Editor (p112), Stim (p150)
+	if w == Wound.SERIOUS and (stimmed or _cyber_fx().any(func(fx): return fx.get("ignore_seriously_wounded", false)) \
+			or drug_fx.any(func(fx): return fx.get("ignore_seriously_wounded", false))):
+		w = Wound.LIGHT  # Pain Editor (p112), Stim (p150), Black Lace (p.358)
 	return int(WOUND_ACTION_PENALTY.get(w, 0)) + _fx_sum("all")
 
 

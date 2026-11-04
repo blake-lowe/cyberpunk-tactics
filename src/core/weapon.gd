@@ -8,6 +8,12 @@ var builtin := false   ## part of installed cyberware (Wolvers, Big Knucks): nev
 var quality := "standard"   ## poor | standard | excellent (CPR core p.342; weapons.json "quality")
 var jammed := false         ## a Poor weapon that rolled a 1: an Action to clear before it fires again
 var reload_done := 0        ## Actions already spent on a reload that takes several (Helix, EMG-86: 2, p348-349)
+## Special rounds loaded ahead of the ordinary ones (a complication's 10 Incendiary rounds, CPR
+## core p.346): their rules (gear.json ammo fx) apply to shots fired while any are left. Not saved:
+## only NPCs get them, for one gig.
+var special_fx := {}
+var special_left := 0
+var _special_shot := false
 
 
 static func from_id(weapon_id: String, p_quality := "standard") -> Weapon:
@@ -30,9 +36,28 @@ func quality_fx() -> Dictionary:
 	return (RulesDB.load_json("weapons.json")["quality"][quality] as Dictionary).get("fx", {})
 
 
-## The weapon's special rules (exotics) as data: weapons.json "fx".
+## The weapon's special rules (exotics) as data: weapons.json "fx", plus the special rounds' rules
+## while the shot being resolved is one of them.
 func fx() -> Dictionary:
-	return def.get("fx", {})
+	var f: Dictionary = def.get("fx", {})
+	if _special_shot and not special_fx.is_empty():
+		f = f.duplicate()
+		f.merge(special_fx, true)
+	return f
+
+
+## Load `rounds` special rounds with rules `p_fx` (they fire first).
+func load_special(p_fx: Dictionary, rounds: int) -> void:
+	special_fx = p_fx.duplicate()
+	special_left = rounds
+	_special_shot = false
+
+
+## Fire `n` rounds: the next shot is a special one if any special rounds are left.
+func spend(n: int) -> void:
+	ammo -= n
+	_special_shot = special_left > 0
+	special_left = maxi(0, special_left - n)
 
 
 ## +Attack from quality (Excellent +1, p.342) and the weapon's own rules (e.g. Malorian 3516's

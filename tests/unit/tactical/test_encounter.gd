@@ -188,7 +188,7 @@ func test_skirmish_always_has_guards() -> void:
 		var m := SceneGen.generate(seed, "skirmish", {"security": 1})
 		var dice := Dice.new(seed)
 		# A Medium code budgets for the crew as it is (a Light one would count it 1-2 smaller).
-		var e := Encounter.setup(m, dice, _crew(dice), "data", [], {"security_code": {"n": 4, "faction": "", "intensity": "medium", "hardened": false}})
+		var e := Encounter.setup(m, dice, _crew(dice), "data", {"security_code": {"n": 4, "faction": "", "intensity": "medium", "hardened": false}})
 		assert_eq(e.units.filter(func(u): return u.team == 1).size(), Recruit.opposition(2, 1).size(), "the full budget is placed even without posts")
 
 
@@ -213,7 +213,7 @@ func test_failed_death_save_emits_a_death_event() -> void:
 func test_alerted_guard_calls_in_backup_which_arrives_rounds_later() -> void:
 	var m := SceneGen.generate(11, "street_block", {"security": 1})
 	var dice := Dice.new(1)
-	var e := Encounter.setup(m, dice, _crew(dice), "data", [], {"security_code": {"n": 11, "faction": "", "intensity": "light", "hardened": false}})
+	var e := Encounter.setup(m, dice, _crew(dice), "data", {"security_code": {"n": 11, "faction": "", "intensity": "light", "hardened": false}})
 	var before := e.units.size()
 	var g: Dictionary = e.units.filter(func(u): return u.team == 1)[0]
 	e._rouse([g])
@@ -317,24 +317,6 @@ func test_eliminate_ignores_the_file_and_waits_for_backup() -> void:
 	assert_eq(e.state, "won")
 
 
-func test_twists_heavy_blackout_shift_change() -> void:
-	var m := SceneGen.generate(5, "lone_building", {"security": 1})
-	var crew: Array[Combatant] = [Recruit.generate(Dice.new(9), "solo", "edgerunner")]
-	var plain := Encounter.setup(m, Dice.new(9), crew)
-	var crew2: Array[Combatant] = [Recruit.generate(Dice.new(9), "solo", "edgerunner")]
-	var e := Encounter.setup(SceneGen.generate(5, "lone_building", {"security": 1}), Dice.new(9), crew2, "data", ["heavy", "blackout", "shift_change"])
-	assert_true(e.units.any(func(u): return u.team == 1 and u.c.role == "lieutenant"), "heavy: security 2 opposition brings a Lieutenant")
-	assert_false(plain.units.any(func(u): return u.team == 1 and u.c.role == "lieutenant"))
-	assert_true(plain.lit.size() > 0 and e.lit.is_empty(), "blackout: no lights")
-	e.next_turn()
-	var guard := 0
-	while e.init.round_num < Encounter.SHIFT_CHANGE_ROUND and guard < 200:
-		e.end_turn()
-		e.next_turn()
-		guard += 1
-	assert_eq(e.alarm, 2, "shift change calls it in")
-
-
 func test_watched_cells_follow_the_cone() -> void:
 	var m := SceneGen.generate(5, "lone_building", {"security": 1})
 	var crew: Array[Combatant] = [Recruit.generate(Dice.new(9), "solo", "edgerunner")]
@@ -361,7 +343,7 @@ func test_ncpd_follows_backup_if_the_fight_goes_on() -> void:
 	var m := SceneGen.generate(11, "street_block", {"security": 2})
 	var dice := Dice.new(1)
 	# The site's own people always answer (code 11), and so does the district's NCPD.
-	var e := Encounter.setup(m, dice, _crew(dice), "data", [], {"security_code": {"n": 11, "faction": "", "intensity": "medium", "hardened": false},
+	var e := Encounter.setup(m, dice, _crew(dice), "data", {"security_code": {"n": 11, "faction": "", "intensity": "medium", "hardened": false},
 		"district_code": {"n": 11, "faction": "ncpd", "intensity": "medium", "hardened": true}})
 	e._call_it_in(e.units.filter(func(u): return u.team == Encounter.OPFOR)[0])
 	assert_true(e.backup_in >= 2, "backup is on its way")
@@ -404,7 +386,7 @@ func test_a_failed_code_roll_brings_nobody() -> void:
 	var m := SceneGen.generate(11, "street_block", {"security": 1})
 	var dice := Dice.new(1)
 	var never := {"n": 1, "faction": "ncpd", "intensity": "medium", "hardened": false}   # 1d10 is never under 1
-	var e := Encounter.setup(m, dice, _crew(dice), "data", [], {"security_code": never, "district_code": never})
+	var e := Encounter.setup(m, dice, _crew(dice), "data", {"security_code": never, "district_code": never})
 	var before := e.units.size()
 	e._call_it_in(e.units.filter(func(u): return u.team == Encounter.OPFOR)[0])
 	assert_eq(e.alarm, 2, "the call still goes out")

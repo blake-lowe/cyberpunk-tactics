@@ -296,12 +296,14 @@ func test_a_known_crew_gets_personal_jobs() -> void:
 	assert_true(seen, "a personal job shows up")
 
 
-func test_setup_pays_nothing() -> void:
+func test_no_invented_twists_or_setups_on_the_board() -> void:
 	var c := Campaign.new_game(6)
-	c.board[0]["setup"] = true
-	var e := _finish(c, true)
-	var r := c.resolve(e)
-	assert_eq(int(r.pay), 0)
+	for k in 5:
+		c.refresh_board()
+		for g in c.board:
+			assert_false(g.has("twist") or g.has("setup"), "the book's complications replaced our twists (M9)")
+	assert_false(RulesDB.gen("gigs.json").has("twists"))
+	assert_true(Campaign.encounter_opts(c.board[0]).get("complications", false), "complications are rolled in the gig, not shown on the board")
 
 
 func test_downtime_is_only_what_the_book_has() -> void:

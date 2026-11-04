@@ -1,13 +1,5 @@
 {
-	"_doc": "Gig templates for the fixer board (M6). A gig picks a template, a scene from its list, a security level weighted by the crew's best Reputation (CPR p193, per character; rep_for_security), and fills the title/blurb slots. Pay and rewards are HOUSE-RULE economy numbers until checked against the book's job rates. Twists (procedural complications, spec Narrative Structure) are HOUSE-RULE content; pay multiplies by the twist's pay. Unique offers (spec: 'occasional unique offers' from fixers who trust you) appear once the crew's best Reputation reaches unique_rep. Betrayal (spec: lowered by betrayals; HOUSE-RULE): a small chance a gig offered to a crew nobody has heard of (best Reputation 0) is a setup (heavy twist hidden, pay withheld). Scenes for a gig come from scene_tags matching kind_tags (owner-approved: objectives work on every map type); raid_chance of gigs are a single-site raid (lone_building with a site from raid_sites). Target factions come from data/world/factions.json (each faction lists the gig kinds it can be the target of); {corp}/{gang} slots are filled with the target's name, and titles naming the other kind of slot are skipped.",
-	"fixers": [
-		"Rogue's Cousin",
-		"Mama Lou",
-		"Padre",
-		"Hex Kowalski",
-		"Tanaka-san",
-		"Dakota"
-	],
+	"_doc": "Gig templates for the fixer board (M6, M9 P3). Each offer picks a template (its kind), a security level weighted by the crew's best Reputation (CPR p193, per character; rep_for_security), then a canon Night City location of that level (data/world/locations.json: hooks naming the kind first, else places whose gigs include it) and a Fixer working its district (data/world/fixers.json; fixer_tags: which deals_in tags suit each kind, weighted up). The title is the template's label and the location; the blurb is '<Fixer> has work at <Location> (<District>): <hook>', or the template's pitch when the place has no hook for the kind. When no location fits, the old generic offer stands in: titles/blurb with slots filled, a scene from scene_tags matching kind_tags (owner-approved: objectives work on every map type), raid_chance of them a single-site raid (lone_building with a site from raid_sites). Pay and rewards are HOUSE-RULE economy numbers until checked against the book's job rates. Unique offers (spec: 'occasional unique offers' from fixers who trust you) appear once the crew's best Reputation reaches unique_rep. Target factions come from data/world/factions.json (each faction lists the gig kinds it can be the target of); {corp}/{gang} slots are filled with the target's name, and titles naming the other kind of slot are skipped. Complications are no longer here: the book's Hardened complication tables (data/rules/npcs.json) are rolled at gig start (Complication).",
 	"data": [
 		"payroll ledger",
 		"prototype schematics",
@@ -19,6 +11,8 @@
 	"templates": [
 		{
 			"kind": "data_theft",
+			"label": "Data theft",
+			"pitch": "a buyer wants {target}'s {data} out of there.",
 			"titles": [
 				"Data theft: {corp}",
 				"Steal {corp}'s {data}",
@@ -28,6 +22,8 @@
 		},
 		{
 			"kind": "gang_hit",
+			"label": "Gang hit",
+			"pitch": "the {target} have to go, along with anyone they call.",
 			"titles": [
 				"Gang hit: {gang}",
 				"Clear the {gang} out of the {place}"
@@ -42,6 +38,8 @@
 		},
 		{
 			"kind": "corp_extraction",
+			"label": "Package job",
+			"pitch": "an inside contact leaves a door open; bring the package out.",
 			"titles": [
 				"Package job: {corp}",
 				"Steal the {data} drive from {corp}"
@@ -50,6 +48,8 @@
 		},
 		{
 			"kind": "assassination",
+			"label": "Wetwork",
+			"pitch": "someone in {target} has a contract on them.",
 			"titles": [
 				"Wetwork: {gang}",
 				"Retire a {corp} manager",
@@ -59,6 +59,8 @@
 		},
 		{
 			"kind": "rescue",
+			"label": "Extraction",
+			"pitch": "someone is being held inside; walk them out alive.",
 			"titles": [
 				"Extraction: someone {fixer} owes",
 				"Get them out of the {place}",
@@ -74,6 +76,8 @@
 		},
 		{
 			"kind": "sabotage",
+			"label": "Sabotage",
+			"pitch": "{target}'s gear has to be wrecked before morning.",
 			"titles": [
 				"Sabotage: {corp}",
 				"Blow {corp}'s {target}",
@@ -103,24 +107,50 @@
 		"2": 2,
 		"3": 5
 	},
-	"twists": {
-		"heavy": {
-			"name": "Heavy security",
-			"desc": "They doubled the guard. Opposition one security level up.",
-			"pay": 1.5
-		},
-		"blackout": {
-			"name": "Blackout",
-			"desc": "The grid's down in the area: no lights but the moon. Easier to sneak, harder to see.",
-			"pay": 1.0
-		},
-		"shift_change": {
-			"name": "Shift change",
-			"desc": "The next shift walks in on round 6 and calls it in, quiet or not.",
-			"pay": 1.15
-		}
+	"fixer_tags": {
+		"data_theft": [
+			"information",
+			"netrunning",
+			"programs",
+			"media",
+			"investments"
+		],
+		"gang_hit": [
+			"combat",
+			"gigs",
+			"crime",
+			"fights",
+			"veterans"
+		],
+		"corp_extraction": [
+			"smuggling",
+			"exfiltration",
+			"investments",
+			"ids",
+			"crime"
+		],
+		"assassination": [
+			"combat",
+			"gigs",
+			"crime"
+		],
+		"rescue": [
+			"exfiltration",
+			"veterans",
+			"medical",
+			"nomads",
+			"mediation",
+			"gigs"
+		],
+		"sabotage": [
+			"sabotage",
+			"investments",
+			"construction",
+			"property",
+			"crime",
+			"gigs"
+		]
 	},
-	"twist_chance": 0.35,
 	"unique_templates": [
 		{
 			"kind": "corp_extraction",
@@ -182,7 +212,6 @@
 		}
 	],
 	"unique_rep": 3,
-	"betrayal_chance": 0.08,
 	"scene_tags": {
 		"skirmish": [
 			"gang",

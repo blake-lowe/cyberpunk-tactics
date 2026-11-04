@@ -263,7 +263,7 @@ func _ready() -> void:
 			"stage": _dev_stage = kv[1]   # review renders: open the action bar on this stage (attack)
 			"security": gig.security = int(kv[1])
 			"objective": gig["objective"] = kv[1]
-			"twist": gig["twist"] = kv[1]
+			"complication": gig["complication"] = kv[1]   # force one: mook:2, lieutenant:1, mini_boss:4
 			"fog": fog_on = kv[1] != "0"
 			"cut":   # review renders: auto | all | off
 				cutaway = kv[1] != "off"
@@ -570,12 +570,8 @@ func new_gig() -> void:
 			if c.can_act():
 				crew.append(c)
 	var kind := gig.get("objective", "data") as String
-	var tw: Array = [] if String(gig.get("twist", "")) == "" else [String(gig.twist)]
 	if campaign_gig:
 		kind = Campaign.objective_for(camp.active_gig)
-		tw = [] if String(camp.active_gig.get("twist", "")) == "" else [String(camp.active_gig.twist)]
-		if camp.active_gig.get("setup", false):   # hidden until it springs
-			tw.append_array(["setup", "heavy"])
 	var fid := String(gig.get("faction", ""))
 	if campaign_gig:
 		fid = String(camp.active_gig.get("faction", ""))
@@ -583,7 +579,10 @@ func new_gig() -> void:
 		for i in mini(2, _dev_kit.size()):
 			cm.kit[i] = _dev_kit[i]
 	var eo: Dictionary = Campaign.encounter_opts(camp.active_gig) if campaign_gig else ({"faction": fid} if fid != "" else {})
-	enc = Encounter.setup(m, dice, crew, kind, tw, eo)
+	if gig.has("complication"):   # review renders: --complication=<tier>:<roll> (or just the roll)
+		var parts := String(gig.complication).split(":")
+		eo["complication"] = {"tier": parts[0], "roll": int(parts[1])} if parts.size() > 1 else {"roll": int(parts[0])}
+	enc = Encounter.setup(m, dice, crew, kind, eo)
 	_log_seen = 0
 	var lk := _scene_look()
 	env.ambient_light_color = Color(lk.ambient)
