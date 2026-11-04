@@ -46,6 +46,7 @@ var _buttons: HBoxContainer
 var _tool_buttons := {}   ## glyph → ActBtn for the M5 actions
 var tool := ""            ## active target-picking tool (set by the view before refresh)
 var _end_btn: Button
+var _withdraw_btn: Button   ## a gig-level choice, not a unit action: sits above END TURN, off the action bar
 var _log: Label
 var _log_panel: PanelContainer
 var _net_panel: PanelContainer
@@ -500,7 +501,7 @@ func _build_bar() -> void:
 	# M5 actions: target-picking tools (toggle; right-click applies) and instant ones
 	for spec in [["melee", "MELEE", "F", "tool", "melee", CYAN], ["shell", "SHELL", "5", "tool", "shell", CYAN],
 			["suppress", "SUPPRESS", "4", "suppress", null, CYAN],
-			["medic", "STABILIZE", "T", "tool", "stabilize", GREEN], ["grab", "GRAB", "B", "grab", null, GOLD], ["free", "FREE", "B", "free", null, GOLD], ["plant", "PLANT", "B", "plant", null, RED], ["dose", "DOSE", "Y", "tool", "dose", GREEN], ["rig", "RIG", "U", "tool", "rig", CYAN], ["tamper", "CAMERA", "K", "tamper", null, CYAN], ["bypass", "BYPASS", "V", "bypass", null, CYAN], ["keycard", "KEYCARD", "P", "keycard", null, GOLD], ["withdraw", "WITHDRAW", "L", "withdraw", null, RED],
+			["medic", "STABILIZE", "T", "tool", "stabilize", GREEN], ["grab", "GRAB", "B", "grab", null, GOLD], ["free", "FREE", "B", "free", null, GOLD], ["plant", "PLANT", "B", "plant", null, RED], ["dose", "DOSE", "Y", "tool", "dose", GREEN], ["rig", "RIG", "U", "tool", "rig", CYAN], ["tamper", "CAMERA", "K", "tamper", null, CYAN], ["bypass", "BYPASS", "V", "bypass", null, CYAN], ["keycard", "KEYCARD", "P", "keycard", null, GOLD],
 			["kit0", "KIT", "G", "kit", 0, GOLD]]:
 		var b3 := ActBtn.new(spec[0], spec[1], spec[2], spec[5])
 		b3.toggle_mode = spec[3] in ["tool", "kit"]
@@ -513,6 +514,10 @@ func _build_bar() -> void:
 	_end_btn.pressed.connect(func(): action.emit("end_turn", null))
 	row.add_child(_end_btn)
 	add_child(_bar)
+	_withdraw_btn = ActBtn.new("withdraw", "WITHDRAW", "L", RED, 96, 66)
+	_withdraw_btn.pressed.connect(func(): action.emit("withdraw", null))
+	_withdraw_btn.visible = false
+	add_child(_withdraw_btn)
 
 
 func _layout() -> void:
@@ -520,6 +525,7 @@ func _layout() -> void:
 	_party.position = Vector2(14, 70)
 	_init_strip.position = Vector2(s.x / 2 - _init_strip.size.x / 2, 12)
 	_bar.position = Vector2(s.x / 2 - _bar.size.x / 2, s.y - _bar.size.y - 12)
+	_place_withdraw()
 	# log: flush above the hotbar's right end
 	_log_panel.position = Vector2(s.x - _round_tab.size.x - _log_panel.size.x - 22, 12)
 	_net_panel.position = Vector2(s.x - _net_panel.size.x - 14, 110)
@@ -654,7 +660,7 @@ func _refresh_tools(enc: Encounter, crew_turn: bool) -> void:
 		and o.c.wound_state() == Combatant.Wound.MORTAL and enc.can_reach_to_stabilize(enc.cur, o))
 	var show := {"melee": true, "shell": w != null and w.def.get("shotgun_shell", false),
 		"suppress": w != null and w.def.get("suppressive", false), "medic": near_dying,
-		"grab": enc.can_grab(), "free": enc.can_free(), "plant": enc.can_plant(), "dose": c.role == "medtech" and c.doses > 0, "rig": int(c.maker.get("field", 0)) > 0, "withdraw": enc.can_withdraw(), "tamper": not enc.camera_in_reach(enc.cur).is_empty(),
+		"grab": enc.can_grab(), "free": enc.can_free(), "plant": enc.can_plant(), "dose": c.role == "medtech" and c.doses > 0, "rig": int(c.maker.get("field", 0)) > 0, "tamper": not enc.camera_in_reach(enc.cur).is_empty(),
 		"bypass": enc.lock_in_reach(enc.cur).x >= 0, "keycard": not enc.keycard_in_reach(enc.cur).is_empty(),
 		"kit0": enc.kit_action(0) in ["grenade", "dose"]}   # the packed consumable (slot 2's utility is passive)
 	for k in _tool_buttons:
@@ -675,6 +681,16 @@ func _refresh_tools(enc: Encounter, crew_turn: bool) -> void:
 	for b2 in _buttons.get_children():
 		(b2 as Control).custom_minimum_size.x = bw
 	_bar.reset_size()
+	_withdraw_btn.visible = crew_turn and enc.can_withdraw()
+	_place_withdraw()
+
+
+## Over the END TURN button, just above the bar's right end.
+func _place_withdraw() -> void:
+	if _withdraw_btn and _end_btn:
+		_withdraw_btn.custom_minimum_size = Vector2(_end_btn.size.x, 66)
+		_withdraw_btn.size = _withdraw_btn.custom_minimum_size
+		_withdraw_btn.position = Vector2(_bar.position.x + _end_btn.get_global_transform().origin.x - _bar.get_global_transform().origin.x, _bar.position.y - 66 - 8)
 
 
 func _hp_meter(uid: int, c: Combatant, w: float, h: float) -> Meter:
