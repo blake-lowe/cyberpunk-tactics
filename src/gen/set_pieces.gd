@@ -114,3 +114,32 @@ static func rule(m: TacMap, name: String, fallback: Variant = null) -> Variant:
 	if not has(id):
 		return fallback
 	return get_def(id).get("rules", {}).get(name, fallback)
+
+
+## The variant a set piece drew for this map (an estate's owner: SetPieceGen keeps it in the map's
+## params as `variant`), {} for none.
+static func variant(m: TacMap) -> Dictionary:
+	if m == null or not has(String(m.params.get("setpiece", ""))):
+		return {}
+	return m.params.get("variant", {})
+
+
+## The place's name for the HUD: the set piece's, with its variant's (The Estates · Kerry Eurodyne's).
+static func place_name(m: TacMap) -> String:
+	var sp := get_def(String(m.params.get("setpiece", "")))
+	var v := variant(m)
+	if v.has("name"):
+		return "%s · %s" % [sp.get("name", ""), v.name]
+	return String(sp.get("name", ""))
+
+
+## Encounter options with the map's variant over them: a variant with its own Security Code (the
+## one estate Danger Gal guards instead of Lazarus) answers calls and holds the posts with it.
+static func encounter_opts(m: TacMap, opts: Dictionary) -> Dictionary:
+	var v := variant(m)
+	if not v.has("security_code"):
+		return opts
+	var o := opts.duplicate()
+	o["security_code"] = v.security_code
+	o["guards"] = String(v.security_code.get("faction", ""))
+	return o

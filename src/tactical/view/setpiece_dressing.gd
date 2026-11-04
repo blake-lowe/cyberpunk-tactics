@@ -76,6 +76,18 @@ static func piece(wb: WorldBuilder, kind: String, p: Vector3, yaw: float, f: int
 			wb.box(wb.mat("steel", f, false, {"color": Color("2a2e34")}), p + Vector3(0, 3.1, 0), Vector3(1.0, 0.22, 0.08), yaw + 0.6)
 			wb.put("sphere", wb.mat("steel", f, false, {"color": Color("d0d4d8")}), Transform3D(Basis.from_scale(Vector3(0.36, 0.36, 0.36)), p + Vector3(0, 3.5, 0)))
 			wb.box(wb.mat("dark", f, false, {"glow": 2.5, "emit": Color("ff2020")}), p + Vector3(0, 3.75, 0), Vector3(0.09, 0.09, 0.09))
+		"camera_mast":   # a broadcast camera on a lattice mast: the lens trained down the street, a red tally light, a lamp
+			var g := wb.mat("steel", f, false, {"color": Color("3a3e44")})
+			wb.box(wb.mat("concrete_prop", f, false), p + Vector3(0, 0.1, 0), Vector3(0.55, 0.2, 0.55))
+			wb.put("cyl", g, Transform3D(Basis.from_scale(Vector3(0.1, 4.2, 0.1)), p + Vector3(0, 2.1, 0)))
+			for s in [-1, 1]:
+				wb.put("cyl", g, Transform3D(Basis(Vector3.FORWARD, s * 0.12).scaled_local(Vector3(0.04, 3.4, 0.04)), p + Vector3(s * 0.16, 1.7, 0)))
+			var dir := Vector3(0, 0, 1).rotated(Vector3.UP, yaw)
+			wb.box(wb.mat("steel", f, false, {"color": Color("16181c")}), p + Vector3(0, 4.25, 0) + dir * 0.2, Vector3(0.28, 0.26, 0.6), yaw)
+			wb.box(wb.mat("glass", f, false, {"color": Color("0a1420"), "alpha": 0.95, "glow": 0.6, "emit": Color("4aa0ff")}), p + Vector3(0, 4.25, 0) + dir * 0.52, Vector3(0.18, 0.18, 0.04), yaw)
+			wb.box(wb.mat("dark", f, false, {"glow": 3.0, "emit": Color("ff1a1a")}), p + Vector3(0, 4.45, 0), Vector3(0.08, 0.08, 0.08))
+			wb.box(wb.mat("dark", f, false, {"glow": 2.2, "emit": Color("fff0d0")}), p + Vector3(0, 3.85, 0) - dir * 0.15, Vector3(0.3, 0.16, 0.12), yaw)
+			wb.emitters.append({"cell": Vector3i(int(p.x), int(p.z), f), "color": Color("fff0d0"), "energy": 1.1, "range": 5.0, "out": Vector2i.ZERO})
 		_:
 			multi(wb, kind, Rect2(p.x - 0.5, p.z - 0.5, 1, 1), f, h0)
 
@@ -170,6 +182,21 @@ static func multi(wb: WorldBuilder, kind: String, r: Rect2, f: int, h0: int) -> 
 			for e in [-0.33, 0.3]:
 				for sd in [-1, 1]:
 					wb.put("cyl", wb.mat("dark", f, false), Transform3D(Basis(Vector3.UP, yaw) * Basis(Vector3.RIGHT, PI / 2) * Basis.from_scale(Vector3(0.36, 0.12, 0.36)), c + Vector3(e * L, 0.17, sd * Wd * 0.45).rotated(Vector3.UP, yaw)))
+		"dish":   # a broadcast uplink dish on its mount, tilted at the sky, a red beacon on the feed arm
+			var w := wb.mat("steel", f, false, {"color": Color("d8d8d2")})
+			wb.box(wb.mat("steel", f, false, {"color": Color("3a3e44")}), c + Vector3(0, 0.25, 0), Vector3(sz * 0.5, 0.5, sz * 0.5))
+			var tilt := Basis(Vector3.UP, float(h0 % 4) * PI / 2 + 0.6) * Basis(Vector3.RIGHT, -0.75)
+			wb.put("cyl", w, Transform3D(tilt.scaled_local(Vector3(sz * 0.9, 0.08, sz * 0.9)), c + Vector3(0, 1.05, 0)))
+			wb.put("cyl", wb.mat("steel", f, false, {"color": Color("8a8e94")}), Transform3D(tilt.scaled_local(Vector3(0.05, 0.9, 0.05)), c + Vector3(0, 1.05, 0) + tilt.y * 0.45))
+			wb.box(wb.mat("dark", f, false, {"glow": 3.0, "emit": Color("ff2020")}), c + Vector3(0, 1.05, 0) + tilt.y * 0.92, Vector3(0.1, 0.1, 0.1))
+		"fountain":   # a round stone basin on the lawn, lit water, a jet in the middle
+			var stone := wb.mat("stone", f, false, {"color": Color("d8d2c4"), "color2": Color("a8a294")})
+			wb.put("cyl", stone, Transform3D(Basis.from_scale(Vector3(sz * 0.92, 0.45, sz * 0.92)), c + Vector3(0, 0.22, 0)))
+			wb.put("cyl", wb.mat("water", f, false, {"color": Color("2a8ab8"), "glow": 0.9, "emit": Color("3ab8e8")}), Transform3D(Basis.from_scale(Vector3(sz * 0.8, 0.04, sz * 0.8)), c + Vector3(0, 0.46, 0)))
+			wb.put("cyl", stone, Transform3D(Basis.from_scale(Vector3(0.4, 0.9, 0.4)), c + Vector3(0, 0.75, 0)))
+			wb.put("cyl", stone, Transform3D(Basis.from_scale(Vector3(1.0, 0.1, 1.0)), c + Vector3(0, 1.2, 0)))
+			wb.put("cyl", wb.mat("glass", f, false, {"color": Color("c8f0ff"), "alpha": 0.5, "glow": 0.8, "emit": Color("a0e8ff")}), Transform3D(Basis.from_scale(Vector3(0.12, 0.8, 0.12)), c + Vector3(0, 1.6, 0)))
+			wb.emitters.append({"cell": Vector3i(int(c.x), int(c.z), f), "color": Color("70d0ff"), "energy": 1.0, "range": 4.0, "out": Vector2i.ZERO})
 		_:
 			wb.box(wb.mat("concrete_prop", f, false), c + Vector3(0, 0.3, 0), Vector3(r.size.x * 0.8, 0.6, r.size.y * 0.8))
 
@@ -207,13 +234,85 @@ static func dress(wb: WorldBuilder, f: int) -> void:
 			_sign(wb, int(st.id), Color(String(lk.sign)))
 		if lk.has("flooded") and f == 0:   # the lowest storey is the drowned one
 			_flooded(wb, f, int(st.id), lk.flooded)
-	var sl: Dictionary = SetPieces.get_def(String(m.params.setpiece)).get("look", {})
+	var sl: Dictionary = (SetPieces.get_def(String(m.params.setpiece)).get("look", {}) as Dictionary).duplicate()
+	sl.merge(SetPieces.variant(m).get("look", {}), true)   # an estate's own (M'bolu's tagged walls)
+	if f == 0:
+		_hatches(wb)
+	if f == 0 and sl.get("pool_lights", false):
+		_pools(wb)
+	if f == 0 and sl.get("decon_gate", false):
+		_decon_gate(wb)
 	if f == 0 and (sl.get("wall_crenels", false) or sl.has("graffiti_walls")):
 		_perimeter(wb, sl)
 	if f == 0 and sl.has("court_lines"):
 		_court_lines(wb, Color(String(sl.court_lines)))
 	if sl.get("burn_barrels", false):
 		_burn_barrels(wb, f)
+
+
+## Tunnel hatches (entrances of kind tunnel: the Combat Zone's guard tunnels): a steel lid swung
+## open on a hazard-striped collar over a dark shaft, a work light.
+static func _hatches(wb: WorldBuilder) -> void:
+	var m := wb.m
+	for e in m.entrances:
+		if String(e.kind) != "tunnel":
+			continue
+		var p := Vector3(e.pos.x + 0.5, 0, e.pos.y + 0.5)
+		wb.put("cyl", wb.mat("dark", 0, false, {"color": Color("050505")}), Transform3D(Basis.from_scale(Vector3(0.78, 0.02, 0.78)), p + Vector3(0, 0.02, 0)))
+		for i in 12:
+			var a := TAU * i / 12.0
+			wb.box(wb.mat("steel", 0, false, {"color": Color("f2c200") if i % 2 == 0 else Color("1a1a1a")}), p + Vector3(cos(a), 0, sin(a)) * 0.46 + Vector3(0, 0.06, 0), Vector3(0.26, 0.1, 0.14), -a + PI / 2)
+		wb.put("cyl", wb.mat("steel", 0, false, {"color": Color("4a4e54")}), Transform3D(Basis(Vector3.RIGHT, 1.2).scaled_local(Vector3(0.8, 0.05, 0.8)), p + Vector3(0, 0.35, -0.55)))
+		wb.box(wb.mat("dark", 0, false, {"glow": 2.0, "emit": Color("ffd070")}), p + Vector3(0.45, 0.25, 0.45), Vector3(0.12, 0.12, 0.12))
+		wb.emitters.append({"cell": Vector3i(e.pos.x, e.pos.y, 0), "color": Color("ffd070"), "energy": 0.8, "range": 3.0, "out": Vector2i.ZERO})
+
+
+## A garden pool: lit turquoise water over the pool squares (water tiles inside a pool deck), a
+## white stone coping round it.
+static func _pools(wb: WorldBuilder) -> void:
+	var m := wb.m
+	var water := wb.mat("water", 0, false, {"color": Color("1aa0c8"), "glow": 1.0, "emit": Color("2ac8f0")})
+	var coping := wb.mat("stone", 0, false, {"color": Color("ece8e0")})
+	for r in m.rooms:
+		if r.cells == 0 or String(r.kind) != "pool_deck":
+			continue
+		var b: Rect2i = r.bounds
+		var lit := false
+		for y in range(b.position.y, b.end.y):
+			for x in range(b.position.x, b.end.x):
+				if m.t(0, x, y) != TacMap.T.WATER:
+					continue
+				wb.box(water, Vector3(x + 0.5, -0.12, y + 0.5), Vector3(1, 0.04, 1))
+				for d in MapGen.DIRS:
+					if m.t(0, x + d.x, y + d.y) != TacMap.T.WATER:
+						wb.box(coping, Vector3(x + 0.5 + d.x * 0.45, 0.04, y + 0.5 + d.y * 0.45), Vector3(1.0 if d.x == 0 else 0.12, 0.08, 1.0 if d.y == 0 else 0.12))
+				if not lit:
+					lit = true
+					wb.emitters.append({"cell": Vector3i(x, y, 0), "color": Color("40d0ff"), "energy": 1.2, "range": 5.0, "out": Vector2i.ZERO})
+
+
+## A decontamination arch over the way in at each gate of the grounds: steel posts either side, a
+## bar of nozzles across, a green ready light (the Estates' decon sprayers; dressing only).
+static func _decon_gate(wb: WorldBuilder) -> void:
+	var m := wb.m
+	var steel := wb.mat("steel", 0, false, {"color": Color("c8ccd0")})
+	for e in m.entrances:
+		if String(e.kind) != "gate":
+			continue
+		for d in MapGen.DIRS:
+			var n: Vector2i = e.pos + d
+			var l := m.label(0, n.x, n.y)
+			if not m.inb(n.x, n.y) or l < 0 or not m.rooms[l].get("outdoor", false):
+				continue
+			var across := Vector3(absf(d.y), 0, absf(d.x))
+			var c := Vector3(n.x + 0.5, 0, n.y + 0.5) + Vector3(d.x, 0, d.y) * 0.6
+			for s in [-1, 1]:
+				wb.box(steel, c + across * s * 1.6 + Vector3(0, 1.3, 0), Vector3(0.14, 2.6, 0.14))
+			wb.box(steel, c + Vector3(0, 2.6, 0), across * 3.4 + Vector3(0.18, 0.18, 0.18) - across * 0.18)
+			for i in 5:
+				wb.box(wb.mat("dark", 0, false, {"glow": 1.6, "emit": Color("60ffa0")}), c + across * (i - 2) * 0.6 + Vector3(0, 2.48, 0), Vector3(0.08, 0.06, 0.08))
+			wb.emitters.append({"cell": Vector3i(n.x, n.y, 0), "color": Color("60ffa0"), "energy": 0.9, "range": 3.5, "out": Vector2i.ZERO})
+			break
 
 
 ## Fires in the oil drums standing out in the open (a gang's yard, the Hot Zone's ruins): the

@@ -78,6 +78,7 @@ var _spot_rolls := {}               ## [guard id, crew id, round] → result: on
 var jack_pos := {}                  ## runner unit id → the square of the device they jacked in at
 var disabled_devices := {}          ## device id → true (turrets/cameras under the runner's control)
 var lights_off := false             ## the site's lights are down for the whole gig (opts.lights_off)
+var hazard: HazardZone = null       ## a shrinking safe circle (the Combat Zone's MIST), null for none
 
 
 ## opts: {faction: the gig's target faction id (World), default generic private security;
@@ -97,6 +98,7 @@ var lights_off := false             ## the site's lights are down for the whole 
 ## site's lights are down}.
 static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "data", opts: Dictionary = {}) -> Encounter:
 	var e := Encounter.new()
+	opts = SetPieces.encounter_opts(p_map, opts)   # a set piece's per-seed variant (an estate's owner) brings its own code
 	e.opfor_faction = String(opts.get("faction", World.DEFAULT_OPFOR))
 	e.district = String(opts.get("district", ""))
 	if not World.has_faction(e.opfor_faction):
@@ -204,6 +206,7 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 	e._trauma_cards()
 	e._place_civilians(cells[0], int(opts.get("crowd", 0)), opts.get("civilians", []))
 	e._place_police(cells[0], int(opts.get("police", 0)))
+	e.hazard = HazardZone.from_spec(opts.get("hazard_zone", SetPieces.rule(p_map, "hazard_zone", {})), p_map, p_dice)
 	e.refresh_vision()
 	e.update_alerts()
 	return e
@@ -351,6 +354,7 @@ func next_turn() -> void:
 			_civ_round = init.round_num
 			_civilians_tick()
 			_tick_trauma()
+			_tick_hazard()
 		if state != "playing":
 			return
 		turn = TurnState.begin(dice, c)
@@ -403,6 +407,8 @@ func end_turn() -> void:
 			var b0: int = cur.c.wound_state()
 			cur.c.hp -= cur.c.burning
 			events.append({"type": "harm", "unit": cur.id, "damage": cur.c.burning, "source": "BURNING", "wound_before": b0, "wound_after": cur.c.wound_state()})
+	if turn != null and not cur.is_empty():
+		_hazard_harm(cur)
 	if turn != null and not cur.is_empty():   # knocked-out cyberware comes back a round at a time
 		for cid in cur.c.cyber_off.keys():
 			cur.c.cyber_off[cid] = int(cur.c.cyber_off[cid]) - 1
@@ -440,6 +446,32 @@ func _check_end() -> void:
 	var r := obj.check_end()
 	if r != "":
 		state = r
+
+
+# --- Hazard zone (HazardZone: the Combat Zone's MIST) --------------------------------------
+
+## Once a round: the safe circle closes in on schedule.
+func _tick_hazard() -> void:
+	if hazard == null or not hazard.tick(init.round_num):
+		return
+	var msg := "The %s closes in: %d squares round its heart" % [hazard.name, roundi(hazard.radius())]
+	say(msg + (", as small as it gets." if hazard.closes_in(init.round_num) < 0 else "."))
+	events.append({"type": "hazard", "unit": cur.id if not cur.is_empty() else 0, "stage": hazard.stage, "radius": hazard.radius()})
+
+
+## The end of `u`'s turn outside the safe circle: the zone's dice straight to HP (no armour).
+func _hazard_harm(u: Dictionary) -> void:
+	if hazard == null or u.c.dead or u.get("carried", false) or not hazard.bites(String(sides[u.team].ai), u.pos):
+		return
+	var dmg := 0
+	for i in hazard.damage_dice():
+		dmg += dice.d(6)
+	if dmg <= 0:
+		return
+	var before: int = u.c.wound_state()
+	u.c.hp -= dmg
+	say("%s takes %d outside the %s." % [u.c.display_name, dmg, hazard.name])
+	events.append({"type": "harm", "unit": u.id, "damage": dmg, "source": hazard.name, "wound_before": before, "wound_after": u.c.wound_state()})
 
 
 # --- Locks: bypass and keycards -----------------------------------------------------------

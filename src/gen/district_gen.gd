@@ -192,8 +192,9 @@ static func _lots(c: Dictionary, prof: Dictionary, roads: Dictionary) -> Array:
 	var seen := {}
 	var lots := []
 	var b: Array = prof.block
-	for y in m.h:
-		for x in m.w:
+	var area: Rect2i = c.get("area", Rect2i(0, 0, m.w, m.h))   # a set piece's walled block (SetPieceGen.arena): lots only inside
+	for y in range(area.position.y, area.end.y):
+		for x in range(area.position.x, area.end.x):
 			var v := Vector2i(x, y)
 			if roads.has(v) or seen.has(v):
 				continue
@@ -206,7 +207,7 @@ static func _lots(c: Dictionary, prof: Dictionary, roads: Dictionary) -> Array:
 				bb = bb.expand(u).expand(u + Vector2i.ONE)
 				for d in MapGen.DIRS:
 					var n: Vector2i = u + d
-					if m.inb(n.x, n.y) and not roads.has(n) and not seen.has(n):
+					if area.has_point(n) and not roads.has(n) and not seen.has(n):
 						seen[n] = true
 						block[n] = true
 						q.append(n)
