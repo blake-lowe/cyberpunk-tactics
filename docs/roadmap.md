@@ -170,9 +170,10 @@ Check-ins (🔶) are where work pauses for a user decision or review.
   still gates market stock and board size.
 - Night market: book list prices; items ≥ 500 eb cost +20% "via a fixer" (spec); stock gated by
   reputation (stand-in for p337 rolls); resale at half; two guns + one melee weapon per person.
-  Salvage after a won gig: 25% of the downed opposition's gear list value.
+  Salvage after a won gig: 25% of the downed opposition's gear list value. *(Superseded: the book's
+  Night Market and storage, see "Owner ruling, part 2".)*
 - Safehouse: Med Bay, Armory, Fixer Network, Training Room; two levels each (costs and effects in
-  Campaign.FACILITIES).
+  Campaign.FACILITIES). *(Superseded: rooms have no levels or effects.)*
 - Ripperdoc: twelve pieces whose effects the rules already use, book foundations (p111-116), price
   includes surgery (p110), Humanity Loss rolled; therapy = 600 eb and a week (p230), crew rests meanwhile.
 - Role perks (spec "short skill tree per Role"): two tiers × two choices for Solo, Netrunner, Medtech
@@ -232,8 +233,27 @@ Check-ins (🔶) are where work pauses for a user decision or review.
   table); it replaces a character's Reputation only if higher; the board and market gate on the crew's
   best Reputation. Save v5 migrates old saves (rep → each crew member's Reputation; frags and Armory
   levels refunded).
-- Still invented and not covered by the ruling (flagged for the owner): Training Room +5 IP, Med Bay
-  +2 HP/day, Fixer Network, setups/twists, salvage, rescue fee, humanity therapy without a check.
+- Still invented and not covered by the ruling (flagged for the owner): setups/twists. (Training Room,
+  Med Bay, Fixer Network, salvage, rescue fee and the no-check humanity therapy: removed, see below.)
+
+### Owner ruling, part 2: storage, the book's Night Market → done (model half; screens next)
+- Storage for everything: every purchase goes into safehouse storage (Campaign.stash, Items keys:
+  kit "<section>/<id>", "weapon/<id>[@poor|@excellent]", "armor/<id>[@upgraded][@sp<N>]"); nothing is
+  bought for someone and owning one never blocks another. The crew equip weapons (any number, in
+  equip order; built-in cyberware weapons stay) and head/body armour from storage; the replaced piece
+  goes back with its upgrade and ablation (repair only works on worn armour). Recruits arrive equipped.
+  The old two-guns-plus-one-melee limit, resale at half and the +20% fixer markup are gone.
+- Night Market (p337-339, data/rules/night_market.json): 1d6 twice for two categories, 1d10 listings
+  each on the d100 columns, repeats rerolled, every Quality Rating of a weapon, a Cyberware Option brings
+  its foundations; only items the game plays are on sale. HOUSE-RULE: a market stays 3 days, then the
+  next is rolled (no schedule in the book); no quantity cap (the book gives none). No Reputation gate
+  (p337 gives no number). Cyberware on sale is installed free at the Ripperdoc (p338). Staples (owner's
+  design): Teargas and Flashbang grenades are always available from the fixer.
+- Removed: Med Bay +2 HP/day and clinic discount, Fixer Network +1 gig / earlier security, Training Room
+  +5 IP (rooms have no levels; save v6 refunds levels at their build costs); salvage at 25% (the book has
+  no loot rule; the Scavenger perk is inert pending a replacement); the 500eb rescue fee.
+- Humanity therapy: p229-230 like Addiction Therapy: a crew Medtech (not the patient), a week, materials
+  100eb (Standard, DV15, 2d6) or 500eb (Extreme, DV17, 4d6), TECH + Medical Tech; failure wastes both.
 
 ### Owner notes (morning after night 2) → done
 - Badlands fog: out-of-sight terrain only dims (per-scene fog_sat/fog_cool/fog_dim; night scenes unchanged).

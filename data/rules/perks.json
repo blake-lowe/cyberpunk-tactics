@@ -1,5 +1,5 @@
 {
-  "_doc": "Role specialisation perks (spec: Roles & Character Identity, 'short skill tree per Role, XCOM-style branching choices'). HOUSE-RULE game content, not from the core book: two tiers per Role, pick one perk of the two in each tier. Tier 1 costs tier_cost[0] IP; tier 2 costs tier_cost[1] IP, needs a tier-1 perk and Role Rank >= tier2_rank. Effects: skills (flat skill bonuses), net_actions (+NET Actions per turn), jack_range_m (meatspace jack-in range), stabilize_reach (squares), revive (stabilized allies stay conscious at BODY HP), treat_discount (clinic price multiplier), upgrade_bonus (Tech workshop checks), salvage_mult (salvage multiplier).",
+  "_doc": "Role specialisation perks (spec: Roles & Character Identity, 'short skill tree per Role, XCOM-style branching choices'). HOUSE-RULE game content, not from the core book: two tiers per Role, pick one perk of the two in each tier. Tier 1 costs tier_cost[0] IP; tier 2 costs tier_cost[1] IP, needs a tier-1 perk and Role Rank >= tier2_rank. Effects: skills (flat skill bonuses), net_actions (+NET Actions per turn), jack_range_m (meatspace jack-in range), stabilize_reach (squares), revive (stabilized allies stay conscious at BODY HP), treat_discount (clinic price multiplier), upgrade_bonus (Tech workshop checks), salvage_mult (salvage multiplier; unused since salvage was removed).",
   "tier_cost": [
     100,
     200
@@ -142,7 +142,7 @@
         {
           "id": "scavenger",
           "name": "Scavenger",
-          "desc": "Salvage after a won gig is worth half again as much.",
+          "desc": "No effect for now: salvage was removed (core-book ruling); awaiting a replacement.",
           "salvage_mult": 1.5
         }
       ]

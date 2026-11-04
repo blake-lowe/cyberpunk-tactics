@@ -6,7 +6,8 @@ Page numbers are book pages; numbers are exact, rules are short paraphrases (nev
 
 How the data reads: each item has `fx` (machine-readable effects; vocabulary in gear.json `fx_keys`)
 and, where fx can't express a rule, `unmodelled`. Only items whose effects the game implements are
-sold in the night market (`shop_rep`); the rest are data waiting for their mechanics.
+marked `"sold": true` and may turn up at a Night Market (data/rules/night_market.json, p338-339);
+the rest are data waiting for their mechanics.
 
 ## Weapons Reference (CPR core p.91-95, p.173-177, p.340-349, p.385)
 

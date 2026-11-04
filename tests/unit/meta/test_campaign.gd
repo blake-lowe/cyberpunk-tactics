@@ -46,7 +46,7 @@ func test_the_dead_stay_dead_and_the_dying_are_stabilized() -> void:
 	assert_true(r.dead.has(a.display_name))
 	assert_eq(b.hp, 1, "carried out and stabilized")
 	assert_false(b.unconscious)
-	assert_eq(c.eb, 1000 - Campaign.ECON.rescue_fee, "a failed gig costs the rescue fee")
+	assert_eq(c.eb, 1000, "a failed gig pays nothing and costs nothing (no rescue fee: not in the book)")
 	assert_eq(b.ip, int(Campaign.IP_GROUP.failed), "tried valiantly: 10 IP (p410)")
 	assert_eq(b.reputation, 0, "no deed in a failure")
 
@@ -132,86 +132,45 @@ func test_ip_raises_skills_at_book_cost() -> void:
 	assert_eq(a.skill_raise_cost("autofire"), 80, "(x2) skills cost 40 x the new level")
 
 
-func test_shop_stock_grows_with_reputation() -> void:
-	var c := Campaign.new_game(3)
-	var low := c.shop_stock().map(func(x): return x.id)
-	assert_true("heavy_pistol" in low)
-	assert_false("sniper_rifle" in low, "rep 0: no sniper rifles")
-	c.crew[1].reputation = 5   # the crew's best-known name opens the market
-	var high := c.shop_stock().map(func(x): return x.id)
-	assert_true("sniper_rifle" in high and "metalgear" in high)
-
-
-func test_buy_gun_becomes_primary_and_sells_extra() -> void:
-	var c := Campaign.new_game(3)
-	c.crew[0].reputation = 1
-	var solo: Combatant = c.crew[0]   # assault rifle + heavy pistol
-	var eb0 := c.eb
-	assert_true(c.buy(solo, "shotgun"))
-	assert_eq(solo.weapons[0].id(), "shotgun")
-	assert_eq(solo.weapons.filter(func(w): return not w.is_melee()).size(), Campaign.MAX_GUNS)
-	assert_eq(c.eb, eb0 - 600 + 50, "500eb list via a fixer (+20%), the heavy pistol sold back at half its 100eb")
-
-
-func test_buy_armor_replaces_location_and_cant_overspend() -> void:
-	var c := Campaign.new_game(3)
-	var r: Combatant = c.crew[1]
-	assert_true(c.buy(r, "light_armorjack", "head"))
-	assert_eq((r.armor.head as ArmorPiece).id, "light_armorjack")
-	c.eb = 10
-	assert_false(c.buy(r, "kevlar", "body"))
-
-
-func test_facilities_upgrade_and_apply() -> void:
-	var c := Campaign.new_game(3)
-	c.eb = 10000
-	var n0 := c.board.size()
-	assert_true(c.upgrade("intel"))
-	assert_eq(c.board.size(), n0 + 1, "fixer network: one more gig")
-	assert_true(c.upgrade("med_bay"))
-	var solo: Combatant = c.crew[0]
-	solo.hp = 1
-	c.rest(1)
-	assert_eq(solo.hp, mini(solo.max_hp(), 1 + solo.raw_stat("BODY") + 2), "med bay: +2 HP a day")
-	assert_true(c.upgrade("med_bay"))
-	assert_false(c.upgrade("med_bay"), "two levels max")
-	assert_eq(c.treat_cost(), int(Campaign.ECON.treat_injury * 0.75))
-	var d := Campaign.from_dict(JSON.parse_string(JSON.stringify(c.to_dict())))
-	assert_eq(d.level("med_bay"), 2)
-	assert_eq(d.level("intel"), 1)
+## A Night Market with these keys on sale for the rest of the test.
+func _market_with(c: Campaign, keys: Array) -> void:
+	c.market = {"opened": c.day, "closes": c.day + 999, "categories": [], "listings": [{"category": "test", "name": "Test", "keys": keys}]}
 
 
 func test_ripperdoc_foundations_humanity_and_therapy() -> void:
 	var c := Campaign.new_game(5)
 	c.eb = 10000
+	_market_with(c, ["cyberware/neural_link", "cyberware/kerenzikov", "cyberware/cyberarm", "cyberware/wolvers"])
 	var solo: Combatant = c.crew[0]
 	solo.cyberware.clear()   # a clean slate (Role starting cyberware varies)
 	solo.weapons = solo.weapons.filter(func(w): return not w.is_melee())
+	assert_eq(c.install_block(solo, "pain_editor"), "not at the market", "chrome comes from the Night Market (p338)")
 	assert_eq(c.install_block(solo, "kerenzikov"), "needs Neural Link", "speedware needs the foundation (p111)")
 	var hum0 := solo.humanity
 	assert_true(c.install(solo, "neural_link") > 0)
 	assert_true(solo.humanity < hum0, "Humanity Loss rolled (p110)")
 	assert_true(c.install(solo, "kerenzikov") > 0)
 	assert_eq(c.install_block(solo, "kerenzikov"), "installed")
+	var eb0 := c.eb
 	c.install(solo, "cyberarm")
+	assert_eq(c.eb, eb0 - 500, "list price, installation free (p338, p110)")
 	c.install(solo, "wolvers")
 	assert_eq(solo.weapons.filter(func(w): return w.is_melee()).map(func(w): return w.id()), ["heavy_melee"])
-	var day0 := c.day
-	var low := solo.humanity
-	assert_true(c.therapy(solo))
-	assert_true(solo.humanity > low and solo.humanity <= solo.max_humanity)
-	assert_eq(c.day, day0 + 7, "therapy takes a week (p230)")
 
 
-func test_cyber_claws_are_never_sold() -> void:
+func test_cyber_claws_stay_put_and_the_knife_they_replace_goes_to_storage() -> void:
 	var c := Campaign.new_game(5)
 	c.eb = 10000
+	_market_with(c, ["cyberware/cyberarm", "cyberware/wolvers", "cyberware/big_knucks"])
 	var solo: Combatant = c.crew[0]
 	solo.cyberware.clear()
 	solo.weapons = solo.weapons.filter(func(w): return not w.is_melee())
+	solo.weapons.append(Weapon.from_id("light_melee", "poor"))
 	c.install(solo, "cyberarm")
 	c.install(solo, "wolvers")
-	assert_false(c.buy(solo, "light_melee"), "the claws fill the melee slot")
+	assert_eq(c.stored("weapon/light_melee@poor"), 1, "the knife the claws replace goes into storage")
+	var claws := solo.weapons.find(solo.weapons.filter(func(w): return w.builtin)[0])
+	assert_false(c.unequip_weapon(solo, claws), "built-in claws can't be put away")
 	c.install(solo, "big_knucks")
 	var melee := solo.weapons.filter(func(w): return w.is_melee())
 	assert_eq(melee.size(), 1)

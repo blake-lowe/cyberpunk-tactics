@@ -103,7 +103,7 @@ func test_the_market_only_sells_what_plays() -> void:
 		var items: Dictionary = db.get("weapons", db.get("armor", {}))
 		for id in items:
 			var it: Dictionary = items[id]
-			if not it.has("shop_rep"):
+			if not it.has("sold"):
 				continue
 			assert_false(it.has("unmodelled"), "%s is sold, so nothing about it may be unmodelled" % id)
 			for key in it.get("fx", {}):

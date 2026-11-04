@@ -1,0 +1,1289 @@
+{
+	"_source": "CPR core p.337-339 (Night Markets, Night Market Generator, On the Shelves), p.340 onward (Night Market Appendix: what each item is and costs; prices come from weapons.json, armor.json, gear.json, cyberware.json). Listing names are the book's row labels; numbers and short paraphrases only.",
+	"_doc": "Campaign/NightMarket read this. A listing's 'keys' are storage keys (Items: weapon/<id>, armor/<id>, <section>/<id>, cyberware/<id>); a weapon key stands for every Quality Rating of it (p338). A 'filter' picks every item matching kind (weapon|armor|kit|cyberware), section (kit), category (weapon or cyberware), option (cyberware that needs a foundation), cost / cost_max / cost_min (list eb); 'choose': n takes n of them at random (the book's 'of GM's choice'). Only what the game plays is ever on sale (weapons/armor/kit marked sold, cyberware the Ripperdoc installs); a listing with neither keys nor filter has no counterpart in the game's data and is shown for flavour.",
+	"categories_roll": {
+		"dice": "1d6",
+		"times": 2,
+		"reroll_duplicates": true,
+		"cite": "CPR core p.338: roll 1d6 twice for the goods sold; reroll a repeat."
+	},
+	"listings_roll": {
+		"count_dice": "1d10",
+		"row_dice": "1d100",
+		"reroll_duplicates": true,
+		"all_qualities": true,
+		"cite": "CPR core p.338: per category, 1d10 types of items; d100 that many times on its column, rerolling a repeat; an item with Quality Ratings is there in all of them; a listing is a type of goods, not the whole inventory."
+	},
+	"cyberware_foundations": {
+		"cite": "CPR core p.338: a Cyberware Option rolled brings any Foundational Cyberware it needs. Cyberware bought here isn't installed at the market; the seller sends you to their Ripperdoc for a free installation.",
+		"free_install": true
+	},
+	"house_rules": {
+		"open_days": 3,
+		"open_days_doc": "HOUSE-RULE: the book gives no schedule (p337: markets pop up without warning, for a few hours or regularly at a site). One market is up at a time; it stays open 3 days, then the next one is rolled.",
+		"quantity_doc": "HOUSE-RULE reading: the book gives no quantities (p338: a listing is a type of goods, not the total inventory), so a listed item can be bought any number of times while the market is up.",
+		"access_doc": "No Reputation gate: p337 says finding a market is about connections, with no number; the crew's fixers bring them in."
+	},
+	"staples": {
+		"keys": [
+			"ammo/teargas_ammo",
+			"ammo/flashbang_ammo"
+		],
+		"doc": "HOUSE-RULE (owner's design): a few readily available consumables the crew's fixer can always get, whatever the Night Market stocks. Kept to kit grenades of Premium or less (p385: without a Fixer or Night Market only items up to Premium can be bought)."
+	},
+	"categories": [
+		{
+			"id": "food_drugs",
+			"roll": 1,
+			"name": "Food and Drugs",
+			"cite": "CPR core p.338-339",
+			"listings": [
+				{
+					"d100": [
+						1,
+						5
+					],
+					"name": "Canned Goods"
+				},
+				{
+					"d100": [
+						6,
+						10
+					],
+					"name": "Packaged Goods"
+				},
+				{
+					"d100": [
+						11,
+						15
+					],
+					"name": "Frozen Goods"
+				},
+				{
+					"d100": [
+						16,
+						20
+					],
+					"name": "Bags of Grain"
+				},
+				{
+					"d100": [
+						21,
+						25
+					],
+					"name": "Kibble Pack",
+					"keys": [
+						"gear/kibble_pack"
+					]
+				},
+				{
+					"d100": [
+						26,
+						30
+					],
+					"name": "Bags of Prepak"
+				},
+				{
+					"d100": [
+						31,
+						35
+					],
+					"name": "Street Drugs of 20eb or less",
+					"filter": {
+						"kind": "kit",
+						"section": "drugs",
+						"cost_max": 20
+					}
+				},
+				{
+					"d100": [
+						36,
+						40
+					],
+					"name": "Poor Quality Alcohol"
+				},
+				{
+					"d100": [
+						41,
+						45
+					],
+					"name": "Alcohol"
+				},
+				{
+					"d100": [
+						46,
+						50
+					],
+					"name": "Excellent Quality Alcohol"
+				},
+				{
+					"d100": [
+						51,
+						55
+					],
+					"name": "MRE",
+					"keys": [
+						"gear/mre"
+					]
+				},
+				{
+					"d100": [
+						56,
+						60
+					],
+					"name": "Live Chicken"
+				},
+				{
+					"d100": [
+						61,
+						65
+					],
+					"name": "Live Fish"
+				},
+				{
+					"d100": [
+						66,
+						70
+					],
+					"name": "Fresh Fruits"
+				},
+				{
+					"d100": [
+						71,
+						75
+					],
+					"name": "Fresh Vegetables"
+				},
+				{
+					"d100": [
+						76,
+						80
+					],
+					"name": "Root Vegetables"
+				},
+				{
+					"d100": [
+						81,
+						85
+					],
+					"name": "Live Pigs"
+				},
+				{
+					"d100": [
+						86,
+						90
+					],
+					"name": "Exotic Fruits"
+				},
+				{
+					"d100": [
+						91,
+						95
+					],
+					"name": "Exotic Vegetables"
+				},
+				{
+					"d100": [
+						96,
+						100
+					],
+					"name": "Street Drugs of exactly 50eb",
+					"filter": {
+						"kind": "kit",
+						"section": "drugs",
+						"cost": 50
+					}
+				}
+			]
+		},
+		{
+			"id": "electronics",
+			"roll": 2,
+			"name": "Personal Electronics",
+			"cite": "CPR core p.338-339",
+			"listings": [
+				{
+					"d100": [
+						1,
+						5
+					],
+					"name": "Agent",
+					"keys": [
+						"gear/agent"
+					]
+				},
+				{
+					"d100": [
+						6,
+						10
+					],
+					"name": "Programs or Hardware of 100eb or less"
+				},
+				{
+					"d100": [
+						11,
+						15
+					],
+					"name": "Audio Recorder",
+					"keys": [
+						"gear/audio_recorder"
+					]
+				},
+				{
+					"d100": [
+						16,
+						20
+					],
+					"name": "Bug Detector",
+					"keys": [
+						"gear/bug_detector"
+					]
+				},
+				{
+					"d100": [
+						21,
+						25
+					],
+					"name": "Chemical Analyzer",
+					"keys": [
+						"gear/chemical_analyzer"
+					]
+				},
+				{
+					"d100": [
+						26,
+						30
+					],
+					"name": "Computer",
+					"keys": [
+						"gear/computer"
+					]
+				},
+				{
+					"d100": [
+						31,
+						35
+					],
+					"name": "Cyberdeck",
+					"keys": [
+						"gear/cyberdeck_poor",
+						"gear/cyberdeck_standard",
+						"gear/cyberdeck_excellent"
+					]
+				},
+				{
+					"d100": [
+						36,
+						40
+					],
+					"name": "Disposable Cell Phone",
+					"keys": [
+						"gear/disposable_cell_phone"
+					]
+				},
+				{
+					"d100": [
+						41,
+						45
+					],
+					"name": "Electric Guitar or Other Instrument",
+					"keys": [
+						"gear/electric_guitar",
+						"gear/drum_synthesizer"
+					]
+				},
+				{
+					"d100": [
+						46,
+						50
+					],
+					"name": "Programs or Hardware of exactly 500eb"
+				},
+				{
+					"d100": [
+						51,
+						55
+					],
+					"name": "Medscanner",
+					"keys": [
+						"gear/medscanner"
+					]
+				},
+				{
+					"d100": [
+						56,
+						60
+					],
+					"name": "Homing Tracer",
+					"keys": [
+						"gear/homing_tracer"
+					]
+				},
+				{
+					"d100": [
+						61,
+						65
+					],
+					"name": "Radio Communicator",
+					"keys": [
+						"gear/radio_communicator"
+					]
+				},
+				{
+					"d100": [
+						66,
+						70
+					],
+					"name": "Techscanner",
+					"keys": [
+						"gear/techscanner"
+					]
+				},
+				{
+					"d100": [
+						71,
+						75
+					],
+					"name": "Smart Glasses",
+					"keys": [
+						"gear/smart_glasses"
+					]
+				},
+				{
+					"d100": [
+						76,
+						80
+					],
+					"name": "Radar Detector",
+					"keys": [
+						"gear/radar_detector"
+					]
+				},
+				{
+					"d100": [
+						81,
+						85
+					],
+					"name": "Scrambler/Descrambler",
+					"keys": [
+						"gear/scrambler_descrambler"
+					]
+				},
+				{
+					"d100": [
+						86,
+						90
+					],
+					"name": "Radio Scanner/Music Player",
+					"keys": [
+						"gear/radio_scanner"
+					]
+				},
+				{
+					"d100": [
+						91,
+						95
+					],
+					"name": "Braindance Viewer",
+					"keys": [
+						"gear/braindance_viewer"
+					]
+				},
+				{
+					"d100": [
+						96,
+						100
+					],
+					"name": "Virtuality Goggles",
+					"keys": [
+						"gear/virtuality_goggles"
+					]
+				}
+			]
+		},
+		{
+			"id": "weapons_armor",
+			"roll": 3,
+			"name": "Weapons and Armor",
+			"cite": "CPR core p.338-339",
+			"listings": [
+				{
+					"d100": [
+						1,
+						5
+					],
+					"name": "Medium Pistol",
+					"keys": [
+						"weapon/medium_pistol"
+					]
+				},
+				{
+					"d100": [
+						6,
+						10
+					],
+					"name": "Heavy Pistol or Very Heavy Pistol",
+					"keys": [
+						"weapon/heavy_pistol",
+						"weapon/very_heavy_pistol"
+					]
+				},
+				{
+					"d100": [
+						11,
+						15
+					],
+					"name": "SMG",
+					"keys": [
+						"weapon/smg"
+					]
+				},
+				{
+					"d100": [
+						16,
+						20
+					],
+					"name": "Heavy SMG",
+					"keys": [
+						"weapon/heavy_smg"
+					]
+				},
+				{
+					"d100": [
+						21,
+						25
+					],
+					"name": "Shotgun",
+					"keys": [
+						"weapon/shotgun"
+					]
+				},
+				{
+					"d100": [
+						26,
+						30
+					],
+					"name": "Assault Rifle",
+					"keys": [
+						"weapon/assault_rifle"
+					]
+				},
+				{
+					"d100": [
+						31,
+						35
+					],
+					"name": "Sniper Rifle",
+					"keys": [
+						"weapon/sniper_rifle"
+					]
+				},
+				{
+					"d100": [
+						36,
+						40
+					],
+					"name": "Bows or Crossbow",
+					"keys": [
+						"weapon/bow",
+						"weapon/crossbow"
+					]
+				},
+				{
+					"d100": [
+						41,
+						45
+					],
+					"name": "Grenade Launcher or Rocket Launcher",
+					"keys": [
+						"weapon/grenade_launcher",
+						"weapon/rocket_launcher"
+					]
+				},
+				{
+					"d100": [
+						46,
+						50
+					],
+					"name": "Ammunition of 500eb or less",
+					"filter": {
+						"kind": "kit",
+						"section": "ammo",
+						"cost_max": 500
+					}
+				},
+				{
+					"d100": [
+						51,
+						55
+					],
+					"name": "A Single Exotic Weapon of GM's choice",
+					"filter": {
+						"kind": "weapon",
+						"category": "exotic"
+					},
+					"choose": 1
+				},
+				{
+					"d100": [
+						56,
+						60
+					],
+					"name": "Light Melee Weapon",
+					"keys": [
+						"weapon/light_melee"
+					]
+				},
+				{
+					"d100": [
+						61,
+						65
+					],
+					"name": "Medium Melee Weapon",
+					"keys": [
+						"weapon/medium_melee"
+					]
+				},
+				{
+					"d100": [
+						66,
+						70
+					],
+					"name": "Heavy Melee Weapon",
+					"keys": [
+						"weapon/heavy_melee"
+					]
+				},
+				{
+					"d100": [
+						71,
+						75
+					],
+					"name": "Very Heavy Melee Weapon",
+					"keys": [
+						"weapon/very_heavy_melee"
+					],
+					"note": "p339 prints 100eb (Premium) here; the appendix (p340) and weapons.json price it at 500eb, which is what it costs."
+				},
+				{
+					"d100": [
+						76,
+						80
+					],
+					"name": "Armor of 100eb or less",
+					"filter": {
+						"kind": "armor",
+						"cost_max": 100
+					}
+				},
+				{
+					"d100": [
+						81,
+						85
+					],
+					"name": "Armor of exactly 500eb",
+					"filter": {
+						"kind": "armor",
+						"cost": 500
+					}
+				},
+				{
+					"d100": [
+						86,
+						90
+					],
+					"name": "Armor of exactly 1,000eb",
+					"filter": {
+						"kind": "armor",
+						"cost": 1000
+					}
+				},
+				{
+					"d100": [
+						91,
+						95
+					],
+					"name": "Weapon Attachments of 100eb or less",
+					"filter": {
+						"kind": "kit",
+						"section": "attachments",
+						"cost_max": 100
+					}
+				},
+				{
+					"d100": [
+						96,
+						100
+					],
+					"name": "Weapon Attachments of 500eb or higher",
+					"filter": {
+						"kind": "kit",
+						"section": "attachments",
+						"cost_min": 500
+					}
+				}
+			]
+		},
+		{
+			"id": "cyberware",
+			"roll": 4,
+			"name": "Cyberware",
+			"cite": "CPR core p.338-339",
+			"listings": [
+				{
+					"d100": [
+						1,
+						5
+					],
+					"name": "Cybereye",
+					"keys": [
+						"cyberware/cybereye"
+					]
+				},
+				{
+					"d100": [
+						6,
+						10
+					],
+					"name": "Cyberaudio Suite",
+					"keys": [
+						"cyberware/cyberaudio_suite"
+					]
+				},
+				{
+					"d100": [
+						11,
+						15
+					],
+					"name": "Neural Link",
+					"keys": [
+						"cyberware/neural_link"
+					]
+				},
+				{
+					"d100": [
+						16,
+						20
+					],
+					"name": "Cyberarm",
+					"keys": [
+						"cyberware/cyberarm"
+					]
+				},
+				{
+					"d100": [
+						21,
+						25
+					],
+					"name": "Cyberleg",
+					"keys": [
+						"cyberware/cyberleg"
+					]
+				},
+				{
+					"d100": [
+						26,
+						30
+					],
+					"name": "External Cyberware of exactly 1,000eb",
+					"filter": {
+						"kind": "cyberware",
+						"category": "external_cyberware",
+						"cost": 1000
+					}
+				},
+				{
+					"d100": [
+						31,
+						35
+					],
+					"name": "External Cyberware of 500eb or less",
+					"filter": {
+						"kind": "cyberware",
+						"category": "external_cyberware",
+						"cost_max": 500
+					}
+				},
+				{
+					"d100": [
+						36,
+						40
+					],
+					"name": "Internal Cyberware of exactly 1,000eb",
+					"filter": {
+						"kind": "cyberware",
+						"category": "internal_cyberware",
+						"cost": 1000
+					}
+				},
+				{
+					"d100": [
+						41,
+						45
+					],
+					"name": "Internal Cyberware of 500eb or less",
+					"filter": {
+						"kind": "cyberware",
+						"category": "internal_cyberware",
+						"cost_max": 500
+					}
+				},
+				{
+					"d100": [
+						46,
+						50
+					],
+					"name": "Cybereye Option of exactly 1,000eb",
+					"filter": {
+						"kind": "cyberware",
+						"category": "cyberoptics",
+						"option": true,
+						"cost": 1000
+					}
+				},
+				{
+					"d100": [
+						51,
+						55
+					],
+					"name": "Cybereye Option of 500eb or less",
+					"filter": {
+						"kind": "cyberware",
+						"category": "cyberoptics",
+						"option": true,
+						"cost_max": 500
+					}
+				},
+				{
+					"d100": [
+						56,
+						60
+					],
+					"name": "Cyberaudio Option of exactly 1,000eb",
+					"filter": {
+						"kind": "cyberware",
+						"category": "cyberaudio",
+						"option": true,
+						"cost": 1000
+					}
+				},
+				{
+					"d100": [
+						61,
+						65
+					],
+					"name": "Cyberaudio Option of 500eb or less",
+					"filter": {
+						"kind": "cyberware",
+						"category": "cyberaudio",
+						"option": true,
+						"cost_max": 500
+					}
+				},
+				{
+					"d100": [
+						66,
+						70
+					],
+					"name": "Neuralware Option of exactly 1,000eb",
+					"filter": {
+						"kind": "cyberware",
+						"category": "neuralware",
+						"option": true,
+						"cost": 1000
+					}
+				},
+				{
+					"d100": [
+						71,
+						75
+					],
+					"name": "Neuralware Option of 500eb or less",
+					"filter": {
+						"kind": "cyberware",
+						"category": "neuralware",
+						"option": true,
+						"cost_max": 500
+					}
+				},
+				{
+					"d100": [
+						76,
+						80
+					],
+					"name": "Cyberlimb Option of exactly 1,000eb",
+					"filter": {
+						"kind": "cyberware",
+						"category": "cyberlimbs",
+						"option": true,
+						"cost": 1000
+					}
+				},
+				{
+					"d100": [
+						81,
+						85
+					],
+					"name": "Cyberlimb Option of 500eb or less",
+					"filter": {
+						"kind": "cyberware",
+						"category": "cyberlimbs",
+						"option": true,
+						"cost_max": 500
+					}
+				},
+				{
+					"d100": [
+						86,
+						90
+					],
+					"name": "Fashionware of GM's Choice",
+					"filter": {
+						"kind": "cyberware",
+						"category": "fashionware"
+					},
+					"choose": 1
+				},
+				{
+					"d100": [
+						91,
+						95
+					],
+					"name": "Borgware of GM's Choice",
+					"filter": {
+						"kind": "cyberware",
+						"category": "borgware"
+					},
+					"choose": 1
+				},
+				{
+					"d100": [
+						96,
+						100
+					],
+					"name": "Any Cyberware of GM's Choice",
+					"filter": {
+						"kind": "cyberware"
+					},
+					"choose": 1
+				}
+			]
+		},
+		{
+			"id": "fashion",
+			"roll": 5,
+			"name": "Clothing and Fashionware",
+			"cite": "CPR core p.338-339",
+			"listings": [
+				{
+					"d100": [
+						1,
+						5
+					],
+					"name": "Bag Lady Chic",
+					"keys": [
+						"fashion/fashion_bag_lady_chic"
+					]
+				},
+				{
+					"d100": [
+						6,
+						10
+					],
+					"name": "Gang Colors",
+					"keys": [
+						"fashion/fashion_gang_colors"
+					]
+				},
+				{
+					"d100": [
+						11,
+						15
+					],
+					"name": "Generic Chic",
+					"keys": [
+						"fashion/fashion_generic_chic"
+					]
+				},
+				{
+					"d100": [
+						16,
+						20
+					],
+					"name": "Bohemian",
+					"keys": [
+						"fashion/fashion_bohemian"
+					]
+				},
+				{
+					"d100": [
+						21,
+						25
+					],
+					"name": "Leisurewear",
+					"keys": [
+						"fashion/fashion_leisurewear"
+					]
+				},
+				{
+					"d100": [
+						26,
+						30
+					],
+					"name": "Nomad Leathers",
+					"keys": [
+						"fashion/fashion_nomad_leathers"
+					]
+				},
+				{
+					"d100": [
+						31,
+						35
+					],
+					"name": "Asia Pop",
+					"keys": [
+						"fashion/fashion_asia_pop"
+					]
+				},
+				{
+					"d100": [
+						36,
+						40
+					],
+					"name": "Urban Flash",
+					"keys": [
+						"fashion/fashion_urban_flash"
+					]
+				},
+				{
+					"d100": [
+						41,
+						45
+					],
+					"name": "Businesswear",
+					"keys": [
+						"fashion/fashion_businesswear"
+					]
+				},
+				{
+					"d100": [
+						46,
+						50
+					],
+					"name": "High Fashion",
+					"keys": [
+						"fashion/fashion_high_fashion"
+					]
+				},
+				{
+					"d100": [
+						51,
+						55
+					],
+					"name": "Biomonitor",
+					"keys": [
+						"cyberware/biomonitor"
+					]
+				},
+				{
+					"d100": [
+						56,
+						60
+					],
+					"name": "Chemskin",
+					"keys": [
+						"cyberware/chemskin"
+					]
+				},
+				{
+					"d100": [
+						61,
+						65
+					],
+					"name": "EMP Threading",
+					"keys": [
+						"cyberware/emp_threading"
+					]
+				},
+				{
+					"d100": [
+						66,
+						70
+					],
+					"name": "Light Tattoo",
+					"keys": [
+						"cyberware/light_tattoo"
+					]
+				},
+				{
+					"d100": [
+						71,
+						75
+					],
+					"name": "Shift Tacts",
+					"keys": [
+						"cyberware/shift_tacts"
+					]
+				},
+				{
+					"d100": [
+						76,
+						80
+					],
+					"name": "Skinwatch",
+					"keys": [
+						"cyberware/skinwatch"
+					]
+				},
+				{
+					"d100": [
+						81,
+						85
+					],
+					"name": "Techhair",
+					"keys": [
+						"cyberware/techhair"
+					]
+				},
+				{
+					"d100": [
+						86,
+						90
+					],
+					"name": "Generic Chic",
+					"keys": [
+						"fashion/fashion_generic_chic"
+					]
+				},
+				{
+					"d100": [
+						91,
+						95
+					],
+					"name": "Leisurewear",
+					"keys": [
+						"fashion/fashion_leisurewear"
+					]
+				},
+				{
+					"d100": [
+						96,
+						100
+					],
+					"name": "Gang Colors",
+					"keys": [
+						"fashion/fashion_gang_colors"
+					]
+				}
+			]
+		},
+		{
+			"id": "survival",
+			"roll": 6,
+			"name": "Survival Gear",
+			"cite": "CPR core p.338-339",
+			"listings": [
+				{
+					"d100": [
+						1,
+						5
+					],
+					"name": "Anti-Smog Breathing Mask",
+					"keys": [
+						"gear/anti_smog_mask"
+					]
+				},
+				{
+					"d100": [
+						6,
+						10
+					],
+					"name": "Auto Level Dampening Ear Protectors",
+					"keys": [
+						"gear/ear_protectors"
+					]
+				},
+				{
+					"d100": [
+						11,
+						15
+					],
+					"name": "Binoculars",
+					"keys": [
+						"gear/binoculars"
+					]
+				},
+				{
+					"d100": [
+						16,
+						20
+					],
+					"name": "Carryall",
+					"keys": [
+						"gear/carryall"
+					]
+				},
+				{
+					"d100": [
+						21,
+						25
+					],
+					"name": "Flashlight",
+					"keys": [
+						"gear/flashlight"
+					]
+				},
+				{
+					"d100": [
+						26,
+						30
+					],
+					"name": "Duct Tape",
+					"keys": [
+						"gear/duct_tape"
+					]
+				},
+				{
+					"d100": [
+						31,
+						35
+					],
+					"name": "Inflatable Bed & Sleep-bag",
+					"keys": [
+						"gear/inflatable_bed"
+					]
+				},
+				{
+					"d100": [
+						36,
+						40
+					],
+					"name": "Lock Picking Set",
+					"keys": [
+						"gear/lock_picking_set"
+					]
+				},
+				{
+					"d100": [
+						41,
+						45
+					],
+					"name": "Handcuffs",
+					"keys": [
+						"gear/handcuffs"
+					]
+				},
+				{
+					"d100": [
+						46,
+						50
+					],
+					"name": "Medtech Bag",
+					"keys": [
+						"gear/medtech_bag"
+					]
+				},
+				{
+					"d100": [
+						51,
+						55
+					],
+					"name": "Tent and Camping Equipment",
+					"keys": [
+						"gear/tent_camping"
+					]
+				},
+				{
+					"d100": [
+						56,
+						60
+					],
+					"name": "Rope (60m/yds)",
+					"keys": [
+						"gear/rope"
+					]
+				},
+				{
+					"d100": [
+						61,
+						65
+					],
+					"name": "Techtool",
+					"keys": [
+						"gear/techtool"
+					]
+				},
+				{
+					"d100": [
+						66,
+						70
+					],
+					"name": "Personal CarePak",
+					"keys": [
+						"gear/personal_carepak"
+					]
+				},
+				{
+					"d100": [
+						71,
+						75
+					],
+					"name": "Radiation Suit",
+					"keys": [
+						"gear/radiation_suit"
+					]
+				},
+				{
+					"d100": [
+						76,
+						80
+					],
+					"name": "Road Flare",
+					"keys": [
+						"gear/road_flare"
+					]
+				},
+				{
+					"d100": [
+						81,
+						85
+					],
+					"name": "Grapple Gun",
+					"keys": [
+						"gear/grapple_gun"
+					]
+				},
+				{
+					"d100": [
+						86,
+						90
+					],
+					"name": "Tech Bag",
+					"keys": [
+						"gear/tech_bag"
+					]
+				},
+				{
+					"d100": [
+						91,
+						95
+					],
+					"name": "Shovel or Axe",
+					"keys": [
+						"gear/shovel_or_axe"
+					]
+				},
+				{
+					"d100": [
+						96,
+						100
+					],
+					"name": "Airhypo",
+					"keys": [
+						"gear/airhypo"
+					]
+				}
+			]
+		}
+	]
+}

@@ -95,7 +95,9 @@ A turn-based tactical game that blends Cyberpunk Red tabletop rules with XCOM 2-
 
 ### Meta Progression & Between-Gig Structure
 - Moderate XCOM-style home base (apartment complex, warehouse, or similar).
-- A few upgradeable facilities (armory, cyberware clinic, workshop, intel/fixer network, medical, etc.).
+- A few rooms (armory, workshop, intel/fixer network, medical, etc.). *Owner ruling (core-book systems
+  only): rooms are places and screens, with no levels, costs or effects; safehouse storage holds
+  everything the crew owns.*
 - Manage crew, assign downtime actions, track reputation.
 - Unlocks better gear or gig opportunities through upgrades and relationships.
 - **Downtime**: Focused and quick. Short phase after gigs (or every few) to recover injuries, install cyberware, train skills/Role Rank, or work on base upgrades. Reputation updates. Get back to gigs without a long management sim.
@@ -105,7 +107,8 @@ A turn-based tactical game that blends Cyberpunk Red tabletop rules with XCOM 2-
 ### Injury, Death & Consequences
 - Permadeath (permanent or very costly to reverse).
 - Plus Cyberpunk Red Critical Injuries (triggered on damage dice, apply ongoing penalties, require treatment).
-- Base medical facilities and Medtech characters meaningfully reduce risk or recovery time.
+- Medtech characters meaningfully reduce risk or recovery time (base facilities no longer give bonuses:
+  owner ruling, core-book systems only).
 - Death Saves and wound states follow CPR principles.
 
 ---
@@ -113,26 +116,31 @@ A turn-based tactical game that blends Cyberpunk Red tabletop rules with XCOM 2-
 ### Cyberware, Humanity & Gear
 - Full CPR fidelity: Cyberware costs Humanity (cyberpsychosis risk), provides mechanical benefits, requires installation.
 - Installation time simplified.
-- Gear bought from vendors or looted.
+- Gear bought at the book's Night Market (p337-339) into safehouse storage, then equipped from there.
+  (Salvage/loot of downed enemies was removed: the core book has no rule for it.)
 - UI keeps selection from feeling overwhelming.
 - **Economy**:
   - Gigs pay eb based on difficulty, risk, and reputation.
   - Spend on gear, cyberware, medical treatment, base upgrades, recruitment.
   - Loot supplements income.
   - Money is a real constraint but not punishingly scarce.
-  - Items < 500 eb: buy on demand.
-  - Items ≥ 500 eb: require a fixer.
-  - Reputation can earn invites to night markets.
-- **Night Markets**: Hybrid — occasional atmospheric night market events unlocked by reputation, plus fixers who can source specific requested items (markup or delay).
+  - ~~Items < 500 eb: buy on demand. Items ≥ 500 eb: require a fixer. Reputation can earn invites to
+    night markets.~~ Superseded (owner ruling, core-book systems only): list prices, no markup, no
+    Reputation gate.
+- **Night Markets**: the book's generator (p338-339): each market rolls two categories of goods and
+  what's on the shelves; a new one sets up every few days (house rule). The fixer always has a few
+  staple consumables (owner's design).
 - **Humanity & Cyberpsychosis**:
   - Full pressure. Low Humanity imposes penalties.
   - At very low Humanity, risk of episodes (loss of control, forced aggression) that can trigger in or out of combat.
   - Episodes are dangerous and can harm the crew or mission.
-  - Recovery via downtime activities (therapy, personal time, certain Role actions) or facilities; meaningful time/opportunity cost.
+  - Recovery via the book's therapy (p229-230: a Medtech, a week, a Medical Tech check); meaningful time/opportunity cost.
 
 ---
 
 ### Reputation
+*Superseded (owner ruling, core-book systems only): Reputation is per character (p193) and only the
+fixer board reads it; no per-fixer score, no market access by Reputation, no campaign heat.*
 - Simple per-fixer reputation score.
 - Raised by successful/clean jobs or helping the fixer; lowered by failures, excessive collateral, or betrayals.
 - Higher reputation unlocks better-paying or more interesting gigs from that fixer, plus occasional unique offers and night market access.
@@ -141,7 +149,7 @@ A turn-based tactical game that blends Cyberpunk Red tabletop rules with XCOM 2-
 
 ### Narrative Structure
 - Light framing.
-- Most gigs are self-contained with short fixer briefs, procedural complications, and outcome-based consequences (reputation, money, heat).
+- Most gigs are self-contained with short fixer briefs, procedural complications, and outcome-based consequences (reputation, money).
 - Larger story moments are occasional and mostly emerge from player choices and procedural systems.
 - Themes: unethical corporations, experimental tech and implications, insignificance of life in the city.
 

@@ -12,8 +12,9 @@ const MEDSCAN := "gear/medscanner"
 
 func _camp() -> Campaign:
 	var c := Campaign.new_game(4)
-	c.crew[0].reputation = 5
 	c.eb = 20000
+	c.market = {"opened": c.day, "closes": c.day + 999, "categories": [], "listings": [{"category": "test", "name": "Test",
+		"keys": [FLASH, AP, FIRE, COKE, LACE, MEDSCAN]}]}
 	return c
 
 
@@ -48,8 +49,9 @@ func test_a_new_crew_starts_with_empty_storage() -> void:
 
 func test_market_prices_are_list_prices() -> void:
 	var camp := _camp()
-	assert_eq(camp.item_price(FLASH), Items.price(FLASH))
-	assert_false(Campaign.FACILITIES.has("armory"), "the Armory is a room, not an upgrade")
+	var eb0 := camp.eb
+	assert_true(camp.buy(MEDSCAN))
+	assert_eq(camp.eb, eb0 - 1000, "a Very Expensive scanner at its 1,000eb list price, no markup (p385)")
 
 
 func test_buying_fills_storage_and_packing_needs_stock() -> void:
@@ -57,23 +59,24 @@ func test_buying_fills_storage_and_packing_needs_stock() -> void:
 	var a: Combatant = camp.crew[0]
 	var b: Combatant = camp.crew[1]
 	assert_false(camp.set_kit(a, 0, FLASH), "nothing in storage yet")
-	assert_true(camp.buy_item(FLASH))
+	assert_true(camp.buy(FLASH))
 	assert_eq(int(camp.stash[FLASH]), 1)
 	assert_true(camp.set_kit(a, 0, FLASH))
 	assert_false(camp.set_kit(b, 0, FLASH), "one flashbang can't go with two people")
 	assert_false(camp.set_kit(a, 0, MEDSCAN), "a utility can't take the consumable slot")
-	camp.buy_item(MEDSCAN)
+	camp.buy(MEDSCAN)
 	assert_true(camp.set_kit(a, 1, MEDSCAN))
-	camp.crew[0].reputation = 0
-	assert_false(camp.buy_item(LACE), "Black Lace needs a name on the street")
+	camp.market = {}
+	assert_false(camp.buy(LACE), "not on sale without a market")
+	assert_true(camp.buy("ammo/teargas_ammo"), "the fixer's staples always are")
 
 
 func test_after_a_gig_spent_consumables_go_and_the_rest_comes_back() -> void:
 	var camp := _camp()
 	var a: Combatant = camp.crew[0]
-	camp.buy_item(FLASH)
-	camp.buy_item(AP)
-	camp.buy_item(MEDSCAN)
+	camp.buy(FLASH)
+	camp.buy(AP)
+	camp.buy(MEDSCAN)
 	camp.set_kit(a, 0, FLASH)
 	camp.set_kit(a, 1, MEDSCAN)
 	a.kit_spent = [true, false]
@@ -232,7 +235,7 @@ func test_a_failed_therapy_wastes_the_week_and_materials() -> void:
 
 func test_storage_kits_and_addictions_survive_a_save() -> void:
 	var camp := _camp()
-	camp.buy_item(FLASH)
+	camp.buy(FLASH)
 	camp.set_kit(camp.crew[0], 0, FLASH)
 	camp.crew[0].addictions.append("boost")
 	var back := Campaign.from_dict(JSON.parse_string(JSON.stringify(camp.to_dict())))

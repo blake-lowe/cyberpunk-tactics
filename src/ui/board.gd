@@ -14,7 +14,7 @@ var portraits: Portraits
 var _root: VBoxContainer
 var _shot_path := ""
 var _frames := 0
-var _shop_for := 0   ## crew index the night market is buying for
+var _shop_for := 0   ## crew index storage and the ripperdoc are showing
 var _scroll_to := 0  ## dev: --scroll=n scrolls the board for screenshots
 var _train_for := -1 ## crew index whose training panel is open
 ## Skills offered for training, by Role first (the rest of the list follows).
@@ -43,8 +43,8 @@ func _ready() -> void:
 		if k == "scroll":   # --scroll=n: screenshots further down the board
 			_scroll_to = int(a.get_slice("=", 1))
 		if k == "report":   # --report: a sample results panel (screenshots)
-			report = {"won": true, "gig": {"title": "Retire a Biotechnica manager"}, "pay": 1500, "fees": 0, "reputation": {"Echo": 4}, "ip": 30,
-				"salvage": 320, "dead": [], "hurt": ["Echo (Broken Arm)"], "kit_used": ["Flashbang"], "addicted": ["Wraith (Synthcoke)"], "episodes": []}
+			report = {"won": true, "gig": {"title": "Retire a Biotechnica manager"}, "pay": 1500, "reputation": {"Echo": 4}, "ip": 30,
+				"dead": [], "hurt": ["Echo (Broken Arm)"], "kit_used": ["Flashbang"], "addicted": ["Wraith (Synthcoke)"], "episodes": []}
 		if k == "train":   # --train=n opens crew member n's training panel (screenshots)
 			_train_for = int(a.get_slice("=", 1))
 	if dev and not board_shot:
@@ -180,9 +180,6 @@ func _build() -> void:
 	acts.add_child(_button("REST 1 DAY", Hud.CYAN, func(): camp.rest(1); _rebuild()))
 	acts.add_child(_button("REST UNTIL HEALED", Hud.CYAN, func(): _rest_full(); _rebuild()))
 	left.add_child(acts)
-	left.add_child(_text("// SAFEHOUSE", Hud.F_PIXEL, 22, Hud.GREEN))
-	for f in Campaign.FACILITIES:
-		left.add_child(_facility(f))
 	if not camp.fallen.is_empty():
 		left.add_child(_text("// FLATLINED", Hud.F_PIXEL, 22, Hud.RED))
 		for f in camp.fallen:
@@ -197,8 +194,8 @@ func _build() -> void:
 	for i in camp.recruits.size():
 		hires.add_child(_recruit_card(i))
 	if not camp.crew.is_empty():
-		mid.add_child(_shop())
-		mid.add_child(_gear_market())
+		mid.add_child(_market())
+		mid.add_child(_storage())
 		mid.add_child(_ripperdoc())
 	mid.add_child(_text("// LOG", Hud.F_PIXEL, 22, Hud.DIM))
 	for l in camp.log.slice(-6):
@@ -211,110 +208,79 @@ func _scroll_later(scroll: ScrollContainer) -> void:   # after layout, so the co
 	scroll.scroll_vertical = _scroll_to
 
 
-func _facility(f: String) -> PanelContainer:
-	var d: Dictionary = Campaign.FACILITIES[f]
-	var lv := camp.level(f)
-	var p := _panel(Hud.GREEN if lv > 0 else Hud.DIM)
-	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 2)
-	p.add_child(col)
-	var top := HBoxContainer.new()
-	col.add_child(top)
-	var nm := _text(String(d.name).to_upper(), Hud.F_DISPLAY, 22, Hud.TEXT if lv > 0 else Color(Hud.TEXT, 0.6))
-	nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	top.add_child(nm)
-	top.add_child(_text("◆".repeat(lv) + "◇".repeat(d.costs.size() - lv), Hud.F_TERM, Hud.ts(20), Hud.GREEN))
-	for i in d.desc.size():
-		if String(d.desc[i]) != "":
-			col.add_child(_text(("✓ " if lv > i else "· ") + String(d.desc[i]), Hud.F_TERM, Hud.ts(17), Color(Hud.TEXT, 0.85 if lv > i else 0.5), true))
-	var cost := camp.upgrade_cost(f)
-	if cost >= 0:
-		col.add_child(_button(("BUILD" if lv == 0 else "UPGRADE") + "  %s eb" % _money(cost), Hud.GREEN, func(): camp.upgrade(f); _rebuild(), camp.eb >= cost))
-	return p
-
-
-## Night market: pick who you're shopping for, then buy. Guns become the primary weapon; armour
-## goes on the chosen location; replaced gear sells back at half price.
-func _shop() -> VBoxContainer:
-	_shop_for = clampi(_shop_for, 0, camp.crew.size() - 1)
-	var c: Combatant = camp.crew[_shop_for]
+## Night Market (placeholder list until the safehouse screens are rebuilt): what this market has
+## on sale, then the fixer's staples. Everything goes into safehouse storage; cyberware is fitted
+## at the Ripperdoc below.
+func _market() -> VBoxContainer:
 	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 8)
-	box.add_child(_text("// NIGHT MARKET  (more stock with the crew's best Reputation · old gear sells at half)", Hud.F_PIXEL, 22, Hud.MAGENTA))
-	var who := HBoxContainer.new()
-	who.add_theme_constant_override("separation", 8)
-	box.add_child(who)
-	who.add_child(_text("BUYING FOR", Hud.F_TERM, Hud.ts(20), Hud.DIM))
-	for i in camp.crew.size():
-		var idx := i
-		var b := _button(camp.crew[i].display_name.to_upper(), Hud.GOLD if i == _shop_for else Hud.CYAN, func(): _shop_for = idx; _rebuild())
-		who.add_child(b)
-	var grid := GridContainer.new()
-	grid.columns = 3
-	grid.add_theme_constant_override("h_separation", 8)
-	grid.add_theme_constant_override("v_separation", 8)
-	box.add_child(grid)
-	var owned := c.weapons.map(func(w): return "%s@%s" % [w.id(), w.quality])
-	# weapons: one panel each, a button per quality on sale (p.342)
-	var by_weapon := {}
-	for it in camp.shop_stock():
-		if it.kind == "weapon":
-			var base := String(it.id).get_slice("@", 0)
-			if not by_weapon.has(base):
-				by_weapon[base] = []
-			by_weapon[base].append(it)
-	for base in by_weapon:
-		var w0 := Weapon.from_id(base)
-		var p0 := _panel(Hud.MAGENTA)
-		p0.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		var col0 := VBoxContainer.new()
-		col0.add_theme_constant_override("separation", 2)
-		p0.add_child(col0)
-		col0.add_child(_text(String(w0.def.name).to_upper(), Hud.F_DISPLAY, 20, Hud.TEXT, true))
-		var std_info: String = String(by_weapon[base].filter(func(x): return not String(x.id).contains("@"))[0].info) if by_weapon[base].any(func(x): return not String(x.id).contains("@")) else String(by_weapon[base][0].info)
-		col0.add_child(_text(std_info, Hud.F_TERM, Hud.ts(18), Color(Hud.TEXT, 0.7), true))
-		var row0 := HFlowContainer.new()
-		row0.add_theme_constant_override("h_separation", 6)
-		row0.add_theme_constant_override("v_separation", 6)
-		col0.add_child(row0)
-		for it in by_weapon[base]:
-			var wid: String = it.id
-			var q := wid.get_slice("@", 1) if wid.contains("@") else "standard"
-			var have: bool = ("%s@%s" % [base, q]) in owned
-			var qname: String = {"poor": "POOR", "standard": "BUY", "excellent": "EXCELLENT"}[q]
-			var label := "%s %s eb" % [qname, _money(int(it.cost))]
-			var b0 := _button("OWNED" if have else label, Hud.GREEN if q != "poor" else Hud.GOLD, func(): camp.buy(c, wid); _rebuild(), camp.eb >= int(it.cost) and not have)
-			b0.add_theme_font_size_override("font_size", 15)
-			row0.add_child(b0)
-		grid.add_child(p0)
-	for it in camp.shop_stock():
-		if it.kind == "weapon":
-			continue
-		var p := _panel(Hud.MAGENTA if it.kind == "weapon" else Hud.CYAN)
-		p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		var col := VBoxContainer.new()
-		col.add_theme_constant_override("separation", 2)
-		p.add_child(col)
-		col.add_child(_text(String(it.name).to_upper(), Hud.F_DISPLAY, 20, Hud.TEXT))
-		col.add_child(_text("%s · %s eb%s" % [it.info, _money(int(it.cost)), "  (via fixer +20%)" if it.get("fixer", false) else ""], Hud.F_TERM, Hud.ts(18), Color(Hud.TEXT, 0.7), true))
+	box.add_theme_constant_override("separation", 4)
+	box.add_child(_text("// NIGHT MARKET  %s · until day %d" % [NightMarket.title(camp.market).to_upper(), int(camp.market.get("closes", camp.day))], Hud.F_PIXEL, 22, Hud.MAGENTA))
+	for l in camp.market.get("listings", []):
+		if (l["keys"] as Array).is_empty():
+			box.add_child(_text("· %s (nothing the crew can use)" % String(l.name), Hud.F_TERM, Hud.ts(17), Hud.DIM, true))
+	for it in camp.market_stock():
 		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 6)
-		col.add_child(row)
-		var id: String = it.id
-		var afford: bool = camp.eb >= int(it.cost)
-		if it.kind == "weapon":
-			var have: bool = id in owned
-			row.add_child(_button("OWNED" if have else "BUY", Hud.GREEN, func(): camp.buy(c, id); _rebuild(), afford and not have))
+		row.add_theme_constant_override("separation", 8)
+		var key: String = it.key
+		var nm := _text("%s · %s eb · %s%s" % [String(it.name).to_upper(), _money(int(it.cost)), String(it.info), "  (in storage %d)" % int(it.owned) if int(it.owned) > 0 else ""],
+			Hud.F_TERM, Hud.ts(18), Hud.TEXT, true)
+		nm.custom_minimum_size.x = 420
+		row.add_child(nm)
+		if it.kind == "cyberware":
+			row.add_child(_text("AT THE RIPPERDOC", Hud.F_TERM, Hud.ts(17), Hud.VIOLET))
 		else:
-			for loc in ["body", "head"]:
-				var l: String = loc
-				var have2: bool = c.armor.get(l) != null and (c.armor[l] as ArmorPiece).id == id
-				row.add_child(_button(l.to_upper() if not have2 else "WORN", Hud.GREEN, func(): camp.buy(c, id, l); _rebuild(), afford and not have2))
-		grid.add_child(p)
+			row.add_child(_button("BUY", Hud.GREEN, func(): camp.buy(key); _rebuild(), camp.eb >= int(it.cost)))
+		box.add_child(row)
 	return box
 
 
-## Ripperdoc: chrome for the crew member the market is buying for. Price includes surgery (p110).
+## Safehouse storage (placeholder list): weapons and armour go to the crew member picked here.
+func _storage() -> VBoxContainer:
+	_shop_for = clampi(_shop_for, 0, camp.crew.size() - 1)
+	var c: Combatant = camp.crew[_shop_for]
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 4)
+	box.add_child(_text("// STORAGE", Hud.F_PIXEL, 22, Hud.GREEN))
+	var who := HBoxContainer.new()
+	who.add_theme_constant_override("separation", 8)
+	box.add_child(who)
+	who.add_child(_text("GEAR FOR", Hud.F_TERM, Hud.ts(20), Hud.DIM))
+	for i in camp.crew.size():
+		var idx := i
+		who.add_child(_button(camp.crew[i].display_name.to_upper(), Hud.GOLD if i == _shop_for else Hud.CYAN, func(): _shop_for = idx; _rebuild()))
+	for i in c.weapons.size():
+		var wi := i
+		var w: Weapon = c.weapons[i]
+		var row := HBoxContainer.new()
+		row.add_child(_text("CARRIED: %s" % w.display_name().to_upper(), Hud.F_TERM, Hud.ts(18), Hud.TEXT))
+		if not w.builtin:
+			row.add_child(_button("STORE", Hud.CYAN, func(): camp.unequip_weapon(c, wi); _rebuild()))
+		box.add_child(row)
+	for loc in ["body", "head"]:
+		var l: String = loc
+		var a: ArmorPiece = c.armor.get(l)
+		if a:
+			var row := HBoxContainer.new()
+			row.add_child(_text("WORN (%s): %s" % [l.to_upper(), Items.display_name(Items.key_of_armor(a)).to_upper()], Hud.F_TERM, Hud.ts(18), Hud.TEXT))
+			row.add_child(_button("STORE", Hud.CYAN, func(): camp.unequip_armor(c, l); _rebuild()))
+			box.add_child(row)
+	for k in camp.stash:
+		var key: String = k
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		row.add_child(_text("%d × %s" % [camp.stored(key), Items.display_name(key).to_upper()], Hud.F_TERM, Hud.ts(18), Hud.TEXT))
+		if Items.is_weapon(key):
+			row.add_child(_button("CARRY", Hud.GREEN, func(): camp.equip_weapon(c, key); _rebuild()))
+		elif Items.is_armor(key):
+			for loc in ["body", "head"]:
+				var l: String = loc
+				row.add_child(_button("WEAR " + l.to_upper(), Hud.GREEN, func(): camp.equip_armor(c, l, key); _rebuild()))
+		box.add_child(row)
+	return box
+
+
+## Ripperdoc: chrome for the crew member picked under storage, from what the Night Market has on
+## sale (installed free, p338; the price includes surgery, p110).
 func _ripperdoc() -> VBoxContainer:
 	var c: Combatant = camp.crew[_shop_for]
 	var box := VBoxContainer.new()
@@ -383,8 +349,11 @@ func _crew_card(c: Combatant) -> PanelContainer:
 		var hr := HBoxContainer.new()
 		hr.add_theme_constant_override("separation", 8)
 		hr.add_child(_text("HUM %d/%d  EMP %d" % [c.humanity, c.max_humanity, c.raw_stat("EMP")], Hud.F_TERM, Hud.ts(20), hum_col))
-		if c.humanity < c.max_humanity:
-			hr.add_child(_button("THERAPY %d eb · 1 WEEK" % int(Campaign.THERAPY.cost), Hud.GREEN, func(): camp.therapy(c); _rebuild(), camp.eb >= int(Campaign.THERAPY.cost)))
+		if c.humanity < c.max_humanity and camp.therapist_for(c) != null:   # p229: a Medtech, never on themselves
+			for kind in ["standard", "extreme"]:
+				var k: String = kind
+				var tc := Campaign.humanity_therapy_cost(k)
+				hr.add_child(_button("%s THERAPY %d eb · 1 WEEK" % [k.to_upper(), tc], Hud.GREEN, func(): camp.humanity_therapy(c, k); _rebuild(), camp.eb >= tc))
 		col.add_child(hr)
 	if not c.cyberware.is_empty():
 		col.add_child(_text("CHROME: " + ", ".join(c.cyberware.map(func(x): return String(RulesDB.cyberware(x).name))), Hud.F_TERM, Hud.ts(19), Hud.VIOLET.lightened(0.35), true))
@@ -456,31 +425,6 @@ func _kit_row(c: Combatant) -> HBoxContainer:
 		b.add_theme_font_size_override("font_size", 15)
 		r.add_child(b)
 	return r
-
-
-## Gear for the safehouse: bought into storage, packed into kits before a gig.
-func _gear_market() -> VBoxContainer:
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 8)
-	box.add_child(_text("// GEAR  (goes to safehouse storage · pack it into a crew member's kit)", Hud.F_PIXEL, 22, Hud.GREEN))
-	var grid := GridContainer.new()
-	grid.columns = 2
-	grid.add_theme_constant_override("h_separation", 8)
-	grid.add_theme_constant_override("v_separation", 8)
-	box.add_child(grid)
-	for it in camp.item_stock():
-		var p := _panel(Hud.GREEN if it.kind == "utility" else Hud.GOLD)
-		p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		var col := VBoxContainer.new()
-		col.add_theme_constant_override("separation", 2)
-		p.add_child(col)
-		col.add_child(_text(String(it.name).to_upper(), Hud.F_DISPLAY, 20, Hud.TEXT, true))
-		col.add_child(_text("%s · %s eb · in storage %d" % [String(it.kind).to_upper(), _money(int(it.cost)), int(it.owned)], Hud.F_TERM, Hud.ts(18), Hud.CYAN, true))
-		col.add_child(_text(String(it.info), Hud.F_TERM, Hud.ts(17), Color(Hud.TEXT, 0.7), true))
-		var key: String = it.key
-		col.add_child(_button("BUY", Hud.GREEN, func(): camp.buy_item(key); _rebuild(), camp.eb >= int(it.cost)))
-		grid.add_child(p)
-	return box
 
 
 ## Spend IP: Role Rank (p411), the Role's perk tree (two tiers, one pick each), and skills.
@@ -572,14 +516,12 @@ func _report_panel() -> PanelContainer:
 	var col := VBoxContainer.new()
 	p.add_child(col)
 	col.add_child(_text(("GIG COMPLETE · " if won else "GIG FAILED · ") + String(report.gig.get("title", "")).to_upper(), Hud.F_DISPLAY, 34, Hud.GREEN if won else Hud.RED, true))
-	var parts := ["%+d eb" % (int(report.pay) - int(report.fees)), "%d IP each" % int(report.ip)]
+	var parts := ["%+d eb" % int(report.pay), "%d IP each" % int(report.ip)]
 	var rp: Dictionary = report.get("reputation", {})
 	for nm in rp:
 		parts.append("%s REP %d" % [String(nm).to_upper(), int(rp[nm])])
 	for nm in report.get("episodes", []):
 		parts.append("%s: CYBERPSYCHOTIC EPISODE" % String(nm).to_upper())
-	if int(report.get("salvage", 0)) > 0:
-		parts.insert(1, "+%d eb salvage" % int(report.salvage))
 	col.add_child(_text("   ".join(parts), Hud.F_TERM, Hud.ts(26), Hud.TEXT))
 	if not report.dead.is_empty():
 		col.add_child(_text("FLATLINED: " + ", ".join(report.dead).to_upper(), Hud.F_TERM, Hud.ts(24), Hud.RED))

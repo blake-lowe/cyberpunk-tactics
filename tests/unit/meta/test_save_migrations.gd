@@ -76,10 +76,36 @@ func test_v4_drops_the_invented_systems() -> void:
 	assert_true(c.crew.all(func(m): return m.downtime == "recover"))
 	assert_eq(c.crew[0].kit[0], "")
 	assert_eq(c.stash, {"ammo/flashbang_ammo": 1})
-	assert_eq(c.level("armory"), 0)
-	assert_eq(c.level("med_bay"), 1)
-	assert_eq(c.eb, eb0 + 3 * 50 + 1000, "frags and the Armory level refunded")
+	assert_eq(c.eb, eb0 + 3 * 50 + 1000 + 1500, "frags and the Armory level refunded (v5), then the Med Bay level (v6)")
 	var out := c.to_dict()
-	for k in ["rep", "heat", "fixer_rep", "faction_rep"]:
+	for k in ["rep", "heat", "fixer_rep", "faction_rep", "facilities"]:
 		assert_false(out.has(k), "%s is gone" % k)
 	assert_false((out.board[0] as Dictionary).has("rep"))
+
+
+## A save as the v5 build wrote it: built rooms with levels, kit-only storage, no Night Market.
+func test_v5_refunds_room_levels_and_gets_a_market() -> void:
+	var d := Campaign.new_game(4).to_dict()
+	d["version"] = 5
+	d.erase("market")
+	d["facilities"] = {"med_bay": 2, "intel": 1, "training": 2, "armory": 0}
+	d["stash"] = {"ammo/flashbang_ammo": 2}
+	var raw: Dictionary = JSON.parse_string(JSON.stringify(d))
+	var eb0 := int(raw.eb)
+	var weapons0: Array = raw.crew[0].weapons.map(func(w): return w.id)
+	var c := Campaign.from_dict(raw)
+	assert_eq(c.eb, eb0 + (1500 + 4000) + 1500 + (1000 + 3000), "every level refunded at what it cost to build")
+	assert_false(c.to_dict().has("facilities"))
+	assert_eq(c.stash, {"ammo/flashbang_ammo": 2}, "storage carries over")
+	assert_eq(c.crew[0].weapons.map(func(w): return w.id()), weapons0, "the crew keep what they carry")
+	assert_eq((c.market.categories as Array).size(), 2, "a Night Market is up")
+	assert_eq(int(c.to_dict().version), SaveMigrations.CURRENT)
+
+
+func test_storage_keys_for_weapons_and_armor_survive_a_save() -> void:
+	var c := Campaign.new_game(4)
+	c.stash = {"weapon/assault_rifle@poor": 1, "armor/kevlar@upgraded@sp3": 2, "drugs/synthcoke": 1, "weapon/nonsense": 1}
+	var back := Campaign.from_dict(JSON.parse_string(JSON.stringify(c.to_dict())))
+	assert_eq(back.stash, {"weapon/assault_rifle@poor": 1, "armor/kevlar@upgraded@sp3": 2, "drugs/synthcoke": 1}, "unknown keys are dropped")
+	assert_eq(NightMarket.keys_of(back.market), NightMarket.keys_of(c.market), "the same market is up")
+	assert_eq(back.market.closes, c.market.closes)

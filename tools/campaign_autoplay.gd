@@ -61,6 +61,6 @@ func _initialize() -> void:
 			wins += 1
 		print("gig %d %-16s %-9s %-6s sec %d %s: %d turns, %+d eb, best rep %d, dead %s, crew %d, eb %d" % [n + 1,
 			gig.scene, Campaign.objective_for(gig), e.state, int(gig.security), String(gig.get("twist", "")), turns,
-			int(r.pay) - int(r.fees) + int(r.salvage), camp.best_reputation(), r.dead, camp.crew.size(), camp.eb])
+			int(r.pay), camp.best_reputation(), r.dead, camp.crew.size(), camp.eb])
 	print("won %d/%d · day %d · eb %d · best rep %d · fallen %d" % [wins, gigs, camp.day, camp.eb, camp.best_reputation(), camp.fallen.size()])
 	quit()

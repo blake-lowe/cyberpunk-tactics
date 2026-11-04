@@ -68,18 +68,15 @@ func test_quality_survives_a_save() -> void:
 	assert_eq(back.weapons[0].quality, "excellent")
 
 
-func test_the_market_sells_qualities_and_excellent_needs_a_name() -> void:
+func test_a_market_listing_has_every_quality() -> void:
+	var keys := NightMarket.resolve(Dice.new(1), {"name": "Heavy Pistol", "keys": ["weapon/heavy_pistol"]})
+	assert_eq(keys, ["weapon/heavy_pistol@poor", "weapon/heavy_pistol", "weapon/heavy_pistol@excellent"], "all Quality Ratings are present (p338)")
 	var camp := Campaign.new_game(4)
-	camp.crew[0].reputation = 0
-	var ids := camp.shop_stock().map(func(x): return String(x.id))
-	assert_true("heavy_pistol@poor" in ids and "heavy_pistol" in ids)
-	assert_false("heavy_pistol@excellent" in ids, "excellent guns need a little rep")
-	camp.crew[0].reputation = 1
 	camp.eb = 5000
-	ids = camp.shop_stock().map(func(x): return String(x.id))
-	assert_true("heavy_pistol@excellent" in ids)
+	camp.market = {"opened": 1, "closes": 99, "categories": [], "listings": [{"category": "weapons_armor", "name": "Heavy Pistol", "keys": keys}]}
+	assert_true(camp.buy("weapon/heavy_pistol@excellent"))
 	var c: Combatant = camp.crew[0]
-	assert_true(camp.buy(c, "heavy_pistol@excellent"))
+	assert_true(camp.equip_weapon(c, "weapon/heavy_pistol@excellent", 0))
 	assert_eq(c.weapons[0].quality, "excellent")
 	assert_eq(c.weapons[0].id(), "heavy_pistol")
 

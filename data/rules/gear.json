@@ -389,7 +389,7 @@
 				"ablate_sp": 2
 			},
 			"kit": "consumable",
-			"shop_rep": 0,
+			"sold": true,
 			"kit_name": "Armor-Piercing Grenade",
 			"kit_use": "grenade",
 			"kit_short": "AP"
@@ -496,7 +496,7 @@
 				"duration": "1 minute"
 			},
 			"kit": "consumable",
-			"shop_rep": 1,
+			"sold": true,
 			"kit_name": "Flashbang",
 			"kit_use": "grenade",
 			"kit_short": "FLASH"
@@ -527,7 +527,7 @@
 				"burning_extinguish": "action"
 			},
 			"kit": "consumable",
-			"shop_rep": 1,
+			"sold": true,
 			"kit_name": "Incendiary Grenade",
 			"kit_use": "grenade",
 			"kit_short": "INCEND"
@@ -698,7 +698,7 @@
 				"duration": "1 minute"
 			},
 			"kit": "consumable",
-			"shop_rep": 0,
+			"sold": true,
 			"kit_name": "Teargas Grenade",
 			"kit_use": "grenade",
 			"kit_short": "GAS"
@@ -1239,7 +1239,7 @@
 				"no_stack": true
 			},
 			"kit": "utility",
-			"shop_rep": 2,
+			"sold": true,
 			"kit_use": "carried",
 			"kit_short": "MEDSCAN"
 		},
@@ -1453,7 +1453,7 @@
 				"no_stack": true
 			},
 			"kit": "utility",
-			"shop_rep": 2,
+			"sold": true,
 			"kit_use": "carried",
 			"kit_short": "TECHSCAN"
 		},
@@ -1930,7 +1930,7 @@
 				}
 			},
 			"kit": "consumable",
-			"shop_rep": 2,
+			"sold": true,
 			"kit_use": "dose",
 			"kit_short": "LACE",
 			"house_rule": "Lasts the gig. The 2d6 Humanity is lost on use and given back if the user resists addiction afterwards."
@@ -1989,7 +1989,7 @@
 				}
 			},
 			"kit": "consumable",
-			"shop_rep": 1,
+			"sold": true,
 			"kit_use": "dose",
 			"kit_short": "BOOST",
 			"house_rule": "An addict's -2 INT and a dose's +2 INT stack (the book doesn't say). Lasts the gig."
@@ -2061,7 +2061,7 @@
 				}
 			},
 			"kit": "consumable",
-			"shop_rep": 0,
+			"sold": true,
 			"kit_use": "dose",
 			"kit_short": "COKE",
 			"house_rule": "Paranoia and craving are roleplay; no game effect. Effects last the gig (4 hours)."
@@ -2182,6 +2182,40 @@
 				"medtech_only": true
 			},
 			"unmodelled": "Overnight hospital stay 100eb/night (Campaign.treat_addiction models the week, the check, the materials and the year of auto-fails)."
+		},
+		"standard_humanity_therapy": {
+			"name": "Standard Humanity Loss Therapy",
+			"cost": 500,
+			"cost_tier": "Expensive",
+			"cite": "CPR core p.229-230",
+			"summary": "A week of therapy by a Medtech (not on self): the patient regains 2d6 lost Humanity, never past their maximum.",
+			"duration": "1 week",
+			"fx": {
+				"regain_humanity": "2d6",
+				"check": "medical_tech",
+				"dv": 15,
+				"materials_cost": 100,
+				"materials_tier": "Premium",
+				"medtech_only": true
+			},
+			"unmodelled": "Overnight hospital stay 100eb/night (Campaign.humanity_therapy models the week, the check and the materials)."
+		},
+		"extreme_humanity_therapy": {
+			"name": "Extreme Humanity Loss Therapy",
+			"cost": 1000,
+			"cost_tier": "V. Expensive",
+			"cite": "CPR core p.229-230",
+			"summary": "A week of therapy by a Medtech (not on self): the patient regains 4d6 lost Humanity, never past their maximum.",
+			"duration": "1 week",
+			"fx": {
+				"regain_humanity": "4d6",
+				"check": "medical_tech",
+				"dv": 17,
+				"materials_cost": 500,
+				"materials_tier": "Expensive",
+				"medtech_only": true
+			},
+			"unmodelled": "Overnight hospital stay 100eb/night (Campaign.humanity_therapy models the week, the check and the materials)."
 		}
 	},
 	"fx_keys": {
@@ -2306,6 +2340,7 @@
 		"purge_drugs": "true: immediately ends all drug/poison/intoxicant effects on the target. Rapidetox.",
 		"no_sleep": "true: target needs no sleep and suffers no impairment for 'duration'. Surge.",
 		"cures_addiction": "number of addictions removed. Addiction Therapy.",
+		"regain_humanity": "dice of lost Humanity regained, up to the maximum (p.230: each piece of cyberware lowers it). Humanity Loss Therapy ('2d6' Standard, '4d6' Extreme).",
 		"dv": "DV of 'check'. Addiction Therapy.",
 		"materials_cost": "eb of consumed materials, lost on failure (therapy: 500; pharma batch: 200, as item field).",
 		"materials_tier": "price category of materials_cost.",

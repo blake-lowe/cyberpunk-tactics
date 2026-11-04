@@ -6,13 +6,13 @@ extends Control
 ## character stands ~1.15 units; kit metres x KIT), seen through the same low-res palette pipeline.
 ##
 ## Layout on a 2.4-unit module grid: three rooms north of a corridor (Med Bay, Armory, Fixer Network),
-## three south (Training Room, Workshop, Bunks). A facility's level decides its room: unbuilt rooms are
-## dark storage (tarped crates); level 1 brings the basics; level 2 fills it out and lights it up.
+## three south (Training Room, Workshop, Bunks). Rooms are places with no levels or effects; the
+## workshop stays dark storage (tarped crates) until a Tech joins the crew.
 ## Walls are kit walls on the two far sides (rebuilt as the view rotates) and waist-high everywhere
 ## else, so every room reads from above. The crew stand where their downtime job puts them.
 ##
 ## UI (same chrome as the tactical HUD): crew roster left (click: go to them, set their downtime job),
-## rest and the fixer board top right, room / crew detail on the right. Click a room to upgrade it.
+## rest and the fixer board top right, room / crew detail on the right.
 
 const GB := preload("res://src/tactical/greybox.gd")
 const POST_SHADER := preload("res://src/tactical/view/post.gdshader")
@@ -100,8 +100,7 @@ func _ready() -> void:
 		return
 	Hud._fonts()
 	camp = Campaign.ensure_current()
-	if "--demo" in OS.get_cmdline_user_args():   # review shots: a furnished base (not saved)
-		camp.facilities = {"med_bay": 2, "intel": 2, "training": 1}
+	if "--demo" in OS.get_cmdline_user_args():   # review shots: someone hurt in the med bay (not saved)
 		if not camp.crew.is_empty():
 			camp.crew[0].hp = maxi(1, camp.crew[0].max_hp() / 2)
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -416,10 +415,9 @@ func _build_room(id: String) -> void:
 		"bunks": _props_bunks(room, accent)
 
 
-## Facilities by their level; the workshop is open while a Tech is on the crew; bunks are always in.
+## How furnished a room looks (rooms have no levels or effects): the workshop is open while a Tech
+## is on the crew; every other room is in use.
 func _room_level(id: String) -> int:
-	if Campaign.FACILITIES.has(id):
-		return camp.level(id)
 	if id == "workshop":
 		return 2 if camp.best_tech() != null else 0
 	return 1
@@ -557,7 +555,7 @@ func _props_bunks(room: Node3D, accent: Color) -> void:
 
 ## Where each downtime job puts people: hurt crew go to the med bay when it's built.
 func _room_for(c: Combatant) -> String:
-	if c.hp < c.max_hp() and camp.level("med_bay") > 0 and c.downtime == "recover":
+	if c.hp < c.max_hp() and c.downtime == "recover":
 		return "med_bay"
 	if c.role == "tech" and camp.best_tech() != null:
 		return "workshop"
@@ -787,10 +785,7 @@ func _refresh_ui() -> void:
 	hint.position = Vector2(vs.x / 2 - hint.size.x / 2, vs.y - 30)
 	for id in ROOMS:
 		var lv := _room_level(id)
-		var pips := ""
-		if Campaign.FACILITIES.has(id):
-			pips = "  " + "◆".repeat(lv) + "◇".repeat(2 - lv)
-		(labels[id] as Label).text = String(ROOMS[id][2]) + pips + ("" if lv > 0 else "  · STORAGE")
+		(labels[id] as Label).text = String(ROOMS[id][2]) + ("" if lv > 0 else "  · STORAGE")
 	for c in crew_labels:
 		(crew_labels[c] as Label).modulate = Color(1, 1, 1, 1.0 if c == sel_crew else 0.8)
 	_build_roster()
@@ -869,24 +864,13 @@ func _crew_panel(col: VBoxContainer, c: Combatant) -> void:
 func _room_panel(col: VBoxContainer, id: String) -> void:
 	var accent := Color(ROOMS[id][1])
 	col.add_child(_text(String(ROOMS[id][2]), Hud.F_DISPLAY, 32, accent))
-	if Campaign.FACILITIES.has(id):
-		var d: Dictionary = Campaign.FACILITIES[id]
-		var lv := camp.level(id)
-		col.add_child(_text("LEVEL %d OF %d" % [lv, d.costs.size()], Hud.F_TERM, Hud.ts(18), Hud.CYAN))
-		for i in d.desc.size():
-			if String(d.desc[i]) != "":
-				col.add_child(_wrap(("✓ " if lv > i else "· ") + String(d.desc[i]), 18, Color(Hud.TEXT, 0.9 if lv > i else 0.55)))
-		var cost := camp.upgrade_cost(id)
-		if cost >= 0:
-			col.add_child(_button(("BUILD" if lv == 0 else "UPGRADE") + "  %s eb" % Board._money(cost), Hud.GREEN,
-				func(): camp.upgrade(id); camp.save(); _rebuild(), camp.eb >= cost))
-		else:
-			col.add_child(_text("FULLY UPGRADED", Hud.F_TERM, Hud.ts(18), Hud.GREEN))
-	else:
-		var why := {"workshop": "Opens when a Tech joins the crew: armour upgrades between gigs (on the fixer board's crew cards).",
-			"bunks": "Where the crew sleeps, and where anyone recovering rests up when there's no med bay.",
-			"armory": "Where the crew's gear is kept."}
-		col.add_child(_wrap(String(why.get(id, "")), 18, Hud.TEXT))
+	var why := {"workshop": "Opens when a Tech joins the crew: armour upgrades between gigs (on the fixer board's crew cards).",
+		"bunks": "Where the crew sleeps.",
+		"armory": "Where the crew's gear is kept.",
+		"med_bay": "Where anyone hurt rests up.",
+		"intel": "Where the fixers' calls come in.",
+		"training": "Where the crew trains."}
+	col.add_child(_wrap(String(why.get(id, "")), 18, Hud.TEXT))
 	var here := camp.alive_crew().filter(func(c): return _room_for(c) == id)
 	if not here.is_empty():
 		col.add_child(_text("HERE: " + ", ".join(here.map(func(c): return c.display_name.to_upper())), Hud.F_TERM, Hud.ts(18), Hud.CYAN))

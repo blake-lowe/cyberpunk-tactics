@@ -14,8 +14,13 @@ extends RefCounted
 ##     campaign's rep becomes each crew member's Reputation (p193); Train/Hustle downtime becomes
 ##     Recover; the Frag Grenade (not in the book) leaves storage and kits, refunded at its 50eb; the
 ##     Armory no longer has levels, so what was spent building it comes back.
+## v6: storage for everything and the book's Night Market. Safehouse rooms have no levels or
+##     effects any more (Med Bay, Fixer Network, Training Room): what was spent building them comes
+##     back. The stash may now hold weapons ("weapon/<id>[@quality]") and armour ("armor/<id>..."),
+##     which old saves never had, so it carries over as is and the crew keep what they carry. The
+##     campaign gains a Night Market (Campaign rolls one on load when it's empty).
 
-const CURRENT := 5
+const CURRENT := 6
 
 
 ## Upgrade `d` (a parsed save) to CURRENT. Returns {} for a save from a newer build, which this
@@ -31,6 +36,7 @@ static func migrate(d: Dictionary) -> Dictionary:
 			2: _v2_to_v3(d)
 			3: _v3_to_v4(d)
 			4: _v4_to_v5(d)
+			5: _v5_to_v6(d)
 		v += 1
 		d["version"] = v
 	return d
@@ -110,3 +116,20 @@ static func _v4_to_v5(d: Dictionary) -> void:
 		d.erase(k)
 	for g in d.get("board", []):
 		(g as Dictionary).erase("rep")
+
+
+## What v5 charged per level of each room (refunded): Campaign.FACILITIES as it was.
+const FACILITY_COSTS := {"med_bay": [1500, 4000], "intel": [1500, 4000], "training": [1000, 3000]}
+
+
+static func _v5_to_v6(d: Dictionary) -> void:
+	var refund := 0
+	var fac: Dictionary = d.get("facilities", {})
+	for id in fac:
+		var costs: Array = FACILITY_COSTS.get(String(id), [])
+		for i in mini(int(fac[id]), costs.size()):
+			refund += int(costs[i])
+	d.erase("facilities")
+	d["eb"] = int(d.get("eb", 0)) + refund
+	if not d.has("market"):
+		d["market"] = {}
