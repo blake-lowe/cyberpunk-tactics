@@ -583,8 +583,6 @@ func new_gig() -> void:
 		for i in mini(2, _dev_kit.size()):
 			cm.kit[i] = _dev_kit[i]
 	enc = Encounter.setup(m, dice, crew, kind, tw, {"faction": fid} if fid != "" else {})
-	if campaign_gig:
-		enc.heat = camp.heat
 	_log_seen = 0
 	var lk := _scene_look()
 	env.ambient_light_color = Color(lk.ambient)
@@ -2408,7 +2406,7 @@ func _run_reel() -> void:
 			enc.cur.c.skills["athletics"] = int(enc.cur.c.skills.get("athletics", 0)) + 10
 			await get_tree().create_timer(0.4).timeout
 			enc.turn = TurnState.begin(dice, enc.cur.c)
-			enc.cur.c.kit[0] = Encounter.FRAG
+			enc.cur.c.kit[0] = "ammo/armor_piercing_ammo"
 			enc.cur.c.kit_spent[0] = false
 			var r := enc.throw_grenade(g.pos, 0)
 			print("reel grenade: ", r.get("ok"), " ", r.get("reason", ""), " dmg ", r.get("damage", 0))

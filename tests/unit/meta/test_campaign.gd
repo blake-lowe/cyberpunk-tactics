@@ -27,8 +27,8 @@ func test_a_won_gig_pays_and_awards_ip() -> void:
 	var r := c.resolve(e)
 	assert_true(r.won)
 	assert_eq(c.eb, 1000 + pay)
-	assert_true(c.rep > 0)
-	assert_true(c.crew[0].ip >= Campaign.IP_WIN)
+	assert_eq(c.crew[0].ip, int(Campaign.IP_GROUP.together), "everyone came back: the Group column's 30 (p410)")
+	assert_true(c.crew.all(func(m): return m.reputation >= 1), "a won gig is a deed everyone there is known for (p193)")
 	assert_eq(c.day, 2)
 	assert_true(c.active_gig.is_empty())
 
@@ -47,16 +47,59 @@ func test_the_dead_stay_dead_and_the_dying_are_stabilized() -> void:
 	assert_eq(b.hp, 1, "carried out and stabilized")
 	assert_false(b.unconscious)
 	assert_eq(c.eb, 1000 - Campaign.ECON.rescue_fee, "a failed gig costs the rescue fee")
+	assert_eq(b.ip, int(Campaign.IP_GROUP.failed), "tried valiantly: 10 IP (p410)")
+	assert_eq(b.reputation, 0, "no deed in a failure")
 
 
-func test_rest_heals_body_per_day_and_patches_armor() -> void:
+func test_rest_heals_body_per_day() -> void:
 	var c := Campaign.new_game(8)
 	var a: Combatant = c.crew[0]
 	a.hp = 5
-	a.armor.body.sp = 2
 	c.rest(2)
 	assert_eq(a.hp, mini(a.max_hp(), 5 + a.raw_stat("BODY") * 2), "BODY HP per day of rest (p223)")
-	assert_eq(a.armor.body.sp, a.armor.body.max_sp)
+
+
+func test_item_repair_dv_and_time_by_price_category() -> void:
+	assert_eq(ArmorPiece.repair_hours(20), 1, "Everyday: 1 hour (p140)")
+	assert_eq(ArmorPiece.repair_hours(50), 6, "Costly: 6 hours")
+	assert_eq(ArmorPiece.repair_hours(100), 24, "Premium: 1 day")
+	assert_eq(ArmorPiece.repair_hours(500), 24 * 7, "Expensive: 1 week")
+	assert_eq(ArmorPiece.maker_dv(50), 13)
+
+
+func test_a_skilled_hand_repairs_ablated_armor_in_downtime() -> void:
+	var c := Campaign.new_game(8)
+	var a: Combatant = c.crew[0]
+	var t: Combatant = c.crew[1]
+	t.stats["TECH"] = 8
+	t.skills["basic_tech"] = 10   # 18 + 1d10 beats Kevlar's DV13 unless it fumbles
+	assert_eq(c.best_repairer(), t)
+	a.armor["body"] = ArmorPiece.from_id("kevlar")   # Costly: DV13, 6 hours (p140)
+	a.armor.body.sp = 2
+	var done := c.repair_armor_work(2)
+	assert_true(done.is_empty() and a.armor.body.sp == 2, "not done after 2 of 6 hours")
+	assert_eq(a.armor.body.repair_work, 2, "the work carries over")
+	var d := Combatant.from_dict(JSON.parse_string(JSON.stringify(a.to_dict())))
+	assert_eq(d.armor.body.repair_work, 2, "and survives a save")
+	for k in 3:   # a day is four tries' worth; a fumble just starts it over
+		if a.armor.body.sp == a.armor.body.max_sp:
+			break
+		c.rest(1)
+	assert_eq(a.armor.body.sp, a.armor.body.max_sp, "repaired")
+	assert_eq(a.armor.body.repair_work, 0)
+
+
+func test_an_unskilled_crew_cant_fix_expensive_armor() -> void:
+	var c := Campaign.new_game(8)
+	for m in c.crew:
+		m.stats["TECH"] = 2
+		m.skills["basic_tech"] = 0
+	var a: Combatant = c.crew[0]
+	a.armor["body"] = ArmorPiece.from_id("metalgear")   # Luxury: DV29, a month; TECH 2 + 1d10 can't beat it
+	a.armor.body.sp = 3
+	assert_true(c.repair_armor_work(24 * 30).is_empty())
+	assert_eq(a.armor.body.sp, 3, "both tries fail at the halfway mark")
+	assert_eq(a.armor.body.repair_work, 0, "and each failure starts the repair from scratch (p140)")
 
 
 func test_save_and_load_round_trip() -> void:
@@ -94,14 +137,14 @@ func test_shop_stock_grows_with_reputation() -> void:
 	var low := c.shop_stock().map(func(x): return x.id)
 	assert_true("heavy_pistol" in low)
 	assert_false("sniper_rifle" in low, "rep 0: no sniper rifles")
-	c.rep = 5
+	c.crew[1].reputation = 5   # the crew's best-known name opens the market
 	var high := c.shop_stock().map(func(x): return x.id)
 	assert_true("sniper_rifle" in high and "metalgear" in high)
 
 
 func test_buy_gun_becomes_primary_and_sells_extra() -> void:
 	var c := Campaign.new_game(3)
-	c.rep = 1
+	c.crew[0].reputation = 1
 	var solo: Combatant = c.crew[0]   # assault rifle + heavy pistol
 	var eb0 := c.eb
 	assert_true(c.buy(solo, "shotgun"))
@@ -177,19 +220,30 @@ func test_cyber_claws_are_never_sold() -> void:
 	assert_true(d.weapons.any(func(w): return w.builtin))
 
 
-func test_heat_rises_when_loud_and_cools_with_rest() -> void:
+func test_reputation_is_the_best_deed_of_those_who_were_there() -> void:
 	var c := Campaign.new_game(6)
-	var e := _finish(c, true)
+	var home: Combatant = c.crew[1]
+	c.board[0]["security"] = 2
+	var gig: Dictionary = c.accept(0)
+	var m := SceneGen.generate(int(gig.seed), String(gig.scene), Campaign.scene_opts(gig))
+	var went: Array[Combatant] = [c.crew[0]]
+	var e := Encounter.setup(m, c.dice, went)
+	e.state = "won"
 	e.alarm = 2
-	e.ncpd_in = -2
 	var r := c.resolve(e)
-	assert_eq(int(r.heat), Campaign.gig_heat(e))
-	assert_true(c.heat >= 2, "alarm + NCPD")
-	var h := c.heat
-	c.rest(4)
-	assert_eq(c.heat, maxi(0, h - 4), "lying low")
+	assert_eq(c.crew[0].reputation, 4, "a loud security-2 job: stories all over the local area (p193)")
+	assert_eq(home.reputation, 0, "only those who were there")
+	assert_eq(r.reputation, {c.crew[0].display_name: 4})
+	assert_eq(c.best_reputation(), 4)
+	c.crew[0].reputation = 6
+	c.board[0]["security"] = 1
+	gig = c.accept(0)
+	e = Encounter.setup(m, c.dice, went)
+	e.state = "won"
+	c.resolve(e)
+	assert_eq(c.crew[0].reputation, 6, "a lesser deed doesn't replace a greater one")
 	var d := Campaign.from_dict(JSON.parse_string(JSON.stringify(c.to_dict())))
-	assert_eq(d.heat, c.heat)
+	assert_eq(d.crew[0].reputation, 6, "saved per character")
 
 
 func test_downtime_episodes_for_low_humanity() -> void:
@@ -205,11 +259,9 @@ func test_downtime_episodes_for_low_humanity() -> void:
 	assert_true(other.hp >= 1)
 
 
-func test_trusted_fixer_offers_personal_jobs() -> void:
+func test_a_known_crew_gets_personal_jobs() -> void:
 	var c := Campaign.new_game(8)
-	var g := RulesDB.gen("gigs.json")
-	for f in g.fixers:
-		c.fixer_rep[f] = 5
+	c.crew[0].reputation = 5
 	var seen := false
 	for k in 12:
 		c.refresh_board()
@@ -221,30 +273,16 @@ func test_trusted_fixer_offers_personal_jobs() -> void:
 	assert_true(seen, "a personal job shows up")
 
 
-func test_setup_pays_nothing_and_burns_the_fixer() -> void:
+func test_setup_pays_nothing() -> void:
 	var c := Campaign.new_game(6)
 	c.board[0]["setup"] = true
-	var fixer := String(c.board[0].fixer)
 	var e := _finish(c, true)
-	var eb0 := c.eb
 	var r := c.resolve(e)
 	assert_eq(int(r.pay), 0)
-	assert_true(c.rep_with(fixer) < 0)
-	assert_false(c.board.any(func(b): return String(b.fixer) == fixer), "they don't offer work for now")
 
 
-func test_downtime_assignments() -> void:
+func test_downtime_is_only_what_the_book_has() -> void:
+	assert_eq(Campaign.DOWNTIME.keys(), ["recover"], "natural healing (p223); no Train/Hustle rule in the book")
 	var c := Campaign.new_game(9)
-	var a: Combatant = c.crew[0]
-	var b: Combatant = c.crew[1]
-	a.downtime = "train"
-	b.downtime = "hustle"
-	a.hp = 1
-	var ip0 := a.ip
-	var eb0 := c.eb
-	c.rest(2)
-	assert_eq(a.ip, ip0 + 12, "train: +6 IP a day")
-	assert_eq(a.hp, mini(a.max_hp(), 1 + a.raw_stat("BODY") * 2 / 2), "half healing")
-	assert_true(c.eb >= eb0 + 120 - 2 * 50 * 2, "hustle earns (grenade restock may spend)")
-	var d := Combatant.from_dict(JSON.parse_string(JSON.stringify(a.to_dict())))
-	assert_eq(d.downtime, "train")
+	assert_true(c.crew.all(func(m): return m.reputation == 0), "most characters start at Reputation 0 (p193)")
+	assert_false(c.to_dict().has("heat") or c.to_dict().has("rep"), "no campaign heat or crew-wide rep")

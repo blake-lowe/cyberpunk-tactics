@@ -15,9 +15,7 @@ func _initialize() -> void:
 		if camp.alive_crew().is_empty():
 			print("crew wiped out after %d gigs" % n)
 			break
-		# downtime: heal up, hire to three, a frag restock, spend IP
-		for c in camp.crew:   # broke: work side jobs while healing
-			c.downtime = "hustle" if camp.eb < 600 else "recover"
+		# downtime: heal up, hire to three, spend IP
 		var guard := 0
 		while camp.crew.any(func(c): return c.hp < c.max_hp()) and guard < 10:
 			camp.rest(1)
@@ -43,7 +41,6 @@ func _initialize() -> void:
 		if gig.get("setup", false):
 			tw.append_array(["setup", "heavy"])
 		var e := Encounter.setup(m, camp.dice, crew, Campaign.objective_for(gig), tw, {"faction": String(gig.get("faction", ""))})
-		e.heat = camp.heat
 		e.nav.locked = {}   # stand-in for a player who hacks or shoots security doors (the AI crew can't)
 		e.next_turn()
 		var turns := 0
@@ -62,8 +59,8 @@ func _initialize() -> void:
 		var r := camp.resolve(e)
 		if r.won:
 			wins += 1
-		print("gig %d %-16s %-9s %-6s sec %d %s: %d turns, %+d eb, rep %d, heat %d, dead %s, crew %d, eb %d" % [n + 1,
+		print("gig %d %-16s %-9s %-6s sec %d %s: %d turns, %+d eb, best rep %d, dead %s, crew %d, eb %d" % [n + 1,
 			gig.scene, Campaign.objective_for(gig), e.state, int(gig.security), String(gig.get("twist", "")), turns,
-			int(r.pay) - int(r.fees) + int(r.salvage), camp.rep, camp.heat, r.dead, camp.crew.size(), camp.eb])
-	print("won %d/%d · day %d · eb %d · rep %d · heat %d · fallen %d" % [wins, gigs, camp.day, camp.eb, camp.rep, camp.heat, camp.fallen.size()])
+			int(r.pay) - int(r.fees) + int(r.salvage), camp.best_reputation(), r.dead, camp.crew.size(), camp.eb])
+	print("won %d/%d · day %d · eb %d · best rep %d · fallen %d" % [wins, gigs, camp.day, camp.eb, camp.best_reputation(), camp.fallen.size()])
 	quit()

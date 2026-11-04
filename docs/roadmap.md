@@ -148,10 +148,9 @@ Check-ins (🔶) are where work pauses for a user decision or review.
 ### Overnight decisions (report to owner)
 - Guards: CPR NPC tiers (Mook/Lieutenant/Mini Boss, p411-415, RULES-UNVERIFIED: read from a garbled
   extraction) on the p399 budget; balance check: AI crew of 3 beats an equal number of Mooks 12/12.
-- HOUSE-RULES: melee reach covers diagonal neighbours; frag grenades are a kit item (50eb, no
-  Basic grenade in the book), a new crew starts with 3 in storage and a third of Mooks carry one;
-  failed-gig rescue fee, clinic treatment price, free armour patching, Armory discount, hire price (Campaign.ECON) are placeholders.
-- IP rubric for p410's qualitative awards: fail 10, success 30, +10 nobody down, +10 NET objective.
+- HOUSE-RULES: melee reach covers diagonal neighbours; failed-gig rescue fee, clinic treatment price
+  and hire price (Campaign.ECON) are placeholders. (The frag grenade, free armour patching, the Armory
+  discount and the IP rubric were removed by the core-book-only ruling below.)
 - Board is the main scene; dev flags still open the tactical view directly.
 - Fresh-eyes review (subagent): fixed four bugs (jack-in range anchor, NET action validation, ICE/strain
   damage events, all-unconscious hang); its next-step list is on the review page.
@@ -210,6 +209,31 @@ Check-ins (🔶) are where work pauses for a user decision or review.
 - Escalation retuned after measuring (balance_autoplay -- --escalate): backup = security Mooks after 5
   rounds; NCPD only at security 2+, heavy twist, or heat 3+, 12 rounds after backup. With escalation on, an
   AI crew of 3 vs equal Mooks now wins 10/12 (was 2/12), matching the no-escalation baseline.
+
+### Owner ruling: core-book systems only → done
+"Use only systems from the core rulebook, don't invent your own." Removed, with what replaced them:
+- Campaign heat (gig heat, daily cool-down, twist odds, faster NCPD, MaxTac at high heat): gone. In-gig
+  alarm, backup and the NCPD escalation stay, driven only by the security doctrine data (min_security,
+  rounds); MaxTac is no longer in any escalation (still callable for dev renders).
+- Hustle and Train downtime: gone (no book rule earns eb or IP in downtime; IP come from the GM, p410).
+  Downtime is Recover only (natural healing, p223).
+- Armory discount: gone; the Armory is a plain room (future storage/loadout room), no levels.
+- Frag Grenade: gone (the book has no basic grenade, p94/p344); new games start with empty storage.
+- Free armour repair: replaced by Item Repair (p140): the crew's best TECH + Basic Tech rolls vs the
+  Price Category DV at the halfway mark of the category's time (failure starts over); work carries over
+  between rests; no materials cost listed.
+- Addiction therapy with no roll: replaced by p229-230: a crew Medtech (not the patient) pays the 500eb
+  materials, a week passes, TECH + Medical Tech vs DV15; failure wastes the week and materials; success
+  cures it and that drug's addiction roll auto-fails for a year.
+- IP rubric: replaced by the Group column of the p410 table (RULES-UNVERIFIED reading): failed 10,
+  won with a crew member lost 20 ("barely"), won with everyone back 30 ("worked together well").
+- Per-fixer rep, faction standing, crew-wide rep: replaced by per-character Reputation (p193). A won gig's
+  deed Level = 2 x security - 1, +1 if backup was called (RULES-UNVERIFIED reading of the "who knows"
+  table); it replaces a character's Reputation only if higher; the board and market gate on the crew's
+  best Reputation. Save v5 migrates old saves (rep → each crew member's Reputation; frags and Armory
+  levels refunded).
+- Still invented and not covered by the ruling (flagged for the owner): Training Room +5 IP, Med Bay
+  +2 HP/day, Fixer Network, setups/twists, salvage, rescue fee, humanity therapy without a check.
 
 ### Owner notes (morning after night 2) → done
 - Badlands fog: out-of-sight terrain only dims (per-scene fog_sat/fog_cool/fog_dim; night scenes unchanged).

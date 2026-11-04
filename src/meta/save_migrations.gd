@@ -10,8 +10,12 @@ extends RefCounted
 ## v3: inventory. Safehouse storage (stash); each crew member's two kit slots and addictions.
 ## v4: frags are kit. Carried frag grenades go into storage (one packed in slot 1); slot 2 holds
 ##     utilities only, so a consumable there moves to an empty slot 1 or back into storage.
+## v5: core-book systems only. Campaign heat, per-faction standing and per-fixer rep are gone; the
+##     campaign's rep becomes each crew member's Reputation (p193); Train/Hustle downtime becomes
+##     Recover; the Frag Grenade (not in the book) leaves storage and kits, refunded at its 50eb; the
+##     Armory no longer has levels, so what was spent building it comes back.
 
-const CURRENT := 4
+const CURRENT := 5
 
 
 ## Upgrade `d` (a parsed save) to CURRENT. Returns {} for a save from a newer build, which this
@@ -26,6 +30,7 @@ static func migrate(d: Dictionary) -> Dictionary:
 			1: _v1_to_v2(d)
 			2: _v2_to_v3(d)
 			3: _v3_to_v4(d)
+			4: _v4_to_v5(d)
 		v += 1
 		d["version"] = v
 	return d
@@ -73,3 +78,35 @@ static func _v3_to_v4(d: Dictionary) -> void:
 				kit[0] = FRAG
 	for c in d.get("crew", []) + d.get("recruits", []):
 		(c as Dictionary).erase("grenades")
+
+
+const FRAG_PRICE := 50                    ## what v4 sold a frag for (refunded)
+const ARMORY_COSTS := [1000, 3000]        ## what v4 charged per Armory level (refunded)
+
+
+static func _v4_to_v5(d: Dictionary) -> void:
+	var refund := 0
+	# The old campaign rep was the crew's street name on the same 0-10ish scale the board and market
+	# gate on, so each crew member keeps it as their Reputation Level (capped at the book's 10).
+	var rep := clampi(int(d.get("rep", 0)), 0, 10)
+	for c in d.get("crew", []):
+		c["reputation"] = rep
+	for c in d.get("crew", []) + d.get("recruits", []):
+		if String(c.get("downtime", "recover")) != "recover":
+			c["downtime"] = "recover"
+		var kit: Array = c.get("kit", [])
+		for i in kit.size():
+			if kit[i] == FRAG:
+				kit[i] = ""
+	var stash: Dictionary = d.get("stash", {})
+	refund += FRAG_PRICE * int(stash.get(FRAG, 0))
+	stash.erase(FRAG)
+	var fac: Dictionary = d.get("facilities", {})
+	for i in mini(int(fac.get("armory", 0)), ARMORY_COSTS.size()):
+		refund += int(ARMORY_COSTS[i])
+	fac.erase("armory")
+	d["eb"] = int(d.get("eb", 0)) + refund
+	for k in ["rep", "heat", "fixer_rep", "faction_rep"]:
+		d.erase(k)
+	for g in d.get("board", []):
+		(g as Dictionary).erase("rep")

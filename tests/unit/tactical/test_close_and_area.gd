@@ -12,7 +12,7 @@ func _arena(guard_cells: Array, crew_weapon := "assault_rifle", seed := 3) -> En
 	var dice := Dice.new(seed)
 	var crew: Array[Combatant] = [Fixtures.shooter("A")]
 	crew[0].weapons.append(Weapon.from_id(crew_weapon))
-	crew[0].kit[0] = Encounter.FRAG
+	crew[0].kit[0] = "ammo/armor_piercing_ammo"   # a grenade the book sells (p.344-345)
 	var e := Encounter.setup(m, dice, crew)
 	e.units = e.units.filter(func(u): return u.team == 0)
 	for cell in guard_cells:
@@ -83,7 +83,7 @@ func test_grenade_blast_hits_the_area_and_breaks_weak_cover() -> void:
 	e.los = Los.new(e.m)
 	var r := e.throw_grenade(Vector3i(9, 5, 0))
 	assert_true(r.ok)
-	assert_true(e.cur.c.kit_spent[0], "the packed frag is thrown")
+	assert_true(e.cur.c.kit_spent[0], "the packed grenade is thrown")
 	var ids: Array = r.hits.map(func(h): return h.id)
 	if r.hit:
 		assert_true(1 in ids and 2 in ids, "everyone within the 5x5 is caught")
@@ -128,7 +128,7 @@ func test_ai_throws_at_a_cluster_and_punches_when_empty() -> void:
 	e._add(ally, Vector3i(3, 5, 0), 0)
 	var g: Dictionary = e.units[1]
 	g.c.weapons.append(Weapon.from_id("heavy_pistol"))
-	g.c.kit[0] = Encounter.FRAG
+	g.c.kit[0] = "ammo/armor_piercing_ammo"
 	g.c.skills["athletics"] = 8
 	e.cur = g
 	e.turn = TurnState.begin(e.dice, g.c)

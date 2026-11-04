@@ -27,6 +27,9 @@ var weapons: Array[Weapon] = []
 var block := ""               ## the printed stat block an NPC was built from (npcs.json), "" for crew
 var hp_max_override := 0       ## a stat block's printed HP when it differs from the formula (0: formula)
 var ip: int = 0                ## unspent Improvement Points (p410-411)
+## Reputation Level 0-10 (CPR core p193): the Level of their most notable deed (a new deed replaces it
+## only if higher; most characters start at 0). Others roll 1d10 under it to have heard of them.
+var reputation: int = 0
 var look_seed: int = -1        ## the crew member's appearance seed (stable across gigs); -1 = by unit order
 
 var role: String = ""         ## "solo", "netrunner", "medtech", "tech", ...
@@ -35,7 +38,7 @@ var perks: Array[String] = []
 ## Medtech Medicine (p149-150): Specialty points. Pharmaceutical points unlock drugs in order
 ## (Speedheal, Stim); doses per gig = Medical Tech Skill (HOUSE-RULE: synthesized in downtime).
 var medicine := {}               ## {surgery, pharma, cryo} points
-var downtime := "recover"        ## between gigs: recover | train | hustle (Campaign.DOWNTIME)
+var downtime := "recover"        ## between gigs: recover (Campaign.DOWNTIME)
 var maker := {}                  ## Tech Maker Specialty ranks (p147): field, upgrade, fabrication, invention
 var doses := 0                   ## Pharmaceutical doses carried this gig
 var temp_mods := {}              ## stat → penalty for the rest of the gig (Liche, Scorpion: "for 1 hour")
@@ -44,6 +47,7 @@ var kit_spent: Array[bool] = [false, false]   ## this gig: a consumable slot alr
 var drugs_taken: Array[String] = []   ## this gig: drug ids dosed (addiction checks afterwards, p.229)
 var drug_fx: Array[Dictionary] = []   ## this gig: effects of drugs in the system (HOUSE-RULE: a dose lasts the gig)
 var addictions: Array[String] = []    ## drug ids they're hooked on (p.229): the "addicted" fx apply unless high
+var clean_since := {}                 ## drug id → campaign day Addiction Therapy freed them of it (p230: a year of auto-fails)
 var drug_humanity := {}               ## this gig: drug id → Humanity it cost (Black Lace refunds it on resisting addiction)
 var burning := 0                 ## on fire: HP lost at the end of each turn until an Action puts it out (Hellhound 2, p207; flamethrower 4, p348)
 var cyber_off := {}              ## cyberware id → rounds it stays inoperable (Microwaver, p348)
@@ -255,6 +259,12 @@ func take_perk(id: String) -> bool:
 ## Medical Tech Skill = Pharmaceutical + Cryosystem points (p149).
 func medical_tech() -> int:
 	return int(medicine.get("pharma", 0)) + int(medicine.get("cryo", 0))
+
+
+## TECH + Medical Tech (p149, p229): a Medtech's base for Therapy. 0 for anyone else (only Medtechs
+## have the Skill, p150).
+func therapy_base() -> int:
+	return stat("TECH") + medical_tech() if role == "medtech" else 0
 
 
 ## Pharmaceuticals this Medtech can make: one per Pharmaceutical point (p149), in our fixed order.
@@ -605,7 +615,7 @@ func stabilize() -> void:
 # --- Save / load (campaign state between gigs) ---------------------------------
 
 static func _armor_dict(a: ArmorPiece) -> Variant:
-	return {"id": a.id, "sp": a.sp, "upgraded": a.upgraded} if a else null
+	return {"id": a.id, "sp": a.sp, "upgraded": a.upgraded, "work": a.repair_work} if a else null
 
 
 static func _armor_from(d: Variant) -> ArmorPiece:
@@ -616,6 +626,7 @@ static func _armor_from(d: Variant) -> ArmorPiece:
 	if a.upgraded:
 		a.max_sp += 1
 	a.sp = int(d.sp)
+	a.repair_work = int(d.get("work", 0))
 	return a
 
 
@@ -631,7 +642,7 @@ func to_dict() -> Dictionary:
 		"weapons": weapons.map(func(w): return {"id": w.id(), "ammo": w.ammo, "builtin": w.builtin, "quality": w.quality}), "role": role,
 		"role_rank": role_rank, "awareness": awareness, "tracks_humanity": tracks_humanity, "humanity": humanity,
 		"max_humanity": max_humanity, "cyberware": cyberware, "ip": ip, "look_seed": look_seed, "perks": perks, "medicine": medicine, "maker": maker, "downtime": downtime, "programs": programs,
-		"kit": kit, "addictions": addictions}
+		"kit": kit, "addictions": addictions, "clean_since": clean_since, "reputation": reputation}
 
 
 static func from_dict(d: Dictionary) -> Combatant:
@@ -677,6 +688,9 @@ static func from_dict(d: Dictionary) -> Combatant:
 		c.kit[i] = String(kd[i])
 	for a in d.get("addictions", []):
 		c.addictions.append(String(a))
+	for k in d.get("clean_since", {}):
+		c.clean_since[String(k)] = int(d.clean_since[k])
+	c.reputation = int(d.get("reputation", 0))
 	for pg in d.get("programs", ["sword", "armor"] if String(d.role) == "netrunner" else []):
 		c.programs.append(String(pg))
 	for k in d.get("maker", {}):

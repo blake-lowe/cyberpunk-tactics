@@ -70,11 +70,11 @@ func test_quality_survives_a_save() -> void:
 
 func test_the_market_sells_qualities_and_excellent_needs_a_name() -> void:
 	var camp := Campaign.new_game(4)
-	camp.rep = 0
+	camp.crew[0].reputation = 0
 	var ids := camp.shop_stock().map(func(x): return String(x.id))
 	assert_true("heavy_pistol@poor" in ids and "heavy_pistol" in ids)
 	assert_false("heavy_pistol@excellent" in ids, "excellent guns need a little rep")
-	camp.rep = 1
+	camp.crew[0].reputation = 1
 	camp.eb = 5000
 	ids = camp.shop_stock().map(func(x): return String(x.id))
 	assert_true("heavy_pistol@excellent" in ids)

@@ -86,7 +86,7 @@ The player's crew. Never a gig target. *RULES-UNVERIFIED.*
 
 ### Bystanders (`bystanders`)
 
-People on the street and in public rooms. They panic at gunfire and run for the map edge; hurting one costs rep and heat. *RULES-UNVERIFIED.*
+People on the street and in public rooms. They panic at gunfire and run for the map edge. *RULES-UNVERIFIED.*
 
 ```world factions.factions.bystanders
 {
@@ -510,7 +510,7 @@ Night City police. Answer escalating fights; at war with gangs, leave corp secur
 
 ### MaxTac (`maxtac`)
 
-Police cyberpsycho squad. Answers instead of the NCPD when the crew's heat is high. *RULES-UNVERIFIED.*
+Police cyberpsycho squad. Not part of any doctrine's escalation (it was driven by campaign heat, now removed); kept for later. *RULES-UNVERIFIED.*
 
 ```world factions.factions.maxtac
 {

@@ -1,10 +1,10 @@
 class_name Campaign
 extends RefCounted
 ## The between-gig layer (spec: Gigs & Mission Structure, Meta Progression, Injury & Death).
-## First slice (M6): a crew, eurobucks, reputation and a day count; a fixer board of parameterised
-## gigs; gig results (pay, reputation, Improvement Points, persistent HP/injuries/armour, permadeath);
-## downtime (rest heals BODY HP per day, p223; clinics treat Critical Injuries; armour repair and
-## ammo resupply). Everything serialises to a JSON save.
+## First slice (M6): a crew, eurobucks and a day count; a fixer board of parameterised gigs; gig
+## results (pay, each crew member's Reputation, Improvement Points, persistent HP/injuries/armour,
+## permadeath); downtime (rest heals BODY HP per day, p223; clinics treat Critical Injuries; the
+## crew repairs ablated armour, p140; ammo resupply). Everything serialises to a JSON save.
 ##
 ## Economy numbers (pay, fees, prices) are HOUSE-RULE placeholders until checked against the book's
 ## job rates and price lists; they're kept together in ECON so they're easy to tune.
@@ -14,49 +14,40 @@ const ECON := {
 	"start_eb": 1000,          # p98: 500eb per starting character, two characters
 	"rescue_fee": 500,         # HOUSE-RULE: a fixer drags the survivors of a failed gig out
 	"treat_injury": 200,       # HOUSE-RULE: a street clinic's Treatment for one Critical Injury
-	"armor_repair": 0,         # HOUSE-RULE: armour is patched up for free in downtime (for now)
-	"start_frags": 3,          # HOUSE-RULE: frag grenades in storage at the start (the crew used to carry 2 + 1)
-	"armory_discount": 0.1,    # HOUSE-RULE: gear-market discount per Armory level
 	"hire": 500,               # HOUSE-RULE: signing a new crew member
 	"salvage": 0.25,           # HOUSE-RULE: a won gig strips the downed opposition's gear at a quarter of list
 }
-## IP per gig (p410: the GM awards 10-80; AMBIGUITY: the tiers are qualitative). Our rubric:
-## a failed gig 10, success 30, success without anyone going down +10, the NET objective +10.
+## IP per gig: the Group column of the Playstyle Improvement Point table (CPR core p410: a finished
+## mission awards the Group value). RULES-UNVERIFIED reading of its qualitative tiers: a failed gig is
+## "did not succeed, but tried valiantly" (10); a won gig that cost a crew member's life "barely
+## accomplished" it (20); a won gig everyone came back from "worked together well ... with everyone
+## taking part" (30). The 40-80 tiers ("extremely well", "stellar moments", side goals) need a GM's eye.
+const IP_GROUP := {"failed": 10, "barely": 20, "together": 30}
 ## Gig kind → encounter objective (Encounter.setup).
 const OBJECTIVES := {"data_theft": "data", "gang_hit": "eliminate", "corp_extraction": "snatch", "assassination": "assassinate", "rescue": "rescue", "sabotage": "sabotage"}
 ## Safehouse facilities (spec: Meta Progression, "a few upgradeable facilities"). HOUSE-RULE content:
-## two levels each, costs per level; effects are read where they apply (rest, restock, board, IP).
+## two levels each, costs per level; effects are read where they apply (rest, clinic, board, IP).
 const FACILITIES := {
 	"med_bay": {"name": "Med Bay", "costs": [1500, 4000],
 		"desc": ["Rest heals +2 HP a day per level.", "Level 2: clinic treatment costs a quarter less."]},
-	"armory": {"name": "Armory", "costs": [1000, 3000],
-		"desc": ["Grenades, drugs and scanners cost 10% less per level.", ""]},
 	"intel": {"name": "Fixer Network", "costs": [1500, 4000],
 		"desc": ["+1 gig on the board per level.", "Better-security gigs show up one reputation earlier per level."]},
 	"training": {"name": "Training Room", "costs": [1000, 3000],
 		"desc": ["+5 IP per gig for each survivor per level.", ""]},
 }
-## Downtime assignments (spec: "assign downtime actions"), HOUSE-RULE numbers, per day of rest:
-## recover heals BODY (p223); train heals half and earns IP; hustle heals half and earns eb from side
-## work (more with reputation) but can draw attention.
+## Downtime assignments (spec: "assign downtime actions"): only what the book has a rule for.
+## Recover: natural healing, BODY HP a day (p223). (The book has no rule for earning IP or eb in
+## downtime: IP come from the GM after a session, p410.)
 const DOWNTIME := {
 	"recover": {"name": "Recover", "desc": "Heal BODY HP a day (p223)."},
-	"train": {"name": "Train", "desc": "Half healing; +6 IP a day."},
-	"hustle": {"name": "Hustle", "desc": "Half healing; 60 eb a day (+10 per rep); 1 in 10 days adds heat."},
 }
 const FIXER_MARKUP := 1.2   ## HOUSE-RULE: spec "items >= 500 eb require a fixer": sourced at +20%
-const IP_FAIL := 10
-const IP_WIN := 30
 
 static var current: Campaign   ## the running campaign (the board and the tactical view share it)
 
 var seed_value := 1
 var dice: Dice
 var eb := 0
-var rep := 0                         ## street cred: the overall name (market access, crew size of the board)
-var heat := 0                        ## 0-10: how hard NCPD is looking for the crew (spec: consequences, heat)
-var fixer_rep := {}                  ## fixer name → reputation with them (spec: per-fixer reputation)
-var faction_rep := {}                ## World faction id → standing (negative: they know who hit them)
 var day := 1
 var crew: Array[Combatant] = []
 var fallen: Array[Dictionary] = []   ## {name, role, day, gig}: the wall
@@ -86,9 +77,6 @@ static func new_game(p_seed: int) -> Campaign:
 	c.crew.append(Recruit.generate(c.dice, "netrunner", "edgerunner"))
 	for i in c.crew.size():
 		c.crew[i].look_seed = i
-	c.stash[Encounter.FRAG] = int(ECON.start_frags)
-	for m in c.crew:
-		c.set_kit(m, 0, Encounter.FRAG)
 	c.refresh_board()
 	c.refresh_recruits()
 	c.say("Day 1. %s and %s are looking for work." % [c.crew[0].display_name, c.crew[1].display_name])
@@ -107,36 +95,44 @@ func alive_crew() -> Array[Combatant]:
 	return out
 
 
+## The crew's best Reputation (p193, per character). The game's reading: a fixer offers work and
+## a dealer stocks gear by the best-known name on the crew (the one most likely to have been heard of).
+func best_reputation() -> int:
+	var best := 0
+	for c in alive_crew():
+		best = maxi(best, c.reputation)
+	return best
+
+
 # --- Fixer board ------------------------------------------------------------------
 
-## Three or four offers. Security is weighted by reputation (better jobs need a name), pay scales
-## with security and a little with reputation.
+## Three or four offers. Security is weighted by the crew's best Reputation (better jobs need a
+## name, p193); pay scales with security.
 func refresh_board() -> void:
 	var g := RulesDB.gen("gigs.json")
 	board.clear()
-	var n := 3 + (1 if rep >= 3 else 0) + level("intel")
+	var known := best_reputation()
+	var n := 3 + (1 if known >= 3 else 0) + level("intel")
 	for i in n:
 		var t: Dictionary = g.templates[dice.d(g.templates.size()) - 1]
-		var willing: Array = g.fixers.filter(func(f): return rep_with(String(f)) >= 0)   # not the ones who sold you out
-		var slots := {"fixer": _pick(willing if not willing.is_empty() else g.fixers), "data": _pick(g.data),
+		var slots := {"fixer": _pick(g.fixers), "data": _pick(g.data),
 			"place": _pick(t.get("places", ["site"])), "target": _pick(t.get("targets", ["target"]))}
 		slots.merge(_target_slots(String(t.kind)))
-		var frep := maxi(0, rep_with(String(slots.fixer)))   # better jobs come from fixers who know you
 		var sec := 1
 		for s in [3, 2]:
-			if frep + level("intel") >= int(g.rep_for_security[str(s)]) and dice.d(10) <= (4 if s == 2 else 3):
+			if known + level("intel") >= int(g.rep_for_security[str(s)]) and dice.d(10) <= (4 if s == 2 else 3):
 				sec = s
 				break
 		var twist := ""
-		if dice.rng.randf() < float(g.get("twist_chance", 0.0)) + heat * 0.04:   # heat: corps are expecting trouble
+		if dice.rng.randf() < float(g.get("twist_chance", 0.0)):
 			var keys: Array = g.twists.keys()
 			twist = keys[dice.d(keys.size()) - 1]
 		var mult := float(g.twists[twist].pay) if twist != "" else 1.0
 		var title := _fill(_pick(_titles_for(t, String(slots.faction))), slots)
 		board.append({"id": "%d-%d" % [day, i], "kind": t.kind, "fixer": slots.fixer, "faction": slots.faction, "title": title,
 			"blurb": _fill(String(t.blurb), slots), "security": sec, "twist": twist,
-			"pay": int(int(g.pay[str(sec)]) * (1.0 + frep * 0.05) * mult), "rep": sec, "seed": dice.rng.randi_range(1, 99999),
-			"setup": frep == 0 and dice.rng.randf() < float(g.get("betrayal_chance", 0.0))})
+			"pay": int(int(g.pay[str(sec)]) * mult), "seed": dice.rng.randi_range(1, 99999),
+			"setup": known == 0 and dice.rng.randf() < float(g.get("betrayal_chance", 0.0))})
 		board[-1].merge(_place_for(String(t.kind), g, String(slots.faction)))
 		_fit_location_security(board[-1])
 	_unique_offer(g)
@@ -149,19 +145,18 @@ static func _fit_location_security(gig: Dictionary) -> void:
 		gig.security = clampi(int(gig.security), int(l.security[0]), int(l.security[1]))
 
 
-## A fixer who trusts the crew (rep >= unique_rep) sometimes has a personal job: security 3, double
-## pay, extra reputation (spec: "occasional unique offers"). At most one on the board.
+## A crew with a name (best Reputation >= unique_rep) sometimes gets a fixer's personal job:
+## security 3, double pay (spec: "occasional unique offers"). At most one on the board.
 func _unique_offer(g: Dictionary) -> void:
-	var trusted: Array = g.fixers.filter(func(f): return rep_with(String(f)) >= int(g.get("unique_rep", 3)))
-	if trusted.is_empty() or dice.d(3) != 1:
+	if best_reputation() < int(g.get("unique_rep", 3)) or dice.d(3) != 1:
 		return
 	var t: Dictionary = g.unique_templates[dice.d(g.unique_templates.size()) - 1]
-	var slots := {"fixer": _pick(trusted), "data": _pick(g.data), "place": _pick(t.get("places", ["site"]))}
+	var slots := {"fixer": _pick(g.fixers), "data": _pick(g.data), "place": _pick(t.get("places", ["site"]))}
 	slots.merge(_target_slots(String(t.kind)))
 	var sec := int(t.security)
 	board.append({"id": "%d-u" % day, "kind": t.kind, "fixer": slots.fixer, "faction": slots.faction, "title": _fill(_pick(_titles_for(t, String(slots.faction))), slots),
 		"blurb": _fill(String(t.blurb), slots), "security": sec, "twist": "", "unique": true,
-		"pay": int(int(g.pay[str(sec)]) * float(t.pay_mult)), "rep": int(t.rep), "seed": dice.rng.randi_range(1, 99999), "setup": false})
+		"pay": int(int(g.pay[str(sec)]) * float(t.pay_mult)), "seed": dice.rng.randi_range(1, 99999), "setup": false})
 	board[-1].merge(_place_for(String(t.kind), g, String(slots.faction)))
 
 
@@ -191,8 +186,8 @@ static func objective_for(g: Dictionary) -> String:
 
 ## Cyberpsychosis outside combat (spec: episodes "can trigger in or out of combat"). After a gig, each
 ## crew member at risk rolls their combat episode chance once (approved HOUSE-RULE table); an
-## episode means lashing out at someone close: a crewmate takes 2d6 (never below 1 HP), and the
-## mess adds heat. Returns the names of those who had one.
+## episode means lashing out at someone close: a crewmate takes 2d6 (never below 1 HP). Returns the
+## names of those who had one.
 func _downtime_episodes() -> Array:
 	var out := []
 	for c in alive_crew():
@@ -209,20 +204,18 @@ func _downtime_episodes() -> Array:
 	return out
 
 
-## Heat from how a gig went (HOUSE-RULE): in and out unseen cools things down; an alarm, NCPD
-## showing up, and bodies left behind warm them up.
-static func gig_heat(e: Encounter) -> int:
-	var h := 0
-	if e.alarm == 0:
-		h -= 1
-	if e.alarm >= 2:
-		h += 1
-	if e.ncpd_in == -2:
-		h += 1
-	var bodies := e.units.filter(func(u): return e.hostile(int(u.team), Encounter.CREW) and e.is_guard(u) and u.c.dead).size()
-	h += bodies / 4
-	h += e.civ_casualties   # HOUSE-RULE: every bystander hurt is a headline
-	return h
+## Reputation for a finished gig (CPR core p193): the GM awards a Level from the "who knows about
+## you" table for a notable deed; it replaces a character's Reputation only if it is higher.
+## RULES-UNVERIFIED reading: a won gig is the deed, and how far word of it travels is set by the
+## target's security (1 a street job, 2 a guarded business, 3 a fortress) and whether it got loud
+## (backup called in): Level = 2 x security - 1, +1 if loud. Security 1: 1 "anyone who was there
+## knows" / loud 2 "stories have gotten around to immediate friends"; security 2: 3 "co-workers and
+## casual acquaintances" / 4 "all over the local area"; security 3: 5 "others beyond your local area
+## recognize your name" / 6 "know you on sight". Levels 7+ (news stories, headlines) aren't awarded yet.
+static func deed_level(gig: Dictionary, e: Encounter) -> int:
+	if e.state != "won":
+		return 0
+	return 2 * clampi(int(gig.get("security", 1)), 1, 3) - 1 + (1 if e.alarm >= 2 else 0)
 
 
 func _salvage_mult() -> float:
@@ -272,10 +265,6 @@ static func scene_opts(gig: Dictionary) -> Dictionary:
 	return o
 
 
-func rep_with(fixer: String) -> int:
-	return int(fixer_rep.get(fixer, 0))
-
-
 func _pick(a: Array) -> Variant:
 	return a[dice.d(a.size()) - 1]
 
@@ -301,11 +290,7 @@ func accept(index: int) -> Dictionary:
 func resolve(e: Encounter) -> Dictionary:
 	var gig := active_gig
 	var won := e.state == "won"
-	var report := {"gig": gig, "won": won, "pay": 0, "rep": 0, "ip": 0, "dead": [], "hurt": [], "fees": 0, "salvage": 0, "heat": 0, "episodes": []}
-	var anyone_down := false
-	for c in crew:
-		if c.dead or c.wound_state() >= Combatant.Wound.MORTAL or c.unconscious:
-			anyone_down = true
+	var report := {"gig": gig, "won": won, "pay": 0, "reputation": {}, "ip": 0, "dead": [], "hurt": [], "fees": 0, "salvage": 0, "episodes": []}
 	report["kit_used"] = _settle_kits()
 	for c in crew:
 		if c.dead and not fallen.any(func(f): return f.name == c.display_name):
@@ -320,20 +305,12 @@ func resolve(e: Encounter) -> Dictionary:
 		c.dsp = c.base_dsp
 		if c.hp < c.max_hp() or not c.injuries.is_empty():
 			report.hurt.append(c.display_name)
-	if won and gig.get("setup", false):   # sold out: no pay, and that fixer is dead to the crew
-		report.rep = 0
-		report.ip = IP_WIN
-		fixer_rep[String(gig.fixer)] = -5
-		say("%s sold you out. No pay; you won't work for them again soon." % gig.fixer)
+	if won and gig.get("setup", false):   # sold out: no pay
+		say("%s sold you out. No pay." % gig.fixer)
 	elif won:
 		report.pay = int(gig.get("pay", 0))
-		report.rep = int(gig.get("rep", 1))
-		report.ip = IP_WIN + (10 if not anyone_down else 0) + (10 if e.objective.get("kind", "") == "data" and e.objective.get("done", false) else 0)
-	else:
-		report.rep = -1
-		report.ip = IP_FAIL
-		if not crew.is_empty() and e.state != "fled":   # a crew that walked out needs no rescue
-			report.fees = int(ECON.rescue_fee)
+	elif not crew.is_empty() and e.state != "fled":   # a crew that walked out needs no rescue
+		report.fees = int(ECON.rescue_fee)
 	if won:   # loot: the opposition's guns and armour, fenced
 		for u in e.units:
 			if e.is_guard(u) and e.hostile(int(u.team), Encounter.CREW) and (u.c.dead or u.c.wound_state() >= Combatant.Wound.MORTAL or u.c.unconscious):
@@ -347,26 +324,21 @@ func resolve(e: Encounter) -> Dictionary:
 	eb += report.pay - report.fees + report.salvage
 	report.episodes = _downtime_episodes()
 	report["addicted"] = _addiction_checks()
-	report.heat = gig_heat(e) + report.episodes.size()
-	if e.civ_casualties > 0:   # HOUSE-RULE: fixers don't like collateral (spec: lowered by excessive collateral)
-		report.rep -= e.civ_casualties
-		report["civilians"] = e.civ_casualties
-		say("%d bystander%s hurt. %s won't forget it." % [e.civ_casualties, "" if e.civ_casualties == 1 else "s", gig.fixer])
-	heat = clampi(heat + report.heat, 0, 10)
-	rep = maxi(0, rep + report.rep)
-	# HOUSE-RULE: a faction the crew hit and got noticed by (a win, or an alarm) remembers.
-	var target := String(gig.get("faction", ""))
-	if target != "" and (won or e.alarm >= 1):
-		faction_rep[target] = int(faction_rep.get(target, 0)) - 1
-		report["standing"] = {target: -1}
-	var fx_name := String(gig.get("fixer", ""))
-	if fx_name != "" and not (won and gig.get("setup", false)):
-		fixer_rep[fx_name] = maxi(0, rep_with(fx_name) + report.rep)
+	report.ip = int(IP_GROUP["failed" if not won else ("barely" if not report.dead.is_empty() else "together")])   # p410
 	report.ip += 5 * level("training")
 	for c in crew:
 		c.ip += report.ip
-	say("%s: %s. %+d eb, %+d rep, %d IP each%s." % [gig.get("title", "Gig"), "done" if won else "failed",
-		report.pay - report.fees + report.salvage, report.rep, report.ip, (", lost " + ", ".join(report.dead)) if not report.dead.is_empty() else ""])
+	# Reputation (p193): those who were there earn the deed's Level if it beats what they had.
+	var lvl := deed_level(gig, e)
+	for c in crew:
+		if lvl > c.reputation and e.units.any(func(u): return u.c == c):
+			c.reputation = lvl
+			report.reputation[c.display_name] = lvl
+	var heard := ""
+	for nm in report.reputation:
+		heard += ", %s Reputation %d" % [nm, int(report.reputation[nm])]
+	say("%s: %s. %+d eb, %d IP each%s%s." % [gig.get("title", "Gig"), "done" if won else "failed",
+		report.pay - report.fees + report.salvage, report.ip, heard, (", lost " + ", ".join(report.dead)) if not report.dead.is_empty() else ""])
 	active_gig = {}
 	day += 1
 	refresh_board()
@@ -375,31 +347,75 @@ func resolve(e: Encounter) -> Dictionary:
 
 # --- Downtime ---------------------------------------------------------------------
 
-## Rest: everyone heals BODY HP per day (p223), up to full. Armour is patched and magazines
-## refilled. (Grenades and other kit are bought into storage: buy_item.)
+## Rest: everyone heals BODY HP per day (p223), up to full, and magazines are refilled. The crew's
+## best hand at Basic Tech spends the days repairing ablated armour (repair_armor_work). (Grenades and
+## other kit are bought into storage: buy_item.)
 func rest(days := 1) -> void:
 	for c in crew:
 		var heal: int = (c.raw_stat("BODY") + 2 * level("med_bay")) * days
-		match c.downtime:
-			"train":
-				heal /= 2
-				c.ip += 6 * days
-			"hustle":
-				heal /= 2
-				eb += (60 + 10 * rep) * days
-				for dd in days:
-					if dice.d(10) == 1:
-						heat = mini(10, heat + 1)
 		c.hp = mini(c.max_hp(), c.hp + heal)
-		for loc in c.armor:
-			if c.armor[loc]:
-				(c.armor[loc] as ArmorPiece).repair()
 		for w in c.weapons:
 			w.reload()
+	repair_armor_work(24 * days)
 	day += days
-	heat = maxi(0, heat - days)   # HOUSE-RULE: lying low cools heat by 1 a day
 	refresh_board()
 	say("Rested %d day%s." % [days, "s" if days > 1 else ""])
+
+
+## Who repairs the crew's armour: the best TECH + Basic Tech on the crew (armour falls under Basic
+## Tech, "all other items not covered by another TECH Skill", CPR core p140). Null with no crew.
+func best_repairer() -> Combatant:
+	var best: Combatant = null
+	for c in alive_crew():
+		if best == null or c.skill_base("basic_tech") > best.skill_base("basic_tech"):
+			best = c
+	return best
+
+
+## Item Repair (CPR core p140): repairing an item to perfect condition is a TECH Skill Check whose DV
+## and time come from its Price Category (Cheap/Everyday DV9 1 hour, Costly DV13 6 hours, Premium
+## DV17 1 day, Expensive DV21 1 week, Very Expensive DV24 2 weeks, Luxury DV29 1 month). A failure
+## shows halfway through and the repair starts again from scratch. `hours` of the repairer's time go
+## to ablated pieces, quickest first; unfinished work carries over to the next rest. The book lists
+## no materials cost for a repair. Returns the "<owner>'s <armour>" pieces finished.
+func repair_armor_work(hours: int) -> Array[String]:
+	var done: Array[String] = []
+	var t := best_repairer()
+	if t == null:
+		return done
+	var queue: Array = []
+	for c in alive_crew():
+		for loc in c.armor:
+			var a: ArmorPiece = c.armor[loc]
+			if a and a.sp < a.max_sp:
+				queue.append([c, a])
+	queue.sort_custom(func(x, y): return (x[1] as ArmorPiece).price() < (y[1] as ArmorPiece).price())
+	for q in queue:
+		var a: ArmorPiece = q[1]
+		var need := ArmorPiece.repair_hours(a.price())
+		var half := (need + 1) / 2
+		while hours > 0 and a.sp < a.max_sp:
+			if a.repair_work < half:   # the first half: whether it holds shows at the halfway mark
+				var step := mini(hours, half - a.repair_work)
+				a.repair_work += step
+				hours -= step
+				if a.repair_work < half:
+					break
+				if not Check.vs_dv(dice, t.skill_base("basic_tech"), ArmorPiece.maker_dv(a.price())).success:
+					a.repair_work = 0
+					say("%s botches the repair on %s's %s and starts over." % [t.display_name, (q[0] as Combatant).display_name, a.name])
+					continue
+			var rest_of := mini(hours, need - a.repair_work)
+			a.repair_work += rest_of
+			hours -= rest_of
+			if a.repair_work >= need:
+				a.repair()
+				done.append("%s's %s" % [(q[0] as Combatant).display_name, a.name])
+		if hours <= 0:
+			break
+	if not done.is_empty():
+		say("%s repairs %s." % [t.display_name, ", ".join(done)])
+	return done
 
 
 ## Clinic price, halved while a Trauma Surgeon is on the crew (HOUSE-RULE perk).
@@ -444,16 +460,16 @@ func hire(index: int) -> bool:
 
 # --- Night market (gear shop) ------------------------------------------------------
 
-## What the market stocks: every weapon and armour whose data carries "shop_rep", the reputation
-## it takes to get it (HOUSE-RULE: availability by reputation stands in for the book's Night Market
-## rolls, p337). Prices are the book's list prices (data/rules weapons.json / armor.json).
+## What the market stocks: every weapon and armour whose data carries "shop_rep", the Reputation
+## the crew's best-known member needs to get it (HOUSE-RULE: availability by Reputation stands in
+## for the book's Night Market rolls, p337). Prices are the book's list prices (data/rules weapons.json / armor.json).
 ## Reputation a quality needs beyond the weapon's own shop_rep (HOUSE-RULE).
 const QUALITY_SHOP := {"poor": 0, "standard": 0, "excellent": 1}
 const RESALE := 0.5   ## HOUSE-RULE: replaced gear sells back at half price
 const MAX_GUNS := 2   ## HOUSE-RULE: a primary and a sidearm (plus one melee weapon)
 
 
-## Shop entries available at the current reputation: {id, kind: weapon|armor, name, cost, info}.
+## Shop entries available at the crew's best Reputation: {id, kind: weapon|armor, name, cost, info}.
 func shop_stock() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	var wdb: Dictionary = RulesDB.load_json("weapons.json")["weapons"]
@@ -461,7 +477,7 @@ func shop_stock() -> Array[Dictionary]:
 		if not wdb[id].has("shop_rep"):
 			continue
 		for q in QUALITY_SHOP:   # every quality the book prices (p.342); Excellent needs a better name
-			if rep < int(wdb[id].shop_rep) + int(QUALITY_SHOP[q]) or not Weapon.can_have_quality(id, q):
+			if best_reputation() < int(wdb[id].shop_rep) + int(QUALITY_SHOP[q]) or not Weapon.can_have_quality(id, q):
 				continue
 			var w := Weapon.from_id(id, q)
 			var d := w.def
@@ -476,7 +492,7 @@ func shop_stock() -> Array[Dictionary]:
 				"cost": _price(w.cost()), "info": info, "fixer": w.cost() >= 500})
 	var adb: Dictionary = RulesDB.load_json("armor.json")["armor"]
 	for id in adb:
-		if adb[id].has("shop_rep") and rep >= int(adb[id].shop_rep):
+		if adb[id].has("shop_rep") and best_reputation() >= int(adb[id].shop_rep):
 			var a := RulesDB.armor(id)
 			out.append({"id": id, "kind": "armor", "name": String(a.name), "cost": _price(int(a.cost)), "fixer": int(a.cost) >= 500,
 				"info": "SP %d" % int(a.sp) + (" · -%d REF/DEX/MOVE" % int(a.penalty) if int(a.penalty) > 0 else "")})
@@ -571,21 +587,22 @@ func install(c: Combatant, id: String) -> int:
 
 # --- Safehouse storage and kits (owner's design: 2 slots, 1 consumable + 1 utility) ---
 
-## Gear the market stocks at the current reputation: {key, name, cost, info, kind}.
+## Gear the market stocks at the crew's best Reputation: {key, name, cost, info, kind}.
 func item_stock() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
+	var known := best_reputation()
 	for key in Items.all():
 		var d := Items.def(key)
-		if rep < int(d.shop_rep):
+		if known < int(d.shop_rep):
 			continue
 		out.append({"key": key, "name": Items.display_name(key), "cost": item_price(key), "kind": Items.kind(key),
 			"info": String(d.get("summary", "")), "owned": int(stash.get(key, 0)), "fixer": Items.price(key) >= 500})
 	return out
 
 
-## What one costs here: fixer markup at 500eb+, less the Armory discount.
+## What one costs here: list price, with the fixer markup at 500eb+.
 func item_price(key: String) -> int:
-	return roundi(_price(Items.price(key)) * (1.0 - float(ECON.armory_discount) * level("armory")))
+	return _price(Items.price(key))
 
 
 ## Buy one into safehouse storage.
@@ -655,6 +672,8 @@ func _settle_kits() -> Array:
 	return gone
 
 
+const RELAPSE_DAYS := 365   ## p230: a year after Addiction Therapy
+
 ## Addiction (p.229): after the gig, each drug taken calls for WILL + Resist Torture/Drugs vs its
 ## Addiction DV; failing hooks them. Black Lace's Humanity comes back to those who resist (p.358).
 func _addiction_checks() -> Array:
@@ -666,7 +685,9 @@ func _addiction_checks() -> Array:
 				continue
 			seen[drug] = true
 			var fx: Dictionary = RulesDB.gear("drugs", drug).get("fx", {})
-			var resisted := Check.vs_dv(dice, m.skill_base("resist_torture_drugs"), int(fx.get("addiction_dv", 15))).success
+			# p230: for a year after getting clean of it, the roll against this drug fails automatically
+			var relapse := m.clean_since.has(drug) and day < int(m.clean_since[drug]) + RELAPSE_DAYS
+			var resisted := not relapse and Check.vs_dv(dice, m.skill_base("resist_torture_drugs"), int(fx.get("addiction_dv", 15))).success
 			if resisted:
 				if fx.get("humanity_refund_on_resist", false) and int(m.drug_humanity.get(drug, 0)) > 0:
 					m.regain_humanity(int(m.drug_humanity[drug]))
@@ -678,17 +699,39 @@ func _addiction_checks() -> Array:
 	return hooked
 
 
-## Addiction therapy (p.229-230): a week, and the therapy's price; cures one addiction.
-## HOUSE-RULE: the clinic's Medtech is assumed to pass the check (no Medtech on the crew needed).
-func treat_addiction(c: Combatant, drug: String) -> bool:
-	var t := RulesDB.gear("therapy", "addiction_therapy")
-	if not drug in c.addictions or eb < int(t.cost):
-		return false
-	eb -= int(t.cost)
-	c.addictions.erase(drug)
-	say("%s spends a week getting clean of %s." % [c.display_name, RulesDB.gear("drugs", drug).get("name", drug)])
+## Who can give `patient` Addiction Therapy: the crew's best Medtech other than the patient (CPR
+## core p229: a Medtech performs therapy with the Medical Tech Skill, only Medtechs have it (p150),
+## and not on themselves). Null if nobody can.
+func therapist_for(patient: Combatant) -> Combatant:
+	var best: Combatant = null
+	for m in alive_crew():
+		if m != patient and m.role == "medtech" and (best == null or m.therapy_base() > best.therapy_base()):
+			best = m
+	return best
+
+
+## Addiction Therapy (CPR core p229-230): a week in which doctor and patient do nothing else (the
+## crew rests); the Medtech buys the materials (500eb) from Biotechnica and, at the end of the week,
+## rolls TECH + Medical Tech vs DV15. Success frees the patient of one addiction, and for a year they
+## automatically fail that drug's Secondary Effect roll; failure wastes the week and the materials.
+## Returns {} if it can't be done, else {success}.
+func treat_addiction(c: Combatant, drug: String) -> Dictionary:
+	var fx: Dictionary = RulesDB.gear("therapy", "addiction_therapy").get("fx", {})
+	var doc := therapist_for(c)
+	var cost := int(fx.get("materials_cost", 500))
+	if not drug in c.addictions or doc == null or eb < cost:
+		return {}
+	eb -= cost
+	var ok := Check.vs_dv(dice, doc.therapy_base(), int(fx.get("dv", 15))).success
+	var drug_name := String(RulesDB.gear("drugs", drug).get("name", drug))
+	if ok:
+		c.addictions.erase(drug)
+		c.clean_since[drug] = day + 7
+		say("%s spends a week with %s getting clean of %s." % [c.display_name, doc.display_name, drug_name])
+	else:
+		say("%s's week of therapy with %s doesn't take: still hooked on %s." % [c.display_name, doc.display_name, drug_name])
 	rest(7)
-	return true
+	return {"success": ok}
 
 
 ## A week of therapy (p230): pay, everyone else rests the week, the patient regains 2d6 Humanity
@@ -773,10 +816,9 @@ func upgrade(facility: String) -> bool:
 # --- Save / load ------------------------------------------------------------------
 
 func to_dict() -> Dictionary:
-	return {"version": SaveMigrations.CURRENT, "seed": seed_value, "eb": eb, "rep": rep, "day": day, "crew": crew.map(func(c): return c.to_dict()),
+	return {"version": SaveMigrations.CURRENT, "seed": seed_value, "eb": eb, "day": day, "crew": crew.map(func(c): return c.to_dict()),
 		"fallen": fallen, "board": board, "recruits": recruits.map(func(c): return c.to_dict()), "log": log.slice(-50),
-		"rng_state": dice.rng.state, "facilities": facilities, "fixer_rep": fixer_rep, "faction_rep": faction_rep, "heat": heat,
-		"stash": stash}
+		"rng_state": dice.rng.state, "facilities": facilities, "stash": stash}
 
 
 ## A campaign from a save dictionary, upgraded to the current format first (SaveMigrations).
@@ -790,7 +832,6 @@ static func from_dict(raw: Dictionary) -> Campaign:
 	c.dice = Dice.new(c.seed_value)
 	c.dice.rng.state = int(d.get("rng_state", c.dice.rng.state))
 	c.eb = int(d.eb)
-	c.rep = int(d.rep)
 	c.day = int(d.day)
 	for cd in d.crew:
 		c.crew.append(Combatant.from_dict(cd))
@@ -800,14 +841,9 @@ static func from_dict(raw: Dictionary) -> Campaign:
 		c.board.append(b)
 	for r in d.get("recruits", []):
 		c.recruits.append(Combatant.from_dict(r))
-	c.heat = int(d.get("heat", 0))
-	for k in d.get("fixer_rep", {}):
-		c.fixer_rep[String(k)] = int(d.fixer_rep[k])
 	for k in d.get("stash", {}):
 		if Items.is_item(String(k)) and int(d.stash[k]) > 0:
 			c.stash[String(k)] = int(d.stash[k])
-	for k in d.get("faction_rep", {}):
-		c.faction_rep[String(k)] = int(d.faction_rep[k])
 	for k in d.get("facilities", {}):
 		c.facilities[String(k)] = int(d.facilities[k])
 	for l in d.get("log", []):
