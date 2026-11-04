@@ -604,6 +604,8 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 		_round_box.add_child(_text(" · ".join(enc.outages.map(func(o): return String(o).to_upper() + " OUT")), F_TERM, Hud.ts(18), RED))
 	if enc.hazard != null:   # a shrinking safe circle (HazardZone: the Combat Zone's MIST)
 		_round_box.add_child(_text(hazard_text(enc), F_TERM, Hud.ts(18), RED if enc.hazard.stage > 0 else GOLD))
+	if enc.neutral != null:   # a house where nobody fights (NeutralGround: Totentanz's club floor)
+		_round_box.add_child(_text(enc.neutral.hud_text(), F_TERM, Hud.ts(18), GOLD if enc.neutral.holds else RED))
 	if not enc.complication.is_empty():   # the book's complication (Complication), shown once it springs
 		var cx := _text("COMPLICATION · " + String(enc.complication.text).to_upper(), F_TERM, Hud.ts(18), RED)
 		cx.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

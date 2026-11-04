@@ -104,6 +104,8 @@ func _gig_card(i: int, ready: bool) -> PanelContainer:
 		mid.add_child(UiKit.body("★ " + String(OBJECTIVE_TEXT.get(Campaign.objective_for(g), "")), 15, Hud.TEXT))
 	if g.get("unique", false):
 		mid.add_child(UiKit.body("Personal job: %s has heard of the crew. Double pay." % String(g.fixer), 14, Hud.CYAN))
+	for line in SetPieces.briefs(String(g.get("setpiece", ""))):   # the place's house rules (Totentanz: no fighting on the floor)
+		mid.add_child(UiKit.body(line, 13, Hud.GOLD))
 	var right := UiKit.vbox(6)
 	right.custom_minimum_size.x = 240
 	row.add_child(right)

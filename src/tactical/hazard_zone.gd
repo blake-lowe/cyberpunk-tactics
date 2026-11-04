@@ -4,10 +4,11 @@ extends RefCounted
 ## or Encounter.setup opts.hazard_zone). From round `start`, and every `every` rounds after, the safe
 ## circle closes one step on a point drawn at setup, `steps` times, down to `final_r` squares. A unit
 ## caught outside it (inside the map's hazard area, TacMap params `hazard_area`) at the end of its
-## own turn takes `dice[stage - 1]` d6 straight to HP, unless its side's ai is one the zone `spare`s.
+## own turn takes `dice[stage - 1]` d6 straight to HP, unless its side's ai is one the zone `spare`s
+## (and its side's faction is not one the zone `hits` all the same: implanted contestants).
 ## The Combat Zone's MIST (NC2045 p.215) is the first: its numbers are in setpieces.json.
 ##
-## spec: {name, start, every, steps, final_r, dice: [d6 per stage], spare: [side ai], source}
+## spec: {name, start, every, steps, final_r, dice: [d6 per stage], spare: [side ai], hits: [faction], source}
 
 var name := "HAZARD"
 var center := Vector2.ZERO          ## the point it closes on (in squares; a square's middle is +0.5)
@@ -18,6 +19,7 @@ var start := 3
 var every := 3
 var dice_by_stage: Array = []       ## d6 a turn outside, per stage (1-based: [0] is stage 1)
 var spare: Array = []               ## side ais it never touches (guard: the owner's people)
+var hits: Array = []                ## factions it bites whatever their side's ai (the Combat Zone's contestants)
 
 
 ## The zone for a map, or null when `spec` is empty. Draws its centre with `dice`: an open outdoor
@@ -31,6 +33,7 @@ static func from_spec(spec: Dictionary, m: TacMap, dice: Dice) -> HazardZone:
 	z.every = maxi(1, int(spec.get("every", 3)))
 	z.dice_by_stage = spec.get("dice", [1])
 	z.spare = spec.get("spare", [])
+	z.hits = spec.get("hits", [])
 	var a: Array = m.params.get("hazard_area", [0, 0, m.w, m.h])
 	z.area = Rect2i(int(a[0]), int(a[1]), int(a[2]), int(a[3]))
 	var mid := z.area.grow_individual(-z.area.size.x / 4, -z.area.size.y / 4, -z.area.size.x / 4, -z.area.size.y / 4)
@@ -99,9 +102,9 @@ func damage_dice() -> int:
 	return int(dice_by_stage[mini(stage, dice_by_stage.size()) - 1])
 
 
-## Does the zone bite a unit of side ai `ai` standing at `v`?
-func bites(ai: String, v: Vector3i) -> bool:
-	return not (ai in spare) and outside(v)
+## Does the zone bite a unit of side ai `ai` (and faction `faction`) standing at `v`?
+func bites(ai: String, v: Vector3i, faction := "") -> bool:
+	return (faction in hits or not (ai in spare)) and outside(v)
 
 
 ## Jump straight to stage `k` (review renders).

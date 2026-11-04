@@ -80,6 +80,9 @@ var disabled_devices := {}          ## device id → true (turrets/cameras under
 var lights_off := false             ## the site's lights are down for the whole gig (opts.lights_off)
 var leg := -1                       ## the operation leg this encounter is for (opts.leg), -1 for a single gig
 var hazard: HazardZone = null       ## a shrinking safe circle (the Combat Zone's MIST), null for none
+var neutral: NeutralGround = null   ## a house where nobody fights (Totentanz's club floor), null for none
+var turret_side := -1               ## the site's automated turrets (Turret); -1 until the map has one
+var _crew_turret_side := -1         ## turrets a Netrunner holds; -1 until one does
 
 
 ## opts: {faction: the gig's target faction id (World), default generic private security;
@@ -96,7 +99,9 @@ var hazard: HazardZone = null       ## a shrinking safe circle (the Combat Zone'
 ## used, drugs in the system and doses spent carry over (no Combatant.gig_reset); crowd: extra
 ## bystanders; civilians: stat blocks (npcs.json) added to the crowd, one each; police: uniformed
 ## NCPD officers among the crowd, unalerted, who answer trouble as the police do; lights_off: the
-## site's lights are down; leg: which leg of an operation this is (Campaign checks it when settling)}.
+## site's lights are down; leg: which leg of an operation this is (Campaign checks it when settling);
+## hazard_zone / neutral_ground / free_for_all: a set piece's rules for any map (HazardZone,
+## NeutralGround, FreeForAll; by default the map's set piece's own)}.
 static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "data", opts: Dictionary = {}) -> Encounter:
 	var e := Encounter.new()
 	opts = SetPieces.encounter_opts(p_map, opts)   # a set piece's per-seed variant (an estate's owner) brings its own code
@@ -186,6 +191,7 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 		e._add(g, Vector3i(posts[i].pos.x, posts[i].pos.y, posts[i].floor), OPFOR)
 		if posts[i].has("facing"):   # a nest: stays put, watching out over the parapet
 			e.units[-1]["hold"] = Vector2(posts[i].facing)
+	e._neutral_ground(opts.get("neutral_ground", SetPieces.rule(p_map, "neutral_ground", {})))
 	# Objective: a module per kind (data/gen/objectives.json) places what the job needs.
 	e.obj = Objective.make(kind, e)
 	e.objective = e.obj.o
@@ -200,6 +206,7 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 	e._apply_outages()
 	e._compute_light()
 	e._outer_patrols(cells[0])
+	FreeForAll.place(e, opts.get("free_for_all", SetPieces.rule(p_map, "free_for_all", {})), cells[0])
 	e._post_guards()
 	if opts.has("complication") or bool(opts.get("complications", false)):
 		Complication.start(e, opts.get("complication", {}))
@@ -209,6 +216,9 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 	e._place_civilians(cells[0], int(opts.get("crowd", 0)), opts.get("civilians", []))
 	e._place_police(cells[0], int(opts.get("police", 0)))
 	e.hazard = HazardZone.from_spec(opts.get("hazard_zone", SetPieces.rule(p_map, "hazard_zone", {})), p_map, p_dice)
+	e._mount_turrets()
+	for line in SetPieces.briefs(String(p_map.params.get("setpiece", ""))):   # the place's house rules, for the briefing
+		e.say(line)
 	e.refresh_vision()
 	e.update_alerts()
 	return e
@@ -258,16 +268,35 @@ func _init_sides() -> void:
 
 ## A new side for `faction` playing `ai`; returns its team index. Relations to every existing side
 ## come from World.relation, except that the gig's opposition is always hostile to the crew.
-func add_side(faction: String, ai: String, opfor: bool) -> int:
+## `extra` keys ride on the side: `stands_with` (a team whose relations it shares, kept shared by
+## set_relation: the site's turrets stand with the guards, the crew's with the crew, Totentanz's
+## bouncers with Maelstrom), `at_war` (hostile to every side that fights: the crew, guards and
+## turrets; FreeForAll).
+func add_side(faction: String, ai: String, opfor: bool, extra: Dictionary = {}) -> int:
 	var t := sides.size()
-	sides.append({"faction": faction, "ai": ai, "opfor": opfor})
+	var side := {"faction": faction, "ai": ai, "opfor": opfor}
+	side.merge(extra)
+	sides.append(side)
 	for o in t + 1:
 		var r := "ally" if o == t else World.relation(faction, String(sides[o].faction))
+		if o != t and side.has("stands_with"):
+			r = "ally" if o == int(side.stands_with) else relation(int(side.stands_with), o)
+		elif o != t and sides[o].has("stands_with"):
+			r = relation(t, int(sides[o].stands_with))
+		if o != t and _at_war(side, sides[o]):
+			r = "hostile"
 		if (o == CREW and opfor) or (t == CREW and bool(sides[o].opfor)):
 			r = "hostile"
 		_rel[Vector2i(t, o)] = r
 		_rel[Vector2i(o, t)] = r
 	return t
+
+
+const WAR_AIS := ["crew", "guard", "turret"]   ## the sides an `at_war` side fights (not bystanders or medics)
+
+
+static func _at_war(a: Dictionary, b: Dictionary) -> bool:
+	return (bool(a.get("at_war", false)) and String(b.ai) in WAR_AIS) or (bool(b.get("at_war", false)) and String(a.ai) in WAR_AIS)
 
 
 ## The side a faction plays `ai` on, added if it isn't here yet (NCPD and MaxTac turning up).
@@ -285,6 +314,14 @@ func relation(a: int, b: int) -> String:
 func set_relation(a: int, b: int, r: String) -> void:
 	_rel[Vector2i(a, b)] = r
 	_rel[Vector2i(b, a)] = r
+	for s in sides.size():   # sides that stand with a or b follow
+		if s == a or s == b or not sides[s].has("stands_with"):
+			continue
+		var with := int(sides[s].stands_with)
+		if with == a or with == b:
+			var other := b if with == a else a
+			_rel[Vector2i(s, other)] = r
+			_rel[Vector2i(other, s)] = r
 
 
 func hostile(a: int, b: int) -> bool:
@@ -369,6 +406,11 @@ func next_turn() -> void:
 			say("%s fails a Death Save and dies." % c.display_name)
 			events.append({"type": "death", "unit": cur.id})   # so the view plays the death, not a snap
 		elif c.can_act():
+			if cur.has("turret"):   # bolted down: it shoots or it waits (Turret)
+				cur.erase("suppressed_by")
+				AI.turret(self, cur)
+				end_turn()
+				continue
 			_ice_turn(cur)
 			if cur.has("suppressed_by"):
 				_take_cover(cur)
@@ -431,6 +473,7 @@ func end_turn() -> void:
 
 
 func _check_end() -> void:
+	_wreck_turrets()
 	if state != "playing":
 		return
 	_count_civ_harm()
@@ -463,7 +506,7 @@ func _tick_hazard() -> void:
 
 ## The end of `u`'s turn outside the safe circle: the zone's dice straight to HP (no armour).
 func _hazard_harm(u: Dictionary) -> void:
-	if hazard == null or u.c.dead or u.get("carried", false) or not hazard.bites(String(sides[u.team].ai), u.pos):
+	if hazard == null or u.c.dead or u.get("carried", false) or u.has("turret") or not hazard.bites(String(sides[u.team].ai), u.pos, faction_of(u)):
 		return
 	var dmg := 0
 	for i in hazard.damage_dice():
@@ -474,6 +517,149 @@ func _hazard_harm(u: Dictionary) -> void:
 	u.c.hp -= dmg
 	say("%s takes %d outside the %s." % [u.c.display_name, dmg, hazard.name])
 	events.append({"type": "harm", "unit": u.id, "damage": dmg, "source": hazard.name, "wound_before": before, "wound_after": u.c.wound_state()})
+
+
+# --- Neutral ground (NeutralGround: Totentanz's club floor) ------------------------------------
+
+## Set the house up once the posts are manned: the guards posted in its public rooms (the
+## bouncers) move to a side of their own, Maelstrom still but `neutral` to the crew.
+func _neutral_ground(spec: Dictionary) -> void:
+	neutral = NeutralGround.from_spec(spec, m)
+	if neutral == null:
+		return
+	neutral.side = add_side(post_faction, "guard", true, {"stands_with": OPFOR})
+	set_relation(neutral.side, CREW, "neutral")
+	for u in units:
+		if int(u.team) == OPFOR and neutral.inside(u.pos):
+			u.team = neutral.side
+			u.c.team = neutral.side
+			u["bouncer"] = true
+
+
+## A bouncer while the peace holds: no spotting the crew, no joining a fight it didn't see.
+func _keeps_peace(g: Dictionary) -> bool:
+	return neutral != null and neutral.holds and int(g.team) == neutral.side
+
+
+## Does `u` hold its fire at `t`? While the peace holds the house (anyone standing with the
+## bouncers) doesn't start a fight with the crew on the club floor (AI._enemies).
+func holds_fire(u: Dictionary, t: Dictionary) -> bool:
+	return neutral != null and neutral.holds and allied(int(u.team), neutral.side) and allied(int(t.team), CREW) and neutral.inside(t.pos)
+
+
+## The crew (or anything fighting for them) attacks from `by` at the squares `at`: inside the
+## house's public rooms, or where a bouncer can see it (clear sight within SPOT_RANGE, any
+## direction), and the peace is over.
+func _keep_peace(by: Dictionary, at: Array) -> void:
+	if neutral == null or not neutral.holds or by.is_empty() or not allied(int(by.team), CREW):
+		return
+	var spots: Array = at.duplicate()
+	spots.append(by.pos)
+	var seen := spots.any(func(p): return neutral.inside(p))
+	for g in units:
+		if seen:
+			break
+		if int(g.team) != neutral.side or not g.c.can_act():
+			continue
+		for p in spots:
+			if g.pos == p or (p.z == g.pos.z and Vector2(p.x - g.pos.x, p.y - g.pos.y).length() <= SPOT_RANGE and los.trace(g.pos, p).clear):
+				seen = true
+				break
+	if seen:
+		_break_peace(by)
+
+
+## The first fight in the house: the bouncers are the opposition again and the whole house (them
+## and every guard in the building) turns on the crew.
+func _break_peace(by: Dictionary) -> void:
+	neutral.holds = false
+	set_relation(neutral.side, CREW, "hostile")
+	var house := []
+	for g in units:
+		if g.c.dead:
+			continue
+		if int(g.team) == neutral.side:
+			g.team = OPFOR
+			g.c.team = OPFOR
+			house.append(g)
+		elif int(g.team) == OPFOR and is_guard(g):
+			var l := m.label(g.pos.z, g.pos.x, g.pos.y)
+			if l >= 0 and int(m.rooms[l].get("structure", -1)) == neutral.structure:
+				house.append(g)
+	say("%s: the peace is broken. The whole house turns on the crew." % neutral.name)
+	events.append({"type": "peace_broken", "unit": int(by.id), "units": house.map(func(g): return g.id)})
+	_rouse(house)
+
+
+# --- Automated turrets (Turret: CPR core p.214) ----------------------------------------------
+
+## Every powered turret device becomes a unit on the site's turret side (standing with the
+## guards). It never moves and joins the Initiative order the first time it has a target.
+func _mount_turrets() -> void:
+	var n := 0
+	for d in m.devices:
+		if String(d.type) != "turret" or _unpowered(d):
+			continue
+		if turret_side < 0:
+			turret_side = add_side(post_faction, "turret", false, {"stands_with": OPFOR})
+		n += 1
+		var c := Turret.make(n, String(d.get("weapon", Turret.WEAPON)))
+		c.faction = post_faction
+		_add(c, Vector3i(d.pos.x, d.pos.y, int(d.floor)), turret_side)
+		units[-1]["turret"] = int(d.id)
+
+
+## A turret with its power out does nothing (Utility Codes, NC2045 p.8).
+func turret_off(u: Dictionary) -> bool:
+	return u.has("turret") and _unpowered(m.devices[int(u.turret)])
+
+
+## Sleeping turrets that now have someone to shoot (its trigger: anyone it would fire on in
+## sight, AI.turret_targets) wake and take their place in the Initiative order.
+func _wake_turrets() -> void:
+	for u in units:
+		if not u.has("turret") or u.alerted or u.c.dead or turret_off(u):
+			continue
+		if not AI.turret_targets(self, u).is_empty():
+			u.alerted = true
+			init.add(u.c)
+			say("%s swings round." % u.c.display_name)
+
+
+## Who holds each turret: a Netrunner holding its Control Node turns it on the site (p.213-214),
+## and it goes back to the site when they let go of the node (jack out, p199).
+## HOUSE-RULE: a held turret keeps firing on its own turn with its own Combat Number, at the crew's
+## foes; the book has the Netrunner spend a NET Action per use and roll their own Skill (p.199,
+## p.213-214), which would need a turret-aiming NET Action in the UI.
+func _retake_turrets() -> void:
+	var held := {}
+	for uid in runs:
+		for did in (runs[uid] as NetRun).controlled_devices():
+			held[int(did)] = true
+	for u in units:
+		if not u.has("turret") or u.c.dead:
+			continue
+		var want := turret_side
+		if held.has(int(u.turret)):
+			if _crew_turret_side < 0:
+				_crew_turret_side = add_side("crew", "turret", false, {"stands_with": CREW})
+			want = _crew_turret_side
+		if int(u.team) == want:
+			continue
+		u.team = want
+		u.c.team = want
+		say("%s now fires for %s." % [u.c.display_name, "the crew" if want == _crew_turret_side else "the site"])
+		if not u.alerted:
+			u.alerted = true
+			init.add(u.c)
+
+
+## A turret at 0 HP is wrecked: no Death Saves for a machine.
+func _wreck_turrets() -> void:
+	for u in units:
+		if u.has("turret") and not u.c.dead and u.c.hp < 1:
+			u.c.dead = true
+			say("%s is wrecked." % u.c.display_name)
 
 
 # --- Locks: bypass and keycards -----------------------------------------------------------
@@ -1050,6 +1236,7 @@ func _detonate(center: Vector3i, half: int, n_dice: int, by: int, total := 17) -
 	for o in caught:
 		before[o.id] = [o.c.hp, o.c.wound_state()]
 	var results := Attack.explosion_rolled(dice, total, faces, caught.map(func(o): return o.c))
+	_keep_peace(units[by] if by >= 0 and by < units.size() else {}, [center])
 	_rouse(caught.filter(func(o): return is_guard(o)))
 	_noise(center)
 	var hits: Array = []
@@ -1108,6 +1295,7 @@ func update_alerts() -> Array:
 	if not cam_guard.is_empty() and cam_guard not in fresh:
 		fresh.append(cam_guard)
 	_rouse(fresh)
+	_wake_turrets()
 	return fresh
 
 
@@ -1204,7 +1392,7 @@ func _camera_spots() -> Dictionary:
 			if _spot_rolls[key]:
 				var best: Dictionary = {}
 				for g in units:
-					if is_guard(g) and hostile(int(g.team), CREW) and not g.alerted and not g.c.dead and (best.is_empty() or Vector3(g.pos - cp).length() < Vector3(best.pos - cp).length()):
+					if is_guard(g) and hostile(int(g.team), CREW) and not sides[int(g.team)].get("at_war", false) and not g.alerted and not g.c.dead and (best.is_empty() or Vector3(g.pos - cp).length() < Vector3(best.pos - cp).length()):
 						best = g
 				if not best.is_empty():
 					say("A camera catches %s. %s is on the way." % [u.c.display_name, best.c.display_name])
@@ -1367,7 +1555,7 @@ func _post_guards() -> void:
 			g.facing = to.normalized() if to.length() > 0.5 else dirs[dice.d(8) - 1]
 		else:
 			g.facing = dirs[dice.d(8) - 1]
-		if dice.d(10) <= 4 or g.get("outer", false):   # ~40% patrol; outer pairs always walk a beat
+		if dice.d(10) <= 4 or g.get("outer", false) or g.get("roam", false):   # ~40% patrol; outer pairs and roamers (FreeForAll) always walk a beat
 			var reach: Dictionary = _keys(func(): return nav.reachable(g.pos, 9, occupied(g)))
 			var far := []
 			for v in reach:
@@ -1582,10 +1770,11 @@ func _rouse(fresh: Array) -> void:
 	var q := fresh.duplicate()
 	while not q.is_empty():
 		var g: Dictionary = q.pop_front()
-		if g.alerted or not is_guard(g):   # bystanders panic instead; captives and medics don't fight
+		if g.alerted or not is_guard(g) or _keeps_peace(g):   # bystanders panic instead; captives and medics don't fight
 			continue
 		g.alerted = true
-		alarm = maxi(alarm, 1)
+		if bool(sides[int(g.team)].opfor):   # a third side's fighters (FreeForAll) raise no alarm of the site's
+			alarm = maxi(alarm, 1)
 		init.add(g.c)
 		events.append({"type": "alert", "unit": g.id})
 		for o in units:
@@ -1702,6 +1891,7 @@ func attack(target: Dictionary, weapon: Weapon, mode: Attack.Mode) -> Dictionary
 	if int(target.team) == TT_TEAM and cur.team == CREW:
 		tt_hostile = true
 		set_relation(TT_TEAM, CREW, "hostile")
+	_keep_peace(cur, [target.pos])
 	_rouse([target])
 	_noise(cur.pos)
 	var hp_before: int = target.c.hp
@@ -1828,6 +2018,7 @@ func suppress(weapon: Weapon) -> Dictionary:
 	if not r.ok:
 		return r
 	turn.use_action()
+	_keep_peace(cur, targets.map(func(o): return o.pos))
 	_rouse(targets)
 	_noise(cur.pos)
 	var hit: Array = []
@@ -1860,6 +2051,7 @@ func shotgun_shell(target: Dictionary, weapon: Weapon) -> Dictionary:
 	if not r.ok:
 		return r
 	turn.use_action()
+	_keep_peace(cur, [target.pos] + cone.map(func(o): return o.pos))
 	_rouse(cone.filter(func(o): return not allied(int(o.team), int(cur.team))))
 	_noise(cur.pos)
 	var hits: Array = []
@@ -1938,6 +2130,7 @@ func throw_grenade(cell: Vector3i, slot := 0) -> Dictionary:
 			results.append(res)
 	else:
 		results = Attack.explosion_rolled(dice, check.total, faces, caught.map(func(o): return o.c), fx)
+	_keep_peace(cur, [center])
 	_rouse(caught.filter(func(o): return not allied(int(o.team), int(cur.team))))
 	_noise(center)
 	var hits: Array = []
@@ -2189,6 +2382,7 @@ func shoot_cover(cell: Vector3i, weapon: Weapon) -> Dictionary:
 	if turn.attacks_left <= 0 and not turn.start_attack(weapon, true):
 		return {"ok": false, "reason": "no action left"}
 	turn.use_attack()
+	_keep_peace(cur, [cell])
 	_noise(cur.pos)
 	var dmg := dice.roll(weapon.dice(), 6)
 	events.append({"type": "cover", "unit": cur.id, "cell": cell, "damage": dmg, "weapon": weapon.id()})
@@ -2317,6 +2511,7 @@ func net_action(kind: String, arg: int = -1) -> Dictionary:
 					if dev.type == "door_lock":
 						nav.locked.erase(Vector3i(dev.pos.x, dev.pos.y, dev.floor))
 				say("Control of %s." % String(n.group).replace("_", " "))
+				_retake_turrets()
 			return {"ok": true, "success": c2.success}
 		"eye_dee":
 			var c3 := run.eye_dee(dice)
@@ -2445,6 +2640,7 @@ func _drop_run(uid: int, unsafe: bool, keep_met := Vector2i(-1, -1)) -> void:
 			if run.met.has(run.met_key(ice)) and not ice.get("derezzed", false):
 				_ice_effect(u, run, ice, true)
 	runs.erase(uid)
+	_retake_turrets()
 
 
 ## Black ICE on the runner's node attacks at the start of their turn: ATK + 1d10 vs Interface +

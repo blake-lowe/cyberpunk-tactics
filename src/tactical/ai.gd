@@ -100,14 +100,15 @@ static func _special(e: Encounter, u: Dictionary, w: Weapon) -> bool:
 
 static func _enemies(e: Encounter, u: Dictionary) -> Array:
 	var psycho: bool = e.turn != null and e.turn.psychotic
-	return e.units.filter(func(o): return o != u and not o.c.dead and (psycho or e.hostile(int(u.team), int(o.team))))
+	return e.units.filter(func(o): return o != u and not o.c.dead and (psycho or (e.hostile(int(u.team), int(o.team)) and not e.holds_fire(u, o))))
 
 
-static func _shoot(e: Encounter, u: Dictionary, w: Weapon) -> bool:
+## `targets`: who to consider (null: every enemy).
+static func _shoot(e: Encounter, u: Dictionary, w: Weapon, targets: Variant = null) -> bool:
 	var best: Dictionary = {}
 	var best_score := 0.0
 	var best_mode := Attack.Mode.SINGLE
-	for t in _enemies(e, u):
+	for t in (_enemies(e, u) if targets == null else targets):
 		for mode in [Attack.Mode.SINGLE, Attack.Mode.AUTOFIRE]:
 			var p := e.preview(t, w, mode)
 			if not p.ok or p.chance < MIN_CHANCE:
@@ -193,6 +194,32 @@ static func covered_from(e: Encounter, cell: Vector3i, foes: Array) -> bool:
 			return true
 	return false
 
+
+
+## An automated turret (Turret, CPR core p.214): fires on its own Combat Number at the best target
+## it has and never moves. Dead with the power out. HOUSE-RULE: nobody reloads it, so when its
+## magazine is empty it falls silent.
+static func turret(e: Encounter, u: Dictionary) -> void:
+	if e.turret_off(u) or u.c.weapons.is_empty():
+		return
+	var w: Weapon = u.c.weapons[0]
+	if w.jammed or (w.uses_ammo() and w.ammo <= 0):
+		return
+	var ts := turret_targets(e, u)
+	if not ts.is_empty():
+		_shoot(e, u, w, ts)
+
+
+## What sets a turret off: an enemy in clear sight on its floor within 40 squares (the trigger is
+## someone there without a pass, p.213, so the crew passing as visitors on a public floor is
+## left alone).
+const TURRET_REACH := 40.0
+
+
+static func turret_targets(e: Encounter, u: Dictionary) -> Array:
+	return e.units.filter(func(o): return o != u and o.c.can_act() and e.hostile(int(u.team), int(o.team)) and not e.holds_fire(u, o) \
+			and o.pos.z == u.pos.z and not e.passing_as_public(o) \
+			and Vector2(o.pos.x - u.pos.x, o.pos.y - u.pos.y).length() <= TURRET_REACH and e.los.sight(u.pos, o.pos).visible)
 
 
 ## The mark: stays put while it's quiet; once they or the site are alerted, runs (Move and a Run)
