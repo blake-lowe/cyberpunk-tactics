@@ -37,7 +37,7 @@ var cover_mode := false
 var move_opts := {}
 var hover := Vector3i(-1, -1, -1)
 var mouse := Vector2.ZERO
-var gig := {"scene": "skirmish", "profile": "", "seed": 11, "security": 1, "faction": ""}
+var gig := {"scene": "skirmish", "profile": "", "seed": 11, "security": 1, "faction": "", "site": ""}
 var look := {"pixel": 0.0, "palette": 1.0, "levels": 0.0, "dither": 0.3, "contrast": 1.0, "saturation": 1.1, "outline": 0.35,
 	"bloom": 1.2, "ortho": 1.0, "lights": 1.0, "dim": 0.5, "spill": 1.0, "net_style": 7.0}
 const NET_STYLES := ["", "POINTILLIST", "OBRA DINN", "WIRE · PIXEL", "BLACKWALL", "GHOST", "STARGATE", "WIRE · CRISP", "WIRE · BLUEPRINT", "WIRE · SCAN"]
@@ -254,6 +254,7 @@ func _ready() -> void:
 			"profile": gig.profile = kv[1]
 			"seed": gig.seed = int(kv[1])
 			"faction": gig.faction = kv[1]   # the target faction (World id: militech, maelstrom, ...)
+			"site": gig.site = kv[1]   # lone_building: which building type (sites.json)
 			"security": gig.security = int(kv[1])
 			"objective": gig["objective"] = kv[1]
 			"twist": gig["twist"] = kv[1]
@@ -537,6 +538,8 @@ func new_gig() -> void:
 	var o := {"security": gig.security}
 	if gig.profile != "":
 		o["profile"] = gig.profile
+	if String(gig.site) != "":
+		o["site"] = gig.site
 	var camp := Campaign.current
 	var campaign_gig: bool = camp != null and not camp.active_gig.is_empty() and _reel == "" and _shot_path == ""
 	if campaign_gig:   # a gig taken from the fixer board: its scene, security and crew
