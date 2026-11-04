@@ -3,10 +3,12 @@ extends TestCase
 
 
 ## A campaign whose crew has a name (Reputation 5: every security level, p193) and a Playland
-## operation of `legs` legs on the board, taken.
-func _taken(seed_value: int, legs := 0) -> Campaign:
+## operation of `legs` legs on the board, taken. `prep` gets the campaign first (gear the crew).
+func _taken(seed_value: int, legs := 0, prep := Callable()) -> Campaign:
 	var c := Campaign.new_game(seed_value)
 	c.crew[0].reputation = 5
+	if prep.is_valid():
+		prep.call(c)
 	var op := {}
 	for k in 40:
 		op = c.operation_offer("playland", 5)
@@ -41,17 +43,21 @@ func test_offers_are_deterministic_and_follow_the_park() -> void:
 		assert_between(float(legs.size()), 2.0, 3.0, "two or three legs")
 		var total := 0
 		var codes := []
+		var top := Campaign.op_level(g)
 		for leg in legs:
 			var land: Dictionary = lands[leg.land]
 			assert_true(int(String(leg.location).get_slice("_", 1)) in (land.locations as Array).map(func(n): return int(n)), "the leg's place is in its land: %s" % leg.location)
 			assert_eq(String(leg.district), "playland")
 			assert_eq(String(leg.profile), String(land.profile), "played on the land's own generator")
 			assert_eq(int(leg.security_code.n), int(World.location(String(leg.location)).security_code.n), "under the place's own Security Code")
-			assert_eq(int(leg.pay), int(pay[str(int(leg.security))]), "each leg pays the book rate for its level")
+			var lvl := top if leg == legs[-1] else int(leg.security)
+			assert_eq(int(leg.pay), int(pay[str(lvl)]), "each way-in leg pays the book rate for its level, the target the operation's")
 			total += int(leg.pay)
 			codes.append(int(leg.security_code.n))
 		assert_eq(int(g.pay), total, "the shares sum to the operation's pay")
-		assert_true(codes[0] < codes[-1], "the way in is a land with a lower Security Code than the target's")
+		assert_true(String(legs[0].land) != String(legs[-1].land), "the way in is another land")
+		if String(legs[-1].land) != "haunted_woods":   # the park's lowest code: entered from anywhere
+			assert_true(codes[0] < codes[-1], "the way in is a land with a lower Security Code than the target's where there is one")
 		var job: Dictionary = (od.jobs as Array).filter(func(j): return j.title == g.title)[0]
 		assert_true(String(legs[-1].land) in job.lands, "the target leg is in a land that suits the job")
 		assert_eq(String(legs[-1].kind), String(job.kind))
@@ -262,3 +268,273 @@ func test_event_effects_reach_the_encounter() -> void:
 	assert_true(e.units.filter(func(u): return e.faction_of(u) == "ncpd").all(func(u): return not u.alerted))
 	assert_true(e.units.any(func(u): return u.get("civ", false) and u.c.block == "junior_executive"), "the job fair's recruiters")
 	assert_true(e.lights_out(), "Fright Nights: the lights are down")
+
+
+# --- Review fixes (9fc86c6) -------------------------------------------------------
+
+## Two crew members with the same handle (Recruit handles aren't unique).
+func _twins(c: Campaign) -> void:
+	for m in c.crew:
+		m.display_name = "Mox"
+		m.id = "mox"
+		m.weapons.clear()
+	c.crew[0].weapons.append(Weapon.from_id("assault_rifle"))
+	c.crew[0].weapons.append(Weapon.from_id("heavy_pistol"))
+	c.crew[1].weapons.append(Weapon.from_id("shotgun"))
+
+
+func test_crew_sharing_a_handle_keep_their_own_weapons() -> void:
+	var c := _taken(40, 2, _twins)
+	var a: Combatant = c.crew[0]
+	var b: Combatant = c.crew[1]
+	assert_eq(c.van_list().size(), 2, "both members' banned guns are in the van")
+	var e := _leg(c)
+	e.state = "fled"
+	c.resolve(e)
+	assert_eq(a.weapons.map(func(w): return w.id()), ["assault_rifle", "heavy_pistol"], "the first Mox gets the rifle back")
+	assert_eq(b.weapons.map(func(w): return w.id()), ["shotgun"], "the second Mox the shotgun")
+	assert_false(c.stash.keys().any(func(k): return Items.is_weapon(String(k))), "nothing lands in storage")
+
+
+func test_crew_sharing_a_handle_carry_their_own_state_through_a_save() -> void:
+	var c := _taken(41, 3, _twins)
+	var e := _leg(c)
+	e.state = "won"
+	c.next_leg(e)
+	c.crew[0].kit_spent[0] = true
+	c.crew[0].drugs_taken.append("synthcoke")
+	c.crew[1].doses = 0
+	c.crew[0].doses = 3
+	var back := Campaign.from_dict(JSON.parse_string(JSON.stringify(c.to_dict())))
+	assert_true(back.crew[0].kit_spent[0])
+	assert_false(back.crew[1].kit_spent[0], "the other Mox didn't use theirs")
+	assert_true("synthcoke" in back.crew[0].drugs_taken)
+	assert_false("synthcoke" in back.crew[1].drugs_taken)
+	assert_eq(back.crew[0].doses, 3)
+	assert_eq(back.crew[1].doses, 0)
+	assert_eq(back.van_list().size(), 2)
+	var e2 := _leg(back)
+	e2.state = "fled"
+	back.resolve(e2)
+	assert_eq(back.crew[0].weapons[0].id(), "assault_rifle")
+	assert_eq(back.crew[1].weapons[0].id(), "shotgun")
+
+
+func test_a_v11_operation_save_migrates_to_crew_indices() -> void:
+	var c := _taken(42, 3, func(x: Campaign):
+		x.crew[0].weapons.clear()
+		x.crew[0].weapons.append(Weapon.from_id("assault_rifle")))
+	var e := _leg(c)
+	e.state = "won"
+	c.next_leg(e)
+	c.crew[1].kit_spent[1] = true
+	var d: Dictionary = JSON.parse_string(JSON.stringify(c.to_dict()))
+	var op: Dictionary = d.operation
+	var names: Array = d.crew.map(func(m): return String(m.name))
+	var van := {}
+	for it in op.van:
+		var nm := String(names[int(it.crew)])
+		var item: Dictionary = (it as Dictionary).duplicate()
+		item.erase("crew")
+		van[nm] = van.get(nm, []) + [item]
+	var carry := {}
+	for k in names.size():
+		var entry: Dictionary = (op.carry[k] as Dictionary).duplicate()
+		for x in ["name", "weapons", "armor", "subdermal"]:
+			entry.erase(x)
+		carry[names[k]] = entry
+	var present := {}
+	for k in op.present:
+		present[names[int(k)]] = true
+	op["van"] = van
+	op["carry"] = carry
+	op["present"] = present
+	d["version"] = 11
+	var back := Campaign.from_dict(d)
+	assert_eq(int(back.to_dict().version), SaveMigrations.CURRENT)
+	assert_eq(back.van_list(), c.van_list(), "the van comes through")
+	assert_true(back.crew[1].kit_spent[1], "and what was carried over")
+	assert_eq(JSON.stringify(back.active_gig.present), JSON.stringify(c.active_gig.present))
+	var e2 := _leg(back)
+	e2.state = "fled"
+	back.resolve(e2)
+	assert_eq(back.crew[0].weapons[0].id(), "assault_rifle", "the van unloads to its owner")
+
+
+func test_the_haunted_woods_can_be_the_target() -> void:
+	var c := Campaign.new_game(43)
+	var woods := 0
+	var lands: Dictionary = RulesDB.world("playland.json").lands
+	for k in 400:
+		var g := c.operation_offer("playland", 5)
+		var legs: Array = g.legs
+		if String(legs[-1].land) == "haunted_woods":
+			woods += 1
+			assert_true(String(legs[0].land) != "haunted_woods", "entered from another land")
+			assert_true(String(legs[0].land) in lands)
+	assert_true(woods > 0, "the yoganger job can be in the Haunted Woods (lowest code in the park)")
+
+
+func test_the_target_leg_pays_and_counts_at_the_operations_level() -> void:
+	var c := Campaign.new_game(44)
+	var pay: Dictionary = RulesDB.gen("gigs.json").pay
+	var seen_hardened_light := false
+	for k in 200:
+		var g := c.operation_offer("playland", 5)
+		var legs: Array = g.legs
+		var top := Campaign.op_level(g)
+		assert_eq(int(legs[-1].pay), int(pay[str(top)]), "the job pays at its highest leg's level")
+		for l in legs:
+			assert_true(int(legs[-1].pay) >= int(l.pay), "the target never pays less than a way-in leg")
+		if int(legs[-1].security) < top:
+			seen_hardened_light = true
+	assert_true(seen_hardened_light, "the Discovery Zone (Hardened Light, level 1) behind Medium lands comes up")
+	# The deed: a won operation counts at its highest leg's level, not the last map's.
+	var d := _taken(45, 3)
+	var e: Encounter = null
+	while true:
+		e = _leg(d)
+		e.state = "won"
+		if not d.has_next_leg():
+			break
+		d.next_leg(e)
+	d.active_gig["security"] = 1
+	var top2 := Campaign.op_level(d.active_gig)
+	assert_eq(Campaign.deed_level(d.active_gig, e), 2 * top2 - 1 + (1 if e.alarm >= 2 or d.active_gig.get("loud", false) else 0))
+
+
+func test_a_stale_encounter_is_refused() -> void:
+	var c := _taken(46, 3)
+	var eb0 := c.eb
+	var e := _leg(c)
+	assert_eq(e.leg, 0, "the encounter is stamped with its leg")
+	e.state = "won"
+	assert_false(c.next_leg(e).is_empty())
+	assert_true(c.next_leg(e).is_empty(), "the first leg's fight can't move the operation on twice")
+	assert_true(c.resolve(e).is_empty(), "nor settle the second leg, never played")
+	assert_eq(c.eb, eb0, "nothing paid")
+	assert_eq(int(c.active_gig.leg), 1, "the operation is where it was")
+	var e2 := _leg(c)
+	assert_eq(e2.leg, 1)
+	e2.state = "fled"
+	var r := c.resolve(e2)
+	assert_eq((r.legs as Array).size(), 1, "only the leg played is paid")
+	# A single gig won't take an operation leg's encounter either.
+	var s := Campaign.new_game(47)
+	s.accept(0)
+	var stale := Encounter.new()
+	stale.state = "won"
+	stale.leg = 0
+	assert_true(s.resolve(stale).is_empty())
+
+
+const GREYBOX := preload("res://src/tactical/greybox.gd")
+
+
+func test_the_leg_panel_cant_come_back_after_a_choice() -> void:
+	assert_eq(GREYBOX.gig_end_step("won", true, false, false), "leg", "a won leg with more to come asks")
+	assert_eq(GREYBOX.gig_end_step("won", true, true, false), "", "after WITHDRAW (or NEXT) it never asks again")
+	assert_eq(GREYBOX.gig_end_step("won", true, true, true), "")
+	assert_eq(GREYBOX.gig_end_step("won", false, false, true), "", "settled once")
+	assert_eq(GREYBOX.gig_end_step("lost", true, false, false), "settle")
+	assert_eq(GREYBOX.gig_end_step("won", false, false, false), "settle")
+
+
+func test_withdrawing_after_a_won_leg_says_the_operation_ended_early() -> void:
+	var c := _taken(48, 3)
+	var b: Dictionary = GREYBOX.end_banner("won", c.active_gig, c.has_next_leg())
+	assert_false(b.good, "not a green GIG COMPLETE")
+	assert_true(String(b.text).begins_with("OPERATION ENDED EARLY"), String(b.text))
+	assert_true(String(b.text).contains("1 OF 3 LEGS DONE"), String(b.text))
+	var e := _leg(c)
+	e.state = "won"
+	c.next_leg(e)
+	assert_true(String(GREYBOX.end_banner("fled", c.active_gig, c.has_next_leg()).text).contains("1 OF 3 LEGS DONE"))
+	assert_true(String(GREYBOX.end_banner("lost", c.active_gig, c.has_next_leg()).text).begins_with("OPERATION FAILED"))
+	c.active_gig["leg"] = 2
+	c.active_gig["done"] = [{}, {}]
+	var done: Dictionary = GREYBOX.end_banner("won", c.active_gig, false)
+	assert_true(done.good and String(done.text).begins_with("GIG COMPLETE"), "the last leg won: the job is done")
+	assert_true(GREYBOX.end_banner("won", {"title": "x"}, false).good, "a single gig as before")
+
+
+func test_a_save_between_legs_keeps_special_rounds_jams_and_rigging() -> void:
+	var c := _taken(49, 3, func(x: Campaign):
+		x.crew[0].weapons.clear()
+		x.crew[0].weapons.append(Weapon.from_id("heavy_pistol"))
+		x.crew[0].weapons.append(Weapon.from_id("medium_pistol"))
+		x.crew[0].armor["body"] = ArmorPiece.from_id("kevlar"))
+	var a: Combatant = c.crew[0]
+	var e := _leg(c)
+	a.weapons[0].load_special({"incendiary": true}, 3)
+	a.weapons[1].jammed = true
+	a.armor.body.rigged = true
+	e.state = "won"
+	c.next_leg(e)
+	var back := Campaign.from_dict(JSON.parse_string(JSON.stringify(c.to_dict())))
+	var b: Combatant = back.crew[0]
+	assert_eq(b.weapons[0].special_left, 3, "special rounds still loaded")
+	assert_eq(b.weapons[0].special_fx, {"incendiary": true})
+	assert_false(b.weapons[0].jammed)
+	assert_true(b.weapons[1].jammed, "a jam isn't cleared by a reload of the save")
+	assert_true(b.armor.body.rigged, "jury-rigged armour stays rigged")
+	var e2 := _leg(back)
+	assert_eq(b.weapons[0].special_left, 3, "and the next leg starts with them (no gig reset)")
+	assert_true(b.armor.body.rigged)
+
+
+func test_grenades_wait_in_the_van() -> void:
+	var key := "ammo/flashbang_ammo"
+	assert_eq(Items.use(key), "grenade")
+	assert_false(Campaign.smuggles_kit(key), "a grenade is a weapon the gate catches")
+	assert_true(Campaign.smuggles_kit("drugs/synthcoke"), "drugs aren't weapons")
+	var c := _taken(50, 2, func(x: Campaign):
+		x.stash[key] = 1
+		x.crew[0].weapons.clear()
+		x.crew[0].weapons.append(Weapon.from_id("heavy_pistol"))
+		x.crew[0].kit[0] = key)
+	var a: Combatant = c.crew[0]
+	assert_eq(a.kit[0], "", "the grenade stays out of the park")
+	assert_true(c.van_list().any(func(s): return String(s).ends_with(Items.display_name(key))), "it's in the van")
+	var e := _leg(c)
+	e.state = "fled"
+	c.resolve(e)
+	assert_eq(a.kit[0], key, "packed again after the operation")
+	assert_eq(c.stored(key), 1, "never used, still in storage")
+	var m := Campaign.new_game(51)
+	m.crew[0].weapons.clear()
+	m.crew[0].kit[0] = key
+	assert_eq(Campaign.banned_weapons(m.crew[0]), [Items.display_name(key)], "the board warns about it")
+
+
+func test_quitting_before_any_leg_is_done_drops_the_operation_like_a_single_gig() -> void:
+	var c := _taken(52, 3, func(x: Campaign):
+		x.crew[0].weapons.clear()
+		x.crew[0].weapons.append(Weapon.from_id("assault_rifle")))
+	var title := String(c.active_gig.title)
+	var eb0 := c.eb
+	var back := Campaign.from_dict(JSON.parse_string(JSON.stringify(c.to_dict())))   # the save made when it was taken
+	assert_true(Campaign.is_operation(back.active_gig))
+	assert_true(back.quit_mid_leg().is_empty(), "nothing to settle")
+	assert_true(back.active_gig.is_empty(), "no leg to replay")
+	assert_eq(back.eb, eb0)
+	assert_eq(back.crew[0].weapons[0].id(), "assault_rifle", "the van's weapons come back")
+	assert_true(back.board.any(func(g): return String(g.title) == title), "the offer is still up, as a single gig's is")
+	assert_eq(back.crew[0].ip, c.crew[0].ip, "no IP: nothing happened")
+
+
+func test_quitting_after_a_leg_ends_the_operation_as_withdrawing_would() -> void:
+	var c := _taken(53, 3)
+	var e := _leg(c)
+	e.state = "won"
+	c.next_leg(e)
+	var eb0 := c.eb
+	var first := int(c.active_gig.legs[0].pay)
+	var back := Campaign.from_dict(JSON.parse_string(JSON.stringify(c.to_dict())))   # the save made between legs
+	var r := back.quit_mid_leg()
+	assert_false(r.is_empty())
+	assert_false(r.won)
+	assert_eq(int(r.pay), first, "the leg done is paid")
+	assert_eq(back.eb, eb0 + first)
+	assert_true(back.active_gig.is_empty(), "the second leg isn't replayed")
+	assert_eq(back.crew[0].ip, int(Campaign.IP_GROUP.failed))

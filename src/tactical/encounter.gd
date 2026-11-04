@@ -78,6 +78,7 @@ var _spot_rolls := {}               ## [guard id, crew id, round] → result: on
 var jack_pos := {}                  ## runner unit id → the square of the device they jacked in at
 var disabled_devices := {}          ## device id → true (turrets/cameras under the runner's control)
 var lights_off := false             ## the site's lights are down for the whole gig (opts.lights_off)
+var leg := -1                       ## the operation leg this encounter is for (opts.leg), -1 for a single gig
 var hazard: HazardZone = null       ## a shrinking safe circle (the Combat Zone's MIST), null for none
 
 
@@ -95,7 +96,7 @@ var hazard: HazardZone = null       ## a shrinking safe circle (the Combat Zone'
 ## used, drugs in the system and doses spent carry over (no Combatant.gig_reset); crowd: extra
 ## bystanders; civilians: stat blocks (npcs.json) added to the crowd, one each; police: uniformed
 ## NCPD officers among the crowd, unalerted, who answer trouble as the police do; lights_off: the
-## site's lights are down}.
+## site's lights are down; leg: which leg of an operation this is (Campaign checks it when settling)}.
 static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "data", opts: Dictionary = {}) -> Encounter:
 	var e := Encounter.new()
 	opts = SetPieces.encounter_opts(p_map, opts)   # a set piece's per-seed variant (an estate's owner) brings its own code
@@ -113,7 +114,8 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 	var cells: Array = deploy.get("cells", [deploy.pos])
 	for c0 in cells:
 		e.extract_cells[Vector3i(c0.x, c0.y, 0)] = true
-	e.lights_off = bool(opts.get("lights_off", false))
+	e.lights_off = bool(opts.get("lights_off", false))   # HOUSE-RULE: Playland's Fright Nights (NC2045 p.306) read as lights down
+	e.leg = int(opts.get("leg", -1))
 	for i in crew.size():
 		if bool(opts.get("carry", false)):
 			crew[i].leg_reset()
@@ -1488,7 +1490,9 @@ func _arrive(r: Dictionary) -> void:
 const POWERED := ["camera", "turret"]
 
 
-## Is the power out? The lights are off and cameras and turrets dead.
+## Is the power out? The lights are off and cameras and turrets dead. `lights_off` (a site played
+## with its lights down) is a HOUSE-RULE reading of Playland's Fright Nights (NC2045 p.306): the book
+## says only that the Haunted Woods' scares run fully staffed.
 func lights_out() -> bool:
 	return "power" in outages or lights_off
 

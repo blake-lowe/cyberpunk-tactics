@@ -39,8 +39,14 @@ extends RefCounted
 ##     offers without them are single-map gigs, as every older offer is), and the save keeps an
 ##     operation in progress between legs, `operation` (the active gig with its leg, the legs done,
 ##     the van and what the crew carries over; {} when none, which every older save gets).
+## v12: an operation's per-member state is keyed by place in the crew, not by handle (two crew
+##     members may share a handle). `operation.van` becomes a list of {crew (index), key, ammo, at}
+##     (or {crew, key, slot} for a kit grenade); `operation.carry` a list in crew order (each entry
+##     gains per-weapon jams/special rounds and armour rigging, which older saves simply lack);
+##     `operation.present` a list of crew indices. A v11 handle maps to the first crew member with
+##     it: a v11 save with a repeated handle had already merged their entries.
 
-const CURRENT := 11
+const CURRENT := 12
 
 
 ## Upgrade `d` (a parsed save) to CURRENT. Returns {} for a save from a newer build, which this
@@ -62,6 +68,7 @@ static func migrate(d: Dictionary) -> Dictionary:
 			8: _v8_to_v9(d)
 			9: _v9_to_v10(d)
 			10: _v10_to_v11(d)
+			11: _v11_to_v12(d)
 		v += 1
 		d["version"] = v
 	return d
@@ -193,3 +200,29 @@ static func _v9_to_v10(d: Dictionary) -> void:
 static func _v10_to_v11(d: Dictionary) -> void:
 	if not d.has("operation"):
 		d["operation"] = {}
+
+
+static func _v11_to_v12(d: Dictionary) -> void:
+	var op: Variant = d.get("operation", {})
+	if not op is Dictionary or (op as Dictionary).is_empty():
+		return
+	var names: Array = (d.get("crew", []) as Array).map(func(c): return String(c.get("name", "")) if c is Dictionary else "")
+	var van: Variant = op.get("van", [])
+	if van is Dictionary:
+		var out: Array = []
+		for nm in van:
+			for it in van[nm]:
+				var e: Dictionary = (it as Dictionary).duplicate()
+				e["crew"] = names.find(String(nm))
+				out.append(e)
+		op["van"] = out
+	var carry: Variant = op.get("carry", [])
+	if carry is Dictionary:
+		op["carry"] = names.map(func(nm): return ((carry as Dictionary).get(nm, {}) as Dictionary).merged({"name": nm}))
+	var present: Variant = op.get("present", [])
+	if present is Dictionary:
+		var idx: Array = []
+		for i in names.size():
+			if (present as Dictionary).has(names[i]):
+				idx.append(i)
+		op["present"] = idx
