@@ -161,3 +161,17 @@ func test_a_turret_card_has_rounds_and_no_row_of_zero_stats() -> void:
 	assert_true(card.contains("%d/%d" % [t.weapons[0].ammo, int(t.weapons[0].def.get("mag", 0))]), "its rounds left")
 	var p := Recruit.generate(Dice.new(3), "solo", "edgerunner", "Vex")
 	assert_true(Hud.stat_block(p, false).contains("[table"), "a person keeps the STAT line")
+
+
+func test_the_mist_tag_sits_on_the_line_being_watched() -> void:
+	var m := TacMap.new(40, 40, 1)
+	var z := HazardZone.from_spec({"name": "MIST", "start": 3, "every": 3, "steps": 4, "final_r": 6}, m, Dice.new(2))
+	assert_eq(HazardView.tag_text(z), "MIST · NEXT", "before the first close: the dashed line")
+	var p := HazardView.tag_point(z, Vector2(0, 0))
+	assert_true(p.is_finite() and Rect2(z.area).has_point(p), "a point inside the drawn area")
+	assert_near(p.distance_to(z.center), z.next_radius(), 0.01, "on the next edge")
+	z.force_stage(2)
+	assert_eq(HazardView.tag_text(z), "MIST")
+	var q := HazardView.tag_point(z, z.center + Vector2(100, 0))
+	assert_near(q.distance_to(z.center), z.radius(), 0.01, "on the safe edge once closed")
+	assert_true(q.x > z.center.x, "the side nearest the view")

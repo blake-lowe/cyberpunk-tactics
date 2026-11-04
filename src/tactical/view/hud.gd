@@ -74,6 +74,7 @@ var _banner_panel: PanelContainer
 var settings: PanelContainer
 var _turn_banner: Label
 var _turn_rule: ColorRect
+var _turn_strip: ColorRect   ## the dark strip behind the turn banner, so it reads on bright ground
 var hint: PanelContainer
 var hint_tab: PanelContainer
 var _hp_seen := {}            ## unit id → last HP fraction shown (for ghost drain)
@@ -223,6 +224,11 @@ void fragment() {
 	vm.set_shader_parameter("amount", 0.0)   # must exist before it can be tweened
 	_vignette.material = vm
 	add_child(_vignette)
+	_turn_strip = ColorRect.new()
+	_turn_strip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_turn_strip.color = Color(INK, 0.82)
+	_turn_strip.modulate.a = 0.0
+	add_child(_turn_strip)
 	_turn_banner = _text("", F_DISPLAY, 30, TEXT)
 	_turn_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_turn_banner.add_theme_color_override("font_shadow_color", Color(MAGENTA, 0.7))
@@ -1037,15 +1043,20 @@ func turn_banner(text: String, col: Color) -> void:
 	_turn_rule.position = Vector2(x, y + 34)
 	_turn_rule.size = Vector2(0, 2)
 	_turn_rule.modulate.a = 1.0
+	_turn_strip.position = Vector2(x - 18, y - 4)   # owner: a dark strip under every banner, rule included
+	_turn_strip.size = Vector2(w + 36, 44)
+	_turn_strip.modulate.a = 0.0
 	var tw := create_tween()
 	_banner_tw = tw
 	tw.tween_property(_turn_banner, "position:x", x, 0.18).set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
 	tw.parallel().tween_property(_turn_banner, "modulate:a", 1.0, 0.1)
+	tw.parallel().tween_property(_turn_strip, "modulate:a", 1.0, 0.1)
 	tw.parallel().tween_method(func(v: int): _turn_banner.add_theme_constant_override("shadow_offset_x", v), 10, 2, 0.22)
 	tw.parallel().tween_property(_turn_rule, "size:x", w, 0.26).set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
 	tw.tween_interval(0.9)
 	tw.tween_property(_turn_banner, "modulate:a", 0.0, 0.25)
 	tw.parallel().tween_property(_turn_rule, "modulate:a", 0.0, 0.25)
+	tw.parallel().tween_property(_turn_strip, "modulate:a", 0.0, 0.25)
 
 
 func _show_log(fresh := false) -> void:

@@ -1362,6 +1362,7 @@ func _runner_id() -> int:
 
 func _draw_markers(c: Control) -> void:
 	var r := _safe_rect()
+	_draw_hazard_tag(c, r)
 	var from: Vector3i = enc.cur.pos if enc and not enc.cur.is_empty() else Vector3i.ZERO
 	var t := Time.get_ticks_msec() / 1000.0
 	for mk in objective_marks():
@@ -1393,6 +1394,29 @@ func _draw_markers(c: Control) -> void:
 			var at := p - dir * (22.0 + tw * 0.5 * absf(dir.x) + 10.0 * absf(dir.y))   # clear of the arrow, whichever edge
 			c.draw_string_outline(Hud.F_BOLD, at - Vector2(tw * 0.5, -6), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, 5, Color(0, 0, 0, 0.85))
 			c.draw_string(Hud.F_BOLD, at - Vector2(tw * 0.5, -6), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, col)
+
+
+## The hazard zone's name on its edge (owner: tie the line on the map to the round tab's "MIST
+## CLOSES IN N"), at the point of the edge nearest the middle of the view, in the round tab line's
+## colour: the solid edge once it has closed, the dashed next one before.
+func _draw_hazard_tag(c: Control, r: Rect2) -> void:
+	if enc == null or enc.hazard == null or _promo or view_floor < m.street or enc.state != "playing":
+		return
+	var at := HazardView.tag_point(enc.hazard, Vector2(cam_target.x, cam_target.z))
+	if not at.is_finite():
+		return
+	var wp := Vector3(at.x, m.street * FH + 0.3, at.y)
+	var sp := _to_screen(wp)
+	if cam.is_position_behind(wp) or not r.has_point(sp):
+		return
+	var col := Hud.RED if enc.hazard.stage > 0 else Hud.GOLD
+	var tag := HazardView.tag_text(enc.hazard)
+	var tw := Hud.F_BOLD.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
+	var box := Rect2(sp - Vector2(tw / 2 + 6, 22), Vector2(tw + 12, 20))
+	c.draw_rect(box, Color(Hud.INK, 0.85))
+	c.draw_rect(box, Color(col, 0.7), false, 1.0)
+	c.draw_line(Vector2(sp.x, box.end.y), sp, Color(col, 0.7), 1.0)
+	c.draw_string(Hud.F_BOLD, Vector2(box.position.x + 6, box.end.y - 5), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, col)
 
 
 func _draw_cover_shields(c: Control) -> void:
@@ -2016,6 +2040,9 @@ func _unhandled_input(ev: InputEvent) -> void:
 				else:
 					_click_attack(ev.shift_pressed or cover_mode)
 	elif ev is InputEventKey and ev.pressed and not ev.echo:
+		if _leg_key(ev.keycode):   # the leg-complete panel takes Enter and L first
+			get_viewport().set_input_as_handled()
+			return
 		match ev.keycode:
 			KEY_Q: yaw_goal = snappedf(yaw_goal, 45.0) - 90
 			KEY_E: yaw_goal = snappedf(yaw_goal, 45.0) + 90
@@ -3043,20 +3070,8 @@ func _leg_done() -> void:
 	v.add_child(UiKit.body("%d minutes on the streetcar. No time to patch up: the crew goes on as it stands." % int(Campaign.operation_def(camp.active_gig).get("streetcar_minutes", 5)), 14, Hud.DIM))
 	var row := UiKit.hbox(12)
 	v.add_child(row)
-	row.add_child(UiKit.button("NEXT: %s  ›" % String(nxt.get("land_name", "")).to_upper(), UiKit.PRIMARY, func():
-		if _leg_chosen:
-			return
-		_leg_chosen = true
-		camp.next_leg(enc)
-		camp.save()
-		get_tree().reload_current_scene()))
-	row.add_child(UiKit.button("WITHDRAW", UiKit.NEUTRAL, func():
-		if _leg_chosen:
-			return
-		_leg_chosen = true
-		_leg_panel.queue_free()
-		_leg_panel = null
-		_settle_gig()))
+	row.add_child(UiKit.button("NEXT: %s  ›  [ENTER]" % String(nxt.get("land_name", "")).to_upper(), UiKit.PRIMARY, _leg_next))
+	row.add_child(UiKit.button("WITHDRAW  [L]", UiKit.NEUTRAL, _leg_withdraw))
 	_leg_panel.modulate.a = 0.0   # shown once it has its real height
 	hud.add_child(_leg_panel)
 	# Wrapped lines only know their height once they've been laid out at the panel's width: size
@@ -3068,6 +3083,40 @@ func _leg_done() -> void:
 	p.reset_size()
 	p.position = ((hud.size - p.size) / 2.0).floor()
 	p.modulate.a = 1.0
+
+
+## The leg panel's NEXT (Enter): on to the next map, saved between legs.
+func _leg_next() -> void:
+	if _leg_chosen or _leg_panel == null:
+		return
+	_leg_chosen = true
+	Campaign.current.next_leg(enc)
+	Campaign.current.save()
+	get_tree().reload_current_scene()
+
+
+## The leg panel's WITHDRAW (L, as on the map): the operation ends here and the legs done are paid.
+func _leg_withdraw() -> void:
+	if _leg_chosen or _leg_panel == null:
+		return
+	_leg_chosen = true
+	_leg_panel.queue_free()
+	_leg_panel = null
+	_settle_gig()
+
+
+## The leg panel's keys, while it's up: Enter goes on, L withdraws. True if the key was one.
+func _leg_key(code: Key) -> bool:
+	if _leg_panel == null or not is_instance_valid(_leg_panel) or _leg_chosen:
+		return false
+	match code:
+		KEY_ENTER, KEY_KP_ENTER:
+			_leg_next()
+			return true
+		KEY_L:
+			_leg_withdraw()
+			return true
+	return false
 
 
 ## A board gig is over: settle it (pay, injuries, the dead), save, and go to the debrief (the
