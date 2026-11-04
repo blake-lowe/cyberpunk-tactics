@@ -37,13 +37,17 @@ static func plan(m: TacMap, seed_value: int) -> Array:
 		var col: Color = neon[posmod(hash(sid * 7919 + seed_value), neon.size())]
 		out.append({"kind": "sign", "cell": Vector3i(e.pos.x, e.pos.y, f), "out": face, "color": col,
 			"energy": 2.2 if e.get("main", false) else 1.2, "range": 7.0 if e.get("main", false) else 4.5})
-	# Street lamps along sidewalks (or road edges), thinned by spacing.
+	# Street lamps along sidewalks (or road edges), thinned by spacing. A look can light other
+	# ground too (lamp_grounds: a park's planked boardwalk, a wood's earth paths).
+	var grounds := {}
+	for gname in SceneTheme.of(m).get("lamp_grounds", ["sidewalk"]):
+		grounds[int(DistrictGen.GROUNDS.get(String(gname), TacMap.G.SIDEWALK))] = true
 	var taken: Array[Vector2i] = []
 	var lamp_col: Color = lamps[rng.randi() % lamps.size()]
-	var spacing := 7 if bulkhead else LAMP_SPACING
+	var spacing := 7 if bulkhead else int(SceneTheme.of(m).get("lamp_spacing", LAMP_SPACING))   # a park lights its walks closer
 	for y in m.h:
 		for x in m.w:
-			if m.t(0, x, y) != TacMap.T.OUTSIDE or m.ground[y * m.w + x] != TacMap.G.SIDEWALK or m.has_cover_at(0, Vector2i(x, y)):
+			if m.t(0, x, y) != TacMap.T.OUTSIDE or not grounds.has(int(m.ground[y * m.w + x])) or m.has_cover_at(0, Vector2i(x, y)) or m.has_decor_at(0, Vector2i(x, y)):
 				continue
 			var p := Vector2i(x, y)
 			var face := Vector2i.ZERO   # bulkhead lamps hang on a wall: the direction out of it
@@ -62,7 +66,8 @@ static func plan(m: TacMap, seed_value: int) -> Array:
 			out.append({"kind": "lamp", "cell": Vector3i(x, y, 0), "out": face, "color": lamp_col, "energy": 1.1 if bulkhead else 0.9, "range": 6.0 if bulkhead else 7.0})
 	# Outdoor lots get a lamp of their own (owner round 6: empty dark lots): a work light on a
 	# construction site, park and plaza lamps, a sodium lamp over parking.
-	const LOT_LIGHT := {"construction_site": "ffc860", "park": "c8ffd8", "plaza": "ffd8a8", "parking_lot": "ffb070", "market": "ffc890"}
+	const LOT_LIGHT := {"construction_site": "ffc860", "park": "c8ffd8", "plaza": "ffd8a8", "parking_lot": "ffb070", "market": "ffc890",
+		"ride": "ffe0b0", "woods": "a890ff"}
 	for r in m.rooms:
 		if not r.get("outdoor", false) or r.floor != 0 or not LOT_LIGHT.has(String(r.kind)) or r.cells < 12:
 			continue

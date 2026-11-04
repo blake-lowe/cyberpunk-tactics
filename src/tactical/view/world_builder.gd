@@ -28,7 +28,7 @@ const LIB := {
 	"concrete": [Color("33363a"), Color("232528"), 1, 0.37, 0.8, 0.0],
 	"gravel": [Color("3b3833"), Color("2a2824"), 5, 2.0, 0.95, 0.0],
 	"dirt": [Color("5a4836"), Color("3e3226"), 5, 0.8, 0.95, 0.0],   # r7 review: lots read as voids when darker
-	"grass": [Color("2c4630"), Color("3a4a28"), 5, 1.1, 0.95, 0.0],
+	"grass": [Color("3e6a30"), Color("54722c"), 5, 1.1, 0.95, 0.0, {"fog_hue": 0.6}],   # yellow-green so moonlight leaves it green, not teal; keeps its hue out of sight
 	"sand": [Color("9a8670"), Color("6a5644"), 5, 0.7, 0.95, 0.0],   # r8 review: wider tone gap so the badlands floor isn't one flat colour
 	"rail": [Color("2c2724"), Color("1a1715"), 6, 0.9, 0.7, 0.2],
 	"dock": [Color("2f2a25"), Color("1a1714"), 2, 0.8, 0.75, 0.0],
@@ -62,7 +62,7 @@ const LIB := {
 	"concrete_prop": [Color("6a6e73"), Color("4a4d51"), 0, 2.0, 0.85, 0.0],
 	"stone": [Color("67625b"), Color("4a4640"), 5, 2.0, 0.9, 0.0],
 	"fabric": [Color("3b3048"), Color("3b3048"), 0, 6.0, 0.95, 0.0],
-	"plant": [Color("3a4a2a"), Color("2f5a20"), 5, 3.0, 0.9, 0.0],
+	"plant": [Color("4a6a2c"), Color("3a6a24"), 5, 3.0, 0.9, 0.0, {"fog_hue": 0.7}],
 	"dark": [Color("141619"), Color("141619"), 0, 1.0, 0.6, 0.3],
 	"container": [Color("6a3428"), Color("4a2418"), 8, 1.0, 0.6, 0.4],
 	"tower": [Color("14171c"), Color("0e1014"), 9, 0.55, 0.8, 0.2, {"mode": 2}],
@@ -126,7 +126,18 @@ func _init(p_map: TacMap, p_vision: Vision, p_fog: Texture2D) -> void:
 	mesa.height = 1.0
 	mesa.radial_segments = 7
 	mesa.rings = 2
-	_shapes = {"box": box, "cyl": cyl, "sphere": sph, "quad": quad, "rock": rock, "mesa": mesa}
+	var cone := CylinderMesh.new()   # pines, canopies, spires
+	cone.top_radius = 0.0
+	cone.bottom_radius = 0.5
+	cone.height = 1.0
+	cone.radial_segments = 10
+	cone.rings = 1
+	var torus := TorusMesh.new()   # a big wheel's rim: radius 1, round its y axis
+	torus.inner_radius = 0.955
+	torus.outer_radius = 1.0
+	torus.rings = 40
+	torus.ring_segments = 4
+	_shapes = {"box": box, "cyl": cyl, "sphere": sph, "quad": quad, "rock": rock, "mesa": mesa, "cone": cone, "torus": torus}
 
 
 # --- Materials ---------------------------------------------------------------------
@@ -160,6 +171,7 @@ func mat(name: String, f: int, cut := true, over := {}) -> ShaderMaterial:
 	mt.set_shader_parameter("offmap", extra.get("offmap", false))
 	mt.set_shader_parameter("near_fade", extra.get("near_fade", false))
 	mt.set_shader_parameter("dry", extra.get("dry", false))
+	mt.set_shader_parameter("fog_hue", float(extra.get("fog_hue", 0.0)))
 	mt.set_shader_parameter("cuttable", cut)
 	if extra.has("tex"):
 		mt.set_shader_parameter("tex", extra.tex)
@@ -327,6 +339,7 @@ func build(root: Node3D) -> Array[Node3D]:
 		_roof_clutter(f)
 		_facade_dressing(f)
 		SetPieceDressing.dress(self, f)
+		ParkDressing.dress(self, f)
 		flush(fn)
 	var sky := Node3D.new()
 	sky.name = "skyline"
@@ -575,7 +588,8 @@ func _surface(tris: PackedVector2Array, y: float, mt: Material, parent_key := ""
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	st.set_normal(Vector3.UP)
 	for i in range(0, tris.size(), 3):
-		for k in [0, 1, 2, 0, 2, 1]:  # both windings; the downward one is culled
+		for k in [0, 1, 2]:  # upward winding only: the world shader draws both faces (cull_disabled), and a
+			# downward copy won the depth tie, so lawns and water drew as section caps (unlit slate, no spill)
 			var p: Vector2 = tris[i + k]
 			st.set_normal(Vector3.UP)
 			st.add_vertex(Vector3(p.x, y, p.y))
@@ -966,8 +980,8 @@ func _cover(f: int) -> void:
 		tag = null
 	var stanchions := {}
 	for d in m.decor:
-		if d.floor == f and d.kind == "stanchion":
-			stanchions[d.pos] = true
+		if d.floor == f and d.kind in ["stanchion", "rail"]:
+			stanchions[d.pos] = d.kind
 	for d in m.decor:
 		if d.floor == f:
 			_decor(d, Vector3(d.pos.x + 0.5, y0, d.pos.y + 0.5), f, stanchions)
@@ -1003,7 +1017,7 @@ func _decor(d: Dictionary, c: Vector3, f: int, stanchions: Dictionary) -> void:
 			put("cyl", steel, Transform3D(Basis.from_scale(Vector3(0.05, 0.46, 0.05)), c + Vector3(0, 0.23, 0)))
 			put("cyl", steel, Transform3D(Basis.from_scale(Vector3(0.2, 0.02, 0.2)), c + Vector3(0, 0.01, 0)))
 			for n in MapGen.DIRS:
-				if stanchions.has(d.pos + n):
+				if stanchions.get(d.pos + n, "") == "stanchion":
 					var dir := Vector3(n.x, 0, n.y)
 					box(mat("fabric", f, false, {"color": Color("a01830"), "glow": 0.3, "emit": Color("ff2040")}), c + dir * 0.25 + Vector3(0, 0.42, 0), Vector3(0.5, 0.05, 0.015), _yaw(Vector2i(n.y, -n.x)))
 		"nightstand":
@@ -1020,6 +1034,8 @@ func _decor(d: Dictionary, c: Vector3, f: int, stanchions: Dictionary) -> void:
 			box(mat("steel", f, true, {"color": Color("e8e8e4")}), p + Vector3(0, 1.15, 0), Vector3(0.55, 0.36, 0.03), yaw)
 			box(mat("steel", f, true, {"color": Color("d05a1a")}), p + Vector3(0, 1.02, 0) + fz * 0.14, Vector3(0.22, 0.02, 0.22), yaw)
 			box(mat("steel", f, true, {"color": Color("d05a1a")}), p + Vector3(0, 1.1, 0) + fz * 0.03, Vector3(0.16, 0.12, 0.02), yaw)
+		_:   # a theme park's: queue rails, string-light poles, the coaster's track, a pavilion's canopy
+			ParkDressing.decor(self, d, c, f, stanchions)
 
 
 ## One-square pieces. `p` is the jittered base centre; `yaw` a small deterministic turn.
@@ -1219,6 +1235,9 @@ func _piece(kind: String, p: Vector3, yaw: float, f: int, h0: int, aligned := fa
 			if SetPieceDressing.has_piece(kind):   # a set piece's own prop (cupola, mast, ...)
 				SetPieceDressing.piece(self, kind, p, yaw, f, h0)
 				return
+			if ParkDressing.has_piece(kind):   # a theme park's (rides, booths, fake pines)
+				ParkDressing.piece(self, kind, p, yaw, f, h0)
+				return
 			box(mat("concrete_prop", f, false), p + Vector3(0, 0.25, 0), Vector3(0.7, 0.5, 0.7), yaw)
 
 
@@ -1288,6 +1307,8 @@ func _multi(kind: String, r: Rect2, f: int, h0: int) -> void:
 		_:
 			if SetPieceDressing.has_piece(kind):
 				SetPieceDressing.multi(self, kind, r, f, h0)
+			elif kind in ParkDressing.MULTI:
+				ParkDressing.multi(self, kind, r, f, h0)
 			else:
 				_piece(kind, c, yaw, f, h0)
 

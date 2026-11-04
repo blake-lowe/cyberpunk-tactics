@@ -1774,9 +1774,9 @@
    ]
   ]
  },
- "ride": {"furniture": [["machine", "center", 45], ["bench", "wall", 40], ["planter", "scatter", 90]],
+ "ride": {"furniture": [["bench", "wall", 50], ["planter", "scatter", 110]],
   "devices": [{"t": "camera", "group": "cameras", "per_cells": 300}]},
- "woods": {"furniture": [["tree", "scatter", 3], ["bench", "scatter", 120]]},
+ "woods": {"furniture": [["pine", "scatter", 2], ["bench", "scatter", 120]]},
  "substation_yard": {
   "furniture": [
    [

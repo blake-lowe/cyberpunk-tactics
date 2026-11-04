@@ -41,12 +41,23 @@ const PIECES := {
 	"teller_counter": ["steel", false], "prep_counter": ["steel", false], "pass": ["steel", false],
 	"school_desk": ["wood", false], "host_stand": ["wood", false], "vault_door": ["steel", true],
 	"armchair": ["plaster", true], "bleachers": ["wood", true], "luggage": ["wood", false],
+	# theme parks (ParkGen): a big wheel's legs and boarding platform, a drop tower's or swing ride's
+	# base and a pavilion's posts (steel girders: thick steel, like crane legs), a coaster's lattice support
+	# (open steel: thin, like a rack), a carousel's deck (timber platform and rounding boards: thick
+	# wood, like the reception desk), a spinner's cups and a bumper car (thin steel, like a car), a
+	# fountain basin (stone: thick, like a boulder), a game booth (a kiosk: thick wood), a fake pine
+	# (a tree: thick wood)
+	"wheel": ["steel", true], "drop_tower": ["steel", true], "swings": ["steel", true], "pavilion_post": ["steel", true],
+	"coaster_post": ["steel", false], "carousel": ["wood", true], "spinner": ["steel", false],
+	"bumper_car": ["steel", false], "fountain": ["stone", true], "game_booth": ["wood", true], "pine": ["wood", true],
 }
 
 ## Walk-through dressing: stamped beside the pieces above by room sets, drawn by the viewer, no
 ## cover and never blocks movement (a chair or a queue rope stops no bullet and no one; HOUSE-RULE:
 ## chairs are not obstacles, so tables with chairs never wall off a dining room).
-const DECOR := ["side_chair", "stool", "stanchion", "nightstand", "board", "hoop"]
+## Theme parks (ParkGen): a queue rail, a pole carrying a string of lights, and markers for a
+## coaster's track and a pavilion's canopy (both overhead: `rect` carries their extent).
+const DECOR := ["side_chair", "stool", "stanchion", "nightstand", "board", "hoop", "rail", "string_pole", "coaster", "pavilion"]
 
 ## Pieces that are also hazards (explosive: blows up when destroyed; resolved in M3).
 const HAZARDS := {"fuel_barrel": "explosive", "transformer": "electrified"}
