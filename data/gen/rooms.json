@@ -1,5 +1,5 @@
 {
- "_doc": "Per room kind: furniture = [piece, placement, cells per piece] (placement: wall | row | center | scatter; fewer cells per piece = denser). devices = [{t, group, wall, p, per_cells, ap, file}] where group 'cameras'/'turrets'/'locks' get a zone/floor suffix and 'site:<name>' is one group for the whole site (first matching room only). Cover materials and HP come from the book's cover table via Furnish.PIECES.",
+ "_doc": "Per room kind: furniture = [piece, placement, cells per piece] (placement: wall | row | center | scatter | front = along the wall towards the entrance facade, programmed rooms; fewer cells per piece = denser). devices = [{t, group, wall, p, per_cells, ap, file}] where group 'cameras'/'turrets'/'locks' get a zone/floor suffix and 'site:<name>' is one group for the whole site (first matching room only). Cover materials and HP come from the book's cover table via Furnish.PIECES. post: true = a guard post in the middle of the room (SceneGen._guard_posts).",
  "corridor": {
   "furniture": [
    [
@@ -1793,5 +1793,29 @@
     "per_cells": 200
    }
   ]
- }
+ },
+ "stair_hall": {"furniture": [["planter", "wall", 40]], "devices": [{"t": "camera", "group": "cameras", "wall": true, "p": 0.5}]},
+ "lift_lobby": {"furniture": [["planter", "wall", 30], ["seat", "wall", 40]], "devices": [{"t": "camera", "group": "cameras", "wall": true}]},
+ "dining_room": {"furniture": [["reception", "center", 200], ["booth", "wall", 6], ["table", "scatter", 8]], "devices": [{"t": "camera", "group": "cameras", "wall": true, "p": 0.5}]},
+ "private_dining": {"furniture": [["table", "center", 8], ["sofa", "wall", 14]], "devices": [{"t": "camera", "group": "cameras", "wall": true, "p": 0.3}]},
+ "commercial_kitchen": {"furniture": [["stove", "wall", 6], ["counter", "front", 8], ["bench", "center", 14], ["fridge", "wall", 20]], "devices": [{"t": "sprinkler_valve", "group": "site:sprinklers", "wall": true}]},
+ "cold_store": {"furniture": [["fridge", "wall", 3], ["shelf", "row", 8]]},
+ "back_office": {"furniture": [["desk", "center", 30], ["cabinet", "wall", 14], ["safe", "wall", 40]], "devices": [{"t": "terminal", "ap": true, "file": 2}, {"t": "camera", "group": "cameras", "wall": true, "p": 0.6}], "post": true},
+ "guest_room": {"furniture": [["bed", "wall", 10], ["cabinet", "wall", 22], ["chair", "scatter", 30]], "devices": [{"t": "terminal", "p": 0.08, "ap": true}]},
+ "suite": {"furniture": [["bed", "wall", 16], ["sofa", "wall", 14], ["table", "center", 20], ["safe", "wall", 50]], "devices": [{"t": "terminal", "p": 0.7, "ap": true, "file": 3}, {"t": "camera", "group": "cameras", "wall": true, "p": 0.3}]},
+ "banking_hall": {"furniture": [["pillar", "center", 45], ["planter", "scatter", 60], ["seat", "wall", 20], ["table", "center", 50]], "devices": [{"t": "camera", "group": "cameras", "wall": true, "per_cells": 50}], "post": true},
+ "teller_line": {"furniture": [["counter", "front", 2], ["cabinet", "wall", 30]], "devices": [{"t": "terminal", "ap": true, "file": 1}, {"t": "alarm_panel", "group": "site:alarm", "wall": true}, {"t": "camera", "group": "cameras", "wall": true}]},
+ "mantrap": {"furniture": [], "devices": [{"t": "camera", "group": "cameras", "wall": true}]},
+ "bank_vault": {"furniture": [["safe", "wall", 4], ["crate", "scatter", 22]], "devices": [{"t": "data_core", "file": 5}, {"t": "vault_lock", "group": "site:vault", "wall": true}, {"t": "camera", "group": "cameras", "wall": true}]},
+ "counting_room": {"furniture": [["table", "center", 14], ["safe", "wall", 22], ["cabinet", "wall", 30]], "devices": [{"t": "terminal", "ap": true, "file": 3}, {"t": "camera", "group": "cameras", "wall": true}]},
+ "archive": {"furniture": [["shelf", "row", 5], ["cabinet", "wall", 14]], "devices": [{"t": "terminal", "ap": false, "file": 3}]},
+ "classroom": {"furniture": [["desk", "row", 4], ["cabinet", "wall", 40]], "devices": [{"t": "terminal", "p": 0.25, "ap": true}]},
+ "hallway": {"furniture": [["locker", "wall", 5]], "devices": [{"t": "camera", "group": "cameras", "wall": true, "per_cells": 70}]},
+ "gym": {"furniture": [["pew", "wall", 12], ["crate", "scatter", 80]], "devices": [{"t": "camera", "group": "cameras", "wall": true, "per_cells": 90}, {"t": "light_rig", "group": "site:lights", "wall": true, "p": 0.5}]},
+ "auditorium": {"furniture": [["seat", "row", 3]], "devices": [{"t": "light_rig", "group": "site:lights", "wall": true}, {"t": "camera", "group": "cameras", "wall": true}]},
+ "cafeteria": {"furniture": [["table", "row", 5], ["vending", "wall", 45]], "devices": [{"t": "camera", "group": "cameras", "wall": true, "per_cells": 80}]},
+ "admin_office": {"furniture": [["reception", "center", 200], ["desk", "row", 10], ["cabinet", "wall", 18]], "devices": [{"t": "terminal", "ap": true, "file": 2}, {"t": "camera", "group": "cameras", "wall": true}, {"t": "pa_system", "group": "site:pa", "wall": true}]},
+ "library": {"furniture": [["shelf", "row", 5], ["table", "center", 24]], "devices": [{"t": "terminal", "p": 0.6, "ap": true, "file": 1}]},
+ "security_post": {"furniture": [["desk", "wall", 12], ["locker", "wall", 16]], "devices": [{"t": "terminal", "ap": true, "file": 1}, {"t": "alarm_panel", "group": "site:alarm", "wall": true}, {"t": "camera", "group": "cameras", "wall": true}], "post": true},
+ "bd_lab": {"furniture": [["chair", "row", 4]], "devices": [{"t": "bd_rig", "group": "site:bd_rigs", "wall": true, "per_cells": 18}, {"t": "terminal", "ap": true, "file": 2}]}
 }

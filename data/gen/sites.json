@@ -1,5 +1,5 @@
 {
- "_doc": "massing: weights for upper-floor shapes (podium: tower on a base, step: set back on one or two sides, wing: a low part beside a taller block, none). Building site types for BuildingGen. layout: room-partition algorithm + params. zones: room kinds per security zone \u2014 entrance (room at the main door), small (\u226416 cells), large (\u226560 cells), rotation (by size rank), and layout-kind mappings (e.g. living/bedroom from corridor_units). density: default cover density. exterior: wall material index (0 plaster, 1 concrete, 2 steel). enter_corridor: put the main door on a corridor. networked: false = no NET even with devices. no_corridors: never relabel long thin rooms as corridors. levels: how many security levels (L1..L4) the building uses, counted from its base level. net_chance: chance a non-target building of this type has a NET (targets always do). windows: chance per eligible exterior wall square of a window. shapes: weights for footprint shapes (rect, L, U, T, chamfer, courtyard). decay: default ruin level 0-1.",
+ "_doc": "massing: weights for upper-floor shapes (podium: tower on a base, step: set back on one or two sides, wing: a low part beside a taller block, none). Building site types for BuildingGen. layout: room-partition algorithm + params. zones: room kinds per security zone \u2014 entrance (room at the main door), small (\u226416 cells), large (\u226560 cells), rotation (by size rank), and layout-kind mappings (e.g. living/bedroom from corridor_units). density: default cover density. exterior: wall material index (0 plaster, 1 concrete, 2 steel). enter_corridor: put the main door on a corridor. networked: false = no NET even with devices. no_corridors: never relabel long thin rooms as corridors. levels: how many security levels (L1..L4) the building uses, counted from its base level. net_chance: chance a non-target building of this type has a NET (targets always do). windows: chance per eligible exterior wall square of a window. shapes: weights for footprint shapes (rect, L, U, T, chamfer, courtyard). decay: default ruin level 0-1. Programmed sites (layout.algorithm program, Layouts.program): layout.program lists the rooms per floor in bands from the entrance facade inwards (see src/gen/layouts.gd), layout.enter / service: room kinds the main / service door open into, stair_in / lift_in: room kinds the stairs / lifts go in, stairs: stair shafts (2 = one at each end). footprint {w, d} (squares along / into the entrance facade) and floors [min, max] size a lone building of the site. anchors.<role>.<room kind>: where objectives put their vip / captive / package / machine (Encounter.secure_cell; a bonus on the score, ~20 per security level). armored_windows: every window bulletproof. _why: the planning conventions and sources the program follows.",
  "corp_office": {"massing": {"podium": 2, "step": 2, "none": 2}, 
   "name": "Corporate office",
   "layout": {
@@ -1123,5 +1123,395 @@
   "shapes": {
    "rect": 1
   }
+ },
+ "restaurant": {
+  "name": "Restaurant",
+  "_why": "Front of house on the street, back of house behind it (Neufert, restaurants: dining room about 60% of the floor, kitchen and stores 30-40%; the kitchen sits between the dining room it serves and the stores it draws on, the cold store opens only off the kitchen, the service door takes deliveries into the stores; restrooms open off the dining room, never the kitchen). Upstairs: private dining rooms off a lounge and the owner's office, as at the Firebird Tearoom (NC2045 Executive Zone 3) and Yum Seng's karaoke boxes (Kabuki 24).",
+  "footprint": {"w": [15, 20], "d": [16, 20]},
+  "floors": [1, 2],
+  "layout": {
+   "algorithm": "program",
+   "loops": 0.2,
+   "stair_in": ["stair_hall"],
+   "enter": ["dining_room"],
+   "service": ["storage", "cold_store", "break_room", "commercial_kitchen"],
+   "program": {
+    "ground": [
+     {
+      "w": 0.5,
+      "min": 6,
+      "rooms": [
+       {"room": "dining_room", "zone": "public", "w": 3},
+       {"room": "private_dining", "zone": "staff", "w": 1, "min": 4, "p": 0.4, "doors": ["dining_room"]}
+      ]
+     },
+     {
+      "w": 0.3,
+      "min": 4,
+      "rooms": [
+       {"room": "stair_hall", "zone": "public", "cells": 4, "min_floors": 2, "doors": ["dining_room", "commercial_kitchen", "back_office", "lounge"]},
+       {"room": "restroom", "zone": "public", "cells": 3, "doors": ["dining_room"]},
+       {"room": "commercial_kitchen", "zone": "staff", "w": 3, "min": 5, "doors": ["dining_room", "storage", "cold_store", "back_office", "break_room", "stair_hall"]},
+       {"room": "storage", "zone": "staff", "w": 1, "min": 3, "doors": ["commercial_kitchen", "cold_store", "break_room", "back_office"]}
+      ]
+     },
+     {
+      "w": 0.2,
+      "min": 4,
+      "rooms": [
+       {"room": "back_office", "zone": "staff", "w": 1.3, "min": 5, "doors": ["commercial_kitchen", "storage", "break_room", "stair_hall"]},
+       {"room": "cold_store", "zone": "staff", "w": 1, "doors": ["commercial_kitchen", "storage"]},
+       {"room": "break_room", "zone": "staff", "w": 1, "doors": ["commercial_kitchen", "storage", "back_office"]}
+      ]
+     }
+    ],
+    "upper": [
+     {
+      "rooms": [
+       {"repeat": {"room": "private_dining", "zone": "staff", "doors": ["lounge"]}, "size": [5, 7], "w": 1}
+      ]
+     },
+     {
+      "rooms": [
+       {"room": "stair_hall", "zone": "public", "cells": 4},
+       {"room": "lounge", "zone": "public", "w": 1}
+      ]
+     },
+     {
+      "rooms": [
+       {"room": "manager_office", "zone": "secure", "w": 1, "doors": ["lounge", "storage"]},
+       {"room": "storage", "zone": "staff", "w": 1, "doors": ["lounge", "manager_office"]},
+       {"room": "private_dining", "zone": "staff", "w": 1, "doors": ["lounge"]}
+      ]
+     }
+    ]
+   }
+  },
+  "zones": {
+   "public": {"rotation": ["dining_room"]},
+   "staff": {"rotation": ["storage"]},
+   "secure": {"rotation": ["back_office"]}
+  },
+  "anchors": {
+   "vip": {"private_dining": 80, "manager_office": 40, "back_office": 30},
+   "package": {"back_office": 80, "cold_store": 40},
+   "captive": {"cold_store": 80, "storage": 40},
+   "machine": {"commercial_kitchen": 80, "cold_store": 30}
+  },
+  "density": 0.4,
+  "levels": 3,
+  "net_chance": 0.3,
+  "windows": 0.55,
+  "shapes": {"rect": 1}
+ },
+ "hotel": {
+  "name": "Hotel",
+  "_why": "A slab hotel: double-loaded corridors of guest rooms stacked over a podium floor of public rooms (Neufert, hotels: lobby with the reception desk at the entrance, bar and restaurant off it, conference rooms; back of house along a service corridor behind: offices, security, kitchen, laundry, luggage and linen stores). Guest stairs and lifts at one end of the corridor, a staff/fire stair at the other (two means of escape). Suites on the top floor. Valuables vault behind the back office and the security office, as at Hotel Muy Caro (NC2045 Charter Hill 12: conference rooms, a valuables vault and the restaurant on the ground floor, doubles above, suites on top); the Sunshine Motel (Outskirts 17) has the same front counter and locked rooms.",
+  "footprint": {"w": [30, 38], "d": [15, 18]},
+  "floors": [2, 4],
+  "layout": {
+   "algorithm": "program",
+   "loops": 0.1,
+   "verticality": 2,
+   "stairs": 2,
+   "stair_in": ["lift_lobby", "stair_hall"],
+   "lift_in": ["lift_lobby"],
+   "enter": ["lobby"],
+   "service": ["storage", "laundry", "commercial_kitchen"],
+   "program": {
+    "ground": [
+     {
+      "cells": 6,
+      "rooms": [
+       {"room": "lobby", "zone": "public", "w": 3, "min": 6},
+       {"room": "bar", "zone": "public", "w": 1.6, "min": 4, "p": 0.75, "doors": ["lobby", "corridor", "dining_room"]},
+       {"room": "dining_room", "zone": "public", "w": 2, "min": 5, "p": 0.7, "doors": ["lobby", "corridor", "bar"]},
+       {"room": "meeting", "zone": "staff", "w": 1.3, "min": 4, "p": 0.6, "doors": ["lobby", "corridor"]}
+      ]
+     },
+     {"cells": 2, "rooms": [{"room": "corridor", "zone": "public", "w": 1}]},
+     {
+      "w": 1,
+      "rooms": [
+       {"room": "lift_lobby", "zone": "public", "cells": 5, "doors": ["corridor", "lobby"]},
+       {"room": "back_office", "zone": "staff", "w": 1.2, "min": 4, "doors": ["corridor", "security_office"]},
+       {"room": "security_office", "zone": "secure", "w": 1, "min": 4, "doors": ["back_office", "vault"]},
+       {"room": "vault", "zone": "vault", "w": 0.8, "min": 3, "doors": ["security_office"]},
+       {"room": "commercial_kitchen", "zone": "staff", "w": 1.5, "min": 4, "doors": ["corridor", "storage"]},
+       {"room": "storage", "zone": "staff", "w": 0.8, "min": 3, "p": 0.6, "doors": ["corridor", "commercial_kitchen", "laundry"]},
+       {"room": "laundry", "zone": "staff", "w": 1, "min": 3, "doors": ["corridor", "storage"]},
+       {"room": "stair_hall", "zone": "staff", "cells": 4, "doors": ["corridor", "laundry", "storage"]}
+      ]
+     }
+    ],
+    "upper": [
+     {
+      "rooms": [
+       {"repeat": {"room": "guest_room", "zone": "staff", "doors": ["corridor"]}, "size": [4, 5], "w": 1}
+      ]
+     },
+     {"rooms": [{"room": "corridor", "zone": "staff", "w": 1}]},
+     {
+      "rooms": [
+       {"room": "lift_lobby", "zone": "public", "cells": 5},
+       {"room": "storage", "zone": "staff", "cells": 3, "doors": ["corridor"]},
+       {"repeat": {"room": "guest_room", "zone": "staff", "doors": ["corridor"]}, "size": [4, 5], "w": 1},
+       {"room": "stair_hall", "zone": "staff", "cells": 4}
+      ]
+     }
+    ],
+    "top": [
+     {
+      "rooms": [
+       {"repeat": {"room": "suite", "zone": "staff", "doors": ["corridor"]}, "size": [7, 9], "w": 1}
+      ]
+     },
+     {"rooms": [{"room": "corridor", "zone": "staff", "w": 1}]},
+     {
+      "rooms": [
+       {"room": "lift_lobby", "zone": "public", "cells": 5},
+       {"repeat": {"room": "suite", "zone": "staff", "doors": ["corridor"]}, "size": [7, 9], "w": 1},
+       {"room": "stair_hall", "zone": "staff", "cells": 4}
+      ]
+     }
+    ]
+   }
+  },
+  "zones": {
+   "public": {"rotation": ["lobby"]},
+   "staff": {"rotation": ["guest_room"]},
+   "secure": {"rotation": ["suite"]},
+   "vault": {"rotation": ["vault"]}
+  },
+  "anchors": {
+   "vip": {"suite": 100, "guest_room": 30},
+   "package": {"back_office": 100, "suite": 60},
+   "captive": {"guest_room": 40, "laundry": 60, "storage": 40},
+   "machine": {"laundry": 110, "commercial_kitchen": 100}
+  },
+  "density": 0.3,
+  "levels": 4,
+  "net_chance": 0.6,
+  "windows": 0.7,
+  "shapes": {"rect": 1}
+ },
+ "bank": {
+  "name": "Bank",
+  "_why": "A branch bank in depth from the street (Neufert, banks: public banking hall at the entrance with the loan officers' side offices off it; the teller line across the back of the hall behind bullet-resistant glass; behind that the staff zone: manager, cash counting, security; the vault deepest, entered only through a security vestibule / mantrap). NC2045 The Glen 1, 1st Night City Bank: a public ground floor (marble, bulletproof windows, human tellers, side offices for loans) and the vault on the second floor, with ID card and retina scan between floors: the vault-upstairs variant. EuroBank (The Glen 12): screens instead of windows, layered biometrics.",
+  "footprint": {"w": [18, 24], "d": [16, 20]},
+  "floors": [1, 2],
+  "layout": {
+   "algorithm": "program",
+   "loops": 0.1,
+   "stair_in": ["stair_hall"],
+   "enter": ["banking_hall"],
+   "service": ["stair_hall", "manager_office", "office"],
+   "program": {
+    "variants": [
+     {
+      "weight": 3,
+      "ground": [
+       {
+        "w": 0.5,
+        "min": 7,
+        "rooms": [
+         {"room": "office", "zone": "staff", "w": 1, "min": 4, "p": 0.7, "doors": ["banking_hall"]},
+         {"room": "banking_hall", "zone": "public", "w": 3.5, "min": 8},
+         {"room": "office", "zone": "staff", "w": 1, "min": 4, "p": 0.7, "doors": ["banking_hall"]}
+        ]
+       },
+       {
+        "cells": 3,
+        "rooms": [
+         {"room": "teller_line", "zone": "staff", "w": 1, "glass": ["banking_hall"], "doors": ["banking_hall", "stair_hall", "manager_office", "security_office", "counting_room", "mantrap"]}
+        ]
+       },
+       {
+        "w": 0.5,
+        "min": 5,
+        "rooms": [
+         {"room": "stair_hall", "zone": "staff", "cells": 4, "min_floors": 2, "doors": ["teller_line", "manager_office"]},
+         {"room": "manager_office", "zone": "staff", "w": 1, "min": 4, "doors": ["teller_line", "stair_hall", "security_office"]},
+         {"room": "security_office", "zone": "secure", "w": 0.8, "min": 4, "p": 0.6, "doors": ["teller_line", "manager_office"]},
+         {"room": "counting_room", "zone": "staff", "w": 1, "min": 4, "doors": ["teller_line", "mantrap"]},
+         {"room": "mantrap", "zone": "secure", "cells": 3, "doors": ["teller_line", "counting_room", "bank_vault"]},
+         {"room": "bank_vault", "zone": "vault", "w": 1.4, "min": 4, "doors": ["mantrap"]}
+        ]
+       }
+      ],
+      "upper": [
+       {
+        "rooms": [
+         {"repeat": {"room": "office", "zone": "staff", "doors": ["corridor"]}, "size": [4, 6], "w": 1}
+        ]
+       },
+       {"rooms": [{"room": "corridor", "zone": "staff", "w": 1}]},
+       {
+        "rooms": [
+         {"room": "stair_hall", "zone": "staff", "cells": 4},
+         {"room": "exec_office", "zone": "secure", "w": 1.2, "min": 4, "doors": ["corridor"]},
+         {"room": "server_room", "zone": "secure", "w": 1, "min": 3, "doors": ["corridor"]},
+         {"room": "archive", "zone": "secure", "w": 1, "min": 3, "doors": ["corridor"]},
+         {"room": "break_room", "zone": "staff", "w": 1, "min": 3, "p": 0.6, "doors": ["corridor"]}
+        ]
+       }
+      ]
+     },
+     {
+      "weight": 1,
+      "min_floors": 2,
+      "ground": [
+       {
+        "w": 0.5,
+        "min": 7,
+        "rooms": [
+         {"room": "office", "zone": "staff", "w": 1, "min": 4, "p": 0.7, "doors": ["banking_hall"]},
+         {"room": "banking_hall", "zone": "public", "w": 3.5, "min": 8},
+         {"room": "office", "zone": "staff", "w": 1, "min": 4, "p": 0.7, "doors": ["banking_hall"]}
+        ]
+       },
+       {
+        "cells": 3,
+        "rooms": [
+         {"room": "teller_line", "zone": "staff", "w": 1, "glass": ["banking_hall"], "doors": ["banking_hall", "stair_hall", "manager_office", "security_office", "counting_room"]}
+        ]
+       },
+       {
+        "w": 0.5,
+        "min": 5,
+        "rooms": [
+         {"room": "stair_hall", "zone": "secure", "cells": 4, "doors": ["teller_line", "security_office"]},
+         {"room": "security_office", "zone": "secure", "w": 0.8, "min": 4, "doors": ["teller_line", "stair_hall"]},
+         {"room": "manager_office", "zone": "staff", "w": 1, "min": 4, "doors": ["teller_line"]},
+         {"room": "counting_room", "zone": "staff", "w": 1, "min": 4, "doors": ["teller_line"]},
+         {"room": "office", "zone": "staff", "w": 1, "min": 4, "doors": ["teller_line"]}
+        ]
+       }
+      ],
+      "upper": [
+       {
+        "rooms": [
+         {"repeat": {"room": "office", "zone": "secure", "doors": ["corridor"]}, "size": [4, 6], "w": 1}
+        ]
+       },
+       {"rooms": [{"room": "corridor", "zone": "secure", "w": 1}]},
+       {
+        "rooms": [
+         {"room": "stair_hall", "zone": "secure", "cells": 4},
+         {"room": "server_room", "zone": "secure", "w": 1, "min": 3, "doors": ["corridor"]},
+         {"room": "mantrap", "zone": "secure", "cells": 3, "doors": ["corridor", "bank_vault"]},
+         {"room": "bank_vault", "zone": "vault", "w": 1.6, "min": 4, "doors": ["mantrap"]}
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "zones": {
+   "public": {"rotation": ["banking_hall"]},
+   "staff": {"rotation": ["office"]},
+   "secure": {"rotation": ["counting_room"]},
+   "vault": {"rotation": ["bank_vault"]}
+  },
+  "anchors": {
+   "vip": {"manager_office": 80, "exec_office": 80, "office": 20},
+   "package": {"counting_room": 80, "teller_line": 30},
+   "captive": {"counting_room": 40, "manager_office": 30},
+   "machine": {"server_room": 80, "teller_line": 40, "counting_room": 30}
+  },
+  "density": 0.35,
+  "levels": 4,
+  "net_chance": 1.0,
+  "windows": 0.4,
+  "armored_windows": true,
+  "shapes": {"rect": 1}
+ },
+ "school": {
+  "name": "School",
+  "_why": "A double-loaded corridor school (Neufert, schools): the front office, the principal's office and the records room at the entrance where visitors are checked in; the cafeteria on the ground floor beside its kitchen (service door to the yard); classrooms off a wide corridor (2 squares of floor, 4 m) with lockers; the gym and the assembly hall big-span rooms on the ground floor; library, labs and the staff room upstairs; a stair at each end of the corridor (two means of escape) and a lift. NC2045: Nakagawa Academy (Kabuki 12: athletic facilities, an NCCS office on site), Shady Oaks Elementary (Little Europe 20: banks of braindance rigs, the bd_lab), KidZ (South Night City 7: classrooms above, automated defences).",
+  "footprint": {"w": [30, 38], "d": [19, 23]},
+  "floors": [1, 3],
+  "layout": {
+   "algorithm": "program",
+   "loops": 0.15,
+   "verticality": 2,
+   "stairs": 2,
+   "stair_in": ["stair_hall"],
+   "enter": ["lobby"],
+   "service": ["commercial_kitchen", "storage"],
+   "program": {
+    "ground": [
+     {
+      "cells": 7,
+      "rooms": [
+       {"room": "manager_office", "zone": "staff", "w": 1, "min": 4, "doors": ["admin_office"]},
+       {
+        "stack": [
+         {"room": "admin_office", "zone": "staff", "w": 2, "min": 4, "doors": ["lobby", "manager_office", "archive", "hallway"]},
+         {"room": "archive", "zone": "secure", "w": 1, "min": 3, "doors": ["admin_office"]}
+        ],
+        "w": 2,
+        "min": 5
+       },
+       {"room": "lobby", "zone": "public", "w": 2.2, "min": 5},
+       {"room": "security_post", "zone": "staff", "cells": 4, "doors": ["lobby", "hallway"]},
+       {"room": "cafeteria", "zone": "public", "w": 3, "min": 7, "doors": ["hallway", "lobby", "commercial_kitchen"]},
+       {"room": "commercial_kitchen", "zone": "staff", "w": 1.3, "min": 4, "doors": ["cafeteria", "hallway"]}
+      ]
+     },
+     {"cells": 3, "rooms": [{"room": "hallway", "zone": "public", "w": 1}]},
+     {
+      "w": 1,
+      "rooms": [
+       {"room": "stair_hall", "zone": "public", "cells": 4, "min_floors": 2, "doors": ["hallway"]},
+       {"repeat": {"room": "classroom", "zone": "staff", "doors": ["hallway"]}, "size": [5, 7], "w": 1.6},
+       {"room": "restroom", "zone": "public", "cells": 4, "doors": ["hallway"]},
+       {"room": "gym", "zone": "staff", "w": 2, "min": 8, "doors": ["hallway", "storage"]},
+       {"room": "storage", "zone": "staff", "cells": 3, "doors": ["hallway", "gym"]},
+       {"room": "auditorium", "zone": "staff", "w": 1.6, "min": 6, "p": 0.35, "doors": ["hallway"]},
+       {"room": "stair_hall", "zone": "public", "cells": 4, "min_floors": 2, "doors": ["hallway"]}
+      ]
+     }
+    ],
+    "upper": [
+     {
+      "rooms": [
+       {"repeat": {"room": "classroom", "zone": "staff", "doors": ["hallway"]}, "size": [5, 7], "w": 3},
+       {"room": "lab", "zone": "staff", "w": 1.3, "min": 5, "doors": ["hallway"]},
+       {"room": "break_room", "zone": "staff", "w": 1, "min": 4, "doors": ["hallway"]},
+       {"room": "restroom", "zone": "public", "cells": 4, "doors": ["hallway"]}
+      ]
+     },
+     {"rooms": [{"room": "hallway", "zone": "public", "w": 1}]},
+     {
+      "rooms": [
+       {"room": "stair_hall", "zone": "public", "cells": 4},
+       {"room": "library", "zone": "staff", "w": 2, "min": 6, "doors": ["hallway", "server_room"]},
+       {"room": "server_room", "zone": "secure", "cells": 4, "doors": ["library", "hallway"]},
+       {"repeat": {"room": "classroom", "zone": "staff", "doors": ["hallway"]}, "size": [5, 7], "w": 2},
+       {"room": "bd_lab", "zone": "staff", "w": 1.2, "min": 5, "p": 0.3, "doors": ["hallway"]},
+       {"room": "stair_hall", "zone": "public", "cells": 4}
+      ]
+     }
+    ]
+   }
+  },
+  "zones": {
+   "public": {"rotation": ["hallway"]},
+   "staff": {"rotation": ["classroom"]},
+   "secure": {"rotation": ["archive"]}
+  },
+  "anchors": {
+   "vip": {"manager_office": 110, "admin_office": 60},
+   "package": {"admin_office": 100, "library": 50},
+   "captive": {"bd_lab": 100, "storage": 90, "classroom": 30},
+   "machine": {"commercial_kitchen": 100, "server_room": 100}
+  },
+  "density": 0.35,
+  "levels": 3,
+  "net_chance": 0.6,
+  "windows": 0.6,
+  "shapes": {"rect": 1}
  }
 }

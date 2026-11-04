@@ -38,10 +38,19 @@ static func build(m: TacMap, dice: Dice, hints: Array, ctx: Dictionary) -> Dicti
 
 	var fps := _massing(dice, fp, floors, String(ctx.site))   # each floor's footprint (setbacks)
 	var first_id := hints.size()
+	var entry_side := String(ctx.get("entry_side", ""))
+	if p.algorithm == "program":
+		# A programmed building is planned from its entrance facade inwards, so fix that side first.
+		if entry_side == "":
+			entry_side = _open_side(m, shell)
+		p["entry_side"] = entry_side
+		p["floors"] = floors
+		p["plan"] = Layouts.program_plan(dice, inner, p)
 	for f in floors:
 		var local := PackedInt32Array()
 		local.resize(m.w * m.h)
 		local.fill(-1)
+		p["floor"] = f
 		var room_hints := Layouts.run(p.algorithm, dice, m.w, inner, local, p)
 		for y in range(inner.position.y, inner.end.y):
 			for x in range(inner.position.x, inner.end.x):
@@ -53,20 +62,26 @@ static func build(m: TacMap, dice: Dice, hints: Array, ctx: Dictionary) -> Dicti
 	_index_rooms(m, shell, floors, first_id, hints.size(), sid)
 	for i in range(first_id, hints.size()):
 		m.rooms[i]["layout_kind"] = hints[i].get("kind", "")
-	_verticals(m, dice, shell, floors, int(p.verticality), sid)
-	var door := _main_door(m, dice, fp, String(ctx.get("entry_side", "")), sdef.get("enter_corridor", false))
+		if hints[i].has("room"):   # a programmed room: its kind, the rooms it opens onto, its facade side
+			m.rooms[i]["program_kind"] = hints[i].room
+			m.rooms[i]["program_doors"] = hints[i].doors
+			m.rooms[i]["glass"] = hints[i].glass
+			m.rooms[i]["front"] = hints[i].front
+	_verticals(m, dice, shell, floors, int(p.verticality), sid, p.get("stair_in", []), int(p.get("stairs", 1)), p.get("lift_in", []))
+	var door := _main_door(m, dice, fp, entry_side, sdef.get("enter_corridor", false), p.get("enter", []))
 	if door.is_empty():
 		push_warning("BuildingGen: no facade faces open ground for %s at %s" % [ctx.site, shell])
 		return st
 	var root: int = door.room
 	_connect(m, dice, hints, p, first_id, root, int(st.base_zone))
 	_place_main_door(m, door, sid, bool(st.target))
-	_service_door(m, dice, fp, door.side, sid, int(st.base_zone))
+	_service_door(m, dice, fp, door.side, sid, int(st.base_zone), p.get("service", []))
 	_wall_materials(m, fps, floors, int(sdef.get("exterior", 1)))
+	_glass_fronts(m, first_id)
 	_room_kinds(m, String(ctx.site), first_id, root)
 	_terraces(m, hints, fps, floors, sid)
 	_roof(m, dice, hints, fps[floors - 1], floors, sid, int(st.base_zone), String(ctx.site))
-	_windows(m, dice, fps, floors, float(sdef.get("windows", 0.5)))
+	_windows(m, dice, fps, floors, float(sdef.get("windows", 0.5)), bool(sdef.get("armored_windows", false)))
 	var cy: Rect2i = ctx.get("courtyard", Rect2i())
 	if cy.has_area():
 		_courtyard(m, dice, hints, fp, cy, sid)
@@ -181,12 +196,18 @@ static func _index_rooms(m: TacMap, shell: Rect2i, floors: int, first: int, end_
 
 
 ## Stair shaft through all of the building's floors (and an elevator at verticality 2).
-static func _verticals(m: TacMap, dice: Dice, shell: Rect2i, floors: int, verticality: int, sid: int) -> void:
+## `prefer`: room kinds (a program's stair halls) the shafts go in, on every floor; elevators go
+## nowhere else (`lift`, if given, narrows that to the lift lobby). `stairs`: how many stair shafts
+## (2 = a second, separate stair at the other end: two means of escape).
+static func _verticals(m: TacMap, dice: Dice, shell: Rect2i, floors: int, verticality: int, sid: int, prefer: Array = [], stairs := 1, lift: Array = []) -> void:
 	if floors < 2:
 		return
 	var kinds := [TacMap.T.STAIRS]
+	for i in stairs - 1:
+		kinds.append(TacMap.T.STAIRS)
 	if verticality >= 2:
 		kinds.append(TacMap.T.ELEVATOR)
+	var used := {}   # ground-floor rooms that already hold a stair shaft
 	for kind in kinds:
 		var candidates: Array[Vector2i] = []
 		for y in range(shell.position.y, shell.end.y):
@@ -201,7 +222,15 @@ static func _verticals(m: TacMap, dice: Dice, shell: Rect2i, floors: int, vertic
 							ok = false
 				if ok:
 					candidates.append(Vector2i(x, y))
-		if candidates.is_empty() and kind == TacMap.T.STAIRS:
+		if not prefer.is_empty():
+			var want: Array = lift if kind == TacMap.T.ELEVATOR and not lift.is_empty() else prefer
+			var inside := candidates.filter(func(v): return _in_kinds(m, v, floors, want) \
+				and not (kind == TacMap.T.STAIRS and used.has(m.label(0, v.x, v.y))))
+			if not inside.is_empty() or kind == TacMap.T.ELEVATOR:
+				candidates.assign(inside)
+			elif not used.is_empty():
+				continue   # the extra stair needs a stair hall of its own
+		if candidates.is_empty() and kind == TacMap.T.STAIRS and used.is_empty():
 			# small or stepped upper floors: any square that is floor on every storey, else force one
 			candidates = _forced_shaft(m, shell, floors)
 		if candidates.is_empty():
@@ -209,9 +238,38 @@ static func _verticals(m: TacMap, dice: Dice, shell: Rect2i, floors: int, vertic
 		var c := shell.get_center()
 		candidates.sort_custom(func(a, b): return a.distance_squared_to(c) < b.distance_squared_to(c))
 		var pos: Vector2i = candidates[dice.rng.randi_range(0, mini(8, candidates.size() - 1))]
+		if kind == TacMap.T.STAIRS:
+			used[m.label(0, pos.x, pos.y)] = true
 		for f in floors:
 			m.set_t(f, pos.x, pos.y, kind)
 		m.verticals.append({"type": "stairs" if kind == TacMap.T.STAIRS else "elevator", "pos": pos, "from_floor": 0, "to_floor": floors - 1, "structure": sid})
+
+
+## Every storey's room at `v` is one of `kinds` (by program kind).
+static func _in_kinds(m: TacMap, v: Vector2i, floors: int, kinds: Array) -> bool:
+	for f in floors:
+		var l := m.label(f, v.x, v.y)
+		if l < 0 or not (String(m.rooms[l].get("program_kind", "")) in kinds):
+			return false
+	return true
+
+
+## The side of a plot facing the most open ground (a programmed building's entrance facade).
+static func _open_side(m: TacMap, shell: Rect2i) -> String:
+	var best := "S"
+	var best_n := -1
+	for side in ["S", "E", "W", "N"]:
+		var d: Vector2i = SIDES[side]
+		var n := 0
+		for y in range(shell.position.y, shell.end.y):
+			for x in range(shell.position.x, shell.end.x):
+				var v := Vector2i(x, y)
+				if not shell.has_point(v + d) and m.t(0, v.x + d.x, v.y + d.y) == TacMap.T.OUTSIDE:
+					n += 1
+		if n > best_n:
+			best_n = n
+			best = side
+	return best
 
 
 ## Fallback stair spots: squares that are floor on every storey (no clearance asked); failing that,
@@ -261,7 +319,7 @@ static func _enclosed(m: TacMap, f: int, v: Vector2i) -> bool:
 
 ## Facade door candidates: exterior wall cells (not corners) with a room inside and open ground
 ## outside. Returns {side, pos, room} for the best one, preferring `side` when given.
-static func _main_door(m: TacMap, dice: Dice, fp: Footprint, side: String, prefer_corridor: bool) -> Dictionary:
+static func _main_door(m: TacMap, dice: Dice, fp: Footprint, side: String, prefer_corridor: bool, enter: Array = []) -> Dictionary:
 	var by_side := _facade_candidates(m, fp)
 	var order := ["S", "E", "W", "N"]
 	order.sort_custom(func(a, b): return by_side[a].size() > by_side[b].size())
@@ -272,6 +330,10 @@ static func _main_door(m: TacMap, dice: Dice, fp: Footprint, side: String, prefe
 		var list: Array = by_side[s]
 		if list.is_empty():
 			continue
+		if not enter.is_empty():   # a programmed building: the door opens into its public front room
+			var front := list.filter(func(c): return String(m.rooms[c.room].get("program_kind", "")) in enter)
+			if not front.is_empty():
+				list = front
 		if prefer_corridor:
 			var corr := list.filter(func(c): return m.rooms[c.room].get("layout_kind", "") == "corridor")
 			if not corr.is_empty():
@@ -317,9 +379,12 @@ static func _place_main_door(m: TacMap, door: Dictionary, sid: int, target: bool
 	m.entrances.append({"floor": 0, "pos": door.pos, "main": target, "kind": "door", "structure": sid})
 
 
-static func _service_door(m: TacMap, dice: Dice, fp: Footprint, main_side: String, sid: int, base_zone: int) -> void:
+## A second door on another side, into a staff room. `service`: a program's back-of-house rooms that
+## take deliveries (stores, kitchens): the door goes into one of those, and always exists.
+static func _service_door(m: TacMap, dice: Dice, fp: Footprint, main_side: String, sid: int, base_zone: int, service: Array = []) -> void:
 	var by_side := _facade_candidates(m, fp)
 	var best: Dictionary = {}
+	var goods := []
 	for s in by_side:
 		if s == main_side:
 			continue
@@ -327,7 +392,11 @@ static func _service_door(m: TacMap, dice: Dice, fp: Footprint, main_side: Strin
 			var z: int = m.rooms[c.room].zone
 			if z >= 0 and z <= base_zone + 1 and (best.is_empty() or z > best.zone):
 				best = {"pos": c.pos, "room": c.room, "zone": z}
-	if best.is_empty() or dice.rng.randf() < 0.2:
+			if z >= 0 and z <= base_zone + 1 and String(m.rooms[c.room].get("program_kind", "")) in service:
+				goods.append({"pos": c.pos, "room": c.room, "zone": z})
+	if not goods.is_empty():
+		best = goods[dice.rng.randi_range(0, goods.size() - 1)]
+	elif best.is_empty() or dice.rng.randf() < 0.2:
 		return
 	m.set_t(0, best.pos.x, best.pos.y, TacMap.T.DOOR)
 	m.doors.append({"floor": 0, "pos": best.pos, "a": -1, "b": best.room, "security": false, "structure": sid})
@@ -414,6 +483,9 @@ static func _connect(m: TacMap, dice: Dice, hints: Array, p: Dictionary, first: 
 				var hb: int = hints[b].zone_eff
 				var za: int = m.rooms[a].zone
 				var wgt := dice.rng.randf() + 4.0 * absf(hb - (za + 0.5)) + (0.0 if hb >= za else 2.0)
+				if not _door_ok(m, a, b):
+					wgt += 8.0   # a programmed room opens onto the rooms its brief names, if it can
+
 				if wgt < best_w:
 					best_w = wgt
 					best_key = [a, b]
@@ -443,7 +515,7 @@ static func _connect(m: TacMap, dice: Dice, hints: Array, p: Dictionary, first: 
 			continue
 		var za: int = m.rooms[key.x].zone
 		var zb: int = m.rooms[key.y].zone
-		if absi(za - zb) <= 1 and maxi(za, zb) < TacMap.Zone.VAULT and dice.rng.randf() < float(p.loops):
+		if absi(za - zb) <= 1 and maxi(za, zb) < TacMap.Zone.VAULT and dice.rng.randf() < float(p.loops) and _door_ok(m, key.x, key.y):
 			_add_door(m, dice, cands, key.x, key.y)
 	# Rooms the tree never reached are sealed off: solid structure.
 	for r in mine:
@@ -466,6 +538,36 @@ static func _add_door(m: TacMap, dice: Dice, cands: Dictionary, a: int, b: int) 
 	var zb: int = m.rooms[b].zone
 	m.doors.append({"floor": f, "pos": pos, "a": a, "b": b, "security": za != zb and maxi(za, zb) >= TacMap.Zone.SECURE,
 		"structure": m.rooms[a].structure})
+
+
+## Rooms from a program may only open onto the kinds their brief lists (none listed: any).
+static func _door_ok(m: TacMap, a: int, b: int) -> bool:
+	var ra: Dictionary = m.rooms[a]
+	var rb: Dictionary = m.rooms[b]
+	var da: Array = ra.get("program_doors", [])
+	var db: Array = rb.get("program_doors", [])
+	return (da.is_empty() or String(rb.get("program_kind", "")) in da) and (db.is_empty() or String(ra.get("program_kind", "")) in db)
+
+
+## Program rooms with `glass` (a bank's teller line) look onto the named rooms through
+## bulletproof glass (thin, 15 HP, see-through: p182) instead of a solid wall; the squares beside
+## a door keep their wall as the frame.
+static func _glass_fronts(m: TacMap, first: int) -> void:
+	for r in m.rooms.slice(first):
+		var onto: Array = r.get("glass", [])
+		if r.cells == 0 or onto.is_empty():
+			continue
+		for c in Furnish.room_cells(m, r):
+			for d in MapGen.DIRS:
+				var wcell: Vector2i = c + d
+				var beyond: Vector2i = wcell + d
+				var l := m.label(r.floor, beyond.x, beyond.y)
+				if m.t(r.floor, wcell.x, wcell.y) != TacMap.T.WALL or l < 0 or l == r.id or not (String(m.rooms[l].get("program_kind", "")) in onto):
+					continue
+				var perp := Vector2i(d.y, d.x)
+				if m.t(r.floor, wcell.x + perp.x, wcell.y + perp.y) == TacMap.T.DOOR or m.t(r.floor, wcell.x - perp.x, wcell.y - perp.y) == TacMap.T.DOOR:
+					continue
+				m.wall_mat[r.floor][wcell.y * m.w + wcell.x] = 6
 
 
 static func _shaft_rooms(m: TacMap, first: int) -> Array:
@@ -518,7 +620,9 @@ static func _room_kinds(m: TacMap, site: String, first: int, entrance_room: int)
 		var i := 0
 		for r in list:
 			var long_thin: bool = mini(r.bounds.size.x, r.bounds.size.y) <= 3 and r.cells >= 12
-			if r.id == entrance_room and rule.has("entrance"):
+			if String(r.get("program_kind", "")) != "":
+				r.kind = r.program_kind   # the brief names every room
+			elif r.id == entrance_room and rule.has("entrance"):
 				r.kind = rule["entrance"]
 			elif (long_thin or r.get("layout_kind", "") == "corridor") and not rule.get("no_corridors", false):
 				r.kind = "corridor"
@@ -597,7 +701,7 @@ static func _roof(m: TacMap, dice: Dice, hints: Array, fp: Footprint, floors: in
 ## Windows on straight exterior walls (not next to doors or ladders), every few squares by the
 ## site's window rate. Ordinary glass stops movement but not bullets or sight; rooms at secure
 ## level or deeper get bulletproof glass (thin, 15 HP, see-through — p182).
-static func _windows(m: TacMap, dice: Dice, fps: Array, floors: int, rate: float) -> void:
+static func _windows(m: TacMap, dice: Dice, fps: Array, floors: int, rate: float, armored := false) -> void:
 	if rate <= 0.0:
 		return
 	var shell := (fps[0] as Footprint).shell
@@ -624,7 +728,7 @@ static func _windows(m: TacMap, dice: Dice, fps: Array, floors: int, rate: float
 						near = true
 				if near or m.is_connector_end(f + 1, v):
 					continue
-				m.wall_mat[f][y * m.w + x] = 6 if m.rooms[room].zone >= TacMap.Zone.SECURE else 5
+				m.wall_mat[f][y * m.w + x] = 6 if armored or m.rooms[room].zone >= TacMap.Zone.SECURE else 5
 
 
 ## A courtyard building: a door from the ground floor into the yard, which becomes an outdoor

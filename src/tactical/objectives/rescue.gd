@@ -7,7 +7,7 @@ extends Objective
 ## until freed (they neither see for the crew nor draw fire); freed, they join the crew's side and
 ## the initiative order and follow the crew on their own turns.
 func setup(target_sid: int, origin: Vector2i, _sec: int) -> void:
-	var cell := e.secure_cell(target_sid, origin)
+	var cell := e.secure_cell(target_sid, origin, "captive")
 	var roles: Array = cfg.roles
 	var names: Array = cfg.names
 	var c := Recruit.generate(e.dice, String(roles[e.dice.d(roles.size()) - 1]), "edgerunner", String(names[e.dice.d(names.size()) - 1]))

@@ -36,23 +36,24 @@ Each entry, at `locations.locations.<id>` (id: `<district id>_<number>` for numb
 {
 	"bar": {"site": "bar"}, "club": {"site": "club"}, "casino": {"site": "club"},
 	"shop": {"site": "shop"}, "gun_shop": {"site": "gun_shop"}, "chop_shop": {"site": "chop_shop"},
-	"market": {"profile": "market_streets"}, "restaurant": {"site": "bar"},
-	"housing": {"site": "apartments"}, "cube_hotel": {"site": "capsule_hotel"}, "hotel": {"site": "apartments"},
+	"market": {"profile": "market_streets"}, "restaurant": {"site": "restaurant"},
+	"housing": {"site": "apartments"}, "cube_hotel": {"site": "capsule_hotel"}, "hotel": {"site": "hotel"},
 	"megabuilding": {"scene": "megablock"}, "squat": {"site": "squat"}, "villa": {"site": "villa"},
 	"corp_office": {"site": "corp_office"}, "corp_hq": {"site": "corp_hq"}, "data_center": {"site": "data_center"},
-	"bank": {"site": "corp_office"}, "media": {"site": "corp_office"}, "lab": {"site": "corp_office"},
+	"bank": {"site": "bank"}, "media": {"site": "corp_office"}, "lab": {"site": "corp_office"},
 	"factory": {"site": "factory"}, "warehouse": {"site": "warehouse"}, "utility": {"site": "substation_booth"},
 	"docks": {"scene": "shipyard"}, "ship": {"site": "ship"}, "transport": {"site": "station"}, "rail": {"scene": "rail_yard"},
 	"medical": {"site": "clinic"}, "police": {"site": "ncpd_precinct"}, "military": {"scene": "corp_campus"},
-	"gang_base": {"site": "gang_hideout"}, "church": {"site": "temple"}, "school": {"site": "corp_office"},
+	"gang_base": {"site": "gang_hideout"}, "church": {"site": "temple"}, "school": {"site": "school"},
 	"civic": {"site": "corp_office"}, "venue": {"site": "club"}, "stadium": {"scene": "street_block"},
 	"park": {"scene": "street_block"}, "ruin": {"profile": "hot_zone"}, "farm": {"scene": "badlands"},
 	"outskirts_site": {"scene": "badlands"}, "attraction": {"site": "club"}
 }
 ```
 
-Types without a generator of their own yet (restaurant, hotel, bank, school, civic, stadium, park,
-media, lab) borrow the nearest one; phase 3 of M9 adds generators for the common ones.
+Restaurants, hotels, banks and schools have programmed sites of their own (M9 phase 3: sites.json
+`restaurant`, `hotel`, `bank`, `school`, laid out room by room from an architectural brief). Types
+still without a generator of their own (civic, stadium, park, media, lab) borrow the nearest one.
 
 ## Registry
 

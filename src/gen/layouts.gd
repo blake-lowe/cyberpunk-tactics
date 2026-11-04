@@ -12,6 +12,9 @@ extends RefCounted
 ##   train    — a long hull cut into cars across its length; some cars split into compartments.
 ##   growth   — constrained growth (Lopes et al. 2010, "A Constrained Growth Method for Procedural
 ##              Floor Plan Generation"): room seeds grow as rectangles, then L-shapes, then fill gaps.
+##   program  — an architectural brief: the site lists its rooms (kind, zone, which rooms they open
+##              onto) in bands parallel to the entrance facade, front of house first and back of
+##              house last; see program() below.
 
 const MIN_ROOM := 4
 const MAX_ROOM := 10
@@ -24,6 +27,7 @@ static func run(algorithm: String, dice: Dice, w: int, region: Rect2i, labels: P
 		"growth": return growth(dice, w, region, labels, p)
 		"corridor_units": return corridor_units(dice, w, region, labels, p)
 		"train": return train(dice, w, region, labels, p)
+		"program": return program(dice, w, region, labels, p)
 	push_error("unknown layout " + algorithm)
 	return []
 
@@ -357,3 +361,193 @@ static func train(dice: Dice, w: int, region: Rect2i, labels: PackedInt32Array, 
 			hints.append({"zone_hint": -1, "kind": ""})
 		a += car
 	return hints
+
+
+# --- Program: a site's architectural brief -----------------------------------
+#
+# Buildings with a fixed use (restaurant, hotel, bank, school) are planned the way architects plan
+# them: front of house on the street (the room the public walks into), back of house behind it
+# (kitchens, stores, offices, vaults) and circulation joining them, in bands parallel to the
+# entrance facade (Neufert, "Architects' Data": restaurant, hotel, bank and school planning;
+# Ching, "Building Construction Illustrated": a stacked structural grid and stair cores).
+#
+# sites.json `layout.program` (or `layout.program.variants: [{weight, min_floors, ...}]`):
+#   ground / upper / top / "<floor>": [band, ...], band = {cells | w (+ min): depth, rooms: [item, ...]}
+#   item = {room, zone, w | cells (+ min), doors: [kinds it may open onto], glass: [kinds it looks
+#           onto through bulletproof glass], p: chance present, min_floors}
+#        | {stack: [item, ...], w | cells}             items one behind the other (depth split)
+#        | {repeat: item, size: [a, b], w | cells}      identical units across the width
+# Band depths come from the ground floor's bands and every floor shares them, so walls, corridors
+# and stair halls stack storey over storey; an item at either end of a band (a stair hall) lands
+# in the same place on every floor.
+
+const SIDE_DIRS := {"S": Vector2i.DOWN, "N": Vector2i.UP, "E": Vector2i.RIGHT, "W": Vector2i.LEFT}
+
+
+## Zone names the program uses → TacMap.Zone.
+static func _zone_of(name: String) -> int:
+	var i := TacMap.ZONE_NAMES.find(name)
+	return i if i >= TacMap.Zone.PUBLIC else TacMap.Zone.STAFF
+
+
+## Once per building: the variant, the mirror and the band depths every floor shares.
+static func program_plan(dice: Dice, region: Rect2i, p: Dictionary) -> Dictionary:
+	var prog: Dictionary = p.program
+	var floors := int(p.get("floors", 1))
+	var variants: Array = prog.get("variants", [prog])
+	var ok := []
+	var wts := PackedFloat32Array()
+	for i in variants.size():
+		if floors >= int(variants[i].get("min_floors", 1)):
+			ok.append(i)
+			wts.append(float(variants[i].get("weight", 1.0)))
+	var vi: int = ok[dice.rng.rand_weighted(wts)] if not ok.is_empty() else 0
+	var side := String(p.get("entry_side", "S"))
+	var along_x := side in ["S", "N"]
+	var U := region.size.x if along_x else region.size.y
+	var V := region.size.y if along_x else region.size.x
+	return {"variant": vi, "mirror": dice.rng.randf() < 0.5, "U": U, "V": V, "depths": _alloc(dice, V, variants[vi]["ground"])}
+
+
+## Split `total` squares among `items` by their fixed `cells` and jittered weights `w`, each at
+## least its `min` (default 3). Optional items (with a `p`) drop out first when they don't fit.
+static func _alloc(dice: Dice, total: int, items: Array) -> Array:
+	var keep: Array = range(items.size())
+	while keep.size() > 1:
+		var need := 0
+		for i in keep:
+			need += int(items[i].cells) if items[i].has("cells") else int(items[i].get("min", 3))
+		if need <= total:
+			break
+		var drop := -1
+		for i in keep:
+			if items[i].has("p"):
+				drop = i
+		if drop < 0:
+			break
+		keep.erase(drop)
+	var out := []
+	out.resize(items.size())
+	out.fill(0)
+	var rest := total
+	var wt := {}
+	var wsum := 0.0
+	for i in keep:
+		if items[i].has("cells"):
+			out[i] = clampi(int(items[i].cells), 0, maxi(rest, 0))
+			rest -= out[i]
+		else:
+			wt[i] = float(items[i].get("w", 1.0)) * dice.rng.randf_range(0.85, 1.15)
+			wsum += wt[i]
+	if wt.is_empty():
+		if rest > 0 and not keep.is_empty():
+			out[keep[-1]] += rest   # nothing flexible: the last item takes the slack
+		return out
+	# Minimums hold when they all fit; otherwise the flexible items just share what is left.
+	var mins := {}
+	var need := 0
+	for i in wt:
+		mins[i] = int(items[i].get("min", 3))
+		need += mins[i]
+	if need > rest:
+		for i in wt:
+			mins[i] = 1 if rest >= wt.size() else 0
+	var last: int = wt.keys()[-1]
+	var left := maxi(rest, 0)
+	for i in wt:
+		if i != last:
+			out[i] = maxi(mins[i], floori(maxi(rest, 0) * wt[i] / wsum))
+			left -= out[i]
+	out[last] = left
+	# The last one may come up short of its minimum: take squares back from the widest.
+	while out[last] < mins[last]:
+		var big := -1
+		for i in wt:
+			if i != last and out[i] > mins[i] and (big < 0 or out[i] > out[big]):
+				big = i
+		if big < 0:
+			break
+		out[big] -= 1
+		out[last] += 1
+	return out
+
+
+## One floor of the program (p.plan from program_plan, p.floor, p.floors, p.entry_side).
+static func program(dice: Dice, w: int, region: Rect2i, labels: PackedInt32Array, p: Dictionary) -> Array:
+	var plan: Dictionary = p.plan
+	var variant: Dictionary = (p.program.get("variants", [p.program]) as Array)[plan.variant]
+	var f := int(p.get("floor", 0))
+	var floors := int(p.get("floors", 1))
+	var bands: Array = variant["ground"]
+	if variant.has(str(f)):
+		bands = variant[str(f)]
+	elif f > 0 and f == floors - 1 and floors >= 3 and variant.has("top"):
+		bands = variant["top"]
+	elif f > 0 and variant.has("upper"):
+		bands = variant["upper"]
+	var ctx := {"dice": dice, "w": w, "region": region, "labels": labels, "plan": plan, "floors": floors,
+		"side": String(p.get("entry_side", "S")), "hints": []}
+	var v0 := 0
+	for i in bands.size():
+		var d: int = plan.V - v0 if i == bands.size() - 1 else (int(plan.depths[i]) if i < plan.depths.size() else 0)
+		if d > 0:
+			_prog_row(ctx, bands[i].rooms, Rect2i(0, v0, plan.U, d))
+		v0 += d
+	return ctx.hints
+
+
+static func _present(ctx: Dictionary, items: Array) -> Array:
+	return items.filter(func(it): return int(ctx.floors) >= int(it.get("min_floors", 1)) \
+		and (not it.has("p") or ctx.dice.rng.randf() < float(it.p)))
+
+
+## Items side by side across a band (u runs along the facade).
+static func _prog_row(ctx: Dictionary, items: Array, r: Rect2i) -> void:
+	var list := _present(ctx, items)
+	var sizes := _alloc(ctx.dice, r.size.x, list)
+	var u := r.position.x
+	for i in list.size():
+		if sizes[i] > 0:
+			_prog_item(ctx, list[i], Rect2i(u, r.position.y, sizes[i], r.size.y))
+		u += sizes[i]
+
+
+static func _prog_item(ctx: Dictionary, it: Dictionary, r: Rect2i) -> void:
+	if it.has("repeat"):
+		var size: Array = it.get("size", [4, 6])
+		var n := maxi(1, r.size.x / ctx.dice.rng.randi_range(int(size[0]), int(size[1])))   # units at least the size drawn
+		var u := r.position.x
+		for k in n:
+			var uw: int = r.size.x / n + (1 if k < r.size.x % n else 0)
+			_prog_item(ctx, it.repeat, Rect2i(u, r.position.y, uw, r.size.y))
+			u += uw
+	elif it.has("stack"):
+		var list := _present(ctx, it.stack)
+		var sizes := _alloc(ctx.dice, r.size.y, list)
+		var v := r.position.y
+		for i in list.size():
+			if sizes[i] > 0:
+				_prog_item(ctx, list[i], Rect2i(r.position.x, v, r.size.x, sizes[i]))
+			v += sizes[i]
+	elif it.has("rooms"):
+		_prog_row(ctx, it.rooms, r)
+	else:
+		var hints: Array = ctx.hints
+		_fill(ctx.w, ctx.labels, _uv_to_grid(ctx, r), hints.size())
+		var room := String(it.room)
+		hints.append({"zone_hint": _zone_of(String(it.get("zone", "staff"))), "kind": room, "room": room,
+			"doors": it.get("doors", []), "glass": it.get("glass", []), "front": SIDE_DIRS.get(ctx.side, Vector2i.DOWN)})
+
+
+## Program space (u along the entrance facade, v inwards from it) → grid, mirrored when planned.
+static func _uv_to_grid(ctx: Dictionary, r: Rect2i) -> Rect2i:
+	var g: Rect2i = ctx.region
+	var u0: int = int(ctx.plan.U) - r.end.x if ctx.plan.mirror else r.position.x
+	var uw := r.size.x
+	var v0 := r.position.y
+	var vd := r.size.y
+	match String(ctx.side):
+		"N": return Rect2i(g.position.x + u0, g.position.y + v0, uw, vd)
+		"E": return Rect2i(g.end.x - v0 - vd, g.position.y + u0, vd, uw)
+		"W": return Rect2i(g.position.x + v0, g.position.y + u0, vd, uw)
+	return Rect2i(g.position.x + u0, g.end.y - v0 - vd, uw, vd)

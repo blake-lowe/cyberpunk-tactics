@@ -27,6 +27,9 @@ const PIECES := {
 	# rooftops
 	"water_tank": ["steel", true], "roof_hut": ["steel", true], "solar": ["steel", false], "stack": ["steel", true],
 	"scaffold": ["steel", false],
+	# programmed sites: a service / teller counter (bullet-resistant, like the book's thick
+	# wooden reception desk), a restaurant booth (upholstered wooden bench), a kitchen range
+	"counter": ["wood", true], "booth": ["wood", true], "stove": ["steel", false],
 }
 
 ## Pieces that are also hazards (explosive: blows up when destroyed; resolved in M3).
@@ -93,6 +96,9 @@ static func _place(m: TacMap, dice: Dice, r: Dictionary, piece: String, placemen
 		var ok := false
 		match placement:
 			"wall": ok = walls >= 1
+			"front":   # along the wall towards the entrance facade (counters, a teacher's desk)
+				var fd: Vector2i = r.get("front", Vector2i.ZERO)
+				ok = m.t(r.floor, c.x + fd.x, c.y + fd.y) == TacMap.T.WALL if fd != Vector2i.ZERO else walls >= 1
 			"row": ok = walls == 0 and (c.y - b.position.y) % 3 == 1 and (c.x - b.position.x) % 4 != 0
 			"center": ok = _wall_distance(m, r.floor, c) >= 2
 			_: ok = walls == 0
@@ -224,7 +230,7 @@ static func _devices(m: TacMap, dice: Dice, sid: int) -> void:
 				extra["file_value"] = int(spec["file"])
 			for i in maxi(1, r.cells / int(spec.get("per_cells", 100000))):
 				add_device(m, dice, r, spec["t"], group, spec.get("wall", false), extra)
-		if sec >= 2 and (r.kind in ["data_vault", "vault", "armored_car", "cargo_hold"] or (z >= TacMap.Zone.SECURE and dice.rng.randf() < 0.4)):
+		if sec >= 2 and (r.kind in ["data_vault", "vault", "bank_vault", "armored_car", "cargo_hold"] or (z >= TacMap.Zone.SECURE and dice.rng.randf() < 0.4)):
 			add_device(m, dice, r, "turret", "turrets_" + zn, true)
 	for d in m.doors:
 		if d.security and d.get("structure", -1) == sid:

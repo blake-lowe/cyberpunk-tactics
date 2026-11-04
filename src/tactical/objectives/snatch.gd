@@ -4,7 +4,7 @@ extends Objective
 
 
 func setup(target_sid: int, origin: Vector2i, _sec: int) -> void:
-	o.merge({"cell": e.secure_cell(target_sid, origin), "carrier": -1})
+	o.merge({"cell": e.secure_cell(target_sid, origin, "package"), "carrier": -1})
 
 
 func before_check() -> void:   # a carrier who can't act drops the package on their square

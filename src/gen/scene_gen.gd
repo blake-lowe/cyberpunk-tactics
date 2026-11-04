@@ -24,6 +24,8 @@ static func generate(seed_value: int, scene: String, overrides: Dictionary = {})
 	if int(p.get("verticality", 1)) == 0:
 		p.floors = 1
 	var dice := Dice.new(seed_value)
+	if scene == "lone_building":
+		_site_size(dice, p, overrides)
 	var m := TacMap.new(int(p.w), int(p.h), int(p.floors) + 1)  # + roof level
 	m.seed_value = seed_value
 	m.algorithm = scene
@@ -599,8 +601,9 @@ const POST_ROOMS := ["security_office", "guard_booth", "armory", "vip_lounge", "
 
 
 static func _guard_posts(m: TacMap) -> void:
+	var rooms_def := RulesDB.gen("rooms.json")
 	for r in m.rooms:
-		if r.cells == 0 or not r.kind in POST_ROOMS:
+		if r.cells == 0 or not (r.kind in POST_ROOMS or bool(rooms_def.get(r.kind, {}).get("post", false))):
 			continue
 		var best := Vector2i(-1, -1)
 		var mid: Vector2i = (r.bounds as Rect2i).get_center()
@@ -625,6 +628,20 @@ static func _rand_size(c: Dictionary, lo: int, hi: int) -> int:
 
 
 # --- Scenes ----------------------------------------------------------------------
+
+## A site with its own size (sites.json `footprint: {w, d}` in squares along / into the entrance
+## facade, `floors: [min, max]`) sizes a lone building's map to it: the plot plus the street and
+## alley. Whatever the caller sets explicitly wins.
+static func _site_size(dice: Dice, p: Dictionary, overrides: Dictionary) -> void:
+	var sdef: Dictionary = RulesDB.gen("sites.json").get(String(p.get("site", "corp_office")), {})
+	if sdef.has("footprint") and not overrides.has("w") and not overrides.has("h"):
+		var fw: Array = sdef.footprint.w
+		var fd: Array = sdef.footprint.d
+		p.w = dice.rng.randi_range(int(fw[0]), int(fw[1])) + 3
+		p.h = dice.rng.randi_range(int(fd[0]), int(fd[1])) + 3
+	if sdef.has("floors") and not overrides.has("floors") and int(p.get("verticality", 1)) > 0:
+		p.floors = dice.rng.randi_range(int(sdef.floors[0]), int(sdef.floors[1]))
+
 
 ## The original: one building on a street corner (street south, alley east).
 static func _lone_building(c: Dictionary) -> void:

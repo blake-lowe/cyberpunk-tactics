@@ -7,7 +7,7 @@ extends Objective
 ## most secure room, with bodyguards beside them. Exits: the map's entrances other than the deploy
 ## zone, where the mark runs once the alarm goes up.
 func setup(target_sid: int, origin: Vector2i, sec: int) -> void:
-	var cell := e.secure_cell(target_sid, origin)
+	var cell := e.secure_cell(target_sid, origin, "vip")
 	var names: Array = cfg.names
 	var name: String = names[e.dice.d(names.size()) - 1]
 	var vip := Recruit.npc(e.dice, "mini_boss" if sec >= 2 else "lieutenant", name)
