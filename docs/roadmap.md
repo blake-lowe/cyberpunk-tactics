@@ -251,7 +251,7 @@ Check-ins (🔶) are where work pauses for a user decision or review.
   design): Teargas and Flashbang grenades are always available from the fixer.
 - Removed: Med Bay +2 HP/day and clinic discount, Fixer Network +1 gig / earlier security, Training Room
   +5 IP (rooms have no levels; save v6 refunds levels at their build costs); salvage at 25% (the book has
-  no loot rule; the Scavenger perk is inert pending a replacement); the 500eb rescue fee.
+  no loot rule; the Scavenger perk was removed (owner)); the 500eb rescue fee.
 - Humanity therapy: p229-230 like Addiction Therapy: a crew Medtech (not the patient), a week, materials
   100eb (Standard, DV15, 2d6) or 500eb (Extreme, DV17, 4d6), TECH + Medical Tech; failure wastes both.
 

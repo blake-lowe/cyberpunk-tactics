@@ -156,12 +156,25 @@ static func _add_foundations(listings: Array) -> void:
 		listings.append({"category": "cyberware", "name": "Foundational Cyberware", "keys": extra})
 
 
-## The fixer's always-available staples (owner's design; night_market.json staples).
+## Always on sale, market or not: every item the game plays costing up to Premium (100eb), since
+## that much can be bought without a Fixer or Night Market (CPR core p.385; owner's ruling).
+## Weapons at Standard quality, armour, kit items; in data order.
 static func staples() -> Array[String]:
+	var cap := int(data().staples.get("max_cost", 100))
 	var out: Array[String] = []
-	for k in data().staples["keys"]:
-		if on_sale(String(k)):
-			out.append(String(k))
+	var ws: Dictionary = RulesDB.load_json("weapons.json")["weapons"]
+	for id in ws:
+		var k := "weapon/%s" % id
+		if on_sale(k) and Items.price(k) <= cap:
+			out.append(k)
+	var ar: Dictionary = RulesDB.load_json("armor.json")["armor"]
+	for id in ar:
+		var k := "armor/%s" % id
+		if on_sale(k) and Items.price(k) <= cap:
+			out.append(k)
+	for k in Items.all():
+		if on_sale(k) and Items.price(k) <= cap:
+			out.append(k)
 	return out
 
 

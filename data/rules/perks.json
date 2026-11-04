@@ -138,12 +138,6 @@
           "name": "Armorsmith",
           "desc": "+2 to Upgrade checks in the workshop.",
           "upgrade_bonus": 2
-        },
-        {
-          "id": "scavenger",
-          "name": "Scavenger",
-          "desc": "No effect for now: salvage was removed (core-book ruling); awaiting a replacement.",
-          "salvage_mult": 1.5
         }
       ]
     ]

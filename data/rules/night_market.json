@@ -25,11 +25,8 @@
 		"access_doc": "No Reputation gate: p337 says finding a market is about connections, with no number; the crew's fixers bring them in."
 	},
 	"staples": {
-		"keys": [
-			"ammo/teargas_ammo",
-			"ammo/flashbang_ammo"
-		],
-		"doc": "HOUSE-RULE (owner's design): a few readily available consumables the crew's fixer can always get, whatever the Night Market stocks. Kept to kit grenades of Premium or less (p385: without a Fixer or Night Market only items up to Premium can be bought)."
+		"max_cost": 100,
+		"doc": "Owner's ruling, from CPR core p.385: without a Fixer or Night Market, items up to Premium (100eb) can be bought. So every item the game plays at 100eb or less (weapons at Standard quality, armour, kit items) is always on sale; pricier gear only at a Night Market."
 	},
 	"categories": [
 		{

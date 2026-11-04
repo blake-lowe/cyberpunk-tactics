@@ -67,7 +67,7 @@ func test_buying_fills_storage_and_packing_needs_stock() -> void:
 	camp.buy(MEDSCAN)
 	assert_true(camp.set_kit(a, 1, MEDSCAN))
 	camp.market = {}
-	assert_false(camp.buy(LACE), "not on sale without a market")
+	assert_false(camp.buy("weapon/assault_rifle"), "500eb: not on sale without a market (p.385)")
 	assert_true(camp.buy("ammo/teargas_ammo"), "the fixer's staples always are")
 
 

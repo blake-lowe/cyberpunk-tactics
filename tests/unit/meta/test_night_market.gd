@@ -96,7 +96,7 @@ func test_buying_goes_into_storage_and_never_blocks_another() -> void:
 	assert_eq(c.stored("weapon/assault_rifle"), 2)
 	assert_eq(c.crew[0].weapons.size(), weapons0, "bought for nobody")
 	assert_eq(c.eb, 4000, "list price")
-	assert_false(c.buy("weapon/smg"), "not on sale")
+	assert_false(c.buy("weapon/sniper_rifle"), "not on sale (over 100eb, not listed)")
 	assert_false(c.buy("cyberware/neural_link"), "chrome is fitted at the ripperdoc, not stored")
 	assert_true(c.buy("ammo/flashbang_ammo"), "a staple")
 	c.eb = 10
@@ -208,3 +208,12 @@ func test_a_failed_humanity_therapy_wastes_the_week_and_materials() -> void:
 			failed = true
 			break
 	assert_true(failed)
+
+
+func test_everything_up_to_premium_is_always_on_sale() -> void:
+	var st := NightMarket.staples()
+	assert_true("weapon/heavy_pistol" in st, "a 50eb Heavy Pistol needs no fixer (p.385)")
+	assert_true("armor/kevlar" in st)
+	for k in st:
+		assert_true(Items.price(k) <= 100, "%s is Premium or less" % k)
+	assert_false("weapon/assault_rifle" in st, "500eb waits for a Night Market")
