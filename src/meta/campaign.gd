@@ -63,6 +63,7 @@ var board: Array[Dictionary] = []    ## gig offers
 var recruits: Array[Combatant] = []  ## for hire
 var active_gig: Dictionary = {}
 var facilities := {}                 ## facility id → level (0 = not built)
+var stash := {}                      ## safehouse storage: Items key → how many the crew owns
 var log: Array[String] = []
 
 
@@ -301,6 +302,7 @@ func resolve(e: Encounter) -> Dictionary:
 	for c in crew:
 		if c.dead or c.wound_state() >= Combatant.Wound.MORTAL or c.unconscious:
 			anyone_down = true
+	report["kit_used"] = _settle_kits()
 	for c in crew:
 		if c.dead and not fallen.any(func(f): return f.name == c.display_name):
 			fallen.append({"name": c.display_name, "role": c.role, "day": day, "gig": gig.get("title", "")})
@@ -340,6 +342,7 @@ func resolve(e: Encounter) -> Dictionary:
 				report.salvage += int(value * float(ECON.salvage) * _salvage_mult())
 	eb += report.pay - report.fees + report.salvage
 	report.episodes = _downtime_episodes()
+	report["addicted"] = _addiction_checks()
 	report.heat = gig_heat(e) + report.episodes.size()
 	if e.civ_casualties > 0:   # HOUSE-RULE: fixers don't like collateral (spec: lowered by excessive collateral)
 		report.rep -= e.civ_casualties
@@ -566,6 +569,123 @@ func install(c: Combatant, id: String) -> int:
 	return loss
 
 
+# --- Safehouse storage and kits (owner's design: 2 slots, 1 consumable + 1 consumable or utility) ---
+
+## Gear the market stocks at the current reputation: {key, name, cost, info, kind}.
+func item_stock() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for key in Items.all():
+		var d := Items.def(key)
+		if rep < int(d.shop_rep):
+			continue
+		out.append({"key": key, "name": Items.display_name(key), "cost": _price(Items.price(key)), "kind": Items.kind(key),
+			"info": String(d.get("summary", "")), "owned": int(stash.get(key, 0)), "fixer": Items.price(key) >= 500})
+	return out
+
+
+## Buy one into safehouse storage.
+func buy_item(key: String) -> bool:
+	var it: Array = item_stock().filter(func(x): return x.key == key)
+	if it.is_empty() or eb < int(it[0].cost):
+		return false
+	eb -= int(it[0].cost)
+	stash[key] = int(stash.get(key, 0)) + 1
+	say("Bought %s for the safehouse." % Items.display_name(key))
+	return true
+
+
+## How many of `key` in storage aren't already packed by someone (except `skip_c`'s `skip_slot`).
+func unpacked(key: String, skip_c: Combatant = null, skip_slot := -1) -> int:
+	var n := int(stash.get(key, 0))
+	for m in alive_crew():
+		for i in m.kit.size():
+			if m.kit[i] == key and not (m == skip_c and i == skip_slot):
+				n -= 1
+	return n
+
+
+## Pack (or with "" unpack) a kit slot. The slot must accept the item's kind and storage must
+## have one that nobody else has packed.
+func set_kit(c: Combatant, slot: int, key: String) -> bool:
+	if slot < 0 or slot >= c.kit.size() or not Items.fits(slot, key):
+		return false
+	if key != "" and unpacked(key, c, slot) <= 0:
+		return false
+	c.kit[slot] = key
+	return true
+
+
+## Items each slot could take for `c` right now (owned, unpacked, the right kind).
+func kit_options(c: Combatant, slot: int) -> Array[String]:
+	var out: Array[String] = []
+	for key in stash:
+		if Items.fits(slot, String(key)) and unpacked(String(key), c, slot) > 0:
+			out.append(String(key))
+	return out
+
+
+## Drop packed items storage can no longer back (spent or lost on the last gig).
+func check_kits() -> void:
+	for m in alive_crew():
+		for i in m.kit.size():
+			if m.kit[i] != "" and (not Items.fits(i, m.kit[i]) or unpacked(m.kit[i], m, i) <= 0):
+				m.kit[i] = ""
+
+
+## After a gig: spent consumables leave storage; whoever didn't come back loses what they carried.
+## Returns the names of what was used or lost.
+func _settle_kits() -> Array:
+	var gone := []
+	for m in crew:
+		for i in m.kit.size():
+			var key := m.kit[i]
+			if key == "":
+				continue
+			if m.dead or (m.kit_spent[i] and Items.kind(key) == "consumable"):
+				stash[key] = maxi(0, int(stash.get(key, 0)) - 1)
+				if int(stash[key]) == 0:
+					stash.erase(key)
+				gone.append(Items.display_name(key))
+	check_kits()
+	return gone
+
+
+## Addiction (p.229): after the gig, each drug taken calls for WILL + Resist Torture/Drugs vs its
+## Addiction DV; failing hooks them. Black Lace's Humanity comes back to those who resist (p.358).
+func _addiction_checks() -> Array:
+	var hooked := []
+	for m in alive_crew():
+		var seen := {}
+		for drug in m.drugs_taken:
+			if seen.has(drug):
+				continue
+			seen[drug] = true
+			var fx: Dictionary = RulesDB.gear("drugs", drug).get("fx", {})
+			var resisted := Check.vs_dv(dice, m.skill_base("resist_torture_drugs"), int(fx.get("addiction_dv", 15))).success
+			if resisted:
+				if fx.get("humanity_refund_on_resist", false) and int(m.drug_humanity.get(drug, 0)) > 0:
+					m.regain_humanity(int(m.drug_humanity[drug]))
+			elif not drug in m.addictions:
+				m.addictions.append(drug)
+				hooked.append("%s (%s)" % [m.display_name, RulesDB.gear("drugs", drug).get("name", drug)])
+				say("%s is hooked on %s." % [m.display_name, RulesDB.gear("drugs", drug).get("name", drug)])
+		m.drug_humanity.clear()
+	return hooked
+
+
+## Addiction therapy (p.229-230): a week, and the therapy's price; cures one addiction.
+## HOUSE-RULE: the clinic's Medtech is assumed to pass the check (no Medtech on the crew needed).
+func treat_addiction(c: Combatant, drug: String) -> bool:
+	var t := RulesDB.gear("therapy", "addiction_therapy")
+	if not drug in c.addictions or eb < int(t.cost):
+		return false
+	eb -= int(t.cost)
+	c.addictions.erase(drug)
+	say("%s spends a week getting clean of %s." % [c.display_name, RulesDB.gear("drugs", drug).get("name", drug)])
+	rest(7)
+	return true
+
+
 ## A week of therapy (p230): pay, everyone else rests the week, the patient regains 2d6 Humanity
 ## up to their cap.
 func therapy(c: Combatant) -> bool:
@@ -650,7 +770,8 @@ func upgrade(facility: String) -> bool:
 func to_dict() -> Dictionary:
 	return {"version": SaveMigrations.CURRENT, "seed": seed_value, "eb": eb, "rep": rep, "day": day, "crew": crew.map(func(c): return c.to_dict()),
 		"fallen": fallen, "board": board, "recruits": recruits.map(func(c): return c.to_dict()), "log": log.slice(-50),
-		"rng_state": dice.rng.state, "facilities": facilities, "fixer_rep": fixer_rep, "faction_rep": faction_rep, "heat": heat}
+		"rng_state": dice.rng.state, "facilities": facilities, "fixer_rep": fixer_rep, "faction_rep": faction_rep, "heat": heat,
+		"stash": stash}
 
 
 ## A campaign from a save dictionary, upgraded to the current format first (SaveMigrations).
@@ -677,6 +798,9 @@ static func from_dict(raw: Dictionary) -> Campaign:
 	c.heat = int(d.get("heat", 0))
 	for k in d.get("fixer_rep", {}):
 		c.fixer_rep[String(k)] = int(d.fixer_rep[k])
+	for k in d.get("stash", {}):
+		if Items.is_item(String(k)) and int(d.stash[k]) > 0:
+			c.stash[String(k)] = int(d.stash[k])
 	for k in d.get("faction_rep", {}):
 		c.faction_rep[String(k)] = int(d.faction_rep[k])
 	for k in d.get("facilities", {}):

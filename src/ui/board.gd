@@ -15,6 +15,7 @@ var _root: VBoxContainer
 var _shot_path := ""
 var _frames := 0
 var _shop_for := 0   ## crew index the night market is buying for
+var _scroll_to := 0  ## dev: --scroll=n scrolls the board for screenshots
 var _train_for := -1 ## crew index whose training panel is open
 ## Skills offered for training, by Role first (the rest of the list follows).
 const TRAIN_SKILLS := {"solo": ["handgun", "shoulder_arms", "autofire", "evasion", "melee_weapon", "athletics"],
@@ -39,6 +40,8 @@ func _ready() -> void:
 			_shot_path = a.get_slice("=", 1)
 		if k == "board":   # --board --shot=x.png screenshots this screen
 			board_shot = true
+		if k == "scroll":   # --scroll=n: screenshots further down the board
+			_scroll_to = int(a.get_slice("=", 1))
 		if k == "train":   # --train=n opens crew member n's training panel (screenshots)
 			_train_for = int(a.get_slice("=", 1))
 	if dev and not board_shot:
@@ -130,6 +133,8 @@ func _build() -> void:
 	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	add_child(scroll)
+	if _scroll_to > 0:
+		_scroll_later.call_deferred(scroll)
 	var margin := MarginContainer.new()
 	margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	for side in ["left", "right", "top", "bottom"]:
@@ -191,10 +196,17 @@ func _build() -> void:
 		hires.add_child(_recruit_card(i))
 	if not camp.crew.is_empty():
 		mid.add_child(_shop())
+		mid.add_child(_gear_market())
 		mid.add_child(_ripperdoc())
 	mid.add_child(_text("// LOG", Hud.F_PIXEL, 22, Hud.DIM))
 	for l in camp.log.slice(-6):
 		mid.add_child(_text("> " + l, Hud.F_TERM, Hud.ts(20), Color(Hud.TEXT, 0.7), true))
+
+
+func _scroll_later(scroll: ScrollContainer) -> void:   # after layout, so the content has its height
+	await get_tree().process_frame
+	await get_tree().process_frame
+	scroll.scroll_vertical = _scroll_to
 
 
 func _facility(f: String) -> PanelContainer:
@@ -240,8 +252,42 @@ func _shop() -> VBoxContainer:
 	grid.add_theme_constant_override("h_separation", 8)
 	grid.add_theme_constant_override("v_separation", 8)
 	box.add_child(grid)
-	var owned := c.weapons.map(func(w): return w.id())
+	var owned := c.weapons.map(func(w): return "%s@%s" % [w.id(), w.quality])
+	# weapons: one panel each, a button per quality on sale (p.342)
+	var by_weapon := {}
 	for it in camp.shop_stock():
+		if it.kind == "weapon":
+			var base := String(it.id).get_slice("@", 0)
+			if not by_weapon.has(base):
+				by_weapon[base] = []
+			by_weapon[base].append(it)
+	for base in by_weapon:
+		var w0 := Weapon.from_id(base)
+		var p0 := _panel(Hud.MAGENTA)
+		p0.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var col0 := VBoxContainer.new()
+		col0.add_theme_constant_override("separation", 2)
+		p0.add_child(col0)
+		col0.add_child(_text(String(w0.def.name).to_upper(), Hud.F_DISPLAY, 20, Hud.TEXT, true))
+		var std_info: String = String(by_weapon[base].filter(func(x): return not String(x.id).contains("@"))[0].info) if by_weapon[base].any(func(x): return not String(x.id).contains("@")) else String(by_weapon[base][0].info)
+		col0.add_child(_text(std_info, Hud.F_TERM, Hud.ts(18), Color(Hud.TEXT, 0.7), true))
+		var row0 := HFlowContainer.new()
+		row0.add_theme_constant_override("h_separation", 6)
+		row0.add_theme_constant_override("v_separation", 6)
+		col0.add_child(row0)
+		for it in by_weapon[base]:
+			var wid: String = it.id
+			var q := wid.get_slice("@", 1) if wid.contains("@") else "standard"
+			var have: bool = ("%s@%s" % [base, q]) in owned
+			var qname: String = {"poor": "POOR", "standard": "BUY", "excellent": "EXCELLENT"}[q]
+			var label := "%s %s eb" % [qname, _money(int(it.cost))]
+			var b0 := _button("OWNED" if have else label, Hud.GREEN if q != "poor" else Hud.GOLD, func(): camp.buy(c, wid); _rebuild(), camp.eb >= int(it.cost) and not have)
+			b0.add_theme_font_size_override("font_size", 15)
+			row0.add_child(b0)
+		grid.add_child(p0)
+	for it in camp.shop_stock():
+		if it.kind == "weapon":
+			continue
 		var p := _panel(Hud.MAGENTA if it.kind == "weapon" else Hud.CYAN)
 		p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var col := VBoxContainer.new()
@@ -356,6 +402,15 @@ func _crew_card(c: Combatant) -> PanelContainer:
 			col.add_child(wr)
 	if c.grenades > 0 or not c.weapons.is_empty():
 		col.add_child(_text(", ".join(c.weapons.map(func(w): return String(w.def.name))) + ("  · frag ×%d" % c.grenades if c.grenades > 0 else ""), Hud.F_TERM, Hud.ts(18), Color(Hud.TEXT, 0.7), true))
+	col.add_child(_kit_row(c))
+	for drug in c.addictions:
+		var ar := HBoxContainer.new()
+		ar.add_theme_constant_override("separation", 8)
+		ar.add_child(_text("HOOKED ON %s" % String(RulesDB.gear("drugs", drug).get("name", drug)).to_upper(), Hud.F_TERM, Hud.ts(20), Hud.RED))
+		var dg: String = drug
+		var cost := int(RulesDB.gear("therapy", "addiction_therapy").get("cost", 1000))
+		ar.add_child(_button("GET CLEAN %d eb · 1 WEEK" % cost, Hud.GREEN, func(): camp.treat_addiction(c, dg); _rebuild(), camp.eb >= cost))
+		col.add_child(ar)
 	for i in c.injuries.size():
 		var inj: Dictionary = c.injuries[i]
 		var r := HBoxContainer.new()
@@ -375,6 +430,51 @@ func _crew_card(c: Combatant) -> PanelContainer:
 	if open:
 		col.add_child(_training(c))
 	return p
+
+
+## The two kit slots: what this crew member takes into the next gig from safehouse storage.
+## Click a slot to cycle through what storage holds for it (slot 1 consumables; slot 2 either).
+func _kit_row(c: Combatant) -> HBoxContainer:
+	var r := HBoxContainer.new()
+	r.add_theme_constant_override("separation", 6)
+	r.add_child(_text("KIT", Hud.F_TERM, Hud.ts(20), Hud.DIM))
+	for slot in c.kit.size():
+		var s: int = slot
+		var cur: String = c.kit[slot]
+		var opts: Array = [""] + camp.kit_options(c, slot).filter(func(k): return k != cur)
+		if cur != "":
+			opts.insert(1, cur)
+		var nxt: String = opts[(opts.find(cur) + 1) % opts.size()] if opts.size() > 1 else ""
+		var label := ("%d · %s" % [slot + 1, Items.display_name(cur).to_upper()]) if cur != "" else ("%d · %s" % [slot + 1, "EMPTY (CONSUMABLE)" if slot == 0 else "EMPTY (ANY)"])
+		var b := _button(label, Hud.GOLD if cur != "" else Hud.DIM, func(): camp.set_kit(c, s, nxt); _rebuild(), opts.size() > 1)
+		b.add_theme_font_size_override("font_size", 15)
+		r.add_child(b)
+	return r
+
+
+## Gear for the safehouse: bought into storage, packed into kits before a gig.
+func _gear_market() -> VBoxContainer:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 8)
+	box.add_child(_text("// GEAR  (goes to safehouse storage · pack it into a crew member's kit)", Hud.F_PIXEL, 22, Hud.GREEN))
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 8)
+	grid.add_theme_constant_override("v_separation", 8)
+	box.add_child(grid)
+	for it in camp.item_stock():
+		var p := _panel(Hud.GREEN if it.kind == "utility" else Hud.GOLD)
+		p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var col := VBoxContainer.new()
+		col.add_theme_constant_override("separation", 2)
+		p.add_child(col)
+		col.add_child(_text(String(it.name).to_upper(), Hud.F_DISPLAY, 20, Hud.TEXT, true))
+		col.add_child(_text("%s · %s eb · in storage %d" % [String(it.kind).to_upper(), _money(int(it.cost)), int(it.owned)], Hud.F_TERM, Hud.ts(18), Hud.CYAN, true))
+		col.add_child(_text(String(it.info), Hud.F_TERM, Hud.ts(17), Color(Hud.TEXT, 0.7), true))
+		var key: String = it.key
+		col.add_child(_button("BUY", Hud.GREEN, func(): camp.buy_item(key); _rebuild(), camp.eb >= int(it.cost)))
+		grid.add_child(p)
+	return box
 
 
 ## Spend IP: Role Rank (p411), the Role's perk tree (two tiers, one pick each), and skills.
@@ -478,6 +578,10 @@ func _report_panel() -> PanelContainer:
 		col.add_child(_text("FLATLINED: " + ", ".join(report.dead).to_upper(), Hud.F_TERM, Hud.ts(24), Hud.RED))
 	if not report.hurt.is_empty():
 		col.add_child(_text("Hurt: " + ", ".join(report.hurt) + " (rest to heal; clinics treat Critical Injuries)", Hud.F_TERM, Hud.ts(20), Hud.GOLD, true))
+	if not report.get("kit_used", []).is_empty():
+		col.add_child(_text("Kit used or lost: " + ", ".join(report.kit_used), Hud.F_TERM, Hud.ts(20), Hud.DIM, true))
+	if not report.get("addicted", []).is_empty():
+		col.add_child(_text("HOOKED: " + ", ".join(report.addicted).to_upper() + " (therapy cures it)", Hud.F_TERM, Hud.ts(22), Hud.RED, true))
 	return p
 
 

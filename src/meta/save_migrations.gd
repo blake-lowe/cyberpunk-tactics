@@ -7,8 +7,9 @@ extends RefCounted
 ##
 ## v1: the first slice (M6/M7): crew, board, fixer rep, heat, facilities.
 ## v2: factions. Board gigs name their target faction; the campaign tracks standing per faction.
+## v3: inventory. Safehouse storage (stash); each crew member's two kit slots and addictions.
 
-const CURRENT := 2
+const CURRENT := 3
 
 
 ## Upgrade `d` (a parsed save) to CURRENT. Returns {} for a save from a newer build, which this
@@ -21,6 +22,7 @@ static func migrate(d: Dictionary) -> Dictionary:
 	while v < CURRENT:
 		match v:
 			1: _v1_to_v2(d)
+			2: _v2_to_v3(d)
 		v += 1
 		d["version"] = v
 	return d
@@ -35,3 +37,14 @@ static func _v1_to_v2(d: Dictionary) -> void:
 	for c in d.get("crew", []) + d.get("recruits", []):
 		if not (c as Dictionary).has("faction"):
 			c["faction"] = "crew"
+
+
+static func _v2_to_v3(d: Dictionary) -> void:
+	if not d.has("stash"):
+		d["stash"] = {}
+	for c in d.get("crew", []) + d.get("recruits", []):
+		if not (c as Dictionary).has("kit"):
+			c["kit"] = ["", ""]
+		if not (c as Dictionary).has("addictions"):
+			c["addictions"] = []
+

@@ -387,7 +387,12 @@
 			},
 			"fx": {
 				"ablate_sp": 2
-			}
+			},
+			"kit": "consumable",
+			"shop_rep": 0,
+			"kit_name": "Armor-Piercing Grenade",
+			"kit_use": "grenade",
+			"kit_short": "AP"
 		},
 		"biotoxin_ammo": {
 			"name": "Biotoxin Ammunition",
@@ -489,7 +494,12 @@
 					"no_bonus_damage": true
 				},
 				"duration": "1 minute"
-			}
+			},
+			"kit": "consumable",
+			"shop_rep": 1,
+			"kit_name": "Flashbang",
+			"kit_use": "grenade",
+			"kit_short": "FLASH"
 		},
 		"incendiary_ammo": {
 			"name": "Incendiary Ammunition",
@@ -515,7 +525,12 @@
 				"burning_trigger": "damage_through_sp",
 				"burning_stacks": false,
 				"burning_extinguish": "action"
-			}
+			},
+			"kit": "consumable",
+			"shop_rep": 1,
+			"kit_name": "Incendiary Grenade",
+			"kit_use": "grenade",
+			"kit_short": "INCEND"
 		},
 		"poison_ammo": {
 			"name": "Poison Ammunition",
@@ -682,7 +697,11 @@
 				},
 				"duration": "1 minute"
 			},
-			"unmodelled": "Cybereyes are immune (only 'meat eyes' are affected)."
+			"kit": "consumable",
+			"shop_rep": 0,
+			"kit_name": "Teargas Grenade",
+			"kit_use": "grenade",
+			"kit_short": "GAS"
 		}
 	},
 	"shields": {
@@ -1218,7 +1237,11 @@
 					"paramedic": 2
 				},
 				"no_stack": true
-			}
+			},
+			"kit": "utility",
+			"shop_rep": 2,
+			"kit_use": "carried",
+			"kit_short": "MEDSCAN"
 		},
 		"medtech_bag": {
 			"category": "medical",
@@ -1428,7 +1451,11 @@
 					"weaponstech": 2
 				},
 				"no_stack": true
-			}
+			},
+			"kit": "utility",
+			"shop_rep": 2,
+			"kit_use": "carried",
+			"kit_short": "TECHSCAN"
 		},
 		"techtool": {
 			"category": "tool",
@@ -1902,7 +1929,11 @@
 					"suppressed_by_primary": true
 				}
 			},
-			"unmodelled": "Humanity Loss lowers EMP via the Humanity tens rule (p.229); needs a Humanity track."
+			"kit": "consumable",
+			"shop_rep": 2,
+			"kit_use": "dose",
+			"kit_short": "LACE",
+			"house_rule": "Lasts the gig. The 2d6 Humanity is lost on use and given back if the user resists addiction afterwards."
 		},
 		"blue_glass": {
 			"name": "Blue Glass",
@@ -1957,7 +1988,11 @@
 					"suppressed_by_primary": false
 				}
 			},
-			"unmodelled": "Book does not say whether the addicted -2 INT and dose +2 INT stack while dosed; assumed they do (net 0)."
+			"kit": "consumable",
+			"shop_rep": 1,
+			"kit_use": "dose",
+			"kit_short": "BOOST",
+			"house_rule": "An addict's -2 INT and a dose's +2 INT stack (the book doesn't say). Lasts the gig."
 		},
 		"smash": {
 			"name": "Smash",
@@ -2025,7 +2060,11 @@
 					"craving": true
 				}
 			},
-			"unmodelled": "Paranoia and craving are roleplay only (GM prompts)."
+			"kit": "consumable",
+			"shop_rep": 0,
+			"kit_use": "dose",
+			"kit_short": "COKE",
+			"house_rule": "Paranoia and craving are roleplay; no game effect. Effects last the gig (4 hours)."
 		}
 	},
 	"pharmaceuticals": {
@@ -2272,5 +2311,17 @@
 		"materials_tier": "price category of materials_cost.",
 		"relapse_autofail": "period after a cure during which that drug's addiction check auto-fails. Addiction Therapy ('1 year').",
 		"keyed_to_owner": "Biometric-keyed weapon (Kendachi Mono-Three, p.348): its special rule works for whoever carries it (HOUSE-RULE: sold keyed to the buyer)."
+	},
+	"kit_rules": {
+		"_doc": "What a crew member takes into a gig from safehouse storage (HOUSE-RULE, owner's design): slot 1 holds a consumable, slot 2 a consumable or a utility. Used consumables are spent; unused ones and utilities come back; kit on someone who doesn't come back is lost. Item fields: kit (consumable|utility), kit_use (grenade|dose|carried), kit_name (storage label), kit_short (action-bar label).",
+		"slots": [
+			[
+				"consumable"
+			],
+			[
+				"consumable",
+				"utility"
+			]
+		]
 	}
 }

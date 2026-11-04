@@ -38,6 +38,12 @@ var downtime := "recover"        ## between gigs: recover | train | hustle (Camp
 var maker := {}                  ## Tech Maker Specialty ranks (p147): field, upgrade, fabrication, invention
 var doses := 0                   ## Pharmaceutical doses carried this gig
 var temp_mods := {}              ## stat → penalty for the rest of the gig (Liche, Scorpion: "for 1 hour")
+var kit: Array[String] = ["", ""]   ## what they take into a gig from safehouse storage (Items keys; slot rules in gear.json kit_rules)
+var kit_spent: Array[bool] = [false, false]   ## this gig: a consumable slot already used
+var drugs_taken: Array[String] = []   ## this gig: drug ids dosed (addiction checks afterwards, p.229)
+var drug_fx: Array[Dictionary] = []   ## this gig: effects of drugs in the system (HOUSE-RULE: a dose lasts the gig)
+var addictions: Array[String] = []    ## drug ids they're hooked on (p.229): the "addicted" fx apply unless high
+var drug_humanity := {}               ## this gig: drug id → Humanity it cost (Black Lace refunds it on resisting addiction)
 var burning := 0                 ## on fire: HP lost at the end of each turn until an Action puts it out (Hellhound 2, p207; flamethrower 4, p348)
 var cyber_off := {}              ## cyberware id → rounds it stays inoperable (Microwaver, p348)
 var programs: Array[String] = [] ## cyberdeck Programs (netrunners start with Sword and Armor, p98)
@@ -96,6 +102,7 @@ func stat(s: String) -> int:
 		v = maxi(0, v - armor_penalty())
 	if temp_mods.has(s):
 		v = maxi(1, v - int(temp_mods[s]))
+	v = maxi(1, v + drug_stat(s)) if drug_stat(s) != 0 and v > 0 else v
 	if s == "MOVE":
 		var reduction := _fx_sum("move")
 		if wound_state() == Wound.MORTAL:
@@ -135,7 +142,33 @@ func skill_level(skill_id: String) -> int:
 
 ## STAT + Skill (p130), before situational modifiers.
 func skill_base(skill_id: String) -> int:
-	return stat(RulesDB.skill_stat(skill_id)) + skill_level(skill_id) + int(perk_fx("skills").get(skill_id, 0))
+	return stat(RulesDB.skill_stat(skill_id)) + skill_level(skill_id) + int(perk_fx("skills").get(skill_id, 0)) + kit_skill_bonus(skill_id)
+
+
+## Carried utilities' Skill bonuses (Medscanner +2 First Aid/Paramedic, Techscanner +2 Tech
+## Skills, p.353-355). The same kind of tool doesn't stack: the best one counts.
+func kit_skill_bonus(skill_id: String) -> int:
+	var best := 0
+	for i in kit.size():
+		if kit[i] != "" and Items.kind(kit[i]) == "utility":
+			best = maxi(best, int(Items.fx(kit[i]).get("skill_bonus", {}).get(skill_id, 0)))
+	for fx in drug_fx:
+		best = maxi(best, int(fx.get("skill_bonus", {}).get(skill_id, 0)))
+	return best
+
+
+## Net STAT change from drugs: doses in the system (+), addictions to drugs not currently in the
+## system (-) (p.229, p.357-358).
+func drug_stat(s: String) -> int:
+	var t := 0
+	for fx in drug_fx:
+		t += int(fx.get("stat_bonus", {}).get(s, 0))
+	for drug in addictions:
+		var add: Dictionary = RulesDB.gear("drugs", drug).get("fx", {}).get("addicted", {})
+		if bool(add.get("suppressed_by_primary", false)) and drug in drugs_taken:
+			continue   # high: the craving's penalty is held off
+		t += int(add.get("stat_bonus", {}).get(s, 0))
+	return t
 
 
 # --- Role perks (HOUSE-RULE game content, data/rules/perks.json) --------------------
@@ -236,6 +269,9 @@ func gig_reset() -> void:
 	temp_mods.clear()
 	burning = 0
 	cyber_off.clear()
+	kit_spent = [false, false]
+	drugs_taken.clear()
+	drug_fx.clear()
 
 
 func rank_raise_cost() -> int:
@@ -459,6 +495,7 @@ func _cyber_fx() -> Array:
 		var fx: Dictionary = RulesDB.cyberware(cid).get("fx", {})
 		if not fx.is_empty():
 			out.append(fx)
+	out.append_array(drug_fx)   # drugs in the system (Black Lace: shrug off serious wounds, p.358)
 	return out
 
 
@@ -583,7 +620,8 @@ func to_dict() -> Dictionary:
 		"subdermal": sub, "injuries": injuries, "base_dsp": base_dsp, "dsp": dsp, "dead": dead, "unconscious": unconscious,
 		"weapons": weapons.map(func(w): return {"id": w.id(), "ammo": w.ammo, "builtin": w.builtin, "quality": w.quality}), "grenades": grenades, "role": role,
 		"role_rank": role_rank, "awareness": awareness, "tracks_humanity": tracks_humanity, "humanity": humanity,
-		"max_humanity": max_humanity, "cyberware": cyberware, "ip": ip, "look_seed": look_seed, "perks": perks, "medicine": medicine, "maker": maker, "downtime": downtime, "programs": programs}
+		"max_humanity": max_humanity, "cyberware": cyberware, "ip": ip, "look_seed": look_seed, "perks": perks, "medicine": medicine, "maker": maker, "downtime": downtime, "programs": programs,
+		"kit": kit, "addictions": addictions}
 
 
 static func from_dict(d: Dictionary) -> Combatant:
@@ -625,6 +663,11 @@ static func from_dict(d: Dictionary) -> Combatant:
 	c.ip = int(d.get("ip", 0))
 	c.look_seed = int(d.get("look_seed", -1))
 	c.downtime = String(d.get("downtime", "recover"))
+	var kd: Array = d.get("kit", ["", ""])
+	for i in mini(2, kd.size()):
+		c.kit[i] = String(kd[i])
+	for a in d.get("addictions", []):
+		c.addictions.append(String(a))
 	for pg in d.get("programs", ["sword", "armor"] if String(d.role) == "netrunner" else []):
 		c.programs.append(String(pg))
 	for k in d.get("maker", {}):

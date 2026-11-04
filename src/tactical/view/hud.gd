@@ -453,7 +453,7 @@ class ActBtn extends Button:
 				draw_colored_polygon(PackedVector2Array([o + Vector2(-r * 1.2, -r), o + Vector2(r * 0.2, 0), o + Vector2(-r * 1.2, r)]), c)
 				draw_colored_polygon(PackedVector2Array([o + Vector2(0, -r), o + Vector2(r * 1.4, 0), o + Vector2(0, r)]), c)
 		var fs := Hud.ts(17)   # shrink to fit long titles (WITHDRAW, SUPPRESS)
-		while fs > 10 and Hud.F_BOLD.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > w - 6:
+		while fs > 8 and Hud.F_BOLD.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > w - 4:
 			fs -= 1
 		draw_string(Hud.F_BOLD, Vector2(0, size.y - 7), title, HORIZONTAL_ALIGNMENT_CENTER, w, fs, Color(Hud.TEXT, 0.45 if disabled else 1.0))
 		if pct >= 0 and not disabled:   # live hit chance for this mode on the hovered target
@@ -500,7 +500,8 @@ func _build_bar() -> void:
 	# M5 actions: target-picking tools (toggle; right-click applies) and instant ones
 	for spec in [["melee", "MELEE", "F", "tool", "melee", CYAN], ["shell", "SHELL", "5", "tool", "shell", CYAN],
 			["grenade", "FRAG", "G", "tool", "grenade", GOLD], ["suppress", "SUPPRESS", "4", "suppress", null, CYAN],
-			["medic", "STABILIZE", "T", "tool", "stabilize", GREEN], ["grab", "GRAB", "B", "grab", null, GOLD], ["free", "FREE", "B", "free", null, GOLD], ["plant", "PLANT", "B", "plant", null, RED], ["dose", "DOSE", "Y", "tool", "dose", GREEN], ["rig", "RIG", "U", "tool", "rig", CYAN], ["tamper", "CAMERA", "K", "tamper", null, CYAN], ["bypass", "BYPASS", "V", "bypass", null, CYAN], ["keycard", "KEYCARD", "P", "keycard", null, GOLD], ["withdraw", "WITHDRAW", "L", "withdraw", null, RED]]:
+			["medic", "STABILIZE", "T", "tool", "stabilize", GREEN], ["grab", "GRAB", "B", "grab", null, GOLD], ["free", "FREE", "B", "free", null, GOLD], ["plant", "PLANT", "B", "plant", null, RED], ["dose", "DOSE", "Y", "tool", "dose", GREEN], ["rig", "RIG", "U", "tool", "rig", CYAN], ["tamper", "CAMERA", "K", "tamper", null, CYAN], ["bypass", "BYPASS", "V", "bypass", null, CYAN], ["keycard", "KEYCARD", "P", "keycard", null, GOLD], ["withdraw", "WITHDRAW", "L", "withdraw", null, RED],
+			["kit0", "KIT", "6", "kit", 0, GREEN], ["kit1", "KIT", "7", "kit", 1, GREEN]]:
 		var b3 := ActBtn.new(spec[0], spec[1], spec[2], spec[5])
 		b3.toggle_mode = spec[3] == "tool"
 		var arg: Variant = spec[4]
@@ -654,7 +655,8 @@ func _refresh_tools(enc: Encounter, crew_turn: bool) -> void:
 	var show := {"melee": true, "shell": w != null and w.def.get("shotgun_shell", false),
 		"grenade": c.grenades > 0, "suppress": w != null and w.def.get("suppressive", false), "medic": near_dying,
 		"grab": enc.can_grab(), "free": enc.can_free(), "plant": enc.can_plant(), "dose": c.role == "medtech" and c.doses > 0, "rig": int(c.maker.get("field", 0)) > 0, "withdraw": enc.can_withdraw(), "tamper": not enc.camera_in_reach(enc.cur).is_empty(),
-		"bypass": enc.lock_in_reach(enc.cur).x >= 0, "keycard": not enc.keycard_in_reach(enc.cur).is_empty()}
+		"bypass": enc.lock_in_reach(enc.cur).x >= 0, "keycard": not enc.keycard_in_reach(enc.cur).is_empty(),
+		"kit0": enc.kit_action(0) in ["grenade", "dose"], "kit1": enc.kit_action(1) in ["grenade", "dose"]}
 	for k in _tool_buttons:
 		var b: ActBtn = _tool_buttons[k]
 		b.visible = show[k]
@@ -662,10 +664,15 @@ func _refresh_tools(enc: Encounter, crew_turn: bool) -> void:
 		b.set_pressed_no_signal(b.toggle_mode and tool == {"melee": "melee", "shell": "shell", "grenade": "grenade", "medic": "stabilize", "dose": "dose", "rig": "rig"}.get(k, "-"))
 		if k == "grenade":
 			b.title = "FRAG ×%d" % c.grenades   # fits the button
+		if k in ["kit0", "kit1"] and b.visible:   # the packed item: its own name and glyph
+			var key: String = c.kit[1 if k == "kit1" else 0]
+			b.title = Items.short_name(key)
+			b.glyph = "grenade" if Items.use(key) == "grenade" else "dose"
 		b.queue_redraw()
 	# Narrower buttons when many actions apply, so the bar never runs off the screen.
 	var shown := _buttons.get_children().filter(func(x): return x.visible).size()
-	var room := get_viewport_rect().size.x - 28 - 96 - 420   # end-turn button and the unit card
+	var badge := (hint_tab.size.x + 16.0) if hint_tab else 0.0   # the centred bar must clear the H·HELP tab on both sides
+	var room := get_viewport_rect().size.x - 28 - 96 - 420 - 2.0 * badge   # end-turn button and the unit card
 	var bw := clampf(room / maxf(1.0, shown) - 5.0, 50.0, 66.0)
 	for b2 in _buttons.get_children():
 		(b2 as Control).custom_minimum_size.x = bw

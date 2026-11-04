@@ -224,6 +224,8 @@ var _shot_delay := 0.0
 var _demo_ms := 0
 var _reel := ""
 var tool := ""                  ## M5 target-picking action: melee, shell, grenade, stabilize ("" = normal attacks)
+var _grenade_slot := -1         ## the grenade tool throws this kit slot's grenade (-1: a frag)
+var _dev_kit: PackedStringArray = []   ## --kit=a,b (review renders)
 var blast_node: MeshInstance3D  ## the grenade's 5x5 blast preview under the cursor
 var _net_cleaned := false
 var _lf_dims := Vector3.ZERO
@@ -255,6 +257,7 @@ func _ready() -> void:
 			"seed": gig.seed = int(kv[1])
 			"faction": gig.faction = kv[1]   # the target faction (World id: militech, maelstrom, ...)
 			"site": gig.site = kv[1]   # lone_building: which building type (sites.json)
+			"kit": _dev_kit = kv[1].split(",")   # review renders: pack every crew member's kit slots
 			"security": gig.security = int(kv[1])
 			"objective": gig["objective"] = kv[1]
 			"twist": gig["twist"] = kv[1]
@@ -554,6 +557,7 @@ func new_gig() -> void:
 	dice = Dice.new(gig.seed + 1)
 	var crew: Array[Combatant] = [Recruit.generate(dice, "solo", "edgerunner", "Vex"), Recruit.generate(dice, "netrunner", "edgerunner", "Patch")]
 	if campaign_gig:
+		camp.check_kits()   # only what safehouse storage still holds goes along
 		crew.clear()
 		for c in camp.alive_crew():
 			if c.can_act():
@@ -568,6 +572,9 @@ func new_gig() -> void:
 	var fid := String(gig.get("faction", ""))
 	if campaign_gig:
 		fid = String(camp.active_gig.get("faction", ""))
+	for cm in crew:   # review renders: everyone packs the same kit
+		for i in mini(2, _dev_kit.size()):
+			cm.kit[i] = _dev_kit[i]
 	enc = Encounter.setup(m, dice, crew, kind, tw, {"faction": fid} if fid != "" else {})
 	if campaign_gig:
 		enc.heat = camp.heat
@@ -1832,6 +1839,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 			KEY_X: _on_hud("cover_mode", null)
 			KEY_F: _on_hud("tool", "melee")
 			KEY_G: _on_hud("tool", "grenade")
+			KEY_6: _on_hud("kit", 0)
+			KEY_7: _on_hud("kit", 1)
 			KEY_5: _on_hud("tool", "shell")
 			KEY_4: _on_hud("suppress", null)
 			KEY_T: _on_hud("tool", "stabilize")
@@ -1870,9 +1879,26 @@ func _on_hud(name: String, arg: Variant) -> void:
 		"cover_mode": cover_mode = not cover_mode; _refresh(); _update_hover()
 		"tool":
 			tool = "" if tool == String(arg) else String(arg)
+			_grenade_slot = -1
 			cover_mode = false
 			_refresh(); _update_hover()
 		"suppress": _suppress()
+		"kit":   # a packed item: grenades pick a square like the frag; drugs are taken at once
+			if not _crew_turn():
+				return
+			var slot := int(arg)
+			match enc.kit_action(slot):
+				"grenade":
+					tool = "" if (tool == "grenade" and _grenade_slot == slot) else "grenade"
+					_grenade_slot = slot if tool == "grenade" else -1
+					cover_mode = false
+					_refresh(); _update_hover()
+				"dose":
+					var rd: Dictionary = enc.take_dose(slot)
+					if rd.ok:
+						_after_action()
+					else:
+						hud.toast(String(rd.reason).to_upper())
 		"plant":
 			if _crew_turn():
 				var rp: Dictionary = enc.plant_charge()
@@ -2023,7 +2049,9 @@ func _click_tool() -> void:
 				r = enc.shotgun_shell(t, w)
 		"grenade":
 			if hover.x >= 0:
-				r = enc.throw_grenade(hover)
+				r = enc.throw_grenade(hover, _grenade_slot)
+				if r.get("ok", false):
+					_grenade_slot = -1
 		"stabilize":
 			if not t.is_empty():
 				r = enc.stabilize(t)
@@ -2765,7 +2793,7 @@ func _ev_dose(e: Dictionary) -> void:
 		_turn_to(dn, atan2(dd.x, dd.y), 0.15)
 	dn.duck(0.4)
 	await get_tree().create_timer(0.35).timeout
-	_float(dt, ("SPEEDHEAL +%d" % int(e.healed)) if e.drug == "speedheal" else "STIMMED", Hud.GREEN)
+	_float(dt, ("SPEEDHEAL +%d" % int(e.healed)) if e.drug == "speedheal" else ("STIMMED" if e.drug == "stim" else String(e.get("name", e.drug)).to_upper()), Hud.GREEN)
 	_snd("sfx_inject", _body_pos(dt), -4.0)
 	await get_tree().create_timer(0.5).timeout
 
@@ -3367,7 +3395,11 @@ func _anim_blast(e: Dictionary) -> void:
 		builder.hide_cover(v)
 		var cv: Array = m.cover.filter(func(c): return c.floor == v.z and c.pos == Vector2i(v.x, v.y))
 		fx.shatter(Vector3(v.x + 0.5, v.z * FH + 0.3, v.y + 0.5), String(cv[0].material) if not cv.is_empty() else "wood", Vector3(v.x - center.x, 0, v.y - center.y), v.z * FH, true)
-	_float_at(at + Vector3(0, 1.0, 0), "%d" % int(e.damage), Hud.GOLD)
+	var gas: bool = String(e.get("payload", "")) != "" and Items.fx(String(e.payload)).get("no_damage", false)
+	if not gas:
+		_float_at(at + Vector3(0, 1.0, 0), "%d" % int(e.damage), Hud.GOLD)
+	else:
+		_float_at(at + Vector3(0, 1.0, 0), Items.display_name(String(e.payload)).to_upper(), Hud.GOLD)
 	for h in e.hits:
 		var t: Dictionary = enc.units[h.id]
 		var dir := Vector3(t.pos.x - center.x, 0, t.pos.y - center.y)
@@ -3375,6 +3407,10 @@ func _anim_blast(e: Dictionary) -> void:
 		if h.dodged:
 			_float(t, "DIVES CLEAR", Hud.CYAN)
 			continue
+		if gas:   # flash and gas: the check is the result
+			_exotic_callouts({"status": h.get("status", {})}, su, t)
+			continue
+		_exotic_callouts({"ignited": h.get("ignited", false)}, su, t)
 		_outcome(_area_outcome_event(h), su, t, unit_nodes[t.id], _body_pos(t) + Vector3(0, 0.5, 0), dir)
 	await get_tree().create_timer(1.2).timeout
 
@@ -3383,7 +3419,7 @@ func _anim_blast(e: Dictionary) -> void:
 func _exotic_callouts(e: Dictionary, su: Dictionary, tu: Dictionary) -> void:
 	var st: Dictionary = e.get("status", {})
 	if not st.is_empty():
-		var label: String = {"damaged_ear": "DEAFENED", "cyberware_disabled": "CHROME OFFLINE"}.get(String(st.get("name", "")), String(st.get("name", "")).to_upper())
+		var label: String = {"damaged_ear": "DEAFENED", "cyberware_disabled": "CHROME OFFLINE", "flashbang": "BLINDED · DEAFENED", "teargas": "BLINDED"}.get(String(st.get("name", "")), String(st.get("name", "")).to_upper())
 		_float(tu, "RESISTED" if st.get("resisted", false) else label, Hud.DIM if st.get("resisted", false) else Hud.GOLD)
 	if e.get("ignited", false):
 		_float(tu, "ON FIRE", Hud.RED)

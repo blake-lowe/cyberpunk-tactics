@@ -354,6 +354,11 @@ func end_turn() -> void:
 			cur.c.cyber_off[cid] = int(cur.c.cyber_off[cid]) - 1
 			if int(cur.c.cyber_off[cid]) <= 0:
 				cur.c.cyber_off.erase(cid)
+		for inj in cur.c.injuries.duplicate():   # a flashbang's or teargas's injuries last a minute (p.346-347)
+			if inj.has("expires_in"):
+				inj.expires_in = int(inj.expires_in) - 1
+				if int(inj.expires_in) <= 0:
+					cur.c.injuries.erase(inj)
 	if turn != null:
 		var before: int = cur.c.wound_state()
 		var dmg := turn.end()
@@ -1602,8 +1607,19 @@ func shotgun_shell(target: Dictionary, weapon: Weapon) -> Dictionary:
 ## the range; a miss scatters the blast somewhere in the 5x5 around the aim point. Damage (6d6) is
 ## rolled once; cover the blast can't destroy shields whoever is behind it; cover it can destroy is
 ## destroyed and shields nobody; REF 8+ may dive clear.
-func throw_grenade(cell: Vector3i) -> Dictionary:
-	if cur.c.grenades <= 0:
+## `slot` >= 0 throws the grenade packed in that kit slot instead of a frag (Items: Armor-Piercing,
+## Incendiary, Flashbang, Teargas): its fx ride the blast (ablate 2, ignite, or no damage and a
+## forced check for everyone caught, p.345-347).
+func throw_grenade(cell: Vector3i, slot := -1) -> Dictionary:
+	var fx := {}
+	var key := ""
+	if slot >= 0:
+		var why := _kit_ready(slot, "grenade")
+		if why != "":
+			return {"ok": false, "reason": why}
+		key = cur.c.kit[slot]
+		fx = Items.fx(key)
+	elif cur.c.grenades <= 0:
 		return {"ok": false, "reason": "no grenades"}
 	if not turn.action_available:
 		return {"ok": false, "reason": "no action left"}
@@ -1611,7 +1627,10 @@ func throw_grenade(cell: Vector3i) -> Dictionary:
 	if dist > THROW_RANGE_M or cell.z != cur.pos.z or not los.trace(cur.pos, cell).clear:
 		return {"ok": false, "reason": "can't throw there"}
 	turn.use_action()
-	cur.c.grenades -= 1
+	if slot >= 0:
+		cur.c.kit_spent[slot] = true
+	else:
+		cur.c.grenades -= 1
 	var base: int = cur.c.skill_base("athletics") - cur.c.action_penalty()
 	var check := Check.vs_dv(dice, base, maxi(10, RulesDB.range_dv("grenade_launcher", dist)))
 	var center := cell
@@ -1621,7 +1640,8 @@ func throw_grenade(cell: Vector3i) -> Dictionary:
 			if m.inb(c.x, c.y) and los.blocker(c) == "":
 				center = c
 				break
-	var faces := dice.roll_each(GRENADE_DICE, 6)
+	var no_damage: bool = fx.get("no_damage", false)
+	var faces := PackedInt32Array() if no_damage else dice.roll_each(GRENADE_DICE, 6)
 	var dmg := 0
 	for f in faces:
 		dmg += f
@@ -1645,16 +1665,30 @@ func throw_grenade(cell: Vector3i) -> Dictionary:
 	var before := {}
 	for o in caught:
 		before[o.id] = [o.c.hp, o.c.wound_state()]
-	var results := Attack.explosion_rolled(dice, check.total, faces, caught.map(func(o): return o.c))
+	var results: Array = []
+	if no_damage:   # gas, flash: everyone caught who doesn't dive clear makes the check
+		for o in caught:
+			var res := {"target": o.c, "dodged": false, "damage": 0, "location": "head", "through": 0, "crits": []}
+			if o.c.can_dodge_ranged():
+				res.dodged = Check.roll_die(dice).die + o.c.skill_base("evasion") - o.c.action_penalty() > check.total
+			if not res.dodged:
+				Attack.apply_status(dice, o.c, fx.status, fx, res)
+			results.append(res)
+	else:
+		results = Attack.explosion_rolled(dice, check.total, faces, caught.map(func(o): return o.c), fx)
 	_rouse(caught.filter(func(o): return not allied(int(o.team), int(cur.team))))
 	_noise(center)
 	var hits: Array = []
 	for res in results:
 		var u := unit_of(res.target)
 		hits.append({"id": u.id, "dodged": res.dodged, "damage": int(before[u.id][0]) - u.c.hp, "dead": u.c.dead,
-			"killed": u.c.dead or u.c.wound_state() == Combatant.Wound.MORTAL, "wound_before": before[u.id][1], "wound_after": u.c.wound_state()})
-	events.append({"type": "blast", "unit": cur.id, "cell": cell, "center": center, "hit": check.success, "damage": dmg, "hits": hits, "destroyed": destroyed})
-	say("%s throws a grenade%s: %d damage, %d caught." % [cur.c.display_name, "" if check.success else " (off target)", dmg, hits.filter(func(h): return h.damage > 0).size()])
+			"killed": u.c.dead or u.c.wound_state() == Combatant.Wound.MORTAL, "wound_before": before[u.id][1], "wound_after": u.c.wound_state(),
+			"status": res.get("status", {}), "ignited": res.get("ignited", false)})
+	var gname := Items.display_name(key) if key != "" else "grenade"
+	events.append({"type": "blast", "unit": cur.id, "cell": cell, "center": center, "hit": check.success, "damage": dmg, "hits": hits,
+		"destroyed": destroyed, "payload": key})
+	say("%s throws %s%s: %s, %d caught." % [cur.c.display_name, "a " + gname.to_lower() if key == "" else gname, "" if check.success else " (off target)",
+		"%d damage" % dmg if not no_damage else "no damage", hits.filter(func(h): return h.damage > 0 or not h.status.is_empty()).size()])
 	_check_end()
 	return {"ok": true, "hit": check.success, "center": center, "damage": dmg, "hits": hits}
 
@@ -1810,6 +1844,58 @@ func _take_cover(u: Dictionary) -> void:
 	say("%s is pinned down and dives for cover." % u.c.display_name)
 	if dest.x >= 0 and dest != u.pos:
 		move_to(dest, true)
+
+
+# --- Kit (safehouse gear packed for the gig) -------------------------------------------
+
+## Why the active crew member can't use kit slot `slot` as `how` ("grenade" | "dose"), or "".
+func _kit_ready(slot: int, how: String) -> String:
+	if cur.is_empty() or cur.team != CREW:
+		return "not your turn"
+	if slot < 0 or slot >= cur.c.kit.size() or cur.c.kit[slot] == "":
+		return "nothing in that slot"
+	if cur.c.kit_spent[slot]:
+		return "already used"
+	if Items.use(cur.c.kit[slot]) != how:
+		return "can't use it that way"
+	if not turn.action_available:
+		return "no action left"
+	return ""
+
+
+## What a kit slot does in the field: "grenade" (pick a square), "dose" (on yourself), "carried"
+## (works while on you), or "" if empty or spent.
+func kit_action(slot: int) -> String:
+	if cur.is_empty() or slot < 0 or slot >= cur.c.kit.size() or cur.c.kit[slot] == "" or cur.c.kit_spent[slot]:
+		return ""
+	return Items.use(cur.c.kit[slot])
+
+
+## Take a drug from a kit slot (an Action, p.357: dosing yourself). Effects last the gig
+## (HOUSE-RULE: their 4-24 hours outlast any gig); Black Lace costs 2d6 Humanity now (p.358).
+func take_dose(slot: int) -> Dictionary:
+	var why := _kit_ready(slot, "dose")
+	if why != "":
+		return {"ok": false, "reason": why}
+	turn.use_action()
+	var key: String = cur.c.kit[slot]
+	var drug: String = key.get_slice("/", 1)
+	var fx := Items.fx(key)
+	cur.c.kit_spent[slot] = true
+	cur.c.drugs_taken.append(drug)
+	var eff := {}
+	for k in ["stat_bonus", "skill_bonus", "ignore_seriously_wounded"]:
+		if fx.has(k):
+			eff[k] = fx[k]
+	cur.c.drug_fx.append(eff)
+	var hl := 0
+	if String(fx.get("humanity_loss", "")) != "":
+		hl = Combatant.roll_hl(dice, String(fx.humanity_loss))
+		cur.c.lose_humanity(hl)
+		cur.c.drug_humanity[drug] = int(cur.c.drug_humanity.get(drug, 0)) + hl
+	events.append({"type": "dose", "unit": cur.id, "target": cur.id, "drug": drug, "healed": 0, "name": Items.display_name(key)})
+	say("%s takes %s%s." % [cur.c.display_name, Items.display_name(key), " (-%d Humanity)" % hl if hl > 0 else ""])
+	return {"ok": true, "humanity": hl}
 
 
 ## Reload (an Action, p169) as an event, so the view can play it. A jammed Poor Quality weapon

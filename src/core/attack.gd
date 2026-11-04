@@ -133,7 +133,8 @@ static func apply_damage(dice: Dice, defender: Combatant, r: Dictionary, halve_s
 		if head_aimed:
 			through *= defender.head_multiplier()  # p170, Cracked Skull p222
 		if not fx.get("no_ablate", false):
-			defender.ablate(r.location)  # p186
+			for k in maxi(1, int(fx.get("ablate_sp", 1))):   # Armor-Piercing ammo ablates 2 (p.345)
+				defender.ablate(r.location)  # p186
 		# Solo Damage Deflection (p146): reduces the first damage taken this Round.
 		# Interpretation: applied to HP damage after armor and head multiplier.
 		var dd := defender.awareness_level("damage_deflection")
@@ -172,16 +173,39 @@ static func on_hit_effects(dice: Dice, weapon: Weapon, defender: Combatant, r: D
 	for i in int(fx.get("acid_sp_ablate", 0)):   # HOUSE-RULE: the Air Pistol is sold loaded with acid
 		defender.ablate(String(r.location))
 	var st: Dictionary = fx.get("status", {})
-	if st.is_empty():
+	if not st.is_empty():
+		apply_status(dice, defender, st, fx, r)
+
+
+## A forced check against a condition (weapon hits, gas and flash grenades). Fills r.status (and
+## r.crits). Statuses: damaged_ear (Shrieker), cyberware_disabled (Microwaver), flashbang (Damaged
+## Eye and Ear for a minute, DV15, p.346), teargas (Damaged Eye for a minute, DV13, meat eyes only,
+## p.347). Injuries these give carry no Bonus Damage and, if timed, wear off.
+static func apply_status(dice: Dice, defender: Combatant, st: Dictionary, fx: Dictionary, r: Dictionary) -> void:
+	if not r.has("crits"):
+		r["crits"] = []
+	if String(fx.get("meat_only", "")) == "eyes" and defender.has_cyberware("cybereye"):
+		r["status"] = {"name": String(st.name), "resisted": true, "immune": true}
 		return
 	var resist := Check.vs_dv(dice, defender.skill_base(String(st.check)) - defender.action_penalty(), int(st.dv))
 	r["status"] = {"name": String(st.name), "resisted": resist.success}
 	if resist.success:
 		return
+	var rounds: Variant = st.get("rounds")
+	var crit_ids: Array = st.get("crit_injuries", [])
+	if String(st.name) == "damaged_ear":
+		crit_ids = ["damaged_ear"]
+	for cid in crit_ids:
+		if defender.has_injury(String(cid)):
+			continue
+		var entry := _head_crit(String(cid))
+		if entry.is_empty():
+			continue
+		var inj := defender.add_injury(entry, "head", false)
+		if rounds != null:
+			inj["expires_in"] = int(rounds)   # "for the next minute" (20 rounds of 3 s, p126)
+		r.crits.append(inj)
 	match String(st.name):
-		"damaged_ear":
-			if not defender.has_injury("damaged_ear"):
-				r.crits.append(defender.add_injury(RulesDB.crit_table("head")["10"], "head", false))
 		"cyberware_disabled":
 			# HOUSE-RULE (the GM picks two, p348): the first pieces that do something in a fight.
 			var hit := 0
@@ -192,6 +216,14 @@ static func on_hit_effects(dice: Dice, weapon: Weapon, defender: Combatant, r: D
 					defender.cyber_off[cid] = int(st.get("rounds", 20))   # a minute (p126: 3 s turns)
 					hit += 1
 			r.status["pieces"] = hit
+
+
+static func _head_crit(id: String) -> Dictionary:
+	var t := RulesDB.crit_table("head")
+	for k in t:
+		if t[k] is Dictionary and String(t[k].get("id", "")) == id:
+			return t[k]
+	return {}
 
 
 ## Firing the Shrieker without ear protection gives the shooter a Damaged Ear (p349).
@@ -313,8 +345,8 @@ static func explosion(dice: Dice, attack_total: int, damage_dice: int, targets: 
 
 ## The same with the damage already rolled (the caller needs it first, to decide which cover the
 ## blast destroys and so who is still covered, p174).
-static func explosion_rolled(dice: Dice, attack_total: int, faces: PackedInt32Array, targets: Array) -> Array:
-	return _area_hit(dice, attack_total, faces, targets, true)
+static func explosion_rolled(dice: Dice, attack_total: int, faces: PackedInt32Array, targets: Array, fx: Dictionary = {}) -> Array:
+	return _area_hit(dice, attack_total, faces, targets, true, fx)
 
 
 ## Suppressive Fire (p174): every on-foot, uncovered target in LOS within 25 m rolls

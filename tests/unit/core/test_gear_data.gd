@@ -11,7 +11,11 @@ const BASE_FX := ["skill_bonus", "stat_bonus", "attack_bonus", "damage_dice", "d
 const IMPLEMENTED_FX := ["attack_bonus", "no_damage", "acid_sp_ablate", "no_crit_injury", "no_ablate", "non_lethal",
 	"ignores_sp_below", "halves_sp", "keyed_to_owner", "burning", "shell_only", "no_aimed_shot", "autofire_only",
 	"ammo_per_attack", "reload_actions", "min_body", "requires", "smartgun", "status", "self_status", "disable_count",
-	"battery_shots", "battery_cost", "battery_recharge"]   # battery packs play as a magazine (reload = swap a pack)
+	"battery_shots", "battery_cost", "battery_recharge",   # battery packs play as a magazine (reload = swap a pack)
+	# kit items (inventory): grenade payloads, drugs, carried tools
+	"ablate_sp", "burning_trigger", "burning_stacks", "burning_extinguish", "duration", "meat_only", "consumable",
+	"administer", "addiction_dv", "addiction_check", "stack_extends", "stat_bonus", "stat_cap_bypass", "paranoia",
+	"addicted", "humanity_loss", "humanity_refund_on_resist", "ignore_seriously_wounded", "skill_bonus", "no_stack"]
 const AMMO_KINDS := ["bullets", "arrows", "grenades", "rockets", "shotgun_shells", "none"]
 const SECTIONS := ["attachments", "ammo", "shields", "gear", "fashion", "drugs", "pharmaceuticals", "therapy"]
 
@@ -79,6 +83,18 @@ func test_attachments_and_ammo_reference_real_things() -> void:
 	for id in g.ammo:
 		for t in g.ammo[id].get("types", []):
 			assert_true(String(t) in AMMO_KINDS, "ammo %s: kind %s" % [id, t])
+
+
+func test_the_market_only_sells_gear_that_plays() -> void:
+	for key in Items.all():
+		var it := Items.def(key)
+		assert_false(it.has("unmodelled"), "%s is sold, so nothing about it may be unmodelled" % key)
+		assert_true(String(it.get("kit", "")) in ["consumable", "utility"], "%s: a kit kind" % key)
+		assert_true(String(it.get("kit_use", "")) in ["grenade", "dose", "carried"], "%s: how it's used" % key)
+		if Items.use(key) != "carried":
+			assert_true(Items.short_name(key).length() <= 8, "%s: a short action-bar label" % key)
+		for k in it.get("fx", {}):
+			assert_true(k in IMPLEMENTED_FX, "%s is sold, so its fx %s must be implemented" % [key, k])
 
 
 func test_the_market_only_sells_what_plays() -> void:

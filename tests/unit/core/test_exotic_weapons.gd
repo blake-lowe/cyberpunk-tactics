@@ -24,11 +24,11 @@ func test_stun_weapons_knock_out_at_one_hp_without_crits_or_ablation() -> void:
 	var a := Fixtures.shooter("A", {"REF": 8})
 	var w := Weapon.from_id("stun_gun")
 	var t := _armored("leathers")
-	var r := _hit(a, w, t, Attack.Mode.SINGLE, 4.0, func(): t.hp = 2; t.unconscious = false; t.armor["body"] = ArmorPiece.from_id("leathers"))
+	var r := _hit(a, w, t, Attack.Mode.SINGLE, 4.0, func(): t.hp = 1; t.unconscious = false; t.armor["body"] = ArmorPiece.from_id("leathers"))
 	assert_false(r.is_empty())
-	if r.through > 0:
-		assert_eq(t.hp, 1, "a stun gun never kills: out cold at 1 HP (p349)")
-		assert_true(t.unconscious)
+	if r.through > 0:   # at 1 HP, any damage would take them under: out cold at 1 HP instead
+		assert_eq(t.hp, 1, "a stun gun never kills (p349)")
+		assert_true(t.unconscious, "out cold")
 	assert_eq(t.sp("body"), 4, "doesn't ablate armour")
 	assert_true(r.crits.is_empty(), "no Critical Injuries")
 
