@@ -55,6 +55,7 @@ var eb := 0
 var rep := 0                         ## street cred: the overall name (market access, crew size of the board)
 var heat := 0                        ## 0-10: how hard NCPD is looking for the crew (spec: consequences, heat)
 var fixer_rep := {}                  ## fixer name → reputation with them (spec: per-fixer reputation)
+var faction_rep := {}                ## World faction id → standing (negative: they know who hit them)
 var day := 1
 var crew: Array[Combatant] = []
 var fallen: Array[Dictionary] = []   ## {name, role, day, gig}: the wall
@@ -346,6 +347,11 @@ func resolve(e: Encounter) -> Dictionary:
 		say("%d bystander%s hurt. %s won't forget it." % [e.civ_casualties, "" if e.civ_casualties == 1 else "s", gig.fixer])
 	heat = clampi(heat + report.heat, 0, 10)
 	rep = maxi(0, rep + report.rep)
+	# HOUSE-RULE: a faction the crew hit and got noticed by (a win, or an alarm) remembers.
+	var target := String(gig.get("faction", ""))
+	if target != "" and (won or e.alarm >= 1):
+		faction_rep[target] = int(faction_rep.get(target, 0)) - 1
+		report["standing"] = {target: -1}
 	var fx_name := String(gig.get("fixer", ""))
 	if fx_name != "" and not (won and gig.get("setup", false)):
 		fixer_rep[fx_name] = maxi(0, rep_with(fx_name) + report.rep)
@@ -631,12 +637,17 @@ func upgrade(facility: String) -> bool:
 # --- Save / load ------------------------------------------------------------------
 
 func to_dict() -> Dictionary:
-	return {"version": 1, "seed": seed_value, "eb": eb, "rep": rep, "day": day, "crew": crew.map(func(c): return c.to_dict()),
+	return {"version": SaveMigrations.CURRENT, "seed": seed_value, "eb": eb, "rep": rep, "day": day, "crew": crew.map(func(c): return c.to_dict()),
 		"fallen": fallen, "board": board, "recruits": recruits.map(func(c): return c.to_dict()), "log": log.slice(-50),
-		"rng_state": dice.rng.state, "facilities": facilities, "fixer_rep": fixer_rep, "heat": heat}
+		"rng_state": dice.rng.state, "facilities": facilities, "fixer_rep": fixer_rep, "faction_rep": faction_rep, "heat": heat}
 
 
-static func from_dict(d: Dictionary) -> Campaign:
+## A campaign from a save dictionary, upgraded to the current format first (SaveMigrations).
+## Null if the save is from a newer build.
+static func from_dict(raw: Dictionary) -> Campaign:
+	var d := SaveMigrations.migrate(raw)
+	if d.is_empty():
+		return null
 	var c := Campaign.new()
 	c.seed_value = int(d.seed)
 	c.dice = Dice.new(c.seed_value)
@@ -655,6 +666,8 @@ static func from_dict(d: Dictionary) -> Campaign:
 	c.heat = int(d.get("heat", 0))
 	for k in d.get("fixer_rep", {}):
 		c.fixer_rep[String(k)] = int(d.fixer_rep[k])
+	for k in d.get("faction_rep", {}):
+		c.faction_rep[String(k)] = int(d.faction_rep[k])
 	for k in d.get("facilities", {}):
 		c.facilities[String(k)] = int(d.facilities[k])
 	for l in d.get("log", []):
