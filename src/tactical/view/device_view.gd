@@ -56,7 +56,7 @@ func build(m: TacMap, gy: Callable) -> void:
 				_box(root, Vector3(0.16, 0.16, 0.36), Vector3(0, 0.12, 0.05), Color("4a5262"))
 				_box(root, Vector3(0.04, 0.04, 0.3), Vector3(0, 0.2, 0.3), Color("15181e"))
 				_led(d.id, root, Vector3(0, 0.3, 0.12), Vector3(0.05, 0.03, 0.05), RED, 3.0, "eye")
-			"alarm_panel", "sprinkler_valve", "shutter_control", "cell_locks", "light_rig", "floodlight", "assembly_line":
+			"alarm_panel", "sprinkler_valve", "shutter_control", "cell_locks", "light_rig", "floodlight", "assembly_line", "vault_lock", "pa_system":
 				_box(root, Vector3(0.26, 0.32, 0.05), Vector3(0, 0.55, back + 0.03), Color("2a303c"))
 				_led(d.id, root, Vector3(0, 0.62, back + 0.06), Vector3(0.12, 0.05, 0.01), AMBER, 2.0, "panel")
 			_:

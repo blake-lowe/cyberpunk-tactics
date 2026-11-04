@@ -370,7 +370,7 @@ func _roof_look(sid: int) -> Dictionary:
 	var site := _site_of(sid)
 	if site in ["warehouse", "factory", "chop_shop"]:
 		return {"color": Color("4c5056"), "color2": Color("2e3236"), "pattern": 8, "scale": 1.3}
-	if site in ["corp_office", "corp_hq", "data_center"]:
+	if site in ["corp_office", "corp_hq", "data_center", "bank"]:
 		return ROOF_LOOKS[3]
 	return ROOF_LOOKS[posmod(hash(sid * 2654435761 + m.seed_value), ROOF_LOOKS.size())]
 
@@ -413,16 +413,16 @@ func _floor_key(f: int, x: int, y: int) -> String:
 
 func _room_floor(r: Dictionary) -> String:
 	var k: String = r.kind
-	for w in ["bar", "club", "lounge", "apartment", "living", "bedroom", "boss", "exec", "study", "vip", "dining", "temple", "shrine", "quarters", "foyer"]:
+	for w in ["bar", "club", "lounge", "apartment", "living", "bedroom", "boss", "exec", "study", "vip", "dining", "temple", "shrine", "quarters", "foyer", "gym", "auditorium"]:
 		if k.contains(w):
 			return "floor_wood" if k != "dance_floor" else "floor_tile"
 	for w in ["warehouse", "factory", "garage", "storage", "loading", "cargo", "workshop", "dock", "squat", "stash", "shack", "engine", "cage", "parking", "yard", "platform", "quay", "rubble"]:
 		if k.contains(w):
 			return "floor_concrete"
-	for w in ["server", "vault", "armory", "security", "control", "cooling", "evidence", "holding", "panic", "armored"]:
+	for w in ["server", "vault", "armory", "security", "control", "cooling", "evidence", "holding", "panic", "armored", "mantrap"]:
 		if k.contains(w):
 			return "floor_vault" if k.contains("vault") else "floor_metal"
-	for w in ["office", "meeting", "waiting", "recovery", "capsule", "booth"]:
+	for w in ["office", "meeting", "waiting", "recovery", "capsule", "booth", "guest", "suite", "library"]:
 		if k.contains(w):
 			return "floor_carpet"
 	return "floor_tile"
@@ -877,10 +877,10 @@ func _piece(kind: String, p: Vector3, yaw: float, f: int, h0: int) -> void:
 	var S := mat("steel", f, false)
 	var D := mat("dark", f, false)
 	match kind:
-		"desk", "table", "reception", "stall", "kiosk":
-			var top := 0.38 if kind != "reception" else 0.5
+		"desk", "table", "reception", "counter", "stall", "kiosk":
+			var top := 0.38 if not (kind in ["reception", "counter"]) else 0.5
 			box(W if kind != "desk" else mat("dark", f, false), p + Vector3(0, top, 0), Vector3(0.8, 0.05, 0.55), yaw)
-			if kind == "reception" or kind == "kiosk" or kind == "stall":
+			if kind in ["reception", "counter", "kiosk", "stall"]:
 				box(W, p + Vector3(0, top / 2, 0), Vector3(0.78, top, 0.5), yaw)
 				if kind == "stall":
 					box(mat("fabric", f, false, {"color": neon[h0 % neon.size()].darkened(0.5)}), p + Vector3(0, 0.95, 0), Vector3(0.95, 0.04, 0.8), yaw)
@@ -890,12 +890,19 @@ func _piece(kind: String, p: Vector3, yaw: float, f: int, h0: int) -> void:
 						box(D, p + Vector3(sx, top / 2, sz).rotated(Vector3.UP, yaw), Vector3(0.04, top, 0.04), yaw)
 			if kind == "desk":
 				box(mat("dark", f, false, {"glow": 1.2, "emit": Color("4fd8ff")}), p + Vector3(0, top + 0.12, -0.1).rotated(Vector3.UP, yaw), Vector3(0.3, 0.2, 0.02), yaw)
-		"sofa", "bed", "bench", "pew", "seat", "chair":
-			var mt := mat("fabric", f, false) if kind in ["sofa", "bed"] else (W if kind in ["pew", "seat"] else S)
+		"sofa", "booth", "bed", "bench", "pew", "seat", "chair":
+			var mt := mat("fabric", f, false) if kind in ["sofa", "booth", "bed"] else (W if kind in ["pew", "seat"] else S)
 			var w := 0.85 if kind != "seat" and kind != "chair" else 0.4
 			box(mt, p + Vector3(0, 0.12, 0), Vector3(w, 0.24, 0.5), yaw)
-			if kind != "bed" and kind != "bench":
+			if kind == "booth":   # a high wooden back, the seat upholstered
+				box(W, p + Vector3(0, 0.45, -0.21).rotated(Vector3.UP, yaw), Vector3(w, 0.9, 0.1), yaw)
+			elif kind != "bed" and kind != "bench":
 				box(mt, p + Vector3(0, 0.32, -0.21).rotated(Vector3.UP, yaw), Vector3(w, 0.4, 0.1), yaw)
+		"stove":   # a kitchen range: steel body, dark hob, burners glowing
+			box(S, p + Vector3(0, 0.22, 0), Vector3(0.75, 0.44, 0.55), yaw)
+			box(D, p + Vector3(0, 0.45, 0), Vector3(0.72, 0.02, 0.52), yaw)
+			for bx in [-0.18, 0.18]:
+				box(mat("dark", f, false, {"glow": 1.6, "emit": Color("ff6a1a")}), p + Vector3(bx, 0.47, 0).rotated(Vector3.UP, yaw), Vector3(0.16, 0.01, 0.16), yaw)
 		"planter", "tree":
 			box(mat("stone", f, false), p + Vector3(0, 0.15, 0), Vector3(0.6, 0.3, 0.6), yaw)
 			var r := 0.5 if kind == "planter" else 0.9
@@ -1204,7 +1211,7 @@ func _structure_at(f: int, x: int, y: int) -> int:
 	return -1
 
 
-const HOMES := ["apartments", "capsule_hotel", "squat", "villa", "gang_hideout", "bar", "shop", "bd_parlor"]
+const HOMES := ["apartments", "capsule_hotel", "squat", "villa", "gang_hideout", "bar", "shop", "bd_parlor", "hotel"]
 
 
 ## Residential upper floors: a slab balcony with a railing outside some of the windows.

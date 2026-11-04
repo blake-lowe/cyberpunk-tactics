@@ -23,7 +23,7 @@
 			"profile": "market_streets"
 		},
 		"restaurant": {
-			"site": "bar"
+			"site": "restaurant"
 		},
 		"housing": {
 			"site": "apartments"
@@ -32,7 +32,7 @@
 			"site": "capsule_hotel"
 		},
 		"hotel": {
-			"site": "apartments"
+			"site": "hotel"
 		},
 		"megabuilding": {
 			"scene": "megablock"
@@ -53,7 +53,7 @@
 			"site": "data_center"
 		},
 		"bank": {
-			"site": "corp_office"
+			"site": "bank"
 		},
 		"media": {
 			"site": "corp_office"
@@ -98,7 +98,7 @@
 			"site": "temple"
 		},
 		"school": {
-			"site": "corp_office"
+			"site": "school"
 		},
 		"civic": {
 			"site": "corp_office"

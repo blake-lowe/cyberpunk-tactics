@@ -946,17 +946,23 @@ func _detonate(center: Vector3i, half: int, n_dice: int, by: int, total := 17) -
 ## The objective's square (the package, the mark, the captive, the machine): indoors in the target
 ## building's most secure zone, as far from the deploy zone as walking gets (upper floors count
 ## through the distance field), off guard posts and cover.
-func secure_cell(target_sid: int, origin: Vector2i) -> Vector3i:
+func secure_cell(target_sid: int, origin: Vector2i, role := "") -> Vector3i:
 	var field: Dictionary = nav.distance_field([Vector3i(origin.x, origin.y, 0)], {})
 	var best := Vector3i(origin.x, origin.y, 0)
 	var best_d := -1.0
 	var occ := occupied()
+	# A site's own anchors (sites.json `anchors.<role>.<room kind>`: a bonus worth ~20 per security
+	# level): where its mark sits (vip), its captive is held, its package or machine is kept.
+	var anchors: Dictionary = {}
+	if target_sid >= 0 and target_sid < m.structures.size():
+		anchors = RulesDB.gen("sites.json").get(String(m.structures[target_sid].get("site", "")), {}).get("anchors", {}).get(role, {})
 	for cell in field:
 		var l := m.label(cell.z, cell.x, cell.y)
 		if l < 0 or m.rooms[l].structure != target_sid or m.rooms[l].get("kind", "") == "roof" or occ.has(cell) \
 				or m.has_cover_at(cell.z, Vector2i(cell.x, cell.y)):
 			continue
-		var score := float(field[cell]) + 20.0 * int(m.rooms[l].get("zone", 0))   # the most secure rooms first
+		var score := float(field[cell]) + 20.0 * int(m.rooms[l].get("zone", 0)) \
+			+ float(anchors.get(String(m.rooms[l].get("kind", "")), 0.0))   # the most secure rooms first
 		if score > best_d:
 			best_d = score
 			best = cell

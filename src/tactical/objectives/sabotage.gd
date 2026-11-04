@@ -5,7 +5,7 @@ extends Objective
 
 ## The machine: a big piece of hardware (cover) in the target building's most secure room.
 func setup(target_sid: int, origin: Vector2i, _sec: int) -> void:
-	var cell := e.secure_cell(target_sid, origin)
+	var cell := e.secure_cell(target_sid, origin, "machine")
 	var targets: Dictionary = cfg.targets
 	var kinds := targets.keys()
 	var kind: String = kinds[e.dice.d(kinds.size()) - 1]
