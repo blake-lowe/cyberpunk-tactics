@@ -53,7 +53,7 @@ func test_corporate_sites_carry_trauma_cards_by_doctrine() -> void:
 	var officers := mil.units.filter(func(u): return u.team == Encounter.OPFOR and String(u.c.role) in ["lieutenant", "mini_boss"] and not u.get("vip", false))
 	assert_false(officers.is_empty())
 	assert_true(officers.all(func(u): return u.get("trauma_card", false)), "Militech officers all carry cards (by tier, not by name)")
-	var gang := _enc("valentinos", "gang_hideout", "assassinate")
+	var gang := _enc("voodoo_boys", "gang_hideout", "assassinate")
 	assert_false(gang.units.any(func(u): return u.get("trauma_card", false)), "gangers don't")
 
 

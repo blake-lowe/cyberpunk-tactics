@@ -357,7 +357,7 @@ trial by combat (p.146). Security faction printed as "Patrons".
 {
 	"name": "The Slammer", "district": "south_night_city", "number": 13, "type": "bar",
 	"owner": "", "owner_name": "Cassius Brown (Solo 6)",
-	"security_code": {"n": 10, "faction": "slammer_patrons", "intensity": "medium", "hardened": true},
+	"security_code": {"n": 10, "faction": "locals", "intensity": "medium", "hardened": true},
 	"utility_code": null,
 	"npcs": ["Cassius Brown (Solo 6)", "JessiGames (Fixer 4)"],
 	"hooks": [{"text": "Gangs from across the city book the Arena to settle disputes with agreed terms, and JessiGames runs the betting.", "gigs": ["gang_hit"]}],

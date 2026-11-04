@@ -1106,7 +1106,7 @@
 			"owner_name": "",
 			"security_code": {
 				"n": 10,
-				"faction": "patrons",
+				"faction": "locals",
 				"intensity": "heavy",
 				"hardened": false
 			},
@@ -2664,7 +2664,7 @@
 			"owner_name": "",
 			"security_code": {
 				"n": 11,
-				"faction": "unknown",
+				"faction": "locals",
 				"intensity": "heavy",
 				"hardened": true
 			},
@@ -2832,7 +2832,7 @@
 			"owner_name": "Toggle (Tech 5)",
 			"security_code": {
 				"n": 8,
-				"faction": "patrons",
+				"faction": "locals",
 				"intensity": "light",
 				"hardened": true
 			},
@@ -3478,7 +3478,7 @@
 			"owner_name": "Ryu Sensei (Solo 6)",
 			"security_code": {
 				"n": 10,
-				"faction": "staff",
+				"faction": "locals",
 				"intensity": "heavy",
 				"hardened": false
 			},
@@ -3933,7 +3933,7 @@
 			"owner_name": "Auntie Hung (Solo 6)",
 			"security_code": {
 				"n": 3,
-				"faction": "",
+				"faction": "locals",
 				"intensity": "heavy",
 				"hardened": true
 			},
@@ -4668,7 +4668,7 @@
 			"owner_name": "Brain (Tech 6/Netrunner 2) and 3-Piece (Fixer 5/Media 2)",
 			"security_code": {
 				"n": 9,
-				"faction": "patrons",
+				"faction": "locals",
 				"intensity": "medium",
 				"hardened": false
 			},
@@ -5328,7 +5328,7 @@
 			"owner_name": "",
 			"security_code": {
 				"n": 4,
-				"faction": "various",
+				"faction": "locals",
 				"intensity": "light",
 				"hardened": true
 			},
@@ -5480,7 +5480,7 @@
 			"owner_name": "Charlie Diamond (Netrunner 4)",
 			"security_code": {
 				"n": 8,
-				"faction": "dillon_murphy_students",
+				"faction": "locals",
 				"intensity": "light",
 				"hardened": true
 			},
@@ -6081,7 +6081,7 @@
 			"owner_name": "John \"The Professor\" Freeman (Fixer 8) and Marianne Freeman (Fixer 6/Tech 4)",
 			"security_code": {
 				"n": 10,
-				"faction": "patrons",
+				"faction": "locals",
 				"intensity": "heavy",
 				"hardened": true
 			},
@@ -7086,7 +7086,7 @@
 			"owner_name": "Hiro (Fixer 5)",
 			"security_code": {
 				"n": 10,
-				"faction": "steve_and_friends",
+				"faction": "locals",
 				"intensity": "medium",
 				"hardened": true
 			},
@@ -8021,7 +8021,7 @@
 			"owner_name": "Block clan (Ma Block, Fixer 2)",
 			"security_code": {
 				"n": 7,
-				"faction": "staff",
+				"faction": "locals",
 				"intensity": "medium",
 				"hardened": false
 			},
@@ -10021,7 +10021,7 @@
 			"owner_name": "Medical Technologies",
 			"security_code": {
 				"n": 5,
-				"faction": "various_gangs",
+				"faction": "locals",
 				"intensity": "medium",
 				"hardened": false
 			},
@@ -10118,7 +10118,7 @@
 			"owner_name": "",
 			"security_code": {
 				"n": 5,
-				"faction": "various_gangs",
+				"faction": "locals",
 				"intensity": "medium",
 				"hardened": false
 			},
@@ -10473,7 +10473,7 @@
 			"owner_name": "Cheech (Exec 3)",
 			"security_code": {
 				"n": 10,
-				"faction": "residents",
+				"faction": "locals",
 				"intensity": "medium",
 				"hardened": false
 			},
@@ -11154,7 +11154,7 @@
 			"owner_name": "",
 			"security_code": {
 				"n": 10,
-				"faction": "residents",
+				"faction": "locals",
 				"intensity": "medium",
 				"hardened": false
 			},
@@ -11287,7 +11287,7 @@
 			"owner_name": "",
 			"security_code": {
 				"n": 8,
-				"faction": "patrons",
+				"faction": "locals",
 				"intensity": "heavy",
 				"hardened": false
 			},
@@ -11959,7 +11959,7 @@
 			"owner_name": "Cassius Brown (Solo 6)",
 			"security_code": {
 				"n": 10,
-				"faction": "slammer_patrons",
+				"faction": "locals",
 				"intensity": "medium",
 				"hardened": true
 			},
@@ -12920,7 +12920,7 @@
 			"owner_name": "",
 			"security_code": {
 				"n": 10,
-				"faction": "residents",
+				"faction": "locals",
 				"intensity": "heavy",
 				"hardened": false
 			},
@@ -13459,7 +13459,7 @@
 			"owner_name": "Rogue Amendiares (Solo 7/Fixer 7)",
 			"security_code": {
 				"n": 11,
-				"faction": "patrons",
+				"faction": "locals",
 				"intensity": "heavy",
 				"hardened": true
 			},
@@ -15051,7 +15051,7 @@
 			"owner_name": "Morgan (Fixer 3)",
 			"security_code": {
 				"n": 7,
-				"faction": "patrons",
+				"faction": "locals",
 				"intensity": "medium",
 				"hardened": true
 			},
@@ -15281,7 +15281,7 @@
 			"owner_name": "Pochinko clan of Blood Nation nomads (Libby Manseau, Nomad 4/Rockerboy 5)",
 			"security_code": {
 				"n": 10,
-				"faction": "staff",
+				"faction": "locals",
 				"intensity": "light",
 				"hardened": true
 			},

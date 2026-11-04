@@ -786,7 +786,7 @@ Martial arts school: Arasaka-te for beginners, advanced arts in Tora-no-Ana; the
 	"owner_name": "Ryu Sensei (Solo 6)",
 	"security_code": {
 		"n": 10,
-		"faction": "staff",
+		"faction": "locals",
 		"intensity": "heavy",
 		"hardened": false
 	},

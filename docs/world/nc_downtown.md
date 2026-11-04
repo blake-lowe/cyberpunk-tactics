@@ -424,7 +424,7 @@ A private Victorian-style social club for exotics only (500eb a year), with a lo
 	"type": "club",
 	"owner": "",
 	"owner_name": "",
-	"security_code": {"n": 10, "faction": "patrons", "intensity": "heavy", "hardened": false},
+	"security_code": {"n": 10, "faction": "locals", "intensity": "heavy", "hardened": false},
 	"utility_code": null,
 	"npcs": [],
 	"hooks": [],

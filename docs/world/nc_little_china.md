@@ -323,7 +323,7 @@ China: troublemakers disappear and later turn up concussed and tied to lamp post
 	"type": "housing",
 	"owner": "",
 	"owner_name": "Auntie Hung (Solo 6)",
-	"security_code": {"n": 3, "faction": "", "intensity": "heavy", "hardened": true},
+	"security_code": {"n": 3, "faction": "locals", "intensity": "heavy", "hardened": true},
 	"utility_code": null,
 	"npcs": ["Auntie Hung (Solo 6)"],
 	"hooks": [

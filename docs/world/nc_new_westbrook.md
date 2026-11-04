@@ -776,7 +776,7 @@ Drive-in cinema loved by nomads, especially the Steel Vaqueros, plus the Prime-T
 	"owner_name": "",
 	"security_code": {
 		"n": 4,
-		"faction": "various",
+		"faction": "locals",
 		"intensity": "light",
 		"hardened": true
 	},
@@ -963,7 +963,7 @@ Drives the district handing out Kibble soup at tent cities and camps.
 	"owner_name": "Charlie Diamond (Netrunner 4)",
 	"security_code": {
 		"n": 8,
-		"faction": "dillon_murphy_students",
+		"faction": "locals",
 		"intensity": "light",
 		"hardened": true
 	},

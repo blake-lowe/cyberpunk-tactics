@@ -68,11 +68,11 @@ func test_printed_armour_and_kit() -> void:
 
 func test_factions_field_their_roster_blocks() -> void:
 	for i in 10:
-		var g := World.npc(Dice.new(i), "wraiths", "mook", 1)
-		assert_eq(g.block, "road_ganger", "the Wraiths field Road Gangers")
+		var g := World.npc(Dice.new(i), "nomads", "mook", 1)
+		assert_eq(g.block, "road_ganger", "the nomads field Road Gangers")
 		assert_eq(g.role, "mook")
 	var corp := World.npc(Dice.new(2), "militech", "lieutenant", 1)
-	assert_eq(corp.block, "security_officer")
+	assert_eq(corp.block, "militech_security_guard", "Militech's own printed block (NC2045 p.231)")
 	var fallback := World.npc(Dice.new(2), "ncpd", "mini_boss", 1)
 	assert_true(fallback.block in ["outrider", "pyro"], "no NCPD mini boss: the tier's default pool")
 

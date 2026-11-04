@@ -197,15 +197,15 @@ func test_a_response_from_another_faction_comes_on_its_own_side() -> void:
 
 
 func test_an_unknown_responder_turns_up_as_security_under_its_name() -> void:
-	var e := _enc(3, {"faction": "militech", "security_code": {"n": 11, "faction": "kimen_gumi", "intensity": "medium", "hardened": false}, "district_code": {}})
+	var e := _enc(3, {"faction": "militech", "security_code": {"n": 11, "faction": "acme_guards", "intensity": "medium", "hardened": false}, "district_code": {}})
 	e._call_it_in(e.units.filter(func(u): return u.team == Encounter.OPFOR)[0])
-	assert_eq(e.backup_label, "KIMEN GUMI")
+	assert_eq(e.backup_label, "ACME GUARDS")
 	var before := e.units.size()
 	e.backup_in = 1
 	e._backup_round = -5
 	e._tick_backup()
 	assert_true(e.units.size() > before)
-	assert_true(e.units[-1].c.display_name.begins_with("Kimen Gumi"))
+	assert_true(e.units[-1].c.display_name.begins_with("Acme Guards"))
 
 
 # --- Gigs carry their codes ----------------------------------------------------------------------

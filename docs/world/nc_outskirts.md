@@ -626,7 +626,7 @@ A 20eb-a-night roadside motel with a vendit hall for lone travellers avoiding a 
 	"owner_name": "Block clan (Ma Block, Fixer 2)",
 	"security_code": {
 		"n": 7,
-		"faction": "staff",
+		"faction": "locals",
 		"intensity": "medium",
 		"hardened": false
 	},
