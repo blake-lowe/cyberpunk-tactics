@@ -117,3 +117,25 @@ func update(z: HazardZone) -> void:
 	if z.stage > 0:
 		_curtain.scale = Vector3(r, 1.0, r)
 		_curtain.position = Vector3(z.center.x, 1.2, z.center.y)
+
+
+## Where the zone's name goes on the map: the point of the line the player is watching (the safe
+## edge once it has closed, else the dashed edge it closes to next) inside the area where it's
+## drawn, nearest `near` (the middle of the view). Vector2.INF when none of it is inside the area.
+static func tag_point(z: HazardZone, near: Vector2) -> Vector2:
+	var r := z.radius() if z.stage > 0 else z.next_radius()
+	var area := Rect2(z.area).grow(-1)
+	var best := Vector2.INF
+	var best_d := INF
+	for k in 96:
+		var p := z.center + Vector2.RIGHT.rotated(TAU * k / 96.0) * r
+		var d := p.distance_to(near)
+		if area.has_point(p) and d < best_d:
+			best_d = d
+			best = p
+	return best
+
+
+## The tag's words: the zone's name on its edge, "NEXT" on the dashed line before it first closes.
+static func tag_text(z: HazardZone) -> String:
+	return z.name if z.stage > 0 else "%s · NEXT" % z.name
