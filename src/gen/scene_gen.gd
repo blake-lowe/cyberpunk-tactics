@@ -34,6 +34,12 @@ static func generate(seed_value: int, scene: String, overrides: Dictionary = {})
 	p.merge(overrides, true)
 	if int(p.get("verticality", 1)) == 0:
 		p.floors = 1
+	# A tall district (DistrictLook height) raises the neighbourhood's skyline; the gig's own target
+	# keeps the scene's storeys (target_floors), so the job is no bigger.
+	var h := int(DistrictLook.of(String(p.get("district", ""))).get("height", 0))
+	if h > 0 and setpiece == "" and scene in ["street_block", "city_district", "neighborhood"] and not overrides.has("floors"):
+		p["target_floors"] = int(p.floors)
+		p.floors = int(p.floors) + h
 	var dice := Dice.new(seed_value)
 	if setpiece != "":
 		SetPieceGen.size(dice, p, overrides)

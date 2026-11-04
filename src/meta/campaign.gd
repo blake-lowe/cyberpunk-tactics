@@ -512,9 +512,11 @@ static func place_name(gig: Dictionary) -> String:
 	return String(RulesDB.gen("scenes.json").get(gig.get("scene", ""), {}).get("name", gig.get("scene", "")))
 
 
-## SceneGen options for a gig dict.
+## SceneGen options for a gig dict. Its district gives the scene its look (DistrictLook).
 static func scene_opts(gig: Dictionary) -> Dictionary:
 	var o := {"security": int(gig.get("security", 1))}
+	if String(gig.get("district", "")) != "":
+		o["district"] = gig.district
 	if String(gig.get("profile", "")) != "":
 		o["profile"] = gig.profile
 	if String(gig.get("site", "")) != "":

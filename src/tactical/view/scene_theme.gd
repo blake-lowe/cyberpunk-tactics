@@ -27,10 +27,39 @@ static func palettes() -> Dictionary:
 	return out
 
 
+## The scene's theme; a scene without one wears its gig's district look (DistrictLook: the same
+## keys plus light, walls, signs and grime), else the night-city defaults ({}).
 static func of(m: TacMap) -> Dictionary:
 	if m == null:
 		return {}
-	return themes().get(String(m.params.get("scene", "")), {})
+	var t: Dictionary = themes().get(String(m.params.get("scene", "")), {})
+	return t if not t.is_empty() else DistrictLook.of_params(m.params)
+
+
+## Sign density (0 none, 1 the default, 2 a market street's), from the district look.
+static func signs(m: TacMap) -> float:
+	return clampf(float(of(m).get("signs", 1.0)), 0.0, 2.0)
+
+
+## Street litter and overhead cables (0 swept clean, 1 the default, 2 a slum's).
+static func grime(m: TacMap) -> float:
+	return clampf(float(of(m).get("grime", 1.0)), 0.0, 2.0)
+
+
+## A building's facade colour from the look's pool for wall material `name` (walls.<name>:
+## {colors, pattern, scale}), picked by `pick`; {} when the look has no pool for it.
+static func wall_look(m: TacMap, name: String, pick: int) -> Dictionary:
+	var w: Dictionary = of(m).get("walls", {}).get(name, {})
+	var cols: Array = w.get("colors", [])
+	if cols.is_empty():
+		return {}
+	var col := Color(String(cols[posmod(pick, cols.size())]))
+	var out := {"color": col, "color2": col.darkened(0.42)}
+	if w.has("pattern"):
+		out["pattern"] = int(w.pattern)
+	if w.has("scale"):
+		out["scale"] = float(w.scale)
+	return out
 
 
 ## A LIB entry with this scene's recolour applied: [color, color2, pattern, scale, rough, metal, extra].

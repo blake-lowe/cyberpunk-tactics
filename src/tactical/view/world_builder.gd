@@ -89,11 +89,15 @@ var _sid_grid := PackedInt32Array()   ## building structure id per square (-1 no
 var neon: Array = []    ## this scene's sign colours (SceneTheme), for facade dressing and the skyline
 var emitters: Array = []  ## extra light-field sources from dressing: {cell, color, energy, range}
 var _sp_looks := {}      ## structure id → its set-piece look (SetPieceDressing.look), cached
+var signs := 1.0        ## neon sign density (SceneTheme.signs: the district's look)
+var grime := 1.0        ## street litter and cables (SceneTheme.grime)
 
 
 func _init(p_map: TacMap, p_vision: Vision, p_fog: Texture2D) -> void:
 	m = p_map
 	neon = SceneTheme.colors(m, "neon", NEON)
+	signs = SceneTheme.signs(m)
+	grime = SceneTheme.grime(m)
 	vision = p_vision
 	fog_tex = p_fog
 	var box := BoxMesh.new()
@@ -389,7 +393,12 @@ func _roof_look(sid: int) -> Dictionary:
 func _wall_look(name: String, sid: int) -> Dictionary:
 	if sid >= 0 and _sp_look(sid).has("wall"):
 		return SetPieceDressing.mat_over(_sp_look(sid).wall)
-	if sid < 0 or not WALL_LOOKS.has(name) or SceneTheme.of(m).get("mats", {}).has(name):
+	if sid < 0:
+		return {}
+	var dl := SceneTheme.wall_look(m, name, hash(sid * 40503 + m.seed_value * 7))   # the district's facades
+	if not dl.is_empty():
+		return dl
+	if not WALL_LOOKS.has(name) or SceneTheme.of(m).get("mats", {}).has(name):
 		return {}
 	var list: Array = WALL_LOOKS[name]
 	var col: Color = list[posmod(hash(sid * 40503 + m.seed_value * 7), list.size())]
@@ -1288,7 +1297,7 @@ func _multi(kind: String, r: Rect2, f: int, h0: int) -> void:
 func _street_clutter() -> void:
 	rng.seed = m.seed_value * 977
 	var D := mat("dark", 0, false)
-	var count := int(m.w * m.h * 0.035)
+	var count := int(m.w * m.h * 0.035 * grime)
 	for i in count:
 		var p := Vector2(rng.randf_range(0, m.w), rng.randf_range(0, m.h))
 		var c := Vector2i(int(p.x), int(p.y))
@@ -1303,7 +1312,7 @@ func _street_clutter() -> void:
 		else:             # manhole / drain
 			put("cyl", D, Transform3D(Basis.from_scale(Vector3(0.4, 0.01, 0.4)), Vector3(p.x, 0.005, p.y)))
 	# overhead cables between facing exterior walls across streets
-	for i in int(m.w * m.h / 160):
+	for i in int(m.w * m.h / 160 * minf(grime, 1.5)):
 		var x := rng.randi_range(1, m.w - 2)
 		var y := rng.randi_range(1, m.h - 2)
 		if m.t(0, x, y) != TacMap.T.OUTSIDE:
@@ -1419,7 +1428,7 @@ func _billboards(f: int) -> void:
 			if face == Vector2i.ZERO:
 				continue
 			rng.seed = hash(Vector3i(x, y, f)) + 99
-			if rng.randf() < 0.6:
+			if rng.randf() >= 0.4 * signs:
 				done[sid] = true
 				continue
 			done[sid] = true
@@ -1561,6 +1570,8 @@ func _facade_dressing(f: int) -> void:
 					continue
 				rng.seed = hash(Vector3i(x, y, f)) * 3 + d.x * 7 + d.y * 13
 				var roll := rng.randf()
+				if roll >= 0.06:   # the sign bands, stretched or squeezed by the district's sign density
+					roll = 0.06 + (roll - 0.06) / signs if signs > 0.0 else 1.0
 				var out := Vector3(d.x, 0, d.y)
 				var along := rng.randf_range(-0.3, 0.3)
 				var side := Vector3(-d.y, 0, d.x) * along
@@ -1752,12 +1763,12 @@ func _skyline(ruins := false) -> void:
 			if rng.randf() < 0.2 and dist > 14.0:
 				box(mat("dark", 0, false, {"glow": 1.6, "emit": Color("ff7a24"), "mode": 2, "near_fade": true}), Vector3(p.x, h + 0.1, p.y), Vector3(w * 0.5, 0.3, d * 0.5))
 			continue
-		if rng.randf() < 0.25:   # a vertical neon edge so the mass has an outline
+		if rng.randf() < 0.25 * signs:   # a vertical neon edge so the mass has an outline
 			var sc: Color = neon[rng.randi() % neon.size()]
 			box(mat("dark", 0, false, {"glow": 1.4, "emit": sc, "mode": 2}), Vector3(p.x + w / 2, h / 2, p.y + d / 2), Vector3(0.12, h, 0.12))
 		if rng.randf() < 0.35:
 			box(mat("dark", 0, false, {"glow": 1.2, "emit": Color("ff2020"), "mode": 2}), Vector3(p.x, h + 0.1, p.y), Vector3(0.08, 0.08, 0.08))
-		if rng.randf() < 0.3:   # a billboard: a big emissive panel on the face toward the map
+		if rng.randf() < 0.3 * signs:   # a billboard: a big emissive panel on the face toward the map
 			var col: Color = neon[rng.randi() % neon.size()]
 			var toward := Vector2(m.w / 2.0, m.h / 2.0) - p
 			var face := Vector3(signf(toward.x) * (w / 2 + 0.05), 0, 0) if absf(toward.x) > absf(toward.y) else Vector3(0, 0, signf(toward.y) * (d / 2 + 0.05))

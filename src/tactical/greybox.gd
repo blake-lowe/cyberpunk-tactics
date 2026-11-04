@@ -16,7 +16,7 @@ extends Node
 ##   Alt (hold) inspect what's under the cursor    F4 cyberspace style    N peek out of the NET
 ##   C cutaway auto / all seen rooms / off    Z guard sight lines near your move / always / off
 ##   F1 new gig    F2 look settings    F3 toggle fog of war
-## Screenshot mode:  -- --shot=path.png [--scene=x] [--profile=y] [--seed=n] [--pixel=3]
+## Screenshot mode:  -- --shot=path.png [--scene=x] [--profile=y] [--district=z] [--seed=n] [--pixel=3]
 ##   [--levels=0] [--dither=0.5] [--outline=0.4] [--bloom=0.8] [--contrast=1.1] [--ortho=1]
 ##   [--fog=0] [--zoom=24] [--yaw=45] [--lights=1] [--hover=x,y] [--promo=1] [--cut=auto|all|off]
 
@@ -183,11 +183,18 @@ var rim: DirectionalLight3D
 var sky_mat: ShaderMaterial
 
 
-## This scene's light and palette (LOOKS), defaulting to the night city.
+## This scene's light and palette (LOOKS), defaulting to the night city; a district's look
+## (SceneTheme light: smog, sea mist, dust) goes over it.
 func _scene_look() -> Dictionary:
 	if m == null:
 		return LOOKS["default"]
-	return LOOKS.get(String(m.params.get("scene", "")), LOOKS["default"])
+	var lk: Dictionary = LOOKS.get(String(m.params.get("scene", "")), LOOKS["default"])
+	var dl: Dictionary = SceneTheme.of(m).get("light", {})
+	if dl.is_empty():
+		return lk
+	lk = lk.duplicate()
+	lk.merge(dl, true)
+	return lk
 var open_cells := {}             ## Vector2i squares the cutaway may open (seen-into rooms + walls)
 var struct_rooms := {}           ## structure id → {room label: true}, indoor rooms only
 var _hover_sid := -1             ## building the pointer is planning into (opens it in AUTO)
@@ -257,6 +264,7 @@ func _ready() -> void:
 			"shot": _shot_path = kv[1]
 			"scene": gig.scene = kv[1]
 			"profile": gig.profile = kv[1]
+			"district": gig["district"] = kv[1]   # a Night City district (city.json): its look, and its profile unless --profile/--scene say otherwise
 			"seed": gig.seed = int(kv[1])
 			"faction": gig.faction = kv[1]   # the target faction (World id: militech, maelstrom, ...)
 			"site": gig.site = kv[1]   # lone_building: which building type (sites.json)
@@ -550,6 +558,11 @@ func _apply_look() -> void:
 
 func new_gig() -> void:
 	var o := {"security": gig.security}
+	var did := String(gig.get("district", ""))
+	if did != "":
+		o["district"] = did
+		if gig.profile == "" and gig.scene in ["skirmish", "neighborhood", "street_block", "city_district"]:   # the district's own streets
+			gig.profile = String(World.district(did).get("profile", ""))
 	if gig.profile != "":
 		o["profile"] = gig.profile
 	if String(gig.site) != "":
