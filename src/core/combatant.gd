@@ -38,7 +38,8 @@ var downtime := "recover"        ## between gigs: recover | train | hustle (Camp
 var maker := {}                  ## Tech Maker Specialty ranks (p147): field, upgrade, fabrication, invention
 var doses := 0                   ## Pharmaceutical doses carried this gig
 var temp_mods := {}              ## stat → penalty for the rest of the gig (Liche, Scorpion: "for 1 hour")
-var burning := false             ## Hellhound: 2 HP at the end of each turn until a meat Action puts it out
+var burning := 0                 ## on fire: HP lost at the end of each turn until an Action puts it out (Hellhound 2, p207; flamethrower 4, p348)
+var cyber_off := {}              ## cyberware id → rounds it stays inoperable (Microwaver, p348)
 var programs: Array[String] = [] ## cyberdeck Programs (netrunners start with Sword and Armor, p98)
 var stimmed := false             ## Stim: ignore Seriously Wounded penalties (1 hour = the gig)
 var speedhealed := false         ## Speedheal: once per day   ## Role specialisation perks (data/rules/perks.json, HOUSE-RULE)
@@ -233,7 +234,8 @@ func gig_reset() -> void:
 	stimmed = false
 	speedhealed = false
 	temp_mods.clear()
-	burning = false
+	burning = 0
+	cyber_off.clear()
 
 
 func rank_raise_cost() -> int:
@@ -452,6 +454,8 @@ func cyber_fx_sum(key: String) -> int:
 func _cyber_fx() -> Array:
 	var out := []
 	for cid in cyberware:
+		if int(cyber_off.get(cid, 0)) > 0:
+			continue   # knocked out (Microwaver): no effect until it comes back
 		var fx: Dictionary = RulesDB.cyberware(cid).get("fx", {})
 		if not fx.is_empty():
 			out.append(fx)
@@ -486,7 +490,8 @@ func suffer_crit(dice: Dice, location: String) -> Dictionary:
 	return add_injury(entry, location)
 
 
-func add_injury(entry: Dictionary, location: String) -> Dictionary:
+## `bonus_damage` false for injuries a weapon inflicts without the Bonus Damage (Shrieker, teargas).
+func add_injury(entry: Dictionary, location: String, bonus_damage := true) -> Dictionary:
 	var inj := entry.duplicate(true)
 	inj["location"] = location
 	injuries.append(inj)
@@ -495,7 +500,8 @@ func add_injury(entry: Dictionary, location: String) -> Dictionary:
 	var dsp_up := int(inj["fx"].get("dsp", 0))
 	base_dsp += dsp_up
 	dsp += dsp_up
-	hp -= int(RulesDB.load_json("critical_injuries.json")["bonus_damage"])
+	if bonus_damage:
+		hp -= int(RulesDB.load_json("critical_injuries.json")["bonus_damage"])
 	return inj
 
 

@@ -3379,9 +3379,29 @@ func _anim_blast(e: Dictionary) -> void:
 	await get_tree().create_timer(1.2).timeout
 
 
+## Exotic weapon effects on the target (and the shooter), as floating words.
+func _exotic_callouts(e: Dictionary, su: Dictionary, tu: Dictionary) -> void:
+	var st: Dictionary = e.get("status", {})
+	if not st.is_empty():
+		var label: String = {"damaged_ear": "DEAFENED", "cyberware_disabled": "CHROME OFFLINE"}.get(String(st.get("name", "")), String(st.get("name", "")).to_upper())
+		_float(tu, "RESISTED" if st.get("resisted", false) else label, Hud.DIM if st.get("resisted", false) else Hud.GOLD)
+	if e.get("ignited", false):
+		_float(tu, "ON FIRE", Hud.RED)
+	if e.get("stunned", false):
+		_float(tu, "STUNNED", Hud.GOLD)
+	if String(e.get("self_hurt", "")) == "damaged_ear":
+		_float(su, "EARS RINGING", Hud.DIM)
+
+
 ## The result on the target, when the connecting round lands.
 func _outcome(e: Dictionary, su: Dictionary, tu: Dictionary, tn: Node3D, at: Vector3, dir: Vector3) -> void:
+	_exotic_callouts(e, su, tu)
 	var dmg := int(e.damage)
+	if e.get("no_damage", false):   # paint, sound, microwaves: the effect is the hit (p347-349)
+		_react(tn, dir, 0.3)
+		if int(e.sp_after) < int(e.sp_before):
+			_float(tu, "ACID · SP %d→%d" % [int(e.sp_before), int(e.sp_after)], Hud.GOLD)
+		return
 	if dmg <= 0:   # armour stopped it: sparks and a ricochet, cyan ARMOR and the SP ablation
 		fx.burst(at, Color("fff0b0"), 14, 4.5, 0.04, 0.3, 2.0)
 		fx.bullet(at, at + (Vector3.UP * 0.8 + dir.cross(Vector3.UP) * fx.rng.randf_range(-1.0, 1.0) - dir * 0.3).normalized() * 3.0, "medium_pistol")

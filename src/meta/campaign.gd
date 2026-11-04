@@ -464,6 +464,11 @@ func shop_stock() -> Array[Dictionary]:
 			var d := w.def
 			var info := "%dd6" % int(d.dice) + ("" if d.get("melee", false) else " · ROF %d · %d rds" % [int(d.rof), int(d.mag)])
 			info += {"poor": " · jams on a 1", "excellent": " · +1 to hit"}.get(q, "")
+			var wfx: Dictionary = d.get("fx", {})
+			if int(wfx.get("min_body", 0)) > 0:
+				info += " · BODY %d" % int(wfx.min_body)
+			if String(wfx.get("requires", "")) != "":
+				info += " · smartgun link"
 			out.append({"id": id if q == "standard" else "%s@%s" % [id, q], "kind": "weapon", "name": w.display_name(),
 				"cost": _price(w.cost()), "info": info, "fixer": w.cost() >= 500})
 	var adb: Dictionary = RulesDB.load_json("armor.json")["armor"]

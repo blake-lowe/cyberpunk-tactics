@@ -8,7 +8,10 @@ const BASE_FX := ["skill_bonus", "stat_bonus", "attack_bonus", "damage_dice", "d
 	"halves_sp", "sp", "penalty", "shield_hp", "mag", "rof", "hands", "conceal", "non_lethal", "status", "burning",
 	"explosive", "area_half", "range", "vision", "requires", "consumable", "charges", "duration", "addiction_dv"]
 ## fx keys the rules code implements today. An item may only be sold if all its fx are here.
-const IMPLEMENTED_FX := []
+const IMPLEMENTED_FX := ["attack_bonus", "no_damage", "acid_sp_ablate", "no_crit_injury", "no_ablate", "non_lethal",
+	"ignores_sp_below", "halves_sp", "keyed_to_owner", "burning", "shell_only", "no_aimed_shot", "autofire_only",
+	"ammo_per_attack", "reload_actions", "min_body", "requires", "smartgun", "status", "self_status", "disable_count",
+	"battery_shots", "battery_cost", "battery_recharge"]   # battery packs play as a magazine (reload = swap a pack)
 const AMMO_KINDS := ["bullets", "arrows", "grenades", "rockets", "shotgun_shells", "none"]
 const SECTIONS := ["attachments", "ammo", "shields", "gear", "fashion", "drugs", "pharmaceuticals", "therapy"]
 

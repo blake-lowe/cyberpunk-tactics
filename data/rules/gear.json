@@ -2270,6 +2270,7 @@
 		"dv": "DV of 'check'. Addiction Therapy.",
 		"materials_cost": "eb of consumed materials, lost on failure (therapy: 500; pharma batch: 200, as item field).",
 		"materials_tier": "price category of materials_cost.",
-		"relapse_autofail": "period after a cure during which that drug's addiction check auto-fails. Addiction Therapy ('1 year')."
+		"relapse_autofail": "period after a cure during which that drug's addiction check auto-fails. Addiction Therapy ('1 year').",
+		"keyed_to_owner": "Biometric-keyed weapon (Kendachi Mono-Three, p.348): its special rule works for whoever carries it (HOUSE-RULE: sold keyed to the buyer)."
 	}
 }

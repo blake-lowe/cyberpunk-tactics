@@ -341,14 +341,19 @@ func end_turn() -> void:
 	if turn != null and not cur.is_empty() and cur.team == 0 and alarm < 2 and init.round_num != _patrol_round:
 		_patrol_round = init.round_num   # once a round, not once per crew member
 		patrol_step()
-	if turn != null and not cur.is_empty() and cur.c.burning:   # Hellhound fire (p207)
+	if turn != null and not cur.is_empty() and cur.c.burning > 0:   # on fire: Hellhound (p207), flamethrower (p348)
 		if not _netting and not turn.action_available:   # spent the meat Action beating it out
-			cur.c.burning = false
+			cur.c.burning = 0
 			say("%s puts out the fire." % cur.c.display_name)
 		else:
 			var b0: int = cur.c.wound_state()
-			cur.c.hp -= 2
-			events.append({"type": "harm", "unit": cur.id, "damage": 2, "source": "BURNING", "wound_before": b0, "wound_after": cur.c.wound_state()})
+			cur.c.hp -= cur.c.burning
+			events.append({"type": "harm", "unit": cur.id, "damage": cur.c.burning, "source": "BURNING", "wound_before": b0, "wound_after": cur.c.wound_state()})
+	if turn != null and not cur.is_empty():   # knocked-out cyberware comes back a round at a time
+		for cid in cur.c.cyber_off.keys():
+			cur.c.cyber_off[cid] = int(cur.c.cyber_off[cid]) - 1
+			if int(cur.c.cyber_off[cid]) <= 0:
+				cur.c.cyber_off.erase(cid)
 	if turn != null:
 		var before: int = cur.c.wound_state()
 		var dmg := turn.end()
@@ -1481,7 +1486,8 @@ func attack(target: Dictionary, weapon: Weapon, mode: Attack.Mode) -> Dictionary
 		"sp_after": target.c.sp(r.location), "crit": not r.crits.is_empty(), "crit_names": r.crits.map(func(c): return String(c.get("name", ""))),
 		"wound_before": wound_before, "wound_after": target.c.wound_state(), "mult": mult, "rounds": maxi(1, ammo_before - weapon.ammo),
 		"mode": mode, "weapon": weapon.id(), "dead": target.c.dead, "killed": target.c.dead or target.c.wound_state() == Combatant.Wound.MORTAL,
-		"jammed": r.get("jammed", false)})
+		"jammed": r.get("jammed", false), "no_damage": r.get("no_damage", false), "ignited": r.get("ignited", false),
+		"stunned": r.get("stunned", false), "status": r.get("status", {}), "self_hurt": String(r.get("self_hurt", ""))})
 	if r.get("jammed", false):
 		say("%s's %s jams." % [cur.c.display_name, weapon.display_name()])
 	var who := "%s → %s" % [cur.c.display_name, target.c.display_name]
@@ -1818,6 +1824,11 @@ func reload(weapon: Weapon) -> bool:
 		return true
 	if not weapon.uses_ammo() or weapon.ammo >= weapon.mag() or not turn.use_action():
 		return false
+	weapon.reload_done += 1
+	if weapon.reload_done < weapon.reload_actions():   # the heavy exotics reload over two Actions (p348-349)
+		events.append({"type": "reload", "unit": cur.id, "weapon": weapon.id(), "partial": true})
+		say("%s starts reloading (%d more Action%s)." % [cur.c.display_name, weapon.reload_actions() - weapon.reload_done, "" if weapon.reload_actions() - weapon.reload_done == 1 else "s"])
+		return true
 	weapon.reload()
 	events.append({"type": "reload", "unit": cur.id, "weapon": weapon.id()})
 	say("%s reloads." % cur.c.display_name)
@@ -2141,7 +2152,7 @@ func _ice_effect(u: Dictionary, run: NetRun, ice: Dictionary, from_dump := false
 		"wisp":
 			run.wisp = 1
 		"hellhound":
-			u.c.burning = true
+			u.c.burning = maxi(u.c.burning, 2)   # Hellhound: 2 a turn (p207); a stronger fire stays
 		"kraken":   # HOUSE-RULE cap (playtest death loop): a lock can't be renewed back to back
 			if init.round_num > run.kraken_until + 1:
 				run.kraken_until = init.round_num + 1

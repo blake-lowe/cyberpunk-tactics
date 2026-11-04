@@ -7,6 +7,7 @@ var ammo: int
 var builtin := false   ## part of installed cyberware (Wolvers, Big Knucks): never sold or swapped out
 var quality := "standard"   ## poor | standard | excellent (CPR core p.342; weapons.json "quality")
 var jammed := false         ## a Poor weapon that rolled a 1: an Action to clear before it fires again
+var reload_done := 0        ## Actions already spent on a reload that takes several (Helix, EMG-86: 2, p348-349)
 
 
 static func from_id(weapon_id: String, p_quality := "standard") -> Weapon:
@@ -68,6 +69,17 @@ func mag() -> int: return int(def.get("mag", 0))
 
 func reload() -> void:
 	ammo = int(def.get("mag", 0))
+	reload_done = 0
+
+
+## Actions a reload takes (2 for the heavy exotics, p348-349; 1 otherwise).
+func reload_actions() -> int:
+	return int(fx().get("reload_actions", 1))
+
+
+## Rounds one autofire attack spends: 10 (p173), the Helix 20 (p349).
+func autofire_ammo() -> int:
+	return int(fx().get("ammo_per_attack", 10))
 
 
 ## Melee weapons and Martial Arts halve SP; Brawling and thrown weapons don't (p176-178).
