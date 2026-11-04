@@ -592,6 +592,7 @@ func new_gig() -> void:
 		gig.profile = ""
 		o = Campaign.scene_opts(camp.active_gig)
 	m = SceneGen.generate(gig.seed, "neighborhood" if gig.profile != "" else gig.scene, o)
+	view_floor = m.street   # the crew goes in at street level
 	if campaign_gig and String(camp.active_gig.get("profile", "")) != "":
 		m.params["scene"] = "neighborhood"
 	dice = Dice.new(gig.seed + 1)
@@ -649,14 +650,14 @@ func new_gig() -> void:
 					enc.vision.explored[Vector3i(x, y, f)] = true
 	for i in _walk:  # scripted approach for review renders: each crew member walks toward the main door
 		for u in enc.alive(0):
-			var door := Vector3i(m.w / 2, m.h / 2, 0)
+			var door := Vector3i(m.w / 2, m.h / 2, m.street)
 			for e in m.entrances:
 				if e.main:
-					door = Vector3i(e.pos.x, e.pos.y, 0)
+					door = Vector3i(e.pos.x, e.pos.y, int(e.floor))
 			var p := enc.nav.path(u.pos, door, enc.occupied(u))
 			if p.size() > 1:
 				u.pos = p[0]
-				enc.los.open_doors[p[0]] = true if m.t(0, p[0].x, p[0].y) == TacMap.T.DOOR else false
+				enc.los.open_doors[p[0]] = true if m.t(p[0].z, p[0].x, p[0].y) == TacMap.T.DOOR else false
 				if not enc.los.open_doors[p[0]]:
 					enc.los.open_doors.erase(p[0])
 		enc.refresh_vision()
@@ -738,6 +739,7 @@ func _build_world() -> void:
 	builder.lightfield = LightField.bake(m, enc.los, LightPlan.plan(m, m.seed_value) + builder.emitters)
 	if enc.hazard != null:   # the safe circle's edge and the haze outside it
 		hazard_view = HazardView.new()
+		hazard_view.position.y = m.street * FH   # the haze lies over the street, not the tunnels
 		world.add_child(hazard_view)
 		hazard_view.build(m, enc.hazard)
 	devices = DeviceView.new()
@@ -1401,9 +1403,30 @@ func _update_cut() -> void:
 		var dep := (fp - cam.global_position).dot(-cam.global_transform.basis.z)
 		RenderingServer.global_shader_parameter_set("focus_view", Vector4(uv.x, uv.y, dep, 0.14))
 	RenderingServer.global_shader_parameter_set("cut_radius", _cut_radius())
+	_below_grade_view()
+
+
+## Viewing a storey below the street lifts the street and everything above it off whole (the
+## ground is solid: no cutaway radius to see into), so the basement shows as a dug-out level in
+## the earth WorldBuilder packs round it; the skyline goes with the street.
+func _below_grade_view() -> void:
+	if m == null or m.basements == 0 or floor_nodes.size() != m.floors:
+		return
+	var below := view_floor < m.street
+	for f in floor_nodes.size():   # from the street up the storeys below are out of sight under it
+		floor_nodes[f].visible = f <= view_floor if below else f >= m.street
+	var sky := world.get_node_or_null("skyline") as Node3D
+	if sky:
+		sky.visible = not below
+	if devices:   # wall kit (terminals, cameras, jack points) goes with its storey
+		for n in devices.get_children():
+			if n is Node3D and n.has_meta("floor"):
+				(n as Node3D).visible = int(n.get_meta("floor")) <= view_floor if below else int(n.get_meta("floor")) >= m.street
 
 
 func _cut_hides(v: Vector3i) -> bool:
+	if m != null and view_floor < m.street and v.z > view_floor:   # below grade: everything above is lifted off
+		return true
 	if v.z <= view_floor or not cutaway:
 		return false
 	return open_cells.has(Vector2i(v.x, v.y))
@@ -1805,10 +1828,18 @@ func _make_caret() -> MeshInstance3D:
 	return mi
 
 
+## The HUD's floor label: "FLOOR 2/4" (storeys counted from the street, the roof level included);
+## a map with basements names them: "FLOOR B1 · B2–3".
+static func floor_label(mp: TacMap, f: int) -> String:
+	if mp.basements == 0:
+		return "FLOOR %d/%d" % [f + 1, mp.floors]
+	return "FLOOR %s · %s–%s" % [mp.floor_name(f), mp.floor_name(0), mp.floor_name(mp.floors - 1)]
+
+
 ## Height of the walkable surface of a square (sidewalks are raised by a kerb).
 func _gy(v: Vector3i) -> float:
 	var y := v.z * FH
-	if v.z == 0 and m.inb(v.x, v.y) and m.t(0, v.x, v.y) == TacMap.T.OUTSIDE and m.label(0, v.x, v.y) < 0 \
+	if v.z == m.street and m.inb(v.x, v.y) and m.t(v.z, v.x, v.y) == TacMap.T.OUTSIDE and m.label(v.z, v.x, v.y) < 0 \
 			and m.ground[v.y * m.w + v.x] == TacMap.G.SIDEWALK:
 		y += KERB
 	return y
@@ -3673,7 +3704,7 @@ func _hud_refresh() -> void:
 		place = SetPieces.place_name(m)
 	if hazard_view and is_instance_valid(hazard_view):
 		hazard_view.update(enc.hazard)
-	hud.refresh(enc, mode, cover_mode, "%s  ·  FLOOR %d/%d" % [place.to_upper(), view_floor + 1, m.floors])
+	hud.refresh(enc, mode, cover_mode, "%s  ·  %s" % [place.to_upper(), floor_label(m, view_floor)])
 
 
 ## Recoil: kick the weapon back and the chest up; autofire climbs, capped; settles with a spring.

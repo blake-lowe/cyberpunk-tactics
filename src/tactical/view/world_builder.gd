@@ -91,6 +91,9 @@ var emitters: Array = []  ## extra light-field sources from dressing: {cell, col
 var _sp_looks := {}      ## structure id → its set-piece look (SetPieceDressing.look), cached
 var signs := 1.0        ## neon sign density (SceneTheme.signs: the district's look)
 var grime := 1.0        ## street litter and cables (SceneTheme.grime)
+var street := 0            ## the street-level floor (TacMap.street: 0 unless the map has basements)
+var gy := 0.0           ## its height (street * FH): street dressing stands on it, the skyline too
+var y_off := 0.0        ## added to every put() while set: street dressing written from y 0 lifted to gy
 
 
 func _init(p_map: TacMap, p_vision: Vision, p_fog: Texture2D) -> void:
@@ -245,6 +248,7 @@ func materials() -> Array:
 # --- Batching ----------------------------------------------------------------------
 
 func put(shape: String, mt: Material, xf: Transform3D) -> void:
+	xf.origin.y += y_off
 	var key := "%d,%d|%s|%d" % [int(xf.origin.x) / CHUNK, int(xf.origin.z) / CHUNK, shape, mt.get_instance_id()]
 	var b: Dictionary = _b.get_or_add(key, {"shape": shape, "mat": mt, "xf": []})
 	b.xf.append(xf)
@@ -305,6 +309,8 @@ func build(root: Node3D) -> Array[Node3D]:
 			for x in range(maxi(r.position.x, 0), mini(r.end.x, m.w)):
 				_sid_grid[y * m.w + x] = int(st.id)
 	natural = String(m.params.get("scene", "")) == "badlands"
+	street = m.street
+	gy = street * FH
 	var out: Array[Node3D] = []
 	for f in m.floors:
 		var fn := Node3D.new()
@@ -316,7 +322,9 @@ func build(root: Node3D) -> Array[Node3D]:
 		_unknown(f)
 		_cover(f)
 		_stairs(f)
-		if f == 0:
+		if f < street:
+			_earth(f)
+		if f == street:
 			if _surround() == "bedrock":
 				_bedrock()
 			_ground_organic()
@@ -330,6 +338,7 @@ func build(root: Node3D) -> Array[Node3D]:
 		flush(fn)
 	var sky := Node3D.new()
 	sky.name = "skyline"
+	sky.position.y = gy   # the city round the map stands on the street, whatever lies below it
 	root.add_child(sky)
 	match _surround():
 		"desert":
@@ -427,7 +436,7 @@ func _floor_key(f: int, x: int, y: int) -> String:
 				TacMap.G.SIDEWALK: return "sidewalk"
 				TacMap.G.RAIL: return "rail"
 				TacMap.G.DOCK: return "dock"
-				TacMap.G.GRASS, TacMap.G.DIRT, TacMap.G.SAND, TacMap.G.GRAVEL: return "concrete" if f > 0 else ""
+				TacMap.G.GRASS, TacMap.G.DIRT, TacMap.G.SAND, TacMap.G.GRAVEL: return "concrete" if f != street else ""
 			return "concrete"
 	var l2 := m.label(f, x, y)
 	return _room_floor(m.rooms[l2]) if l2 >= 0 else "floor_concrete"
@@ -438,7 +447,7 @@ func _room_floor(r: Dictionary) -> String:
 	for w in ["bar", "club", "lounge", "apartment", "living", "bedroom", "boss", "exec", "study", "vip", "dining", "temple", "shrine", "quarters", "foyer", "gym", "auditorium"]:
 		if k.contains(w):
 			return "floor_wood" if k != "dance_floor" else "floor_tile"
-	for w in ["warehouse", "factory", "garage", "storage", "loading", "cargo", "workshop", "dock", "squat", "stash", "shack", "engine", "cage", "parking", "yard", "platform", "quay", "rubble"]:
+	for w in ["warehouse", "factory", "garage", "storage", "loading", "cargo", "workshop", "dock", "squat", "stash", "shack", "engine", "cage", "parking", "yard", "platform", "quay", "rubble", "tunnel"]:
 		if k.contains(w):
 			return "floor_concrete"
 	for w in ["server", "vault", "armory", "security", "control", "cooling", "evidence", "holding", "panic", "armored", "mantrap"]:
@@ -492,9 +501,9 @@ func _floors(f: int) -> void:
 			if k == "sidewalk":
 				top += 0.07   # raised kerb
 			var look := _roof_look(_sid_grid[y * m.w + x]) if k == "roof" else {}
-			box(mat(k, f, f > 0, look), Vector3(r.get_center().x, top - thick / 2, r.get_center().y), Vector3(r.size.x, thick, r.size.y))
+			box(mat(k, f, f != street, look), Vector3(r.get_center().x, top - thick / 2, r.get_center().y), Vector3(r.size.x, thick, r.size.y))
 	# A dark slab under every built cell (including walls) so no seam ever shows the void.
-	if f > 0:
+	if f != street:
 		for y in m.h:
 			for x in m.w:
 				if _wallish(f, x, y):
@@ -593,43 +602,97 @@ var _surfaces: Array[MeshInstance3D] = []
 func _ground_organic() -> void:
 	var gtypes := {TacMap.G.GRASS: "grass", TacMap.G.DIRT: "dirt", TacMap.G.SAND: "sand", TacMap.G.GRAVEL: "gravel"}
 	var base := func(x: int, y: int) -> bool:
-		return m.inb(x, y) and m.t(0, x, y) != TacMap.T.VOID and _floor_key(0, x, y) == "" and m.t(0, x, y) != TacMap.T.WATER \
-			and not (m.t(0, x, y) in [TacMap.T.WALL, TacMap.T.DOOR])
+		return m.inb(x, y) and m.t(street, x, y) != TacMap.T.VOID and _floor_key(street, x, y) == "" and m.t(street, x, y) != TacMap.T.WATER \
+			and not (m.t(street, x, y) in [TacMap.T.WALL, TacMap.T.DOOR])
 	# base under organic patches (and under fences/rock walls)
 	for y in m.h:
 		for x in m.w:
-			if base.call(x, y) or (m.t(0, x, y) == TacMap.T.WALL and int(m.wall_mat[0][y * m.w + x]) in [3, 4]):
-				box(mat("dirt", 0, false), Vector3(x + 0.5, -0.07, y + 0.5), Vector3(1, 0.1, 1))
+			if base.call(x, y) or (m.t(street, x, y) == TacMap.T.WALL and int(m.wall_mat[street][y * m.w + x]) in [3, 4]):
+				box(mat("dirt", street, false), Vector3(x + 0.5, gy - 0.07, y + 0.5), Vector3(1, 0.1, 1))
 	var lift := 0.0
 	for g in gtypes:
 		lift += 0.004
 		var tris := marching(func(x: int, y: int) -> bool:
-			return m.inb(x, y) and m.t(0, x, y) != TacMap.T.VOID and int(m.ground[y * m.w + x]) == g and m.label(0, x, y) < 0 or \
-				(m.inb(x, y) and int(m.ground[y * m.w + x]) == g and m.label(0, x, y) >= 0 and m.rooms[m.label(0, x, y)].get("outdoor", false)), m.w, m.h, 0.1, g)   # less jitter: no floating shards
-		var s := _surface(tris, -0.02 + lift, mat(gtypes[g], 0, false))
-		if s:
-			s.set_meta("floor", 0)
-			_surfaces.append(s)
-	var water := mat("water", 0, false)
+			return m.inb(x, y) and m.t(street, x, y) != TacMap.T.VOID and int(m.ground[y * m.w + x]) == g and m.label(street, x, y) < 0 or \
+				(m.inb(x, y) and int(m.ground[y * m.w + x]) == g and m.label(street, x, y) >= 0 and m.rooms[m.label(street, x, y)].get("outdoor", false)), m.w, m.h, 0.1, g)   # less jitter: no floating shards
+		var sf := _surface(tris, gy - 0.02 + lift, mat(gtypes[g], street, false))
+		if sf:
+			sf.set_meta("floor", street)
+			_surfaces.append(sf)
+	var water := mat("water", street, false)
 	if float(SceneTheme.of(m).get("mats", {}).get("water", {}).get("glow", 0.0)) > 0.0:
 		# glowing water (the undercity's runoff) is drawn as boxes: marching-squares surfaces
 		# lose their emission in the world shader
 		for y in m.h:
 			for x in m.w:
-				if m.t(0, x, y) == TacMap.T.WATER:
-					box(water, Vector3(x + 0.5, -0.3, y + 0.5), Vector3(1, 0.1, 1))
-					box(mat("dark", 0, false), Vector3(x + 0.5, -0.6, y + 0.5), Vector3(1, 0.1, 1))
+				if m.t(street, x, y) == TacMap.T.WATER:
+					box(water, Vector3(x + 0.5, gy - 0.3, y + 0.5), Vector3(1, 0.1, 1))
+					box(mat("dark", street, false), Vector3(x + 0.5, gy - 0.6, y + 0.5), Vector3(1, 0.1, 1))
 		return
-	var wt := marching(func(x: int, y: int) -> bool: return m.inb(x, y) and m.t(0, x, y) == TacMap.T.WATER, m.w, m.h, 0.15, 99)
-	var ws := _surface(wt, -0.35, water)
+	var wt := marching(func(x: int, y: int) -> bool: return m.inb(x, y) and m.t(street, x, y) == TacMap.T.WATER, m.w, m.h, 0.15, 99)
+	var ws := _surface(wt, gy - 0.35, water)
 	if ws:
-		ws.set_meta("floor", 0)
+		ws.set_meta("floor", street)
 		_surfaces.append(ws)
 		# a dark bed under the water
 		for y in m.h:
 			for x in m.w:
-				if m.t(0, x, y) == TacMap.T.WATER:
-					box(mat("dark", 0, false), Vector3(x + 0.5, -0.6, y + 0.5), Vector3(1, 0.1, 1))
+				if m.t(street, x, y) == TacMap.T.WATER:
+					box(mat("dark", street, false), Vector3(x + 0.5, gy - 0.6, y + 0.5), Vector3(1, 0.1, 1))
+
+
+## A storey below the street (TacMap.basements): the earth it is dug into, packed round the
+## excavation up to just under street level (greedy-meshed blocks over the storey's empty squares
+## and a margin past the map edge), its top a dark soil section with a lighter lip where it meets
+## the dug-out rooms; standing water (T.WATER: flooded sunken floors) as a dark sheet a hand below
+## the floor. Seen only when the view is down here: the street and everything above is lifted off.
+const EARTH_MARGIN := 6
+
+func _earth(f: int) -> void:
+	var y0 := f * FH
+	var top := (f + 1) * FH - 0.13   # just under the street's ground slabs: no z-fight from above
+	var soil := mat("dirt", f, false, {"color": Color("6e5640"), "color2": Color("4a3a2a"), "pattern": 5, "scale": 1.6, "shell": true, "glow": 0.12, "emit": Color("3a2c20")})
+	var lip := mat("concrete", f, false, {"color": Color("9a8a74"), "color2": Color("7a6a56"), "shell": true, "glow": 0.2, "emit": Color("6a5a48")})
+	var dug := func(x: int, y: int) -> bool: return m.inb(x, y) and m.t(f, x, y) != TacMap.T.VOID
+	var used := {}
+	var x0 := -EARTH_MARGIN
+	var x1 := m.w + EARTH_MARGIN
+	var y1 := m.h + EARTH_MARGIN
+	for y in range(-EARTH_MARGIN, y1):
+		for x in range(x0, x1):
+			if used.has(Vector2i(x, y)) or dug.call(x, y):
+				continue
+			var w := 1
+			while x + w < x1 and not used.has(Vector2i(x + w, y)) and not dug.call(x + w, y):
+				w += 1
+			var h := 1
+			var grow := true
+			while grow and y + h < y1:
+				for i in w:
+					if used.has(Vector2i(x + i, y + h)) or dug.call(x + i, y + h):
+						grow = false
+						break
+				if grow:
+					h += 1
+			for j in h:
+				for i in w:
+					used[Vector2i(x + i, y + j)] = true
+			box(soil, Vector3(x + w / 2.0, (y0 - 0.12 + top) / 2.0, y + h / 2.0), Vector3(w, top - y0 + 0.12, h))
+	# the lip: a lighter band on the soil squares that border the dig, so its outline reads
+	for y in m.h:
+		for x in m.w:
+			if dug.call(x, y):
+				continue
+			for d in MapGen.DIRS:
+				if dug.call(x + d.x, y + d.y):
+					box(lip, Vector3(x + 0.5, top + 0.005, y + 0.5), Vector3(1.0, 0.012, 1.0))
+					break
+	var water := mat("water", f, false, {"color": Color("0c2a36"), "glow": 0.2, "emit": Color("0a3a48")})
+	for y in m.h:
+		for x in m.w:
+			if m.t(f, x, y) == TacMap.T.WATER:
+				box(water, Vector3(x + 0.5, y0 - 0.1, y + 0.5), Vector3(1.0, 0.04, 1.0))
+				box(mat("dark", f, false), Vector3(x + 0.5, y0 - 0.45, y + 0.5), Vector3(1.0, 0.1, 1.0))
 
 
 ## The marching-squares meshes made during build (added by the caller to floor 0).
@@ -762,9 +825,9 @@ func _run(f: int, horiz: bool, a: int, b0: int, b1: int, glass: bool, k: int) ->
 				var pcv := (Vector3(pc, 0, a + 0.5) if horiz else Vector3(a + 0.5, 0, pc)) + inward * 0.05
 				var pw := length / n * 0.9
 				box(mat("dark", f, true, {"glow": 1.2, "emit": wcol, "shell": true}), pcv + Vector3(0, y0 + (sill + lintel) / 2, 0), Vector3(pw, lintel - sill - 0.04, 0.02) if horiz else Vector3(0.02, lintel - sill - 0.04, pw))
-				if f == 0:
+				if f == street:
 					var oc := Vector3(pc, 0, a + 0.5) - inward * 1.0
-					emitters.append({"cell": Vector3i(int(oc.x), int(oc.z), 0), "color": wcol, "energy": 0.6, "range": 3.0, "out": Vector2i.ZERO})
+					emitters.append({"cell": Vector3i(int(oc.x), int(oc.z), street), "color": wcol, "energy": 0.6, "range": 3.0, "out": Vector2i.ZERO})
 		for i in range(1, n):
 			var p := s + length * i / n
 			var mc := Vector3(p, 0, a + 0.5) if horiz else Vector3(a + 0.5, 0, p)
@@ -773,7 +836,9 @@ func _run(f: int, horiz: bool, a: int, b0: int, b1: int, glass: bool, k: int) ->
 	var name := "wall_int"
 	var sh := {"shell": true} if ext else {}
 	var trim := sh
-	if ext:
+	if ext and f < street:   # below grade: bare cast concrete against the earth, no facade look
+		name = "wall_concrete"
+	elif ext:
 		name = ["wall_plaster", "wall_concrete", "wall_steel", "wall_concrete", "wall_concrete", "wall_concrete", "wall_concrete"][k]
 		var cx: int = x0 if horiz else a
 		var cy: int = a if horiz else b0
@@ -782,7 +847,7 @@ func _run(f: int, horiz: bool, a: int, b0: int, b1: int, glass: bool, k: int) ->
 		trim = _trim_look(wsid, sh)
 	box(mat(name, f, true, sh), c + Vector3(0, y0 + (FH - WALL_GAP) / 2, 0), size.call(FH - WALL_GAP, t))
 	box(mat("skirt", f, true, trim), c + Vector3(0, y0 + 0.06, 0), size.call(0.12, t + 0.04))
-	if ext:
+	if ext and f >= street:
 		box(mat("cornice", f, true, trim), c + Vector3(0, y0 + FH - 0.04 - WALL_GAP, 0), size.call(0.08, t + 0.1))
 
 
@@ -1296,41 +1361,41 @@ func _multi(kind: String, r: Rect2, f: int, h0: int) -> void:
 
 func _street_clutter() -> void:
 	rng.seed = m.seed_value * 977
-	var D := mat("dark", 0, false)
+	var D := mat("dark", street, false)
 	var count := int(m.w * m.h * 0.035 * grime)
 	for i in count:
 		var p := Vector2(rng.randf_range(0, m.w), rng.randf_range(0, m.h))
 		var c := Vector2i(int(p.x), int(p.y))
-		if not m.inb(c.x, c.y) or m.t(0, c.x, c.y) != TacMap.T.OUTSIDE or m.has_cover_at(0, c):
+		if not m.inb(c.x, c.y) or m.t(street, c.x, c.y) != TacMap.T.OUTSIDE or m.has_cover_at(street, c):
 			continue
 		var roll := rng.randf()
 		if roll < 0.4:   # trash bags in little heaps
 			for j in rng.randi_range(1, 3):
-				put("sphere", mat("dark", 0, false, {"color": Color("101418")}), Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled_local(Vector3(0.28, 0.22, 0.24)), Vector3(p.x + rng.randf_range(-0.2, 0.2), 0.09, p.y + rng.randf_range(-0.2, 0.2))))
+				put("sphere", mat("dark", street, false, {"color": Color("101418")}), Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled_local(Vector3(0.28, 0.22, 0.24)), Vector3(p.x + rng.randf_range(-0.2, 0.2), gy + 0.09, p.y + rng.randf_range(-0.2, 0.2))))
 		elif roll < 0.8:  # paper, flyers
-			box(mat("wall_int", 0, false, {"color": Color("3a3632")}), Vector3(p.x, 0.012, p.y), Vector3(0.14, 0.004, 0.2), rng.randf() * TAU)
+			box(mat("wall_int", street, false, {"color": Color("3a3632")}), Vector3(p.x, gy + 0.012, p.y), Vector3(0.14, 0.004, 0.2), rng.randf() * TAU)
 		else:             # manhole / drain
-			put("cyl", D, Transform3D(Basis.from_scale(Vector3(0.4, 0.01, 0.4)), Vector3(p.x, 0.005, p.y)))
+			put("cyl", D, Transform3D(Basis.from_scale(Vector3(0.4, 0.01, 0.4)), Vector3(p.x, gy + 0.005, p.y)))
 	# overhead cables between facing exterior walls across streets
 	for i in int(m.w * m.h / 160 * minf(grime, 1.5)):
 		var x := rng.randi_range(1, m.w - 2)
 		var y := rng.randi_range(1, m.h - 2)
-		if m.t(0, x, y) != TacMap.T.OUTSIDE:
+		if m.t(street, x, y) != TacMap.T.OUTSIDE:
 			continue
 		var horiz := rng.randf() < 0.5
 		var d := Vector2i(1, 0) if horiz else Vector2i(0, 1)
 		var a := Vector2i(x, y)
 		var b := Vector2i(x, y)
-		while m.inb(a.x, a.y) and m.t(0, a.x, a.y) == TacMap.T.OUTSIDE:
+		while m.inb(a.x, a.y) and m.t(street, a.x, a.y) == TacMap.T.OUTSIDE:
 			a -= d
-		while m.inb(b.x, b.y) and m.t(0, b.x, b.y) == TacMap.T.OUTSIDE:
+		while m.inb(b.x, b.y) and m.t(street, b.x, b.y) == TacMap.T.OUTSIDE:
 			b += d
-		if not (m.inb(a.x, a.y) and m.inb(b.x, b.y)) or m.t(0, a.x, a.y) != TacMap.T.WALL or m.t(0, b.x, b.y) != TacMap.T.WALL:
+		if not (m.inb(a.x, a.y) and m.inb(b.x, b.y)) or m.t(street, a.x, a.y) != TacMap.T.WALL or m.t(street, b.x, b.y) != TacMap.T.WALL:
 			continue
 		var span := Vector2(b - a).length()
 		if span < 4 or span > 18:
 			continue
-		var h := FH * rng.randf_range(0.85, 1.6)
+		var h := gy + FH * rng.randf_range(0.85, 1.6)
 		var mid := Vector2(a + b) / 2.0 + Vector2(0.5, 0.5)
 		for k in rng.randi_range(1, 3):
 			box(D, Vector3(mid.x, h - 0.15 - k * 0.07, mid.y), Vector3(span, 0.015, 0.015) if horiz else Vector3(0.015, 0.015, span))
@@ -1454,7 +1519,7 @@ const HOMES := ["apartments", "capsule_hotel", "squat", "villa", "gang_hideout",
 
 ## Residential upper floors: a slab balcony with a railing outside some of the windows.
 func _balconies(f: int) -> void:
-	if f == 0:
+	if f <= street:
 		return
 	var y0 := f * FH
 	var slab := mat("concrete_prop", f, true, {"shell": true})
@@ -1490,8 +1555,9 @@ var _escapes := {}   ## structure id → [cell, along, out, floors]: one fire es
 ## a grated landing at each upper floor, a flight up to the next, a drop ladder at the bottom.
 ## Decoration (the climbable ladders are the rules' connectors).
 func _fire_escape(f: int) -> void:
-	if f == 0:
-		_plan_escapes()
+	if f <= street:
+		if f == street:
+			_plan_escapes()
 		return
 	var y0 := f * FH
 	var steel := mat("steel", f, true, {"color": Color("30343a"), "shell": true})
@@ -1566,7 +1632,7 @@ func _facade_dressing(f: int) -> void:
 				if not m.inb(n.x, n.y):
 					continue
 				var nt := m.t(f, n.x, n.y)
-				if not ((f == 0 and nt == TacMap.T.OUTSIDE and m.label(f, n.x, n.y) < 0) or (f > 0 and nt == TacMap.T.VOID)):
+				if not ((f == street and nt == TacMap.T.OUTSIDE and m.label(f, n.x, n.y) < 0) or (f > street and nt == TacMap.T.VOID)):
 					continue
 				rng.seed = hash(Vector3i(x, y, f)) * 3 + d.x * 7 + d.y * 13
 				var roll := rng.randf()
@@ -1576,7 +1642,7 @@ func _facade_dressing(f: int) -> void:
 				var along := rng.randf_range(-0.3, 0.3)
 				var side := Vector3(-d.y, 0, d.x) * along
 				var face := Vector3(x + 0.5, y0, y + 0.5) + out * (EXT_T / 2 + 0.01) + side
-				if roll < 0.06 and f > 0 or (roll < 0.03):
+				if roll < 0.06 and f > street or (roll < 0.03):
 					box(mat("steel", f, true, {"shell": true}), face + out * 0.14 + Vector3(0, rng.randf_range(0.8, 1.3), 0), Vector3(0.36, 0.26, 0.26))
 				elif roll < 0.1:
 					var col: Color = neon[rng.randi() % neon.size()]
@@ -1586,15 +1652,15 @@ func _facade_dressing(f: int) -> void:
 					var col2: Color = neon[rng.randi() % neon.size()]
 					var bl := Vector3(0.42, FH * 0.75, 0.06) if d.x != 0 else Vector3(0.06, FH * 0.75, 0.42)
 					box(mat("dark", f, true, {"glow": 5.0, "emit": col2, "shell": true}), face + out * 0.3 + Vector3(0, FH * 0.55 + 0.2, 0), bl)
-					emitters.append({"cell": Vector3i(n.x, n.y, 0), "color": col2, "energy": 1.4, "range": 5.0, "out": Vector2i.ZERO})
-				elif roll < 0.2 and f == 0:
+					emitters.append({"cell": Vector3i(n.x, n.y, street), "color": col2, "energy": 1.4, "range": 5.0, "out": Vector2i.ZERO})
+				elif roll < 0.2 and f == street:
 					# awning over a lit shop window
 					var col3: Color = [Color("ffb070"), Color("ff6b9a"), Color("70e0ff")][rng.randi() % 3]
 					var wide := Vector3(0.95, 0.04, 0.5) if d.x == 0 else Vector3(0.5, 0.04, 0.95)
 					box(mat("fabric", f, true, {"color": neon[rng.randi() % neon.size()].darkened(0.55), "shell": true}), face + out * 0.25 + Vector3(0, 1.22, 0), wide)
 					box(mat("dark", f, true, {"glow": 4.0, "emit": col3, "shell": true}), face + out * 0.48 + Vector3(0, 1.2, 0), Vector3(0.95, 0.02, 0.02) if d.x == 0 else Vector3(0.02, 0.02, 0.95))
 					box(mat("dark", f, true, {"glow": 1.6, "emit": col3, "shell": true}), face + out * 0.01 + Vector3(0, 0.62, 0), Vector3(0.7, 0.6, 0.01) if d.x == 0 else Vector3(0.01, 0.6, 0.7))
-					emitters.append({"cell": Vector3i(n.x, n.y, 0), "color": col3, "energy": 1.1, "range": 4.0, "out": Vector2i.ZERO})
+					emitters.append({"cell": Vector3i(n.x, n.y, street), "color": col3, "energy": 1.1, "range": 4.0, "out": Vector2i.ZERO})
 				elif roll < 0.16:
 					box(mat("post", f, true, {"shell": true}), face + out * 0.05 + Vector3(0, FH / 2, 0), Vector3(0.05, FH, 0.05))
 

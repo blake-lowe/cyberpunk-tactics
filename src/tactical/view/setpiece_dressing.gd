@@ -214,12 +214,13 @@ static func dress(wb: WorldBuilder, f: int) -> void:
 	var m := wb.m
 	if not SetPieces.has(String(m.params.get("setpiece", ""))):
 		return
+	var s := m.street   # street level; storeys below it are dug into the ground (no facade)
 	for st in m.structures:
 		var lk := look(m, int(st.id))
 		if lk.is_empty():
 			continue
-		if lk.has("graffiti") and f <= 1:
-			_graffiti(wb, f, int(st.id), float(lk.graffiti) * (1.0 if f == 0 else 0.4))
+		if lk.has("graffiti") and f >= s and f <= s + 1:
+			_graffiti(wb, f, int(st.id), float(lk.graffiti) * (1.0 if f == s else 0.4))
 		if lk.has("terrace_lights"):
 			_terrace_lights(wb, f, int(st.id), Color(String(lk.terrace_lights)))
 		if lk.has("crown"):
@@ -228,24 +229,29 @@ static func dress(wb: WorldBuilder, f: int) -> void:
 			_crenels(wb, f, int(st.id))
 		if lk.get("pads", false):
 			_pads(wb, f, int(st.id))
-		if lk.has("waterline") and f == 0:
+		wb.y_off = wb.gy   # the street-level pieces below are placed from y 0: lift them to the street
+		if lk.has("waterline") and f == s:
 			_waterline(wb, int(st.id), Color(String(lk.waterline)))
-		if lk.has("sign") and f == 0:
+		if lk.has("sign") and f == s:
 			_sign(wb, int(st.id), Color(String(lk.sign)))
-		if lk.has("flooded") and f == 0:   # the lowest storey is the drowned one
+		wb.y_off = 0.0
+		# the drowned storeys: those below the street (their deep water is real WATER), else the lowest
+		if lk.has("flooded") and (f < s if s > 0 else f == 0):
 			_flooded(wb, f, int(st.id), lk.flooded)
 	var sl: Dictionary = (SetPieces.get_def(String(m.params.setpiece)).get("look", {}) as Dictionary).duplicate()
 	sl.merge(SetPieces.variant(m).get("look", {}), true)   # an estate's own (M'bolu's tagged walls)
-	if f == 0:
-		_hatches(wb)
-	if f == 0 and sl.get("pool_lights", false):
-		_pools(wb)
-	if f == 0 and sl.get("decon_gate", false):
-		_decon_gate(wb)
-	if f == 0 and (sl.get("wall_crenels", false) or sl.has("graffiti_walls")):
+	if f == s and (sl.get("wall_crenels", false) or sl.has("graffiti_walls")):
 		_perimeter(wb, sl)
-	if f == 0 and sl.has("court_lines"):
+	wb.y_off = wb.gy
+	if f == s:
+		_hatches(wb)
+	if f == s and sl.get("pool_lights", false):
+		_pools(wb)
+	if f == s and sl.get("decon_gate", false):
+		_decon_gate(wb)
+	if f == s and sl.has("court_lines"):
 		_court_lines(wb, Color(String(sl.court_lines)))
+	wb.y_off = 0.0
 	if sl.get("burn_barrels", false):
 		_burn_barrels(wb, f)
 
@@ -258,21 +264,21 @@ static func _hatches(wb: WorldBuilder) -> void:
 		if String(e.kind) != "tunnel":
 			continue
 		var p := Vector3(e.pos.x + 0.5, 0, e.pos.y + 0.5)
-		wb.put("cyl", wb.mat("dark", 0, false, {"color": Color("050505")}), Transform3D(Basis.from_scale(Vector3(0.78, 0.02, 0.78)), p + Vector3(0, 0.02, 0)))
+		wb.put("cyl", wb.mat("dark", wb.street, false, {"color": Color("050505")}), Transform3D(Basis.from_scale(Vector3(0.78, 0.02, 0.78)), p + Vector3(0, 0.02, 0)))
 		for i in 12:
 			var a := TAU * i / 12.0
-			wb.box(wb.mat("steel", 0, false, {"color": Color("f2c200") if i % 2 == 0 else Color("1a1a1a")}), p + Vector3(cos(a), 0, sin(a)) * 0.46 + Vector3(0, 0.06, 0), Vector3(0.26, 0.1, 0.14), -a + PI / 2)
-		wb.put("cyl", wb.mat("steel", 0, false, {"color": Color("4a4e54")}), Transform3D(Basis(Vector3.RIGHT, 1.2).scaled_local(Vector3(0.8, 0.05, 0.8)), p + Vector3(0, 0.35, -0.55)))
-		wb.box(wb.mat("dark", 0, false, {"glow": 2.0, "emit": Color("ffd070")}), p + Vector3(0.45, 0.25, 0.45), Vector3(0.12, 0.12, 0.12))
-		wb.emitters.append({"cell": Vector3i(e.pos.x, e.pos.y, 0), "color": Color("ffd070"), "energy": 0.8, "range": 3.0, "out": Vector2i.ZERO})
+			wb.box(wb.mat("steel", wb.street, false, {"color": Color("f2c200") if i % 2 == 0 else Color("1a1a1a")}), p + Vector3(cos(a), 0, sin(a)) * 0.46 + Vector3(0, 0.06, 0), Vector3(0.26, 0.1, 0.14), -a + PI / 2)
+		wb.put("cyl", wb.mat("steel", wb.street, false, {"color": Color("4a4e54")}), Transform3D(Basis(Vector3.RIGHT, 1.2).scaled_local(Vector3(0.8, 0.05, 0.8)), p + Vector3(0, 0.35, -0.55)))
+		wb.box(wb.mat("dark", wb.street, false, {"glow": 2.0, "emit": Color("ffd070")}), p + Vector3(0.45, 0.25, 0.45), Vector3(0.12, 0.12, 0.12))
+		wb.emitters.append({"cell": Vector3i(e.pos.x, e.pos.y, wb.street), "color": Color("ffd070"), "energy": 0.8, "range": 3.0, "out": Vector2i.ZERO})
 
 
 ## A garden pool: lit turquoise water over the pool squares (water tiles inside a pool deck), a
 ## white stone coping round it.
 static func _pools(wb: WorldBuilder) -> void:
 	var m := wb.m
-	var water := wb.mat("water", 0, false, {"color": Color("1aa0c8"), "glow": 1.0, "emit": Color("2ac8f0")})
-	var coping := wb.mat("stone", 0, false, {"color": Color("ece8e0")})
+	var water := wb.mat("water", wb.street, false, {"color": Color("1aa0c8"), "glow": 1.0, "emit": Color("2ac8f0")})
+	var coping := wb.mat("stone", wb.street, false, {"color": Color("ece8e0")})
 	for r in m.rooms:
 		if r.cells == 0 or String(r.kind) != "pool_deck":
 			continue
@@ -280,28 +286,28 @@ static func _pools(wb: WorldBuilder) -> void:
 		var lit := false
 		for y in range(b.position.y, b.end.y):
 			for x in range(b.position.x, b.end.x):
-				if m.t(0, x, y) != TacMap.T.WATER:
+				if m.t(wb.street, x, y) != TacMap.T.WATER:
 					continue
 				wb.box(water, Vector3(x + 0.5, -0.12, y + 0.5), Vector3(1, 0.04, 1))
 				for d in MapGen.DIRS:
-					if m.t(0, x + d.x, y + d.y) != TacMap.T.WATER:
+					if m.t(wb.street, x + d.x, y + d.y) != TacMap.T.WATER:
 						wb.box(coping, Vector3(x + 0.5 + d.x * 0.45, 0.04, y + 0.5 + d.y * 0.45), Vector3(1.0 if d.x == 0 else 0.12, 0.08, 1.0 if d.y == 0 else 0.12))
 				if not lit:
 					lit = true
-					wb.emitters.append({"cell": Vector3i(x, y, 0), "color": Color("40d0ff"), "energy": 1.2, "range": 5.0, "out": Vector2i.ZERO})
+					wb.emitters.append({"cell": Vector3i(x, y, wb.street), "color": Color("40d0ff"), "energy": 1.2, "range": 5.0, "out": Vector2i.ZERO})
 
 
 ## A decontamination arch over the way in at each gate of the grounds: steel posts either side, a
 ## bar of nozzles across, a green ready light (the Estates' decon sprayers; dressing only).
 static func _decon_gate(wb: WorldBuilder) -> void:
 	var m := wb.m
-	var steel := wb.mat("steel", 0, false, {"color": Color("c8ccd0")})
+	var steel := wb.mat("steel", wb.street, false, {"color": Color("c8ccd0")})
 	for e in m.entrances:
 		if String(e.kind) != "gate":
 			continue
 		for d in MapGen.DIRS:
 			var n: Vector2i = e.pos + d
-			var l := m.label(0, n.x, n.y)
+			var l := m.label(wb.street, n.x, n.y)
 			if not m.inb(n.x, n.y) or l < 0 or not m.rooms[l].get("outdoor", false):
 				continue
 			var across := Vector3(absf(d.y), 0, absf(d.x))
@@ -310,8 +316,8 @@ static func _decon_gate(wb: WorldBuilder) -> void:
 				wb.box(steel, c + across * s * 1.6 + Vector3(0, 1.3, 0), Vector3(0.14, 2.6, 0.14))
 			wb.box(steel, c + Vector3(0, 2.6, 0), across * 3.4 + Vector3(0.18, 0.18, 0.18) - across * 0.18)
 			for i in 5:
-				wb.box(wb.mat("dark", 0, false, {"glow": 1.6, "emit": Color("60ffa0")}), c + across * (i - 2) * 0.6 + Vector3(0, 2.48, 0), Vector3(0.08, 0.06, 0.08))
-			wb.emitters.append({"cell": Vector3i(n.x, n.y, 0), "color": Color("60ffa0"), "energy": 0.9, "range": 3.5, "out": Vector2i.ZERO})
+				wb.box(wb.mat("dark", wb.street, false, {"glow": 1.6, "emit": Color("60ffa0")}), c + across * (i - 2) * 0.6 + Vector3(0, 2.48, 0), Vector3(0.08, 0.06, 0.08))
+			wb.emitters.append({"cell": Vector3i(n.x, n.y, wb.street), "color": Color("60ffa0"), "energy": 0.9, "range": 3.5, "out": Vector2i.ZERO})
 			break
 
 
@@ -339,8 +345,8 @@ static func _burn_barrels(wb: WorldBuilder, f: int) -> void:
 static func _court_lines(wb: WorldBuilder, col: Color) -> void:
 	var m := wb.m
 	var open := func(x: int, y: int) -> bool:
-		var l := m.label(0, x, y)
-		return m.inb(x, y) and m.t(0, x, y) == TacMap.T.OUTSIDE and int(m.ground[y * m.w + x]) == TacMap.G.ASPHALT \
+		var l := m.label(wb.street, x, y)
+		return m.inb(x, y) and m.t(wb.street, x, y) == TacMap.T.OUTSIDE and int(m.ground[y * m.w + x]) == TacMap.G.ASPHALT \
 			and l >= 0 and m.rooms[l].get("outdoor", false)
 	var best := Rect2i()
 	var best_n := 1 << 30
@@ -353,7 +359,7 @@ static func _court_lines(wb: WorldBuilder, col: Color) -> void:
 						if not open.call(xx, yy):
 							n = 1 << 30
 							break
-						if m.has_cover_at(0, Vector2i(xx, yy)):
+						if m.has_cover_at(wb.street, Vector2i(xx, yy)):
 							n += 1
 					if n >= best_n:
 						break
@@ -362,7 +368,7 @@ static func _court_lines(wb: WorldBuilder, col: Color) -> void:
 					best = Rect2i(x, y, sz.x, sz.y)
 	if not best.has_area():
 		return
-	var paint := wb.mat("dark", 0, true, {"color": col, "glow": 0.25, "emit": col})
+	var paint := wb.mat("dark", wb.street, true, {"color": col, "glow": 0.25, "emit": col})
 	var r := Rect2(best).grow(-0.3)
 	var long_x := r.size.x >= r.size.y
 	var y := 0.025
@@ -392,11 +398,11 @@ static func _court_lines(wb: WorldBuilder, col: Color) -> void:
 		line.call(k1, k1 + inward * 2.6)
 		line.call(k0 + inward * 2.6, k1 + inward * 2.6)
 		var post := end - inward * 0.2
-		wb.box(wb.mat("post", 0), Vector3(post.x, 1.0, post.y), Vector3(0.08, 2.0, 0.08))
+		wb.box(wb.mat("post", wb.street), Vector3(post.x, 1.0, post.y), Vector3(0.08, 2.0, 0.08))
 		var board := end + inward * 0.25
-		wb.box(wb.mat("steel", 0, false, {"color": Color("e8e8e0")}), Vector3(board.x, 1.9, board.y), Vector3(0.05, 0.5, 0.8) if long_x else Vector3(0.8, 0.5, 0.05))
+		wb.box(wb.mat("steel", wb.street, false, {"color": Color("e8e8e0")}), Vector3(board.x, 1.9, board.y), Vector3(0.05, 0.5, 0.8) if long_x else Vector3(0.8, 0.5, 0.05))
 		var rim := end + inward * 0.55
-		wb.put("cyl", wb.mat("steel", 0, false, {"color": Color("d05020")}), Transform3D(Basis.from_scale(Vector3(0.45, 0.03, 0.45)), Vector3(rim.x, 1.75, rim.y)))
+		wb.put("cyl", wb.mat("steel", wb.street, false, {"color": Color("d05020")}), Transform3D(Basis.from_scale(Vector3(0.45, 0.03, 0.45)), Vector3(rim.x, 1.75, rim.y)))
 
 
 ## Squares of a structure's footprint on storey f that are outer wall, with the outward direction.
@@ -549,14 +555,14 @@ static func _pads(wb: WorldBuilder, f: int, sid: int) -> void:
 
 ## A ship's boot-topping: a red band at the waterline under a white line, round the hull.
 static func _waterline(wb: WorldBuilder, sid: int, col: Color) -> void:
-	for e in _outer_walls(wb, 0, sid):
+	for e in _outer_walls(wb, wb.street, sid):
 		var v: Vector2i = e[0]
 		var d: Vector2i = e[1]
 		var out := Vector3(d.x, 0, d.y)
 		var face := Vector3(v.x + 0.5, 0, v.y + 0.5) + out * (EXT_T / 2 + 0.01)
 		var w := Vector3(1.02, 0, 0.02) if d.x == 0 else Vector3(0.02, 0, 1.02)
-		wb.box(wb.mat("steel", 0, true, {"color": col, "shell": true}), face + Vector3(0, 0.16, 0), w + Vector3(0, 0.32, 0))
-		wb.box(wb.mat("steel", 0, true, {"color": Color("e0e0d8"), "shell": true}), face + Vector3(0, 0.35, 0), w + Vector3(0, 0.05, 0))
+		wb.box(wb.mat("steel", wb.street, true, {"color": col, "shell": true}), face + Vector3(0, 0.16, 0), w + Vector3(0, 0.32, 0))
+		wb.box(wb.mat("steel", wb.street, true, {"color": Color("e0e0d8"), "shell": true}), face + Vector3(0, 0.35, 0), w + Vector3(0, 0.05, 0))
 
 
 ## A lit name band over the main door.
@@ -568,16 +574,16 @@ static func _sign(wb: WorldBuilder, sid: int, col: Color) -> void:
 		var p: Vector2i = e.pos
 		for d in MapGen.DIRS:
 			var n: Vector2i = p + d
-			var t := m.t(0, n.x, n.y)
-			var l := m.label(0, n.x, n.y)
+			var t := m.t(wb.street, n.x, n.y)
+			var l := m.label(wb.street, n.x, n.y)
 			if not (t == TacMap.T.OUTSIDE and (l < 0 or m.rooms[l].get("outdoor", false))):
 				continue
 			var out := Vector3(d.x, 0, d.y)
 			var face := Vector3(p.x + 0.5, 0, p.y + 0.5) + out * (EXT_T / 2 + 0.03)
 			var w := Vector3(2.6, 0.3, 0.05) if d.x == 0 else Vector3(0.05, 0.3, 2.6)
-			wb.box(wb.mat("dark", 0, true, {"color": Color("1a1c20"), "shell": true}), face + Vector3(0, 1.38, 0), w + Vector3(0.1, 0.08, 0) * (Vector3(1, 1, 0) if d.x == 0 else Vector3(0, 1, 1)))
-			wb.box(wb.mat("dark", 0, true, {"glow": 2.2, "emit": col, "shell": true}), face + out * 0.03 + Vector3(0, 1.38, 0), w * Vector3(0.9, 0.6, 1))
-			wb.emitters.append({"cell": Vector3i(n.x, n.y, 0), "color": col, "energy": 1.2, "range": 4.0, "out": Vector2i.ZERO})
+			wb.box(wb.mat("dark", wb.street, true, {"color": Color("1a1c20"), "shell": true}), face + Vector3(0, 1.38, 0), w + Vector3(0.1, 0.08, 0) * (Vector3(1, 1, 0) if d.x == 0 else Vector3(0, 1, 1)))
+			wb.box(wb.mat("dark", wb.street, true, {"glow": 2.2, "emit": col, "shell": true}), face + out * 0.03 + Vector3(0, 1.38, 0), w * Vector3(0.9, 0.6, 1))
+			wb.emitters.append({"cell": Vector3i(n.x, n.y, wb.street), "color": col, "energy": 1.2, "range": 4.0, "out": Vector2i.ZERO})
 			return
 
 
@@ -590,26 +596,34 @@ static func _flooded(wb: WorldBuilder, f: int, sid: int, kinds: Array) -> void:
 		if r.cells == 0 or int(r.floor) != f or int(r.get("structure", -1)) != sid or not (String(r.kind) in kinds):
 			continue
 		var b: Rect2i = r.bounds
-		wb.box(water, Vector3(b.get_center().x, y0 + 0.05, b.get_center().y), Vector3(b.size.x, 0.04, b.size.y))
+		if f >= m.street:
+			wb.box(water, Vector3(b.get_center().x, y0 + 0.05, b.get_center().y), Vector3(b.size.x, 0.04, b.size.y))
+			continue
+		# below grade the deep pools are real WATER squares (WorldBuilder._earth): the sheen
+		# lies only over the dry floor round them, thin, so the pools read darker and deeper
+		var sheen := wb.mat("water", f, true, {"glow": 0.25, "alpha": 0.55})
+		for c in Furnish.room_cells(m, r):
+			if m.t(f, c.x, c.y) == TacMap.T.FLOOR:
+				wb.box(sheen, Vector3(c.x + 0.5, y0 + 0.03, c.y + 0.5), Vector3(1.0, 0.02, 1.0))
 
 
 ## The compound's perimeter wall: merlons along its top, tags on its street face.
 static func _perimeter(wb: WorldBuilder, sl: Dictionary) -> void:
 	var m := wb.m
-	var mt := wb.mat("wall_concrete", 0, true, {"shell": true})
+	var mt := wb.mat("wall_concrete", wb.street, true, {"shell": true})
 	var fc: Array = faction_colors(m)
 	var cols: Array = [fc[1], Color("f0f0e8"), wb.neon[0]]
 	for y in m.h:
 		for x in m.w:
-			if m.t(0, x, y) != TacMap.T.WALL or wb._sid_grid[y * m.w + x] >= 0 or int(m.wall_mat[0][y * m.w + x]) in [3, 4]:
+			if m.t(wb.street, x, y) != TacMap.T.WALL or wb._sid_grid[y * m.w + x] >= 0 or int(m.wall_mat[wb.street][y * m.w + x]) in [3, 4]:
 				continue
 			if sl.get("wall_crenels", false) and (x + y) % 2 == 0:
-				wb.box(mt, Vector3(x + 0.5, FH + 0.3, y + 0.5), Vector3(0.5, 0.6, 0.5))
+				wb.box(mt, Vector3(x + 0.5, wb.gy + FH + 0.3, y + 0.5), Vector3(0.5, 0.6, 0.5))
 			if sl.has("graffiti_walls"):
 				for d in MapGen.DIRS:
 					var n: Vector2i = Vector2i(x, y) + d
-					if m.inb(n.x, n.y) and m.t(0, n.x, n.y) == TacMap.T.OUTSIDE and m.label(0, n.x, n.y) < 0:
+					if m.inb(n.x, n.y) and m.t(wb.street, n.x, n.y) == TacMap.T.OUTSIDE and m.label(wb.street, n.x, n.y) < 0:
 						wb.rng.seed = hash(Vector3i(x, y, 77))
 						if wb.rng.randf() < float(sl.graffiti_walls):
-							_tag(wb, 0, Vector2i(x, y), d, cols)
+							_tag(wb, wb.street, Vector2i(x, y), d, cols)
 						break

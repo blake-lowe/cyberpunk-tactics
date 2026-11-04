@@ -1838,5 +1838,6 @@
  "arena_street": {"furniture": [], "devices": [{"t": "camera", "group": "cameras", "per_cells": 260}, {"t": "turret", "group": "turrets", "per_cells": 1100}]},
  "production_lot": {"furniture": [["container", "scatter", 150], ["crate", "scatter", 70], ["barrier", "scatter", 160]], "devices": [{"t": "floodlight", "group": "site:floodlights"}, {"t": "camera", "group": "cameras", "per_cells": 220}]},
  "estate_grounds": {"furniture": [["tree", "scatter", 45], ["planter", "scatter", 80], ["seat", "scatter", 140]], "devices": [{"t": "camera", "group": "cameras", "per_cells": 160}, {"t": "turret", "group": "turrets", "per_cells": 450}, {"t": "floodlight", "group": "site:floodlights", "p": 0.7}]},
- "pool_deck": {"furniture": [["seat", "scatter", 12], ["planter", "scatter", 40]], "devices": [{"t": "camera", "group": "cameras", "p": 0.6}]}
+ "pool_deck": {"furniture": [["seat", "scatter", 12], ["planter", "scatter", 40]], "devices": [{"t": "camera", "group": "cameras", "p": 0.6}]},
+ "tunnel": {"furniture": [], "devices": []}
 }

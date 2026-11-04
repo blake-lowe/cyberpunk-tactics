@@ -15,13 +15,21 @@ const ZONE_NAMES := ["street", "public", "staff", "secure", "vault"]
 var w: int
 var h: int
 var floors: int
+## Storeys below the street (basements, sunken floors, tunnels). Floor indices stay 0-based: floor
+## `basements` is street level and floor f is storey f - basements (negative: below grade). It is 0
+## on every map without them, where street level is floor 0 as it always was.
+var basements := 0
+## The street-level floor index (= basements): outdoor ground, the deploy zone, entrances.
+var street: int:
+	get:
+		return basements
 var seed_value: int
 var algorithm: String
 var params: Dictionary
 var tiles: Array[PackedByteArray] = []      ## per floor, T per cell
 var labels: Array[PackedInt32Array] = []    ## per floor, room id per cell (-1 none)
 var wall_mat: Array[PackedByteArray] = []   ## per floor, index into WALL_MATERIALS for wall cells
-var ground := PackedByteArray()             ## floor 0, G per cell
+var ground := PackedByteArray()             ## street level (floor `street`), G per cell
 var structures: Array[Dictionary] = []      ## {id, kind, site, rect, floors, security, target, base_zone}
 var architectures: Dictionary = {}          ## structure id → NetArchitecture
 var rooms: Array[Dictionary] = []           ## {id, floor, zone, kind, cells, bounds, structure}
@@ -70,6 +78,55 @@ func _init(p_w: int = 0, p_h: int = 0, p_floors: int = 1) -> void:
 		m.resize(w * h)
 		wall_mat.append(m)
 	ground.resize(w * h)
+
+
+## Storey of floor f relative to the street (0 street level, -1 the first basement, 1 one floor up).
+func level(f: int) -> int:
+	return f - basements
+
+
+## A floor's name for the HUD: B1, B2 below the street, 1, 2, ... from street level up.
+func floor_name(f: int) -> String:
+	return "B%d" % (basements - f) if f < basements else str(f - basements + 1)
+
+
+## Below-grade floors: insert `n` empty storeys under floor 0 and shift every floor reference up by
+## n, so the street becomes floor `basements`. Generators build at street level (floor 0) first and
+## lift afterwards (BasementGen); a map without basements is never lifted.
+func lift(n: int) -> void:
+	if n <= 0:
+		return
+	for i in n:
+		var tl := PackedByteArray()
+		tl.resize(w * h)
+		tl.fill(T.VOID)
+		tiles.insert(0, tl)
+		var ll := PackedInt32Array()
+		ll.resize(w * h)
+		ll.fill(-1)
+		labels.insert(0, ll)
+		var ml := PackedByteArray()
+		ml.resize(w * h)
+		wall_mat.insert(0, ml)
+	floors += n
+	basements += n
+	for arr in [rooms, doors, cover, decor, devices, entrances, posts]:
+		for d in arr:
+			if d.has("floor") and int(d.floor) >= 0:
+				d.floor = int(d.floor) + n
+	for v in verticals:
+		v.from_floor = int(v.from_floor) + n
+		v.to_floor = int(v.to_floor) + n
+	for c in connectors:
+		c.a = c.a + Vector3i(0, 0, n)
+		c.b = c.b + Vector3i(0, 0, n)
+	_cover_index.clear()
+	for i in cover.size():
+		if int(cover[i].get("hp", 1)) > 0:
+			_cover_index[Vector3i(cover[i].pos.x, cover[i].pos.y, cover[i].floor)] = i
+	_decor_index.clear()
+	for i in decor.size():
+		_decor_index[Vector3i(decor[i].pos.x, decor[i].pos.y, decor[i].floor)] = i
 
 
 func inb(x: int, y: int) -> bool:
@@ -252,7 +309,7 @@ func to_dict() -> Dictionary:
 					e[k] = [e[k].position.x, e[k].position.y, e[k].size.x, e[k].size.y]
 			out.append(e)
 		return out
-	return {
+	var out := {
 		"w": w, "h": h, "floors": floors, "seed": seed_value, "algorithm": algorithm, "params": params,
 		"floor_data": fl, "rooms": conv.call(rooms), "doors": conv.call(doors), "cover": conv.call(cover), "decor": conv.call(decor),
 		"devices": conv.call(devices), "entrances": conv.call(entrances), "verticals": conv.call(verticals),
@@ -260,3 +317,6 @@ func to_dict() -> Dictionary:
 		"architectures": archs, "ground": Array(ground), "structures": conv.call(structures), "net_links": net_links, "posts": conv.call(posts),
 		"connectors": connectors.map(func(c): return {"type": c.type, "a": [c.a.x, c.a.y, c.a.z], "b": [c.b.x, c.b.y, c.b.z]}),
 	}
+	if basements > 0:   # only maps with storeys below the street carry it: older maps stay byte-identical
+		out["basements"] = basements
+	return out

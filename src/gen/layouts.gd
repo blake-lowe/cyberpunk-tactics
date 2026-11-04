@@ -429,6 +429,8 @@ static func program_plan(dice: Dice, region: Rect2i, p: Dictionary) -> Dictionar
 static func _bands_for(variant: Dictionary, f: int, floors: int) -> Array:
 	if variant.has(str(f)):
 		return variant[str(f)]
+	if f < 0:   # below the street (BasementGen): "-1", "-2" ..., else "basement" for every storey down
+		return variant.get("basement", variant["ground"])
 	if f > 0 and f == floors - 1 and floors >= 3 and variant.has("top"):
 		return variant["top"]
 	if f > 0 and variant.has("upper"):

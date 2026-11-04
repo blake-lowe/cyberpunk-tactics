@@ -34,6 +34,7 @@ func build(m: TacMap, gy: Callable) -> void:
 		var root := Node3D.new()
 		root.position = base
 		root.rotation.y = yaw
+		root.set_meta("floor", int(d.floor))   # the greybox hides storeys above a basement view
 		add_child(root)
 		var back := -0.42   # against the wall
 		match String(d.type):
@@ -75,6 +76,7 @@ func build(m: TacMap, gy: Callable) -> void:
 			ring.position = base + Vector3(face.x, 0, face.y) * 0.15 + Vector3(0, 0.03, 0)
 			ring.scale = Vector3(1, 0.15, 1)
 			ring.name = "ring_%d" % d.id
+			ring.set_meta("floor", int(d.floor))
 			add_child(ring)
 
 
