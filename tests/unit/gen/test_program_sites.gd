@@ -118,7 +118,7 @@ func test_bank_tellers_work_behind_glass() -> void:
 				var w: Vector2i = c + Vector2i.DOWN
 				if m.t(r.floor, w.x, w.y) == TacMap.T.WALL and int(m.wall_mat[r.floor][w.y * m.w + w.x]) == 6:
 					glass += 1
-			counters += m.cover.filter(func(cv): return cv.room == r.id and cv.kind == "counter").size()
+			counters += m.cover.filter(func(cv): return cv.room == r.id and cv.kind == "teller_counter").size()
 		assert_true(glass >= 4, "%s: bulletproof glass between the teller line and the hall (%d)" % [_tag(m), glass])
 		assert_true(counters >= 2, "%s: teller counters (%d)" % [_tag(m), counters])
 

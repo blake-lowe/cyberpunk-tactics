@@ -710,6 +710,9 @@ func _run(f: int, horiz: bool, a: int, b0: int, b1: int, glass: bool, k: int) ->
 	var c := Vector3(mid, 0, a + 0.5) if horiz else Vector3(a + 0.5, 0, mid)
 	var size := func(h: float, thick: float) -> Vector3:
 		return Vector3(length, h, thick) if horiz else Vector3(thick, h, length)
+	if glass and ext and b0 == b1 and _punched(x0, y0c):
+		_punched_window(f, horiz, a, b0, t, c)
+		return
 	if glass:
 		# sill, pane, lintel, and mullions at a spacing that ignores the grid
 		var sill := 0.32
@@ -753,6 +756,51 @@ func _run(f: int, horiz: bool, a: int, b0: int, b1: int, glass: bool, k: int) ->
 	box(mat("skirt", f, true, sh), c + Vector3(0, y0 + 0.06, 0), size.call(0.12, t + 0.04))
 	if ext:
 		box(mat("cornice", f, true, sh), c + Vector3(0, y0 + FH - 0.04 - WALL_GAP, 0), size.call(0.08, t + 0.1))
+
+
+func _punched(x: int, y: int) -> bool:
+	var sid := _sid_grid[clampi(y, 0, m.h - 1) * m.w + clampi(x, 0, m.w - 1)]
+	return sid >= 0 and bool(m.structures[sid].get("punched_windows", false))
+
+
+## A single-square window in a site that repeats its rooms (a hotel's guest rooms): a narrow
+## opening punched in the wall, its jambs, sill and head in the wall's own finish.
+func _punched_window(f: int, horiz: bool, a: int, b: int, t: float, c: Vector3) -> void:
+	var y0 := f * FH
+	var x := b if horiz else a
+	var y := a if horiz else b
+	var k := 1
+	for n in ([Vector2i(x - 1, y), Vector2i(x + 1, y)] if horiz else [Vector2i(x, y - 1), Vector2i(x, y + 1)]):
+		var kn := _wall_kind(f, n.x, n.y)
+		if kn in [0, 1, 2]:
+			k = kn
+	var name: String = ["wall_plaster", "wall_concrete", "wall_steel"][k]
+	var sh := {"shell": true}
+	sh.merge(_wall_look(name, _sid_grid[clampi(y, 0, m.h - 1) * m.w + clampi(x, 0, m.w - 1)]))
+	var wm := mat(name, f, true, sh)
+	var sz := func(along: float, h: float, thick: float) -> Vector3:
+		return Vector3(along, h, thick) if horiz else Vector3(thick, h, along)
+	var ax := Vector3(1, 0, 0) if horiz else Vector3(0, 0, 1)
+	var sill := 0.42
+	var lintel := 1.2
+	var top := FH - WALL_GAP
+	var pane := 0.46
+	var jamb := (1.0 - pane) / 2.0
+	for sd in [-1, 1]:
+		box(wm, c + ax * sd * (0.5 - jamb / 2.0) + Vector3(0, y0 + top / 2, 0), sz.call(jamb, top, t))
+	box(wm, c + Vector3(0, y0 + sill / 2, 0), sz.call(pane, sill, t))
+	box(wm, c + Vector3(0, y0 + (lintel + top) / 2, 0), sz.call(pane, top - lintel, t))
+	box(mat("skirt", f, true, sh), c + Vector3(0, y0 + 0.06, 0), sz.call(1.0, 0.12, t + 0.04))
+	box(mat("cornice", f, true, sh), c + Vector3(0, y0 + top - 0.04, 0), sz.call(1.0, 0.08, t + 0.1))
+	box(mat("glass", f, true, {"shell": true}), c + Vector3(0, y0 + (sill + lintel) / 2, 0), sz.call(pane, lintel - sill, 0.05))
+	box(mat("frame", f, true, {"shell": true}), c + Vector3(0, y0 + sill + 0.02, 0), sz.call(pane + 0.08, 0.05, t + 0.08))
+	rng.seed = hash(Vector3i(x, y, f)) + 41
+	if rng.randf() < 0.45:   # some rooms lit from inside: the same window, on and off, up the facade
+		var probe := Vector2i(x, y + 1) if horiz else Vector2i(x + 1, y)
+		var norm := Vector3(0, 0, 1) if horiz else Vector3(1, 0, 0)
+		var inward := norm if (m.inb(probe.x, probe.y) and not vision._outdoor(f, probe.x, probe.y)) else -norm
+		var wcol: Color = [Color("ffc890"), Color("ffb070"), Color("ffd8a8")][rng.randi() % 3]
+		box(mat("dark", f, true, {"glow": 1.2, "emit": wcol, "shell": true}), c + inward * 0.05 + Vector3(0, y0 + (sill + lintel) / 2, 0), sz.call(pane - 0.04, lintel - sill - 0.04, 0.02))
 
 
 func _door_frame(f: int, p: Vector2i) -> void:
@@ -856,9 +904,12 @@ func _cover(f: int) -> void:
 			props.get_or_add(int(c.prop) * 10 + f, []).append(c)
 			continue
 		var h0 := hash(Vector3i(c.pos.x, c.pos.y, f))
-		var p := Vector3(c.pos.x + 0.5 + _jit(h0, 0.08), y0, c.pos.y + 0.5 + _jit(h0 + 1, 0.08))
 		tag = Vector3i(c.pos.x, c.pos.y, f)
-		_piece(String(c.kind), p, _jit(h0 + 2, 0.12), f, h0)
+		if c.has("face"):   # laid out by a room set: square on its square, turned to face its way
+			_piece(String(c.kind), Vector3(c.pos.x + 0.5, y0, c.pos.y + 0.5), _yaw(c.face), f, h0, true)
+		else:
+			var p := Vector3(c.pos.x + 0.5 + _jit(h0, 0.08), y0, c.pos.y + 0.5 + _jit(h0 + 1, 0.08))
+			_piece(String(c.kind), p, _jit(h0 + 2, 0.12), f, h0)
 		tag = null
 	for k in props:
 		var cells: Array = props[k]
@@ -869,27 +920,150 @@ func _cover(f: int) -> void:
 		var h0 := hash(k)
 		_multi(String(cells[0].kind), r, f, h0)
 		tag = null
+	var stanchions := {}
+	for d in m.decor:
+		if d.floor == f and d.kind == "stanchion":
+			stanchions[d.pos] = true
+	for d in m.decor:
+		if d.floor == f:
+			_decor(d, Vector3(d.pos.x + 0.5, y0, d.pos.y + 0.5), f, stanchions)
+
+
+## A room set's facing as a turn: the piece's front (+z) points along `face`.
+static func _yaw(face: Vector2i) -> float:
+	return atan2(float(face.x), float(face.y))
+
+
+## Walk-through dressing (Furnish.DECOR): chairs and stools pulled up to the piece they face,
+## queue posts with belts to their neighbours, bedside tables, boards and hoops on the wall behind.
+func _decor(d: Dictionary, c: Vector3, f: int, stanchions: Dictionary) -> void:
+	var face: Vector2i = d.get("face", Vector2i(0, 1))
+	var yaw := _yaw(face)
+	var fz := Vector3(face.x, 0, face.y)
+	var D := mat("dark", f, false)
+	match String(d.kind):
+		"side_chair":
+			var p := c + fz * 0.32
+			box(mat("fabric", f, false, {"color": Color("4a3a5a")}), p + Vector3(0, 0.23, 0), Vector3(0.36, 0.05, 0.34), yaw)
+			box(D, p + Vector3(0, 0.38, -0.17).rotated(Vector3.UP, yaw), Vector3(0.36, 0.3, 0.04), yaw)
+			for sx in [-0.15, 0.15]:
+				for sz in [-0.14, 0.14]:
+					box(D, p + Vector3(sx, 0.11, sz).rotated(Vector3.UP, yaw), Vector3(0.03, 0.22, 0.03), yaw)
+		"stool":
+			var p := c + fz * 0.3
+			put("cyl", mat("fabric", f, false, {"color": Color("8a2a3a")}), Transform3D(Basis.from_scale(Vector3(0.3, 0.05, 0.3)), p + Vector3(0, 0.3, 0)))
+			put("cyl", D, Transform3D(Basis.from_scale(Vector3(0.05, 0.3, 0.05)), p + Vector3(0, 0.15, 0)))
+			put("cyl", D, Transform3D(Basis.from_scale(Vector3(0.22, 0.02, 0.22)), p + Vector3(0, 0.01, 0)))
+		"stanchion":   # a queue post; a belt to each neighbouring post
+			var steel := mat("steel", f, false, {"color": Color("b8bcc2")})
+			put("cyl", steel, Transform3D(Basis.from_scale(Vector3(0.05, 0.46, 0.05)), c + Vector3(0, 0.23, 0)))
+			put("cyl", steel, Transform3D(Basis.from_scale(Vector3(0.2, 0.02, 0.2)), c + Vector3(0, 0.01, 0)))
+			for n in MapGen.DIRS:
+				if stanchions.has(d.pos + n):
+					var dir := Vector3(n.x, 0, n.y)
+					box(mat("fabric", f, false, {"color": Color("a01830"), "glow": 0.3, "emit": Color("ff2040")}), c + dir * 0.25 + Vector3(0, 0.42, 0), Vector3(0.5, 0.05, 0.015), _yaw(Vector2i(n.y, -n.x)))
+		"nightstand":
+			var p := c - fz * 0.25
+			box(mat("wood", f, false), p + Vector3(0, 0.15, 0), Vector3(0.36, 0.3, 0.32), yaw)
+			put("cyl", mat("dark", f, false, {"glow": 1.4, "emit": Color("ffc890")}), Transform3D(Basis.from_scale(Vector3(0.12, 0.14, 0.12)), p + Vector3(0, 0.37, 0)))
+		"board":   # a board (classroom) or a key/logo wall (front desk) on the wall behind
+			var p := c - fz * 0.76
+			box(mat("frame", f), p + Vector3(0, 0.8, 0), Vector3(0.96, 0.5, 0.04), yaw)
+			box(mat("dark", f, true, {"color": Color("16302a"), "glow": 0.5, "emit": Color("3fd0a0")}), p + Vector3(0, 0.8, 0) + fz * 0.02, Vector3(0.88, 0.42, 0.02), yaw)
+			box(mat("frame", f), p + Vector3(0, 0.55, 0) + fz * 0.05, Vector3(0.9, 0.03, 0.08), yaw)
+		"hoop":   # a basketball backboard and rim on the end wall
+			var p := c - fz * 0.76
+			box(mat("steel", f, true, {"color": Color("e8e8e4")}), p + Vector3(0, 1.15, 0), Vector3(0.55, 0.36, 0.03), yaw)
+			box(mat("steel", f, true, {"color": Color("d05a1a")}), p + Vector3(0, 1.02, 0) + fz * 0.14, Vector3(0.22, 0.02, 0.22), yaw)
+			box(mat("steel", f, true, {"color": Color("d05a1a")}), p + Vector3(0, 1.1, 0) + fz * 0.03, Vector3(0.16, 0.12, 0.02), yaw)
 
 
 ## One-square pieces. `p` is the jittered base centre; `yaw` a small deterministic turn.
-func _piece(kind: String, p: Vector3, yaw: float, f: int, h0: int) -> void:
+## `aligned`: placed by a room set, so runs of counters and tables meet edge to edge.
+func _piece(kind: String, p: Vector3, yaw: float, f: int, h0: int, aligned := false) -> void:
 	var W := mat("wood", f, false)
 	var S := mat("steel", f, false)
 	var D := mat("dark", f, false)
+	var wide := 1.0 if aligned else 0.8
+	if kind == "bed" and aligned:
+		kind = "bed_set"
 	match kind:
 		"desk", "table", "reception", "counter", "stall", "kiosk":
 			var top := 0.38 if not (kind in ["reception", "counter"]) else 0.5
-			box(W if kind != "desk" else mat("dark", f, false), p + Vector3(0, top, 0), Vector3(0.8, 0.05, 0.55), yaw)
+			box(W if kind != "desk" else mat("dark", f, false), p + Vector3(0, top, 0), Vector3(wide if kind != "desk" else 0.8, 0.05, 0.55), yaw)
 			if kind in ["reception", "counter", "kiosk", "stall"]:
-				box(W, p + Vector3(0, top / 2, 0), Vector3(0.78, top, 0.5), yaw)
+				box(W, p + Vector3(0, top / 2, 0), Vector3(wide - 0.02, top, 0.5), yaw)
 				if kind == "stall":
 					box(mat("fabric", f, false, {"color": neon[h0 % neon.size()].darkened(0.5)}), p + Vector3(0, 0.95, 0), Vector3(0.95, 0.04, 0.8), yaw)
 			else:
 				for sx in [-0.35, 0.35]:
 					for sz in [-0.22, 0.22]:
 						box(D, p + Vector3(sx, top / 2, sz).rotated(Vector3.UP, yaw), Vector3(0.04, top, 0.04), yaw)
-			if kind == "desk":
-				box(mat("dark", f, false, {"glow": 1.2, "emit": Color("4fd8ff")}), p + Vector3(0, top + 0.12, -0.1).rotated(Vector3.UP, yaw), Vector3(0.3, 0.2, 0.02), yaw)
+			if kind == "desk":   # the screen on the far side from the user (a set's desk faces +z)
+				box(mat("dark", f, false, {"glow": 1.2, "emit": Color("4fd8ff")}), p + Vector3(0, top + 0.12, 0.15 if aligned else -0.1).rotated(Vector3.UP, yaw), Vector3(0.3, 0.2, 0.02), yaw)
+			if kind == "reception" and aligned:   # a lit strip along the visitors' side
+				box(mat("dark", f, false, {"glow": 1.0, "emit": neon[h0 % neon.size()] if not neon.is_empty() else Color("4fd8ff")}), p + Vector3(0, 0.3, 0.26).rotated(Vector3.UP, yaw), Vector3(wide - 0.04, 0.04, 0.01), yaw)
+		"teller_counter":   # an armoured counter, a bullet-resistant screen on the customers' side
+			box(mat("steel", f, false, {"color": Color("5a6470")}), p + Vector3(0, 0.26, 0), Vector3(1.0, 0.52, 0.5), yaw)
+			box(mat("stone", f, false, {"color": Color("a8a296")}), p + Vector3(0, 0.53, 0), Vector3(1.0, 0.04, 0.58), yaw)
+			box(mat("glass", f, false, {"alpha": 0.4}), p + Vector3(0, 0.88, 0.24).rotated(Vector3.UP, yaw), Vector3(0.98, 0.66, 0.03), yaw)
+			box(mat("frame", f, false), p + Vector3(0, 1.22, 0.24).rotated(Vector3.UP, yaw), Vector3(1.0, 0.03, 0.05), yaw)
+			box(mat("frame", f, false), p + Vector3(-0.48, 0.88, 0.24).rotated(Vector3.UP, yaw), Vector3(0.04, 0.66, 0.05), yaw)
+			box(mat("dark", f, false, {"glow": 1.2, "emit": Color("4fd8ff")}), p + Vector3(0.18, 0.66, 0.05).rotated(Vector3.UP, yaw), Vector3(0.26, 0.18, 0.02), yaw)
+		"prep_counter", "pass":   # stainless kitchen counters; the pass carries heat lamps on a gantry
+			box(mat("steel", f, false, {"color": Color("8a9096")}), p + Vector3(0, 0.23, 0), Vector3(wide, 0.46, 0.55), yaw)
+			box(mat("steel", f, false, {"color": Color("c0c6cc")}), p + Vector3(0, 0.47, 0), Vector3(wide, 0.03, 0.58), yaw)
+			if kind == "pass":
+				for sx in [-0.45, 0.45]:
+					box(S, p + Vector3(sx, 0.75, 0).rotated(Vector3.UP, yaw), Vector3(0.04, 0.55, 0.04), yaw)
+				box(S, p + Vector3(0, 1.02, 0), Vector3(wide, 0.05, 0.3), yaw)
+				box(mat("dark", f, false, {"glow": 2.0, "emit": Color("ff7a2a")}), p + Vector3(0, 0.99, 0), Vector3(wide * 0.9, 0.02, 0.2), yaw)
+			else:
+				box(D, p + Vector3(0, 0.12, 0), Vector3(wide * 0.92, 0.02, 0.5), yaw)
+		"school_desk":   # a pupil's desk and its chair behind it, both facing the board
+			box(W, p + Vector3(0, 0.36, 0.12).rotated(Vector3.UP, yaw), Vector3(0.6, 0.04, 0.38), yaw)
+			box(S, p + Vector3(0, 0.18, 0.28).rotated(Vector3.UP, yaw), Vector3(0.56, 0.34, 0.03), yaw)
+			box(mat("steel", f, false, {"color": Color("2a5a7a")}), p + Vector3(0, 0.22, -0.22).rotated(Vector3.UP, yaw), Vector3(0.36, 0.04, 0.32), yaw)
+			box(mat("steel", f, false, {"color": Color("2a5a7a")}), p + Vector3(0, 0.36, -0.38).rotated(Vector3.UP, yaw), Vector3(0.36, 0.28, 0.03), yaw)
+			box(D, p + Vector3(0, 0.11, -0.22).rotated(Vector3.UP, yaw), Vector3(0.04, 0.22, 0.04), yaw)
+		"host_stand":   # a lectern by the door with a reading lamp
+			box(mat("wood", f, false, {"color": Color("2a1a14")}), p + Vector3(0, 0.3, 0), Vector3(0.5, 0.6, 0.36), yaw)
+			box(W, p + Vector3(0, 0.62, -0.02).rotated(Vector3.UP, yaw), Vector3(0.56, 0.04, 0.42), yaw)
+			box(mat("dark", f, false, {"glow": 1.6, "emit": Color("ffc890")}), p + Vector3(0.18, 0.7, -0.1).rotated(Vector3.UP, yaw), Vector3(0.08, 0.1, 0.08), yaw)
+		"vault_door":   # the open vault door, swung back against the wall beside its doorway
+			var bv := Basis(Vector3.UP, yaw) * Basis(Vector3(0, 0, 1), PI / 2)
+			put("cyl", mat("steel", f, false, {"color": Color("9aa2aa")}), Transform3D(bv.scaled_local(Vector3(1.0, 0.3, 1.0)), p + Vector3(0, 0.56, 0)))
+			put("cyl", mat("steel", f, false, {"color": Color("5a626a")}), Transform3D(bv.scaled_local(Vector3(0.7, 0.34, 0.7)), p + Vector3(0, 0.56, 0)))
+			for i in 3:   # the locking wheel's spokes on the room side
+				var sb := Basis(Vector3.UP, yaw) * Basis(Vector3(1, 0, 0), i * PI / 3.0)
+				put("box", D, Transform3D(sb.scaled_local(Vector3(0.04, 0.5, 0.04)), p + Vector3(0, 0.56, 0) + Vector3(0.19, 0, 0).rotated(Vector3.UP, yaw)))
+			box(D, p + Vector3(0, 0.56, -0.48).rotated(Vector3.UP, yaw), Vector3(0.2, 0.7, 0.1), yaw)
+		"armchair":
+			var fab := mat("fabric", f, false, {"color": Color("5a3a4a")})
+			box(fab, p + Vector3(0, 0.13, 0), Vector3(0.6, 0.26, 0.55), yaw)
+			box(fab, p + Vector3(0, 0.36, -0.24).rotated(Vector3.UP, yaw), Vector3(0.6, 0.36, 0.1), yaw)
+			for sx in [-0.27, 0.27]:
+				box(fab, p + Vector3(sx, 0.3, 0).rotated(Vector3.UP, yaw), Vector3(0.08, 0.16, 0.55), yaw)
+		"bleachers":   # stepped timber tiers rising to the wall, a rail along the top
+			for i in 3:
+				box(mat("wood", f, false, {"color": Color("a07c50")}), p + Vector3(0, 0.12 + i * 0.2, 0.3 - i * 0.28).rotated(Vector3.UP, yaw), Vector3(1.0, 0.24 + i * 0.4, 0.3), yaw)
+			box(S, p + Vector3(0, 0.95, -0.45).rotated(Vector3.UP, yaw), Vector3(1.0, 0.04, 0.04), yaw)
+		"luggage":   # a brass luggage cart loaded with cases
+			var brass := mat("steel", f, false, {"color": Color("b8902a")})
+			box(brass, p + Vector3(0, 0.1, 0), Vector3(0.75, 0.04, 0.45), yaw)
+			for sx in [-0.35, 0.35]:
+				box(brass, p + Vector3(sx, 0.5, 0).rotated(Vector3.UP, yaw), Vector3(0.04, 0.8, 0.04), yaw)
+			box(brass, p + Vector3(0, 0.9, 0), Vector3(0.74, 0.04, 0.04), yaw)
+			var cases := [Color("6a2a2a"), Color("2a3a5a"), Color("3a3a3a"), Color("6a5a3a")]
+			box(mat("fabric", f, false, {"color": cases[h0 % 4]}), p + Vector3(-0.12, 0.27, 0).rotated(Vector3.UP, yaw), Vector3(0.4, 0.3, 0.3), yaw)
+			box(mat("fabric", f, false, {"color": cases[(h0 + 1) % 4]}), p + Vector3(0.17, 0.22, 0.02).rotated(Vector3.UP, yaw), Vector3(0.22, 0.22, 0.34), yaw)
+			box(mat("fabric", f, false, {"color": cases[(h0 + 2) % 4]}), p + Vector3(-0.05, 0.5, 0).rotated(Vector3.UP, yaw), Vector3(0.3, 0.16, 0.24), yaw + 0.2)
+		"bed_set":   # a bed laid out by a room set: head to the wall (-z), headboard, pillow, a throw
+			box(W, p + Vector3(0, 0.12, 0.02), Vector3(0.78, 0.24, 0.92), yaw)
+			box(mat("fabric", f, false, {"color": Color("c8c4bc")}), p + Vector3(0, 0.28, 0.02), Vector3(0.74, 0.08, 0.88), yaw)
+			box(mat("fabric", f, false, {"color": Color("e8e4dc")}), p + Vector3(0, 0.34, -0.3).rotated(Vector3.UP, yaw), Vector3(0.6, 0.07, 0.2), yaw)
+			box(mat("fabric", f, false), p + Vector3(0, 0.33, 0.28).rotated(Vector3.UP, yaw), Vector3(0.76, 0.04, 0.3), yaw)
+			box(W, p + Vector3(0, 0.4, -0.46).rotated(Vector3.UP, yaw), Vector3(0.84, 0.8, 0.06), yaw)
 		"sofa", "booth", "bed", "bench", "pew", "seat", "chair":
 			var mt := mat("fabric", f, false) if kind in ["sofa", "booth", "bed"] else (W if kind in ["pew", "seat"] else S)
 			var w := 0.85 if kind != "seat" and kind != "chair" else 0.4

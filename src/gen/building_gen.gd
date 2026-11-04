@@ -87,7 +87,9 @@ static func build(m: TacMap, dice: Dice, hints: Array, ctx: Dictionary) -> Dicti
 	_room_kinds(m, sdef["zones"], first_id, root)
 	_terraces(m, hints, fps, floors, sid)
 	_roof(m, dice, hints, fps[floors - 1], floors, sid, int(st.base_zone), String(ctx.site), bool(p.get("roof_access", false)))
-	_windows(m, dice, fps, floors, float(sdef.get("windows", 0.5)), bool(sdef.get("armored_windows", false)))
+	_windows(m, dice, fps, floors, float(sdef.get("windows", 0.5)), bool(sdef.get("armored_windows", false)), sdef.get("room_windows", []))
+	if not (sdef.get("room_windows", []) as Array).is_empty():
+		st["punched_windows"] = true   # the viewer draws its single-square windows as punched openings
 	var cy: Rect2i = ctx.get("courtyard", Rect2i())
 	if cy.has_area():
 		_courtyard(m, dice, hints, fp, cy, sid)
@@ -705,11 +707,15 @@ static func _roof(m: TacMap, dice: Dice, hints: Array, fp: Footprint, floors: in
 
 ## Windows on straight exterior walls (not next to doors or ladders), every few squares by the
 ## site's window rate. Ordinary glass stops movement but not bullets or sight; rooms at secure
-## level or deeper get bulletproof glass (thin, 15 HP, see-through — p182).
-static func _windows(m: TacMap, dice: Dice, fps: Array, floors: int, rate: float, armored := false) -> void:
+## level or deeper get bulletproof glass (thin, 15 HP, see-through — p182). Rooms of the kinds in
+## `per_room` (a hotel's guest rooms) instead get one window centred on each outside wall (two on a
+## long one), so a slab of identical rooms shows the same window over and over.
+static func _windows(m: TacMap, dice: Dice, fps: Array, floors: int, rate: float, armored := false, per_room: Array = []) -> void:
 	if rate <= 0.0:
 		return
 	var shell := (fps[0] as Footprint).shell
+	var glass := func(f: int, v: Vector2i, room: int) -> void:
+		m.wall_mat[f][v.y * m.w + v.x] = 6 if armored or m.rooms[room].zone >= TacMap.Zone.SECURE else 5
 	for f in floors:
 		var fp: Footprint = fps[f]
 		for y in range(shell.position.y, shell.end.y):
@@ -717,23 +723,57 @@ static func _windows(m: TacMap, dice: Dice, fps: Array, floors: int, rate: float
 				var v := Vector2i(x, y)
 				if not fp.exterior(v) or m.t(f, x, y) != TacMap.T.WALL or (x + y) % 3 == 0 or dice.rng.randf() >= rate:
 					continue
-				var room := -1
-				for side in SIDES:
-					var d: Vector2i = SIDES[side]
-					var perp := Vector2i(d.y, d.x)
-					if not fp.has(v + d) and fp.interior(v - d) and m.t(f, v.x - d.x, v.y - d.y) == TacMap.T.FLOOR \
-							and m.t(f, v.x + perp.x, v.y + perp.y) == TacMap.T.WALL and m.t(f, v.x - perp.x, v.y - perp.y) == TacMap.T.WALL:
-						room = m.label(f, v.x - d.x, v.y - d.y)
-				if room < 0:
+				var room := int(_window_spot(m, fp, f, v)[0])
+				if room >= 0 and not String(m.rooms[room].get("program_kind", m.rooms[room].kind)) in per_room:
+					glass.call(f, v, room)
+	if per_room.is_empty():
+		return
+	for f in floors:
+		var fp: Footprint = fps[f]
+		var sides := {}   # [room, side] → wall squares that can take a window
+		for y in range(shell.position.y, shell.end.y):
+			for x in range(shell.position.x, shell.end.x):
+				var v := Vector2i(x, y)
+				if not fp.exterior(v) or m.t(f, x, y) != TacMap.T.WALL:
 					continue
-				var near := false
-				for d2 in MapGen.DIRS + DIAG:
-					var n: Vector2i = v + d2
-					if m.t(f, n.x, n.y) == TacMap.T.DOOR or m.is_connector_end(0, n) or m.is_connector_end(f, n):
-						near = true
-				if near or m.is_connector_end(f + 1, v):
-					continue
-				m.wall_mat[f][y * m.w + x] = 6 if armored or m.rooms[room].zone >= TacMap.Zone.SECURE else 5
+				var spot := _window_spot(m, fp, f, v)
+				var room := int(spot[0])
+				if room >= 0 and String(m.rooms[room].get("program_kind", m.rooms[room].kind)) in per_room:
+					sides.get_or_add([room, spot[1]], []).append(v)
+		for k in sides:
+			var cells: Array = sides[k]
+			var d: Vector2i = k[1]
+			var r: Rect2i = m.rooms[k[0]].bounds
+			var along := func(v: Vector2i) -> float: return float(v.x) if d.x == 0 else float(v.y)
+			var lo := float(r.position.x if d.x == 0 else r.position.y)
+			var span := float(r.size.x if d.x == 0 else r.size.y)
+			var marks: Array = [lo + (span - 1) / 2.0] if span < 7 else [lo + span / 3.0 - 0.5, lo + span * 2.0 / 3.0 - 0.5]
+			for mk in marks:
+				cells.sort_custom(func(a, b): return absf(along.call(a) - mk) < absf(along.call(b) - mk))
+				glass.call(f, cells[0], int(k[0]))
+
+
+## [room, side] when wall square `v` can hold a window: a straight outside wall with a room's floor
+## behind it, not beside a doorway or a ladder; [-1, ZERO] otherwise.
+static func _window_spot(m: TacMap, fp: Footprint, f: int, v: Vector2i) -> Array:
+	var room := -1
+	var side := Vector2i.ZERO
+	for sd in SIDES:
+		var d: Vector2i = SIDES[sd]
+		var perp := Vector2i(d.y, d.x)
+		if not fp.has(v + d) and fp.interior(v - d) and m.t(f, v.x - d.x, v.y - d.y) == TacMap.T.FLOOR \
+				and m.t(f, v.x + perp.x, v.y + perp.y) == TacMap.T.WALL and m.t(f, v.x - perp.x, v.y - perp.y) == TacMap.T.WALL:
+			room = m.label(f, v.x - d.x, v.y - d.y)
+			side = d
+	if room < 0:
+		return [-1, Vector2i.ZERO]
+	for d2 in MapGen.DIRS + DIAG:
+		var n: Vector2i = v + d2
+		if m.t(f, n.x, n.y) == TacMap.T.DOOR or m.is_connector_end(0, n) or m.is_connector_end(f, n):
+			return [-1, Vector2i.ZERO]
+	if m.is_connector_end(f + 1, v):
+		return [-1, Vector2i.ZERO]
+	return [room, side]
 
 
 ## A courtyard building: a door from the ground floor into the yard, which becomes an outdoor

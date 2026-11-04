@@ -26,7 +26,8 @@ var structures: Array[Dictionary] = []      ## {id, kind, site, rect, floors, se
 var architectures: Dictionary = {}          ## structure id → NetArchitecture
 var rooms: Array[Dictionary] = []           ## {id, floor, zone, kind, cells, bounds, structure}
 var doors: Array[Dictionary] = []           ## {floor, pos, a, b, security: bool}
-var cover: Array[Dictionary] = []           ## {floor, pos, kind, material, thick, hp}
+var cover: Array[Dictionary] = []           ## {floor, pos, kind, material, thick, hp, face?}
+var decor: Array[Dictionary] = []           ## {floor, pos, kind, face, room}: walk-through dressing (chairs, stanchions): no cover, never blocks
 var devices: Array[Dictionary] = []         ## {id, type, floor, pos, room, zone, group}
 var entrances: Array[Dictionary] = []       ## {floor, pos, main: bool}
 var verticals: Array[Dictionary] = []       ## {type, pos, from_floor, to_floor}: shafts at one x,y
@@ -127,6 +128,24 @@ func remove_cover_at(f: int, p: Vector2i) -> void:
 func pop_cover() -> void:
 	var c: Dictionary = cover.pop_back()
 	_cover_index.erase(Vector3i(c.pos.x, c.pos.y, c.floor))
+
+
+var _decor_index := {}  ## Vector3i(x, y, floor) → index in `decor`
+
+
+## Dressing that is not cover (Furnish.DECOR): drawn by the viewer, ignored by the rules.
+func add_decor(d: Dictionary) -> void:
+	_decor_index[Vector3i(d.pos.x, d.pos.y, d.floor)] = decor.size()
+	decor.append(d)
+
+
+func pop_decor() -> void:
+	var d: Dictionary = decor.pop_back()
+	_decor_index.erase(Vector3i(d.pos.x, d.pos.y, d.floor))
+
+
+func has_decor_at(f: int, p: Vector2i) -> bool:
+	return _decor_index.has(Vector3i(p.x, p.y, f))
 
 
 func has_cover_at(f: int, p: Vector2i) -> bool:
@@ -235,7 +254,7 @@ func to_dict() -> Dictionary:
 		return out
 	return {
 		"w": w, "h": h, "floors": floors, "seed": seed_value, "algorithm": algorithm, "params": params,
-		"floor_data": fl, "rooms": conv.call(rooms), "doors": conv.call(doors), "cover": conv.call(cover),
+		"floor_data": fl, "rooms": conv.call(rooms), "doors": conv.call(doors), "cover": conv.call(cover), "decor": conv.call(decor),
 		"devices": conv.call(devices), "entrances": conv.call(entrances), "verticals": conv.call(verticals),
 		"architecture": architecture.to_dict() if architecture else {},
 		"architectures": archs, "ground": Array(ground), "structures": conv.call(structures), "net_links": net_links, "posts": conv.call(posts),

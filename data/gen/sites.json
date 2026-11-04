@@ -1,5 +1,5 @@
 {
- "_doc": "massing: weights for upper-floor shapes (podium: tower on a base, step: set back on one or two sides, wing: a low part beside a taller block, none). Building site types for BuildingGen. layout: room-partition algorithm + params. zones: room kinds per security zone \u2014 entrance (room at the main door), small (\u226416 cells), large (\u226560 cells), rotation (by size rank), and layout-kind mappings (e.g. living/bedroom from corridor_units). density: default cover density. exterior: wall material index (0 plaster, 1 concrete, 2 steel). enter_corridor: put the main door on a corridor. networked: false = no NET even with devices. no_corridors: never relabel long thin rooms as corridors. levels: how many security levels (L1..L4) the building uses, counted from its base level. net_chance: chance a non-target building of this type has a NET (targets always do). windows: chance per eligible exterior wall square of a window. shapes: weights for footprint shapes (rect, L, U, T, chamfer, courtyard). decay: default ruin level 0-1. Programmed sites (layout.algorithm program, Layouts.program): layout.program lists the rooms per floor in bands from the entrance facade inwards (see src/gen/layouts.gd), layout.enter / service: room kinds the main / service door open into, stair_in / lift_in: room kinds the stairs / lifts go in, stairs: stair shafts (2 = one at each end). footprint {w, d} (squares along / into the entrance facade) and floors [min, max] size a lone building of the site. anchors.<role>.<room kind>: where objectives put their vip / captive / package / machine (Encounter.secure_cell; a bonus on the score, ~20 per security level). armored_windows: every window bulletproof. _why: the planning conventions and sources the program follows.",
+ "_doc": "massing: weights for upper-floor shapes (podium: tower on a base, step: set back on one or two sides, wing: a low part beside a taller block, none). Building site types for BuildingGen. layout: room-partition algorithm + params. zones: room kinds per security zone \u2014 entrance (room at the main door), small (\u226416 cells), large (\u226560 cells), rotation (by size rank), and layout-kind mappings (e.g. living/bedroom from corridor_units). density: default cover density. exterior: wall material index (0 plaster, 1 concrete, 2 steel). enter_corridor: put the main door on a corridor. networked: false = no NET even with devices. no_corridors: never relabel long thin rooms as corridors. levels: how many security levels (L1..L4) the building uses, counted from its base level. net_chance: chance a non-target building of this type has a NET (targets always do). windows: chance per eligible exterior wall square of a window. shapes: weights for footprint shapes (rect, L, U, T, chamfer, courtyard). decay: default ruin level 0-1. Programmed sites (layout.algorithm program, Layouts.program): layout.program lists the rooms per floor in bands from the entrance facade inwards (see src/gen/layouts.gd), layout.enter / service: room kinds the main / service door open into, stair_in / lift_in: room kinds the stairs / lifts go in, stairs: stair shafts (2 = one at each end). footprint {w, d} (squares along / into the entrance facade) and floors [min, max] size a lone building of the site. anchors.<role>.<room kind>: where objectives put their vip / captive / package / machine (Encounter.secure_cell; a bonus on the score, ~20 per security level). armored_windows: every window bulletproof. room_windows: room kinds that get one punched window centred on each outside wall (two on a long wall) instead of windows at random: a hotel slab reads as rows of identical guest rooms. _why: the planning conventions and sources the program follows.",
  "corp_office": {"massing": {"podium": 2, "step": 2, "none": 2}, 
   "name": "Corporate office",
   "layout": {
@@ -1293,6 +1293,7 @@
   "levels": 4,
   "net_chance": 0.6,
   "windows": 0.7,
+  "room_windows": ["guest_room", "suite"],
   "shapes": {"rect": 1}
  },
  "bank": {
@@ -1315,9 +1316,9 @@
         "w": 0.5,
         "min": 7,
         "rooms": [
-         {"room": "office", "zone": "staff", "w": 1, "min": 4, "p": 0.7, "doors": ["banking_hall"]},
+         {"room": "loan_office", "zone": "staff", "w": 1, "min": 4, "p": 0.7, "doors": ["banking_hall"]},
          {"room": "banking_hall", "zone": "public", "w": 3.5, "min": 8},
-         {"room": "office", "zone": "staff", "w": 1, "min": 4, "p": 0.7, "doors": ["banking_hall"]}
+         {"room": "loan_office", "zone": "staff", "w": 1, "min": 4, "p": 0.7, "doors": ["banking_hall"]}
         ]
        },
        {
@@ -1365,9 +1366,9 @@
         "w": 0.5,
         "min": 7,
         "rooms": [
-         {"room": "office", "zone": "staff", "w": 1, "min": 4, "p": 0.7, "doors": ["banking_hall"]},
+         {"room": "loan_office", "zone": "staff", "w": 1, "min": 4, "p": 0.7, "doors": ["banking_hall"]},
          {"room": "banking_hall", "zone": "public", "w": 3.5, "min": 8},
-         {"room": "office", "zone": "staff", "w": 1, "min": 4, "p": 0.7, "doors": ["banking_hall"]}
+         {"room": "loan_office", "zone": "staff", "w": 1, "min": 4, "p": 0.7, "doors": ["banking_hall"]}
         ]
        },
        {
@@ -1415,7 +1416,7 @@
    "vault": {"rotation": ["bank_vault"]}
   },
   "anchors": {
-   "vip": {"manager_office": 80, "exec_office": 80, "office": 20},
+   "vip": {"manager_office": 80, "exec_office": 80, "office": 20, "loan_office": 20},
    "package": {"counting_room": 80, "teller_line": 30},
    "captive": {"counting_room": 40, "manager_office": 30},
    "machine": {"server_room": 80, "teller_line": 40, "counting_room": 30}

@@ -33,7 +33,20 @@ const PIECES := {
 	# set pieces: a deck-mounted anti-aircraft gun (armoured mount: thick steel), an aerodyne
 	# cyberbike parked on its pad (a vehicle body: thin steel, like a car)
 	"aa_gun": ["steel", true], "cyberbike": ["steel", false],
+	# room sets (rooms.json _sets): a bank's teller counter (armoured front ≈ steel cabinet), a
+	# stainless prep counter and a kitchen's pass (steel thin, like a fridge), a classroom desk (a
+	# desk: thin wood), a host stand (thin wood), an open vault door (thick steel, like a safe),
+	# an armchair (upholstered, the book's sofa: thick plaster), gym bleachers (stepped timber
+	# deck: thick wood, like the reception desk), a luggage cart (suitcases on a rack: thin wood)
+	"teller_counter": ["steel", false], "prep_counter": ["steel", false], "pass": ["steel", false],
+	"school_desk": ["wood", false], "host_stand": ["wood", false], "vault_door": ["steel", true],
+	"armchair": ["plaster", true], "bleachers": ["wood", true], "luggage": ["wood", false],
 }
+
+## Walk-through dressing: stamped beside the pieces above by room sets, drawn by the viewer, no
+## cover and never blocks movement (a chair or a queue rope stops no bullet and no one; HOUSE-RULE:
+## chairs are not obstacles, so tables with chairs never wall off a dining room).
+const DECOR := ["side_chair", "stool", "stanchion", "nightstand", "board", "hoop"]
 
 ## Pieces that are also hazards (explosive: blows up when destroyed; resolved in M3).
 const HAZARDS := {"fuel_barrel": "explosive", "transformer": "electrified"}
@@ -50,7 +63,13 @@ static func run_structure(m: TacMap, dice: Dice, sid: int) -> void:
 	for r in m.rooms:
 		if r.cells == 0 or r.get("structure", -1) != sid:
 			continue
+		var geo := {}
 		for spec in rooms_def.get(r.kind, {}).get("furniture", []):
+			if spec is Dictionary:   # a room set laid out by convention (rows, lines, groups)
+				if geo.is_empty():
+					geo = _geometry(m, r)
+				_pattern(m, dice, r, spec, geo, rooms_def.get("_sets", {}))
+				continue
 			# Per-kind density lives in the table (cells per piece); the site density scales it.
 			var n := roundi(r.cells / float(spec[2]) * (0.25 + density))
 			if spec[1] == "center" and spec[0] in ["reception", "desk", "console"]:
@@ -90,7 +109,7 @@ static func _place(m: TacMap, dice: Dice, r: Dictionary, piece: String, placemen
 	var b: Rect2i = r.bounds
 	var cands: Array[Vector2i] = []
 	for c in cells:
-		if not open_tile(m.t(r.floor, c.x, c.y)) or m.has_cover_at(r.floor, c) or _near_entry(m, r.floor, c):
+		if not open_tile(m.t(r.floor, c.x, c.y)) or m.has_cover_at(r.floor, c) or m.has_decor_at(r.floor, c) or _near_entry(m, r.floor, c):
 			continue
 		var walls := 0
 		for d in MapGen.DIRS:
@@ -152,7 +171,7 @@ static func try_prop(m: TacMap, f: int, rect: Rect2i, piece: String, room: int, 
 			var c := Vector2i(x, y)
 			var inside := rect.has_point(c)
 			if inside:
-				if not m.inb(x, y) or not open_tile(m.t(f, x, y)) or reserved.has(c) or (not allowed.is_empty() and not allowed.has(c)):
+				if not m.inb(x, y) or not open_tile(m.t(f, x, y)) or reserved.has(c) or m.has_decor_at(f, c) or (not allowed.is_empty() and not allowed.has(c)):
 					return false
 			if m.has_cover_at(f, c) or m.t(f, x, y) in [TacMap.T.DOOR, TacMap.T.STAIRS, TacMap.T.ELEVATOR] or m.is_connector_end(f, c):
 				return false
@@ -200,6 +219,444 @@ static func _room_connected(m: TacMap, r: Dictionary, cells: Array[Vector2i]) ->
 				seen[nb] = true
 				q.append(nb)
 	return seen.size() == open.size()
+
+
+# --- Room sets ----------------------------------------------------------------
+# A furniture entry that is a dictionary lays out a set (rooms.json `_sets`: squares relative to
+# an anchor that faces +y, `~kind` = walk-through decor) the way real rooms are planned: lines
+# along a chosen wall, rows facing a head wall, one group at the centre or by a door. Keys:
+#   at: wall | grid | head | center | door
+#   set: a _sets name | piece: one kind | cycle: [kinds] taken in turn along a line
+#   walls / head: wall selectors, all must hold: any, front, back, entry, far, side, long, short,
+#     nodoor, exterior, interior, adjoin:<kind>[,<kind>]; a leading "!" negates
+#   face: in (into the room) | wall | head | entry | far | door
+#   off: squares out from the wall; inset: squares kept clear at each end of a wall line;
+#   one: only the wall line with the most room; center + len: one run of
+#     `len` sets centred on each line; step: squares from set to set; run + gap: runs of `run`
+#     sets with `gap` squares between; max, per (room squares per set): how many
+#   grid: step [across, along]; from: the first row's distance from the head wall
+#   margin: squares kept clear of walls; clear: squares kept clear of earlier furniture and decor;
+#   door_gap: squares kept clear of doorways (a reception desk off the lift lobby's door);
+#   else: overrides to try again with when no set fits (other walls, a smaller door gap);
+#   sites: only in these sites (sites.json)
+#   near_ok: may stand beside a doorway (an open vault door); door: main | exterior | any; lat: squares
+#     to the side of the doorway
+# A set entry is [across, along, kind, turn]: turn 1 faces the anchor's +across, 2 its back, 3 -across.
+
+
+## Doors, the main door's side and the room's squares, worked out once per room.
+static func _geometry(m: TacMap, r: Dictionary) -> Dictionary:
+	var cells := room_cells(m, r)
+	var cset := {}
+	for c in cells:
+		cset[c] = true
+	var doors: Array = []   # [pos, side (room → door), rank]
+	var lines := {}
+	for d in m.doors:
+		if int(d.floor) != int(r.floor) or not (int(d.a) == int(r.id) or int(d.b) == int(r.id)):
+			continue
+		var other := int(d.a) if int(d.b) == int(r.id) else int(d.b)
+		for s in MapGen.DIRS:
+			if cset.has(d.pos - s):
+				var rank := -1 if other < 0 else int(m.rooms[other].zone)
+				doors.append([d.pos, s, rank, other])
+				lines[Vector3i(s.x, s.y, d.pos.x if s.x != 0 else d.pos.y)] = true
+				break
+	doors.sort_custom(func(p, q): return p[2] < q[2])
+	var entry: Vector2i = doors[0][1] if not doors.is_empty() else Vector2i.ZERO
+	var front: Vector2i = r.get("front", Vector2i.ZERO)
+	return {"cells": cells, "cset": cset, "doors": doors, "door_lines": lines, "entry": entry,
+		"front": front if front != Vector2i.ZERO else entry, "heads": {}}
+
+
+## Does the wall on side `d` of square `c` match every selector?
+static func _walls_ok(m: TacMap, r: Dictionary, geo: Dictionary, c: Vector2i, d: Vector2i, sels: Array) -> bool:
+	for s0 in sels:
+		var s := String(s0)
+		var neg := s.begins_with("!")
+		if neg:
+			s = s.substr(1)
+		var ok := true
+		var e: Vector2i = geo.entry
+		var b: Rect2i = r.bounds
+		match s:
+			"any": ok = true
+			"front": ok = d == geo.front
+			"back": ok = d == -geo.front
+			"entry": ok = d == e
+			"far": ok = d == -e
+			"side": ok = e != Vector2i.ZERO and d.x * e.x + d.y * e.y == 0
+			"long": ok = (d.y != 0) if b.size.x >= b.size.y else (d.x != 0)
+			"short": ok = (d.x != 0) if b.size.x >= b.size.y else (d.y != 0)
+			"nodoor": ok = not geo.door_lines.has(Vector3i(d.x, d.y, c.x + d.x if d.x != 0 else c.y + d.y))
+			_:
+				# beyond the wall: another room of this building, or the outside (a wall junction
+				# beyond counts as inside when it lies within the building's plot)
+				var bv: Vector2i = c + 2 * d
+				var l := m.label(r.floor, bv.x, bv.y)
+				var sid := int(r.get("structure", -1))
+				var plot: Rect2i = m.structures[sid].get("rect", Rect2i()) if sid >= 0 else Rect2i()
+				var inside := l >= 0 and int(m.rooms[l].get("structure", -1)) == sid
+				if l < 0 and m.t(r.floor, bv.x, bv.y) == TacMap.T.WALL:
+					inside = plot.has_point(bv)
+				if s == "exterior":
+					ok = not inside
+				elif s == "interior":
+					ok = inside
+				elif s.begins_with("adjoin:"):
+					ok = l >= 0 and String(m.rooms[l].kind) in s.substr(7).split(",")
+		if ok == neg:
+			return false
+	return true
+
+
+## The side whose wall best matches `sels` (most squares along it): a classroom's board wall.
+static func _head(m: TacMap, r: Dictionary, geo: Dictionary, sels: Array) -> Vector2i:
+	var key := str(sels)
+	if geo.heads.has(key):
+		return geo.heads[key]
+	var best := Vector2i.ZERO
+	for tries in [sels, ["nodoor"], ["any"]]:
+		var n := 0
+		for d in MapGen.DIRS:
+			var k := 0
+			for c in geo.cells:
+				if m.t(r.floor, c.x + d.x, c.y + d.y) == TacMap.T.WALL and _walls_ok(m, r, geo, c, d, tries):
+					k += 1
+			if k > n:
+				n = k
+				best = d
+		if n > 0:
+			break
+	geo.heads[key] = best if best != Vector2i.ZERO else Vector2i(0, -1)
+	return geo.heads[key]
+
+
+static func _set_of(spec: Dictionary, sets: Dictionary, i: int) -> Array:
+	if spec.has("set"):
+		return sets[spec.set]
+	if spec.has("cycle"):
+		return [[0, 0, spec.cycle[i % (spec.cycle as Array).size()]]]
+	return [[0, 0, spec.piece]]
+
+
+static func _width(st: Array) -> Vector2i:
+	var lo := 0
+	var hi := 0
+	for e in st:
+		lo = mini(lo, int(e[0]))
+		hi = maxi(hi, int(e[0]))
+	return Vector2i(lo, hi)
+
+
+static func _face(spec: Dictionary, geo: Dictionary, d: Vector2i, fallback: Vector2i) -> Vector2i:
+	match String(spec.get("face", "")):
+		"in": return -d if d != Vector2i.ZERO else fallback
+		"wall": return d if d != Vector2i.ZERO else fallback
+		"entry": return geo.entry if geo.entry != Vector2i.ZERO else fallback
+		"far": return -geo.entry if geo.entry != Vector2i.ZERO else fallback
+	return fallback
+
+
+static func _limit(spec: Dictionary, r: Dictionary) -> int:
+	var n := int(spec.get("max", 1000))
+	if spec.has("per"):
+		n = mini(n, maxi(1, roundi(r.cells / float(spec.per))))
+	return n
+
+
+static func _pattern(m: TacMap, dice: Dice, r: Dictionary, spec: Dictionary, geo: Dictionary, sets: Dictionary) -> void:
+	if spec.has("sites") and not String(m.structures[int(r.structure)].get("site", "")) in spec.sites:
+		return
+	match String(spec.get("at", "wall")):
+		"wall": _at_wall(m, dice, r, spec, geo, sets)
+		"grid": _at_grid(m, r, spec, geo, sets)
+		"head":
+			var h := _head(m, r, geo, spec.get("walls", ["any"]))
+			var off := int(spec.get("off", 0))
+			var face := _face(spec, geo, h, -h)
+			var cands: Array = []
+			var mid := (r.bounds as Rect2i).get_center()
+			for c in geo.cells:
+				if m.t(r.floor, c.x + h.x * (off + 1), c.y + h.y * (off + 1)) == TacMap.T.WALL and geo.cset.has(c + h * off):
+					cands.append(c)
+			cands.sort_custom(func(p, q): return p.distance_squared_to(mid) < q.distance_squared_to(mid))
+			var placed := 0
+			for c in cands:
+				if placed >= mini(_limit(spec, r), int(spec.get("max", 1))):
+					break
+				if _stamp(m, r, geo, c, face, _set_of(spec, sets, placed), spec):
+					placed += 1
+		"center":
+			var mid := Vector2((r.bounds as Rect2i).position) + Vector2((r.bounds as Rect2i).size) / 2.0 - Vector2(0.5, 0.5)
+			var cands: Array = geo.cells.duplicate()
+			Layouts._shuffle(dice, cands)
+			cands.sort_custom(func(p, q): return Vector2(p).distance_squared_to(mid) < Vector2(q).distance_squared_to(mid))
+			var face := _face(spec, geo, Vector2i.ZERO, Vector2i(0, 1))
+			var placed := 0
+			for c in cands:
+				if placed >= mini(_limit(spec, r), int(spec.get("max", 1))):
+					break
+				if _stamp(m, r, geo, c, face, _set_of(spec, sets, placed), spec):
+					placed += 1
+		"door":
+			var placed := 0
+			for dr in geo.doors:
+				if placed >= int(spec.get("max", 1)):
+					break
+				var which := String(spec.get("door", "main"))
+				if (which == "main" and dr != geo.doors[0]) or (which == "exterior" and int(dr[3]) >= 0):
+					continue
+				var s: Vector2i = dr[1]
+				var n := -s
+				var lx := Vector2i(n.y, -n.x)
+				var e: Vector2i = dr[0] - s
+				var signs := [1, -1]
+				Layouts._shuffle(dice, signs)
+				for sg in signs:
+					var a: Vector2i = e + lx * int(sg) * int(spec.get("lat", 2)) + n * int(spec.get("off", 0))
+					var face := n
+					match String(spec.get("face", "in")):
+						"door": face = -lx * int(sg)
+						"wall": face = s
+					if _stamp(m, r, geo, a, face, _set_of(spec, sets, placed), spec):
+						placed += 1
+						break
+
+
+## Sets along the walls that match `walls` (when none fit, again with the `else` overrides): counters, booths, lockers, beds.
+static func _at_wall(m: TacMap, dice: Dice, r: Dictionary, spec: Dictionary, geo: Dictionary, sets: Dictionary) -> void:
+	if _along(m, dice, r, spec, geo, sets, spec.get("walls", ["any"])) == 0 and spec.has("else"):
+		var alt := spec.duplicate()
+		alt.erase("else")
+		alt.merge(spec.else, true)   # may carry its own `else`
+		_at_wall(m, dice, r, alt, geo, sets)
+
+
+static func _along(m: TacMap, dice: Dice, r: Dictionary, spec: Dictionary, geo: Dictionary, sets: Dictionary, sels: Array) -> int:
+	var off := int(spec.get("off", 0))
+	var groups := {}   # wall line → [[anchor, d, lat]]
+	for c in geo.cells:
+		if not open_tile(m.t(r.floor, c.x, c.y)):
+			continue
+		for d in MapGen.DIRS:
+			if m.t(r.floor, c.x + d.x, c.y + d.y) != TacMap.T.WALL or not _walls_ok(m, r, geo, c, d, sels):
+				continue
+			var a: Vector2i = c - d * off
+			if not geo.cset.has(a):
+				continue
+			var key := Vector3i(d.x, d.y, c.x + d.x if d.x != 0 else c.y + d.y)
+			groups.get_or_add(key, []).append([a, d, a.y if d.x != 0 else a.x])
+	if groups.is_empty():
+		return 0
+	var keys: Array = groups.keys()
+	Layouts._shuffle(dice, keys)
+	var inset := int(spec.get("inset", 0))
+	for k in keys:   # keep clear of the ends of each wall line (corners)
+		var g: Array = groups[k]
+		g.sort_custom(func(p, q): return p[2] < q[2])
+		var lo: int = g[0][2] + inset
+		var hi: int = g[-1][2] - inset
+		groups[k] = g.filter(func(e): return e[2] >= lo and e[2] <= hi)
+	keys = keys.filter(func(k): return not groups[k].is_empty())
+	if keys.is_empty():
+		return 0
+	if spec.get("one", false):   # the wall line with the most room for the set
+		var room_for := {}
+		for k in keys:
+			room_for[k] = groups[k].filter(func(e): return _fits(m, r, geo, e[0], _face(spec, geo, e[1], -e[1]), _set_of(spec, sets, 0), spec)).size()
+		keys.sort_custom(func(p, q): return room_for[p] > room_for[q])
+		keys = [keys[0]]
+	var limit := _limit(spec, r)
+	var placed := 0
+	var w := _width(_set_of(spec, sets, 0))
+	var step := int(spec.get("step", w.y - w.x + 1))
+	for key in keys:
+		var g: Array = groups[key]
+		var d: Vector2i = g[0][1]
+		var face := _face(spec, geo, d, -d)
+		var by_lat := {}
+		for e in g:
+			by_lat[int(e[2])] = e[0]
+		if spec.get("center", false):
+			var n := int(spec.get("len", 1))
+			var mid := (float(g[0][2]) + float(g[-1][2])) / 2.0
+			var starts: Array = []
+			for e in g:
+				var ok := true
+				for i in n:
+					ok = ok and by_lat.has(int(e[2]) + i * step)
+				if ok:
+					starts.append(int(e[2]))
+			starts.sort_custom(func(p, q): return absf(p + (n - 1) * step / 2.0 - mid) < absf(q + (n - 1) * step / 2.0 - mid))
+			for s in starts:
+				if placed >= limit:
+					break
+				var nc := m.cover.size()
+				var nd := m.decor.size()
+				var all := true
+				for i in n:
+					all = all and _stamp(m, r, geo, by_lat[s + i * step], face, _set_of(spec, sets, i), spec)
+					if not all:
+						break
+				if all:
+					placed += 1
+					break
+				while m.cover.size() > nc:
+					m.pop_cover()
+				while m.decor.size() > nd:
+					m.pop_decor()
+			continue
+		var next := -100000
+		var streak := 0
+		var i := 0
+		for e in g:
+			if placed >= limit:
+				break
+			var lat := int(e[2])
+			if lat < next:
+				continue
+			if _stamp(m, r, geo, e[0], face, _set_of(spec, sets, i), spec):
+				placed += 1
+				i += 1
+				streak += 1
+				next = lat + step
+				if spec.has("run") and streak >= int(spec.run):
+					next += int(spec.get("gap", 1))
+					streak = 0
+	return placed
+
+
+## A lattice of sets facing the head wall: desks in rows, tables in a grid.
+static func _at_grid(m: TacMap, r: Dictionary, spec: Dictionary, geo: Dictionary, sets: Dictionary) -> void:
+	# The head wall: of the walls that match `head`, the one that seats the most sets, then the
+	# most rows (a classroom's board goes on the wall that leaves room for rows). A `head` set after this
+	# one with the same selectors reuses it.
+	var sels: Array = spec.get("head", ["any"])
+	var heads: Array = []
+	for d in MapGen.DIRS:
+		if geo.cells.any(func(c): return m.t(r.floor, c.x + d.x, c.y + d.y) == TacMap.T.WALL and _walls_ok(m, r, geo, c, d, sels)):
+			heads.append(d)
+	if heads.is_empty():
+		heads = [_head(m, r, geo, sels)]
+	var best: Array = []
+	var best_rows := 0
+	var face := Vector2i.ZERO
+	var h := heads[0] as Vector2i
+	for hd in heads:
+		var f: Vector2i = -hd if String(spec.get("face", "head")) == "in" else hd
+		var pts := _lattice(m, r, spec, geo, sets, hd, f)
+		var rows := {}
+		for c in pts:
+			rows[c.x if hd.x != 0 else c.y] = true
+		if face == Vector2i.ZERO or pts.size() * 10 + rows.size() > best.size() * 10 + best_rows:
+			best_rows = rows.size()
+			best = pts
+			face = f
+			h = hd
+	geo.heads[str(sels)] = h
+	var limit := _limit(spec, r)
+	var placed := 0
+	for c in best:
+		if placed >= limit:
+			break
+		if _stamp(m, r, geo, c, face, _set_of(spec, sets, placed), spec):
+			placed += 1
+
+
+## Lattice points (rows `from` + k·step[1] squares out from head wall `h`, every step[0] squares
+## across, on the offset that fits most) where the set fits, front rows first.
+static func _lattice(m: TacMap, r: Dictionary, spec: Dictionary, geo: Dictionary, sets: Dictionary, h: Vector2i, face: Vector2i) -> Array:
+	var b: Rect2i = r.bounds
+	var st: Array = spec.get("step", [2, 2])
+	var sx := int(st[0])
+	var sy := int(st[1])
+	var from := int(spec.get("from", 1))
+	var dist := func(v: Vector2i) -> int:
+		if h.y < 0: return v.y - b.position.y
+		if h.y > 0: return b.end.y - 1 - v.y
+		if h.x < 0: return v.x - b.position.x
+		return b.end.x - 1 - v.x
+	var lat_of := func(v: Vector2i) -> int: return v.x if h.x == 0 else v.y
+	var lo: int = b.position.x if h.x == 0 else b.position.y
+	var best: Array = []
+	for base in sx:
+		var pts: Array = []
+		for c in geo.cells:
+			var dd: int = dist.call(c)
+			if dd >= from and (dd - from) % sy == 0 and posmod(int(lat_of.call(c)) - lo - base, sx) == 0 and _fits(m, r, geo, c, face, _set_of(spec, sets, 0), spec):
+				pts.append(c)
+		if pts.size() > best.size():
+			best = pts
+	best.sort_custom(func(p, q): return dist.call(p) < dist.call(q) or (dist.call(p) == dist.call(q) and lat_of.call(p) < lat_of.call(q)))
+	return best
+
+
+static func _cell_of(a: Vector2i, face: Vector2i, e: Array) -> Vector2i:
+	var lx := Vector2i(face.y, -face.x)
+	return a + lx * int(e[0]) + face * int(e[1])
+
+
+static func _turn(face: Vector2i, k: int) -> Vector2i:
+	var lx := Vector2i(face.y, -face.x)
+	return [face, lx, -face, -lx][posmod(k, 4)]
+
+
+## Can every solid piece of the set stand here (decor is optional)?
+static func _fits(m: TacMap, r: Dictionary, geo: Dictionary, a: Vector2i, face: Vector2i, st: Array, spec: Dictionary) -> bool:
+	var margin := int(spec.get("margin", 0))
+	var clear := int(spec.get("clear", 0))
+	var gap := int(spec.get("door_gap", 0))
+	var mine := {}
+	for e in st:
+		if not String(e[2]).begins_with("~"):
+			mine[_cell_of(a, face, e)] = true
+	for v in mine:
+		if not geo.cset.has(v) or not open_tile(m.t(r.floor, v.x, v.y)) or m.has_cover_at(r.floor, v) or m.has_decor_at(r.floor, v):
+			return false
+		if (not spec.get("near_ok", false) and _near_entry(m, r.floor, v)) or m.is_connector_end(r.floor, v):
+			return false
+		if margin > 0 and _wall_distance(m, r.floor, v) < margin:
+			return false
+		for dy in range(-gap, gap + 1):
+			for dx in range(-gap, gap + 1):
+				if m.t(r.floor, v.x + dx, v.y + dy) == TacMap.T.DOOR:
+					return false
+		for dy in range(-clear, clear + 1):
+			for dx in range(-clear, clear + 1):
+				var n: Vector2i = v + Vector2i(dx, dy)
+				if not mine.has(n) and (m.has_cover_at(r.floor, n) or m.has_decor_at(r.floor, n)):
+					return false
+	return true
+
+
+## Place a set facing `face` at anchor `a`: all its solid pieces or none (and only if the room
+## stays connected), then whatever decor has room.
+static func _stamp(m: TacMap, r: Dictionary, geo: Dictionary, a: Vector2i, face: Vector2i, st: Array, spec: Dictionary) -> bool:
+	if not _fits(m, r, geo, a, face, st, spec):
+		return false
+	var n := 0
+	for e in st:
+		if String(e[2]).begins_with("~"):
+			continue
+		var entry := cover_entry(String(e[2]), r.floor, _cell_of(a, face, e), r.id)
+		entry["face"] = _turn(face, int(e[3]) if e.size() > 3 else 0)
+		m.add_cover(entry)
+		n += 1
+	if n > 0 and not _room_connected(m, r, geo.cells):
+		for i in n:
+			m.pop_cover()
+		return false
+	for e in st:
+		if not String(e[2]).begins_with("~"):
+			continue
+		var v := _cell_of(a, face, e)
+		if not geo.cset.has(v) or not open_tile(m.t(r.floor, v.x, v.y)) or m.has_cover_at(r.floor, v) or m.has_decor_at(r.floor, v):
+			continue
+		if MapGen.DIRS.any(func(d): return m.t(r.floor, v.x + d.x, v.y + d.y) in [TacMap.T.DOOR, TacMap.T.STAIRS, TacMap.T.ELEVATOR]):
+			continue
+		m.add_decor({"floor": r.floor, "pos": v, "kind": String(e[2]).substr(1), "face": _turn(face, int(e[3]) if e.size() > 3 else 0), "room": r.id})
+	return true
 
 
 # --- Devices ------------------------------------------------------------------
@@ -253,7 +710,7 @@ static func add_device(m: TacMap, dice: Dice, r: Dictionary, type: String, group
 			taken[d.pos] = true
 	var cands: Array[Vector2i] = []
 	for c in room_cells(m, r):
-		if not open_tile(m.t(r.floor, c.x, c.y)) or m.has_cover_at(r.floor, c) or taken.has(c):
+		if not open_tile(m.t(r.floor, c.x, c.y)) or m.has_cover_at(r.floor, c) or m.has_decor_at(r.floor, c) or taken.has(c):
 			continue
 		var by_wall := MapGen.DIRS.any(func(d): return m.t(r.floor, c.x + d.x, c.y + d.y) == TacMap.T.WALL)
 		if by_wall == wall or not wall:
