@@ -221,3 +221,72 @@ func test_maxtac_drop() -> void:   # no doctrine escalates to it (campaign heat 
 	assert_true(mt.all(func(u): return e.hostile(u.team, Encounter.CREW) and e.is_guard(u) and u.c.sp("body") >= 18), "hostile, in heavy armour")
 	assert_true(mt.all(func(u): return e.faction_of(u) == "maxtac" and e.opfor().has(u)), "their own side, and part of the fight to win")
 	assert_true(e.events.any(func(ev): return ev.type == "av_land" and ev.kind == "maxtac"), "arriving by AV")
+
+
+# --- Night City's civilians (NC2045 civilian blocks) ----------------------------------------
+
+func _market(opts: Dictionary) -> Encounter:
+	var m := SceneGen.generate(7, "neighborhood", {"security": 1, "profile": "market_streets"})
+	var dice := Dice.new(4)
+	return Encounter.setup(m, dice, _crew(dice), "eliminate", opts)
+
+
+func test_bystanders_are_the_districts_civilians_and_unarmed() -> void:
+	var e := _market({"district": "kabuki"})
+	var civs := e.units.filter(func(u): return u.get("civ", false))
+	assert_true(civs.size() >= 3)
+	var all := Recruit.civilian_blocks()
+	assert_true(civs.all(func(u): return String(u.c.block) in all), "every bystander is a civilian stat block")
+	assert_true(civs.any(func(u): return String(u.c.block) in Recruit.civilian_blocks("kabuki")), "Kabuki's own people among them")
+	assert_true(civs.all(func(u): return u.c.weapons.is_empty() and not u.get("local", false)), "bystanders carry nothing")
+	assert_true(civs.all(func(u): return String(u.c.faction) == "bystanders" and int(u.team) == Encounter.CIV_TEAM))
+
+
+func test_a_place_its_patrons_guard_keeps_their_weapons() -> void:
+	var e := _market({"district": "kabuki", "security_code": {"n": 10, "faction": "locals", "intensity": "heavy", "hardened": false}})
+	var civs := e.units.filter(func(u): return u.get("civ", false))
+	assert_true(civs.size() >= 3)
+	assert_true(civs.all(func(u): return u.get("local", false)), "they're the place's locals")
+	assert_true(civs.any(func(u): return not u.c.weapons.is_empty()), "armed as printed")
+
+
+func test_civilian_blocks_by_district_fall_back_to_the_city() -> void:
+	var all := Recruit.civilian_blocks()
+	assert_eq(all.size(), 32, "Night City 2045 prints 32 civilians")
+	assert_eq(Recruit.civilian_blocks("kabuki"), ["delphi_x_dancer", "kabuki_market_vendor"] as Array[String])
+	assert_eq(Recruit.civilian_blocks("charter_hill"), all, "a district with none: anyone in the city")
+	assert_eq(Recruit.civilian_blocks(""), all)
+	var c := Recruit.civilian(Dice.new(1), "minimallism_fixer", "Crux")
+	assert_eq(c.display_name, "Crux")
+	assert_eq(c.role, "mook", "an NPC's role is its tier, as printed")
+
+
+func test_the_captive_is_a_civilian() -> void:
+	var e := _enc("rescue")
+	var cap: Dictionary = e.units[int(e.objective.captive)]
+	assert_true(String(cap.c.block) in Recruit.civilian_blocks(), "one of Night City's civilians (%s)" % cap.c.block)
+	assert_true(cap.c.weapons.is_empty(), "disarmed")
+	assert_true(String(cap.c.display_name) in (RulesDB.gen("objectives.json").rescue.names as Array), "under one of the job's names")
+
+
+func test_a_corp_mark_is_an_executive_and_a_police_mark_one_of_their_own() -> void:
+	var cfg: Dictionary = RulesDB.gen("objectives.json").assassinate
+	var dice := Dice.new(3)
+	for i in 6:
+		assert_true(_vip_block("militech", cfg, dice) in ["junior_executive", "rupture_fighter"], "a corp's mark is an exec")
+		assert_eq(_vip_block("maelstrom", cfg, dice), "minimallism_fixer", "a gang's, a fixer")
+	assert_eq(_vip_block("sk_securities", cfg, dice), "", "the police: one of their own")
+	var e := _enc("assassinate")   # generic security: a corp
+	var vip: Dictionary = e.units[int(e.objective.target)]
+	assert_true(String(vip.c.block) in ["junior_executive", "rupture_fighter"], "the mark is an exec (%s)" % vip.c.block)
+	assert_eq(String(vip.c.faction), e.opfor_faction)
+	assert_true(vip.get("vip", false) and vip.team == Encounter.OPFOR)
+	var m := SceneGen.generate(11, "lone_building", {"security": 2, "site": "gang_hideout"})
+	var d2 := Dice.new(7)
+	var pe := Encounter.setup(m, d2, _crew(d2), "assassinate", {"faction": "sk_securities"})
+	var pv: Dictionary = pe.units[int(pe.objective.target)]
+	assert_true(String(pv.c.block) in SecurityCode.tier_pool("sk_securities", "mini_boss", false), "SK's own Mini Boss (%s)" % pv.c.block)
+
+
+func _vip_block(fid: String, cfg: Dictionary, dice: Dice) -> String:
+	return (load("res://src/tactical/objectives/assassinate.gd") as GDScript).vip_block(fid, cfg, dice)

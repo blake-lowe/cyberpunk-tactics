@@ -107,7 +107,7 @@ static func top_bar(c: Campaign, heading: String, crumb: String, back: Callable)
 	names.add_child(UiKit.head(heading, 34, Hud.TEXT))
 	row.add_child(names)
 	row.add_child(UiKit.spacer())
-	for s in [["DAY", str(c.day)], ["EB", UiKit.money(c.eb)], ["BEST REPUTATION", str(c.best_reputation())]]:
+	for s in [["DAY", "%d  ·  %s" % [c.day, c.time_label()]], ["EB", UiKit.money(c.eb)], ["BEST REPUTATION", str(c.best_reputation())]]:
 		var v := UiKit.vbox(-4)
 		v.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		v.add_child(UiKit.label(s[0], 12, Hud.DIM))

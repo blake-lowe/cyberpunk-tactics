@@ -32,12 +32,23 @@ const DOWNTIME := {
 	"recover": {"name": "Recover", "desc": "Heal BODY HP a day (p223)."},
 }
 
+## Where a new crew holds up: Little China, a mid-band district (Security Code 4-5, NC2045 p.18) in
+## the middle of the city, next to the Hot Zone and the Heywood docks: a warehouse there is cheap
+## and every gig is a short drive. HOUSE-RULE: the book gives the crew no home district.
+const DEFAULT_SAFEHOUSE := "little_china"
+const DAY_MINUTES := 24 * 60
+
 static var current: Campaign   ## the running campaign (the board and the tactical view share it)
 
 var seed_value := 1
 var dice: Dice
 var eb := 0
 var day := 1
+## Minutes past the start of `day` (the drives to gigs, Travel; they roll over into days). Rest
+## advances whole days and leaves the time of day as it is.
+var minutes := 0
+## The district the crew's safehouse is in: where every drive to a gig starts (Travel).
+var safehouse_district := DEFAULT_SAFEHOUSE
 var crew: Array[Combatant] = []
 var fallen: Array[Dictionary] = []   ## {name, role, day, gig}: the wall
 var board: Array[Dictionary] = []    ## gig offers
@@ -371,7 +382,7 @@ static func encounter_opts(gig: Dictionary) -> Dictionary:
 	var o := {"complications": true, "utilities": true}
 	if String(gig.get("faction", "")) != "":
 		o["faction"] = String(gig.faction)
-	for k in ["security_code", "district_code", "utility_code"]:
+	for k in ["security_code", "district_code", "utility_code", "district"]:
 		if gig.has(k):
 			o[k] = gig[k]
 	var code := SecurityCode.normalise(gig.get("security_code"))
@@ -526,13 +537,42 @@ func accept(index: int) -> Dictionary:
 	if index < 0 or index >= board.size() or alive_crew().filter(func(c): return c.can_act()).is_empty():
 		return {}
 	active_gig = board[index].duplicate()
+	var drive := travel_minutes(active_gig)   # NC2045 p.18: the drive out from the safehouse district
+	if drive > 0:
+		active_gig["travel_minutes"] = drive
+		advance_minutes(drive)
 	var before := {}   # for the debrief: what each crew member already had going in
 	for c in crew:
 		before[c.display_name] = {"injuries": c.injuries.size(), "humanity": c.humanity}
 	active_gig["before"] = before
 	debrief.clear()   # the last gig's marks come off the crew cards
 	say("Took '%s' from %s." % [active_gig.title, active_gig.fixer])
+	if drive > 0:
+		say("Drove %d minutes from %s to %s." % [drive,
+			String(World.district(safehouse_district).get("name", safehouse_district)), district_name(active_gig)])
 	return active_gig
+
+
+## Minutes to drive from the safehouse district to `gig`'s district (Travel.drive_minutes; -1 for
+## a gig with no district on the map).
+func travel_minutes(gig: Dictionary) -> int:
+	return Travel.drive_minutes(safehouse_district, String(gig.get("district", "")))
+
+
+## Move the clock on `n` minutes; whole days roll over into `day` (a new day can bring a new
+## Night Market, update_market).
+func advance_minutes(n: int) -> void:
+	minutes += maxi(0, n)
+	if minutes < DAY_MINUTES:
+		return
+	day += minutes / DAY_MINUTES
+	minutes %= DAY_MINUTES
+	update_market()
+
+
+## The time of day as the safehouse shows it beside the day: "02:15" (the day starts at midnight).
+func time_label() -> String:
+	return "%02d:%02d" % [minutes / 60, minutes % 60]
 
 
 # --- After the gig ----------------------------------------------------------------
@@ -1273,7 +1313,8 @@ func upgrade_armor(owner: Combatant, loc: String) -> Dictionary:
 # --- Save / load ------------------------------------------------------------------
 
 func to_dict() -> Dictionary:
-	return {"version": SaveMigrations.CURRENT, "seed": seed_value, "eb": eb, "day": day, "crew": crew.map(func(c): return c.to_dict()),
+	return {"version": SaveMigrations.CURRENT, "seed": seed_value, "eb": eb, "day": day, "minutes": minutes,
+		"safehouse_district": safehouse_district, "crew": crew.map(func(c): return c.to_dict()),
 		"fallen": fallen, "board": board, "recruits": recruits.map(func(c): return c.to_dict()), "log": log.slice(-50),
 		"rng_state": dice.rng.state, "stash": stash, "market": market, "debrief": debrief}
 
@@ -1290,6 +1331,9 @@ static func from_dict(raw: Dictionary) -> Campaign:
 	c.dice.rng.state = int(d.get("rng_state", c.dice.rng.state))
 	c.eb = int(d.eb)
 	c.day = int(d.day)
+	c.minutes = clampi(int(d.get("minutes", 0)), 0, DAY_MINUTES - 1)
+	var sh := String(d.get("safehouse_district", DEFAULT_SAFEHOUSE))
+	c.safehouse_district = sh if World.districts().has(sh) else DEFAULT_SAFEHOUSE
 	for cd in d.crew:
 		c.crew.append(Combatant.from_dict(cd))
 	for f in d.fallen:
