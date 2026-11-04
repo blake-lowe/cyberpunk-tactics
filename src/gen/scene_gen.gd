@@ -16,7 +16,18 @@ static func scene_types() -> Array:
 	return RulesDB.gen("scenes.json").keys().filter(func(k): return not k.begins_with("_"))
 
 
+## overrides.setpiece (data/gen/setpieces.json) builds that set piece instead: its scene, its
+## planner (SetPieceGen) and its buildings; the caller's other overrides still win.
 static func generate(seed_value: int, scene: String, overrides: Dictionary = {}) -> TacMap:
+	var setpiece := String(overrides.get("setpiece", ""))
+	if SetPieces.has(setpiece):
+		scene = SetPieces.scene_of(setpiece)
+		overrides = SetPieces.overrides(setpiece, overrides)
+	elif setpiece != "":
+		push_error("unknown set piece " + setpiece)
+		overrides = overrides.duplicate()
+		overrides.erase("setpiece")
+		setpiece = ""
 	var sdef: Dictionary = RulesDB.gen("scenes.json")[scene]
 	var p: Dictionary = MapGen.DEFAULTS.duplicate()
 	p.merge(sdef.get("params", {}), true)
@@ -24,7 +35,9 @@ static func generate(seed_value: int, scene: String, overrides: Dictionary = {})
 	if int(p.get("verticality", 1)) == 0:
 		p.floors = 1
 	var dice := Dice.new(seed_value)
-	if scene == "lone_building":
+	if setpiece != "":
+		SetPieceGen.size(dice, p, overrides)
+	elif scene == "lone_building":
 		_site_size(dice, p, overrides)
 	var m := TacMap.new(int(p.w), int(p.h), int(p.floors) + 1)  # + roof level
 	m.seed_value = seed_value
@@ -32,6 +45,25 @@ static func generate(seed_value: int, scene: String, overrides: Dictionary = {})
 	m.params = p
 	p["scene"] = scene
 	var c := {"m": m, "dice": dice, "hints": [], "p": p, "reserved": {}, "overrides": overrides, "related": []}
+	if setpiece != "":
+		SetPieceGen.run(c)
+	else:
+		_plan(c, scene)
+	_link_nets(c)
+	_deploy_zone(c)
+	_ensure_public_access(m)
+	_guard_posts(m)
+	if setpiece != "":
+		SetPieceGen.posts(c)
+	for st in m.structures:
+		if st.target and m.architectures.has(st.id):
+			m.architecture = m.architectures[st.id]
+			m.algorithm = st.get("algorithm", scene) if scene == "lone_building" else scene
+	return m
+
+
+static func _plan(c: Dictionary, scene: String) -> void:
+	var p: Dictionary = c.p
 	match scene:
 		"lone_building": _lone_building(c)
 		"skirmish": _skirmish(c)
@@ -45,15 +77,6 @@ static func generate(seed_value: int, scene: String, overrides: Dictionary = {})
 		"arcology": ThemedScenes.arcology(c)
 		"warzone": ThemedScenes.warzone(c)
 		_: push_error("unknown scene " + scene)
-	_link_nets(c)
-	_deploy_zone(c)
-	_ensure_public_access(m)
-	_guard_posts(m)
-	for st in m.structures:
-		if st.target and m.architectures.has(st.id):
-			m.architecture = m.architectures[st.id]
-			m.algorithm = st.get("algorithm", scene) if scene == "lone_building" else scene
-	return m
 
 
 # --- Shared building blocks ----------------------------------------------------
@@ -93,7 +116,8 @@ static func road(c: Dictionary, r: Rect2i, horizontal: bool) -> void:
 		reserve(c, Rect2i(r.position.x + r.size.x / 2 - 1, r.position.y, 2, r.size.y))
 
 
-static func building(c: Dictionary, shell: Rect2i, site: String, floors: int, security: int, target := false, base_zone := TacMap.Zone.PUBLIC, entry_side := "", mask := {}) -> Dictionary:
+## `part`: a set piece's building (setpieces.json sites.<part>), built from its recipe.
+static func building(c: Dictionary, shell: Rect2i, site: String, floors: int, security: int, target := false, base_zone := TacMap.Zone.PUBLIC, entry_side := "", mask := {}, part := "") -> Dictionary:
 	# Only what the caller set explicitly; otherwise each site keeps its own defaults.
 	var params: Dictionary = {}
 	for k in ["density", "loops", "net_threat", "net_scale"]:
@@ -106,8 +130,9 @@ static func building(c: Dictionary, shell: Rect2i, site: String, floors: int, se
 		params["decay"] = c.decay
 	# Footprint shape (M2e review: break up grids everywhere): by the site type's shape weights.
 	var courtyard := Rect2i()
+	var setpiece := String(c.p.get("setpiece", "")) if part != "" else ""
 	if mask.is_empty() and mini(shell.size.x, shell.size.y) >= 12:
-		var shapes: Dictionary = RulesDB.gen("sites.json")[site].get("shapes", {"rect": 1})
+		var shapes: Dictionary = SetPieces.site_def(site, setpiece, part).get("shapes", {"rect": 1})
 		var names := shapes.keys()
 		var wts := PackedFloat32Array()
 		for n in names:
@@ -117,7 +142,8 @@ static func building(c: Dictionary, shell: Rect2i, site: String, floors: int, se
 		mask = shaped.mask
 		courtyard = shaped.courtyard
 	return BuildingGen.build(c.m, c.dice, c.hints, {"shell": shell, "site": site, "floors": floors, "security": security,
-		"base_zone": base_zone, "target": target, "entry_side": entry_side, "params": params, "mask": mask, "courtyard": courtyard})
+		"base_zone": base_zone, "target": target, "entry_side": entry_side, "params": params, "mask": mask, "courtyard": courtyard,
+		"setpiece": setpiece, "part": part})
 
 
 ## An outdoor structure (open lot, compound) to own yards, fences and their devices/NET.

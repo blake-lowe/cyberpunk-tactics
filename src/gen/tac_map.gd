@@ -133,6 +133,12 @@ func has_cover_at(f: int, p: Vector2i) -> bool:
 	return _cover_index.has(Vector3i(p.x, p.y, f))
 
 
+## The standing cover piece on a square ({} if none).
+func cover_at(f: int, p: Vector2i) -> Dictionary:
+	var i: int = _cover_index.get(Vector3i(p.x, p.y, f), -1)
+	return cover[i] if i >= 0 else {}
+
+
 func walkable(f: int, p: Vector2i) -> bool:
 	return walkable_tile(t(f, p.x, p.y)) and not has_cover_at(f, p)
 

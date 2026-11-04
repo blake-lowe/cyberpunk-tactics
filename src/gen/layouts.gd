@@ -377,6 +377,9 @@ static func train(dice: Dice, w: int, region: Rect2i, labels: PackedInt32Array, 
 #           onto through bulletproof glass], p: chance present, min_floors}
 #        | {stack: [item, ...], w | cells}             items one behind the other (depth split)
 #        | {repeat: item, size: [a, b], w | cells}      identical units across the width
+#        | {rooms: [item, ...], w | cells}             items side by side (inside a stack)
+# Set pieces (data/gen/setpieces.json) add: item `secret: group` (built on one drawn floor only, see
+# program_plan), program `keep` (program_keep) and `mirror: false` (the plan never flips).
 # Band depths come from the ground floor's bands and every floor shares them, so walls, corridors
 # and stair halls stack storey over storey; an item at either end of a band (a stair hall) lands
 # in the same place on every floor.
@@ -406,7 +409,72 @@ static func program_plan(dice: Dice, region: Rect2i, p: Dictionary) -> Dictionar
 	var along_x := side in ["S", "N"]
 	var U := region.size.x if along_x else region.size.y
 	var V := region.size.y if along_x else region.size.x
-	return {"variant": vi, "mirror": dice.rng.randf() < 0.5, "U": U, "V": V, "depths": _alloc(dice, V, variants[vi]["ground"])}
+	var mirror := dice.rng.randf() < 0.5 and bool(prog.get("mirror", true))
+	var plan := {"variant": vi, "mirror": mirror, "U": U, "V": V, "depths": _alloc(dice, V, variants[vi]["ground"])}
+	# Secret rooms (set pieces: a CitiNet server room whose floor nobody knows): of the floors whose
+	# bands list an item tagged `secret: group`, one is drawn; the item is left out everywhere else.
+	var secret := {}
+	for group in prog.get("secret", {}):
+		var where: Array = []
+		for f in floors:
+			if _bands_for(variants[vi], f, floors).any(func(b): return _has_secret(b.rooms, String(group))):
+				where.append(f)
+		secret[group] = where[dice.rng.randi_range(0, where.size() - 1)] if not where.is_empty() else -1
+	plan["secret"] = secret
+	return plan
+
+
+## The bands a floor of a program variant uses: its own number, else top / upper, else ground.
+static func _bands_for(variant: Dictionary, f: int, floors: int) -> Array:
+	if variant.has(str(f)):
+		return variant[str(f)]
+	if f > 0 and f == floors - 1 and floors >= 3 and variant.has("top"):
+		return variant["top"]
+	if f > 0 and variant.has("upper"):
+		return variant["upper"]
+	return variant["ground"]
+
+
+static func _has_secret(items: Array, group: String) -> bool:
+	for it in items:
+		if String(it.get("secret", "")) == group:
+			return true
+		for k in ["stack", "rooms"]:
+			if it.has(k) and _has_secret(it[k], group):
+				return true
+		if it.has("repeat") and _has_secret([it.repeat], group):
+			return true
+	return false
+
+
+## Set pieces: the part of the plan a storey keeps (program `keep.<floor>`: {bands: [first, last]}
+## and/or {u: [from, to]} as shares of the facade), in grid squares; an empty rect keeps it all.
+## Upper floors step back this way and the roof below them becomes a terrace (BuildingGen).
+static func program_keep(region: Rect2i, p: Dictionary, f: int) -> Rect2i:
+	var k: Dictionary = p.program.get("keep", {}).get(str(f), {})
+	if k.is_empty():
+		return Rect2i()
+	var plan: Dictionary = p.plan
+	var depths: Array = plan.depths
+	var v0 := 0
+	var v1: int = plan.V
+	if k.has("bands"):
+		var b: Array = k.bands
+		var acc := 0
+		for i in depths.size():
+			var d: int = plan.V - acc if i == depths.size() - 1 else int(depths[i])
+			if i == int(b[0]):
+				v0 = acc
+			if i == int(b[1]):
+				v1 = acc + d
+			acc += d
+	var u0 := 0
+	var u1: int = plan.U
+	if k.has("u"):
+		u0 = roundi(float(k.u[0]) * plan.U)
+		u1 = roundi(float(k.u[1]) * plan.U)
+	var ctx := {"region": region, "plan": plan, "side": String(p.get("entry_side", "S"))}
+	return _uv_to_grid(ctx, Rect2i(u0, v0, u1 - u0, v1 - v0))
 
 
 ## Split `total` squares among `items` by their fixed `cells` and jittered weights `w`, each at
@@ -478,14 +546,8 @@ static func program(dice: Dice, w: int, region: Rect2i, labels: PackedInt32Array
 	var variant: Dictionary = (p.program.get("variants", [p.program]) as Array)[plan.variant]
 	var f := int(p.get("floor", 0))
 	var floors := int(p.get("floors", 1))
-	var bands: Array = variant["ground"]
-	if variant.has(str(f)):
-		bands = variant[str(f)]
-	elif f > 0 and f == floors - 1 and floors >= 3 and variant.has("top"):
-		bands = variant["top"]
-	elif f > 0 and variant.has("upper"):
-		bands = variant["upper"]
-	var ctx := {"dice": dice, "w": w, "region": region, "labels": labels, "plan": plan, "floors": floors,
+	var bands: Array = _bands_for(variant, f, floors)
+	var ctx := {"dice": dice, "w": w, "region": region, "labels": labels, "plan": plan, "floors": floors, "floor": f,
 		"side": String(p.get("entry_side", "S")), "hints": []}
 	var v0 := 0
 	for i in bands.size():
@@ -497,7 +559,9 @@ static func program(dice: Dice, w: int, region: Rect2i, labels: PackedInt32Array
 
 
 static func _present(ctx: Dictionary, items: Array) -> Array:
+	var secret: Dictionary = ctx.plan.get("secret", {})
 	return items.filter(func(it): return int(ctx.floors) >= int(it.get("min_floors", 1)) \
+		and (not it.has("secret") or int(secret.get(String(it.secret), -1)) == int(ctx.get("floor", 0))) \
 		and (not it.has("p") or ctx.dice.rng.randf() < float(it.p)))
 
 

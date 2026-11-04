@@ -1817,5 +1817,17 @@
  "admin_office": {"furniture": [["reception", "center", 200], ["desk", "row", 10], ["cabinet", "wall", 18]], "devices": [{"t": "terminal", "ap": true, "file": 2}, {"t": "camera", "group": "cameras", "wall": true}, {"t": "pa_system", "group": "site:pa", "wall": true}]},
  "library": {"furniture": [["shelf", "row", 5], ["table", "center", 24]], "devices": [{"t": "terminal", "p": 0.6, "ap": true, "file": 1}]},
  "security_post": {"furniture": [["desk", "wall", 12], ["locker", "wall", 16]], "devices": [{"t": "terminal", "ap": true, "file": 1}, {"t": "alarm_panel", "group": "site:alarm", "wall": true}, {"t": "camera", "group": "cameras", "wall": true}], "post": true},
- "bd_lab": {"furniture": [["chair", "row", 4]], "devices": [{"t": "bd_rig", "group": "site:bd_rigs", "wall": true, "per_cells": 18}, {"t": "terminal", "ap": true, "file": 2}]}
+ "bd_lab": {"furniture": [["chair", "row", 4]], "devices": [{"t": "bd_rig", "group": "site:bd_rigs", "wall": true, "per_cells": 18}, {"t": "terminal", "ap": true, "file": 2}]},
+ "_setpieces": "Room kinds the set pieces (data/gen/setpieces.json) name: Fort Sumter's petition offices, gun range, ops centre and rec room; Ziggurat's Net museum, vehicle bays, content control and CEO suite; the port's drone hangar, the Rose's comms room and Flotsam's floats.",
+ "petition_office": {"furniture": [["desk", "center", 30], ["bench", "wall", 12], ["cabinet", "wall", 24]], "devices": [{"t": "terminal", "p": 0.5, "ap": true, "file": 1}]},
+ "gun_range": {"furniture": [["counter", "front", 4], ["sandbags", "scatter", 40], ["locker", "wall", 28]], "devices": [{"t": "camera", "group": "cameras", "wall": true}]},
+ "ops_center": {"furniture": [["console", "row", 7], ["table", "center", 40], ["rack", "wall", 30]], "devices": [{"t": "terminal", "ap": true, "file": 3}, {"t": "alarm_panel", "group": "site:alarm", "wall": true}, {"t": "camera", "group": "cameras", "wall": true}], "post": true},
+ "rec_room": {"furniture": [["table", "scatter", 16], ["sofa", "wall", 18], ["vending", "wall", 60]]},
+ "net_museum": {"furniture": [["kiosk", "scatter", 20], ["console", "scatter", 34], ["planter", "wall", 45], ["pillar", "scatter", 90]], "devices": [{"t": "camera", "group": "cameras", "wall": true, "per_cells": 50}, {"t": "terminal", "p": 0.6, "ap": true, "file": 1}]},
+ "vehicle_bay": {"furniture": [["car", "scatter", 36], ["lift", "scatter", 55], ["rack", "wall", 30]], "devices": [{"t": "shutter_control", "group": "site:shutters", "wall": true}, {"t": "camera", "group": "cameras", "wall": true, "per_cells": 80}]},
+ "content_control": {"furniture": [["console", "row", 6], ["desk", "scatter", 26]], "devices": [{"t": "terminal", "ap": true, "file": 3}, {"t": "camera", "group": "cameras", "wall": true}]},
+ "ceo_suite": {"furniture": [["desk", "center", 60], ["sofa", "wall", 26], ["planter", "wall", 40], ["safe", "wall", 80]], "devices": [{"t": "terminal", "ap": true, "file": 4}, {"t": "camera", "group": "cameras", "wall": true}], "post": true},
+ "drone_hangar": {"furniture": [["rack", "wall", 16], ["crate", "scatter", 30], ["lift", "scatter", 60]], "devices": [{"t": "camera", "group": "cameras", "wall": true, "per_cells": 80}, {"t": "shutter_control", "group": "site:shutters", "wall": true}]},
+ "comms_room": {"furniture": [["console", "row", 6], ["rack", "wall", 10]], "devices": [{"t": "terminal", "ap": true, "file": 3}, {"t": "camera", "group": "cameras", "wall": true}]},
+ "float": {"furniture": [["barrel", "scatter", 70], ["crate", "scatter", 90]], "devices": [{"t": "floodlight", "group": "site:floodlights", "p": 0.6}]}
 }
