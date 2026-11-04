@@ -21,9 +21,13 @@ static func plan(m: TacMap, seed_value: int) -> Array:
 	var fire_col := Color(String(SceneTheme.of(m).get("fire", "ff8a30")))
 	var lamp_keep := float(SceneTheme.of(m).get("lamp_keep", 1.0))
 	var blaze := float(SceneTheme.of(m).get("blaze", 0.0))
-	# Neon signs over every entrance that opens onto the street, colour per structure.
+	# Neon signs over every entrance that opens onto the street, colour per structure. A district
+	# with few signs (DistrictLook signs < 1) keeps only some; none where the power's gone.
+	var signs := SceneTheme.signs(m)
 	for e in m.entrances:
 		if e.kind != "door":
+			continue
+		if signs < 1.0 and posmod(hash(Vector3i(e.pos.x, e.pos.y, seed_value)), 1000) >= int(signs * 1000.0):
 			continue
 		var f: int = e.get("floor", 0)
 		var face := _outward(m, f, e.pos)

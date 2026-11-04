@@ -5,6 +5,8 @@ extends RefCounted
 ## and curves), blocks are whatever the roads leave, lots come from splitting blocks (with alleys),
 ## and each lot gets a building or an outdoor use from the profile's mix. Buildings use any
 ## footprint (clipped lots, L/U/T/courtyard shapes) and the profile's decay for ruined areas.
+## A gig's district (params.district, DistrictLook) adjusts the profile (lot mix, ruin, height,
+## cars) and dresses the streets: its street furniture, street trees and rubble.
 
 const G := TacMap.G
 const YARDS := {"market": [G.CONCRETE, "market"], "park": [G.GRASS, "park"], "plaza": [G.CONCRETE, "plaza"],
@@ -14,7 +16,8 @@ const YARDS := {"market": [G.CONCRETE, "market"], "park": [G.GRASS, "park"], "pl
 
 static func generate(c: Dictionary, profile_name: String) -> void:
 	var m: TacMap = c.m
-	var prof: Dictionary = RulesDB.gen("districts.json")[profile_name]
+	var look := DistrictLook.of_params(c.p)
+	var prof: Dictionary = DistrictLook.profile(RulesDB.gen("districts.json")[profile_name], look, int(c.p.floors))
 	c.p["profile"] = profile_name
 	SceneGen.ground(c, Rect2i(0, 0, m.w, m.h), G.SIDEWALK)
 	var roads := {}
@@ -26,7 +29,9 @@ static func generate(c: Dictionary, profile_name: String) -> void:
 	_fill_lots(c, prof, lots)
 	_footbridges(c, lines)
 	_parked(c, prof, roads)
-	_street_furniture(c)
+	_street_furniture(c, look)
+	_street_trees(c, look, roads)
+	_street_rubble(c, look)
 	_edge_spawns(c)
 
 
@@ -248,7 +253,7 @@ static func _fill_lots(c: Dictionary, prof: Dictionary, lots: Array) -> void:
 			_cluster(c, prof, piece, bb, names, wts, fl, blds)
 			continue
 		var mask: Dictionary = {} if piece.size() == bb.get_area() else piece
-		var floors: int = fl if is_target else c.dice.rng.randi_range(int(prof.floors[0]), mini(int(prof.floors[1]), fl))
+		var floors: int = int(c.p.get("target_floors", fl)) if is_target else c.dice.rng.randi_range(mini(int(prof.floors[0]), fl), mini(int(prof.floors[1]), fl))
 		var sec: int = int(c.p.security) if is_target else c.dice.rng.randi_range(int(prof.security[0]), int(prof.security[1]))
 		c["decay"] = c.dice.rng.randf_range(float(prof.decay[0]), float(prof.decay[1]))
 		blds.append(SceneGen.building(c, bb, use, floors, sec, is_target, TacMap.Zone.PUBLIC, "", mask))
@@ -419,9 +424,13 @@ static func _parked(c: Dictionary, prof: Dictionary, roads: Dictionary) -> void:
 
 ## Street furniture against building fronts (owner round 6: empty lots and pavements): vending
 ## machines, benches and the odd kiosk, spaced out and clear of doors. Small cover on the street.
-static func _street_furniture(c: Dictionary) -> void:
+## A district sets the pieces (market stalls, planters, sandbags...) and how many (props).
+static func _street_furniture(c: Dictionary, look: Dictionary = {}) -> void:
 	var m: TacMap = c.m
 	var placed: Array[Vector2i] = []
+	var rate := 0.05 * DistrictLook.num(look, "props", 1.0)
+	var pieces: Array = look.get("street", DistrictLook.STREET)
+	var gap := 36 if rate <= 0.05 else 16   # busy districts crowd their pavements
 	for y in range(1, m.h - 1):
 		for x in range(1, m.w - 1):
 			var v := Vector2i(x, y)
@@ -434,11 +443,48 @@ static func _street_furniture(c: Dictionary) -> void:
 				for dx in range(-2, 3):
 					if m.inb(x + dx, y + dy) and m.t(0, x + dx, y + dy) == TacMap.T.DOOR:
 						near_door = true
-			if near_door or c.dice.rng.randf() > 0.05 or placed.any(func(q): return q.distance_squared_to(v) < 36):
+			if near_door or c.dice.rng.randf() > rate or placed.any(func(q): return q.distance_squared_to(v) < gap):
 				continue
-			var piece: String = ["vending", "vending", "bench", "kiosk", "barrel"][c.dice.rng.randi() % 5]
+			var piece: String = pieces[c.dice.rng.randi() % pieces.size()]
 			if Furnish.try_prop(m, 0, Rect2i(v, Vector2i.ONE), piece, -1, {}, c.reserved):
 				placed.append(v)
+
+
+## Street trees (DistrictLook green): along the outer edge of road sidewalks, spaced like an
+## avenue, clear of the road's reserved lanes and of doors.
+static func _street_trees(c: Dictionary, look: Dictionary, roads: Dictionary) -> void:
+	var green := DistrictLook.num(look, "green", 0.0)
+	if green <= 0.0:
+		return
+	var m: TacMap = c.m
+	var placed: Array[Vector2i] = []
+	for v in roads:
+		if roads[v] or c.reserved.has(v) or c.dice.rng.randf() > green * 0.35:
+			continue
+		if m.t(0, v.x, v.y) != TacMap.T.OUTSIDE or m.label(0, v.x, v.y) >= 0 or placed.any(func(q): return q.distance_squared_to(v) < 25):
+			continue
+		if MapGen.DIRS.any(func(d): return m.inb(v.x + d.x, v.y + d.y) and m.t(0, v.x + d.x, v.y + d.y) == TacMap.T.DOOR):
+			continue
+		if Furnish.try_prop(m, 0, Rect2i(v, Vector2i.ONE), "tree" if c.dice.rng.randf() < 0.7 else "planter", -1, {}, c.reserved):
+			placed.append(v)
+
+
+## Rubble on the streets of ruined districts (DistrictLook ruin): heaps of broken concrete on
+## open ground, more the further gone the district is. Low cover.
+static func _street_rubble(c: Dictionary, look: Dictionary) -> void:
+	var ruin := DistrictLook.num(look, "ruin", 0.0)
+	if ruin < 0.3:
+		return
+	var m: TacMap = c.m
+	var n := int(m.w * m.h * (ruin - 0.2) / 260.0)
+	for i in n * 4:
+		if n <= 0:
+			break
+		var v := Vector2i(c.dice.rng.randi_range(1, m.w - 2), c.dice.rng.randi_range(1, m.h - 2))
+		if m.t(0, v.x, v.y) != TacMap.T.OUTSIDE or m.label(0, v.x, v.y) >= 0:
+			continue
+		if Furnish.try_prop(m, 0, Rect2i(v, Vector2i.ONE), "rubble", -1, {}, c.reserved):
+			n -= 1
 
 
 ## Reinforcement spawns where roads leave the map, spread around the edge.
