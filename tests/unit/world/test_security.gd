@@ -10,7 +10,7 @@ func _crew(dice: Dice) -> Array[Combatant]:
 func _enc(faction: String, site := "corp_office", kind := "data") -> Encounter:
 	var m := SceneGen.generate(11, "lone_building", {"security": 2, "site": site})
 	var dice := Dice.new(7)
-	return Encounter.setup(m, dice, _crew(dice), kind, [], {"faction": faction})
+	return Encounter.setup(m, dice, _crew(dice), kind, {"faction": faction})
 
 
 func test_doctrines_resolve() -> void:

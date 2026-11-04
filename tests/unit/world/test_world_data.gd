@@ -96,7 +96,7 @@ func test_every_profile_objective_and_faction_family_sets_up() -> void:
 		i += 1
 		var m := SceneGen.generate(20 + i, "neighborhood", {"security": 1 + i % 3, "profile": prof})
 		var dice := Dice.new(i)
-		var e := Encounter.setup(m, dice, _crew(dice), kind, [], {"faction": fid})
+		var e := Encounter.setup(m, dice, _crew(dice), kind, {"faction": fid})
 		assert_eq(String(e.objective.kind), kind, "%s/%s/%s: objective" % [prof, kind, fid])
 		assert_true(e.units.any(func(u): return u.team == Encounter.OPFOR), "%s/%s/%s: guards" % [prof, kind, fid])
 		assert_false(e.obj.hud_text().is_empty())

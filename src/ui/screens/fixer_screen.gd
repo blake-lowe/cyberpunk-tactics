@@ -89,7 +89,8 @@ func _gig_card(i: int, ready: bool) -> PanelContainer:
 	t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	t.custom_minimum_size.x = 100
 	left.add_child(t)
-	left.add_child(UiKit.label("%s · %s" % [String(g.fixer), Campaign.place_name(g)], 14, Hud.CYAN))
+	var where := [String(g.fixer), Campaign.place_name(g), Campaign.district_name(g)].filter(func(s): return s != "")
+	left.add_child(UiKit.label(" · ".join(where), 14, Hud.CYAN))   # fixer · place · district; the hook is the blurb
 	left.add_child(UiKit.body(String(g.blurb), 15))
 	var mid := UiKit.vbox(6)
 	mid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -97,11 +98,6 @@ func _gig_card(i: int, ready: bool) -> PanelContainer:
 	mid.add_child(UiKit.body("★ " + String(OBJECTIVE_TEXT.get(Campaign.objective_for(g), "")), 15, Hud.TEXT))
 	if g.get("unique", false):
 		mid.add_child(UiKit.body("Personal job: %s has heard of the crew. Double pay." % String(g.fixer), 14, Hud.CYAN))
-	var tw := String(g.get("twist", ""))
-	if tw != "":
-		var td: Dictionary = RulesDB.gen("gigs.json").twists[tw]
-		mid.add_child(UiKit.label("TWIST · " + String(td.name), 14, Hud.RED))
-		mid.add_child(UiKit.body(String(td.desc), 14, Color(Hud.TEXT, 0.75)))
 	var right := UiKit.vbox(6)
 	right.custom_minimum_size.x = 190
 	row.add_child(right)

@@ -42,7 +42,9 @@ var _met_memory := {}               ## unit id → ICE met this gig: re-jacking 
 var _netting := false               ## this turn went to the NET (the meat Action is forgone, p197)
 var objective := {}                 ## the objective's state: {kind, done, + per-kind fields} (obj.o)
 var obj: Objective                  ## the gig's goal as a module (src/tactical/objectives/)
-var twists: Array = []             ## gig complications: heavy, blackout, shift_change (data/gen/gigs.json)
+var complication := {}              ## the book's complication rolled at gig start: {tier, roll, text, applied, skipped} (Complication)
+var complication_waves: Array = []  ## its extra units still to come: {round, n, tier, unit, crit}
+var focus_id := -1                  ## Lieutenant tactic focus_fire: the crew unit the opposition shoots first
 var extract_cells := {}             ## Vector3i → true: the deploy zone, where a snatch is carried out
 var vision: Vision                  ## what the crew can see (drives fog and hidden guards)
 ## What happened, in order, for the view to animate: {type: move|attack|cover|alert, ...}.
@@ -75,10 +77,10 @@ var disabled_devices := {}          ## device id → true (turrets/cameras under
 ## opts: {faction: the gig's target faction id (World), default generic private security;
 ## security_code: the site's Security Code (SecurityCode; default the fallback for the map's
 ## security level); district_code: the street's code ({} for none; default SecurityCode.STREET_FALLBACK);
-## utility_code: the Utility Code (default 0, nothing goes out)}.
-static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "data", p_twists: Array = [], opts: Dictionary = {}) -> Encounter:
+## utility_code: the Utility Code (default 0, nothing goes out); complications: true to roll for one
+## of the book's complications (Complication.CHANCE_IN); complication: {tier?, roll?} to force one}.
+static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "data", opts: Dictionary = {}) -> Encounter:
 	var e := Encounter.new()
-	e.twists = p_twists.duplicate()
 	e.opfor_faction = String(opts.get("faction", World.DEFAULT_OPFOR))
 	if not World.has_faction(e.opfor_faction):
 		e.opfor_faction = World.DEFAULT_OPFOR
@@ -108,7 +110,7 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 	e.doctrine = Security.for_site(e.opfor_faction, site, String(p_map.params.get("scene", "")))
 	var posts := p_map.posts.duplicate()
 	posts.sort_custom(func(a, b): return int(a.structure == target_sid) > int(b.structure == target_sid))
-	var sec := mini(3, int(p_map.params.get("security", 1)) + (1 if "heavy" in p_twists else 0))
+	var sec := mini(3, int(p_map.params.get("security", 1)))
 	e.code = SecurityCode.normalise(opts.get("security_code"))
 	if e.code.is_empty():
 		e.code = SecurityCode.from_level(int(p_map.params.get("security", 1)))
@@ -150,12 +152,6 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 	e.obj = Objective.make(kind, e)
 	e.objective = e.obj.o
 	e.obj.setup(target_sid, cells[0], sec)
-	if "setup" in p_twists:   # HOUSE-RULE: a fixer sold the crew out; the guards are waiting
-		for u in e.units:
-			if u.team == OPFOR:
-				u.alerted = true
-		e.alarm = 1
-		e.say("It's a setup. They knew you were coming.")
 	# M3 playtest verdict: guards only join the initiative order once they're alerted.
 	for u in e.units:
 		if u.alerted:
@@ -166,6 +162,8 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 	e._compute_light()
 	e._outer_patrols(cells[0])
 	e._post_guards()
+	if opts.has("complication") or bool(opts.get("complications", false)):
+		Complication.start(e, opts.get("complication", {}))
 	if bool(e.doctrine.get("keycards", true)):
 		e._hand_out_keycards()
 	e._trauma_cards()
@@ -309,11 +307,8 @@ func next_turn() -> void:
 		if init.round_num != _ice_round:
 			_ice_round = init.round_num
 			_patrol_ice()
-		if "shift_change" in twists and init.round_num >= SHIFT_CHANGE_ROUND and alarm < 2:
-			var gs := opfor()
-			if not gs.is_empty():
-				say("Shift change: the new shift finds the place wrong.")
-				_call_it_in(gs[0])
+		if not complication_waves.is_empty():
+			Complication.tick(self)
 		_tick_backup()
 		obj.tick()
 		if init.round_num != _civ_round:
@@ -1098,7 +1093,6 @@ func _camera_spots() -> Dictionary:
 const VIEW_HALF_ANGLE := 60.0   ## HOUSE-RULE: a guard watches a 120° cone ahead...
 const AWARE_RANGE := 2.0        ## ...but notices anyone within 2 squares, any direction
 const DARK_PENALTY := 4         ## "Task obscured by smoke or darkness" (CPR p? task modifiers)
-const SHIFT_CHANGE_ROUND := 6    ## HOUSE-RULE twist: the next shift arrives and raises the alarm
 ## Radio and shouting range come from the doctrine (data/world/security.json); who answers the
 ## call, and when, from the Security Codes (_call_it_in).
 
@@ -1341,9 +1335,9 @@ func _arrive(r: Dictionary) -> void:
 const POWERED := ["camera", "turret"]
 
 
-## Is the power out (or the blackout twist on)? The lights are off and cameras and turrets dead.
+## Is the power out? The lights are off and cameras and turrets dead.
 func lights_out() -> bool:
-	return "blackout" in twists or "power" in outages
+	return "power" in outages
 
 
 func _unpowered(dev: Dictionary) -> bool:

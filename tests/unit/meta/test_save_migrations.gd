@@ -134,3 +134,14 @@ func test_stored_cyberware_survives_a_save() -> void:
 	var back := Campaign.from_dict(JSON.parse_string(JSON.stringify(c.to_dict())))
 	assert_eq(back.stash, {"cyberware/wolvers": 2}, "a stored piece keeps; unknown ones are dropped")
 	assert_eq(back.cyberware_options(), ["cyberware/wolvers"])
+
+
+func test_v8_board_twists_and_setups_are_dropped() -> void:
+	var d := Campaign.new_game(4).to_dict()
+	d["version"] = 8
+	d.board[0]["twist"] = "heavy"
+	d.board[0]["setup"] = true
+	var c := Campaign.from_dict(JSON.parse_string(JSON.stringify(d)))
+	assert_true(c != null)
+	assert_false(c.board[0].has("twist") or c.board[0].has("setup"), "the book's complications replaced them (v9)")
+	assert_eq(int(c.to_dict().version), 9)

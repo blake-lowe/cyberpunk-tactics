@@ -591,11 +591,11 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 	_round_box.add_child(_text(objective_text(enc), F_TERM, Hud.ts(18), GOLD))
 	if not enc.outages.is_empty():   # Utility Codes (NC2045 p.8)
 		_round_box.add_child(_text(" · ".join(enc.outages.map(func(o): return String(o).to_upper() + " OUT")), F_TERM, Hud.ts(18), RED))
-	for tw in enc.twists:
-		var nm := String(RulesDB.gen("gigs.json").twists.get(tw, {}).get("name", "IT'S A SETUP" if tw == "setup" else tw)).to_upper()
-		if tw == "shift_change" and enc.alarm < 2:
-			nm += " · ROUND %d" % Encounter.SHIFT_CHANGE_ROUND
-		_round_box.add_child(_text("TWIST · " + nm, F_TERM, Hud.ts(18), RED))
+	if not enc.complication.is_empty():   # the book's complication (Complication), shown once it springs
+		var cx := _text("COMPLICATION · " + String(enc.complication.text).to_upper(), F_TERM, Hud.ts(18), RED)
+		cx.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		cx.custom_minimum_size.x = 260
+		_round_box.add_child(cx)
 	_clear(_card)
 	_clear(_econ)
 	var crew_turn: bool = enc.state == "playing" and not enc.cur.is_empty() and enc.cur.team == 0

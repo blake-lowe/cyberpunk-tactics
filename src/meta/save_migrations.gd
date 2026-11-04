@@ -27,8 +27,12 @@ extends RefCounted
 ## v8: Night City 2045 Security and Utility Codes (NC2045 p.7-8). Board gigs carry `district`,
 ##     `security_code`, `district_code` and `utility_code`; older offers get them from their
 ##     location, else the fallback for their 1-3 security level (Campaign.codes_for), which stays.
+## v9: the book's complication tables replace our gig twists and fixer setups (M9). Board offers lose
+##     `twist` and `setup` (an offer that was a setup becomes an honest job); new offers carry
+##     `fixer_id`, `hook` and `district` from Night City's fixers and locations, which older offers
+##     simply lack (the board shows what they have).
 
-const CURRENT := 8
+const CURRENT := 9
 
 
 ## Upgrade `d` (a parsed save) to CURRENT. Returns {} for a save from a newer build, which this
@@ -47,6 +51,7 @@ static func migrate(d: Dictionary) -> Dictionary:
 			5: _v5_to_v6(d)
 			6: _v6_to_v7(d)
 			7: _v7_to_v8(d)
+			8: _v8_to_v9(d)
 		v += 1
 		d["version"] = v
 	return d
@@ -160,3 +165,10 @@ static func _v7_to_v8(d: Dictionary) -> void:
 		if g is Dictionary and not (g as Dictionary).has("security_code"):
 			var did := String(World.location(String(g.get("location", ""))).get("district", ""))
 			(g as Dictionary).merge(Campaign.codes_for(g, did), true)
+
+
+static func _v8_to_v9(d: Dictionary) -> void:
+	for g in d.get("board", []):
+		if g is Dictionary:
+			(g as Dictionary).erase("twist")
+			(g as Dictionary).erase("setup")

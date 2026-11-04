@@ -38,8 +38,6 @@ func build_body(body: VBoxContainer) -> void:
 	_sum(sums, "IMPROVEMENT POINTS", "%d each" % int(report.get("ip", 0)), Hud.CYAN)
 	if String(gig.get("fixer", "")) != "":
 		_sum(sums, "FIXER", String(gig.fixer), Hud.TEXT)
-	if won and gig.get("setup", false):
-		tv.add_child(UiKit.body("%s sold the crew out: no pay." % String(gig.get("fixer", "The fixer")), 16, Hud.RED))
 	var members: Array = report.get("members", [])
 	var grid := GridContainer.new()
 	grid.columns = clampi(members.size(), 1, 4)

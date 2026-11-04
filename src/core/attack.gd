@@ -67,7 +67,7 @@ static func resolve(dice: Dice, attacker: Combatant, weapon: Weapon, defender: C
 	if not p.ok:
 		return r
 	if weapon.uses_ammo():
-		weapon.ammo -= weapon.autofire_ammo() if mode == Mode.AUTOFIRE else 1
+		weapon.spend(weapon.autofire_ammo() if mode == Mode.AUTOFIRE else 1)
 
 	var check: Check
 	var nf := attacker.awareness_level("fumble_recovery") > 0
@@ -323,7 +323,7 @@ static func shotgun_shell(dice: Dice, attacker: Combatant, weapon: Weapon, targe
 		out.reason = "empty"
 		return out
 	out.ok = true
-	weapon.ammo -= 1
+	weapon.spend(1)
 	var check := Check.vs_dv(dice, attack_base(attacker, weapon, Mode.SINGLE), SHOTGUN_SHELL_DV,
 		attacker.awareness_level("fumble_recovery") > 0)
 	out.check = check
@@ -364,7 +364,7 @@ static func suppressive_fire(dice: Dice, attacker: Combatant, weapon: Weapon, ta
 		out.reason = "need 10 rounds"
 		return out
 	out.ok = true
-	weapon.ammo -= AUTOFIRE_AMMO
+	weapon.spend(AUTOFIRE_AMMO)
 	var base := attacker.skill_base("autofire") - attacker.action_penalty()
 	for t in targets:
 		var resist: int = t.skill_base("concentration") - t.action_penalty()
