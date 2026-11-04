@@ -794,6 +794,10 @@ func _unit_node(u: Dictionary) -> CharModel:
 	var n := CharModel.build(UnitLook.seed_team(u), u.c.look_seed if u.c.look_seed >= 0 else u.id, look_role, u.c.weapons[0].id() if not u.c.weapons.is_empty() else "heavy_pistol", u.c.faction)
 	if u.c.weapons.is_empty() and n.gun:   # the unarmed (captives) carry nothing
 		n.gun.visible = false
+	if u.has("turret"):   # an automated turret (Turret): DeviceView draws the gun; the unit only stands in for it
+		n.skel.visible = false
+		if n.gun:
+			n.gun.visible = false
 	decals[u.id] = _decal(Color("05d9e8"), 0.95, false, 0.0)
 	decals[u.id].visible = false   # owner: no glows under units; they blend into the scene
 	var blob := _decal(Color.BLACK, 0.75, false, 0.0, true)   # contact shadow
@@ -2989,6 +2993,7 @@ func _event_handlers() -> Dictionary:
 			"target_down": _ev_target_down,
 			"escape": _ev_escape,
 			"hazard": _ev_hazard,
+			"peace_broken": _ev_peace_broken,
 		}
 	return _handlers
 
@@ -3023,6 +3028,17 @@ func _ev_hazard(_e: Dictionary) -> void:
 		hazard_view.update(enc.hazard)
 	hud.turn_banner("THE %s CLOSES IN" % enc.hazard.name, Hud.RED)
 	_ui_snd("sfx_ui_error", -8.0)
+	await get_tree().create_timer(0.6).timeout
+
+
+## The first fight in a neutral house (NeutralGround: Totentanz): a banner, and the bouncers shout.
+func _ev_peace_broken(e: Dictionary) -> void:
+	hud.turn_banner("%s: THE HOUSE TURNS" % enc.neutral.name, Hud.RED)
+	_ui_snd("sfx_ui_error", -8.0)
+	for id in e.get("units", []):
+		var g: Dictionary = enc.units[int(id)]
+		if g.get("bouncer", false) and _seen(g.pos):
+			_float(g, "NOT IN MY HOUSE", Hud.RED)
 	await get_tree().create_timer(0.6).timeout
 
 

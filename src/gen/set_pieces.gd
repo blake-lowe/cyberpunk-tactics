@@ -116,6 +116,17 @@ static func rule(m: TacMap, name: String, fallback: Variant = null) -> Variant:
 	return get_def(id).get("rules", {}).get(name, fallback)
 
 
+## The briefing lines of a set piece's special rules (each rule's `brief`: "TOTENTANZ: NO FIGHTING
+## ON THE FLOOR. ..."), in data order; [] for none. The job board and the gig's opening log show them.
+static func briefs(id: String) -> Array[String]:
+	var out: Array[String] = []
+	var rules: Dictionary = get_def(id).get("rules", {})
+	for k in rules:
+		if rules[k] is Dictionary and String(rules[k].get("brief", "")) != "":
+			out.append(String(rules[k].brief))
+	return out
+
+
 ## The variant a set piece drew for this map (an estate's owner: SetPieceGen keeps it in the map's
 ## params as `variant`), {} for none.
 static func variant(m: TacMap) -> Dictionary:
