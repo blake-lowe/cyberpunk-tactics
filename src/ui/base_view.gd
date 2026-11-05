@@ -8,8 +8,8 @@ extends Control
 ## Layout on a 2.4-unit module grid: three rooms north of a corridor (Med Bay, Armory, Fixer Network),
 ## three south (Training Room, Workshop, Bunks). Rooms are places with no levels or effects; the
 ## workshop stays dark storage (tarped crates) until a Tech joins the crew.
-## Seen square-on from the south (owner: 0° yaw; Q/E turn it in 90° steps). Walls are kit walls on
-## the far side (rebuilt as the view rotates) and waist-high everywhere else, so every room reads
+## Seen square-on from the south at a fixed angle (owner: 0° yaw, no rotation or zoom). Walls are
+## kit walls on the far (north and west) sides and waist-high everywhere else, so every room reads
 ## from above. The crew stand where their downtime job puts them.
 ##
 ## The safehouse is the hub (owner's UI audit): every between-gigs function is a full screen opened
@@ -44,6 +44,7 @@ const LOW := 0.55        ## cutaway wall height
 const PITCH_UP := 16.0   ## camera height over the focus...
 const PITCH_BACK := 18.0 ## ...and distance back along the view (a ~42° isometric-style pitch)
 const VIEW_SIZE := 13.0  ## ortho height framing the whole floor square-on (it was 16 for the 45° diagonal)
+const YAW := 0.0         ## owner: fixed, square-on to the walls from the south (no rotation, no zoom)
 ## Rooms in modules (x, z, w, d), light colour, title.
 const ROOMS := {
 	"med_bay": [Rect2i(0, 0, 2, 2), "3ce0a0", "MED BAY"],
@@ -75,7 +76,6 @@ var crew_nodes := {}        ## Combatant → CharModel
 var crew_labels := {}       ## Combatant → Label
 var selected := ""          ## room id outlined (hover outlines too)
 var hover := ""
-var yaw := 0.0              ## owner: square-on to the walls (Q/E turn it in 90° steps)
 var focus := Vector3(W / 2, 0, D / 2)
 var _cam_tw: Tween
 var _shot_path := ""
@@ -105,8 +105,6 @@ func _ready() -> void:
 			selected = a.get_slice("=", 1)
 		if k == "hover":
 			hover = a.get_slice("=", 1)
-		if k == "yaw":
-			yaw = float(a.get_slice("=", 1))
 		if k == "screen":
 			open = a.get_slice("=", 1)
 			stay = true
@@ -121,7 +119,7 @@ func _ready() -> void:
 	elif camp == null:   # (a caller may hand one in before adding the view)
 		camp = Campaign.ensure_current()
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	# The view's own input is _unhandled_input (hover, click, wheel, Q/E): this full-screen root must
+	# The view's own input is _unhandled_input (hover, click): this full-screen root must
 	# let the mouse through, or as a STOP control it takes every motion and click itself and nothing
 	# in the safehouse ever hovers (owner playtest). The top bar and the screens still stop it.
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -167,8 +165,7 @@ func _place_labels() -> void:
 	for id in labels:
 		var r := _rect(id)
 		var l: Label = labels[id]
-		var dir := Vector2(sin(deg_to_rad(yaw)), cos(deg_to_rad(yaw)))
-		var far := r.get_center() - dir * (r.size.x * 0.42)   # label at the room's far edge
+		var far := r.get_center() - Vector2(0, 1) * (r.size.x * 0.42)   # label at the room's far edge
 		var at := _to_screen(Vector3(far.x, LOW + 0.3, far.y)) - Vector2(l.size.x / 2, l.size.y)
 		l.position = at.clamp(Vector2(6, top), vs - l.size - Vector2(6, 30))   # never clipped by the edges or the top bar
 		l.modulate = Color(1, 1, 1, 1.0 if id == selected else 0.75)
@@ -188,7 +185,10 @@ func _build_view() -> void:
 	svp = SubViewport.new()
 	svp.own_world_3d = true
 	svp.msaa_3d = Viewport.MSAA_DISABLED
-	svp.use_hdr_2d = true
+	# Not HDR 2D: under Forward+ (the owner's GPU) an HDR 2D buffer holds LINEAR colour, and the post
+	# shader (and the screen) read it as sRGB, so the whole safehouse came out several stops darker
+	# than under Compatibility (which ignores the flag). Glow still works: it runs in the 3D buffer.
+	svp.use_hdr_2d = false
 	svp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	add_child(svp)
 	screen = TextureRect.new()
@@ -215,9 +215,10 @@ func _build_view() -> void:
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = Color("05070b")
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color("2a3450")
-	env.ambient_light_energy = 1.1
-	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
+	env.ambient_light_color = Color("3a4666")   # a lit interior: every corner reads, the room lights add colour
+	env.ambient_light_energy = 1.2
+	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR   # no filmic curve to crush the darks, no auto exposure
+	env.tonemap_exposure = 1.0
 	env.glow_enabled = true
 	env.glow_hdr_threshold = 0.9
 	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_ADDITIVE
@@ -231,6 +232,11 @@ func _build_view() -> void:
 	moon.light_energy = 0.35
 	moon.shadow_enabled = true
 	svp.add_child(moon)
+	var fill := DirectionalLight3D.new()   # soft shadowless fill from the camera side (south, above)
+	fill.rotation_degrees = Vector3(-50, 0, 0)
+	fill.light_color = Color("c8d0e8")
+	fill.light_energy = 0.3
+	svp.add_child(fill)
 	cam = Camera3D.new()
 	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
 	cam.size = VIEW_SIZE
@@ -248,16 +254,16 @@ func _resize() -> void:
 
 
 func _place_camera() -> void:
-	aim_camera(cam, focus, yaw)
+	aim_camera(cam, focus)
 
 
-## The view: from `yaw` degrees round (0 = from the south, square-on to the walls), looking down on `focus`.
-static func aim_camera(c: Camera3D, at: Vector3, deg: float) -> void:
-	c.transform = view_xform(at, deg)
+## The view: from the south (YAW 0, square-on to the walls), looking down on `focus`.
+static func aim_camera(c: Camera3D, at: Vector3) -> void:
+	c.transform = view_xform(at)
 
 
-static func view_xform(at: Vector3, deg: float) -> Transform3D:
-	var dir := Vector3(sin(deg_to_rad(deg)), 0, cos(deg_to_rad(deg)))
+static func view_xform(at: Vector3) -> Transform3D:
+	var dir := Vector3(sin(deg_to_rad(YAW)), 0, cos(deg_to_rad(YAW)))
 	return Transform3D(Basis(), at + dir * PITCH_BACK + Vector3(0, PITCH_UP, 0)).looking_at(at, Vector3.UP)
 
 
@@ -400,8 +406,8 @@ func _build_world() -> void:
 
 
 ## Which exterior sides face away from the camera (those get full kit walls).
-func _far_sides() -> Array[String]:
-	var dir := Vector2(sin(deg_to_rad(yaw)), cos(deg_to_rad(yaw)))
+static func _far_sides() -> Array[String]:
+	var dir := Vector2(sin(deg_to_rad(YAW)), cos(deg_to_rad(YAW)))
 	var out: Array[String] = []
 	var normals := {"north": Vector2(0, -1), "south": Vector2(0, 1), "west": Vector2(-1, 0), "east": Vector2(1, 0)}
 	for side in normals:
@@ -463,7 +469,7 @@ func _build_room(id: String) -> void:
 	var light := OmniLight3D.new()
 	light.position = Vector3(r.size.x / 2, 2.0, r.size.y / 2)
 	light.light_color = accent.lerp(Color.WHITE, 0.5)
-	light.omni_range = 6.0
+	light.omni_range = 7.0   # past the room's corners (3.9 from the light), so no dark rim
 	light.omni_attenuation = 0.8   # a ceiling light that fills the room, not a bulb's pool
 	light.light_energy = [0.25, 1.35, 1.8][lv]
 	light.shadow_enabled = lv > 0
@@ -804,12 +810,6 @@ func _build_ui() -> void:
 		ui.add_child(l)
 	for c in crew_nodes:
 		crew_labels[c] = _crew_label(c)
-	var hint := UiKit.label("HOVER A ROOM · CLICK TO OPEN IT OR A CREW MEMBER · Q/E ROTATE · WHEEL ZOOM", 13, Hud.DIM)
-	hint.name = "hint"
-	hint.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
-	hint.add_theme_constant_override("shadow_offset_x", 1)
-	hint.add_theme_constant_override("shadow_offset_y", 1)
-	ui.add_child(hint)
 	_refresh_ui()
 
 
@@ -823,9 +823,6 @@ func _refresh_ui() -> void:
 	ui.add_child(_top)
 	_top.reset_size()
 	_top.size.x = vs.x - 24
-	var hint: Label = ui.get_node("hint")
-	hint.reset_size()
-	hint.position = Vector2(vs.x / 2 - hint.size.x / 2, vs.y - 26)
 	for c in crew_labels:
 		(crew_labels[c] as Label).modulate = Color(1, 1, 1, 0.85)
 
@@ -924,11 +921,11 @@ func _take_gig(i: int) -> void:
 ## Glide in on the hovered room (or back out to the whole floor).
 func _overview() -> Vector3:   # the whole floor, nudged down (clear of the top bar), centred on screen
 	_place_camera()
-	return overview_focus(yaw)
+	return overview_focus()
 
 
-static func overview_focus(deg: float) -> Vector3:
-	return Vector3(W / 2, 0, D / 2) - Vector3(sin(deg_to_rad(deg)), 0, cos(deg_to_rad(deg))) * 1.0
+static func overview_focus() -> Vector3:
+	return Vector3(W / 2, 0, D / 2) - Vector3(sin(deg_to_rad(YAW)), 0, cos(deg_to_rad(YAW))) * 1.0
 
 
 func _frame_selection(now := false) -> void:
@@ -967,14 +964,6 @@ func _unhandled_input(ev: InputEvent) -> void:
 		var picked := _room_at(_pick_floor(ev.position))
 		if picked != "":
 			open_room(picked)
-	elif ev is InputEventMouseButton and ev.pressed and ev.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
-		cam.size = clampf(cam.size + (-1.0 if ev.button_index == MOUSE_BUTTON_WHEEL_UP else 1.0), 4.0, 18.0)
-	elif ev is InputEventKey and ev.pressed and not ev.echo:
-		if ev.keycode in [KEY_Q, KEY_E]:
-			yaw += -90.0 if ev.keycode == KEY_Q else 90.0
-			_build_world()   # far walls follow the view
-			_place_camera()
-			_refresh_ui()
 
 
 static func _room_at(p: Vector3) -> String:
