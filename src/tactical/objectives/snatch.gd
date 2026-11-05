@@ -54,7 +54,7 @@ func hud_text() -> String:
 
 func marks(_fog: bool) -> Array:
 	if int(o.get("carrier", -1)) < 0:
-		return [{"cell": o.cell, "h": 0.4, "label": "PACKAGE", "tone": "gold"}]
+		return [{"cell": o.cell, "h": 0.4, "label": "★ PACKAGE", "tone": "gold"}]
 	return [_extract_mark()]
 
 

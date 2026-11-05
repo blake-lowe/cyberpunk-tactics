@@ -52,3 +52,88 @@ func test_objective_actions_go_through_one_interface() -> void:
 	var r := e.obj_act("grab")
 	assert_true(r.ok)
 	assert_eq(int(e.objective.carrier), e.cur.id)
+
+
+func _job(kind: String, site := "corp_office") -> Encounter:
+	var m := SceneGen.generate(11, "lone_building", {"security": 2, "site": site})
+	var dice := Dice.new(7)
+	var e := Encounter.setup(m, dice, _crew(dice), kind)
+	e.next_turn()
+	return e
+
+
+func test_every_job_with_a_person_or_thing_marks_it() -> void:
+	# owner: in an assassination you couldn't tell where or who the mark was. Each module names its
+	# own marker target (the view only draws marks()); the label starts "★ <WHAT>" and names it.
+	var want := {"data": "★ JACK POINT", "assassinate": "★ TARGET · ", "rescue": "★ CAPTIVE · ", "snatch": "★ PACKAGE", "sabotage": "★ SABOTAGE · "}
+	for kind in want:
+		var e := _job(kind)
+		for fog in [false, true]:
+			var mk: Array = e.obj.marks(fog)
+			assert_eq(mk.size(), 1, "%s (fog %s): one marker" % [kind, fog])
+			if mk.is_empty():
+				continue
+			assert_true(String(mk[0].label).begins_with(want[kind]), "%s: %s" % [kind, mk[0].label])
+			assert_true(mk[0].cell is Vector3i and e.m.inb(mk[0].cell.x, mk[0].cell.y), "%s: on the map" % kind)
+	var a := _job("assassinate")
+	assert_true(String(a.obj.marks(true)[0].label).contains(String(a.objective.name).to_upper()), "the mark is named")
+	assert_true(a.obj.hud_text().contains(String(a.objective.name).to_upper()), "and so is the objective line")
+	var r := _job("rescue")
+	assert_eq(r.obj.marks(true)[0].cell, r.units[int(r.objective.captive)].pos, "over the captive")
+	var s := _job("sabotage")
+	assert_eq(s.obj.marks(true)[0].cell, s.objective.cell, "over the machine")
+	var sl := String(s.obj.marks(true)[0].label)
+	assert_true(sl.contains(String(s.objective.name).trim_prefix("the ").to_upper()), "names the machine: " + sl)
+
+
+func test_the_mark_is_shown_where_the_crew_last_knew_them() -> void:
+	var e := _job("assassinate")
+	var vip: Dictionary = e.units[int(e.objective.target)]
+	var intel: Vector3i = e.objective.intel
+	assert_eq(intel, vip.pos, "the fixer's intel: the room the mark is in")
+	e.vision.visible.erase(vip.pos)
+	var mk: Dictionary = e.obj.marks(true)[0]
+	assert_eq(mk.cell, intel, "unseen: marked at the briefed spot")
+	assert_true(String(mk.label).ends_with("LAST SEEN"), "and says it's intel, not a live fix")
+	assert_false(mk.has("unit"), "an unseen mark isn't tied to the unit (the view would give them away)")
+	var moved: Vector3i = vip.pos + Vector3i(1, 0, 0)
+	vip.pos = moved   # slips off unseen: the marker stays on the old fix
+	e.vision.visible.erase(moved)
+	e.obj.before_check()
+	assert_eq(e.obj.marks(true)[0].cell, intel, "moves unseen: still the old fix")
+	assert_eq(e.obj.marks(false)[0].cell, moved, "fog off: always the live square")
+	e.vision.visible[moved] = true   # spotted
+	e.obj.before_check()
+	mk = e.obj.marks(true)[0]
+	assert_eq(mk.cell, moved, "in sight: the live square")
+	assert_eq(int(mk.get("unit", -1)), int(vip.id), "and rides the unit")
+	assert_false(String(mk.label).contains("LAST SEEN"))
+	e.vision.visible.erase(moved)
+	vip.pos = moved + Vector3i(0, 1, 0)
+	e.obj.before_check()
+	assert_eq(e.obj.marks(true)[0].cell, moved, "out of sight again: where they were last seen")
+	vip.c.dead = true
+	e.objective.done = true
+	assert_true(bool(e.obj.marks(true)[0].get("extract", false)), "down: the marker moves to the extraction zone")
+
+
+func test_elimination_points_at_the_last_known_hostile_when_none_is_in_sight() -> void:
+	var e := _job("eliminate", "gang_hideout")
+	var left := e.opfor()
+	assert_false(left.is_empty())
+	e.vision.visible.clear()
+	e.objective.erase("seen")
+	assert_true(e.obj.marks(true).is_empty(), "never seen: no intel, no marker")
+	var g: Dictionary = left[0]
+	e.vision.visible[g.pos] = true
+	e.obj.before_check()
+	assert_true(e.obj.marks(true).is_empty(), "a hostile in sight is its own marker")
+	var seen_at: Vector3i = g.pos
+	e.vision.visible.clear()
+	var mk: Array = e.obj.marks(true)
+	assert_eq(mk.size(), 1, "out of sight: an arrow to where they were")
+	if mk.is_empty():
+		return
+	assert_eq(mk[0].cell, seen_at)
+	assert_true(String(mk[0].label).begins_with("★ HOSTILE · %d LEFT" % left.size()), String(mk[0].label))
+	assert_eq(e.obj.marks(false).size(), 1, "fog off: the nearest hostile")

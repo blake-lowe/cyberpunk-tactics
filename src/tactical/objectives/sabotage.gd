@@ -79,7 +79,7 @@ func hud_text() -> String:
 func marks(_fog: bool) -> Array:
 	if done():
 		return [_extract_mark()]
-	var label := "CHARGE · %d" % fuse_left() if o.get("planted", false) else "TARGET"
+	var label := "★ CHARGE · %d" % fuse_left() if o.get("planted", false) else "★ SABOTAGE · %s" % String(o.name).trim_prefix("the ").to_upper()
 	return [{"cell": o.cell, "h": 1.8, "label": label, "tone": "red"}]
 
 

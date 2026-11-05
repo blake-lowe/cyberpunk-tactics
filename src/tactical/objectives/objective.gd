@@ -85,6 +85,9 @@ func hud_text() -> String:
 ## Where the view points: [{cell: Vector3i, h: metres above that square's floor, label: String,
 ## tone: "gold" | "red" | "cyan"}], or {extract: true} for the extraction zone. `fog`: whether the
 ## view hides what the crew hasn't seen.
+## Labels start with "★ <WHAT>" and name the person or thing where there is one ("★ TARGET · MARA
+## VOSS"); the view adds the distance. "unit": the unit a mark is over, if any. A module whose
+## target moves marks where the crew last knew them to be (`_sighted`) while fog is on.
 func marks(_fog: bool) -> Array:
 	return []
 
@@ -126,6 +129,21 @@ func _cleared() -> String:
 ## The active unit is crew, it's their turn, and they're standing at or next to `cell`.
 func _crew_beside(cell: Vector3i) -> bool:
 	return not e.cur.is_empty() and int(e.cur.team) == Encounter.CREW and (e.cur.pos == cell or e.adjacent(e.cur.pos, cell))
+
+
+## Whether the crew can see unit `u` right now.
+func _in_sight(u: Dictionary) -> bool:
+	return e.vision != null and e.vision.visible.has(u.pos)
+
+
+## Crew intel on unit `u`: records where they stand while the crew sees them, in o.seen (id →
+## square). Returns the last known square, or `fallback` when there's none yet (no sighting).
+func _sighted(u: Dictionary, fallback := Vector3i(-1, -1, -1)) -> Vector3i:
+	if not o.has("seen"):
+		o["seen"] = {}
+	if _in_sight(u):
+		o.seen[int(u.id)] = u.pos
+	return o.seen.get(int(u.id), fallback)
 
 
 func _extract_mark() -> Dictionary:
