@@ -7,7 +7,7 @@ extends Node
 ##
 ## Controls
 ##   WASD / arrows   pan          Mouse wheel   zoom
-##   Q / E           rotate 90° (smooth)        Middle-drag   rotate freely        H  controls hint
+##   Q / E (hold)    rotate (eased)             Middle-drag   rotate freely        H  controls hint
 ##   PageUp/PageDown change the floor you're viewing (floors above open up around the focus)
 ##   Left click      move (path preview while hovering the move grid)
 ##   Right click     attack the enemy under the cursor (X or Shift: shoot the cover in the way)
@@ -155,8 +155,9 @@ var env: Environment
 var sun: DirectionalLight3D
 var cam: Camera3D
 var cam_target := Vector3.ZERO
-var cam_yaw := 45.0
-var yaw_goal := 45.0
+var cam_yaw := 45.0           ## free angle: Q/E turn it while held (CamTurn), middle-drag drags it
+var cam_turn := CamTurn.new()
+var _turn_keys := {}          ## KEY_Q / KEY_E → held (pressed through _unhandled_input, so the HUD can take them)
 var cam_dist := 20.0
 var hud: Hud
 var world: Node3D
@@ -296,7 +297,6 @@ func _ready() -> void:
 			"zoom": cam_dist = float(kv[1])
 			"yaw":
 				cam_yaw = float(kv[1])
-				yaw_goal = cam_yaw
 			"reveal":  # review renders: everything explored
 				_reveal = true
 			"walk":  # review renders: the crew walks n squares toward the target first
@@ -356,9 +356,20 @@ func _process(delta: float) -> void:
 	if pan != Vector3.ZERO:
 		cam_target += pan.rotated(Vector3.UP, deg_to_rad(cam_yaw)).normalized() * delta * cam_dist * 0.9
 		_place_camera()
-	if absf(cam_yaw - yaw_goal) > 0.01:   # smooth Q/E turns
-		cam_yaw = yaw_goal if absf(cam_yaw - yaw_goal) < 0.3 else lerpf(cam_yaw, yaw_goal, minf(1.0, delta * 12.0))
+	for k in _turn_keys.keys():   # a key let go (wherever the release went) stops turning
+		if not Input.is_key_pressed(k):
+			_turn_keys.erase(k)
+	var turn_dir := (1.0 if _turn_keys.has(KEY_E) else 0.0) - (1.0 if _turn_keys.has(KEY_Q) else 0.0)
+	if turn_dir != 0.0 or cam_turn.turning():   # held Q/E: a steady turn, eased in and out
+		cam_yaw = wrapf(cam_yaw + cam_turn.step(turn_dir, delta), 0.0, 360.0)
 		_place_camera()
+		if enc and m and _shot_path == "" and _reel == "":   # the world turns under a still cursor: re-pick
+			var h := _pick(mouse)
+			if h != hover:
+				hover = h
+				_on_hover_changed()
+				if not _inspected:
+					_update_hover()
 	_update_shake(delta)
 	# hold Alt to inspect what's under the cursor (owner: a dwell timer would be annoying)
 	var alt := Input.is_key_pressed(KEY_ALT) or _inspect_demo
@@ -1317,7 +1328,11 @@ func objective_marks() -> Array:
 			out.append(_extract_mark())
 		else:
 			var c: Vector3i = mk.cell
-			out.append([Vector3(c.x + 0.5, _gy(c) + float(mk.h), c.y + 0.5), String(mk.label), tones.get(String(mk.tone), Hud.GOLD), c])
+			var wp := Vector3(c.x + 0.5, _gy(c) + float(mk.h), c.y + 0.5)
+			var un: Node3D = unit_nodes.get(int(mk.get("unit", -1)))
+			if un and is_instance_valid(un) and un.visible:   # over a unit in sight: ride its node through moves
+				wp = un.position + Vector3(0, float(mk.h), 0)
+			out.append([wp, String(mk.label), tones.get(String(mk.tone), Hud.GOLD), c])
 	return out
 
 
@@ -1342,8 +1357,11 @@ func _draw_markers(c: Control) -> void:
 			var y := sp.y - 18.0 - 4.0 * sin(t * 3.0)
 			c.draw_colored_polygon(PackedVector2Array([Vector2(sp.x - 9, y - 12), Vector2(sp.x + 9, y - 12), Vector2(sp.x, y)]), col)
 			c.draw_polyline(PackedVector2Array([Vector2(sp.x - 13, y - 16), Vector2(sp.x + 13, y - 16), Vector2(sp.x, y + 4), Vector2(sp.x - 13, y - 16)]), Color(col, 0.5), 1.5)
-			c.draw_string_outline(Hud.F_BOLD, Vector2(sp.x - 80, y - 22), mk[1], HORIZONTAL_ALIGNMENT_CENTER, 160, 16, 5, Color(0, 0, 0, 0.85))
-			c.draw_string(Hud.F_BOLD, Vector2(sp.x - 80, y - 22), mk[1], HORIZONTAL_ALIGNMENT_CENTER, 160, 16, col)
+			var label := "%s  %d M" % [mk[1], dist]
+			var lw := Hud.F_BOLD.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
+			var lp := Vector2(clampf(sp.x - lw * 0.5, r.position.x, r.end.x - lw), y - 22)   # long names stay on screen
+			c.draw_string_outline(Hud.F_BOLD, lp, label, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, 5, Color(0, 0, 0, 0.85))
+			c.draw_string(Hud.F_BOLD, lp, label, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, col)
 		else:
 			var ctr := r.get_center()
 			var dir := (sp - ctr).normalized() if not behind else (ctr - sp).normalized()
@@ -1359,6 +1377,7 @@ func _draw_markers(c: Control) -> void:
 			var tag := "%s %d M" % [mk[1], dist]
 			var tw := Hud.F_BOLD.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
 			var at := p - dir * (22.0 + tw * 0.5 * absf(dir.x) + 10.0 * absf(dir.y))   # clear of the arrow, whichever edge
+			at.x = clampf(at.x, r.position.x + tw * 0.5, r.end.x - tw * 0.5)
 			c.draw_string_outline(Hud.F_BOLD, at - Vector2(tw * 0.5, -6), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, 5, Color(0, 0, 0, 0.85))
 			c.draw_string(Hud.F_BOLD, at - Vector2(tw * 0.5, -6), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, col)
 
@@ -1936,8 +1955,7 @@ func _to_screen(p: Vector3) -> Vector2:
 func _unhandled_input(ev: InputEvent) -> void:
 	if ev is InputEventMouseMotion:
 		if ev.button_mask & MOUSE_BUTTON_MASK_MIDDLE:   # middle-drag: free rotation
-			yaw_goal -= ev.relative.x * 0.35
-			cam_yaw = yaw_goal
+			cam_yaw = wrapf(cam_yaw - ev.relative.x * 0.35, 0.0, 360.0)
 			_place_camera()
 		mouse = ev.position
 		if net_overlay.visible:
@@ -1975,8 +1993,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 			return
 		match ev.keycode:
-			KEY_Q: yaw_goal = snappedf(yaw_goal, 45.0) - 90
-			KEY_E: yaw_goal = snappedf(yaw_goal, 45.0) + 90
+			KEY_Q, KEY_E: _turn_keys[ev.keycode] = true   # turns while held (_process)
 			KEY_H: hud.toggle_hint()
 			KEY_PAGEUP: view_floor = mini(view_floor + 1, m.floors - 1); _place_camera(); _refresh()
 			KEY_PAGEDOWN: view_floor = maxi(view_floor - 1, 0); _place_camera(); _refresh()

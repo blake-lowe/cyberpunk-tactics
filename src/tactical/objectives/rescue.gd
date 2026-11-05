@@ -70,7 +70,8 @@ func hud_text() -> String:
 func marks(_fog: bool) -> Array:
 	if o.get("freed", false):
 		return [_extract_mark()]
-	return [{"cell": e.units[int(o.captive)].pos, "h": 1.4, "label": String(e.units[int(o.captive)].c.display_name).to_upper(), "tone": "gold"}]
+	var cap: Dictionary = e.units[int(o.captive)]   # held where the fixer said: they don't move until freed
+	return [{"cell": cap.pos, "h": 1.4, "label": "★ CAPTIVE · %s" % String(cap.c.display_name).to_upper(), "tone": "gold", "unit": cap.id}]
 
 
 func focus_unit() -> int:

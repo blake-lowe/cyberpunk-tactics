@@ -36,7 +36,8 @@ func setup(target_sid: int, origin: Vector2i, sec: int) -> void:
 	for en in e.m.entrances:
 		if en.kind != "deploy" and e.m.walkable(int(en.get("floor", 0)), en.pos):
 			exits.append(Vector3i(en.pos.x, en.pos.y, int(en.get("floor", 0))))
-	o.merge({"target": vu.id, "name": name, "exits": exits, "escaped": false})
+	# intel: the fixer names the room the mark is holed up in (the crew's marker starts there)
+	o.merge({"target": vu.id, "name": name, "exits": exits, "escaped": false, "intel": cell})
 
 
 ## The civilian block the mark is for target faction `fid` (cfg vip_blocks, by the faction's kind:
@@ -97,13 +98,23 @@ func hud_text() -> String:
 	return "OBJECTIVE · TAKE DOWN %s%s" % [String(o.name).to_upper(), run]
 
 
+func before_check() -> void:   # every sighting updates the crew's fix on the mark
+	_sighted(e.units[int(o.target)])
+
+
+## The mark: where they are while the crew can see them (or with fog off), else where they were
+## last seen, and to begin with the room the fixer's intel named.
 func marks(fog: bool) -> Array:
 	var vip: Dictionary = e.units[int(o.target)]
 	if done():
 		return [_extract_mark()]
-	if not vip.c.dead and (not fog or e.vision.visible.has(vip.pos) or e.vision.explored.has(vip.pos)):
-		return [{"cell": vip.pos, "h": 1.6, "label": "TARGET", "tone": "red"}]
-	return []
+	if vip.c.dead:
+		return []
+	var label := "★ TARGET · %s" % String(o.name).to_upper()
+	if not fog or _in_sight(vip):
+		return [{"cell": vip.pos, "h": 1.6, "label": label, "tone": "red", "unit": vip.id}]
+	var last := _sighted(vip, o.get("intel", vip.pos))
+	return [{"cell": last, "h": 1.6, "label": label + " · LAST SEEN", "tone": "red"}]
 
 
 func focus_unit() -> int:
