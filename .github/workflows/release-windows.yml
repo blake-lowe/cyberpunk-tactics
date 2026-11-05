@@ -1,0 +1,67 @@
+# Build the Windows x86_64 export and publish it as a GitHub release when a version tag is pushed:
+#   git tag v0.9.1-playtest && git push origin v0.9.1-playtest
+# Tags with a "-" suffix (v0.9.1-playtest, v1.0.0-rc1) are published as pre-releases.
+name: Release (Windows)
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build and release"
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  GODOT_VERSION: "4.7.2"
+
+jobs:
+  windows:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Resolve tag
+        id: tag
+        run: echo "name=${{ github.event.inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.tag.outputs.name }}
+
+      - name: Install Godot
+        run: sudo -E tools/install_godot.sh
+
+      - name: Install Windows export templates
+        run: |
+          D="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          mkdir -p "$D"
+          curl -sSL -o templates.tpz "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          unzip -o -j -q templates.tpz 'templates/windows_release_x86_64*' 'templates/windows_debug_x86_64*' 'templates/version.txt' -d "$D"
+          rm templates.tpz
+
+      - name: Import project
+        run: timeout 900 godot --headless --import --path . || true
+
+      - name: Unit tests
+        run: timeout 1500 tools/test.sh
+
+      - name: Export and zip
+        run: tools/build_windows.sh "${{ steps.tag.outputs.name }}"
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.name }}
+        run: |
+          ZIP="build/CyberpunkTactics-windows-${TAG}.zip"
+          PRE=""
+          case "$TAG" in *-*) PRE="--prerelease";; esac
+          NOTES="Windows x86_64 build of ${TAG}. Unzip and run CyberpunkTactics.exe (keep the .pck beside it). Unsigned: SmartScreen may warn (More info, then Run anyway). Third-party asset and font licences are in licenses/."
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$ZIP" --clobber
+          else
+            gh release create "$TAG" "$ZIP" --title "${TAG} (Windows)" --notes "$NOTES" --generate-notes $PRE
+          fi
