@@ -8,8 +8,9 @@ extends Control
 ## Layout on a 2.4-unit module grid: three rooms north of a corridor (Med Bay, Armory, Fixer Network),
 ## three south (Training Room, Workshop, Bunks). Rooms are places with no levels or effects; the
 ## workshop stays dark storage (tarped crates) until a Tech joins the crew.
-## Walls are kit walls on the two far sides (rebuilt as the view rotates) and waist-high everywhere
-## else, so every room reads from above. The crew stand where their downtime job puts them.
+## Seen square-on from the south (owner: 0° yaw; Q/E turn it in 90° steps). Walls are kit walls on
+## the far side (rebuilt as the view rotates) and waist-high everywhere else, so every room reads
+## from above. The crew stand where their downtime job puts them.
 ##
 ## The safehouse is the hub (owner's UI audit): every between-gigs function is a full screen opened
 ## from its room (src/ui/screens/): Fixer Network → jobs, hire, Night Market; Armory → storage and
@@ -40,6 +41,9 @@ const W := COLS * MOD
 const D := ROWS * MOD
 const CORRIDOR_Z := 2    ## module row of the corridor
 const LOW := 0.55        ## cutaway wall height
+const PITCH_UP := 16.0   ## camera height over the focus...
+const PITCH_BACK := 18.0 ## ...and distance back along the view (a ~42° isometric-style pitch)
+const VIEW_SIZE := 13.0  ## ortho height framing the whole floor square-on (it was 16 for the 45° diagonal)
 ## Rooms in modules (x, z, w, d), light colour, title.
 const ROOMS := {
 	"med_bay": [Rect2i(0, 0, 2, 2), "3ce0a0", "MED BAY"],
@@ -71,7 +75,7 @@ var crew_nodes := {}        ## Combatant → CharModel
 var crew_labels := {}       ## Combatant → Label
 var selected := ""          ## room id outlined (hover outlines too)
 var hover := ""
-var yaw := 45.0
+var yaw := 0.0              ## owner: square-on to the walls (Q/E turn it in 90° steps)
 var focus := Vector3(W / 2, 0, D / 2)
 var _cam_tw: Tween
 var _shot_path := ""
@@ -112,11 +116,15 @@ func _ready() -> void:
 		get_tree().change_scene_to_file.call_deferred(GREYBOX)
 		return
 	Hud._fonts()
-	if "--demo" in OS.get_cmdline_user_args():   # review shots: DEV-ONLY sample campaign, never saved
+	if camp == null and "--demo" in OS.get_cmdline_user_args():   # review shots: DEV-ONLY sample campaign, never saved
 		camp = DemoState.make()
-	else:
+	elif camp == null:   # (a caller may hand one in before adding the view)
 		camp = Campaign.ensure_current()
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# The view's own input is _unhandled_input (hover, click, wheel, Q/E): this full-screen root must
+	# let the mouse through, or as a STOP control it takes every motion and click itself and nothing
+	# in the safehouse ever hovers (owner playtest). The top bar and the screens still stop it.
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	portraits = Portraits.new()
 	add_child(portraits)
 	_build_view()
@@ -126,6 +134,7 @@ func _ready() -> void:
 	_place_camera()
 	_resize()
 	get_viewport().size_changed.connect(_resize)
+	_place_labels()   # placed before the first frame draws, not at the top-left corner for one frame
 	if camp.has_meta("report"):   # back from a gig: the debrief first
 		var rep: Dictionary = camp.get_meta("report")
 		camp.remove_meta("report")
@@ -139,6 +148,16 @@ func _ready() -> void:
 func _process(_d: float) -> void:
 	if _cam_tw and _cam_tw.is_running():
 		_place_camera()
+	_place_labels()
+	if _shot_path != "":
+		_frames += 1
+		if _frames == 45:
+			get_viewport().get_texture().get_image().save_png(_shot_path)
+			get_tree().quit()
+
+
+## Room and crew labels, the hover card and the outline follow the view.
+func _place_labels() -> void:
 	for c in crew_nodes:
 		var n: Node3D = crew_nodes[c]
 		var l: Label = crew_labels[c]
@@ -156,14 +175,9 @@ func _process(_d: float) -> void:
 		l.visible = id != hover   # the hover card takes its place
 	_place_hover_card()
 	_update_outline()
-	if _shot_path != "":
-		_frames += 1
-		if _frames == 45:
-			get_viewport().get_texture().get_image().save_png(_shot_path)
-			get_tree().quit()
 
 
-func _rect(id: String) -> Rect2:
+static func _rect(id: String) -> Rect2:
 	var r: Rect2i = ROOMS[id][0]
 	return Rect2(Vector2(r.position) * MOD, Vector2(r.size) * MOD)
 
@@ -202,7 +216,7 @@ func _build_view() -> void:
 	env.background_color = Color("05070b")
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color("2a3450")
-	env.ambient_light_energy = 1.0
+	env.ambient_light_energy = 1.1
 	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
 	env.glow_enabled = true
 	env.glow_hdr_threshold = 0.9
@@ -219,7 +233,7 @@ func _build_view() -> void:
 	svp.add_child(moon)
 	cam = Camera3D.new()
 	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
-	cam.size = 16.0
+	cam.size = VIEW_SIZE
 	svp.add_child(cam)
 
 
@@ -234,8 +248,17 @@ func _resize() -> void:
 
 
 func _place_camera() -> void:
-	var dir := Vector3(sin(deg_to_rad(yaw)), 0, cos(deg_to_rad(yaw)))
-	cam.look_at_from_position(focus + dir * 18.0 + Vector3(0, 16.0, 0), focus, Vector3.UP)
+	aim_camera(cam, focus, yaw)
+
+
+## The view: from `yaw` degrees round (0 = from the south, square-on to the walls), looking down on `focus`.
+static func aim_camera(c: Camera3D, at: Vector3, deg: float) -> void:
+	c.transform = view_xform(at, deg)
+
+
+static func view_xform(at: Vector3, deg: float) -> Transform3D:
+	var dir := Vector3(sin(deg_to_rad(deg)), 0, cos(deg_to_rad(deg)))
+	return Transform3D(Basis(), at + dir * PITCH_BACK + Vector3(0, PITCH_UP, 0)).looking_at(at, Vector3.UP)
 
 
 func _to_screen(p: Vector3) -> Vector2:
@@ -244,8 +267,25 @@ func _to_screen(p: Vector3) -> Vector2:
 
 func _pick_floor(mouse: Vector2) -> Vector3:
 	var sp := mouse / (screen.size.x / maxf(1.0, float(svp.size.x)))
-	var hit: Variant = Plane(Vector3.UP, 0.0).intersects_ray(cam.project_ray_origin(sp), cam.project_ray_normal(sp))
+	return floor_at(cam.transform, cam.size, Vector2(svp.size), sp)
+
+
+## Where a pixel of the 3D view (`px` the SubViewport's size) meets the floor, for an orthographic
+## camera at `xf` showing `ortho` units top to bottom (Camera3D's KEEP_HEIGHT). Pure maths, so the
+## picking is testable without a live viewport.
+static func floor_at(xf: Transform3D, ortho: float, px: Vector2, sp: Vector2) -> Vector3:
+	var ndc := Vector2(sp.x / px.x * 2.0 - 1.0, 1.0 - sp.y / px.y * 2.0)
+	var half := Vector2(ortho * 0.5 * px.x / px.y, ortho * 0.5)
+	var origin := xf.origin + xf.basis.x * ndc.x * half.x + xf.basis.y * ndc.y * half.y
+	var hit: Variant = Plane(Vector3.UP, 0.0).intersects_ray(origin, -xf.basis.z)
 	return hit if hit != null else Vector3(-99, 0, -99)
+
+
+## The inverse: the view pixel a world point lands on.
+static func view_at(xf: Transform3D, ortho: float, px: Vector2, p: Vector3) -> Vector2:
+	var local := xf.affine_inverse() * p
+	var half := Vector2(ortho * 0.5 * px.x / px.y, ortho * 0.5)
+	return Vector2((local.x / half.x + 1.0) * 0.5 * px.x, (1.0 - local.y / half.y) * 0.5 * px.y)
 
 
 # --- Building blocks ---------------------------------------------------------------------
@@ -346,8 +386,9 @@ func _build_world() -> void:
 	var cl := OmniLight3D.new()
 	cl.position = Vector3(W / 2, 1.6, (CORRIDOR_Z + 0.5) * MOD)
 	cl.light_color = Color("9ab4e0")
-	cl.omni_range = 8.0
-	cl.light_energy = 0.6
+	cl.omni_range = 9.0
+	cl.omni_attenuation = 0.8
+	cl.light_energy = 0.9
 	world.add_child(cl)
 	_box(world, Vector3(0.1, 0.06, 1.2), Vector3(W + 0.1, 0.9, (CORRIDOR_Z + 0.5) * MOD), Color("ff3b6b"), 2.5)   # the door's neon
 	for id in ROOMS:
@@ -422,8 +463,9 @@ func _build_room(id: String) -> void:
 	var light := OmniLight3D.new()
 	light.position = Vector3(r.size.x / 2, 2.0, r.size.y / 2)
 	light.light_color = accent.lerp(Color.WHITE, 0.5)
-	light.omni_range = 5.5
-	light.light_energy = [0.15, 0.9, 1.4][lv]
+	light.omni_range = 6.0
+	light.omni_attenuation = 0.8   # a ceiling light that fills the room, not a bulb's pool
+	light.light_energy = [0.25, 1.35, 1.8][lv]
 	light.shadow_enabled = lv > 0
 	room.add_child(light)
 	if lv == 0:
@@ -798,6 +840,7 @@ func _place_hover_card() -> void:
 			_hover_card = null
 		if hover != "" and ROOMS.has(hover) and ui:
 			_hover_card = _room_card(hover)
+			_ignore_mouse(_hover_card)   # never under the cursor as a STOP control (it would end the hover)
 			ui.add_child(_hover_card)
 			_hover_card.reset_size()
 	if _hover_card == null:
@@ -807,6 +850,13 @@ func _place_hover_card() -> void:
 	var top := (_top.position.y + _top.size.y + 4) if _top else 0.0
 	var at := Vector2(l.position.x + l.size.x / 2 - _hover_card.size.x / 2, l.position.y + l.size.y - _hover_card.size.y)
 	_hover_card.position = at.clamp(Vector2(6, top), vs - _hover_card.size - Vector2(6, 30))
+
+
+static func _ignore_mouse(n: Node) -> void:
+	if n is Control:
+		(n as Control).mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for ch in n.get_children():
+		_ignore_mouse(ch)
 
 
 func _room_card(id: String) -> PanelContainer:
@@ -874,13 +924,16 @@ func _take_gig(i: int) -> void:
 ## Glide in on the hovered room (or back out to the whole floor).
 func _overview() -> Vector3:   # the whole floor, nudged down (clear of the top bar), centred on screen
 	_place_camera()
-	var dir := Vector3(sin(deg_to_rad(yaw)), 0, cos(deg_to_rad(yaw)))
-	return Vector3(W / 2, 0, D / 2) - dir * 1.0
+	return overview_focus(yaw)
+
+
+static func overview_focus(deg: float) -> Vector3:
+	return Vector3(W / 2, 0, D / 2) - Vector3(sin(deg_to_rad(deg)), 0, cos(deg_to_rad(deg))) * 1.0
 
 
 func _frame_selection(now := false) -> void:
 	var goal := _overview()
-	var size := 16.0
+	var size := VIEW_SIZE
 	if now:
 		focus = goal
 		cam.size = size
@@ -924,7 +977,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			_refresh_ui()
 
 
-func _room_at(p: Vector3) -> String:
+static func _room_at(p: Vector3) -> String:
 	for id in ROOMS:
 		if _rect(id).has_point(Vector2(p.x, p.z)):
 			return id
