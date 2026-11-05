@@ -93,11 +93,16 @@ var end_toast := ""        ## the view's headline once the gig is over ("" = the
 var _round_box: VBoxContainer              ## unit id → party card (hit shake)
 
 
+## An imported font as its own FontFile copy (so per-face settings stay local). load() works in the
+## editor and in exports; load_dynamic_font() needs the raw .ttf, which exports don't ship.
+static func _font_file(path: String) -> FontFile:
+	return (load(path) as FontFile).duplicate()
+
+
 static func _fonts() -> void:
 	if F_BODY:
 		return
-	F_DISPLAY = FontFile.new()
-	F_DISPLAY.load_dynamic_font("res://assets/fonts/Jersey10-Regular.ttf")
+	F_DISPLAY = _font_file("res://assets/fonts/Jersey10-Regular.ttf")
 	F_DISPLAY.antialiasing = TextServer.FONT_ANTIALIASING_NONE
 	F_PIXEL = FontVariation.new()
 	F_PIXEL.base_font = F_DISPLAY
@@ -106,24 +111,19 @@ static func _fonts() -> void:
 	# with open counters and clear figures, antialiased so it holds up at any UI scale. Jersey10
 	# stays the pixel display face for names, buttons and banners. VT323 is kept for the NET's
 	# terminal readouts only (F_MONO).
-	F_TERM = FontFile.new()
-	F_TERM.load_dynamic_font("res://assets/fonts/ChakraPetch-SemiBold.ttf")
+	F_TERM = _font_file("res://assets/fonts/ChakraPetch-SemiBold.ttf")
 	F_TERM.hinting = TextServer.HINTING_LIGHT
 	F_TERM.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_DISABLED
 	F_BODY = F_TERM
-	F_BOLD = FontFile.new()
-	F_BOLD.load_dynamic_font("res://assets/fonts/ChakraPetch-Bold.ttf")
+	F_BOLD = _font_file("res://assets/fonts/ChakraPetch-Bold.ttf")
 	F_BOLD.hinting = TextServer.HINTING_LIGHT
-	F_MONO = FontFile.new()
-	F_MONO.load_dynamic_font("res://assets/fonts/VT323-Regular.ttf")
+	F_MONO = _font_file("res://assets/fonts/VT323-Regular.ttf")
 	F_MONO.antialiasing = TextServer.FONT_ANTIALIASING_NONE
 	# Symbols the faces lack (★ ◇ ○ ● ⚠ ✓, and arrows/≤≥ in Jersey10) come from explicit fallbacks
 	# instead of whatever the OS has.
 	# They are subsets with short line metrics (tools/make_ui_symbols.py) so they never make a line taller.
-	var sym := FontFile.new()
-	sym.load_dynamic_font("res://assets/fonts/UiSymbols-Noto.ttf")
-	var sym2 := FontFile.new()
-	sym2.load_dynamic_font("res://assets/fonts/UiSymbols-Chakra.ttf")
+	var sym := _font_file("res://assets/fonts/UiSymbols-Noto.ttf")
+	var sym2 := _font_file("res://assets/fonts/UiSymbols-Chakra.ttf")
 	for f in [F_TERM, F_BOLD, F_MONO]:
 		f.fallbacks = [sym]
 	F_DISPLAY.fallbacks = [sym2, sym]
