@@ -634,7 +634,7 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 			_card.add_child(_text("! " + ", ".join(c.injuries.map(func(i): return String(i.get("name", i.id)))).to_upper(), F_TERM, Hud.ts(20), RED))
 		var t := enc.turn
 		var act := t.action_available or t.attacks_left > 0
-		_econ.add_child(_text("◆ ACTION" if act else "◇ ACTION", F_DISPLAY, 20, CYAN if act else Color(DIM, 0.6)))
+		_econ.add_child(_text(action_text(t), F_DISPLAY, 20, CYAN if act else Color(DIM, 0.6)))
 		var mv := t.squares_available()
 		var mvmax := maxi(1, c.stat("MOVE"))
 		_econ.add_child(_text("MOVE %d · %d M" % [mv, mv * 2], F_DISPLAY, 20, CYAN if mv > 0 else Color(DIM, 0.6)))   # a square is 2 m (p.127)
@@ -645,7 +645,9 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 		(_end_btn as ActBtn).tint = GOLD if exhausted else Color("8a96a0")
 		var w: Weapon = c.weapons[0] if not c.weapons.is_empty() else null
 		if stage == "attack":
-			_econ.add_child(_text("▸ " + String(ATK_MODES.get(atk_mode, ["", "", ""])[2]).to_upper(), F_DISPLAY, 20, GOLD))
+			var aw: Weapon = Weapon.brawling(c) if atk_mode == "brawl" else (enc.melee_weapon(c) if atk_mode == "melee" and (w == null or not w.is_melee()) else w)
+			var n_atk := attacks_per_action(aw, atk_mode) if t.action_available else 0
+			_econ.add_child(_text("▸ " + String(ATK_MODES.get(atk_mode, ["", "", ""])[2]).to_upper() + (" · %d ATTACKS THIS TURN" % n_atk if n_atk > 1 else ""), F_DISPLAY, 20, GOLD))
 		_econ.add_child(_text(("%s  %s" % [w.display_name().to_upper(), "JAMMED · R TO CLEAR" if w.jammed else (("%02d/%02d" % [w.ammo, int(w.def.get("mag", 0))]) if w.uses_ammo() else "")]) if w else "UNARMED", F_TERM, Hud.ts(20), TEXT))
 		if enc.runs.has(enc.cur.id):
 			_econ.add_child(_text("◆ NET %d" % enc.net_left, F_PIXEL, 20, Color("d68cff")))
@@ -664,6 +666,23 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 	if enc.state != "playing":
 		toast(end_toast if end_toast != "" else "GIG %s" % ("COMPLETE" if enc.state == "won" else ("ABANDONED" if enc.state == "fled" else "FAILED")), 1e9)
 	_layout.call_deferred()
+
+
+## The unit card's ACTION line: lit while the Action is unspent, and after the first attack of a
+## 2 ROF Action it says a second one is left (p169: two attack checks, split around movement).
+static func action_text(t: TurnState) -> String:
+	if not t.action_available and t.attacks_left > 0:
+		return "◆ %d MORE ATTACK%s (ROF 2)" % [t.attacks_left, "" if t.attacks_left == 1 else "S"]
+	return "◆ ACTION" if t.action_available else "◇ ACTION"
+
+
+## Attack checks one Action of `atk_mode` with `w` gives (p169): a 2 ROF weapon's single attack,
+## melee or Brawling (Brawling and Martial Arts are ROF 2, p176-178) gives two; Autofire, Aimed
+## Shots, Suppressive Fire, a Shell and ROF 1 weapons one.
+static func attacks_per_action(w: Weapon, atk_mode: String) -> int:
+	if w == null or atk_mode not in ["single", "melee", "brawl", "cover"]:
+		return 1
+	return mini(2, maxi(1, w.rof()))
 
 
 ## The gig's goal in a few words, for the round tab.
@@ -1145,7 +1164,9 @@ func _net_refresh(enc: Encounter) -> void:
 	if run == null:
 		return
 	var ice_db: Dictionary = RulesDB.load_json("black_ice.json")["ice"]
-	_net_box.add_child(_text("// JACKED IN · %d NET ACTION%s" % [enc.net_left, "" if enc.net_left == 1 else "S"], F_PIXEL, 20, MAGENTA))
+	var head_row := _text("// JACKED IN · %d NET ACTION%s" % [enc.net_left, "" if enc.net_left == 1 else "S"], F_PIXEL, 20, MAGENTA)
+	_net_hover(head_row, "net_actions", "%d of %d left this turn" % [enc.net_left, enc.net_actions_for(run.runner)])
+	_net_box.add_child(head_row)
 	var here := run.cur_node()
 	_net_box.add_child(_text(_node_label(here, enc, run, true).to_upper(), F_DISPLAY, 20, Color("e2c8ff")))
 	var status: Array[String] = []
@@ -1162,10 +1183,22 @@ func _net_refresh(enc: Encounter) -> void:
 		status.append("WOUNDED -%d" % (NetRun.interface_rank(run.runner) - run.rank()))
 	if not status.is_empty():
 		_net_box.add_child(_text(" · ".join(status), F_TERM, Hud.ts(18), GOLD))
+	var progs: Array = run.runner.programs.filter(func(pg): return not run.lost.has(pg))
+	if not progs.is_empty():   # the deck's Programs, each with its card
+		var prow := HBoxContainer.new()
+		prow.add_theme_constant_override("separation", 10)
+		prow.add_child(_text("PROGRAMS", F_PIXEL, 20, DIM))
+		for pg in progs:
+			var pl := _text(String(pg).to_upper(), F_TERM, Hud.ts(18), Color("e2c8ff"))
+			_net_hover(pl, String(pg))
+			prow.add_child(pl)
+		_net_box.add_child(prow)
 	var ice := run.arch.ice_at(run.current)
 	for i in ice:
 		var st: Dictionary = ice_db[i.kind]
-		_net_box.add_child(_text("!! %s  ATK %d DEF %d PER %d · REZ %d/%d" % [String(i.kind).to_upper(), int(st.atk), int(st.def), int(st.per), int(i.get("rez", st.rez)), int(st.rez)], F_TERM, Hud.ts(18), RED))
+		var il := _text("!! %s  ATK %d DEF %d PER %d · REZ %d/%d" % [String(i.kind).to_upper(), int(st.atk), int(st.def), int(st.per), int(i.get("rez", st.rez)), int(st.rez)], F_TERM, Hud.ts(18), RED)
+		_net_hover(il, "ice:" + String(i.kind), "REZ %d/%d left" % [int(i.get("rez", st.rez)), int(st.rez)])
+		_net_box.add_child(il)
 		_net_box.add_child(_text("   " + String(st.get("effect", "")), F_TERM, Hud.ts(16), Color(RED, 0.75)))
 	# Only the actions that apply here, each with its odds.
 	var acts := VBoxContainer.new()   # one row per option (owner)
@@ -1173,7 +1206,7 @@ func _net_refresh(enc: Encounter) -> void:
 	var none := enc.net_left <= 0
 	var add := func(label: String, kind: String, enabled := true):
 		var nb := _net_button(label, func(): action.emit("net", kind), 296, 28, none or not enabled)
-		nb.tooltip_text = "DV: the Difficulty Value; Interface + 1d10 must beat it" if label.contains("DV") else ""
+		_net_hover(nb, kind, label)
 		acts.add_child(nb)
 	match String(here.type):
 		"firewall":
@@ -1215,10 +1248,10 @@ func _net_refresh(enc: Encounter) -> void:
 			var pair := [int(ht.id), int(tg.id)]
 			var fb := _net_button("FIRE TURRET → %s · %d%%" % [enc.units[int(tg.id)].c.display_name.to_upper(), roundi(float(tg.chance) * 100)],
 				func(): action.emit("net_turret", pair), 296, 26, none or float(tg.chance) <= 0.0)
-			fb.tooltip_text = "1 NET Action: the turret fires with your own REF + weapon Skill. Each node once a turn (p.199, p.214)"
+			_net_hover(fb, "fire_turret", "%d%% to hit %s" % [roundi(float(tg.chance) * 100), enc.units[int(tg.id)].c.display_name])
 			_net_box.add_child(fb)
 	var unsafe := _net_button("UNSAFE JACK OUT", func(): action.emit("net", "jack_out_unsafe"), 296, 24)
-	unsafe.tooltip_text = "Every Black ICE you've met gets an attack on the way out (p.198)"
+	_net_hover(unsafe, "jack_out_unsafe")
 	unsafe.add_theme_color_override("font_color", RED)
 	_net_box.add_child(unsafe)
 	if not ice.is_empty():   # pinned: Slide is the way out (p200)
@@ -1227,7 +1260,9 @@ func _net_refresh(enc: Encounter) -> void:
 		_net_box.add_child(_text("SLIDE AWAY (%d%% · ONCE A TURN)" % pct, F_PIXEL, 20, DIM))
 		for nb in run.slide_targets():
 			var id: int = nb
-			_net_box.add_child(_net_button("» " + _node_label(run.arch.nodes[id], enc, run), func(): action.emit("net_slide", id), 296, 24, none or enc._slid_this_turn))
+			var sb := _net_button("» " + _node_label(run.arch.nodes[id], enc, run), func(): action.emit("net_slide", id), 296, 24, none or enc._slid_this_turn)
+			_net_hover(sb, "slide", "%d%% to get away" % pct)
+			_net_box.add_child(sb)
 		return
 	_net_box.add_child(_text("ROUTE (FREE)", F_PIXEL, 20, DIM))
 	var dist := run.route()
@@ -1239,6 +1274,66 @@ func _net_refresh(enc: Encounter) -> void:
 		if _is_target(enc, run, nid):
 			b.add_theme_color_override("font_color", GOLD)
 		_net_box.add_child(b)
+
+
+## The NET panel's hover card for `id` (bbcode, in the stat_block style: labels dim, values bright):
+## a NET Action or the NET Actions header (net_help.json "actions"), a Program ("programs"), or
+## "ice:<kind>" for Black ICE (black_ice.json). `live` adds this moment's odds. "" if unknown.
+static func net_help(id: String, live := "") -> String:
+	const K := "[color=#7d8a96]%s[/color]"
+	var db: Dictionary = RulesDB.load_json("net_help.json")
+	var out: Array[String] = []
+	if id.begins_with("ice:"):
+		var kind := id.substr(4)
+		var st: Dictionary = RulesDB.load_json("black_ice.json")["ice"].get(kind, {})
+		if st.is_empty():
+			return ""
+		out.append("[b]%s[/b]  %s" % [kind.capitalize(), K % ("Black ICE · " + String(st.get("class", "")).replace("_", "-").capitalize())])
+		out.append(String(st.get("effect", "")))
+		out.append((K % "STATS") + " [code]PER %d · SPD %d · ATK %d · DEF %d · REZ %d[/code]" % [int(st.per), int(st.spd), int(st.atk), int(st.def), int(st.rez)])
+		out.append((K % "PER") + " what a Slide must beat  " + (K % "SPD") + " its speed when you meet it")
+		out.append((K % "ATTACKS") + " its ATK + 1d10 vs your Interface + 1d10, once a turn; it chases you through the NET")
+		if live != "":
+			out.append((K % "NOW") + " " + live)
+		out.append(K % ("CPR core " + String(db.get("ice_page", "p.204-207"))))
+		return "\n".join(out)
+	var e: Dictionary = (db.actions as Dictionary).get(id, (db.programs as Dictionary).get(id, {}))
+	if e.is_empty():
+		return ""
+	out.append("[b]%s[/b]  %s" % [String(e.name), K % String(e.cost)])
+	out.append(String(e.text))
+	if String(e.get("key", "")) != "":
+		var what := "STATS" if (db.programs as Dictionary).has(id) else "ROLL"
+		out.append((K % what) + " [code]%s[/code]" % String(e.key))
+	if live != "":
+		out.append((K % "NOW") + " " + live)
+	var page := String(e.get("page", ""))
+	out.append(K % (("CPR core " + page) if page.begins_with("p.") else page))
+	return "\n".join(out)
+
+
+## Hovering `c` shows its NET card (net_help) beside the NET panel, in the cursor tooltip's style.
+func _net_hover(c: Control, id: String, live := "") -> void:
+	var body := net_help(id, live)
+	if body == "":
+		return
+	c.mouse_filter = Control.MOUSE_FILTER_STOP
+	var head := "// " + ("BLACK ICE" if id.begins_with("ice:") else ("PROGRAM" if (RulesDB.load_json("net_help.json").programs as Dictionary).has(id) else "NET"))
+	c.mouse_entered.connect(func(): _tip_beside_net(body, head, c))
+	c.mouse_exited.connect(func(): _tip.visible = false)
+
+
+## The tooltip panel to the left of the NET panel, level with the hovered row.
+func _tip_beside_net(text: String, head: String, row: Control) -> void:
+	_tip.visible = true
+	_tip_head.text = head
+	_tip_head.visible = true
+	_tip_head.add_theme_color_override("font_color", MAGENTA)
+	_tip_label.text = text
+	_tip.reset_size()
+	var r := row.get_global_rect()
+	var pos := Vector2(_net_panel.position.x - _tip.size.x - 10, r.position.y - global_position.y - 8)
+	_tip.position = pos.clamp(Vector2.ZERO, size - _tip.size - Vector2(4, 4))
 
 
 static func _is_target(enc: Encounter, run: NetRun, id: int) -> bool:

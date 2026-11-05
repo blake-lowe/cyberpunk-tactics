@@ -91,6 +91,20 @@ func start_attack(weapon: Weapon, single_check: bool = false) -> bool:
 	return true
 
 
+## Take one attack check with `weapon` (p169): a fresh attack Action, or the second check of a
+## 2 ROF one. That second check must itself be a single attack with a 2 ROF weapon (the same one or
+## another 2 ROF weapon); Autofire, Aimed Shots and ROF 1 weapons take a whole Action (p169-170).
+## `single_check`: this attack takes the whole Action.
+func take_attack(weapon: Weapon, single_check: bool) -> bool:
+	if attacks_left > 0:
+		if single_check or weapon.rof() < 2:
+			return false
+		return use_attack()
+	if not start_attack(weapon, single_check):
+		return false
+	return use_attack()
+
+
 ## Consume one attack check. Returns false if none remain.
 func use_attack() -> bool:
 	if attacks_left <= 0:
