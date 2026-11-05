@@ -1,0 +1,99 @@
+{
+ "_source": "Hover cards for the NET panel (Hud.net_help). Short paraphrases of CPR core p.197-207 as distilled in docs/rules/cyber-net.md sections 3.2-3.7; hand-edited. Each entry: name, cost, text (what it does), key (its numbers), page. Ids are Encounter.NET_ACTIONS (plus jack_out_unsafe and fire_turret), Combatant.programs, and the NET Actions header (net_actions).",
+ "actions": {
+  "net_actions": {
+   "name": "NET Actions",
+   "cost": "your turn",
+   "text": "A turn is either one Meat Action or your NET Actions, never both. Your Move Action stays yours either way. Moving between nodes is free.",
+   "key": "Interface 1-3: 2 · 4-6: 3 · 7-9: 4 · 10: 5",
+   "page": "p.197-198"
+  },
+  "backdoor": {
+   "name": "Backdoor",
+   "cost": "1 NET Action",
+   "text": "Break the Password that bars the way (a firewall here). Knowing the password gets you through without a roll.",
+   "key": "Interface + 1d10 vs the Password's DV",
+   "page": "p.199"
+  },
+  "control": {
+   "name": "Control",
+   "cost": "1 NET Action",
+   "text": "Take a Control Node and what hangs off it: cameras, turrets, door locks. While you hold it, working each device costs a NET Action, from anywhere in the NET, once a turn per node. Jacking out drops every node you hold.",
+   "key": "Interface + 1d10 vs the Node's DV",
+   "page": "p.199"
+  },
+  "eye_dee": {
+   "name": "Eye-Dee",
+   "cost": "1 NET Action",
+   "text": "Identify a File and what it is worth. On a data gig, identifying the target File gets the job done.",
+   "key": "Interface + 1d10 vs the File's DV",
+   "page": "p.199"
+  },
+  "pathfinder": {
+   "name": "Pathfinder",
+   "cost": "1 NET Action",
+   "text": "Map the Architecture as far as your Check reaches, stopping at the first obstruction whose DV beats it. Shows what is there, not the DVs.",
+   "key": "Interface + 1d10: the reach",
+   "page": "p.199-200"
+  },
+  "zap": {
+   "name": "Zap",
+   "cost": "1 NET Action",
+   "text": "Every Netrunner's built-in attack, here on the Black ICE in front of you. At 0 REZ the ICE is derezzed.",
+   "key": "Interface + 1d10 vs ICE DEF + 1d10 · hit: 1d6 REZ",
+   "page": "p.201"
+  },
+  "slide": {
+   "name": "Slide",
+   "cost": "1 NET Action",
+   "text": "Get away from one Black ICE: on a success you move to a neighbouring node and it stays where you left it. Once a turn, and only once it has found you.",
+   "key": "Interface + 1d10 vs ICE PER + 1d10 · -2 per Skunk",
+   "page": "p.200, p.207"
+  },
+  "cross": {
+   "name": "Cross Socket",
+   "cost": "1 NET Action",
+   "text": "Step through the socket into the linked site's NET. Progress in each NET is kept. Linked sites are this game's take on reaching another Architecture, not a book Ability.",
+   "key": "no roll · its Black ICE may be waiting",
+   "page": "game rule (M2d)"
+  },
+  "jack_out": {
+   "name": "Jack Out",
+   "cost": "1 NET Action",
+   "text": "Leave the NET safely. Your Programs leave with you; held Control Nodes are lost. A Kraken's grip blocks it until its next turn.",
+   "key": "no roll",
+   "page": "p.198-199"
+  },
+  "jack_out_unsafe": {
+   "name": "Unsafe Jack Out",
+   "cost": "no NET Action",
+   "text": "Pull the plug, Kraken or not. Every Black ICE you have met and not derezzed gets its attack on the way out.",
+   "key": "each ICE met: its ATK + 1d10 vs your Interface + 1d10",
+   "page": "p.198"
+  },
+  "fire_turret": {
+   "name": "Fire Turret",
+   "cost": "1 NET Action",
+   "text": "Work a turret on a Control Node you hold: it shoots with your own aim. Each node can act once a turn.",
+   "key": "your REF + the weapon's Skill + 1d10 vs the range DV",
+   "page": "p.199, p.214"
+  }
+ },
+ "programs": {
+  "sword": {
+   "name": "Sword",
+   "cost": "1 NET Action to activate",
+   "text": "Anti-Program Attacker: cuts Black ICE apart. It deactivates after the attack.",
+   "key": "ATK 1 · DEF 0 · REZ 0 · Interface + 1 + 1d10 vs ICE DEF + 1d10 · hit: 3d6 REZ to Black ICE (2d6 to other Programs)",
+   "page": "p.201, p.203"
+  },
+  "armor": {
+   "name": "Armor",
+   "cost": "1 NET Action to activate",
+   "text": "Defender: lowers the brain damage you take while it is Rezzed. One copy running at a time, each copy once per Netrun.",
+   "key": "ATK 0 · DEF 0 · REZ 7 · brain damage -4",
+   "page": "p.203"
+  }
+ },
+ "ice_page": "p.204-207"
+}

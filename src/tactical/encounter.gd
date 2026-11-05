@@ -1878,6 +1878,41 @@ func move_options() -> Dictionary:
 	return opts
 
 
+## Every square the active unit could still end on this turn by also spending its Action on a Run
+## (p127, p169: another Move Action's worth); includes move_options(). {} once the Action is spent.
+func run_options() -> Dictionary:
+	if cur.is_empty() or turn == null or not _can_run():
+		return {}
+	var budget: int = turn.squares_available() + cur.c.stat("MOVE")
+	var opts: Dictionary = _with_locks(func(): return nav.reachable(cur.pos, budget, _blocking(cur)))
+	for v in occupied(cur):
+		opts.erase(v)
+	return opts
+
+
+## Run needs the Action and a Move Action taken first (TurnState.run; move_to takes the first leg).
+func _can_run() -> bool:
+	return turn.action_available and (turn.moved_this_turn or turn.move_actions > 0)
+
+
+## The squares a move to `dest` would walk, starting with the unit's own, for the path preview:
+## [] unless move_to(dest, allow_run) would take it there (a Run only with `allow_run`).
+func move_preview(dest: Vector3i, allow_run := true) -> Array[Vector3i]:
+	var out: Array[Vector3i] = []
+	if state != "playing" or cur.is_empty() or turn == null or occupied(cur).has(dest) or dest == cur.pos:
+		return out
+	var p: Array[Vector3i] = _with_locks(func(): return nav.path(cur.pos, dest, _blocking(cur)))
+	if p.is_empty():
+		return out
+	var cost := nav.cost_of(cur.pos, p)
+	var reach: int = turn.squares_available() + (cur.c.stat("MOVE") if allow_run and _can_run() else 0)
+	if cost > reach:
+		return out
+	out.append(cur.pos)
+	out.append_array(p)
+	return out
+
+
 ## Squares that block movement for `u`: other teams' units. HOUSE-RULE (playtest: a Solo in a
 ## doorway stalled the runner): allies can be passed through, though not stopped on.
 func _blocking(u: Dictionary) -> Dictionary:
@@ -1948,9 +1983,8 @@ func attack(target: Dictionary, weapon: Weapon, mode: Attack.Mode) -> Dictionary
 	var p := preview(target, weapon, mode)
 	if not p.ok:
 		return {"ok": false, "reason": p.reason}
-	if turn.attacks_left <= 0 and not turn.start_attack(weapon, mode != Attack.Mode.SINGLE or weapon.rof() < 2):
-		return {"ok": false, "reason": "no action left"}
-	turn.use_attack()
+	if not turn.take_attack(weapon, mode != Attack.Mode.SINGLE or weapon.rof() < 2):
+		return {"ok": false, "reason": "no action left" if turn.attacks_left <= 0 else "the second attack must be a single 2 ROF attack"}
 	if int(target.team) == TT_TEAM and cur.team == CREW:
 		tt_hostile = true
 		set_relation(TT_TEAM, CREW, "hostile")
@@ -2442,9 +2476,8 @@ func reload(weapon: Weapon) -> bool:
 
 ## Shoot the cover (or wall, door, window) in the way: damage dice vs its HP; at 0 it's gone.
 func shoot_cover(cell: Vector3i, weapon: Weapon) -> Dictionary:
-	if turn.attacks_left <= 0 and not turn.start_attack(weapon, true):
-		return {"ok": false, "reason": "no action left"}
-	turn.use_attack()
+	if not turn.take_attack(weapon, weapon.rof() < 2):
+		return {"ok": false, "reason": "no action left" if turn.attacks_left <= 0 else "the second attack must be a single 2 ROF attack"}
 	_keep_peace(cur, [cell])
 	_noise(cur.pos)
 	var dmg := dice.roll(weapon.dice(), 6)
@@ -2523,6 +2556,11 @@ func jack_in(point: Dictionary) -> bool:
 	return true
 
 
+## The NET Actions net_action takes (each has a hover card in data/rules/net_help.json; sword and
+## armor activate those Programs).
+const NET_ACTIONS: Array[String] = ["backdoor", "control", "eye_dee", "zap", "cross", "jack_out", "sword", "armor", "slide", "pathfinder"]
+
+
 ## NET Actions (p198). kind: backdoor | control | eye_dee | zap | cross | jack_out. Moving between
 ## nodes is free (run.move_to). A turn spent in the NET forgoes the meat Action (p197).
 func net_action(kind: String, arg: int = -1) -> Dictionary:
@@ -2531,7 +2569,7 @@ func net_action(kind: String, arg: int = -1) -> Dictionary:
 		say("%s pulls the plug." % cur.c.display_name)
 		_drop_run(cur.id, true)
 		return {"ok": true}
-	if kind not in ["backdoor", "control", "eye_dee", "zap", "cross", "jack_out", "sword", "armor", "slide", "pathfinder"]:
+	if kind not in NET_ACTIONS:
 		return {"ok": false, "reason": "unknown action"}
 	if run == null or net_left <= 0:
 		return {"ok": false, "reason": "no NET Actions left"}

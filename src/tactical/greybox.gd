@@ -237,6 +237,7 @@ var _reel := ""
 var tool := ""                  ## M5 target-picking action: melee, shell, grenade, stabilize ("" = normal attacks)
 var _dev_kit: PackedStringArray = []   ## --kit=a,b (review renders)
 var _dev_stage := ""                   ## --stage=attack (review renders)
+var _dev_end := ""                     ## --end=won|lost|fled (review renders): the gig ends that way, the end panel shows
 var _dev_peace := false                ## --peace=broken (review renders): the crew breaks a neutral house's peace
 var _jack_turret := false              ## --jack=turret (review renders): the runner also holds a turret's Control Node
 var _campaign_gig := false             ## this map is the campaign's active gig (a board gig)
@@ -278,6 +279,7 @@ func _ready() -> void:
 			"floor": _shot_floor = int(kv[1])   # review renders: look at this storey
 			"kit": _dev_kit = kv[1].split(",")   # review renders: pack every crew member's kit slots
 			"stage": _dev_stage = kv[1]   # review renders: open the action bar on this stage (attack)
+			"end": _dev_end = kv[1]   # review renders: the gig ends this way (won | lost | fled), the end panel shows
 			"peace": _dev_peace = true   # review renders: --peace=broken: the crew breaks a neutral house's peace (Totentanz)
 			"security":
 				gig.security = int(kv[1])
@@ -416,7 +418,11 @@ func _process(delta: float) -> void:
 			_demo_av()
 		if _frames == 10 and _dev_peace:
 			_demo_peace()
-		var shoot_now: bool = _frames >= 12 if not (_attack_demo or _jack_demo or _av_demo != "" or _dev_peace) else (_demo_ms > 0 and Time.get_ticks_msec() - _demo_ms >= int(_shot_delay * 1000.0 / Engine.time_scale))
+		if _frames == 10 and _dev_end != "":
+			_demo_ms = Time.get_ticks_msec()
+			enc.state = _dev_end
+			_after_action()
+		var shoot_now: bool = _frames >= 12 if not (_attack_demo or _jack_demo or _av_demo != "" or _dev_peace or _dev_end != "") else (_demo_ms > 0 and Time.get_ticks_msec() - _demo_ms >= int(_shot_delay * 1000.0 / Engine.time_scale))
 		if shoot_now:
 			get_viewport().get_texture().get_image().save_png(_shot_path)
 			get_tree().quit()
@@ -1011,9 +1017,15 @@ func _refresh() -> void:
 # --- Cyberspace view ------------------------------------------------------------------------
 
 func _net_active() -> NetRun:
-	if enc == null or enc.cur.is_empty() or enc.cur.team != 0 or not net_view:
+	return net_view_run(enc, net_view)
+
+
+## The run the NET view shows: the active unit's, only while it's a jacked-in crew Netrunner's turn
+## in a gig still going (and the N toggle is on); null shows the plain world.
+static func net_view_run(e: Encounter, view_on: bool) -> NetRun:
+	if e == null or not view_on or e.state != "playing" or e.cur.is_empty() or e.cur.team != Encounter.CREW:
 		return null
-	return enc.runs.get(enc.cur.id)
+	return e.runs.get(e.cur.id)
 
 
 ## Cyberspace reads cleaner without the physical world's lighting: the edge styles otherwise trace
@@ -1039,7 +1051,11 @@ func _net_clean(on: bool) -> void:
 
 ## While jacked in: the environment goes to the chosen background style, the NET draws on top.
 func _update_net() -> void:
-	var run := _net_active()
+	_show_net(_net_active())
+
+
+## The NET view for `run` (null: the plain world). The wireframe belongs to the runner's own turn.
+func _show_net(run: NetRun) -> void:
 	post.set_shader_parameter("net_style", int(look.net_style) if run else 0)
 	var full: bool = run != null and int(look.net_style) in NET_FULL_RES
 	if full != _net_full_res:   # crisp styles render the 3D view at full resolution
@@ -1616,11 +1632,8 @@ func _draw_grid() -> void:
 	dash_opts = {}
 	if _crew_turn() and enc.turn.can_move():
 		move_opts = enc.move_options()
-	if _crew_turn() and enc.turn.action_available:
-		var budget: int = enc.turn.squares_available() + enc.cur.c.stat("MOVE")
-		dash_opts = enc._with_locks(func(): return enc.nav.reachable(enc.cur.pos, budget, enc._blocking(enc.cur)))
-		for v in enc.occupied(enc.cur):
-			dash_opts.erase(v)
+	if _crew_turn():
+		dash_opts = enc.run_options()
 	var data := PackedByteArray()
 	data.resize(m.w * m.h * 2)
 	for v in move_opts:
@@ -1653,11 +1666,11 @@ func _draw_grid() -> void:
 func _draw_path() -> void:
 	var pts: Array[Vector3] = []
 	_path_cells.clear()
-	if move_opts.has(hover) and _crew_turn():
-		var cells: Array[Vector3i] = enc._with_locks(func(): return enc.nav.path(enc.cur.pos, hover, enc._blocking(enc.cur)))
-		cells.push_front(enc.cur.pos)
-		_path_cells = cells
-		for c in cells:
+	# Only while a move can be chosen: not during playback (the options are the last turn's, and
+	# enc.cur may already be the next unit), and over the normal and the Run (amber) range alike.
+	if not busy and _crew_turn() and (move_opts.has(hover) or dash_opts.has(hover)):
+		_path_cells = enc.move_preview(hover)
+		for c in _path_cells:
 			pts.append(Vector3(c.x + 0.5, c.z * FH + 0.12, c.y + 0.5))
 	if pts.size() < 2:
 		path_node.mesh = null
@@ -1958,6 +1971,9 @@ func _unhandled_input(ev: InputEvent) -> void:
 				else:
 					_click_attack(ev.shift_pressed or cover_mode)
 	elif ev is InputEventKey and ev.pressed and not ev.echo:
+		if _end_key(ev.keycode):   # the gig is over: the end panel takes Enter, Space and Esc first
+			get_viewport().set_input_as_handled()
+			return
 		match ev.keycode:
 			KEY_Q: yaw_goal = snappedf(yaw_goal, 45.0) - 90
 			KEY_E: yaw_goal = snappedf(yaw_goal, 45.0) + 90
@@ -2782,7 +2798,12 @@ func _after_action() -> void:
 	busy = true
 	hud.log_hold = true   # log lines land with their callouts, not before the animation
 	grid_node.visible = false
+	move_opts = {}   # no move is pending until the grid is drawn again for whoever acts next
+	dash_opts = {}
+	_path_cells.clear()
 	path_node.mesh = null
+	if enc.turn != _view_turn:   # the turn shown has ended: whatever plays next (the other side's turns) is meatspace
+		_show_net(null)
 	await _play_events()
 	busy = false
 	hud.log_hold = false
@@ -2796,12 +2817,13 @@ func _after_action() -> void:
 	if new_turn:
 		_frame_unit(enc.cur)   # new crew turn: centre the active unit in the space between the panels
 	_last_cur = enc.cur.id if not enc.cur.is_empty() else -1
+	_view_turn = enc.turn
 	_refresh()
 	_update_hover()
 	if new_turn and enc.state == "playing":
 		hud.turn_banner("%s  ·  YOUR MOVE" % enc.cur.c.display_name.to_upper(), Hud.GOLD)
 		_ui_snd("sfx_turn", -6.0)
-	if enc.state != "playing" and Campaign.current and not Campaign.current.active_gig.is_empty():
+	if enc.state != "playing":   # every way a gig ends (a board gig or a dev map) comes here: never a dead end
 		_finish_gig()
 
 
@@ -2907,6 +2929,7 @@ func _update_objective() -> void:
 
 
 var _settling := false     ## _finish_gig is under way: once per gig
+var _view_turn: TurnState = null   ## the turn the view last settled on (a new one means the last turn ended)
 
 
 ## The banner over the settling: {text, good, head}. `head` is the headline alone, for the toast
@@ -2916,22 +2939,90 @@ static func end_banner(state: String) -> Dictionary:
 	return {"text": head + "  ·  DEBRIEF", "good": state == "won", "head": head}
 
 
-## A board gig is over: settle it (pay, injuries, the dead), save, and go to the debrief (the
-## safehouse opens it first, BaseView). Once per gig.
+## What the player can do once the gig is over: [[action, button text, key], ...]. A board gig
+## goes home to the safehouse debrief (the design: data theft ends when the File is pulled, a
+## snatch when the package reaches the deploy zone: no extraction phase after the objective). A
+## dev map (no campaign gig) offers another map or quitting. The first is the default (Enter/Space).
+static func end_choices(campaign_gig: bool) -> Array:
+	if campaign_gig:
+		return [["safehouse", "RETURN TO SAFEHOUSE  ›  [ENTER]", "enter"]]
+	return [["restart", "RESTART  ›  [ENTER]", "enter"], ["quit", "QUIT  [ESC]", "esc"]]
+
+
+## The gig is over: the banner and the headline toast, a board gig settled (pay, injuries, the
+## dead) and saved at once, then the end panel with what comes next (end_choices). Once per gig.
 func _finish_gig() -> void:
 	if _settling:
 		return
 	_settling = true
-	var camp := Campaign.current
+	_back_to_main()
+	_show_net(null)
 	var b := end_banner(enc.state)
 	hud.end_toast = String(b.head)   # the toast that stays up says what the banner says
 	hud.toast(hud.end_toast, 1e9)
-	hud.turn_banner(String(b.text), Hud.GREEN if b.good else Hud.RED)
-	await get_tree().create_timer(3.0).timeout
-	var report := camp.resolve(enc)
-	camp.set_meta("report", report)
-	camp.save()
-	get_tree().change_scene_to_file("res://scenes/base.tscn")
+	var camp := Campaign.current if _campaign_gig else null
+	hud.turn_banner(String(b.text if camp != null else b.head), Hud.GREEN if b.good else Hud.RED)   # no debrief off the campaign
+	if camp != null:   # settled now, so quitting from the end panel loses nothing (the safehouse opens the debrief, BaseView)
+		var report := camp.resolve(enc)
+		camp.set_meta("report", report)
+		if not camp.has_meta("demo"):
+			camp.save()
+	_show_end_panel(b, camp != null)
+
+
+var _end_panel: Control = null
+var _end_opts: Array = []   ## end_choices of the panel that is up
+
+
+func _show_end_panel(b: Dictionary, campaign_gig: bool) -> void:
+	if _end_panel != null and is_instance_valid(_end_panel):
+		return
+	var col: Color = Hud.GREEN if b.good else Hud.RED
+	_end_panel = UiKit.panel(col, 16)
+	_end_panel.custom_minimum_size.x = 480
+	var v := UiKit.vbox(10)
+	_end_panel.add_child(v)
+	v.add_child(UiKit.label("// GIG OVER", 13, col))
+	v.add_child(UiKit.head(String(b.head), 32, Hud.TEXT))
+	v.add_child(UiKit.body("Pay, injuries and the fallen are settled. The debrief is waiting at the safehouse." if campaign_gig
+		else "A dev map, outside the campaign: nothing to settle.", 16))
+	var row := UiKit.hbox(12)
+	v.add_child(row)
+	_end_opts = end_choices(campaign_gig)
+	for ch in _end_opts:
+		var act := String(ch[0])
+		row.add_child(UiKit.button(String(ch[1]), UiKit.PRIMARY if row.get_child_count() == 0 else UiKit.NEUTRAL, func(): _end_choose(act)))
+	_end_panel.modulate.a = 0.0   # shown once laid out at its real size
+	hud.add_child(_end_panel)
+	var p := _end_panel
+	await get_tree().process_frame
+	if not is_instance_valid(p):
+		return
+	p.reset_size()
+	p.position = ((hud.size - p.size) / 2.0).floor() + Vector2(0, 60)   # under the banner
+	p.modulate.a = 1.0
+
+
+func _end_choose(act: String) -> void:
+	match act:
+		"safehouse": get_tree().change_scene_to_file("res://scenes/base.tscn")
+		"restart": get_tree().reload_current_scene()
+		"quit": get_tree().quit()
+
+
+## The end panel's keys while it's up: Enter / Space the first choice, Esc the last. True if used.
+func _end_key(code: Key) -> bool:
+	if _end_panel == null or not is_instance_valid(_end_panel):
+		return false
+	var ch := _end_opts
+	match code:
+		KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
+			_end_choose(String(ch[0][0]))
+			return true
+		KEY_ESCAPE:
+			_end_choose(String(ch[-1][0]))
+			return true
+	return false
 
 
 # --- Juice: event playback ----------------------------------------------------------
