@@ -274,6 +274,7 @@ var _mh := {}                          ## the melee hover: attacker node, target
 var _shot2 := ""                       ## --shot2=path (review renders): a second frame 0.15 s later
 var _shot_ms := 0
 var _last_known := {}                  ## foe unit id → the square the crew last saw them on
+var _dev_callouts := false             ## --callouts (review renders): a crit and a wound word stacked over a crew member
 var _dev_end := ""                     ## --end=won|lost|fled (review renders): the gig ends that way, the end panel shows
 var _dev_peace := false                ## --peace=broken (review renders): the crew breaks a neutral house's peace
 var _jack_turret := false              ## --jack=turret (review renders): the runner also holds a turret's Control Node
@@ -328,6 +329,7 @@ func _ready() -> void:
 			"hurt": _dev_hurt = float(kv[1])   # review renders: the nearest foes are roused and lose this share of their HP
 			"logt": _dev_log_t = float(kv[1])   # review renders: hold the log's slide here (0 collapsed .. 1 open)
 			"near": _dev_near = int(kv[1])   # review renders: the nearest foe stands this many squares off, in the line of fire
+			"callouts": _dev_callouts = true   # review renders: -14, CRITICAL · BROKEN RIBS and MORTALLY WOUNDED stacked
 			"end": _dev_end = kv[1]   # review renders: the gig ends this way (won | lost | fled), the end panel shows
 			"peace": _dev_peace = true   # review renders: --peace=broken: the crew breaks a neutral house's peace (Totentanz)
 			"exposure": _dev_exposure = float(kv[1])   # review renders: tonemap exposure x s (darkens world and units alike)
@@ -516,11 +518,17 @@ func _process(delta: float) -> void:
 			_demo_av()
 		if _frames == 10 and _dev_peace:
 			_demo_peace()
+		if _frames == 10 and _dev_callouts:
+			_demo_ms = Time.get_ticks_msec()
+			var cu: Dictionary = enc.units.filter(func(o): return o.team == 0)[0]
+			_float(cu, "-14", Hud.RED)
+			_float(cu, "CRITICAL · BROKEN RIBS", Hud.GOLD)
+			_wound_word(cu, "mortal")
 		if _frames == 10 and _dev_end != "":
 			_demo_ms = Time.get_ticks_msec()
 			enc.state = _dev_end
 			_after_action()
-		var shoot_now: bool = _frames >= 12 if not (_attack_demo or _jack_demo or _av_demo != "" or _dev_peace or _dev_end != "") else (_demo_ms > 0 and Time.get_ticks_msec() - _demo_ms >= int(_shot_delay * 1000.0 / Engine.time_scale))
+		var shoot_now: bool = _frames >= 12 if not (_attack_demo or _jack_demo or _av_demo != "" or _dev_peace or _dev_end != "" or _dev_callouts) else (_demo_ms > 0 and Time.get_ticks_msec() - _demo_ms >= int(_shot_delay * 1000.0 / Engine.time_scale))
 		if shoot_now and _shot_ms == 0:
 			get_viewport().get_texture().get_image().save_png(_shot_path)
 			_shot_ms = Time.get_ticks_msec()
@@ -3411,7 +3419,8 @@ func _finish_gig() -> void:
 	hud.end_toast = String(b.head)   # the toast that stays up says what the banner says
 	hud.toast(hud.end_toast, 1e9)
 	var camp := Campaign.current if _campaign_gig else null
-	hud.turn_banner(String(b.text if camp != null else b.head), Hud.GREEN if b.good else Hud.RED)   # no debrief off the campaign
+	_end_juice(enc.state)
+	hud.end_banner(String(b.text if camp != null else b.head), Hud.GREEN if b.good else Hud.RED)   # no debrief off the campaign
 	if camp != null:   # settled now, so quitting from the end panel loses nothing (the safehouse opens the debrief, BaseView)
 		var report := camp.resolve(enc)
 		camp.set_meta("report", report)
@@ -3421,6 +3430,24 @@ func _finish_gig() -> void:
 
 
 var _end_panel: Control = null
+var _end_fx := EndJuice.new()   ## the end-of-gig beat, once
+
+
+## The end of the gig, felt (EndJuice.plan): the sting, a flash, the colour drained (or lifted), a
+## coloured edge pulse, a kick and a slight camera push. Quick: the end panel follows at PANEL_DELAY.
+func _end_juice(state: String) -> void:
+	var j := _end_fx.fire(state)
+	if j.is_empty():
+		return
+	_ui_snd(String(j.sting), -2.0)
+	hud.flash_screen(j.flash)
+	hud.edge_pulse(j.vignette, float(j.vignette_peak), float(j.vignette_rest))
+	_kick(Vector2(0, 1), float(j.shake))
+	var s0: float = look.saturation
+	var tw := create_tween()
+	tw.tween_method(func(v: float): post.set_shader_parameter("saturation", v), s0, s0 * float(j.saturation), 0.35).set_ease(Tween.EASE_OUT)
+	tw.tween_method(func(v: float): post.set_shader_parameter("saturation", v), s0 * float(j.saturation), s0 * float(j.saturation_rest), 0.6).set_trans(Tween.TRANS_SINE)
+	_pan_to(cam_target, 0.9, cam_dist * float(j.push))   # not awaited: the panel doesn't wait on the camera
 var _end_opts: Array = []   ## end_choices of the panel that is up
 
 
@@ -3450,7 +3477,9 @@ func _show_end_panel(b: Dictionary, campaign_gig: bool) -> void:
 		return
 	p.reset_size()
 	p.position = ((hud.size - p.size) / 2.0).floor() + Vector2(0, 60)   # under the banner
-	p.modulate.a = 1.0
+	var tw := p.create_tween()   # after the end beat has landed (EndJuice: well inside 1.5 s)
+	tw.tween_interval(EndJuice.PANEL_DELAY)
+	tw.tween_property(p, "modulate:a", 1.0, EndJuice.PANEL_FADE)
 
 
 func _end_choose(act: String) -> void:
@@ -3487,7 +3516,7 @@ var _focus_unit := -1                 ## unit the see-through hole and cutaway f
 var _shake_px := Vector2.ZERO         ## screen-space shake offset (buffer pixels) and its velocity
 var _shake_vel := Vector2.ZERO
 var _screen_base := Vector2.ZERO
-var _callout_stack := {}              ## unit id → [count, msec] so callouts stack instead of overlapping
+var _callouts := CalloutQueue.new()   ## where floating callouts go: stacked per unit, never overlapping
 var _flash_lights := {}               ## unit id → pooled muzzle OmniLight3D
 
 
@@ -3818,6 +3847,8 @@ func _anim_move(e: Dictionary) -> void:
 	var step := 0.22 if e.run else 0.33   # matches the sprint / run clips' stride at unit scale
 	if e.get("patrol", false):
 		step = 0.62   # a patrol strolls (walk clip)
+	if int(n.get_meta("wound", 0)) >= Combatant.Wound.SERIOUS and n is CharModel:
+		step = CharModel.injured_step(n.scale.x * CharModel.SCALE)   # the limp: stride and ground speed match
 	n.set_meta("stroll", e.get("patrol", false))
 	n.set_meta("walk", true)
 	n.set_meta("run", e.run)
@@ -4041,7 +4072,10 @@ func _anim_stabilize(e: Dictionary) -> void:
 	_turn_to(n, atan2(d.x, d.y), 0.15)
 	n.perform("medtech", 1.8)
 	await get_tree().create_timer(1.6).timeout
-	_float(t, "STABILIZED" if e.ok else "STABILIZE FAILED", Hud.GREEN if e.ok else Hud.RED)
+	if e.ok:
+		_wound_word(t, "stabilized")
+	else:
+		_float(t, "STABILIZE FAILED", Hud.RED)
 	if e.ok:
 		(unit_nodes[t.id] as Node3D).set_meta("slump_goal", 0.0)
 	await get_tree().create_timer(0.5).timeout
@@ -4111,6 +4145,7 @@ func _anim_harm(e: Dictionary) -> void:
 	_hit_flash(unit_nodes[u.id])
 	hud.hit_unit(u.id)
 	_hud_refresh()
+	_wound_word(u, CalloutQueue.wound_key(int(e.wound_before), int(e.wound_after), int(e.wound_after) == Combatant.Wound.DEAD))
 	if int(e.wound_before) < Combatant.Wound.MORTAL and int(e.wound_after) >= Combatant.Wound.MORTAL:
 		_die(u, unit_nodes[u.id], Vector3.FORWARD, enc.units[e.unit].c.dead)
 
@@ -4242,8 +4277,6 @@ func _exotic_callouts(e: Dictionary, su: Dictionary, tu: Dictionary) -> void:
 		_float(tu, "RESISTED" if st.get("resisted", false) else label, Hud.DIM if st.get("resisted", false) else Hud.GOLD)
 	if e.get("ignited", false):
 		_float(tu, "ON FIRE", Hud.RED)
-	if e.get("stunned", false):
-		_float(tu, "STUNNED", Hud.GOLD)
 	if String(e.get("self_hurt", "")) == "damaged_ear":
 		_float(su, "EARS RINGING", Hud.DIM)
 
@@ -4283,8 +4316,8 @@ func _outcome(e: Dictionary, su: Dictionary, tu: Dictionary, tn: Node3D, at: Vec
 		hud.flash_screen(Color(1, 0.2, 0.2, 0.22))
 		_kick(_screen_dir(at - dir, at), 4.0)
 		_hit_stop(90)
-	if int(e.wound_before) < Combatant.Wound.SERIOUS and int(e.wound_after) == Combatant.Wound.SERIOUS:
-		_float(tu, "SERIOUSLY WOUNDED", Color("ffb000"))
+	# a stun hit drops them at 1 HP, unconscious (p349): UNCONSCIOUS rather than the wound it left
+	_wound_word(tu, CalloutQueue.wound_key(int(e.wound_before), int(e.wound_after), bool(e.get("dead", false)), bool(e.get("stunned", false))))
 	if e.killed:
 		_die(tu, tn, dir, bool(e.get("dead", true)), String(e.get("location", "body")) == "head")
 
@@ -4325,13 +4358,12 @@ func _hit_flash(n: Node3D) -> void:
 
 
 ## Death: a death clip picked by where the shot came from (CharModel.die); the weapon drops.
-## Mortally Wounded units slump to their knees instead (they can still be stabilised).
+## Mortally Wounded units slump to their knees instead (they can still be stabilised). The words
+## (MORTALLY WOUNDED, FLATLINED) are the caller's, through _wound_word.
 func _die(u: Dictionary, n: Node3D, dir: Vector3, dead: bool, head := false) -> void:
 	n.set_meta("slump_goal", 1.0)
 	if not dead:
-		_float(u, "MORTALLY WOUNDED", Hud.RED)
 		return
-	_float(u, "FLATLINED", Hud.RED)
 	(n as CharModel).die(dir, head)
 	await get_tree().create_timer(0.35).timeout   # the model lets the gun fall (CharModel._drop_gun)
 	fx.pool(_body_pos(u))
@@ -4383,6 +4415,7 @@ func _anim_death(e: Dictionary) -> void:
 	_focus_unit = u.id
 	await _pan_to(_body_pos(u), 0.3)
 	_float(u, "DEATH SAVE FAILED", Hud.RED)
+	_wound_word(u, "flatlined")
 	await _die(u, n, -n.global_transform.basis.z, true)
 	await get_tree().create_timer(1.2).timeout
 
@@ -4408,7 +4441,7 @@ func _kick(dir: Vector2, px: float) -> void:
 
 
 func _hit_stop(ms: int) -> void:
-	var tws := get_tree().get_processed_tweens()
+	var tws := get_tree().get_processed_tweens().filter(func(t: Tween): return not t.has_meta("callout"))
 	for t in tws:
 		t.pause()
 	fx.process_mode = Node.PROCESS_MODE_DISABLED
@@ -4442,18 +4475,16 @@ func _toast_new_log() -> void:
 
 
 ## Floating callout over a unit, on the HUD layer so it stays crisp above the pixel filter.
-## Callouts on the same unit stack upward instead of overlapping; all stay inside the safe rect.
-func _float(u: Dictionary, text: String, col: Color, offset := Vector2.ZERO) -> void:
-	var now := Time.get_ticks_msec()
-	var st: Array = _callout_stack.get(u.id, [0, 0])
-	var k: int = st[0] + 1 if now - int(st[1]) < 900 else 0
-	_callout_stack[u.id] = [k, now]
+## Callouts on the same unit stack upward and never overlap as they rise (CalloutQueue); the
+## anchor stays inside the safe rect.
+func _float(u: Dictionary, text: String, col: Color, life_ms := CalloutQueue.LIFE_MS) -> void:
 	var n: Node3D = unit_nodes.get(u.id)
 	var base := n.global_position if n else _body_pos(u)
-	_float_at(base + Vector3(0, 1.4, 0), text, col, offset + Vector2(0, -30 * k))
+	_float_at(base + Vector3(0, 1.4, 0), text, col, u.id, life_ms)
 
 
-func _float_at(wp: Vector3, text: String, col: Color, offset := Vector2.ZERO) -> void:
+## A callout at a world point. `lane`: the unit it stacks with (null: a lane of its own at that spot).
+func _float_at(wp: Vector3, text: String, col: Color, lane: Variant = null, life_ms := CalloutQueue.LIFE_MS) -> void:
 	var l := Label.new()
 	l.text = text
 	l.add_theme_font_override("font", Hud.F_DISPLAY)
@@ -4464,15 +4495,34 @@ func _float_at(wp: Vector3, text: String, col: Color, offset := Vector2.ZERO) ->
 	l.add_theme_color_override("font_shadow_color", Color(Hud.MAGENTA, 0.6))
 	l.add_theme_constant_override("shadow_offset_x", 2)
 	var sr := _safe_rect()
-	var p := _to_screen(wp) - Vector2(30, 20) + offset
-	l.position = Vector2(clampf(p.x, sr.position.x, sr.end.x - 200), clampf(p.y, sr.position.y, sr.end.y))
+	var p := _to_screen(wp) - Vector2(30, 20)
+	p = Vector2(clampf(p.x, sr.position.x, sr.end.x - 200), clampf(p.y, sr.position.y + CalloutQueue.LINE * 2.0, sr.end.y))
+	var now := Time.get_ticks_msec()
+	var y0 := p.y + _callouts.place(lane if lane != null else "%d,%d" % [roundi(p.x), roundi(p.y)], now, life_ms)
+	l.position = Vector2(p.x, y0)
 	l.scale = Vector2(1.25, 1.25)
 	hud.add_child(l)
 	var tw := create_tween()
+	tw.set_meta("callout", true)   # keeps rising through a hit-stop, so the lane's layout stays true
 	tw.tween_property(l, "scale", Vector2.ONE, 0.12).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	tw.parallel().tween_property(l, "position:y", l.position.y - 46, 1.3).set_ease(Tween.EASE_OUT)
-	tw.parallel().tween_property(l, "modulate:a", 0.0, 0.5).set_delay(0.8)
+	tw.parallel().tween_method(func(ms: float): l.position.y = y0 - CalloutQueue.rise(ms), 0.0, float(life_ms), life_ms / 1000.0)
+	tw.parallel().tween_property(l, "modulate:a", 0.0, 0.5).set_delay(life_ms / 1000.0 - 0.5)
 	tw.tween_callback(l.queue_free)
+
+
+## A wound-state word over the unit (CalloutQueue.WOUND: "mortal", "flatlined", ...) with its
+## sound, a beat after the hit's own callouts and on top of them.
+func _wound_word(u: Dictionary, key: String) -> void:
+	if not CalloutQueue.WOUND.has(key):
+		return
+	var w: Dictionary = CalloutQueue.WOUND[key]
+	var show := func():
+		if hud == null or not is_instance_valid(hud):
+			return
+		_float(u, String(w.text), w.col, CalloutQueue.WOUND_LIFE_MS)
+		_snd(String(w.sfx), _body_pos(u), float(w.vol), 0.03, 0)
+	var ms := _callouts.wound_delay(u.id, Time.get_ticks_msec())
+	get_tree().create_timer(ms / 1000.0).timeout.connect(show)
 
 
 ## The pointer moved to another square: the path ribbon, the sight lines that matter for it, and

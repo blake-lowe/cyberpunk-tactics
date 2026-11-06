@@ -426,6 +426,112 @@ def sfx_brass():
     return fade(sum(np.sin(2 * np.pi * f * t(0.12)) * np.exp(-t(0.12) / 0.02) for f in [4100, 5900, 7300]) * 0.3)
 
 
+# --- wound states and gig ends (CalloutQueue.WOUND, Greybox._end_juice) ----------------------------
+# Own seeded generator per sound, so these render the same alone or in a full run and don't shift
+# the shared `rng` stream the older recipes draw from.
+
+def _rn(seed, sec):
+    return np.random.default_rng(seed).uniform(-1, 1, int(sec * SR))
+
+
+def _body_hit(seed, weight=1.0):
+    """A body taking a blow: a low sub thump with a muffled flesh slap on top."""
+    sub = sweep(0.35, 110 * weight + 40, 38, curve=0.35) * env(0.35, 0.001, 0.07 + 0.05 * weight)
+    meat = lp(_rn(seed, 0.3), 380) * env(0.3, 0.001, 0.035 + 0.03 * weight)
+    slap = bp(_rn(seed + 1, 0.05), 700, 2400) * env(0.05, 0.0004, 0.01)
+    return drive(mix(sub * 1.2 * weight, meat * 1.7, slap * 0.45), 1.5 + weight)
+
+
+def _heartbeat(seed, gain=1.0):  # STABILIZED only (owner: no heartbeat on the death states)
+    """One lub-dub: two dull chest thuds, the second softer."""
+    def thud(sec, f0, s):
+        return (sweep(sec, f0, f0 * 0.6, curve=0.5) + lp(_rn(s, sec), 150) * 0.5) * env(sec, 0.004, 0.045)
+    return mix(thud(0.22, 62, seed) * gain, at(thud(0.18, 52, seed + 1) * 0.6 * gain, 0.17, 0.4))
+
+
+def _breath(seed, sec, lo, hi, rasp=0.0, rate=11.0):
+    """Breath through the teeth: band-passed air under a swell; `rasp` adds a ragged flutter."""
+    x = t(sec)
+    swell = np.sin(np.pi * x / sec) ** 1.5
+    jitter = np.random.default_rng(seed + 7).uniform(0.6, 1.0, int(sec * rate) + 2)
+    flutter = 1.0 - rasp + rasp * np.interp(x * rate, np.arange(len(jitter)), jitter) * (0.5 + 0.5 * np.sign(np.sin(2 * np.pi * rate * x)))
+    return bp(_rn(seed, sec), lo, hi) * swell * flutter
+
+
+@sfx
+def sfx_wound_serious():
+    """SERIOUSLY WOUNDED: a body hit and a sharp pained breath out."""
+    total = 0.75
+    return fade(reverb(mix(_body_hit(301, 0.7), at(_breath(302, 0.42, 600, 2000, 0.25) * 0.55, 0.1, total)), 0.15, 0.12))
+
+
+@sfx
+def sfx_wound_mortal():
+    """MORTALLY WOUNDED: a heavy body hit, the knees hitting the floor, and a ragged pained breath."""
+    total = 1.6
+    x = at(_body_hit(311, 1.4) * 1.3, 0.0, total)
+    x += at(_body_hit(313, 0.8) * 0.7, 0.34, total)                            # down on the knees
+    x += at(_breath(316, 0.4, 800, 2600, 0.55, 13.0) * 0.45, 0.16, total)     # the gasp in
+    x += at(_breath(318, 0.7, 450, 1500, 0.8, 9.0) * 0.42, 0.62, total)       # the rattle out
+    return fade(reverb(x, 0.2, 0.15, 0.4), 0.0005, 0.15)
+
+
+@sfx
+def sfx_unconscious():
+    """UNCONSCIOUS: a dull drop and the air knocked out."""
+    total = 0.8
+    return fade(mix(_body_hit(321, 0.5), at(_body_hit(323, 0.35) * 0.5, 0.2, total), at(_breath(322, 0.3, 300, 1100, 0.1) * 0.45, 0.06, total)))
+
+
+@sfx
+def sfx_stabilized():
+    """STABILIZED: two steady heartbeats and a clean monitor blip."""
+    total = 1.0
+    blip = np.sin(2 * np.pi * 1320 * t(0.09)) * env(0.09, 0.003, 0.05) * 0.22
+    x = mix(at(_heartbeat(331, 0.8), 0.0, total), at(_heartbeat(333, 0.7), 0.52, total), at(blip, 0.06, total), at(blip * 0.8, 0.58, total))
+    return fade(reverb(x, 0.12, 0.1))
+
+
+@sfx
+def sfx_collapse():
+    """FLATLINED: impacts only. A final hit, the body folding, and the dead weight hitting the floor."""
+    total = 1.3
+    x = at(_body_hit(341, 1.2), 0.0, total)
+    x += at(_body_hit(343, 0.6) * 0.55, 0.22, total)                           # knees
+    drop = drive(mix(sweep(0.6, 70, 30, curve=0.4) * env(0.6, 0.002, 0.16) * 1.4,
+                     lp(_rn(345, 0.5), 300) * env(0.5, 0.002, 0.07) * 1.6, bp(_rn(346, 0.12), 400, 1800) * env(0.12, 0.001, 0.03) * 0.5), 2.5)
+    x += at(drop, 0.42, total)                                                  # the body lands
+    x += at(lp(_rn(347, 0.15), 600) * env(0.15, 0.001, 0.03) * 0.4, 0.62, total)   # an arm after it
+    return fade(reverb(x, 0.2, 0.15, 0.4), 0.0005, 0.12)
+
+
+@sfx
+def sfx_gig_fail():
+    """Gig failed: a deep impact, then a detuned minor chord sagging down and out."""
+    total = 2.2
+    boom = drive(mix(sweep(0.9, 75, 28, curve=0.4) * env(0.9, 0.002, 0.3), lp(_rn(351, 0.6), 220) * env(0.6, 0.002, 0.12)), 2.0)
+    chord = np.zeros(int(total * SR))
+    for k, n in enumerate([45, 48, 52, 57]):   # A minor, sagging a minor third over the hold
+        f0 = midi(n)
+        sw = sweep(1.9, f0, f0 * 0.84, "saw", 0.8) + sweep(1.9, f0 * 1.007, f0 * 0.847, "saw", 0.8)
+        chord += at(lp(sw, 900 - 120 * k) * env(1.9, 0.04, 0.8) * 0.16, 0.05, total)
+    return fade(reverb(mix(boom * 1.2, chord), 0.5, 0.3, 0.5), 0.0005, 0.3)
+
+
+@sfx
+def sfx_gig_win():
+    """Gig complete: a bright impact and a major chord opening up, a quick climbing arpeggio on top."""
+    total = 1.9
+    hit = drive(mix(sweep(0.4, 140, 55, curve=0.4) * env(0.4, 0.001, 0.09), hp(_rn(361, 0.08), 3000) * env(0.08, 0.0005, 0.02) * 0.5), 2.0)
+    chord = np.zeros(int(total * SR))
+    for n in [57, 61, 64, 69]:   # A major
+        chord += at(synth_note(midi(n), 1.5, "saw", 2600, 0.6, 0.008, 0.02) * 0.14, 0.03, total)
+    arp = np.zeros(int(total * SR))
+    for i, n in enumerate([69, 73, 76, 81]):
+        arp += at(synth_note(midi(n), 0.14, "square", 3200, 0.06, 0.0, 0.003) * 0.06, 0.08 + 0.07 * i, total)
+    return fade(reverb(mix(hit, chord, arp), 0.4, 0.25, 0.45), 0.0005, 0.3)
+
+
 # --- ambience loops -------------------------------------------------------------------------------
 
 AMB = {}

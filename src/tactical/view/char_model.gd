@@ -576,7 +576,22 @@ func _pick(now: bool) -> void:
 		if now:   # desync idles between units
 			anim.seek(fmod(index * 0.73, anim.current_animation_length), true)
 	var native: float = CharAnims.speed.get(clip, 0.0)
-	anim.speed_scale = clampf(ground_speed() / native, 0.4, 2.5) if native > 0.0 and get_meta("walk", false) else 1.0
+	var top := INJURED_RATE if clip == "injured_walk" else 2.5
+	anim.speed_scale = clampf(ground_speed() / native, 0.4, top) if native > 0.0 and get_meta("walk", false) else 1.0
+
+
+## The Seriously Wounded limp plays at this rate at most (owner, playtest: at the old 2.5 cap it
+## "looks a little funny"; 0.8x of that). The view slows the walker to match (injured_step).
+const INJURED_RATE := 2.0
+const INJURED_NATIVE := 1.226   ## injured_walk's ground speed (m/s) if the library isn't loaded
+
+
+## Seconds per square for a Seriously Wounded walker, so the ground covered matches the limp's
+## stride at INJURED_RATE (no foot sliding): body speed = rate x native, world speed = that x
+## the drawn body scale.
+static func injured_step(body_scale := SCALE) -> float:
+	var native: float = CharAnims.speed.get("injured_walk", INJURED_NATIVE)
+	return 1.0 / (INJURED_RATE * maxf(native, 0.1) * body_scale)
 
 
 ## Ground speed in the body's own metres per second (world speed over the drawn body scale), so
