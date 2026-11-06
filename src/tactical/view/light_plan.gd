@@ -3,11 +3,16 @@ extends RefCounted
 ## Where the lights go (M4 visual pass: "lots of neon with light spill", spec). Pure data so it's
 ## testable headless; the greybox turns entries into OmniLights and emissive meshes.
 ## Entry: {kind: sign|lamp|room|hazard, cell: Vector3i, out: Vector2i (facing, signs), color, energy, range}
+## plan() is also the rules' light (Encounter: lit squares). fill() adds dim view-only sources
+## (porch lamps over doors, ceiling fill in big rooms, `bake: true`): they only feed the baked
+## LightField, which lights units too, so they cost no OmniLight and don't change who stands in light.
+## Owner playtest round 3: enemies were hard to see, so more light where real streets have it.
 
 const NEON := [Color("ff2a6d"), Color("05d9e8"), Color("f9c80e"), Color("b537f2"), Color("ff6b1a"), Color("39f0a0")]
 const ZONE_LIGHT := [Color("ffb070"), Color("ffc890"), Color("d0e2ff"), Color("5fe8d0"), Color("ff4040")]
 const LAMP := [Color("ff9a3c"), Color("ffb070"), Color("a8c4ff")]
-const LAMP_SPACING := 9
+const LAMP_SPACING := 7        # was 9: dark gaps between lamp pools hid enemies
+const ROOM_FILL_EVERY := 5     # indoor rooms: a baked ceiling light about every 5 squares
 
 
 static func plan(m: TacMap, seed_value: int) -> Array:
@@ -28,11 +33,11 @@ static func plan(m: TacMap, seed_value: int) -> Array:
 	for e in m.entrances:
 		if e.kind != "door":
 			continue
-		if signs < 1.0 and posmod(hash(Vector3i(e.pos.x, e.pos.y, seed_value)), 1000) >= int(signs * 1000.0):
-			continue
 		var f: int = e.get("floor", 0)
 		var face := _outward(m, f, e.pos)
 		if face == Vector2i.ZERO:
+			continue
+		if signs < 1.0 and posmod(hash(Vector3i(e.pos.x, e.pos.y, seed_value)), 1000) >= int(signs * 1000.0):
 			continue
 		var sid: int = e.get("structure", -1)
 		var col: Color = neon[posmod(hash(sid * 7919 + seed_value), neon.size())]
@@ -41,7 +46,7 @@ static func plan(m: TacMap, seed_value: int) -> Array:
 	# Street lamps along sidewalks (or road edges), thinned by spacing.
 	var taken: Array[Vector2i] = []
 	var lamp_col: Color = lamps[rng.randi() % lamps.size()]
-	var spacing := 7 if bulkhead else LAMP_SPACING
+	var spacing := 5 if bulkhead else LAMP_SPACING
 	for y in m.h:
 		for x in m.w:
 			if m.t(sl, x, y) != TacMap.T.OUTSIDE or m.ground[y * m.w + x] != TacMap.G.SIDEWALK or m.has_cover_at(sl, Vector2i(x, y)):
@@ -68,14 +73,18 @@ static func plan(m: TacMap, seed_value: int) -> Array:
 		if not r.get("outdoor", false) or r.floor != sl or not LOT_LIGHT.has(String(r.kind)) or r.cells < 12:
 			continue
 		var b: Rect2i = r.bounds
-		var spot := Vector2i(-1, -1)
-		for k in 30:   # a free square of the lot, toward its middle
-			var v := b.get_center() + Vector2i(rng.randi_range(-b.size.x / 4, b.size.x / 4), rng.randi_range(-b.size.y / 4, b.size.y / 4))
-			if m.inb(v.x, v.y) and m.label(sl, v.x, v.y) == r.id and not m.has_cover_at(sl, v):
-				spot = v
+		var lot_spots: Array[Vector2i] = []
+		var want := mini(3, 1 + int(r.cells) / 45)   # big lots get two or three (round 3: dark lots hid enemies)
+		var reach := 1 if want == 1 else 2   # one lamp: toward the middle; more: spread over the lot
+		for k in 30 * want:   # free squares of the lot, spaced apart
+			if lot_spots.size() >= want:
 				break
-		if spot.x >= 0 and rng.randf() < lamp_keep:
-			out.append({"kind": "lamp", "cell": Vector3i(spot.x, spot.y, sl), "out": Vector2i.ZERO, "color": Color(LOT_LIGHT[String(r.kind)]), "energy": 1.2, "range": 8.0})
+			var v := b.get_center() + Vector2i(rng.randi_range(-b.size.x * reach / 4, b.size.x * reach / 4), rng.randi_range(-b.size.y * reach / 4, b.size.y * reach / 4))
+			if m.inb(v.x, v.y) and m.label(sl, v.x, v.y) == r.id and not m.has_cover_at(sl, v) and not lot_spots.any(func(q): return q.distance_squared_to(v) < 25):
+				lot_spots.append(v)
+		for spot in lot_spots:
+			if rng.randf() < lamp_keep:
+				out.append({"kind": "lamp", "cell": Vector3i(spot.x, spot.y, sl), "out": Vector2i.ZERO, "color": Color(LOT_LIGHT[String(r.kind)]), "energy": 1.2, "range": 8.0})
 	# Outside the city (few lamps): a few burning barrels / fire pits near cover, for warm pools.
 	if out.filter(func(x): return x.kind == "lamp").size() < 2:
 		var spots: Array[Vector2i] = []
@@ -135,6 +144,36 @@ static func plan(m: TacMap, seed_value: int) -> Array:
 		if hz != "":
 			out.append({"kind": "hazard", "cell": Vector3i(c.pos.x, c.pos.y, c.floor), "out": Vector2i.ZERO,
 				"color": Color("6fb8ff") if hz == "electrified" else Color("ff7a2a"), "energy": 0.8, "range": 3.0})
+	return out
+
+
+## View-only fill light (all `bake: true`): a lamp over every street door where the power's on, and a
+## grid of ceiling lights across bigger rooms so corners and long halls aren't black pits around the
+## room's one real light. Dimmer than plan()'s lights, and not part of the rules' lit squares.
+static func fill(m: TacMap, seed_value: int) -> Array:
+	var out := []
+	var lamp_keep := float(SceneTheme.of(m).get("lamp_keep", 1.0))
+	var zone_light: Array = SceneTheme.colors(m, "zone_light", ZONE_LIGHT)
+	for e in m.entrances:
+		if e.kind != "door" or posmod(hash(Vector3i(e.pos.y, e.pos.x, seed_value)), 1000) >= int(lamp_keep * 1000.0):
+			continue
+		var f: int = e.get("floor", 0)
+		var face := _outward(m, f, e.pos)
+		if face != Vector2i.ZERO:
+			out.append({"kind": "porch", "cell": Vector3i(e.pos.x, e.pos.y, f), "out": face, "color": Color("ffc890"),
+				"energy": 1.0, "range": 4.5, "bake": true})
+	for r in m.rooms:
+		if r.cells < 20 or r.get("outdoor", false) or r.floor < 0 or r.kind == "void":
+			continue
+		var b: Rect2i = r.bounds
+		var n := ROOM_FILL_EVERY
+		for gy in range(b.position.y + n / 2, b.end.y, n):
+			for gx in range(b.position.x + n / 2, b.end.x, n):
+				var g := Vector2i(gx, gy)
+				if m.label(r.floor, g.x, g.y) != r.id or g.distance_squared_to(b.get_center()) < 9:
+					continue
+				out.append({"kind": "fill", "cell": Vector3i(g.x, g.y, r.floor), "out": Vector2i.ZERO,
+					"color": zone_light[clampi(r.zone, 0, 4)], "energy": 1.1, "range": 5.5, "bake": true})
 	return out
 
 

@@ -83,6 +83,11 @@ void fragment() {
 		emit += base * lf * 0.5;
 		float fres = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 3.0);
 		emit += lf / max(pk, 0.15) * min(pk, 1.0) * fres * 0.25;
+		// Owner playtest round 3 (enemies hard to see at night): a faint cool rim on the silhouette,
+		// as if back-lit, so dark bodies separate from dark ground. On the body only: no ring or
+		// glow under the unit (owner rule), and off with the light field (cyberspace).
+		float rimf = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 2.5);
+		emit += vec3(0.30, 0.36, 0.50) * rimf * 0.16;
 	}
 	EMISSION = emit + vec3(flash * 0.8);
 }

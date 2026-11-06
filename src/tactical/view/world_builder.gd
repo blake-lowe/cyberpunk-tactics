@@ -1205,6 +1205,8 @@ func _piece(kind: String, p: Vector3, yaw: float, f: int, h0: int, aligned := fa
 		"vending":
 			box(S, p + Vector3(0, 0.45, 0), Vector3(0.6, 0.9, 0.45), yaw)
 			box(mat("dark", f, false, {"glow": 2.0, "emit": neon[h0 % neon.size()]}), p + Vector3(0, 0.5, 0.23).rotated(Vector3.UP, yaw), Vector3(0.5, 0.6, 0.01), yaw)
+			# its lit front spills onto the floor around it (baked: no real light)
+			emitters.append({"cell": Vector3i(floori(p.x), floori(p.z), f), "color": neon[h0 % neon.size()], "energy": 0.7, "range": 3.0, "out": Vector2i.ZERO})
 		"console":
 			box(S, p + Vector3(0, 0.22, 0), Vector3(0.75, 0.44, 0.45), yaw)
 			box(mat("dark", f, false, {"glow": 1.8, "emit": Color("4fd8ff")}), p + Vector3(0, 0.46, 0), Vector3(0.6, 0.02, 0.35), yaw)
@@ -1652,6 +1654,8 @@ func _facade_dressing(f: int) -> void:
 				elif roll < 0.1:
 					var col: Color = neon[rng.randi() % neon.size()]
 					box(mat("dark", f, true, {"glow": 0.9, "emit": col.darkened(0.3), "color": col.darkened(0.6), "shell": true}), face + out * 0.005 + Vector3(0, rng.randf_range(0.4, 0.8), 0), Vector3(0.36 if d.x == 0 else 0.01, 0.46, 0.01 if d.x == 0 else 0.36))
+					if f == street:   # a faint neon spill on the pavement in front (baked)
+						emitters.append({"cell": Vector3i(n.x, n.y, street), "color": col, "energy": 0.6, "range": 3.0, "out": Vector2i.ZERO})
 				elif roll < 0.15:
 					# blade sign sticking out of the facade, with light spill
 					var col2: Color = neon[rng.randi() % neon.size()]
