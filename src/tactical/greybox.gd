@@ -9,16 +9,18 @@ extends Node
 ##   WASD / arrows   pan          Mouse wheel   zoom
 ##   Q / E (hold)    rotate (eased)             Middle-drag   rotate freely        H  controls hint
 ##   PageUp/PageDown change the floor you're viewing (floors above open up around the focus)
-##   Left click      move (path preview while hovering the move grid)
-##   Right click     attack the enemy under the cursor (X or Shift: shoot the cover in the way)
-##   1 / 2 / 3       single shot / autofire / aimed head shot
-##   R reload    J jack in (Netrunner, within 6 m of a terminal)    Space  end turn
-##   Alt (hold) inspect what's under the cursor    F4 cyberspace style    N peek out of the NET
+##   Left click      move (path preview while hovering the move grid); with an attack armed (F or
+##                   the bar), left-click an enemy or its turn-order portrait to attack
+##   Right click     attack the enemy under the cursor (Shift: shoot the cover in the way)
+##   Hover an enemy  line of fire / swing / throw arc and the hit chance (AimPreview)
+##   F attack (again: next mode)   Tab next weapon   R reload   J jack in   Space end turn
+##   Alt (hold) inspect, crew roster, enemy outlines    F4 cyberspace style    N peek out of the NET
 ##   C cutaway auto / all seen rooms / off    Z guard sight lines near your move / always / off
 ##   F1 new gig    F2 look settings    F3 toggle fog of war
 ## Screenshot mode:  -- --shot=path.png [--scene=x] [--profile=y] [--district=z] [--seed=n] [--pixel=3]
 ##   [--levels=0] [--dither=0.5] [--outline=0.4] [--bloom=0.8] [--contrast=1.1] [--ortho=1]
 ##   [--fog=0] [--zoom=24] [--yaw=45] [--lights=1] [--hover=x,y] [--promo=1] [--cut=auto|all|off]
+##   [--stage=attack] [--arm=brawl|grenade|<attack mode>] [--portrait=1] [--alt=1] [--near=n] [--help=1]
 
 const FH := 1.6           # floor height in squares (3.2 m)
 const POST_SHADER := preload("res://src/tactical/view/post.gdshader")
@@ -238,6 +240,15 @@ var _reel := ""
 var tool := ""                  ## M5 target-picking action: melee, shell, grenade, stabilize ("" = normal attacks)
 var _dev_kit: PackedStringArray = []   ## --kit=a,b (review renders)
 var _dev_stage := ""                   ## --stage=attack (review renders)
+var _dev_arm := ""                     ## --arm=brawl|grenade|<attack mode> (review renders)
+var _dev_portrait := false             ## --portrait=1 (review renders): hover the hovered foe's portrait instead
+var _alt_demo := false                 ## --alt=1 (review renders): Alt held (outlines, roster)
+var _dev_help := false                 ## --help=1 (review renders): the H panel open
+var _dev_near := 0                     ## --near=n (review renders): bring the nearest foe n squares from the crew
+var _alt_on := false                   ## Alt is held: enemy outlines, last-known marks
+var _portrait_uid := -1                ## the turn-order portrait under the mouse (-1 none)
+var _aim := {}                         ## the hovered attack's preview: shape, from, to, col, ...
+var _last_known := {}                  ## foe unit id → the square the crew last saw them on
 var _dev_end := ""                     ## --end=won|lost|fled (review renders): the gig ends that way, the end panel shows
 var _dev_peace := false                ## --peace=broken (review renders): the crew breaks a neutral house's peace
 var _jack_turret := false              ## --jack=turret (review renders): the runner also holds a turret's Control Node
@@ -280,6 +291,11 @@ func _ready() -> void:
 			"floor": _shot_floor = int(kv[1])   # review renders: look at this storey
 			"kit": _dev_kit = kv[1].split(",")   # review renders: pack every crew member's kit slots
 			"stage": _dev_stage = kv[1]   # review renders: open the action bar on this stage (attack)
+			"arm": _dev_arm = kv[1]   # review renders: arm this attack (brawl, grenade = kit slot 1, or a mode id)
+			"portrait": _dev_portrait = kv[1] != "0"   # review renders: the hover goes through the foe's portrait
+			"alt": _alt_demo = kv[1] != "0"   # review renders: Alt held
+			"help": _dev_help = kv[1] != "0"   # review renders: the H panel open
+			"near": _dev_near = int(kv[1])   # review renders: the nearest foe stands this many squares off, in the line of fire
 			"end": _dev_end = kv[1]   # review renders: the gig ends this way (won | lost | fled), the end panel shows
 			"peace": _dev_peace = true   # review renders: --peace=broken: the crew breaks a neutral house's peace (Totentanz)
 			"security":
@@ -372,9 +388,12 @@ func _process(delta: float) -> void:
 					_update_hover()
 	_update_shake(delta)
 	# hold Alt to inspect what's under the cursor (owner: a dwell timer would be annoying)
-	var alt := Input.is_key_pressed(KEY_ALT) or _inspect_demo
+	var alt := Input.is_key_pressed(KEY_ALT) or _inspect_demo or _alt_demo
 	if hud and alt != hud.roster_on:
 		hud.show_roster(alt)   # Alt slides the crew roster in (owner)
+	if enc and alt != _alt_on:   # ... and outlines every enemy in sight (no conflict: both show)
+		_alt_on = alt
+		_update_outlines()
 	if enc and hover.x >= 0 and alt and (not _inspected or hover != _inspect_cell):
 		_inspected = true
 		_inspect_cell = hover
@@ -397,12 +416,18 @@ func _process(delta: float) -> void:
 			_run_reel()
 	elif _shot_path != "":
 		_frames += 1
+		if _frames == 2 and _dev_help:
+			hud.toggle_hint()
+		if _frames == 2 and _dev_near > 0:
+			_demo_near()
 		if _frames == 2 and _shot_hover.x <= -2:  # --hover=guard / turret: the nearest one in sight
 			var want_turret := _shot_hover.x == -3
 			var best := INF
 			for u in enc.units:
-				if (u.has("turret") if want_turret else _foe(u)) and (enc.vision.visible.has(u.pos) or not fog_on) and not u.c.dead:
+				if (u.has("turret") if want_turret else (_foe(u) and u.pos.z == view_floor)) and (enc.vision.visible.has(u.pos) or not fog_on) and not u.c.dead:
 					var d := Vector2(u.pos.x - enc.cur.pos.x, u.pos.y - enc.cur.pos.y).length()
+					if not want_turret and not enc.los.sight(enc.cur.pos, u.pos).visible:
+						d += 1000.0   # a guard in the line of fire first
 					if d < best:
 						best = d
 						_shot_hover = Vector2i(u.pos.x, u.pos.y)
@@ -410,13 +435,35 @@ func _process(delta: float) -> void:
 							view_floor = u.pos.z
 							cam_target = Vector3(u.pos.x, 0, u.pos.y)
 							_place_camera()
+			if not want_turret and best < INF and _focus == "":   # frame shooter and guard
+				var a3 := Vector3(enc.cur.pos.x, 0, enc.cur.pos.y)
+				var b3 := Vector3(_shot_hover.x, 0, _shot_hover.y)
+				cam_target = (a3 + b3) / 2
+				cam_dist = maxf(cam_dist, minf(60.0, (a3 - b3).length() * 1.6 + 8.0))
+				_place_camera()
 		if _frames == 2 and _dev_stage != "":
 			_on_hud("stage", _dev_stage)
+		if _frames == 2 and _dev_arm != "":
+			if _dev_arm == "grenade":
+				_on_hud("kit", 0)
+			elif _dev_arm == "brawl":
+				stage = "attack"
+				_arm("brawl")
+				_refresh()
+			else:
+				_on_hud("atk_mode", _dev_arm)
 		if _frames == 3 and _shot_hover.x >= 0:
 			hover = Vector3i(_shot_hover.x, _shot_hover.y, view_floor)
 			mouse = _to_screen(Vector3(hover.x + 0.5, view_floor * FH, hover.y + 0.5))
 			_on_hover_changed()
 			_update_hover()
+			if _dev_portrait:   # the same target, through its portrait: the mouse sits on the strip
+				var tu := _unit_at(hover)
+				if not tu.is_empty():
+					hover = Vector3i(-1, -1, -1)
+					_on_hover_changed()
+					_update_hover()
+					_on_hud("portrait_hover", [int(tu.id), hud.portrait_rect(int(tu.id), true)])
 			if _inspect_demo:
 				_inspected = true
 				_inspect_cell = hover
@@ -520,7 +567,11 @@ func _build_view() -> void:
 	shields.fn = _draw_cover_shields
 	hud.add_child(shields)
 	hud.move_child(shields, 0)
-	hud.build_hint("LMB  MOVE   RMB  ATTACK / USE\nF  ATTACK (AGAIN: NEXT MODE)\nTAB  NEXT WEAPON   ESC  BACK\nR  RELOAD   G  KIT ITEM\nJ  JACK IN / OUT   B  INTERACT\nT  STABILIZE   V  ROLE ABILITY\nL  WITHDRAW   SPACE  END TURN\nWASD  PAN   WHEEL  ZOOM\nQ / E  ROTATE   PGUP / PGDN  FLOOR\nC  CUTAWAY   Z  SIGHT LINES\nALT (HOLD)  INSPECT   N  NET PEEK\nF2  LOOK   F4  NET STYLE   H  HIDE")
+	var aim := Hud.Painter.new()   # the hovered attack's line / swing / throw arc; Alt's last-known marks
+	aim.fn = _draw_aim
+	hud.add_child(aim)
+	hud.move_child(aim, 0)
+	hud.build_hint(Hud.help_text())
 	hud.build_settings(look, [["pixel", "Pixel scale (0 auto)", 0, 6, 1], ["palette", "Palette", 0, 1, 1], ["levels", "Channel steps", 0, 32, 1], ["dither", "Dither", 0, 1, 0.05], ["spill", "Light spill", 0, 2, 0.05],
 		["contrast", "Contrast", 0.6, 1.6, 0.05], ["saturation", "Saturation", 0, 2, 0.05], ["outline", "Outline", 0, 1, 0.05],
 		["bloom", "Bloom", 0, 2, 0.05], ["lights", "Light level", 0.2, 2, 0.05], ["ortho", "Orthographic", 0, 1, 1]], _apply_look)
@@ -597,6 +648,8 @@ func _apply_look() -> void:
 # --- Gig setup -------------------------------------------------------------------
 
 func new_gig() -> void:
+	_last_known = {}
+	_aim = {}
 	var o := {"security": gig.security}
 	var did := String(gig.get("district", ""))
 	if did != "":
@@ -980,6 +1033,7 @@ func _refresh() -> void:
 		var cell: Vector3i = l[1]
 		l[0].visible = not _net_cleaned and not enc.lights_out() and (l[2] != "room" or not fog_on or enc.vision.explored.has(cell))
 	_build_doors()
+	AimPreview.remember(_last_known, enc.units.filter(func(o): return _foe(o)), _seen)
 	for u in enc.units:
 		var n: Node3D = _unit_node(u)
 		var seen: bool = u.team == 0 or not fog_on or enc.vision.visible.has(u.pos)
@@ -1898,12 +1952,80 @@ func _watch_status() -> Dictionary:
 	return res
 
 
+## Alt held: an outline round every enemy the crew can see (owner: no rings or glows under units).
 func _update_outlines() -> void:
 	for u in enc.units:
-		var n: Node3D = unit_nodes.get(u.id)
-		if n and n.has_meta("outlines"):
-			for ol in n.get_meta("outlines"):
-				(ol as MeshInstance3D).visible = false
+		var n = unit_nodes.get(u.id)
+		if n is CharModel:
+			(n as CharModel).set_outline(_alt_on and not _promo and _foe(u) and not u.c.dead and _seen(u.pos), Hud.RED)
+
+
+## The hovered attack's preview (_aim, set by _update_hover / _tool_hover), and with Alt held a faint
+## mark on each enemy's last-known square while they're out of sight.
+func _draw_aim(c: Control) -> void:
+	if enc == null or _promo:
+		return
+	if _alt_on:
+		_draw_last_known(c)
+	if _aim.is_empty() or busy or not _crew_turn():
+		return
+	var col: Color = _aim.col
+	var pts := PackedVector2Array()
+	var pts3: PackedVector3Array
+	match String(_aim.shape):
+		AimPreview.LINE:
+			pts3 = PackedVector3Array([_aim.from, _aim.to])
+		AimPreview.SWING:
+			pts3 = AimPreview.swing_points(_aim.to, _aim.from)
+		AimPreview.THROW:
+			pts3 = AimPreview.arc_points(_aim.from, _aim.to, AimPreview.peak_for(Vector3(_aim.to - _aim.from).length()))
+	for p in pts3:
+		if cam.is_position_behind(p):
+			return
+		pts.append(_to_screen(p))
+	if pts.size() < 2:
+		return
+	var shadow := Color(0, 0, 0, 0.6)
+	c.draw_polyline(pts, shadow, 5.0)
+	if String(_aim.shape) == AimPreview.LINE:
+		c.draw_polyline(pts, col, 2.0)
+		var end: Vector2 = pts[1]
+		c.draw_circle(end, 4.0, col)
+		if _aim.has("stop"):   # no line of fire: the line stops at what's in the way
+			var sp := _to_screen(_aim.stop)
+			if not cam.is_position_behind(_aim.beyond):
+				var bp := _to_screen(_aim.beyond)
+				var n := int(sp.distance_to(bp) / 10.0)
+				for i in range(0, n, 2):   # dotted on to the target it can't reach
+					c.draw_line(sp.lerp(bp, float(i) / n), sp.lerp(bp, float(i + 1) / n), Color(Hud.RED, 0.45), 1.5)
+			c.draw_line(sp + Vector2(-6, -6), sp + Vector2(6, 6), Hud.RED, 3.0)
+			c.draw_line(sp + Vector2(-6, 6), sp + Vector2(6, -6), Hud.RED, 3.0)
+	else:
+		var dash := String(_aim.shape) == AimPreview.THROW
+		for i in pts.size() - 1:
+			if not dash or i % 2 == 0:
+				c.draw_line(pts[i], pts[i + 1], col, 3.0 if not dash else 2.0)
+		var tip: Vector2 = pts[pts.size() - 1]
+		var dir: Vector2 = (tip - pts[pts.size() - 2]).normalized()
+		var side := Vector2(-dir.y, dir.x)
+		c.draw_colored_polygon(PackedVector2Array([tip + dir * 8, tip - dir * 4 + side * 6, tip - dir * 4 - side * 6]), col)
+
+
+func _draw_last_known(c: Control) -> void:
+	var a := 0.4 + 0.1 * sin(Time.get_ticks_msec() / 300.0)
+	for u in enc.units:
+		if not _last_known.has(u.id) or (_seen(u.pos) and not u.c.dead):
+			continue
+		var v: Vector3i = _last_known[u.id]
+		if _seen(v) or v.z != view_floor:   # in sight now and not there: they've moved on
+			continue
+		var wp := Vector3(v.x + 0.5, _gy(v) + 1.2, v.y + 0.5)
+		if cam.is_position_behind(wp):
+			continue
+		var p := _to_screen(wp)
+		var d := PackedVector2Array([p + Vector2(0, -12), p + Vector2(9, 0), p + Vector2(0, 12), p + Vector2(-9, 0), p + Vector2(0, -12)])
+		c.draw_polyline(d, Color(Hud.RED, a), 2.0)
+		c.draw_string(Hud.F_BOLD, p + Vector2(-4, 6), "?", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(Hud.RED, a))
 
 
 func _make_caret() -> MeshInstance3D:
@@ -1982,12 +2104,12 @@ func _unhandled_input(ev: InputEvent) -> void:
 						else:
 							hud.toast("Blocked: break the firewall or deal with the ICE first.")
 					return
-				_click_move()
-			MOUSE_BUTTON_RIGHT:
-				if tool != "":
-					_click_tool()
+				if _lmb_targets():   # an attack (or a tool) is armed: left-clicking its target uses it
+					_click_target(ev.shift_pressed)
 				else:
-					_click_attack(ev.shift_pressed or cover_mode)
+					_click_move()
+			MOUSE_BUTTON_RIGHT:
+				_click_target(ev.shift_pressed)
 	elif ev is InputEventKey and ev.pressed and not ev.echo:
 		if _end_key(ev.keycode):   # the gig is over: the end panel takes Enter, Space and Esc first
 			get_viewport().set_input_as_handled()
@@ -2045,9 +2167,15 @@ func _unhandled_input(ev: InputEvent) -> void:
 
 
 func _on_hud(name: String, arg: Variant) -> void:
+	if name == "portrait_hover":   # [unit id or -1, portrait rect]: hover tracking, even while busy
+		_portrait_hover(int(arg[0]), arg[1])
+		return
 	if busy:
 		return
 	match name:
+		"portrait_click":   # clicking a foe's portrait does what clicking their figure would
+			if _aim_armed() and _portrait_target(int(arg)):
+				_click_target(false)
 		"stage":
 			if String(arg) == "attack" and stage != "attack":
 				if not _spend_check():
@@ -2203,6 +2331,75 @@ func _crew_turn() -> bool:
 	return enc.state == "playing" and not enc.cur.is_empty() and enc.cur.team == 0
 
 
+## An attack option is selected: the attack stage, or a target-picking attack (melee, shell, grenade).
+func _aim_armed() -> bool:
+	return _crew_turn() and (stage == "attack" or tool in ["melee", "shell", "grenade"])
+
+
+## What a left click on the hovered square does with something armed: use it (true) or move (false).
+func _lmb_targets() -> bool:
+	if not _crew_turn():
+		return false
+	if tool == "grenade":
+		return hover.x >= 0
+	var t := _unit_at(hover)
+	if t.is_empty():
+		return false
+	if tool != "":
+		return true   # every tool picks a unit (a foe to hit, an ally to patch up)
+	return stage == "attack" and _foe(t)
+
+
+## Right click, or a left click with an attack armed: the armed tool or the drawn weapon's attack.
+func _click_target(shift: bool) -> void:
+	if tool != "":
+		_click_tool()
+	else:
+		_click_attack(shift or cover_mode)
+
+
+## A foe's turn-order portrait: point the hover at them if they're in sight (true).
+func _portrait_target(uid: int) -> bool:
+	for u in enc.units:
+		if int(u.id) == uid and _foe(u) and not _unit_at(u.pos).is_empty():
+			hover = u.pos
+			return true
+	return false
+
+
+func _portrait_hover(uid: int, rect: Rect2) -> void:
+	_portrait_uid = uid
+	if enc == null or uid < 0 or not _aim_armed() or not _portrait_target(uid):
+		return
+	mouse = Vector2(rect.get_center().x, rect.end.y)   # the odds card hangs under the portrait
+	_on_hover_changed()
+	_update_hover()
+
+
+## --near=n: move the nearest foe onto a free square n squares from the active unit, in its line of
+## fire (review renders of the attack previews).
+func _demo_near() -> void:
+	var foes := enc.units.filter(func(o): return _foe(o) and not o.c.dead)
+	if foes.is_empty():
+		return
+	foes.sort_custom(func(a, b): return Vector3(a.pos - enc.cur.pos).length() < Vector3(b.pos - enc.cur.pos).length())
+	var occ := enc.occupied()
+	var c: Vector3i = enc.cur.pos
+	for r in range(_dev_near, _dev_near + 6):
+		for dy in range(-r, r + 1):
+			for dx in range(-r, r + 1):
+				var v := Vector3i(c.x + dx, c.y + dy, c.z)
+				if maxi(absi(dx), absi(dy)) != r or not m.inb(v.x, v.y) or not m.walkable(v.z, Vector2i(v.x, v.y)) or occ.has(v) or not enc.los.trace(c, v).clear:
+					continue
+				foes[0].pos = v
+				enc.refresh_vision()
+				if _dev_portrait:   # in the turn order: guards join it once alerted
+					enc._rouse([foes[0]])
+					enc.events.clear()
+				_refresh()
+				return
+
+
 func _click_move() -> void:
 	if not _crew_turn():
 		return
@@ -2302,6 +2499,23 @@ func _suppress() -> void:
 
 
 ## Hover feedback for the M5 tools: odds and who would be caught; the grenade shows its blast.
+## The preview line or arc from the shooter's square to the target (a unit or a square), coloured
+## like the odds; `stop` marks what blocks the line of fire.
+func _set_aim(shape: String, from: Vector3i, t: Variant, pct: int, stop := Vector3i(-1, -1, -1)) -> void:
+	if shape == "":
+		return
+	var tv: Vector3i = t.pos if t is Dictionary else t
+	var hand := 1.05 if shape != AimPreview.SWING else 1.0
+	var a := Vector3(from.x + 0.5, _gy(from) + hand, from.y + 0.5)
+	var b := Vector3(tv.x + 0.5, _gy(tv) + (0.95 if t is Dictionary else 0.05), tv.y + 0.5)
+	var col := Hud.RED if pct < 0 else (Hud.GREEN if pct >= 65 else (Hud.GOLD if pct >= 35 else Hud.RED))
+	_aim = {"shape": shape, "from": a, "to": b, "col": col}
+	if stop.x >= 0 and shape == AimPreview.LINE:
+		_aim.to = Vector3(stop.x + 0.5, _gy(stop) + hand, stop.y + 0.5)
+		_aim["stop"] = _aim.to
+		_aim["beyond"] = b
+
+
 func _tool_hover() -> void:
 	var c: Combatant = enc.cur.c
 	var t := _unit_at(hover)
@@ -2323,10 +2537,14 @@ func _tool_hover() -> void:
 				hud.tip("", mouse)
 				return
 			blast_node.position = Vector3(hover.x + 0.5, _gy(hover) + 0.05, hover.y + 0.5)
+			var bh := AimPreview.blast_half(c.kit[0])   # the item's blast (every kit grenade: 5x5, p174)
+			blast_node.visible = bh > 0
+			blast_node.scale = Vector3.ONE * (2 * bh + 1) / 5.0
 			var dist := Los.distance_m(enc.cur.pos, hover)
 			var ok: bool = dist <= Encounter.THROW_RANGE_M and hover.z == enc.cur.pos.z and enc.los.trace(enc.cur.pos, hover).clear
 			var dv := maxi(10, RulesDB.range_dv("grenade_launcher", dist))
 			var pct := roundi(Check.chance_vs_dv(c.skill_base("athletics") - c.action_penalty(), dv) * 100)
+			_set_aim(AimPreview.for_armed(tool, atk_mode, null, c.kit[0]), enc.cur.pos, hover, pct if ok else -1)
 			var caught := enc.units.filter(func(o): return not o.c.dead and o.pos.z == hover.z and maxi(absi(o.pos.x - hover.x), absi(o.pos.y - hover.y)) <= Encounter.BLAST_HALF)
 			var names := caught.map(func(o): return ("[color=#39f0a0]%s[/color]" if enc.allied(o.team, enc.cur.team) else "[color=#ff3b4f]%s[/color]") % o.c.display_name)
 			var what := "no damage: everyone caught resists or is affected" if Items.fx(c.kit[0]).get("no_damage", false) else "6d6"
@@ -2337,12 +2555,14 @@ func _tool_hover() -> void:
 				return
 			var mw := enc.melee_weapon(c)
 			var p := enc.preview(t, mw, Attack.Mode.SINGLE)
+			_set_aim(AimPreview.SWING, enc.cur.pos, t, roundi(p.chance * 100) if p.ok else -1)
 			hud.tip(("[code][font_size=44]%d%%[/font_size][/code]  %s · %dd6" % [roundi(p.chance * 100), mw.def.name, mw.dice()]) if p.ok else "[color=#ff3b4f]%s[/color]" % String(p.reason).capitalize(), mouse, "// MELEE", Hud.CYAN)
 		"shell":
 			if t.is_empty() or enc.allied(t.team, enc.cur.team):
 				hud.tip("Pick an enemy: everyone in a 90° cone to 6 m is caught", mouse, "// SHOTGUN SHELL", Hud.CYAN)
 				return
 			var pct2 := roundi(Check.chance_vs_dv(c.skill_base(enc.cur.c.weapons[0].skill()) - c.action_penalty(), Attack.SHOTGUN_SHELL_DV) * 100)
+			_set_aim(AimPreview.LINE, enc.cur.pos, t, pct2)
 			hud.tip("[code][font_size=44]%d%%[/font_size][/code] vs DV13 · 3d6 to everyone in the cone" % pct2, mouse, "// SHOTGUN SHELL", Hud.CYAN)
 		"rig":
 			if t.is_empty() or not enc.allied(t.team, enc.cur.team):
@@ -4094,6 +4314,7 @@ func _on_hover_changed() -> void:
 
 
 func _update_hover() -> void:
+	_aim = {}
 	target_ring.visible = false
 	hud.mode_pcts({})
 	if blast_node and tool != "grenade":
@@ -4129,6 +4350,7 @@ func _update_hover() -> void:
 	target_ring.position = Vector3(t.pos.x + 0.5, _gy(t.pos) + 0.04, t.pos.y + 0.5)
 	var w: Weapon = enc.cur.c.weapons[0]
 	var p := enc.preview(t, w, mode)
+	_set_aim(AimPreview.for_weapon(w), p.from if p.ok else enc.cur.pos, t, roundi(p.chance * 100) if p.ok else -1, p.blocker if not p.ok else Vector3i(-1, -1, -1))
 	var pcts := {}
 	for m in Encounter.attack_modes(w):   # hit chance per attack, shown on the bar's buttons
 		if ATK_ENUM.has(m):
