@@ -52,11 +52,16 @@ func _add_mat(col: Color, glow: float) -> StandardMaterial3D:
 ## A flash that exists for two or three frames: a white-hot core, a forward plume (cone), side
 ## petals at a random roll, scaled and jittered per shot; a strong, short light pop; then smoke.
 func muzzle(at: Vector3, dir: Vector3, weapon := "assault_rifle", light: OmniLight3D = null, core_on := true) -> void:
-	_snd(_shot_sound(weapon), at, 0.0, 0.05, 30)
-	var p: Dictionary = FLASH.get(weapon, {})
-	if p.is_empty():
-		return   # bows, melee: no flash
+	var ws := WeaponFx.spec(weapon)   # data/gen/weapon_fx.json: what this weapon's shot is
+	_snd(WeaponFx.shot_sound(weapon), at, float(ws.get("vol", 0.0)), 0.05, 30)
 	dir = dir.normalized() if dir.length() > 0.01 else Vector3.FORWARD
+	if String(ws.visual) != "gun":
+		_launch(at, dir, ws, light)   # the non-firearm discharge: a puff, a glow, a spark, a backblast
+	var p: Dictionary = FLASH.get(String(ws.get("flash", weapon)), {})
+	if p.is_empty():
+		return   # bows, air, beams, sonics, melee: no muzzle flash
+	p = p.duplicate()
+	p.size = float(p.size) * float(ws.get("flash_scale", 1.0))
 	var root := Node3D.new()
 	add_child(root)
 	root.global_position = at
@@ -178,7 +183,12 @@ func brass(at: Vector3, right: Vector3, floor_y := -1e9) -> void:
 ## A ballistic round: a short, faint streak that travels muzzle → impact in a few hundredths of
 ## a second (not a beam). Shotguns fire a spread of pellets. Calls `on_hit` on arrival.
 func bullet(a: Vector3, b: Vector3, weapon := "assault_rifle", on_hit := Callable()) -> void:
-	var pellets: int = int(FLASH.get(weapon, {}).get("pellets", 1))
+	var ws := WeaponFx.spec(weapon)
+	if String(ws.visual) != "gun":
+		_projectile_for(a, b, ws, on_hit)   # arrows, darts, beams, flame, rails...
+		return
+	var pellets: int = int(FLASH.get(String(ws.get("flash", weapon)), {}).get("pellets", 1))
+	var tint := Color(String(ws.get("col", "ffe2a0")))
 	for i in pellets:
 		var to := b
 		if pellets > 1:
@@ -186,7 +196,7 @@ func bullet(a: Vector3, b: Vector3, weapon := "assault_rifle", on_hit := Callabl
 		var streak := MeshInstance3D.new()
 		var bm := BoxMesh.new()
 		bm.size = Vector3(0.018, 0.018, 0.45 if pellets == 1 else 0.25)
-		bm.material = _add_mat(Color("ffe2a0"), 1.1)
+		bm.material = _add_mat(tint, 1.1)
 		streak.mesh = bm
 		add_child(streak)
 		streak.global_position = a
@@ -534,10 +544,581 @@ func _snd(name: String, at: Vector3, vol := 0.0, pitch_var := 0.06, gap := 25) -
 
 
 static func _shot_sound(weapon: String) -> String:
-	if weapon.contains("shotgun"):
-		return "sfx_shot_shotgun"
-	if weapon.contains("smg"):
-		return "sfx_shot_smg"
-	if weapon.contains("pistol") or weapon.contains("revolver"):
-		return "sfx_shot_pistol"
-	return "sfx_shot_rifle"
+	return WeaponFx.shot_sound(weapon)
+
+
+# --- non-firearm shots (data/gen/weapon_fx.json kinds; WeaponFx resolves a weapon to one) -------
+
+## How long the shot takes to reach `b` (the view waits this long for the impact).
+func flight_secs(a: Vector3, b: Vector3, weapon: String) -> float:
+	return _flight(a, b, WeaponFx.spec(weapon))
+
+
+func _flight(a: Vector3, b: Vector3, ws: Dictionary) -> float:
+	var d := a.distance_to(b)
+	match String(ws.visual):
+		"gun":
+			return maxf(0.03, d / BALLISTIC_SPEED)
+		"arc", "rail":
+			return 0.04
+		"microwave":
+			return 0.1
+		"lob":
+			return 0.3 + d / float(ws.get("speed", 16.0))
+	return maxf(0.05, d / float(ws.get("speed", 30.0)))
+
+
+## Wind-up before the shot (the railgun's capacitors): a glow swelling at the muzzle and the
+## charge whine, over `secs`.
+func charge(at: Vector3, weapon: String, secs: float) -> void:
+	var ws := WeaponFx.spec(weapon)
+	var col := Color(String(ws.get("col", "a8f0ff")))
+	_snd(String(ws.get("charge_sound", "sfx_rail_charge")), at, -2.0, 0.02, 0)
+	var g := _ball(col, 1.6, 0.03)
+	g.global_position = at
+	var tw := create_tween()
+	tw.tween_property(g, "scale", Vector3.ONE * 0.2, secs).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_IN)
+	tw.tween_callback(g.queue_free)
+	var l := OmniLight3D.new()
+	add_child(l)
+	l.light_color = col
+	l.light_cull_mask = 1
+	l.omni_range = 2.5
+	l.global_position = at
+	l.light_energy = 0.0
+	var tl := create_tween()
+	tl.tween_property(l, "light_energy", 3.0, secs)
+	tl.tween_callback(l.queue_free)
+	for k in 3:   # sparks crawling round the rails as the charge builds
+		get_tree().create_timer(secs * (0.3 + 0.25 * k)).timeout.connect(burst.bind(at, col, 4, 0.8, 0.02, 0.15, 3.0, 0.0))
+
+
+## A melee contact: the weapon's hit sound and what it leaves in the air (a blade arc, a blunt
+## shock ring, a stun arc, a knuckle flash). `dir` is the swing's direction.
+func melee_contact(at: Vector3, dir: Vector3, weapon: String) -> void:
+	var ws := WeaponFx.spec(weapon)
+	_snd(WeaponFx.hit_sound(weapon), at, 0.0, 0.08, 40)
+	var col := Color(String(ws.get("col", "e8e0d0")))
+	var flat := Vector3(dir.x, 0, dir.z).normalized() if Vector3(dir.x, 0, dir.z).length() > 0.01 else Vector3.FORWARD
+	if ws.get("slash", false):   # a bright arc swept across the target, gone in a few frames
+		var root := Node3D.new()
+		add_child(root)
+		root.global_position = at - flat * 0.25
+		root.look_at(at + flat, Vector3.UP)
+		root.rotate_object_local(Vector3.FORWARD, rng.randf_range(-0.9, 0.9))
+		var n := 9
+		for i in n:
+			var ang := lerpf(-1.1, 1.1, float(i) / (n - 1))
+			var seg := MeshInstance3D.new()
+			var bm := BoxMesh.new()
+			bm.size = Vector3(0.12, 0.03, 0.03)
+			bm.material = _add_mat(col, 1.6 - absf(ang) * 0.5)
+			seg.mesh = bm
+			seg.position = Vector3(sin(ang) * 0.45, 0, -cos(ang) * 0.45 + 0.3)
+			seg.rotation.y = -ang
+			root.add_child(seg)
+		_fade_free(root, 0.14, "scale", Vector3(1.15, 0.2, 1.15))
+	if ws.get("arc", false):   # stun: arcs crawling over the body
+		for k in 3:
+			var o := Vector3(rng.randf_range(-0.3, 0.3), rng.randf_range(-0.35, 0.35), rng.randf_range(-0.3, 0.3))
+			_bolt(at - flat * 0.3, at + o, col, 0.08, 0.02, 0.16)
+		burst(at, col, 16, 2.5, 0.025, 0.3, 3.0, -3.0)
+		_pop_light(at, col, 4.0, 3.0, 0.15)
+	elif String(ws.get("hit", "")) == "sfx_hit_blunt":   # a shock ring of dust off the impact
+		_ring(at, flat, Color(0.75, 0.7, 0.62, 0.5), 0.1, 0.6, 0.2, false)
+		burst(at, Color("8a8478"), 6, 1.0, 0.06, 0.4, 0.0, -2.0)
+	elif not ws.get("slash", false):   # fists: a white knuckle flash
+		burst(at, Color("fff0d0"), 6, 1.6, 0.03, 0.15, 2.0, 0.0)
+
+
+## The discharge at the muzzle for the non-firearm kinds (firearms get muzzle()'s flash).
+func _launch(at: Vector3, dir: Vector3, ws: Dictionary, light: OmniLight3D) -> void:
+	var col := Color(String(ws.get("col", "ffffff")))
+	match String(ws.visual):
+		"air", "dart":   # a little pneumatic puff, no fire, no light
+			for k in 2:
+				var puff := _ball(Color(0.85, 0.88, 0.92), 1.0, 0.04, 0.45, false)
+				puff.global_position = at + dir * 0.06 * (k + 1)
+				var tp := create_tween().set_parallel(true)
+				tp.tween_property(puff, "scale", Vector3.ONE * 0.16, 0.35)
+				tp.tween_property(puff, "global_position", puff.global_position + dir * 0.2 + Vector3(0, 0.06, 0), 0.35)
+				tp.tween_property(puff.mesh.material, "albedo_color:a", 0.0, 0.35)
+				tp.chain().tween_callback(puff.queue_free)
+		"microwave":   # an emitter glow, violet, humming
+			var g := _ball(col, 1.4, 0.12)
+			g.global_position = at
+			_fade_free(g, 0.45)
+			_pop_light(at, col, 3.0, 3.5, 0.45, light)
+		"sonic":   # the first wave bursting off the emitter
+			_ring(at, dir, Color(col, 0.8), 0.05, 0.45, 0.18, true)
+			_pop_light(at, col, 1.5, 2.5, 0.12, light)
+		"arc":   # the prongs spark
+			burst(at, col, 8, 1.5, 0.02, 0.15, 3.0, 0.0)
+			_pop_light(at, col, 6.0, 4.0, 0.12, light)
+		"flame":   # the pilot light flares: the jet itself carries the glow
+			_pop_light(at + dir * 0.8, Color("ff8a30"), 9.0, 7.0, 0.6, light)
+		"rail":   # a white-hot flash and a hard cyan pop; the sabot ring blows off the muzzle
+			var g := _ball(Color.WHITE, 2.0, 0.3)
+			g.global_position = at
+			g.set_meta("age", 0)
+			_flashes.append(g)
+			_ring(at + dir * 0.1, dir, Color(col, 0.9), 0.08, 0.7, 0.2, true)
+			_pop_light(at, col, 7.0, 6.0, 0.2, light)
+
+
+## The projectile / beam for a non-firearm kind, calling `on_hit` when it lands.
+func _projectile_for(a: Vector3, b: Vector3, ws: Dictionary, on_hit: Callable) -> void:
+	var col := Color(String(ws.get("col", "ffffff")))
+	var secs := _flight(a, b, ws)
+	var impact := String(ws.get("impact", ""))
+	var land := func():
+		if impact != "":
+			_snd(impact, b, -2.0, 0.08, 40)
+		if on_hit.is_valid():
+			on_hit.call()
+	match String(ws.visual):
+		"air":
+			var pel := _ball(col, 1.3, 0.05)
+			_fly(pel, a, b, secs, 0.05, Vector3.ZERO, func():
+				burst(b, col, 12, 1.8, 0.03, 0.3, 1.4, -6.0)   # the acid paint splats
+				land.call())
+		"dart":
+			_fly(_dart(col), a, b, secs, 0.02, Vector3.ZERO, land)
+		"arrow":
+			_fly(_arrow(col, String(ws.kind) == "crossbow"), a, b, secs, 0.12 + a.distance_to(b) * 0.02, Vector3.ZERO, land)
+		"throw":
+			var blade := MeshInstance3D.new()
+			var bm := BoxMesh.new()
+			bm.size = Vector3(0.03, 0.06, 0.32)
+			var mt := StandardMaterial3D.new()
+			mt.albedo_color = col
+			mt.metallic = 0.8
+			mt.roughness = 0.25
+			bm.material = mt
+			blade.mesh = bm
+			_fly(blade, a, b, secs, 0.15 + a.distance_to(b) * 0.03, Vector3(22.0, 0, 0), land)
+		"lob":
+			var g := _ball(col, 0.0, 0.07)
+			var arc := 0.4 + a.distance_to(b) * 0.18
+			_fly(g, a, b, secs, arc, Vector3(14.0, 9.0, 0), func():
+				_pop_blast(b, 1.0)
+				land.call())
+		"rocket":
+			_fly(_rocket(col), a, b, secs, 0.0, Vector3.ZERO, func():
+				_pop_blast(b, 1.5)
+				land.call(), true)
+		"microwave":
+			_wave_beam(a, b, col)
+			get_tree().create_timer(secs).timeout.connect(land)
+		"sonic":
+			_sonic(a, b, col, secs)
+			get_tree().create_timer(secs).timeout.connect(func():
+				_ring(b, (b - a).normalized(), Color(col, 0.7), 0.1, 0.9, 0.25, true)
+				land.call())
+		"arc":
+			_bolt(a, b, col, 0.14, 0.022, 0.07)
+			for k in 2:   # the bolt re-forms twice: a crackling flicker
+				get_tree().create_timer(0.06 * (k + 1)).timeout.connect(_bolt.bind(a, b, col, 0.14, 0.022, 0.07))
+			get_tree().create_timer(secs).timeout.connect(func():
+				burst(b, col, 18, 2.8, 0.025, 0.3, 3.0, -3.0)
+				_pop_light(b, col, 5.0, 3.5, 0.2)
+				land.call())
+		"flame":
+			_flame_jet(a, b, col, secs)
+			get_tree().create_timer(secs).timeout.connect(land)
+		"rail":
+			_rail(a, b, col)
+			get_tree().create_timer(secs).timeout.connect(func():
+				burst(b, col, 20, 5.0, 0.03, 0.3, 3.0, -4.0)
+				land.call())
+		_:
+			get_tree().create_timer(secs).timeout.connect(land)
+
+
+## Moves `n` from a to b over `secs` on an arc `arc_h` high, nose along the path (-Z), spinning
+## by `spin` (rad/s, local); `smoke` leaves a trail of puffs. Frees it and calls `done` on arrival.
+func _fly(n: Node3D, a: Vector3, b: Vector3, secs: float, arc_h: float, spin: Vector3, done: Callable, smoke := false) -> void:
+	if n.get_parent() == null:
+		add_child(n)
+	n.global_position = a
+	var state := {"last": a, "puff": 0.0}
+	var tw := create_tween()
+	tw.tween_method(func(k: float):
+		var p := a.lerp(b, k) + Vector3(0, arc_h * 4.0 * k * (1.0 - k), 0)
+		var v: Vector3 = p - (state.last as Vector3)
+		n.global_position = p
+		if v.length() > 0.001:
+			n.look_at(p + v, Vector3.UP if absf(v.normalized().y) < 0.99 else Vector3.RIGHT)
+			if spin != Vector3.ZERO:
+				n.rotate_object_local(Vector3.RIGHT, spin.x * k * secs)
+				n.rotate_object_local(Vector3.UP, spin.y * k * secs)
+		if smoke and k - float(state.puff) > 0.06:
+			state.puff = k
+			_smoke_puff(p, 0.12, 0.9)
+		state.last = p, 0.0, 1.0, secs)
+	tw.tween_callback(func():
+		n.queue_free()
+		if done.is_valid():
+			done.call())
+
+
+## A wavering, distorting microwave beam: two translucent ribbons of beads writhing round the
+## line, a faint haze sheath, for under half a second. No tracer, no round.
+func _wave_beam(a: Vector3, b: Vector3, col: Color) -> void:
+	var d := b - a
+	var L := d.length()
+	if L < 0.05:
+		return
+	var fwd := d / L
+	var side := fwd.cross(Vector3.UP).normalized() if absf(fwd.y) < 0.99 else Vector3.RIGHT
+	var up := side.cross(fwd).normalized()
+	var root := Node3D.new()
+	add_child(root)
+	var beads: Array = []
+	var n := clampi(int(L / 0.14), 6, 90)
+	for strand in 2:
+		var mat := _add_mat(col if strand == 0 else Color("3a8cff"), 0.75)
+		var bm := BoxMesh.new()
+		bm.size = Vector3(0.05, 0.05, 0.16)
+		bm.material = mat
+		for i in n:
+			var mi := MeshInstance3D.new()
+			mi.mesh = bm
+			mi.visible = false
+			root.add_child(mi)
+			beads.append([mi, float(i) / (n - 1), strand])
+	var haze := MeshInstance3D.new()   # the heat-shimmer sheath: pale, barely there
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.11
+	cm.bottom_radius = 0.11
+	cm.height = 1.0
+	cm.radial_segments = 8
+	cm.rings = 1
+	var hm := _unlit(Color(0.85, 0.8, 1.0), 1.0, 0.12)
+	hm.cull_mode = BaseMaterial3D.CULL_DISABLED
+	cm.material = hm
+	haze.mesh = cm
+	root.add_child(haze)
+	haze.global_position = a + d * 0.5
+	_orient_y(haze, fwd)
+	var hb := haze.global_basis
+	var dur := 0.45
+	var phase := rng.randf() * TAU
+	var tw := create_tween()
+	tw.tween_method(func(k: float):
+		var amp := 0.09 * (1.0 - k * 0.6)
+		for bd in beads:
+			var u: float = bd[1]
+			var s := 1.0 if int(bd[2]) == 0 else -1.0
+			var ph := u * L * 7.0 - k * 40.0 + phase
+			var off := side * sin(ph) * amp * s + up * cos(ph * 0.7 + s) * amp * 0.8
+			var mi: MeshInstance3D = bd[0]
+			mi.global_position = a + d * u + off
+			mi.look_at(mi.global_position + fwd, up)
+			mi.visible = u <= minf(1.0, k * 6.0)   # the beam reaches out in the first few frames
+		haze.global_basis = hb.scaled_local(Vector3(1.0 + 0.5 * sin(k * 30.0), L, 1.0 + 0.5 * cos(k * 27.0)))
+		hm.albedo_color.a = 0.12 * (1.0 - k), 0.0, 1.0, dur)
+	tw.tween_callback(root.queue_free)
+
+
+## Shrieker: a train of shockwave rings rolling down the line, swelling as they go.
+func _sonic(a: Vector3, b: Vector3, col: Color, secs: float) -> void:
+	var dir := (b - a).normalized()
+	for k in 5:
+		get_tree().create_timer(0.001 + 0.05 * k).timeout.connect(func():
+			var r := _torus(col * (1.0 - k * 0.12), 0.16, true, 0.55)
+			r.global_position = a
+			_orient_y(r, dir)
+			var tw := create_tween().set_parallel(true)
+			tw.tween_property(r, "global_position", b, secs)
+			tw.tween_property(r, "scale", Vector3.ONE * (3.2 + k * 0.4), secs)
+			tw.chain().tween_callback(r.queue_free))
+
+
+## A jagged electric bolt a → b, gone after `life`.
+func _bolt(a: Vector3, b: Vector3, col: Color, jitter: float, thick: float, life: float) -> void:
+	var d := b - a
+	var L := d.length()
+	if L < 0.02:
+		return
+	var fwd := d / L
+	var side := fwd.cross(Vector3.UP).normalized() if absf(fwd.y) < 0.99 else Vector3.RIGHT
+	var up := side.cross(fwd).normalized()
+	var root := Node3D.new()
+	add_child(root)
+	var n := clampi(int(L / 0.3) + 2, 3, 30)
+	var prev := a
+	var mat := _add_mat(col, 1.8)
+	for i in range(1, n + 1):
+		var u := float(i) / n
+		var p := a + d * u
+		if i < n:
+			p += (side * rng.randf_range(-1, 1) + up * rng.randf_range(-1, 1)) * jitter * (1.0 + L * 0.08)
+		var seg := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		var sl := prev.distance_to(p)
+		bm.size = Vector3(thick, thick, sl)
+		bm.material = mat
+		seg.mesh = bm
+		root.add_child(seg)
+		seg.global_position = (prev + p) * 0.5
+		var sd := (p - prev).normalized()
+		if sl > 0.001:
+			seg.look_at(p, up if absf(sd.dot(up)) < 0.99 else side)
+		prev = p
+	get_tree().create_timer(life).timeout.connect(root.queue_free)
+
+
+## A flame jet: fireballs streaming out of the nozzle in a widening cone, cooling from white to
+## orange to nothing (additive), with pale heat-haze bubbles rising off it.
+func _flame_jet(a: Vector3, b: Vector3, col: Color, reach_secs: float) -> void:
+	var d := b - a
+	var L := d.length()
+	if L < 0.05:
+		return
+	var fwd := d / L
+	var side := fwd.cross(Vector3.UP).normalized() if absf(fwd.y) < 0.99 else Vector3.RIGHT
+	var up := side.cross(fwd).normalized()
+	var stream := 0.5   # seconds the jet keeps pouring out
+	var count := 36
+	for k in count:
+		get_tree().create_timer(0.001 + stream * float(k) / count).timeout.connect(func():
+			var spread := rng.randf_range(0.0, 0.26)
+			var ang := rng.randf() * TAU
+			var dir := (fwd + (side * cos(ang) + up * sin(ang)) * spread).normalized()
+			var reach := L * rng.randf_range(0.75, 1.1)
+			var ball := _ball(Color("ffd070"), 1.0, 0.06)
+			ball.global_position = a
+			var m: StandardMaterial3D = ball.mesh.material
+			var secs := reach_secs * reach / L
+			var tw := create_tween().set_parallel(true)
+			tw.tween_property(ball, "global_position", a + dir * reach + Vector3(0, reach * 0.06, 0), secs)
+			tw.tween_property(ball, "scale", Vector3.ONE * (0.18 + reach * 0.07), secs)
+			tw.tween_property(m, "albedo_color", Color(col, 1.0), secs * 0.2)
+			tw.chain().tween_property(m, "albedo_color", Color(0.45, 0.05, 0.0), secs * 0.5)
+			tw.chain().tween_property(m, "albedo_color", Color.BLACK, secs * 0.3)
+			tw.chain().tween_callback(ball.queue_free)
+			if k % 3 == 0:   # heat haze: a faint, pale, slowly rising shimmer
+				var h := _ball(Color(1.0, 0.92, 0.8), 1.0, 0.2, 0.1, false)
+				h.global_position = a + fwd * reach * rng.randf_range(0.3, 0.9) + Vector3(0, 0.2, 0)
+				var th := create_tween().set_parallel(true)
+				th.tween_property(h, "global_position", h.global_position + Vector3(0, 0.7, 0), 0.8)
+				th.tween_property(h, "scale", Vector3.ONE * 0.6, 0.8)
+				th.tween_property(h.mesh.material, "albedo_color:a", 0.0, 0.8)
+				th.chain().tween_callback(h.queue_free))
+	get_tree().create_timer(reach_secs).timeout.connect(func(): burst(b, Color("ffb040"), 14, 2.0, 0.04, 0.5, 2.0, 1.5))   # embers
+
+
+## The railgun's slug: a bright line drawn the whole way at once, a corkscrew of rings round it,
+## both fading in a quarter second.
+func _rail(a: Vector3, b: Vector3, col: Color) -> void:
+	var d := b - a
+	var L := d.length()
+	if L < 0.05:
+		return
+	var fwd := d / L
+	for layer in [[0.025, Color.WHITE, 2.0], [0.07, col, 1.2]]:
+		var mi := MeshInstance3D.new()
+		var cm := CylinderMesh.new()
+		cm.top_radius = float(layer[0])
+		cm.bottom_radius = float(layer[0])
+		cm.height = 1.0
+		cm.radial_segments = 6
+		cm.rings = 1
+		cm.material = _add_mat(layer[1], float(layer[2]))
+		mi.mesh = cm
+		add_child(mi)
+		mi.global_position = a + d * 0.5
+		_orient_y(mi, fwd)
+		mi.scale = Vector3(1, L, 1)
+		_fade_free(mi, 0.28, "scale", Vector3(0.0, L, 0.0))
+	var n := clampi(int(L / 0.7), 2, 20)
+	for i in n:   # the ionised corkscrew
+		var r := _torus(Color(col, 0.7), 0.09)
+		r.global_position = a + d * (float(i) + 0.5) / n
+		_orient_y(r, fwd)
+		var tw := create_tween().set_parallel(true)
+		tw.tween_property(r, "scale", Vector3.ONE * 2.2, 0.35).set_delay(0.02 * i)
+		tw.tween_property(r.mesh.material, "albedo_color", Color.BLACK, 0.35).set_delay(0.02 * i)
+		tw.chain().tween_callback(r.queue_free)
+
+
+## A small explosive burst where a launched grenade or rocket lands (no scorch: the floor is not
+## known here).
+func _pop_blast(at: Vector3, big: float) -> void:
+	_snd("sfx_explosion", at, -2.0 + big * 2.0, 0.05, 100)
+	var ball := _ball(Color("fff2c0"), 2.2, 0.3 * big)
+	ball.global_position = at
+	var m: StandardMaterial3D = ball.mesh.material
+	var tb := create_tween().set_parallel(true)
+	tb.tween_property(ball, "scale", Vector3.ONE * 1.3 * big, 0.1).set_ease(Tween.EASE_OUT)
+	tb.tween_property(m, "albedo_color", Color("ff6a10"), 0.1)
+	tb.chain().tween_property(m, "albedo_color", Color.BLACK, 0.2)
+	tb.chain().tween_callback(ball.queue_free)
+	_pop_light(at, Color("ffb060"), 14.0 * big, 7.0, 0.45)
+	burst(at, Color("ffd27a"), int(18 * big), 6.0, 0.045, 0.35, 2.0, -6.0)
+	for k in int(4 * big):
+		_smoke_puff(at + Vector3(rng.randf_range(-0.4, 0.4), rng.randf_range(0.0, 0.3), rng.randf_range(-0.4, 0.4)), 0.4, 1.8)
+
+
+func _smoke_puff(at: Vector3, size: float, life: float) -> void:
+	var puff := _ball(Color(0.5, 0.5, 0.52), 1.0, size, 0.45, false)
+	var pm: StandardMaterial3D = puff.mesh.material
+	pm.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL   # shaded: unshaded grey glows at night
+	pm.roughness = 1.0
+	puff.global_position = at
+	var tp := create_tween().set_parallel(true)
+	tp.tween_property(puff, "global_position", at + Vector3(rng.randf_range(-0.1, 0.1), rng.randf_range(0.2, 0.5), rng.randf_range(-0.1, 0.1)), life)
+	tp.tween_property(puff, "scale", Vector3.ONE * size * 2.5, life)
+	tp.tween_property(pm, "albedo_color:a", 0.0, life)
+	tp.chain().tween_callback(puff.queue_free)
+
+
+## An expanding ring facing along `dir` (a shockwave, a sabot blast, a blunt impact).
+func _ring(at: Vector3, dir: Vector3, col: Color, r0: float, r1: float, secs: float, additive: bool) -> void:
+	var r := _torus(col, r0, additive)
+	r.global_position = at
+	_orient_y(r, dir.normalized() if dir.length() > 0.01 else Vector3.FORWARD)
+	var tw := create_tween().set_parallel(true)
+	tw.tween_property(r, "scale", Vector3.ONE * (r1 / r0), secs).set_ease(Tween.EASE_OUT)
+	if additive:
+		tw.tween_property(r.mesh.material, "albedo_color", Color.BLACK, secs)
+	else:
+		tw.tween_property(r.mesh.material, "albedo_color:a", 0.0, secs)
+	tw.chain().tween_callback(r.queue_free)
+
+
+## A short coloured light pop: the shooter's pooled light when given (see muzzle()).
+func _pop_light(at: Vector3, col: Color, energy: float, reach: float, secs: float, light: OmniLight3D = null) -> void:
+	var l := light
+	if l == null:
+		l = OmniLight3D.new()
+		add_child(l)
+		get_tree().create_timer(secs + 0.1).timeout.connect(l.queue_free)
+	l.light_color = col
+	l.light_cull_mask = 1
+	l.omni_range = reach
+	l.global_position = at
+	l.light_energy = energy
+	create_tween().tween_property(l, "light_energy", 0.0, secs).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+
+
+## A sphere `radius` big, added to the scene: additive glow, or alpha-blended unlit, or (glow 0)
+## a solid lit object.
+func _ball(col: Color, glow: float, radius: float, alpha := 1.0, additive := true) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 0.5
+	sm.height = 1.0
+	sm.radial_segments = 8
+	sm.rings = 4
+	if glow <= 0.0:
+		var mt := StandardMaterial3D.new()
+		mt.albedo_color = col
+		mt.roughness = 0.6
+		sm.material = mt
+	else:
+		sm.material = _add_mat(col, glow) if additive else _unlit(col, glow, alpha)
+	mi.mesh = sm
+	add_child(mi)
+	mi.scale = Vector3.ONE * radius * 2.0
+	return mi
+
+
+func _torus(col: Color, radius: float, additive := true, inner := 0.72) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var tm := TorusMesh.new()
+	tm.inner_radius = radius * inner
+	tm.outer_radius = radius
+	tm.rings = 16
+	tm.ring_segments = 4
+	tm.material = _add_mat(col, 1.4) if additive else _unlit(col, 1.0, col.a)
+	mi.mesh = tm
+	add_child(mi)
+	return mi
+
+
+## Point a node's +Y along `dir` (cylinders and tori are built round Y); resets its scale.
+func _orient_y(n: Node3D, dir: Vector3) -> void:
+	var y := dir.normalized()
+	var x := y.cross(Vector3.UP if absf(y.y) < 0.99 else Vector3.RIGHT).normalized()
+	var z := x.cross(y).normalized()
+	n.global_basis = Basis(x, y, z)
+
+
+func _dart(col: Color) -> Node3D:
+	var root := Node3D.new()
+	var body := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.02, 0.02, 0.18)
+	var mt := StandardMaterial3D.new()
+	mt.albedo_color = Color("b8bcc4")
+	mt.metallic = 0.7
+	bm.material = mt
+	body.mesh = bm
+	root.add_child(body)
+	var tail := MeshInstance3D.new()   # the coloured payload band that reads at pixel scale
+	var tb := BoxMesh.new()
+	tb.size = Vector3(0.05, 0.05, 0.06)
+	tb.material = _unlit(col, 1.2)
+	tail.mesh = tb
+	tail.position = Vector3(0, 0, 0.08)
+	root.add_child(tail)
+	return root
+
+
+func _arrow(col: Color, bolt: bool) -> Node3D:
+	var root := Node3D.new()
+	var length := 0.42 if bolt else 0.68
+	var shaft := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.022, 0.022, length)
+	var mt := StandardMaterial3D.new()
+	mt.albedo_color = col
+	mt.roughness = 0.7
+	bm.material = mt
+	shaft.mesh = bm
+	root.add_child(shaft)
+	var head := MeshInstance3D.new()
+	var hb := BoxMesh.new()
+	hb.size = Vector3(0.04, 0.04, 0.07)
+	var hm := StandardMaterial3D.new()
+	hm.albedo_color = Color("d8dce0")
+	hm.metallic = 0.9
+	hm.roughness = 0.2
+	hb.material = hm
+	head.mesh = hb
+	head.position = Vector3(0, 0, -length * 0.5)
+	root.add_child(head)
+	var fl := MeshInstance3D.new()   # fletching: red on arrows, cyan vanes on bolts
+	var fb := BoxMesh.new()
+	fb.size = Vector3(0.07, 0.07, 0.1)
+	fb.material = _unlit(Color("e04040") if not bolt else Color("40c0e0"), 1.0)
+	fl.mesh = fb
+	fl.position = Vector3(0, 0, length * 0.42)
+	root.add_child(fl)
+	return root
+
+
+func _rocket(col: Color) -> Node3D:
+	var root := Node3D.new()
+	var body := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.08, 0.08, 0.38)
+	var mt := StandardMaterial3D.new()
+	mt.albedo_color = Color("4a5048")
+	bm.material = mt
+	body.mesh = bm
+	root.add_child(body)
+	var plume := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 0.5
+	sm.height = 1.0
+	sm.radial_segments = 6
+	sm.rings = 3
+	sm.material = _add_mat(col, 2.0)
+	plume.mesh = sm
+	plume.scale = Vector3(0.14, 0.14, 0.3)
+	plume.position = Vector3(0, 0, 0.3)
+	root.add_child(plume)
+	return root
