@@ -9,6 +9,7 @@ Loops are rendered with their reverb/decay tails wrapped onto the start, so they
 import os
 import sys
 import wave
+import zlib
 
 import numpy as np
 
@@ -424,6 +425,294 @@ def sfx_inject():
 @sfx
 def sfx_brass():
     return fade(sum(np.sin(2 * np.pi * f * t(0.12)) * np.exp(-t(0.12) / 0.02) for f in [4100, 5900, 7300]) * 0.3)
+
+
+# --- non-firearm weapon sounds (data/gen/weapon_fx.json kinds) ------------------------------------
+# Each recipe runs on its own seeded generator (own_rng), so adding or tweaking one never changes
+# the sounds rendered after it.
+
+def own_rng(fn):
+    def wrapped():
+        global rng
+        saved = rng
+        rng = np.random.default_rng(zlib.crc32(fn.__name__.encode()))
+        try:
+            return fn()
+        finally:
+            rng = saved
+    wrapped.__name__ = fn.__name__
+    return wrapped
+
+
+def pluck(hz, sec, damp=0.996, bright=0.5):
+    """Karplus-Strong string: a bow or crossbow string let go."""
+    n = int(sec * SR)
+    p = max(2, int(SR / hz))
+    buf = rng.uniform(-1, 1, p)
+    buf = lp(buf, 6000 * bright)
+    out = np.empty(n)
+    for i in range(n):
+        j = i % p
+        out[i] = buf[j]
+        buf[j] = damp * 0.5 * (buf[j] + buf[(j + 1) % p])
+    return out
+
+
+def grains(total, count, lo_hz, spread, amp=(0.2, 0.8), sec=0.012, tau=0.003):
+    """`count` short high-passed noise clicks scattered over `spread` seconds (crackle)."""
+    x = np.zeros(int(total * SR))
+    for k in range(count):
+        g = hp(noise(sec), lo_hz) * env(sec, 0.0002, tau)
+        x += at(g * rng.uniform(*amp), rng.uniform(0, spread), total)
+    return x
+
+
+@sfx
+@own_rng
+def sfx_shot_air():
+    """Air Pistol (p.347): a soft pneumatic puff, a click, no bang."""
+    puff = bp(noise(0.14), 300, 2400) * env(0.14, 0.002, 0.03)
+    pop = sweep(0.06, 320, 120) * env(0.06, 0.001, 0.015) * 0.6
+    return fade(reverb(mix(puff, pop, click(1400, 0.003) * 0.5), 0.1, 0.1) * 0.7)
+
+
+@sfx
+@own_rng
+def sfx_shot_dart():
+    """Dartgun (p.348): a quiet thwip."""
+    whip = sweep(0.09, 2600, 650, curve=0.5) * env(0.09, 0.001, 0.025)
+    hiss = hp(noise(0.12), 3500) * env(0.12, 0.002, 0.03) * 0.5
+    return fade(mix(click(1800, 0.003) * 0.5, whip * 0.7, hiss) * 0.7)
+
+
+@sfx
+@own_rng
+def sfx_shot_microwave():
+    """Microwaver (p.348): an electrical hum with a wavering whine; no report."""
+    total = 0.8
+    x = t(total)
+    hum = lp(tone(total, 60, "square") * 0.35 + tone(total, 120, "saw") * 0.3, 1200)
+    f = 2300 + 380 * np.sin(2 * np.pi * 9.0 * x) + 200 * np.sin(2 * np.pi * 2.3 * x)
+    whine = np.sin(2 * np.pi * np.cumsum(f) / SR) * (0.6 + 0.4 * np.sin(2 * np.pi * 13 * x))
+    body = hum * 1.2 + whine * 0.35 + grains(total, 14, 2500, total * 0.9, (0.1, 0.35))
+    shape = np.clip(x / 0.03, 0, 1) * np.clip((total - x) / 0.25, 0, 1)
+    return fade(reverb(drive(body * shape, 1.8), 0.2, 0.2))
+
+
+@sfx
+@own_rng
+def sfx_shot_sonic():
+    """Shrieker (p.349): a piercing sonic screech riding a low pressure thump."""
+    total = 0.6
+    x = t(total)
+    f = 3300 + 260 * np.sin(2 * np.pi * 27 * x)
+    ph = 2 * np.pi * np.cumsum(f) / SR
+    scream = (np.sin(ph) + 0.5 * np.sin(ph * 1.42) + 0.3 * np.sign(np.sin(ph * 0.5)))
+    scream = bp(scream, 1800, 7000) * np.clip(x / 0.01, 0, 1) * np.exp(-x / 0.28)
+    thump = sweep(0.2, 190, 55, curve=0.4) * env(0.2, 0.001, 0.05)
+    return fade(reverb(drive(mix(scream * 1.2, thump * 0.9), 2.2), 0.25, 0.25))
+
+
+@sfx
+@own_rng
+def sfx_shot_stun():
+    """Stun Gun (p.349): a snapping electric zap and crackle."""
+    total = 0.4
+    x = t(total)
+    gate = (rng.uniform(0, 1, int(total * 120) + 1) > 0.35).repeat(int(SR / 120) + 1)[:len(x)]
+    buzz = tone(total, 190, "square") * 0.35 * gate * np.exp(-x / 0.18)
+    snap = hp(noise(0.02), 2500) * env(0.02, 0.0002, 0.004) * 1.4
+    crackle = grains(total, 40, 2000, 0.3, (0.3, 1.0), 0.01, 0.002)
+    return fade(drive(mix(buzz, snap, crackle), 2.2))
+
+
+@sfx
+@own_rng
+def sfx_hit_stun():
+    """A stun baton / stun gun contact: a crack of discharge and a buzzing jolt."""
+    total = 0.35
+    x = t(total)
+    buzz = (tone(total, 140, "square") * 0.4 + tone(total, 283, "saw") * 0.2) * np.exp(-x / 0.12)
+    thud = lp(noise(0.15), 400) * env(0.15, 0.001, 0.03)
+    return fade(drive(mix(buzz, thud * 1.2, grains(total, 30, 2200, 0.22, (0.3, 1.0), 0.01, 0.002)), 2.4))
+
+
+@sfx
+@own_rng
+def sfx_shot_flame():
+    """Flamethrower (p.348): an ignition pop, then a roaring whoosh of fire with crackle."""
+    total = 1.2
+    x = t(total)
+    swell = np.clip(x / 0.08, 0, 1) * np.clip((total - x) / 0.5, 0, 1)
+    roar = (lp_fast(noise(total), 500) * 2.6 + bp(noise(total), 250, 1600) * 0.9) * swell
+    roar *= 1.0 + 0.25 * np.sin(2 * np.pi * 7 * x) * np.sin(2 * np.pi * 3.1 * x)
+    pop = lp(noise(0.08), 900) * env(0.08, 0.001, 0.02) * 1.5
+    crackle = grains(total, 70, 1500, total * 0.85, (0.1, 0.45), 0.008, 0.002)
+    return fade(reverb(drive(mix(roar, pop, crackle), 1.6), 0.4, 0.25), 0.002, 0.15)
+
+
+@sfx
+@own_rng
+def sfx_rail_charge():
+    """Rhinemetall EMG-86 (p.349): the capacitor whine building before the shot (0.42 s)."""
+    total = 0.42
+    x = t(total)
+    f = 320 + 3600 * (x / total) ** 2
+    ph = 2 * np.pi * np.cumsum(f) / SR
+    trem = 0.7 + 0.3 * np.sin(2 * np.pi * (8 + 50 * x / total) * x)
+    whine = (np.sin(ph) * 0.7 + np.sign(np.sin(ph)) * 0.12) * trem * (x / total) ** 1.2
+    return whine * 0.8   # no tail: it cuts into the crack
+
+
+@sfx
+@own_rng
+def sfx_shot_rail():
+    """Rhinemetall EMG-86 (p.349): a supersonic slug: a heavy electric crack, a metallic ring and a sub thump."""
+    crack = hp(noise(0.04), 2800) * env(0.04, 0.0002, 0.006) * 2.0
+    sub = sweep(0.5, 95, 32, curve=0.4) * env(0.5, 0.001, 0.12) * 1.4
+    ring = sum(np.sin(2 * np.pi * f * t(0.5)) * np.exp(-t(0.5) / d) * a
+               for f, d, a in [(1240, 0.18, 0.35), (2830, 0.1, 0.25), (4410, 0.06, 0.2)])
+    zap = hp(noise(0.25), 1800) * env(0.25, 0.001, 0.05) * 0.5
+    return fade(reverb(drive(mix(crack, sub, ring, zap), 3.0), 0.45, 0.32, 0.55), 0.0005, 0.1)
+
+
+@sfx
+@own_rng
+def sfx_shot_bow():
+    """Bow (p.94): the string's twang and the arrow's whoosh away."""
+    twang = pluck(98, 0.45, 0.994, 0.6) * env(0.45, 0.001, 0.15)
+    whoosh = bp(noise(0.22), 500, 2200) * np.sin(np.pi * t(0.22) / 0.22) ** 2 * 0.35
+    return fade(mix(twang, at(whoosh, 0.02, 0.3), click(900, 0.004) * 0.4))
+
+
+@sfx
+@own_rng
+def sfx_shot_crossbow():
+    """Crossbow (p.94): a trigger clack, a short hard string snap, the bolt away."""
+    clack = mix(click(1600, 0.004), at(click(900, 0.006), 0.012, 0.05))
+    twang = pluck(160, 0.3, 0.985, 0.8) * env(0.3, 0.001, 0.06)
+    whoosh = bp(noise(0.15), 700, 2800) * np.sin(np.pi * t(0.15) / 0.15) ** 2 * 0.3
+    return fade(mix(clack * 0.9, at(twang, 0.01, 0.32), at(whoosh, 0.02, 0.2)))
+
+
+@sfx
+@own_rng
+def sfx_hit_arrow():
+    """An arrow or bolt striking home: a woody thunk."""
+    return fade(mix(lp(noise(0.09), 700) * env(0.09, 0.001, 0.02) * 1.2, sweep(0.12, 230, 90) * env(0.12, 0.001, 0.03),
+                    click(2000, 0.003) * 0.4))
+
+
+@sfx
+@own_rng
+def sfx_hit_paint():
+    """An acid paintball bursting: a wet splat and a hiss."""
+    splat = bp(noise(0.08), 400, 2500) * env(0.08, 0.0008, 0.018)
+    hiss = hp(noise(0.3), 3500) * env(0.3, 0.02, 0.1) * 0.25
+    return fade(mix(splat, sweep(0.05, 260, 110) * env(0.05, 0.001, 0.012) * 0.5, at(hiss, 0.03, 0.35)))
+
+
+@sfx
+@own_rng
+def sfx_shot_launcher():
+    """Grenade launchers (p.94, Cowboy U-56 p.349): the hollow thoomp of a lobbed round."""
+    thoomp = sweep(0.4, 150, 45, curve=0.35) * env(0.4, 0.002, 0.08) * 1.4
+    tube = tone(0.25, 210) * env(0.25, 0.002, 0.05) * 0.35
+    air = lp(noise(0.12), 500) * env(0.12, 0.001, 0.03)
+    return fade(reverb(drive(mix(thoomp, tube, air, click(800, 0.004) * 0.5), 1.8), 0.3, 0.2))
+
+
+@sfx
+@own_rng
+def sfx_shot_rocket():
+    """Rocket launcher (p.94): an ignition bang and the motor's roaring whoosh away."""
+    total = 1.3
+    x = t(total)
+    bang = mix(lp(noise(0.15), 600) * env(0.15, 0.001, 0.04) * 1.6, sweep(0.3, 120, 40) * env(0.3, 0.001, 0.07))
+    motor = (bp(noise(total), 300, 2400) * 0.9 + lp_fast(noise(total), 300) * 1.2) * np.clip(x / 0.03, 0, 1) * np.exp(-x / 0.4)
+    return fade(reverb(drive(mix(bang, motor), 1.8), 0.5, 0.25), 0.001, 0.2)
+
+
+@sfx
+@own_rng
+def sfx_shot_malorian():
+    """Malorian Arms 3516 (p.348): a 5d6 hand cannon: a deep, booming report."""
+    x = gunshot(1000, 2100, 0.08, 72, 0.4, 0.45, 4.0)
+    boom = sweep(0.5, 70, 30, curve=0.4) * env(0.5, 0.001, 0.12) * 0.9
+    return fade(mix(x, boom))
+
+
+@sfx
+@own_rng
+def sfx_shot_helix():
+    """Tsunami Arms Helix (p.349): a rifle report over a motorised, electric spin whine."""
+    x = gunshot(1600, 2900, 0.035, 125, 0.22, 0.28, 3.0)
+    whine = sweep(0.22, 3100, 4300, curve=0.7) * env(0.22, 0.004, 0.08) * 0.35
+    buzz = lp(tone(0.2, 230, "saw"), 2000) * env(0.2, 0.002, 0.06) * 0.15
+    return fade(mix(x, whine, buzz))
+
+
+@sfx
+@own_rng
+def sfx_shot_hurricane():
+    """Constitution Arms Hurricane (p.348): a drum-fed shotgun, heavier and lower than a pump."""
+    return gunshot(700, 1300, 0.11, 58, 0.4, 0.45, 4.0)
+
+
+@sfx
+@own_rng
+def sfx_swing_heavy():
+    """Very heavy melee (sledgehammer, naginata): a slow, low whoosh."""
+    return fade(bp(noise(0.45), 220, 1100) * np.sin(np.pi * t(0.45) / 0.45) ** 3 * 1.2)
+
+
+@sfx
+@own_rng
+def sfx_swing_light():
+    """Fists and the Battleglove: a short, quick whoosh."""
+    return fade(bp(noise(0.14), 900, 3500) * np.sin(np.pi * t(0.14) / 0.14) ** 2)
+
+
+@sfx
+@own_rng
+def sfx_swing_mono():
+    """Kendachi Mono-Three (p.348): a whoosh with the monoblade's thin, singing edge."""
+    total = 0.3
+    x = t(total)
+    w = np.sin(np.pi * x / total) ** 3
+    air = bp(noise(total), 700, 3000) * w
+    sing = (np.sin(2 * np.pi * np.cumsum(5200 + 300 * np.sin(2 * np.pi * 6 * x)) / SR) + 0.4 * np.sin(2 * np.pi * 7810 * x)) * w * 0.25
+    return fade(mix(air, sing))
+
+
+@sfx
+@own_rng
+def sfx_hit_blade():
+    """A blade connecting: a sharp slice and a wet cut."""
+    slice_ = hp(noise(0.14), 2400) * env(0.14, 0.002, 0.03)
+    wet = bp(noise(0.08), 600, 2000) * env(0.08, 0.001, 0.015) * 0.8
+    glint = tone(0.1, 3300) * env(0.1, 0.001, 0.02) * 0.2
+    return fade(mix(slice_, at(wet, 0.01, 0.12), glint))
+
+
+@sfx
+@own_rng
+def sfx_hit_blunt():
+    """A club, pipe or hammer landing: a dull body thud with a hard edge."""
+    thud = lp(noise(0.25), 320) * env(0.25, 0.001, 0.06) * 2.0
+    low = sweep(0.2, 120, 48) * env(0.2, 0.001, 0.05)
+    edge = bp(noise(0.04), 900, 3000) * env(0.04, 0.0004, 0.008) * 0.6
+    return fade(drive(mix(thud, low, edge), 1.6))
+
+
+@sfx
+@own_rng
+def sfx_hit_punch():
+    """Brawling / Martial Arts: a punch: a skin slap over a short low thump."""
+    slap = bp(noise(0.05), 1200, 4000) * env(0.05, 0.0004, 0.008)
+    body = lp(noise(0.12), 650) * env(0.12, 0.001, 0.025) * 1.5
+    low = sweep(0.1, 140, 70) * env(0.1, 0.001, 0.025) * 0.8
+    return fade(mix(slap, body, low))
 
 
 # --- ambience loops -------------------------------------------------------------------------------

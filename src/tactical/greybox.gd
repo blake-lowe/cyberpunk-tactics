@@ -242,6 +242,7 @@ var _walk := 0
 var _focus := ""
 var _shot_floor := -1
 var _attack_demo := false
+var _demo_weapon := ""                 ## --weapon=id (review renders, with --attack): the shooter fires this weapon (data/rules/weapons.json)
 var _jack_demo := false
 var _av_demo := ""
 var _inspect_demo := false
@@ -356,6 +357,8 @@ func _ready() -> void:
 				_focus = kv[1]
 			"attack":  # review renders: the active crew member fires at the nearest guard
 				_attack_demo = true
+			"weapon":  # review renders: --attack with this weapon id (melee closes to the next square)
+				_demo_weapon = kv[1]
 			"jack":  # review renders: the Netrunner jacks in at the nearest terminal (turret: one holding a turret's node)
 				_jack_demo = true
 				_jack_turret = kv[1] == "turret"
@@ -3179,11 +3182,16 @@ func _demo_attack() -> void:
 	if best.is_empty():
 		return
 	var g: Dictionary = best
+	var dw: Weapon = Weapon.from_id(_demo_weapon) if _demo_weapon != "" and RulesDB.load_json("weapons.json")["weapons"].has(_demo_weapon) else null
+	var close: bool = dw != null and dw.is_melee()
 	var near := enc.nav.reachable(g.pos, 6, enc.occupied())
-	for v in near:   # put the shooter in sight of the guard for the demo
-		if v != g.pos and enc.los.sight(v, g.pos).visible and Vector2(v.x - g.pos.x, v.y - g.pos.y).length() >= 3:
+	for v in near:   # put the shooter in sight of the guard for the demo (melee: next to it)
+		if v != g.pos and enc.los.sight(v, g.pos).visible and (enc.adjacent(v, g.pos) if close else Vector2(v.x - g.pos.x, v.y - g.pos.y).length() >= 3):
 			enc.cur.pos = v
 			break
+	if dw != null:
+		enc.cur.c.weapons.insert(0, dw)
+		enc.cur.c.stats["BODY"] = maxi(int(enc.cur.c.stats.get("BODY", 0)), 11)   # the heavy exotics' BODY 11 (p348-349)
 	view_floor = enc.cur.pos.z
 	cam_target = Vector3((enc.cur.pos.x + g.pos.x) / 2.0 + 0.5, 0, (enc.cur.pos.y + g.pos.y) / 2.0 + 0.5)
 	_place_camera()
@@ -3191,7 +3199,16 @@ func _demo_attack() -> void:
 	_refresh()
 	mode = Attack.Mode.AUTOFIRE
 	enc.turn.action_available = true
-	enc.attack(g, enc.cur.c.weapons[0], mode)
+	if dw != null:
+		var fxd := dw.fx()
+		if fxd.get("shell_only", false):
+			enc.shotgun_shell(g, dw)
+		elif dw.is_melee():
+			enc.melee(g, dw)
+		else:
+			enc.attack(g, dw, Attack.Mode.AUTOFIRE if fxd.get("autofire_only", false) else Attack.Mode.SINGLE)
+	else:
+		enc.attack(g, enc.cur.c.weapons[0], mode)
 	_demo_ms = Time.get_ticks_msec()
 	_after_action()
 
@@ -3479,7 +3496,7 @@ func _end_key(code: Key) -> bool:
 # Timing rule (game-feel review): every outcome fires when its round arrives; the camera frames
 # who is acting; bodies wind up, recoil and react on the joint rig; HUD drains at impact.
 
-const FIRE_GAP := {"smg": 0.06, "heavy_smg": 0.07, "assault_rifle": 0.085}
+const FIRE_GAP := {"smg": 0.06, "heavy_smg": 0.07, "assault_rifle": 0.085, "tsunami_helix": 0.035}   # the Helix spins through 20 rounds an attack (p.349)
 const SAFE := Rect2(260, 110, 0, 0)   # HUD-free area: left edge, top; right/bottom margins below
 const SAFE_BOTTOM := 170.0
 
@@ -3910,7 +3927,7 @@ func _anim_attack(e: Dictionary) -> void:
 	tn.visible = tn.visible or _seen(tu.pos)
 	await _frame_pair(_body_pos(su), _body_pos(tu))
 	var wid := String(e.get("weapon", "assault_rifle"))
-	if wid == "brawling" or wid.begins_with("martial") or wid.ends_with("_melee"):
+	if WeaponFx.is_swing(wid) or wid.begins_with("martial"):   # data/gen/weapon_fx.json: blades, clubs, fists, the stun baton
 		await _anim_melee(e, su, tu, sn, tn, wid)
 		return
 	sn.set_meta("aim_at", AimPreview.aim_point(_body_pos(tu), String(e.get("location", "body")) == "head"))   # before the weapon comes up
@@ -3948,15 +3965,21 @@ func _anim_attack(e: Dictionary) -> void:
 		_snd("sfx_dodge", _body_pos(tu), -4.0)
 	var arrived := [0]
 	var outcome_shown := [false]
+	var wind_up := WeaponFx.charge_secs(wid)
+	if wind_up > 0.0:   # the railgun's capacitors whine up before the shot
+		fx.charge(_muzzle_of(sn), wid, wind_up)
+		await get_tree().create_timer(wind_up).timeout
+	var flight_ms := 0
 	for i in rounds:
 		var m0 := _muzzle_of(sn)
 		var dir := (aim - m0).normalized()
 		fx.muzzle(m0, dir, wid, light, rounds == 1 or fx.rng.randf() > 0.25)
-		if not wid.contains("launcher") and not wid.contains("bow"):
+		if WeaponFx.ejects_brass(wid):
 			fx.brass(m0 - dir * 0.35, dir.cross(Vector3.UP).normalized(), _gy(su.pos))
 		var hits: bool = hit_rounds.has(i)
 		var dest := aim + Vector3(fx.rng.randf_range(-0.08, 0.08), fx.rng.randf_range(-0.08, 0.08), fx.rng.randf_range(-0.08, 0.08)) if hits else _miss_point(m0, aim)
 		var is_last := i == last_hit
+		flight_ms = maxi(flight_ms, int(fx.flight_secs(m0, dest, wid) * 1000.0))
 		fx.bullet(m0, dest, wid, func():
 			arrived[0] += 1
 			if hits:
@@ -3975,7 +3998,7 @@ func _anim_attack(e: Dictionary) -> void:
 		await get_tree().create_timer(gap + fx.rng.randf_range(0.0015, 0.003) if rounds > 1 else 0.05).timeout
 	# wait for the last round to land, then hold the framing a moment
 	var t0 := Time.get_ticks_msec()
-	while arrived[0] < rounds and Time.get_ticks_msec() - t0 < 600:
+	while arrived[0] < rounds and Time.get_ticks_msec() - t0 < 600 + flight_ms:   # arrows and grenades fly slower than rounds
 		await get_tree().process_frame
 	if connect > 0 and not outcome_shown[0]:   # safety net: a hit always resolves on screen
 		_outcome(e, su, tu, tn, aim, (aim - _muzzle_of(sn)).normalized())
@@ -4001,14 +4024,14 @@ func _anim_melee(e: Dictionary, su: Dictionary, tu: Dictionary, sn: Node3D, tn: 
 	var home := sn.position
 	var lunge := Vector3(d.x, 0, d.y).normalized() * 0.3
 	create_tween().tween_property(sn, "position", home + lunge, 0.18).set_trans(Tween.TRANS_QUAD)
-	(sn as CharModel).play_once("melee_blade" if wid.ends_with("_melee") else "melee", 0.08)
-	_snd("sfx_swing", _body_pos(su), -4.0)
+	var ws := WeaponFx.spec(wid)   # data/gen/weapon_fx.json: the swing and the contact by weapon type
+	(sn as CharModel).play_once(String(ws.get("clip", "melee_blade" if wid.ends_with("_melee") else "melee")), 0.08)
+	_snd(WeaponFx.shot_sound(wid), _body_pos(su), -4.0)
 	await get_tree().create_timer(0.38).timeout
-	if e.hit and not e.dodged:
-		_snd("sfx_melee_hit", _body_pos(tu), 0.0)
 	var at := _body_pos(tu) + Vector3(0, 0.7, 0)
 	var dir := Vector3(d.x, 0, d.y).normalized()
 	if e.hit and not e.dodged:
+		fx.melee_contact(at, dir, wid)   # slice, thud, punch or stun crackle
 		_outcome(e, su, tu, tn, at, dir)
 		_kick(_screen_dir(at - dir, at), 3.0)
 	else:
@@ -4074,7 +4097,8 @@ func _anim_suppress(e: Dictionary) -> void:
 		var m0 := _muzzle_of(sn)
 		var dir := (aim - m0).normalized()
 		fx.muzzle(m0, dir, wid, light, fx.rng.randf() > 0.25)
-		fx.brass(m0 - dir * 0.35, dir.cross(Vector3.UP).normalized(), _gy(su.pos))
+		if WeaponFx.ejects_brass(wid):
+			fx.brass(m0 - dir * 0.35, dir.cross(Vector3.UP).normalized(), _gy(su.pos))
 		var dest := _miss_point(m0, aim)
 		fx.bullet(m0, dest, wid, func(): fx.burst(dest, Color("ffd27a"), 4, 2.0, 0.035, 0.2, 1.6))
 		_recoil(sn, true)
@@ -4137,14 +4161,19 @@ func _anim_shell(e: Dictionary) -> void:
 	await get_tree().create_timer(0.2).timeout
 	var m0 := _muzzle_of(sn)
 	var dir := (_body_pos(tu) + Vector3(0, 0.7, 0) - m0).normalized()
-	fx.muzzle(m0, dir, "shotgun", _flash_light(su.id))
-	for k in 9:   # the spread: pellets fanning across the cone
-		var spread := dir.rotated(Vector3.UP, fx.rng.randf_range(-0.6, 0.6)).rotated(dir.cross(Vector3.UP).normalized(), fx.rng.randf_range(-0.12, 0.12))
-		var dest := m0 + spread * fx.rng.randf_range(4.0, 6.5)
-		fx.bullet(m0, dest, "medium_pistol")
+	var wid := String(e.get("weapon", "shotgun"))
+	var flame := not WeaponFx.is_gun(wid)   # the flamethrower's incendiary shell (p.348): a jet of fire, not pellets
+	fx.muzzle(m0, dir, wid if flame or WeaponFx.kind_of(wid) != "gun" else "shotgun", _flash_light(su.id))
+	if flame:
+		fx.bullet(m0, m0 + dir * (Attack.SHOTGUN_SHELL_RANGE_M / 2.0 + 0.5), wid)   # 2 m a square
+	else:
+		for k in 9:   # the spread: pellets fanning across the cone
+			var spread := dir.rotated(Vector3.UP, fx.rng.randf_range(-0.6, 0.6)).rotated(dir.cross(Vector3.UP).normalized(), fx.rng.randf_range(-0.12, 0.12))
+			var dest := m0 + spread * fx.rng.randf_range(4.0, 6.5)
+			fx.bullet(m0, dest, "medium_pistol")
 	_recoil(sn, false)
 	_kick(_screen_dir(m0, m0 + dir) * -1.0, 3.0)
-	await get_tree().create_timer(0.12).timeout
+	await get_tree().create_timer(0.12 if not flame else 0.45).timeout
 	if e.hit:
 		for h in e.hits:
 			var t: Dictionary = enc.units[h.id]
