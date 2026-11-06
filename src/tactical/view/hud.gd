@@ -333,6 +333,12 @@ class Slot extends Control:
 	var hp := 1.0
 	var tag := ""
 	var dead := false
+	var uid := -1
+	var hot := false   ## under the mouse: lit like a target
+	func _notification(what: int) -> void:
+		if what in [NOTIFICATION_MOUSE_ENTER, NOTIFICATION_MOUSE_EXIT]:
+			hot = what == NOTIFICATION_MOUSE_ENTER
+			queue_redraw()
 	func _init(p_tex: Texture2D, p_col: Color, p_active: bool, p_hp: float, p_tag: String, p_dead: bool) -> void:
 		tex = p_tex
 		team_col = p_col
@@ -341,7 +347,7 @@ class Slot extends Control:
 		tag = p_tag
 		dead = p_dead
 		custom_minimum_size = Vector2(76, 76) if active else Vector2(56, 56)
-		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		mouse_filter = Control.MOUSE_FILTER_STOP   # hover / click a foe's portrait to target them
 	func _draw() -> void:
 		var w := size.x
 		var h := size.y - 12
@@ -356,7 +362,11 @@ class Slot extends Control:
 		draw_colored_polygon(PackedVector2Array([Vector2(sk, 0), Vector2(sk + 18, 0), Vector2(sk + 14, 4), Vector2(sk - 1, 4)]), team_col)
 		var loop := poly.duplicate()
 		loop.append(poly[0])
-		draw_polyline(loop, Hud.GOLD if active else Color(team_col, 0.6), 2.0 if active else 1.0)
+		draw_polyline(loop, Hud.GOLD if active or hot else Color(team_col, 0.6), 2.0 if active or hot else 1.0)
+		if hot:   # targeted from the strip: corner brackets outside the frame
+			var o := 4.0
+			for cn in [[Vector2(sk - o, -o), Vector2(1, 0), Vector2(0, 1)], [Vector2(w + o, -o), Vector2(-1, 0), Vector2(0, 1)], [Vector2(-o, h + o), Vector2(1, 0), Vector2(0, -1)], [Vector2(w - sk + o, h + o), Vector2(-1, 0), Vector2(0, -1)]]:
+				draw_polyline(PackedVector2Array([cn[0] + cn[1] * 10, cn[0], cn[0] + cn[2] * 10]), Hud.RED, 3.0)
 		var bw := (w - sk) * clampf(hp, 0, 1)
 		draw_rect(Rect2(0, h + 3, w - sk, 4), Color(team_col, 0.18))
 		draw_rect(Rect2(0, h + 3, bw, 4), Hud.GREEN if hp > 0.6 else (Hud.GOLD if hp > 0.3 else Hud.RED))
@@ -587,7 +597,14 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 			continue
 		var u := enc.unit_of(c)
 		var slot := Slot.new(portraits.tex(u), _team_col(u, enc), u == enc.cur, float(maxi(c.hp, 0)) / c.max_hp(), c.display_name.to_upper(), c.dead)
+		slot.uid = int(u.id)
 		slot.material = portraits.material()
+		var uid := int(u.id)   # with an attack armed, a foe's portrait targets them (greybox)
+		slot.mouse_entered.connect(func(): action.emit("portrait_hover", [uid, slot.get_global_rect()]))
+		slot.mouse_exited.connect(func(): action.emit("portrait_hover", [-1, Rect2()]))
+		slot.gui_input.connect(func(ev: InputEvent):
+			if ev is InputEventMouseButton and ev.pressed and ev.button_index in [MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT]:
+				action.emit("portrait_click", uid))
 		slot.modulate = Portraits.tint(c.wound_state())
 		_init_strip.add_child(slot)
 	_clear(_round_box)   # round and stealth state: top right corner
@@ -1377,6 +1394,41 @@ static func _node_label(n: Dictionary, enc: Encounter = null, run: NetRun = null
 
 
 ## Controls cheat sheet, bottom left (H toggles).
+## The H panel. Attacking comes first (playtest: nobody found the right-click). Every mouse control
+## here is one greybox._unhandled_input / the portrait strip handles.
+static func help_text() -> String:
+	return "\n".join([
+		"ATTACK  RIGHT-CLICK AN ENEMY",
+		"  OR PICK AN ATTACK (F / BAR), THEN",
+		"  LEFT-CLICK THE ENEMY OR THEIR PORTRAIT",
+		"  IN THE TURN ORDER (HOVER: HIT CHANCE)",
+		"LMB  MOVE / RUN TO A SQUARE",
+		"RMB  ATTACK / USE ON THE TARGET",
+		"SHIFT + RMB  SHOOT THE COVER IN THE WAY",
+		"MIDDLE-DRAG  ROTATE   WHEEL  ZOOM",
+		"F  ATTACK (AGAIN: NEXT MODE)   TAB  WEAPON",
+		"R  RELOAD   G  KIT ITEM   ESC  BACK",
+		"J  JACK IN / OUT   B  INTERACT   T  STABILIZE",
+		"V  ROLE ABILITY   L  WITHDRAW   SPACE  END TURN",
+		"WASD  PAN   Q / E  ROTATE   PGUP / PGDN  FLOOR",
+		"C  CUTAWAY   Z  SIGHT LINES   N  NET PEEK",
+		"ALT (HOLD)  INSPECT · CREW · ENEMY OUTLINES",
+		"F2  LOOK   F4  NET STYLE   H  HIDE",
+	])
+
+
+## Screen rect of a unit's portrait in the turn-order strip (Rect2() if it has none).
+## `light`: draw it as hovered (review renders, where no real mouse is over it).
+func portrait_rect(uid: int, light := false) -> Rect2:
+	for s in _init_strip.get_children():
+		if s is Slot and (s as Slot).uid == uid:
+			if light:
+				(s as Slot).hot = true
+				(s as Slot).queue_redraw()
+			return (s as Slot).get_global_rect()
+	return Rect2()
+
+
 func build_hint(text: String) -> void:
 	hint = _panel(CYAN, 0b0010)
 	var v := VBoxContainer.new()

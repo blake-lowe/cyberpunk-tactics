@@ -279,8 +279,60 @@ func set_xray(on: bool, col := Color("ff3b4f")) -> void:
 		_xray.shader = _xray_shader
 	if on:
 		_xray.set_shader_parameter("col", col)
+	_chain_passes()
+
+
+## Hold Alt: an outline round the figure (an inverted hull a fixed number of buffer pixels wide;
+## owner: no rings or glows under units).
+const OUTLINE := """
+shader_type spatial;
+render_mode unshaded, cull_front, depth_draw_never, shadows_disabled, fog_disabled;
+uniform vec4 col : source_color = vec4(1.0, 0.23, 0.31, 1.0);
+uniform float px = 1.25;
+void vertex() {
+	vec4 clip = PROJECTION_MATRIX * (MODELVIEW_MATRIX * vec4(VERTEX, 1.0));
+	vec2 cn = (PROJECTION_MATRIX * vec4(mat3(MODELVIEW_MATRIX) * NORMAL, 0.0)).xy;
+	if (length(cn) > 1e-5) {
+		clip.xy += normalize(cn) * px * 2.0 / VIEWPORT_SIZE * clip.w;
+	}
+	POSITION = clip;
+}
+void fragment() {
+	ALBEDO = col.rgb;
+}
+"""
+static var _outline_shader: Shader
+var _outline: ShaderMaterial
+var _outline_on := false
+
+
+func set_outline(on: bool, col := Color("ff3b4f")) -> void:
+	if on == _outline_on and (not on or _outline.get_shader_parameter("col") == col):
+		return
+	_outline_on = on
+	if on and _outline == null:
+		if _outline_shader == null:
+			_outline_shader = Shader.new()
+			_outline_shader.code = OUTLINE
+		_outline = ShaderMaterial.new()
+		_outline.shader = _outline_shader
+	if on:
+		_outline.set_shader_parameter("col", col)
+	_chain_passes()
+
+
+func outlined() -> bool:
+	return _outline_on
+
+
+## The body's extra passes: x-ray silhouette, then the outline.
+func _chain_passes() -> void:
+	var ol: Material = _outline if _outline_on else null
+	if _xray:
+		_xray.next_pass = ol
+	var first: Material = _xray if _xray_on else ol
 	for mt in mats:
-		mt.next_pass = _xray if on else null
+		mt.next_pass = first
 
 
 func _mat(mode: int, col: Color, src: Material) -> ShaderMaterial:
