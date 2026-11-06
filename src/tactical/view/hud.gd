@@ -452,6 +452,32 @@ class ActBtn extends Button:
 		set_process(bool(st.get("sheen", false)))
 	func _process(_dt: float) -> void:
 		queue_redraw()   # the Excellent sweep
+	## The title's lines, font and size: shrunk to fit the tile, and a long name (a weapon on the
+	## wheel) broken over two lines rather than shrunk below MIN_FS (owner: exotic faces too small).
+	func _title_layout(w: float) -> Array:
+		const MIN_FS := 13
+		var tf: Font = Hud.F_BOLD
+		var tt := title
+		var base := Hud.ts(17)   # shrink to fit long titles (WITHDRAW, SUPPRESS)
+		if not qstyle.is_empty():   # a weapon's quality typography (QualityText)
+			tt = qstyle.text
+			tf = qstyle.font if qstyle.font else tf
+			base = roundi(base * float(qstyle.scale))
+		var fit := func(ls: Array, floor_fs: int) -> int:
+			var f := base
+			while f > floor_fs and ls.any(func(l): return tf.get_string_size(l, HORIZONTAL_ALIGNMENT_LEFT, -1, f).x > w - 4):
+				f -= 1
+			return f
+		var min_fs := roundi(MIN_FS * float(qstyle.get("scale", 1.0)))   # a face with small caps (Iceland) breaks sooner
+		var fs: int = fit.call([tt], min_fs)
+		if tf.get_string_size(tt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x <= w - 4 or not tt.contains(" "):
+			return [[tt], tf, fit.call([tt], 8)]
+		var best := -1   # break at the space nearest the middle
+		for i in tt.length():
+			if tt[i] == " " and (best < 0 or absi(i - tt.length() / 2) < absi(best - tt.length() / 2)):
+				best = i
+		var two := [tt.substr(0, best), tt.substr(best + 1)]
+		return [two, tf, mini(fit.call(two, 8), base - 2)]
 	func _init(p_glyph: String, p_title: String, p_key: String, p_tint: Color, w := 66.0, h := 66.0) -> void:
 		glyph = p_glyph
 		title = p_title
@@ -470,8 +496,9 @@ class ActBtn extends Button:
 		if disabled:
 			c = Color(Hud.DIM, 0.8)
 		var w := size.x
-		var o := Vector2(w / 2, size.y * 0.4)
-		var r := minf(w, size.y) * 0.17
+		var tl := _title_layout(w)
+		var o := Vector2(w / 2, size.y * (0.4 if tl[0].size() == 1 else 0.27))
+		var r := minf(w, size.y) * (0.17 if tl[0].size() == 1 else 0.12)
 		match glyph:
 			"shot":
 				draw_arc(o, r, 0, TAU, 20, c, 2.0)
@@ -560,20 +587,18 @@ class ActBtn extends Button:
 			"end":
 				draw_colored_polygon(PackedVector2Array([o + Vector2(-r * 1.2, -r), o + Vector2(r * 0.2, 0), o + Vector2(-r * 1.2, r)]), c)
 				draw_colored_polygon(PackedVector2Array([o + Vector2(0, -r), o + Vector2(r * 1.4, 0), o + Vector2(0, r)]), c)
-		var tf: Font = Hud.F_BOLD
-		var tt := title
-		var fs := Hud.ts(17)   # shrink to fit long titles (WITHDRAW, SUPPRESS)
-		if not qstyle.is_empty():   # a weapon's quality typography (QualityText)
-			tt = qstyle.text
-			tf = qstyle.font if qstyle.font else tf
-			fs = roundi(fs * float(qstyle.scale))
-		while fs > 8 and tf.get_string_size(tt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > w - 4:
-			fs -= 1
+		var lines: Array = tl[0]
+		var tf: Font = tl[1]
+		var fs: int = tl[2]
 		var tcol := Color(Hud.TEXT, 0.45 if disabled else 1.0)
-		if qstyle.is_empty():
-			draw_string(tf, Vector2(0, size.y - 7), tt, HORIZONTAL_ALIGNMENT_CENTER, w, fs, tcol)
-		else:
-			QualityText.draw_text(self, tf, Vector2(0, size.y - 7), w, fs, tcol, qstyle)
+		for i in lines.size():
+			var y := size.y - 7 - (lines.size() - 1 - i) * (fs + 1)
+			if qstyle.is_empty():
+				draw_string(tf, Vector2(0, y), lines[i], HORIZONTAL_ALIGNMENT_CENTER, w, fs, tcol)
+			else:
+				var st := qstyle.duplicate()
+				st.text = lines[i]
+				QualityText.draw_text(self, tf, Vector2(0, y), w, fs, tcol, st)
 		if pct >= 0 and not disabled:   # live hit chance for this mode on the hovered target
 			var pc := Hud.GREEN if pct >= 65 else (Hud.GOLD if pct >= 35 else Hud.RED)
 			draw_string(Hud.F_BOLD, Vector2(4, 16), "%d%%" % pct, HORIZONTAL_ALIGNMENT_LEFT, 40, 14, pc)
@@ -1107,9 +1132,11 @@ static func stat_block(c: Combatant, full: bool, extra: Array = []) -> String:
 	out.append((K % "ARMOR") + " head SP %d · body SP %d" % [c.sp("head"), c.sp("body")])
 	var ws: Array = c.weapons if full else c.weapons.slice(0, 1)
 	for w in ws:
-		var q := "" if w.quality == "standard" else " (%s)" % w.quality.capitalize()
+		var q := QualityText.quality_note(Items.key_of_weapon(w))
 		var ap := " AP" if w.special_left > 0 and int(w.special_fx.get("ablate_sp", 1)) > 1 else ""   # a VH Pistol turret's AP rounds (Turret)
-		out.append((K % "WEAPON") + " %s%s · %dd6 · ROF %d%s" % [QualityText.bbcode(Items.key_of_weapon(w), String(w.def.name), ts(20)), q, w.dice(), w.rof(), (" · %d/%d%s" % [w.ammo, int(w.def.get("mag", 0)), ap]) if w.uses_ammo() else ""])
+		out.append((K % "WEAPON") + " %s · %dd6 · ROF %d%s" % [QualityText.bbcode(Items.key_of_weapon(w), String(w.def.name), ts(20)), w.dice(), w.rof(), (" · %d/%d%s" % [w.ammo, int(w.def.get("mag", 0)), ap]) if w.uses_ammo() else ""])
+		if q != "":   # the names carry quality as typography only; the card says it in words
+			out.append((K % "QUALITY") + " " + q)
 	if full:
 		var sk: Array = c.skills.keys().filter(func(k): return int(c.skills[k]) > 0)
 		sk.sort_custom(func(a, b): return c.skill_base(a) > c.skill_base(b))

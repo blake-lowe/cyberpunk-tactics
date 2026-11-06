@@ -12,7 +12,27 @@ func test_alternating_case_is_deterministic_and_keeps_the_letters() -> void:
 		assert_eq(a.to_lower(), s.to_lower(), "same letters, digits and spacing: " + a)
 		assert_eq(a.length(), s.length())
 	var st := QualityText.style("weapon/heavy_pistol@poor", "POOR HEAVY PISTOL")
-	assert_eq(st.text, "pOoR hEaVy PiStOl")
+	assert_eq(st.text, "hEaVy PiStOl", "the typography replaces the word Poor")
+	QualityText.poor_case_override = "lower"
+	assert_eq(QualityText.style("weapon/heavy_pistol@poor", "Poor Heavy Pistol").text, "heavy pistol", "the all-lowercase alternative")
+	QualityText.poor_case_override = ""
+
+
+func test_names_carry_no_quality_words_but_the_card_does() -> void:
+	for k in ["weapon/heavy_pistol@poor", "weapon/heavy_pistol@excellent"]:
+		var w := Items.make_weapon(k)
+		for base in [w.display_name(), w.display_name().to_upper(), "1 · " + w.display_name().to_upper(), w.display_name().to_upper() + " 8/8"]:
+			var t := String(QualityText.style(k, base).text).to_lower()
+			assert_false(t.contains("poor") or t.contains("excellent"), "%s -> %s" % [base, t])
+			assert_true(t.contains("heavy pistol"), t)
+	assert_eq(QualityText.style("gear/cyberdeck_poor", "Cyberdeck (Poor Quality)").text, "cYbErDeCk")
+	var c := Fixtures.shooter()
+	c.weapons.assign([Weapon.from_id("heavy_pistol", "poor")])
+	var card := Hud.stat_block(c, true)
+	assert_true(card.contains("QUALITY") and card.contains("Poor Quality · jams on a 1"), "the stat block states it in words")
+	c.weapons.assign([Weapon.from_id("heavy_pistol")])
+	assert_false(Hud.stat_block(c, true).contains("QUALITY"), "nothing to say for Standard")
+	assert_eq(QualityText.quality_note("weapon/smg@excellent"), "Excellent Quality · +1 to hit")
 
 
 func test_poor_colours_are_rust_and_vary_per_item() -> void:
@@ -51,10 +71,13 @@ func test_standard_is_unchanged() -> void:
 func test_excellent_has_a_sheen_and_keeps_its_text() -> void:
 	var st := QualityText.style("weapon/assault_rifle@excellent", "EXCELLENT ASSAULT RIFLE")
 	assert_true(st.sheen)
-	assert_eq(st.text, "EXCELLENT ASSAULT RIFLE")
+	assert_eq(st.text, "ASSAULT RIFLE")
 	Hud._fonts()
 	var l := QualityText.apply(UiKit.label("Excellent Assault Rifle", 15, Hud.TEXT), "weapon/assault_rifle@excellent")
 	assert_true(l.material is ShaderMaterial, "the sweep shader")
+	var fc := l.get_theme_color("font_color")
+	assert_true(fc != Hud.TEXT and fc.r > fc.b, "a faint gold at rest, so a still frame reads as Excellent")
+	assert_eq(l.text, "ASSAULT RIFLE")
 	l.free()
 	# the sweep passes once per period and rests in between
 	assert_true(QualityText.sheen_amount(50.0, 100.0, 0.45) > 0.9, "mid-sweep, mid-name")
@@ -92,6 +115,7 @@ func test_every_exotic_weapon_has_a_display_font_that_loads() -> void:
 func test_bbcode_carries_the_style() -> void:
 	var p := QualityText.bbcode("weapon/heavy_pistol@poor", "Heavy Pistol")
 	assert_true(p.begins_with("[color=#") and p.contains("hEaVy PiStOl"), p)
+	assert_true(QualityText.bbcode("weapon/heavy_pistol@excellent", "Heavy Pistol").begins_with("[color=#"), "gold at rest")
 	assert_true(QualityText.bbcode("weapon/heavy_pistol@excellent", "Heavy Pistol").contains("[sheen n=12]"))
 	assert_true(QualityText.bbcode("weapon/flamethrower", "Flamethrower").contains("[font=res://assets/fonts/"))
 	assert_eq(QualityText.bbcode("weapon/heavy_pistol", "Heavy Pistol"), "Heavy Pistol")

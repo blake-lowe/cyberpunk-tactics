@@ -11,10 +11,15 @@ extends RefCounted
 ## weapon id. One style dictionary drives every surface: a Label (apply), a RichTextLabel's BBCode
 ## (bbcode, with SheenFx installed) and custom-drawn buttons (draw_text).
 
-const SHEEN_COL := Color(1.0, 0.8, 0.38)   ## a warm glint: the UI text is already near white
+const GOLD := Color(1.0, 0.8, 0.38)
+const REST_TINT := 0.45   ## Excellent at rest: the caller's colour this far toward GOLD (reads gold between sweeps)
+const SHEEN_COL := Color(1.0, 0.99, 0.94)   ## the sweep: a bright glint over the gold
 
 ## Renders and tests pin the sweep's clock here (seconds; < 0 = the engine clock).
 static var time_override := -1.0
+## Renders and tests pick Poor's case here ("alternating" | "lower"; "" = data poor_case, or the
+## --poor-case=<x> command-line flag for review renders).
+static var poor_case_override := ""
 static var _fonts := {}
 static var _shader: Shader
 
@@ -88,13 +93,17 @@ static func is_exotic(weapon_id: String) -> bool:
 
 
 ## The style for `base` (the name as the caller would show it) of item `key`:
-## {text, colour (Color or null = keep), font (Font or null = keep), scale, sheen, quality, font_key}.
+## {text, colour (Color or null = keep), font (Font or null = keep), scale, sheen, tint (0..1
+## toward GOLD at rest), quality, font_key}. The typography replaces the quality word (owner:
+## it saves room): "Poor Heavy Pistol" shows as "hEaVy PiStOl", "Excellent ..." without the word.
 static func style(key: String, base: String) -> Dictionary:
 	var q := quality_of(key)
 	var fk := font_key(key)
-	var st := {"text": base, "colour": null, "font": null, "scale": 1.0, "sheen": q == "excellent", "quality": q, "font_key": fk}
+	if q != "standard":
+		base = strip_quality(base)
+	var st := {"text": base, "colour": null, "font": null, "scale": 1.0, "sheen": q == "excellent", "tint": REST_TINT if q == "excellent" else 0.0, "quality": q, "font_key": fk}
 	if q == "poor":
-		st.text = alt_case(base)
+		st.text = base.to_lower() if poor_case() == "lower" else alt_case(base)
 		st.colour = rust(Items.base_id(_norm(key)))
 	if fk != "":
 		var spec := family(fk)
@@ -105,9 +114,34 @@ static func style(key: String, base: String) -> Dictionary:
 	return st
 
 
+## A name without its quality words: "Poor Heavy Pistol", "EXCELLENT SMG", "Cyberdeck (Poor Quality)".
+static func strip_quality(s: String) -> String:
+	var re := RegEx.create_from_string("(?i)\\s*\\((poor|excellent) quality\\)|\\b(poor|excellent)( quality)?\\s+")
+	return re.sub(s, "", true).strip_edges()
+
+
+## The quality in words with its rule, for the one place that spells it out (the stat-block card,
+## the Armory's detail): "Poor Quality · jams on a 1", "Excellent Quality · +1 to hit"; "" if Standard.
+static func quality_note(key: String) -> String:
+	match quality_of(key):
+		"poor": return "Poor Quality · jams on a 1"   # CPR core p.342
+		"excellent": return "Excellent Quality · +1 to hit"   # CPR core p.342
+	return ""
+
+
 ## The style of a carried weapon (null or Brawling: plain).
 static func weapon_style(w: Weapon, base: String) -> Dictionary:
 	return style(Items.key_of_weapon(w) if w != null else "", base)
+
+
+## How Poor names are cased: "alternating" (default) or "lower".
+static func poor_case() -> String:
+	if poor_case_override != "":
+		return poor_case_override
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--poor-case="):
+			return a.get_slice("=", 1)
+	return String(data().get("poor_case", "alternating"))
 
 
 ## "Poor Heavy Pistol" → "pOoR hEaVy PiStOl": every other letter upper, starting lower; anything
@@ -163,6 +197,9 @@ static func apply(l: Label, key: String) -> Label:
 	l.text = st.text
 	if st.colour is Color:
 		l.add_theme_color_override("font_color", st.colour)
+	if float(st.tint) > 0.0:
+		var fc := l.get_theme_color("font_color")
+		l.add_theme_color_override("font_color", Color(fc.lerp(GOLD, float(st.tint)), fc.a))
 	var cur := l.get_theme_font("font")
 	if st.font != null:
 		l.add_theme_font_override("font", st.font)
@@ -195,6 +232,8 @@ static func bbcode(key: String, base: String, size := 0) -> String:
 			s = "[font_size=%d]%s[/font_size]" % [roundi(size * float(st.scale)), s]
 	if st.colour is Color:
 		s = "[color=#%s]%s[/color]" % [(st.colour as Color).to_html(false), s]
+	elif float(st.tint) > 0.0:
+		s = "[color=#%s]%s[/color]" % [Hud.TEXT.lerp(GOLD, float(st.tint)).to_html(false), s]
 	return s
 
 
@@ -203,6 +242,7 @@ static func bbcode(key: String, base: String, size := 0) -> String:
 static func draw_text(ci: CanvasItem, f: Font, pos: Vector2, width: float, fs: int, col: Color, st: Dictionary) -> void:
 	var text: String = st.text
 	var c: Color = Color(st.colour, col.a) if st.colour is Color else col
+	c = Color(c.lerp(GOLD, float(st.get("tint", 0.0))), c.a)
 	if not st.sheen:
 		ci.draw_string(f, pos, text, HORIZONTAL_ALIGNMENT_CENTER, width, fs, c)
 		return
@@ -256,7 +296,7 @@ uniform float sweep = 0.9;
 uniform float band = 16.0;
 uniform float strength = 0.75;
 uniform float time_override = -1.0;
-uniform vec3 sheen_col = vec3(1.0, 0.8, 0.38);
+uniform vec3 sheen_col = vec3(1.0, 0.99, 0.94);
 varying vec2 lpos;
 void vertex() {
 	lpos = VERTEX;

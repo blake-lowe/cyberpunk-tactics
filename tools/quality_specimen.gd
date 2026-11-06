@@ -5,12 +5,14 @@ extends SceneTree
 ## sheen phase (the Excellent sweep pinned at each time).
 ## timeout 180 xvfb-run -a -s "-screen 0 1400x1060x24" godot --rendering-method gl_compatibility \
 ##   --resolution 1400x1060 --path . -s tools/quality_specimen.gd -- --out=/some/dir [--times=0.2,0.45,0.7]
+## --compare-poor instead writes specimen_poor_lower.png: Poor names alternating vs all lowercase.
 
 const WEAPONS := ["heavy_pistol", "assault_rifle", "shotgun", "smg", "light_melee", "sniper_rifle"]
 
 var out := "."
 var times: Array = [0.2, 0.45, 0.7]
 var _mats: Array[ShaderMaterial] = []
+var compare_poor := false
 
 
 func _initialize() -> void:
@@ -19,6 +21,8 @@ func _initialize() -> void:
 			out = a.substr(6)
 		elif a.begins_with("--times="):
 			times = Array(a.substr(8).split(",")).map(func(x): return float(x))
+		elif a == "--compare-poor":
+			compare_poor = true
 	_run.call_deferred()
 
 
@@ -55,6 +59,10 @@ func _run() -> void:
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 6)
 	m.add_child(v)
+	if compare_poor:
+		await _poor_sheet(v)
+		quit()
+		return
 	v.add_child(_lbl("EXOTIC WEAPONS  ·  HUD 20 px caps  ·  list 15 px  ·  face (data/gen/exotic_fonts.json)", Hud.F_BOLD, 14, Hud.CYAN))
 	var ex := GridContainer.new()
 	ex.columns = 3
@@ -122,3 +130,32 @@ func _run() -> void:
 		img.save_png(p)
 		print("wrote ", p)
 	quit()
+
+
+## Poor names both ways, side by side: HUD 20 px caps and list 15 px mixed case.
+func _poor_sheet(v: VBoxContainer) -> void:
+	v.add_child(_lbl("POOR QUALITY  ·  ALTERNATING CASE  vs  ALL LOWERCASE  ·  HUD 20 px, list 15 px", Hud.F_BOLD, 14, Hud.CYAN))
+	var g := GridContainer.new()
+	g.columns = 4
+	g.add_theme_constant_override("h_separation", 36)
+	g.add_theme_constant_override("v_separation", 4)
+	v.add_child(g)
+	for h in ["ALTERNATING · HUD", "ALTERNATING · LIST", "LOWERCASE · HUD", "LOWERCASE · LIST"]:
+		g.add_child(_lbl(h, Hud.F_BOLD, 12, Hud.DIM))
+	for id in WEAPONS + ["very_heavy_pistol", "heavy_smg", "medium_melee", "grenade_launcher"]:
+		if not Weapon.can_have_quality(String(id), "poor"):
+			continue
+		var w := Weapon.from_id(String(id), "poor")
+		for mode in ["alternating", "lower"]:
+			QualityText.poor_case_override = mode
+			g.add_child(_styled(Items.key_of_weapon(w), w.display_name().to_upper(), Hud.F_TERM, 20))
+			g.add_child(_styled(Items.key_of_weapon(w), w.display_name(), Hud.F_BODY, 15, Color(Hud.TEXT, 0.9)))
+	QualityText.poor_case_override = ""
+	# the grid fills row by row: alternating HUD, alternating list, lower HUD, lower list
+	DirAccess.make_dir_recursive_absolute(out)
+	for _f in 4:
+		await process_frame
+	await RenderingServer.frame_post_draw
+	var p := out.path_join("specimen_poor_lower.png")
+	root.get_texture().get_image().save_png(p)
+	print("wrote ", p)

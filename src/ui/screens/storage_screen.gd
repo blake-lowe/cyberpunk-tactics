@@ -482,6 +482,8 @@ func _subtitle(key: String) -> String:
 		var w := Items.make_weapon(key)
 		parts.append(String(RulesDB.skill(w.skill()).get("name", w.skill())) if w.skill() != "autofire" else "Autofire")
 		parts.append("%d-handed" % int(w.def.get("hands", 1)))
+		if w.quality != "standard":   # the name shows quality as typography only
+			parts.insert(0, QualityText.quality_note(key))
 		cite = String(w.def.get("cite", ""))
 	elif Items.is_armor(key):
 		parts.append("Armor · head or body")
