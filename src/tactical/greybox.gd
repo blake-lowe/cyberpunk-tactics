@@ -248,6 +248,10 @@ var _dev_near := 0                     ## --near=n (review renders): bring the n
 var _alt_on := false                   ## Alt is held: enemy outlines, last-known marks
 var _portrait_uid := -1                ## the turn-order portrait under the mouse (-1 none)
 var _aim := {}                         ## the hovered attack's preview: shape, from, to, col, ...
+var aim_fx: AimFx                      ## ... drawn in the 3D world (the post shader pixelates it)
+var _mh := {}                          ## the melee hover: attacker node, target id, yaw to restore
+var _shot2 := ""                       ## --shot2=path (review renders): a second frame 0.15 s later
+var _shot_ms := 0
 var _last_known := {}                  ## foe unit id → the square the crew last saw them on
 var _dev_end := ""                     ## --end=won|lost|fled (review renders): the gig ends that way, the end panel shows
 var _dev_peace := false                ## --peace=broken (review renders): the crew breaks a neutral house's peace
@@ -279,6 +283,7 @@ func _ready() -> void:
 			continue
 		match kv[0]:
 			"shot": _shot_path = kv[1]
+			"shot2": _shot2 = kv[1]
 			"scene": gig.scene = kv[1]
 			"profile": gig.profile = kv[1]
 			"district": gig["district"] = kv[1]   # a Night City district (city.json): its look, and its profile unless --profile/--scene say otherwise
@@ -387,6 +392,7 @@ func _process(delta: float) -> void:
 				if not _inspected:
 					_update_hover()
 	_update_shake(delta)
+	_sync_aim_fx()
 	# hold Alt to inspect what's under the cursor (owner: a dwell timer would be annoying)
 	var alt := Input.is_key_pressed(KEY_ALT) or _inspect_demo or _alt_demo
 	if hud and alt != hud.roster_on:
@@ -481,8 +487,13 @@ func _process(delta: float) -> void:
 			enc.state = _dev_end
 			_after_action()
 		var shoot_now: bool = _frames >= 12 if not (_attack_demo or _jack_demo or _av_demo != "" or _dev_peace or _dev_end != "") else (_demo_ms > 0 and Time.get_ticks_msec() - _demo_ms >= int(_shot_delay * 1000.0 / Engine.time_scale))
-		if shoot_now:
+		if shoot_now and _shot_ms == 0:
 			get_viewport().get_texture().get_image().save_png(_shot_path)
+			_shot_ms = Time.get_ticks_msec()
+			if _shot2 == "":
+				get_tree().quit()
+		elif _shot_ms > 0 and Time.get_ticks_msec() - _shot_ms >= 150:
+			get_viewport().get_texture().get_image().save_png(_shot2)
 			get_tree().quit()
 
 
@@ -567,7 +578,7 @@ func _build_view() -> void:
 	shields.fn = _draw_cover_shields
 	hud.add_child(shields)
 	hud.move_child(shields, 0)
-	var aim := Hud.Painter.new()   # the hovered attack's line / swing / throw arc; Alt's last-known marks
+	var aim := Hud.Painter.new()   # Alt's last-known marks (the attack preview is in the 3D world: AimFx)
 	aim.fn = _draw_aim
 	hud.add_child(aim)
 	hud.move_child(aim, 0)
@@ -1957,58 +1968,100 @@ func _update_outlines() -> void:
 	for u in enc.units:
 		var n = unit_nodes.get(u.id)
 		if n is CharModel:
-			(n as CharModel).set_outline(_alt_on and not _promo and _foe(u) and not u.c.dead and _seen(u.pos), Hud.RED)
+			var melee: bool = int(_mh.get("tid", -1)) == u.id and not u.c.dead   # the melee hover's target
+			(n as CharModel).set_outline(melee or _alt_on and not _promo and _foe(u) and not u.c.dead and _seen(u.pos), Hud.RED)
 
 
-## The hovered attack's preview (_aim, set by _update_hover / _tool_hover), and with Alt held a faint
+## With Alt held, a faint
 ## mark on each enemy's last-known square while they're out of sight.
 func _draw_aim(c: Control) -> void:
 	if enc == null or _promo:
 		return
 	if _alt_on:
 		_draw_last_known(c)
-	if _aim.is_empty() or busy or not _crew_turn():
+
+
+## The hovered attack's preview in the 3D world, every frame (the muzzle and the sway move):
+## guns a thin scrolling dashed line from just ahead of the muzzle to centre mass or the head (an
+## X where it's blocked), throws the same along a parabola from the hand, melee a wind-up pose,
+## a slice on the floor toward the target and the target outlined (owner: no rings under units).
+func _sync_aim_fx() -> void:
+	if world == null or not is_instance_valid(world):
 		return
+	if aim_fx == null or not is_instance_valid(aim_fx):
+		aim_fx = AimFx.new()
+		world.add_child(aim_fx)
+	var on := enc != null and not _aim.is_empty() and not busy and not _promo and _crew_turn()
+	var shape := String(_aim.get("shape", "")) if on else ""
+	if shape != AimPreview.SWING:
+		_end_melee_hover()
+	if not on:
+		aim_fx.clear()
+		return
+	var sn: Node3D = unit_nodes.get(enc.cur.id)
 	var col: Color = _aim.col
-	var pts := PackedVector2Array()
-	var pts3: PackedVector3Array
-	match String(_aim.shape):
+	aim_fx.set_cross(false)
+	aim_fx.set_slice(false)
+	match shape:
 		AimPreview.LINE:
-			pts3 = PackedVector3Array([_aim.from, _aim.to])
-		AimPreview.SWING:
-			pts3 = AimPreview.swing_points(_aim.to, _aim.from)
+			var mz: Vector3 = _muzzle_of(sn) if sn else _aim.from
+			var fsq: Vector3i = _aim.fsq
+			if fsq != enc.cur.pos:   # leaning out of cover to fire
+				mz += Vector3(fsq.x - enc.cur.pos.x, 0, fsq.y - enc.cur.pos.y).normalized() * 0.35
+			var o := AimPreview.muzzle_origin(mz, _aim.to)
+			var paths := [[PackedVector3Array([o, _aim.to]), col]]
+			if _aim.has("stop"):   # no line of fire: it stops at what's in the way, faint beyond
+				var sp := AimPreview.stop_point(o, _aim.to, _aim.stop)
+				paths = [[PackedVector3Array([o, sp]), col], [PackedVector3Array([sp, _aim.to]), Color(Hud.RED, 0.4)]]
+				aim_fx.set_cross(true, sp)
+			aim_fx.set_paths(paths, cam.global_position, _line_width(o.lerp(_aim.to, 0.5)))
 		AimPreview.THROW:
-			pts3 = AimPreview.arc_points(_aim.from, _aim.to, AimPreview.peak_for(Vector3(_aim.to - _aim.from).length()))
-	for p in pts3:
-		if cam.is_position_behind(p):
-			return
-		pts.append(_to_screen(p))
-	if pts.size() < 2:
+			var h: Vector3 = (sn as CharModel).hand_point() if sn is CharModel else _aim.from
+			var o := AimPreview.muzzle_origin(h, _aim.to)
+			var arc := AimPreview.arc_points(o, _aim.to, AimPreview.peak_for(Vector3(_aim.to - o).length()), 24)
+			aim_fx.set_paths([[arc, col]], cam.global_position, _line_width(arc[12]))
+		AimPreview.SWING:
+			aim_fx.set_paths([], cam.global_position, 0.0)
+			_melee_hover(sn, col)
+
+
+## About one low-res buffer pixel at `p`, in world units.
+func _line_width(p: Vector3) -> float:
+	var span := cam.size if cam.projection == Camera3D.PROJECTION_ORTHOGONAL else 2.0 * cam.global_position.distance_to(p) * tan(deg_to_rad(cam.fov) * 0.5)
+	return span / maxf(1.0, float(svp.size.y)) * 1.3
+
+
+## Melee hover (BG3-style): the attacker turns to the target and holds the wind-up of their swing.
+func _melee_hover(sn: Node3D, col: Color) -> void:
+	if sn == null:
 		return
-	var shadow := Color(0, 0, 0, 0.6)
-	c.draw_polyline(pts, shadow, 5.0)
-	if String(_aim.shape) == AimPreview.LINE:
-		c.draw_polyline(pts, col, 2.0)
-		var end: Vector2 = pts[1]
-		c.draw_circle(end, 4.0, col)
-		if _aim.has("stop"):   # no line of fire: the line stops at what's in the way
-			var sp := _to_screen(_aim.stop)
-			if not cam.is_position_behind(_aim.beyond):
-				var bp := _to_screen(_aim.beyond)
-				var n := int(sp.distance_to(bp) / 10.0)
-				for i in range(0, n, 2):   # dotted on to the target it can't reach
-					c.draw_line(sp.lerp(bp, float(i) / n), sp.lerp(bp, float(i + 1) / n), Color(Hud.RED, 0.45), 1.5)
-			c.draw_line(sp + Vector2(-6, -6), sp + Vector2(6, 6), Hud.RED, 3.0)
-			c.draw_line(sp + Vector2(-6, 6), sp + Vector2(6, -6), Hud.RED, 3.0)
-	else:
-		var dash := String(_aim.shape) == AimPreview.THROW
-		for i in pts.size() - 1:
-			if not dash or i % 2 == 0:
-				c.draw_line(pts[i], pts[i + 1], col, 3.0 if not dash else 2.0)
-		var tip: Vector2 = pts[pts.size() - 1]
-		var dir: Vector2 = (tip - pts[pts.size() - 2]).normalized()
-		var side := Vector2(-dir.y, dir.x)
-		c.draw_colored_polygon(PackedVector2Array([tip + dir * 8, tip - dir * 4 + side * 6, tip - dir * 4 - side * 6]), col)
+	var tid := int(_aim.get("tid", -1))
+	if _mh.get("node") != sn or int(_mh.get("tid", -2)) != tid:
+		_end_melee_hover()
+		_mh = {"node": sn, "tid": tid, "yaw": sn.rotation.y}
+		_update_outlines()
+	var me := Vector3(sn.global_position.x, _gy(enc.cur.pos) + 0.03, sn.global_position.z)
+	var yaw := AimPreview.face_yaw(me, _aim.to)
+	sn.rotation.y = yaw
+	if sn is CharModel:
+		var wu := AimPreview.windup(String(_aim.get("wid", "brawling")))
+		(sn as CharModel).windup(wu[0], wu[1])
+	aim_fx.set_slice(true, me, yaw, Color(col, 0.9), AimPreview.SLICE_REACH_M / AimPreview.SQUARE_M)
+
+
+## The melee hover ended: back to the idle and the old facing (an attack that starts turns anyway).
+func _end_melee_hover() -> void:
+	if _mh.is_empty():
+		return
+	var n = _mh.get("node")
+	var yaw := float(_mh.yaw)
+	_mh = {}
+	if is_instance_valid(n):
+		if n is CharModel:
+			(n as CharModel).end_windup()
+		if not busy:
+			(n as Node3D).rotation.y = yaw
+	_update_outlines()
 
 
 func _draw_last_known(c: Control) -> void:
@@ -2501,19 +2554,17 @@ func _suppress() -> void:
 ## Hover feedback for the M5 tools: odds and who would be caught; the grenade shows its blast.
 ## The preview line or arc from the shooter's square to the target (a unit or a square), coloured
 ## like the odds; `stop` marks what blocks the line of fire.
-func _set_aim(shape: String, from: Vector3i, t: Variant, pct: int, stop := Vector3i(-1, -1, -1)) -> void:
+func _set_aim(shape: String, from: Vector3i, t: Variant, pct: int, stop := Vector3i(-1, -1, -1), head := false, wid := "") -> void:
 	if shape == "":
 		return
 	var tv: Vector3i = t.pos if t is Dictionary else t
-	var hand := 1.05 if shape != AimPreview.SWING else 1.0
-	var a := Vector3(from.x + 0.5, _gy(from) + hand, from.y + 0.5)
-	var b := Vector3(tv.x + 0.5, _gy(tv) + (0.95 if t is Dictionary else 0.05), tv.y + 0.5)
+	var base := Vector3(tv.x + 0.5, _gy(tv), tv.y + 0.5)
+	var b := AimPreview.aim_point(base, head) if t is Dictionary else base + Vector3(0, 0.05, 0)
 	var col := Hud.RED if pct < 0 else (Hud.GREEN if pct >= 65 else (Hud.GOLD if pct >= 35 else Hud.RED))
-	_aim = {"shape": shape, "from": a, "to": b, "col": col}
+	_aim = {"shape": shape, "from": Vector3(from.x + 0.5, _gy(from) + 1.05, from.y + 0.5), "fsq": from, "to": b, "col": col,
+		"tid": int(t.id) if t is Dictionary else -1, "wid": wid}
 	if stop.x >= 0 and shape == AimPreview.LINE:
-		_aim.to = Vector3(stop.x + 0.5, _gy(stop) + hand, stop.y + 0.5)
-		_aim["stop"] = _aim.to
-		_aim["beyond"] = b
+		_aim["stop"] = Vector3(stop.x + 0.5, 0, stop.y + 0.5)
 
 
 func _tool_hover() -> void:
@@ -2555,7 +2606,7 @@ func _tool_hover() -> void:
 				return
 			var mw := enc.melee_weapon(c)
 			var p := enc.preview(t, mw, Attack.Mode.SINGLE)
-			_set_aim(AimPreview.SWING, enc.cur.pos, t, roundi(p.chance * 100) if p.ok else -1)
+			_set_aim(AimPreview.SWING, enc.cur.pos, t, roundi(p.chance * 100) if p.ok else -1, Vector3i(-1, -1, -1), false, mw.id())
 			hud.tip(("[code][font_size=44]%d%%[/font_size][/code]  %s · %dd6" % [roundi(p.chance * 100), mw.def.name, mw.dice()]) if p.ok else "[color=#ff3b4f]%s[/color]" % String(p.reason).capitalize(), mouse, "// MELEE", Hud.CYAN)
 		"shell":
 			if t.is_empty() or enc.allied(t.team, enc.cur.team):
@@ -3700,7 +3751,7 @@ func _anim_attack(e: Dictionary) -> void:
 	if wid == "brawling" or wid.begins_with("martial") or wid.ends_with("_melee"):
 		await _anim_melee(e, su, tu, sn, tn, wid)
 		return
-	sn.set_meta("aim_at", _body_pos(tu) + Vector3(0, 0.95 if String(e.get("location", "body")) == "head" else 0.72, 0))   # before the weapon comes up
+	sn.set_meta("aim_at", AimPreview.aim_point(_body_pos(tu), String(e.get("location", "body")) == "head"))   # before the weapon comes up
 	var d := Vector2(tu.pos.x - su.pos.x, tu.pos.y - su.pos.y)
 	# lean out of cover toward the firing square
 	var home := sn.position
@@ -3712,7 +3763,7 @@ func _anim_attack(e: Dictionary) -> void:
 	_turn_to(sn, atan2(d.x, d.y), 0.12)
 	create_tween().tween_method(func(v: float): sn.set_meta("aim", v), float(sn.get_meta("aim", 0.0)), 1.0, 0.1)
 	await get_tree().create_timer(0.18).timeout
-	var aim := _body_pos(tu) + Vector3(0, 0.95 if String(e.get("location", "body")) == "head" else 0.72, 0) * 1.0
+	var aim := AimPreview.aim_point(_body_pos(tu), String(e.get("location", "body")) == "head")
 	sn.set_meta("aim_at", aim)
 	var rounds: int = int(e.get("rounds", 1)) if int(e.mode) == Attack.Mode.AUTOFIRE else 1
 	var connect: int = (int(e.get("mult", 1)) if int(e.mode) == Attack.Mode.AUTOFIRE else 1) if (e.hit and not e.dodged) else 0
@@ -4344,13 +4395,13 @@ func _update_hover() -> void:
 			hud.tip("", mouse)
 		return
 	target_ring.visible = false   # no rings under units (owner)
-	if not busy and unit_nodes.has(enc.cur.id):   # the active unit turns to aim at the hovered target
+	var w: Weapon = enc.cur.c.weapons[0]
+	if not busy and unit_nodes.has(enc.cur.id) and AimPreview.for_weapon(w) != AimPreview.SWING:   # the active unit turns to aim at the hovered target (melee: the wind-up turns it)
 		var dd := Vector2(t.pos.x - enc.cur.pos.x, t.pos.y - enc.cur.pos.y)
 		(unit_nodes[enc.cur.id] as Node3D).rotation.y = atan2(dd.x, dd.y)
 	target_ring.position = Vector3(t.pos.x + 0.5, _gy(t.pos) + 0.04, t.pos.y + 0.5)
-	var w: Weapon = enc.cur.c.weapons[0]
 	var p := enc.preview(t, w, mode)
-	_set_aim(AimPreview.for_weapon(w), p.from if p.ok else enc.cur.pos, t, roundi(p.chance * 100) if p.ok else -1, p.blocker if not p.ok else Vector3i(-1, -1, -1))
+	_set_aim(AimPreview.for_weapon(w), p.from if p.ok else enc.cur.pos, t, roundi(p.chance * 100) if p.ok else -1, p.blocker if not p.ok else Vector3i(-1, -1, -1), mode == Attack.Mode.AIMED_HEAD, w.id())
 	var pcts := {}
 	for m in Encounter.attack_modes(w):   # hit chance per attack, shown on the bar's buttons
 		if ATK_ENUM.has(m):
