@@ -12,9 +12,10 @@ func test_alternating_case_is_deterministic_and_keeps_the_letters() -> void:
 		assert_eq(a.to_lower(), s.to_lower(), "same letters, digits and spacing: " + a)
 		assert_eq(a.length(), s.length())
 	var st := QualityText.style("weapon/heavy_pistol@poor", "POOR HEAVY PISTOL")
-	assert_eq(st.text, "hEaVy PiStOl", "the typography replaces the word Poor")
-	QualityText.poor_case_override = "lower"
-	assert_eq(QualityText.style("weapon/heavy_pistol@poor", "Poor Heavy Pistol").text, "heavy pistol", "the all-lowercase alternative")
+	assert_eq(st.text, "heavy pistol", "the typography replaces the word Poor; lowercase by default (owner)")
+	assert_eq(QualityText.poor_case(), "lower")
+	QualityText.poor_case_override = "alternating"
+	assert_eq(QualityText.style("weapon/heavy_pistol@poor", "Poor Heavy Pistol").text, "hEaVy PiStOl", "the alternating alternative")
 	QualityText.poor_case_override = ""
 
 
@@ -25,7 +26,7 @@ func test_names_carry_no_quality_words_but_the_card_does() -> void:
 			var t := String(QualityText.style(k, base).text).to_lower()
 			assert_false(t.contains("poor") or t.contains("excellent"), "%s -> %s" % [base, t])
 			assert_true(t.contains("heavy pistol"), t)
-	assert_eq(QualityText.style("gear/cyberdeck_poor", "Cyberdeck (Poor Quality)").text, "cYbErDeCk")
+	assert_eq(QualityText.style("gear/cyberdeck_poor", "Cyberdeck (Poor Quality)").text, "cyberdeck")
 	var c := Fixtures.shooter()
 	c.weapons.assign([Weapon.from_id("heavy_pistol", "poor")])
 	var card := Hud.stat_block(c, true)
@@ -95,7 +96,7 @@ func test_every_exotic_weapon_has_a_display_font_that_loads() -> void:
 		var fk := QualityText.font_key(String(id))
 		assert_true(fk != "", "%s has a font in exotic_fonts.json" % id)
 		var f := QualityText.font(fk)
-		assert_true(f is FontFile, "%s's font %s loads" % [id, fk])
+		assert_true(f is Font, "%s's font %s loads" % [id, fk])
 		assert_true(f.has_char("A".unicode_at(0)) and f.has_char("a".unicode_at(0)) and f.has_char("3".unicode_at(0)), fk + " has letters and figures")
 		assert_true(f.get_string_size(String(RulesDB.weapon(String(id)).name), HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x > 20.0, fk + " measures")
 		fonts[fk] = true
@@ -108,13 +109,18 @@ func test_every_exotic_weapon_has_a_display_font_that_loads() -> void:
 	assert_false(QualityText.font_credits().is_empty(), "the faces are credited")
 	for id in QualityText.exotic_data().weapons:
 		assert_true(QualityText.is_exotic(String(id)), "%s in exotic_fonts.json is an exotic weapon" % id)
-	assert_eq(QualityText.style("tsunami_helix", "TSUNAMI ARMS HELIX").text, "Tsunami Arms Helix", "blackletter in title case")
-	assert_eq(QualityText.style("weapon/microwaver", "MICROWAVER").text, "MICROWAVER")
+	assert_eq(QualityText.style("flamethrower", "FLAMETHROWER").text, "Flamethrower", "blackletter in Title Case")
+	assert_eq(QualityText.style("tsunami_helix", "TSUNAMI ARMS HELIX").text, "Tsunami Arms Helix", "serif italic in Title Case")
+	assert_eq(QualityText.style("weapon/microwaver", "Microwaver").text, "MICROWAVER", "Racing Sans One in caps")
+	assert_eq(QualityText.style("weapon/stun_gun", "Stun Gun").text, "STUN GUN", "Iceland in caps")
+	var pf := QualityText.font(QualityText.font_key("tsunami_helix"))
+	assert_true(pf is FontVariation and int((pf as FontVariation).variation_opentype.get(TextServerManager.get_primary_interface().name_to_tag("wght"), 0)) == 500, "Playfair Display Italic at weight 500")
+	assert_true(FileAccess.file_exists("res://assets/fonts/OFL-playfairdisplay.txt"))
 
 
 func test_bbcode_carries_the_style() -> void:
 	var p := QualityText.bbcode("weapon/heavy_pistol@poor", "Heavy Pistol")
-	assert_true(p.begins_with("[color=#") and p.contains("hEaVy PiStOl"), p)
+	assert_true(p.begins_with("[color=#") and p.contains("heavy pistol"), p)
 	assert_true(QualityText.bbcode("weapon/heavy_pistol@excellent", "Heavy Pistol").begins_with("[color=#"), "gold at rest")
 	assert_true(QualityText.bbcode("weapon/heavy_pistol@excellent", "Heavy Pistol").contains("[sheen n=12]"))
 	assert_true(QualityText.bbcode("weapon/flamethrower", "Flamethrower").contains("[font=res://assets/fonts/"))

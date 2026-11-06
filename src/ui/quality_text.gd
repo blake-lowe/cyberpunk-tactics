@@ -109,8 +109,9 @@ static func style(key: String, base: String) -> Dictionary:
 		var spec := family(fk)
 		st.font = font(fk)
 		st.scale = float(spec.get("scale", 1.0))
-		if String(spec.get("case", "")) == "title":
-			st.text = title_case(base)
+		match String(spec.get("case", "")):   # per face, over the caller's case (the HUD uppercases names)
+			"title": st.text = title_case(st.text)
+			"upper": st.text = String(st.text).to_upper()
 	return st
 
 
@@ -179,12 +180,14 @@ static func rust(id: String) -> Color:
 	return Color.from_hsv(_lerp(r.hue, _hash01(id, 1)), _lerp(r.sat, _hash01(id, 2)), _lerp(r.val, _hash01(id, 3)))
 
 
-## An exotic display face, imported (load(), like Hud's fonts: exports don't ship the raw .ttf),
-## falling back to the HUD's bold sans for any glyph it lacks.
+## An exotic display face, imported (load(), like Hud's fonts: exports don't ship the raw .ttf;
+## a .tres FontVariation picks a weight of a variable font), falling back to the HUD's bold sans
+## for any glyph it lacks.
 static func font(fk: String) -> Font:
 	if not _fonts.has(fk):
-		var f := (load(font_path(fk)) as FontFile).duplicate() as FontFile
-		f.hinting = TextServer.HINTING_LIGHT
+		var f := (load(font_path(fk)) as Font).duplicate() as Font
+		if f is FontFile:
+			(f as FontFile).hinting = TextServer.HINTING_LIGHT
 		if Hud.F_BOLD:
 			f.fallbacks = [Hud.F_BOLD]
 		_fonts[fk] = f

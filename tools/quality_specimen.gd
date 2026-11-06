@@ -95,7 +95,7 @@ func _run() -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	v.add_child(row)
-	for k in ["heavy_pistol@poor", "heavy_pistol", "assault_rifle@excellent", "malorian_arms_3516", "microwaver", "stun_baton", "flamethrower"]:
+	for k in ["heavy_pistol@poor", "heavy_pistol", "assault_rifle@excellent", "malorian_arms_3516", "microwaver", "tsunami_helix", "flamethrower"]:
 		var w := Items.make_weapon("weapon/" + k)
 		var b := Hud.ActBtn.new("melee" if w.is_melee() else "shot", w.display_name().to_upper(), "TAB 1/3", Hud.GOLD, 150, 66)
 		b.set_quality(QualityText.weapon_style(w, w.display_name().to_upper()))
