@@ -2,54 +2,52 @@ class_name CityMap
 extends Control
 ## The CITY tab's schematic of Night City (M9 P3), drawn from data/world/city.json `map`: our own
 ## stylised trace, not the book's map art. Dark land, near-black hatched water; each district a
-## neon-edged polygon tinted by its Security Code as the crew feels it (blue = low, help rarely
-## comes; teal to orange to hot red = high, it nearly always does, NC2045 p.7); NCART lines as thin
-## side-by-side paths with station nodes; bridges as double strokes. Every district has a two-line
-## label ("WATSON DEVELOPMENT" / "7 · NCPD · H-MED": code, responder, Hardened intensity): under its
-## anchor where there's room, else a callout in the gutter beside the city with a leader line.
-## Job offers are gold diamonds at their district (numbered in the board's order); the crew's
-## safehouse, when the campaign has one, a white house.
-## Emits `hovered` when the thing under the mouse changes, `clicked` on a click.
+## neutral, cyan-edged polygon named by its label (under its anchor where there's room, else a
+## callout in the gutter beside the city with a leader line); bridges as double strokes. No
+## security or faction information (owner playtest: a clean map with names).
+## The crew's safehouse is a white house. With a gig selected (`select_gig`) the map plots the drive
+## from the safehouse district to the gig's district (Travel.route: the quickest chain of
+## neighbouring districts), pins the gig as a gold diamond and animates the route: a line that
+## draws itself through the districts crossed with a marker running along it, over ROUTE_TIME s
+## (a Tween on `route_t`), then the drive time (Travel.label) beside the pin.
+## Hover only highlights (a redraw; nothing resizes). Emits `clicked` on a click.
 
-signal hovered(kind: String, id: String)   ## kind: "district", "pin" (id = board index) or "" (nothing)
-signal clicked(kind: String, id: String)
+signal clicked(kind: String, id: String)   ## kind: "district", "pin" (id = board index) or "" (nothing)
 
 const PAD := 12.0            ## world units round the city in the fitted view
 const GUTTER := 175.0        ## px kept free either side of the city for callout labels
 const NAME_SIZE := 12
-const CODE_SIZE := 11
-const LABEL_H := 27.0
+const LABEL_H := 17.0
 const PIN := 7.0             ## pin half-size, px
+const ROUTE_TIME := 1.0      ## s for the route to draw itself
 const LAND := Color("111820")
 const WATER := Color("04070b")
 const COAST := Color(0.02, 0.85, 0.91, 0.35)
 const INK_DARK := Color("05080c")
-## A code → tint, read from the crew's side: cool blue (low: a response rarely comes, NC2045 p.7)
-## through teal to orange and hot red (high: it almost always does). The same ramp colours a
-## Utility Code, where high is bad too (each utility out more often, p.8). No yellow or green in
-## the ramp: gold is the job pins' (and selection's) colour, green is health.
-const RAMP := ["5f7cff", "4f88ff", "3d95ff", "17b5f2", "05d9e8", "2fd3bf", "ff9a3c", "ff7f2a", "ff5a3c", "ff3b4f", "ff1f55"]
-const LINES := {"red": ["RED LINE", "ff5470"], "green": ["GREEN LINE", "39f0a0"], "blue": ["BLUE LINE", "3d7bff"],
-	"orange": ["ORANGE LINE", "ff9a3c"], "exec_monorail": ["EXEC MONORAIL", "d8dee6"]}
-const LINE_OFFSET := {"red": -1.5, "green": -0.5, "blue": 0.5, "orange": 1.5, "exec_monorail": 2.5}
-## Faction names too long for a map label.
-const SHORT := {"san_luis_obispo_county_sheriff": "SLO SHERIFF", "norcal_cog_military_police": "NORCAL MP",
-	"ncu_campus_security": "NCU SECURITY"}
+const FILL := Color("18222d")
+const EDGE := Color(0.02, 0.85, 0.91, 0.55)
 
 var camp: Campaign
 var hover_kind := ""
 var hover_id := ""
-var locked := ""          ## a clicked district: gold edge, the panel stays on it
+var gig := -1             ## the selected board index (-1: none, the map shows only the safehouse)
+var route: Array[String] = []        ## the districts the drive crosses, safehouse first
+var route_t := 1.0:       ## how much of the route is drawn (0..1); the Tween runs it
+	set(v):
+		route_t = v
+		queue_redraw()
 var scale_px := 1.0       ## px per world unit
 var origin := Vector2.ZERO
-var labels := {}          ## district id → {rect: Rect2 (name over code), anchor: Vector2 (px), align: -1/0/1, callout: bool}
-var pins: Array[Dictionary] = []   ## {index, district, pos: Vector2 (local px)}
+var labels := {}          ## district id → {rect: Rect2, anchor: Vector2 (px), align: -1/0/1, callout: bool}
+var pins: Array[Dictionary] = []   ## the selected gig's pin: {index, district, pos: Vector2 (local px)}
 var homes: Array[Vector2] = []     ## the safehouse marker
 var safehouse := ""       ## the crew's safehouse district, if the campaign has one
 var _polys := {}          ## district id → PackedVector2Array (local px)
 var _fills := {}          ## district id → Array[PackedVector2Array] (pieces the renderer can fill)
 var _water: Array[PackedVector2Array] = []
 var _hatch: Array[PackedVector2Array] = []
+var _route_px := PackedVector2Array()   ## the route in local px: house, the districts' anchors, pin
+var _tw: Tween
 var _laid_for := Vector2.ZERO
 
 
@@ -61,6 +59,57 @@ func setup(p_camp: Campaign) -> CityMap:
 	clip_contents = true
 	resized.connect(func(): layout(); queue_redraw())
 	return self
+
+
+## Plot board offer `i` (-1 clears it): its route from the safehouse, its pin, and the animation
+## from the start (a new pick restarts it).
+func select_gig(i: int) -> void:
+	gig = i if camp and i >= 0 and i < camp.board.size() else -1
+	route.clear()
+	if gig >= 0 and safehouse != "":
+		route = Travel.route(safehouse, String(camp.board[gig].get("district", "")))
+	_place_marks()
+	if _tw:
+		_tw.kill()
+		_tw = null
+	if gig >= 0 and is_inside_tree():
+		route_t = 0.0
+		_tw = create_tween()
+		_tw.tween_property(self, "route_t", 1.0, ROUTE_TIME).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	else:
+		route_t = 1.0
+	queue_redraw()
+
+
+## The drive's polyline in map (world) units: the anchor of each district Travel.route crosses,
+## from `from` to `to` ([] when there's no route; one point when they're the same district).
+static func route_points(from: String, to: String) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	for d in Travel.route(from, to):
+		out.append(anchor(d))
+	return out
+
+
+## The first `t` (0..1) of a polyline by length: the part drawn so far, its last point the marker.
+static func trace(pts: PackedVector2Array, t: float) -> PackedVector2Array:
+	if pts.size() < 2 or t >= 1.0:
+		return pts
+	var total := 0.0
+	for i in pts.size() - 1:
+		total += pts[i].distance_to(pts[i + 1])
+	var left := maxf(0.0, t) * total
+	var out := PackedVector2Array([pts[0]])
+	for i in pts.size() - 1:
+		var seg := pts[i].distance_to(pts[i + 1])
+		if left <= seg:
+			if left > 0.0:
+				out.append(pts[i].lerp(pts[i + 1], left / seg))
+			return out
+		left -= seg
+		out.append(pts[i + 1])
+	return out
+
+
 
 
 # --- Data -----------------------------------------------------------------------------------
@@ -79,42 +128,6 @@ static func outline(id: String) -> PackedVector2Array:
 static func anchor(id: String) -> Vector2:
 	var m: Dictionary = city_map().districts.get(id, {})
 	return Vector2(float(m.get("x", 0)), float(m.get("y", 0)))
-
-
-static func code_of(id: String) -> int:
-	return int((World.district(id).get("security_code", {}) as Dictionary).get("n", 5))
-
-
-static func code_colour(n: int) -> Color:
-	return Color(RAMP[clampi(n, 0, RAMP.size() - 1)])
-
-
-## "NCPD", "WHITEWATER", "SLO SHERIFF": a faction short enough for a map label.
-static func short_faction(id: String) -> String:
-	if SHORT.has(id):
-		return SHORT[id]
-	var n := SecurityCode.faction_name(id).to_upper().trim_prefix("THE ")
-	var paren := RegEx.create_from_string("\\(([A-Z0-9]+)\\)").search(n)
-	if paren:
-		return paren.get_string(1)
-	if n.length() <= 12:
-		return n
-	var words := n.split(" ", false)
-	return words[0] if words[0].length() >= 4 or words.size() < 2 else words[0] + " " + words[1]
-
-
-## "7 · NCPD · H-MED" (the district's Security Code, who holds it, and its intensity, H- for Hardened).
-static func code_line(id: String) -> String:
-	var c: Dictionary = World.district(id).get("security_code", {})
-	return short_code(c)
-
-
-## A code in a map label's space: "7 · NCPD · H-MED" ("" for none).
-static func short_code(code: Variant) -> String:
-	var c := SecurityCode.normalise(code)
-	if c.is_empty():
-		return ""
-	return "%d · %s · %s" % [int(c.n), short_faction(String(c.faction)), SecurityCode.short_intensity(c)]
 
 
 static func district_name(id: String) -> String:
@@ -220,22 +233,24 @@ static func fill_polys(poly: PackedVector2Array) -> Array[PackedVector2Array]:
 	return out
 
 
-## Job pins (and the safehouse) just above their district's anchor, side by side when several.
+## The safehouse and the selected gig's pin just above their district's anchor (side by side when
+## they share one), and the route between them in local px. Labels don't depend on these: every
+## anchor keeps room for its marks (`_mark_zone`), so a new pick never moves a label.
 func _place_marks() -> void:
 	pins.clear()
 	homes.clear()
+	_route_px = PackedVector2Array()
+	if _polys.is_empty():
+		return
 	var per: Dictionary = {}
-	if camp:
-		for i in camp.board.size():
-			var d := String(camp.board[i].get("district", ""))
-			if World.districts().has(d):
-				if not per.has(d):
-					per[d] = []
-				(per[d] as Array).append(i)
 	if safehouse != "":
-		if not per.has(safehouse):
-			per[safehouse] = []
-		(per[safehouse] as Array).push_front(-1)
+		per[safehouse] = [-1]
+	if gig >= 0:
+		var d := String(camp.board[gig].get("district", ""))
+		if World.districts().has(d):
+			if not per.has(d):
+				per[d] = []
+			(per[d] as Array).append(gig)
 	for id in per:
 		var marks: Array = per[id]
 		var a := to_local_px(anchor(String(id)))
@@ -246,6 +261,17 @@ func _place_marks() -> void:
 				pins.append({"index": int(marks[k]), "district": String(id), "pos": at})
 			else:
 				homes.append(at)
+	if route.is_empty() or homes.is_empty() or pins.is_empty():
+		return
+	_route_px.append(homes[0])
+	for k in range(1, route.size() - 1):
+		_route_px.append(to_local_px(anchor(route[k])))
+	_route_px.append(pins[0].pos)
+
+
+## The room a district's anchor keeps for the safehouse and a gig pin above it.
+static func _mark_zone(a: Vector2) -> Rect2:
+	return Rect2(a + Vector2(-PIN * 2 - 3, -PIN * 2 - 6), Vector2(PIN * 4 + 6, PIN * 2 + 10))
 
 
 ## Labels: a district's label goes just under its anchor (else just above) when it fits inside the
@@ -262,17 +288,12 @@ func _place_labels() -> void:
 	var obstacles: Array[Rect2] = []
 	for id in city_map().districts:
 		if id != "outskirts":
-			obstacles.append(Rect2(to_local_px(anchor(String(id))) - Vector2(4, 4), Vector2(8, 8)))
-	for pin in pins:
-		obstacles.append(Rect2(pin.pos - Vector2(PIN, PIN), Vector2(PIN, PIN) * 2))
-	for h in homes:
-		obstacles.append(Rect2(h - Vector2(PIN, PIN), Vector2(PIN, PIN) * 2))
+			obstacles.append(_mark_zone(to_local_px(anchor(String(id)))))
 	var placed: Array[Rect2] = []
 	var callouts := {-1: [], 1: []}
 	var view := Rect2(Vector2(4, 30), size - Vector2(8, 30 + 8))
 	for id in draw_order():
-		var w := maxf(nf.get_string_size(district_name(id), HORIZONTAL_ALIGNMENT_LEFT, -1, NAME_SIZE).x,
-			nf.get_string_size(code_line(id), HORIZONTAL_ALIGNMENT_LEFT, -1, CODE_SIZE).x) + 8
+		var w := nf.get_string_size(district_name(id), HORIZONTAL_ALIGNMENT_LEFT, -1, NAME_SIZE).x + 10
 		var sz := Vector2(w, LABEL_H)
 		var a := to_local_px(anchor(id))
 		if id == "outskirts":   # the land round the city: bottom right, clear of everything
@@ -280,7 +301,7 @@ func _place_labels() -> void:
 			labels[id] = {"rect": r, "anchor": a, "align": 0, "callout": false}
 			placed.append(r)
 			continue
-		var above := PIN * 2 + 14 if _has_marks(id) else 6.0
+		var above := PIN * 2 + 10
 		var done := false
 		for r in [Rect2(a + Vector2(-w / 2, 6), sz), Rect2(a + Vector2(-w / 2, -above - LABEL_H), sz)]:
 			if _fits(r, span, view, placed, obstacles, a):
@@ -293,14 +314,14 @@ func _place_labels() -> void:
 			(callouts[side] as Array).append([id, sz, a])
 	for side in callouts:
 		var items: Array = callouts[side]
-		var col_x := (span.position.x - 14) if side < 0 else (span.end.x + 14)
+		var col_x := (span.position.x - 20) if side < 0 else (span.end.x + 20)   # knees clear of in-city labels (up to 6 px past the span)
 		for it in items:   # each leader ends inside its own district, clear of the labels in the city
 			var aim := _leader_target(String(it[0]), Vector2(col_x, (it[2] as Vector2).y), placed)
 			it[2] = aim[0]
 			it.append(aim[1])
 		items.sort_custom(func(p, q): return (p[2] as Vector2).y < (q[2] as Vector2).y)
 		var top := 34.0 if side < 0 else 44.0
-		var bottom := size.y - (66.0 if side < 0 else LABEL_H + 22.0)   # clear of the key (left) and the Outskirts (right)
+		var bottom := size.y - (12.0 if side < 0 else LABEL_H + 22.0)   # clear of the Outskirts (right)
 		var tops: Array[float] = []
 		var prev := top - 3
 		for it in items:   # down the column in target order, then pulled back up from the bottom
@@ -518,10 +539,6 @@ func _untangle(items: Array, rects: Array[Rect2], side: int, placed: Array[Rect2
 			return
 
 
-func _has_marks(id: String) -> bool:
-	return id == safehouse or pins.any(func(p): return p.district == id)
-
-
 func _fits(r: Rect2, span: Rect2, view: Rect2, placed: Array[Rect2], obstacles: Array[Rect2], own: Vector2) -> bool:
 	if not view.encloses(r) or r.position.x < span.position.x - 6 or r.end.x > span.end.x + 6:
 		return false
@@ -532,114 +549,6 @@ func _fits(r: Rect2, span: Rect2, view: Rect2, placed: Array[Rect2], obstacles: 
 		if o.intersects(r) and not o.has_point(own):
 			return false
 	return true
-
-
-# --- Hover and clicks -----------------------------------------------------------------------
-
-## What's under a local point: ["pin", "<board index>"], ["district", id] or ["", ""] (water, void).
-## A label counts as its district.
-func pick(p: Vector2) -> Array:
-	for pin in pins:
-		if p.distance_to(pin.pos) <= PIN + 3:
-			return ["pin", str(pin.index)]
-	for id in labels:
-		if (labels[id].rect as Rect2).has_point(p):
-			return ["district", String(id)]
-	for w in _water:
-		if Geometry2D.is_point_in_polygon(p, w):
-			return ["", ""]
-	var best := ""
-	var best_r := INF
-	for id in _polys:
-		if Geometry2D.is_point_in_polygon(p, _polys[id]):
-			var r := float(city_map().districts[id].r)
-			if r < best_r:
-				best_r = r
-				best = String(id)
-	return ["district", best] if best != "" else ["", ""]
-
-
-func _gui_input(ev: InputEvent) -> void:
-	if ev is InputEventMouseMotion:
-		var h := pick((ev as InputEventMouseMotion).position)
-		set_hover(h[0], h[1])
-		mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if h[0] != "" else Control.CURSOR_ARROW
-	elif ev is InputEventMouseButton and ev.pressed and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
-		var h := pick((ev as InputEventMouseButton).position)
-		if h[0] == "district":
-			locked = "" if locked == h[1] else String(h[1])
-		elif h[0] == "":
-			locked = ""
-		queue_redraw()
-		clicked.emit(h[0], h[1])
-
-
-func _notification(what: int) -> void:
-	if what == NOTIFICATION_MOUSE_EXIT:
-		set_hover("", "")
-
-
-func set_hover(kind: String, id: String) -> void:
-	if kind == hover_kind and id == hover_id:
-		return
-	hover_kind = kind
-	hover_id = id
-	queue_redraw()
-	hovered.emit(kind, id)
-
-
-## The district the view is about: the one under the mouse, else the locked one.
-func focus() -> String:
-	if hover_kind == "district":
-		return hover_id
-	if hover_kind == "pin" and camp and int(hover_id) < camp.board.size():
-		return String(camp.board[int(hover_id)].get("district", ""))
-	return locked
-
-
-# --- Drawing --------------------------------------------------------------------------------
-
-func _draw() -> void:
-	if _laid_for != size:
-		layout()
-	if _polys.is_empty():
-		return
-	draw_rect(Rect2(Vector2.ZERO, size), LAND)
-	var f := focus()
-	for id in draw_order():
-		var on := id == f or id == locked
-		var col := Color("17202a") if id == "outskirts" else Color(code_colour(code_of(id)), 0.30 if on else 0.13)
-		if id == "outskirts" and not on:
-			col = Color("0e141b")
-		for piece in _fills[id]:
-			draw_colored_polygon(piece, col)
-	_draw_grid()
-	for id in draw_order():
-		var poly := _closed(_polys[id])
-		if id == "outskirts":
-			draw_polyline(poly, Color(Hud.DIM, 0.3), 1.0, true)
-			continue
-		var col := code_colour(code_of(id))
-		draw_polyline(poly, Color(col, 0.12), 5.0, true)
-		draw_polyline(poly, Color(col, 0.75), 1.2, true)
-	for id in [f, locked]:
-		if id != "" and _polys.has(id):
-			var hi := Hud.GOLD if id == locked else code_colour(code_of(id)).lightened(0.4)
-			if id == "outskirts" and id != locked:
-				hi = Hud.TEXT
-			draw_polyline(_closed(_polys[id]), Color(hi, 0.25), 6.0, true)
-			draw_polyline(_closed(_polys[id]), hi, 2.0, true)
-	for w in _water:
-		draw_colored_polygon(w, WATER)
-	for seg in _hatch:
-		draw_polyline(seg, Color(Hud.CYAN, 0.06), 1.0)
-	for w in _water:
-		draw_polyline(_closed(w), COAST, 1.0, true)
-	_draw_bridges()
-	_draw_ncart()
-	_draw_labels(f)
-	_draw_pins()
-	_draw_frame()
 
 
 static func _closed(p: PackedVector2Array) -> PackedVector2Array:
@@ -696,82 +605,149 @@ static func _nearest_on(poly: PackedVector2Array, p: Vector2) -> Vector2:
 	return best
 
 
-## The NCART lines (p.28) through their districts' anchors in station order, side by side like a
-## transit map, with a station node at each stop.
-func _draw_ncart() -> void:
-	var lines: Dictionary = city_map().get("ncart", {})
-	for key in lines:
-		var pts := PackedVector2Array()
-		for d in lines[key]:
-			pts.append(to_local_px(anchor(String(d))))
-		pts = _offset(pts, float(LINE_OFFSET.get(key, 0.0)) * 3.0)
-		var col := Color(String(LINES.get(key, ["", "c8d0d8"])[1]))
-		if key == "exec_monorail":
-			for i in pts.size() - 1:
-				draw_dashed_line(pts[i], pts[i + 1], Color(col, 0.6), 1.2, 4.0, true, true)
-		else:
-			draw_polyline(pts, Color(col, 0.16), 4.0, true)
-			draw_polyline(pts, Color(col, 0.85), 1.5, true)
-		for p in pts:
-			draw_circle(p, 2.4, INK_DARK)
-			draw_circle(p, 2.4, col, false, 1.1, true)
+
+# --- Hover and clicks -----------------------------------------------------------------------
+
+## What's under a local point: ["pin", "<board index>"], ["district", id] or ["", ""] (water, void).
+## A label counts as its district.
+func pick(p: Vector2) -> Array:
+	for pin in pins:
+		if p.distance_to(pin.pos) <= PIN + 3:
+			return ["pin", str(pin.index)]
+	for id in labels:
+		if (labels[id].rect as Rect2).has_point(p):
+			return ["district", String(id)]
+	for w in _water:
+		if Geometry2D.is_point_in_polygon(p, w):
+			return ["", ""]
+	var best := ""
+	var best_r := INF
+	for id in _polys:
+		if Geometry2D.is_point_in_polygon(p, _polys[id]):
+			var r := float(city_map().districts[id].r)
+			if r < best_r:
+				best_r = r
+				best = String(id)
+	return ["district", best] if best != "" else ["", ""]
 
 
-## The polyline moved sideways by `o` px (a miter at each joint).
-static func _offset(pts: PackedVector2Array, o: float) -> PackedVector2Array:
-	if is_zero_approx(o) or pts.size() < 2:
-		return pts
-	var out := PackedVector2Array()
-	for i in pts.size():
-		var n := Vector2.ZERO
-		if i > 0 and pts[i] != pts[i - 1]:
-			n += (pts[i] - pts[i - 1]).normalized().orthogonal()
-		if i < pts.size() - 1 and pts[i + 1] != pts[i]:
-			n += (pts[i + 1] - pts[i]).normalized().orthogonal()
-		n = n.normalized() if n.length() > 0.2 else n
-		out.append(pts[i] + n * o)
-	return out
+func _gui_input(ev: InputEvent) -> void:
+	if ev is InputEventMouseMotion:
+		var h := pick((ev as InputEventMouseMotion).position)
+		set_hover(h[0], h[1])
+		mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if h[0] == "pin" else Control.CURSOR_ARROW
+	elif ev is InputEventMouseButton and ev.pressed and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
+		var h := pick((ev as InputEventMouseButton).position)
+		clicked.emit(h[0], h[1])
 
 
-func _draw_labels(f: String) -> void:
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_MOUSE_EXIT:
+		set_hover("", "")
+
+
+## Hover is a highlight only: a redraw, never a relayout (owner playtest: the old hover rebuilt the
+## side panel, whose width changed the map's, which moved the labels under the mouse, and so on).
+func set_hover(kind: String, id: String) -> void:
+	if kind == hover_kind and id == hover_id:
+		return
+	hover_kind = kind
+	hover_id = id
+	queue_redraw()
+
+
+# --- Drawing --------------------------------------------------------------------------------
+
+func _draw() -> void:
+	if _laid_for != size:
+		layout()
+	if _polys.is_empty():
+		return
+	draw_rect(Rect2(Vector2.ZERO, size), LAND)
+	var hov := hover_id if hover_kind == "district" and hover_id != "outskirts" else ""   # the land round the city stays dark
+	var dest := String(camp.board[gig].get("district", "")) if gig >= 0 else ""
+	for id in draw_order():
+		var col := Color("0e141b") if id == "outskirts" else FILL
+		if id == hov:
+			col = col.lightened(0.08)
+		if id in route:
+			col = col.lerp(Hud.GOLD, 0.07)
+		for piece in _fills[id]:
+			draw_colored_polygon(piece, col)
+	_draw_grid()
+	for id in draw_order():
+		var poly := _closed(_polys[id])
+		if id == "outskirts":
+			draw_polyline(poly, Color(Hud.DIM, 0.3), 1.0, true)
+			continue
+		draw_polyline(poly, Color(EDGE, 0.15), 5.0, true)
+		draw_polyline(poly, EDGE, 1.2, true)
+	for id in [hov, dest]:
+		if id != "" and _polys.has(id):
+			var hi := Hud.GOLD if id == dest else Hud.TEXT
+			draw_polyline(_closed(_polys[id]), Color(hi, 0.25), 6.0, true)
+			draw_polyline(_closed(_polys[id]), Color(hi, 0.9), 1.6, true)
+	for w in _water:
+		draw_colored_polygon(w, WATER)
+	for seg in _hatch:
+		draw_polyline(seg, Color(Hud.CYAN, 0.06), 1.0)
+	for w in _water:
+		draw_polyline(_closed(w), COAST, 1.0, true)
+	_draw_bridges()
+	_draw_labels(hov, dest)
+	_draw_route()
+	_draw_pins()
+	_draw_frame()
+
+
+func _draw_labels(hov: String, dest: String) -> void:
 	var nf := Hud.F_BOLD
 	for id in labels:   # leaders first, under every label
 		var L: Dictionary = labels[id]
 		if not L.callout:
 			continue
-		var a: Vector2 = L.anchor
-		var on: bool = id == f or id == locked
-		var col := Color(Hud.GOLD, 0.9) if id == locked else (Color(Hud.TEXT, 0.85) if on else Color(Hud.DIM, 0.7))
-		draw_polyline(leader(L.rect, int(L.align), a, L.get("via", [])), col, 1.0, true)
-		draw_circle(a, 2.2, col)
+		var on: bool = id == hov or id == dest
+		var col := Color(Hud.GOLD, 0.9) if id == dest else (Color(Hud.TEXT, 0.85) if on else Color(Hud.DIM, 0.6))
+		draw_polyline(leader(L.rect, int(L.align), L.anchor, L.get("via", [])), col, 1.0, true)
+		draw_circle(L.anchor, 2.0, col)
 	for id in labels:
 		var L: Dictionary = labels[id]
 		var r: Rect2 = L.rect
-		var on: bool = id == f or id == locked
-		var col := code_colour(code_of(id)) if id != "outskirts" else Hud.DIM
-		draw_rect(r, Color(0.012, 0.018, 0.026, 0.9 if on else 0.72))
+		var on: bool = id == hov or id == dest
+		draw_rect(r, Color(0.012, 0.018, 0.026, 0.9 if on else 0.7))
 		if on:
-			draw_rect(r, Color(Hud.GOLD if id == locked else col, 0.85), false, 1.0)
-		elif L.callout:   # a tick in the code colour on the leader's side
-			draw_rect(Rect2(Vector2(r.end.x - 2 if L.align < 0 else r.position.x, r.position.y), Vector2(2, r.size.y)), col)
+			draw_rect(r, Color(Hud.GOLD if id == dest else Hud.TEXT, 0.85), false, 1.0)
 		var nm := district_name(id)
-		var cl := code_line(id)
 		var nw := nf.get_string_size(nm, HORIZONTAL_ALIGNMENT_LEFT, -1, NAME_SIZE).x
-		var cw := nf.get_string_size(cl, HORIZONTAL_ALIGNMENT_LEFT, -1, CODE_SIZE).x
-		var x_n := r.get_center().x - nw / 2
-		var x_c := r.get_center().x - cw / 2
+		var x := r.get_center().x - nw / 2
 		if L.align < 0:
-			x_n = r.end.x - 5 - nw
-			x_c = r.end.x - 5 - cw
+			x = r.end.x - 5 - nw
 		elif L.align > 0:
-			x_n = r.position.x + 5
-			x_c = r.position.x + 5
-		draw_string(nf, Vector2(x_n, r.position.y + 12), nm, HORIZONTAL_ALIGNMENT_LEFT, -1, NAME_SIZE,
-			Hud.TEXT if id != "outskirts" or on else Hud.DIM)
-		draw_string(nf, Vector2(x_c, r.position.y + 24), cl, HORIZONTAL_ALIGNMENT_LEFT, -1, CODE_SIZE, col.lightened(0.15))
+			x = r.position.x + 5
+		var col := Hud.GOLD if id == dest else (Hud.TEXT if id != "outskirts" or on else Hud.DIM)
+		draw_string(nf, Vector2(x, r.position.y + 13), nm, HORIZONTAL_ALIGNMENT_LEFT, -1, NAME_SIZE, col)
 
 
-## Gold diamonds, numbered in the board's order; the safehouse a white house.
+## The drive so far: a glow and a gold line from the house along the districts' anchors, a marker
+## at its head; once it's whole, the drive time beside the pin.
+func _draw_route() -> void:
+	if _route_px.size() < 2:
+		return
+	var drawn := trace(_route_px, route_t)
+	for p in _route_px:   # the stops to come, faint
+		draw_circle(p, 2.0, Color(Hud.GOLD, 0.35))
+	if drawn.size() >= 2:
+		draw_polyline(drawn, Color(Hud.GOLD, 0.22), 7.0, true)
+		draw_polyline(drawn, Hud.GOLD, 2.2, true)
+	var head := drawn[drawn.size() - 1]
+	if route_t < 1.0:
+		draw_circle(head, 7.0, Color(Hud.GOLD, 0.3))
+		draw_circle(head, 4.0, Hud.TEXT)
+		draw_circle(head, 4.0, INK_DARK, false, 1.0, true)
+
+
+## The safehouse a white house; the selected gig a gold diamond, its drive time beside it once the
+## route has drawn.
 func _draw_pins() -> void:
 	var nf := Hud.F_BOLD
 	for h in homes:
@@ -785,23 +761,48 @@ func _draw_pins() -> void:
 		var s := PIN + (2.0 if on else 0.0)
 		var dia := PackedVector2Array([p + Vector2(0, -s), p + Vector2(s, 0), p + Vector2(0, s), p + Vector2(-s, 0)])
 		draw_colored_polygon(PackedVector2Array([p + Vector2(0, -s - 4), p + Vector2(s + 4, 0), p + Vector2(0, s + 4), p + Vector2(-s - 4, 0)]),
-			Color(Hud.GOLD, 0.25 if on else 0.14))
+			Color(Hud.GOLD, 0.3))
 		draw_colored_polygon(dia, Hud.GOLD.lightened(0.3) if on else Hud.GOLD)
 		draw_polyline(_closed(dia), INK_DARK, 1.0, true)
-		var t := str(int(pin.index) + 1)
-		var tw := nf.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 10).x
-		draw_string(nf, p + Vector2(-tw / 2, 4), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 10, INK_DARK)
 		if on:
 			draw_arc(p, s + 5, 0, TAU, 24, Hud.TEXT, 1.0, true)
-			var drive := Travel.label(camp.travel_minutes(camp.board[int(pin.index)])) if camp and int(pin.index) < camp.board.size() else ""
-			if drive != "":   # the hovered pin's drive from the safehouse (NC2045 p.18)
-				var dw := nf.get_string_size(drive, HORIZONTAL_ALIGNMENT_LEFT, -1, 10).x
-				var at := p + Vector2(-dw / 2, -s - 9)
-				draw_rect(Rect2(at + Vector2(-3, -10), Vector2(dw + 6, 13)), Color(INK_DARK, 0.85))
-				draw_string(nf, at, drive, HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Hud.GOLD)
+		var drive := drive_text()
+		if drive != "" and route_t >= 1.0:   # NC2045 p.18: the drive from the safehouse district
+			var r := drive_tag_rect(p, nf.get_string_size(drive, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x + 8)
+			draw_rect(r, Color(INK_DARK, 0.92))
+			draw_rect(r, Color(Hud.GOLD, 0.7), false, 1.0)
+			draw_string(nf, r.position + Vector2(4, 13), drive, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Hud.GOLD)
 
 
-## The terminal frame round the map: corner brackets, title, compass and the Security Code key.
+## Where the drive time goes beside the pin at `p`: right, left, above or below it, the first
+## that's inside the view and clear of the labels and the route (else the one covering least).
+func drive_tag_rect(p: Vector2, w: float) -> Rect2:
+	var h := 18.0
+	var g := PIN + 7
+	var best := Rect2()
+	var best_cost := INF
+	for r: Rect2 in [Rect2(p + Vector2(g, -h / 2), Vector2(w, h)), Rect2(p + Vector2(-g - w, -h / 2), Vector2(w, h)),
+			Rect2(p + Vector2(-w / 2, -g - h), Vector2(w, h)), Rect2(p + Vector2(-w / 2, g), Vector2(w, h))]:
+		var cost := 0.0 if Rect2(Vector2.ZERO, size).encloses(r) else 1e6
+		for id in labels:
+			cost += (labels[id].rect as Rect2).intersection(r).get_area()
+		var rs: Array[Rect2] = [r]
+		if _path_hits(_route_px, rs):
+			cost += 50.0
+		if cost < best_cost:
+			best_cost = cost
+			best = r
+	return best
+
+
+## The selected gig's drive from the safehouse, "~45 MIN DRIVE" ("" for none).
+func drive_text() -> String:
+	if gig < 0 or camp == null:
+		return ""
+	return Travel.label(camp.travel_minutes(camp.board[gig]))
+
+
+## The terminal frame round the map: corner brackets, title and compass.
 func _draw_frame() -> void:
 	var c := Color(Hud.CYAN, 0.6)
 	var k := 14.0
@@ -816,18 +817,3 @@ func _draw_frame() -> void:
 	var n := Vector2(size.x - 20, 16)   # compass
 	draw_colored_polygon(PackedVector2Array([n + Vector2(0, -8), n + Vector2(5, 5), n + Vector2(0, 2), n + Vector2(-5, 5)]), Color(Hud.CYAN, 0.8))
 	draw_string(nf, n + Vector2(-4, 18), "N", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Hud.CYAN)
-	var sw := 14.0   # the key: eleven swatches, help rarely comes to help likely comes (NC2045 p.7)
-	var x0 := 12.0
-	var y0 := size.y - 22.0
-	draw_string(nf, Vector2(x0, y0 - 19), "SECURITY CODE · RESPONSE", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Hud.DIM)
-	draw_string(nf, Vector2(x0, y0 - 5), "‹ RARE", HORIZONTAL_ALIGNMENT_LEFT, -1, 10, code_colour(1).lightened(0.2))
-	var hs := "LIKELY ›"
-	draw_string(nf, Vector2(x0 + RAMP.size() * (sw + 1) - 1 - nf.get_string_size(hs, HORIZONTAL_ALIGNMENT_LEFT, -1, 10).x, y0 - 5), hs,
-		HORIZONTAL_ALIGNMENT_LEFT, -1, 10, code_colour(10).lightened(0.2))
-	for i in RAMP.size():
-		var r := Rect2(Vector2(x0 + i * (sw + 1), y0), Vector2(sw, 13))
-		draw_rect(r, Color(code_colour(i), 0.3))
-		draw_rect(Rect2(r.position + Vector2(0, 11), Vector2(sw, 2)), code_colour(i))
-		var t := str(i)
-		var tw := nf.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 10).x
-		draw_string(nf, Vector2(r.get_center().x - tw / 2, y0 + 10), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Hud.TEXT)
