@@ -21,6 +21,7 @@ extends Node
 ##   [--levels=0] [--dither=0.5] [--outline=0.4] [--bloom=0.8] [--contrast=1.1] [--ortho=1]
 ##   [--fog=0] [--zoom=24] [--yaw=45] [--lights=1] [--hover=x,y] [--promo=1] [--cut=auto|all|off]
 ##   [--stage=attack] [--arm=brawl|grenade|<attack mode>] [--portrait=1] [--alt=1] [--near=n] [--help=1]
+##   [--ambient=1 --lights=1 --spill=1 (lighting review: ambient, lamp and baked-spill scales)]
 ##   [--hurt=0.6 (the nearest foes roused and hurt)] [--logt=0..1 (the log slide held there)]
 
 const FH := 1.6           # floor height in squares (3.2 m)
@@ -259,6 +260,7 @@ var _last_known := {}                  ## foe unit id → the square the crew la
 var _dev_end := ""                     ## --end=won|lost|fled (review renders): the gig ends that way, the end panel shows
 var _dev_peace := false                ## --peace=broken (review renders): the crew breaks a neutral house's peace
 var _jack_turret := false              ## --jack=turret (review renders): the runner also holds a turret's Control Node
+var _dev_ambient := 1.0                ## --ambient=s (review renders): scale the scene's ambient energy (dev only)
 var _campaign_gig := false             ## this map is the campaign's active gig (a board gig)
 var blast_node: MeshInstance3D  ## the grenade's 5x5 blast preview under the cursor
 var _net_cleaned := false
@@ -308,6 +310,7 @@ func _ready() -> void:
 			"near": _dev_near = int(kv[1])   # review renders: the nearest foe stands this many squares off, in the line of fire
 			"end": _dev_end = kv[1]   # review renders: the gig ends this way (won | lost | fled), the end panel shows
 			"peace": _dev_peace = true   # review renders: --peace=broken: the crew breaks a neutral house's peace (Totentanz)
+			"ambient": _dev_ambient = float(kv[1])   # review renders: ambient energy x s (lamps: --lights, baked spill: --spill)
 			"security":
 				gig.security = int(kv[1])
 				_security_flag = true
@@ -723,7 +726,7 @@ func new_gig() -> void:
 	_log_seen = 0
 	var lk := _scene_look()
 	env.ambient_light_color = Color(lk.ambient)
-	env.ambient_light_energy = lk.amb_e
+	env.ambient_light_energy = lk.amb_e * _dev_ambient
 	sun.light_color = Color(lk.key)
 	sun.light_energy = lk.key_e
 	env.fog_light_color = Color(lk.fog)
