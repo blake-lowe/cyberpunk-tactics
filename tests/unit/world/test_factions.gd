@@ -92,8 +92,31 @@ func test_units_wear_a_light_trim() -> void:
 	for f in ["arasaka", "maelstrom", "tyger_claws", "kill_krashers", "red_chrome_legion"]:
 		var lk := UnitLook.make(3, 1, "solo", f)
 		assert_true(UnitLook.luma(lk.trim) >= UnitLook.TRIM_MIN_LUMA, "%s: trim %s" % [f, (lk.trim as Color).to_html(false)])
-	assert_eq((UnitLook.make(3, 1, "solo", "tyger_claws").trim as Color).to_html(false), "ff2a6d", "the faction's own trim colour")
+	assert_eq((UnitLook.make(3, 1, "solo", "tyger_claws").trim as Color).to_html(false), "cc3d6a", "the faction's own trim colour")
 	assert_true(UnitLook.luma(UnitLook.trim_of({}, Color("101010"))) >= UnitLook.TRIM_MIN_LUMA, "a near-black accent is lifted")
+
+
+## Owner light review, round 5: "lighter-coloured highlights, not whole light outfits". Trim is
+## coloured or light but never neon or white: every faction's trim as written, and what every
+## faction's and the crew's units actually wear (an accent such as ff3030 is capped), stay within
+## TRIM_MAX_S / TRIM_MAX_V and above TRIM_MIN_LUMA.
+func test_trim_colours_stay_within_the_caps() -> void:
+	var eps := 0.006   # 8-bit hex rounding
+	var worn: Array[Color] = []
+	for id in World.factions():
+		var fl: Dictionary = World.faction(id).get("look", {})
+		if fl.has("trim"):
+			var t := Color(String(fl.trim))
+			assert_true(t.s <= UnitLook.TRIM_MAX_S + eps and t.v <= UnitLook.TRIM_MAX_V + eps, "%s: trim %s is not neon or white (s %.2f v %.2f)" % [id, fl.trim, t.s, t.v])
+		if not fl.is_empty():
+			worn.append(UnitLook.make(3, 1, "solo", id).trim)
+	for i in UnitLook.CREW_ACCENTS.size():
+		worn.append(UnitLook.make(i, 0, "solo").trim)
+	assert_true(worn.size() > 100, "units checked (%d)" % worn.size())
+	for t in worn:
+		assert_true(t.s <= UnitLook.TRIM_MAX_S + eps, "worn trim %s: saturation %.2f" % [t.to_html(false), t.s])
+		assert_true(t.v <= UnitLook.TRIM_MAX_V + eps, "worn trim %s: value %.2f (no white)" % [t.to_html(false), t.v])
+		assert_true(UnitLook.luma(t) >= UnitLook.TRIM_MIN_LUMA - 0.005, "worn trim %s: still a highlight" % t.to_html(false))
 
 
 ## Night City 2045: every faction the district and location docs name exists; the owner's

@@ -36,8 +36,9 @@ const SKY_SHADER := preload("res://src/tactical/view/sky.gdshader")
 const GRADE_EXPOSURE := 0.9
 const GRADE_GAMMA := 1.2
 ## A key light on units only (render layer 2: CharModel), so crew and foes stand out from a dark
-## world through their own lighting. No ring or glow under them (owner rule).
-const UNIT_KEY := 5.0
+## world through their own lighting. No ring or glow under them (owner rule). Round 5 (owner: whole
+## outfits came out white or neon at 5.0): a modest lift; trims and silhouettes carry the contrast.
+const UNIT_KEY := 2.0
 
 var m: TacMap
 var enc: Encounter

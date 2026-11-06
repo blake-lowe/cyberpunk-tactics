@@ -52,16 +52,27 @@ static func make(id: int, team: int, role: String, faction := "") -> Dictionary:
 	return look
 
 
-## The light or coloured highlight a unit wears (armbands, helmet band): the faction's `trim`, else
-## its accent, lifted to at least TRIM_MIN_LUMA. Owner light review: no all-black designs; units read
-## against a dark world through their own colours, not through brighter lighting.
+## The light or coloured highlight a unit wears (armbands, helmet band, pouch flaps): the faction's
+## `trim`, else its accent. Owner light review: no all-black designs, so it is lifted to at least
+## TRIM_MIN_LUMA; but lighter highlights, not neon or white outfits (round 5), so it is capped at
+## TRIM_MAX_S saturation and TRIM_MAX_V value: a lift raises value up to the cap, then desaturates.
 const TRIM_MIN_LUMA := 0.3
+const TRIM_MAX_S := 0.7
+const TRIM_MAX_V := 0.8
 static func trim_of(fl: Dictionary, accent: Color) -> Color:
 	var c: Color = Color(String(fl.trim)) if fl.has("trim") else accent
-	for i in 8:
+	var h := c.h
+	var s := minf(c.s, TRIM_MAX_S)
+	var v := minf(c.v, TRIM_MAX_V)
+	c = Color.from_hsv(h, s, v)
+	for i in 12:
 		if luma(c) >= TRIM_MIN_LUMA:
 			break
-		c = c.lightened(0.15)
+		if v < TRIM_MAX_V:
+			v = minf(v + 0.1, TRIM_MAX_V)
+		else:
+			s = maxf(s - 0.1, 0.0)
+		c = Color.from_hsv(h, s, v)
 	return c
 
 
