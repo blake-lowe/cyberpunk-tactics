@@ -81,6 +81,7 @@ var _cam_tw: Tween
 var _shot_path := ""
 var _frames := 0
 var _scenes := {}
+var _pause: TitleScreen = null   ## the Esc menu while it is up
 
 
 func _ready() -> void:
@@ -89,6 +90,7 @@ func _ready() -> void:
 	ad.ambience("amb_safehouse")
 	ad.set_space(0.3, 0.1)
 	UiScale.watch(get_window())
+	GameSettings.apply_at_startup(get_tree())   # (the title screen applies them first in a normal start)
 	var dev := false
 	var stay := false
 	var open := ""
@@ -950,7 +952,14 @@ func _rebuild() -> void:
 
 
 func _unhandled_input(ev: InputEvent) -> void:
-	if _screen:
+	if _screen or is_instance_valid(_pause):
+		return
+	if ev.is_action_pressed("ui_cancel"):   # Esc: the pause menu (Save, Load, Title, Quit)
+		get_viewport().set_input_as_handled()
+		_pause = TitleScreen.new()
+		_pause.pause = true
+		_pause.camp = camp
+		add_child(_pause)
 		return
 	if ev is InputEventMouseMotion:
 		var h := _room_at(_pick_floor(ev.position))
