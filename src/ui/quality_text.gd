@@ -184,13 +184,15 @@ static func _text_w(l: Label) -> float:
 
 
 ## BBCode for a RichTextLabel (the stat-block tooltip): colour, face and [sheen] (install SheenFx).
-static func bbcode(key: String, base: String) -> String:
+static func bbcode(key: String, base: String, size := 0) -> String:
 	var st := style(key, base)
 	var s := String(st.text).replace("[", "[lb]")
 	if st.sheen:
 		s = "[sheen n=%d]%s[/sheen]" % [String(st.text).length(), s]
 	if st.font != null:
 		s = "[font=%s]%s[/font]" % [font_path(st.font_key), s]
+		if size > 0 and not is_equal_approx(float(st.scale), 1.0):   # the face at the same height as the text around it
+			s = "[font_size=%d]%s[/font_size]" % [roundi(size * float(st.scale)), s]
 	if st.colour is Color:
 		s = "[color=#%s]%s[/color]" % [(st.colour as Color).to_html(false), s]
 	return s

@@ -2,13 +2,13 @@
 
 importer="font_data_dynamic"
 type="FontFile"
-uid="uid://egbihvbrlypm"
-path="res://.godot/imported/RubikGlitch-Regular.ttf-df4cb41bdf815a55225c797b029da75b.fontdata"
+uid="uid://bmba34eqguxc8"
+path="res://.godot/imported/Iceland-Regular.ttf-c84952c161a3869d2632ead12d35f048.fontdata"
 
 [deps]
 
-source_file="res://assets/fonts/RubikGlitch-Regular.ttf"
-dest_files=["res://.godot/imported/RubikGlitch-Regular.ttf-df4cb41bdf815a55225c797b029da75b.fontdata"]
+source_file="res://assets/fonts/Iceland-Regular.ttf"
+dest_files=["res://.godot/imported/Iceland-Regular.ttf-c84952c161a3869d2632ead12d35f048.fontdata"]
 
 [params]
 

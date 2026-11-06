@@ -2,13 +2,13 @@
 
 importer="font_data_dynamic"
 type="FontFile"
-uid="uid://ca7mtiton1hsq"
-path="res://.godot/imported/BlackOpsOne-Regular.ttf-1e1f8387b8a7e22a83817d31073b8b45.fontdata"
+uid="uid://kcaxv0py0ek"
+path="res://.godot/imported/RacingSansOne-Regular.ttf-179983c92859c08deeaeba61df99c3df.fontdata"
 
 [deps]
 
-source_file="res://assets/fonts/BlackOpsOne-Regular.ttf"
-dest_files=["res://.godot/imported/BlackOpsOne-Regular.ttf-1e1f8387b8a7e22a83817d31073b8b45.fontdata"]
+source_file="res://assets/fonts/RacingSansOne-Regular.ttf"
+dest_files=["res://.godot/imported/RacingSansOne-Regular.ttf-179983c92859c08deeaeba61df99c3df.fontdata"]
 
 [params]
 

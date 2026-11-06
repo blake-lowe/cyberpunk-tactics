@@ -104,7 +104,7 @@ func _run() -> void:
 	var lines: Array[String] = []
 	for k in ["heavy_pistol@poor", "assault_rifle@excellent", "malorian_arms_3516", "shotgun"]:
 		var w := Items.make_weapon("weapon/" + k)
-		lines.append("[color=#7d8a96]WEAPON[/color] %s · %dd6 · ROF %d" % [QualityText.bbcode(Items.key_of_weapon(w), String(w.def.name)), w.dice(), w.rof()])
+		lines.append("[color=#7d8a96]WEAPON[/color] %s · %dd6 · ROF %d" % [QualityText.bbcode(Items.key_of_weapon(w), String(w.def.name), 18), w.dice(), w.rof()])
 	rt.text = "\n".join(lines)
 	v.add_child(rt)
 	DirAccess.make_dir_recursive_absolute(out)

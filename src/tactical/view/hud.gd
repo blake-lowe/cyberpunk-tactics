@@ -1109,7 +1109,7 @@ static func stat_block(c: Combatant, full: bool, extra: Array = []) -> String:
 	for w in ws:
 		var q := "" if w.quality == "standard" else " (%s)" % w.quality.capitalize()
 		var ap := " AP" if w.special_left > 0 and int(w.special_fx.get("ablate_sp", 1)) > 1 else ""   # a VH Pistol turret's AP rounds (Turret)
-		out.append((K % "WEAPON") + " %s%s · %dd6 · ROF %d%s" % [QualityText.bbcode(Items.key_of_weapon(w), String(w.def.name)), q, w.dice(), w.rof(), (" · %d/%d%s" % [w.ammo, int(w.def.get("mag", 0)), ap]) if w.uses_ammo() else ""])
+		out.append((K % "WEAPON") + " %s%s · %dd6 · ROF %d%s" % [QualityText.bbcode(Items.key_of_weapon(w), String(w.def.name), ts(20)), q, w.dice(), w.rof(), (" · %d/%d%s" % [w.ammo, int(w.def.get("mag", 0)), ap]) if w.uses_ammo() else ""])
 	if full:
 		var sk: Array = c.skills.keys().filter(func(k): return int(c.skills[k]) > 0)
 		sk.sort_custom(func(a, b): return c.skill_base(a) > c.skill_base(b))

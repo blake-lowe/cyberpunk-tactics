@@ -85,7 +85,7 @@ func test_every_exotic_weapon_has_a_display_font_that_loads() -> void:
 	assert_false(QualityText.font_credits().is_empty(), "the faces are credited")
 	for id in QualityText.exotic_data().weapons:
 		assert_true(QualityText.is_exotic(String(id)), "%s in exotic_fonts.json is an exotic weapon" % id)
-	assert_eq(QualityText.style("malorian_arms_3516", "MALORIAN ARMS 3516").text, "Malorian Arms 3516", "blackletter in title case")
+	assert_eq(QualityText.style("tsunami_helix", "TSUNAMI ARMS HELIX").text, "Tsunami Arms Helix", "blackletter in title case")
 	assert_eq(QualityText.style("weapon/microwaver", "MICROWAVER").text, "MICROWAVER")
 
 
