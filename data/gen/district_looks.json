@@ -12,7 +12,7 @@
 				"wall_concrete": {"colors": ["a89a80", "9a8c74", "b0a488", "8a8070"]}},
 			"mats": {"sidewalk": {"color": "4a4440", "color2": "2e2a28", "pattern": 1, "scale": 1.7},
 				"cornice": {"color": "b08a4a", "color2": "b08a4a"}},
-			"light": {"ambient": "362c34", "amb_e": 0.7, "key": "e0b890", "key_e": 0.45, "fog": "1e1812", "sky": ["06050a", "1a1018", "5a2a1e"], "fog_cool": 0.3}
+			"light": {"ambient": "3a3038", "amb_e": 0.85, "key": "e0b890", "key_e": 0.45, "fog": "1e1812", "sky": ["06050a", "1a1018", "5a2a1e"], "fog_cool": 0.3}
 		},
 		"little_china": {
 			"why": "NC2045 p.96-97: half rebuilt (bamboo scaffolding, Petrochem resin), half war zone; Chinatown night-market principle: signs stacked on every facade, red and gold, stalls in the street, steam",
@@ -52,7 +52,7 @@
 				"grass": {"color": "5a8c2c", "color2": "6c9a34"},
 				"roof": {"color": "6c727a", "color2": "565c64", "pattern": 1, "scale": 0.4},
 				"cornice": {"color": "e8e8e4", "color2": "e8e8e4"}},
-			"light": {"ambient": "34405a", "amb_e": 0.8, "key": "c0d0f0", "fog": "121a26", "fog_d": 0.002, "sky": ["040814", "0c1a30", "2a4a6a"]}
+			"light": {"ambient": "36425e", "amb_e": 0.92, "key": "c0d0f0", "fog": "121a26", "fog_d": 0.002, "sky": ["040814", "0c1a30", "2a4a6a"]}
 		},
 		"charter_hill": {
 			"why": "NC2045 p.224-225: a suburb of identical houses and fake lawns patrolled by Militech; postwar-suburb principle: one beige house after another, lawns, quiet lamps, few signs",
@@ -85,7 +85,7 @@
 				"wall_concrete": {"colors": ["565450", "4a4846", "5e5a56"]}},
 			"mats": {"asphalt": {"color": "2a2826", "color2": "1a1918"}, "sidewalk": {"color": "4a4640", "color2": "2e2b28"},
 				"concrete": {"color": "46423c", "color2": "2c2926"}, "dirt": {"color": "5e4e3a", "color2": "3e3428"}},
-			"light": {"ambient": "3a3036", "amb_e": 0.6, "key": "ff9a60", "key_e": 0.45, "fog": "3a2a20", "fog_d": 0.0055,
+			"light": {"ambient": "3e343a", "amb_e": 0.75, "key": "ff9a60", "key_e": 0.45, "fog": "3a2a20", "fog_d": 0.0055,
 				"sky": ["100a0a", "3a1a12", "a04a1a"], "rim": ["ff6a2a", 0.3], "fog_cool": 0.0}
 		},
 		"pacifica_playground": {
@@ -123,7 +123,7 @@
 				"wall_plaster": {"colors": ["6e6650", "625a48", "7a6e54"]}},
 			"mats": {"concrete": {"color": "4a4636", "color2": "2e2c22"}, "sidewalk": {"color": "4e4a3a", "color2": "302e24"},
 				"asphalt": {"color": "24221c", "color2": "141310"}},
-			"light": {"ambient": "4a4230", "amb_e": 0.75, "key": "d8c080", "key_e": 0.45, "fog": "5a4c1e", "fog_d": 0.0065,
+			"light": {"ambient": "4a4230", "amb_e": 0.88, "key": "d8c080", "key_e": 0.45, "fog": "5a4c1e", "fog_d": 0.0065,
 				"sky": ["14120a", "3e3416", "9a8030"], "rim": ["d0b050", 0.25], "fog_cool": 0.0, "fog_sat": 0.6}
 		},
 		"heywood_docks": {
@@ -248,7 +248,7 @@
 			"mix": {"construction": 2, "plaza": 2, "park": 1},
 			"walls": {"wall_plaster": {"colors": ["c8c4b8", "b0b4b8", "d0ccc0"]}, "wall_concrete": {"colors": ["b8bcc0", "a4a8ac", "c4c4c0"]}},
 			"mats": {"sidewalk": {"color": "a8a8a2", "color2": "7a7a76", "pattern": 4, "scale": 1.0}},
-			"light": {"ambient": "303c54", "amb_e": 0.75, "fog": "121a26", "sky": ["040814", "0e1a2e", "2e4a68"]}
+			"light": {"ambient": "323e58", "amb_e": 0.9, "fog": "121a26", "sky": ["040814", "0e1a2e", "2e4a68"]}
 		},
 		"university_district": {
 			"why": "NC2045 p.104-105: a walled, armed campus of brown brick and geodesic domes with student bars around it; campus principle: brown brick, quads and trees, warm lamps",

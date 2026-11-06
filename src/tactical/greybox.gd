@@ -76,18 +76,19 @@ const PALETTE := ["05060a", "0b0e16", "141a26", "1e2636", "2a3448", "3a4660", "4
 	"2a1e06", "6a4a08", "f9c80e", "fff0a0", "1e0a2e", "4a1a6a", "b537f2", "e2b0ff",
 	"2e1206", "7a3008", "ff6b1a", "ffc8a0", "06261a", "0e5a3a", "39f0a0", "b8ffe0",
 	"7a1420", "ff3b4f"]
-## Per-scene light: ambient, moon key, fog (round 2: the desert needs moonlit sand).
+## Per-scene light: ambient, moon key, fog (round 2: the desert needs moonlit sand; round 3: night
+## ambient raised ~20-25% so units read against the ground, still a night look).
 ## Optional per scene: "sun" [elevation, world yaw] fixes the key light in the world (a real sun;
 ## night scenes let the moon key follow the camera), "sky" [zenith, mid, horizon], "palette",
 ## "rim" colour/energy and "lights" (lamp scale: dusk lamps are weaker than night ones).
 const LOOKS := {
-	"default": {"ambient": "262c44", "amb_e": 0.65, "key": "8fa0e0", "key_e": 0.5, "fog": "0d1422", "fog_d": 0.0035},
+	"default": {"ambient": "2a3250", "amb_e": 0.75, "key": "8fa0e0", "key_e": 0.5, "fog": "0d1422", "fog_d": 0.0035},
 	"badlands": {"ambient": "4c4c90", "amb_e": 0.75, "key": "ffc898", "key_e": 1.15, "fog": "a86a58", "fog_d": 0.0025,
 		"sun": [-17.0, 235.0], "sky": ["1c2050", "9a4466", "ff8c3c"], "palette": "sunset", "rim": ["6a5aa0", 0.35], "lights": 0.55,
 		"fog_dim": 0.78, "fog_sat": 0.9, "fog_cool": 0.0},
 	# Undercity: no sky, no moon. Dim green-black ambient; the work lamps and the glowing runoff
 	# do the lighting. Unseen tunnels stay green-dark rather than going blue.
-	"undercity": {"ambient": "2a4034", "amb_e": 0.7, "key": "6a8a70", "key_e": 0.22, "fog": "0a1a10", "fog_d": 0.006,
+	"undercity": {"ambient": "2e4638", "amb_e": 0.85, "key": "6a8a70", "key_e": 0.22, "fog": "0a1a10", "fog_d": 0.006,
 		"sky": ["020403", "040806", "0a140c"], "rim": ["3a6a4a", 0.2], "lights": 1.15,
 		"fog_dim": 0.62, "fog_sat": 0.55, "fog_cool": 0.0},
 	# Arcology: bright, cold, shadowless light from the atrium roof; a faint red rim.
@@ -95,7 +96,7 @@ const LOOKS := {
 		"sun": [-62.0, 200.0], "sky": ["98a4b4", "c8d0da", "e6eaee"], "rim": ["ff5060", 0.22], "lights": 0.5, "spill": 0.3, "soft_light": true,
 		"fog_dim": 0.82, "fog_sat": 0.7, "fog_cool": 0.0},
 	# Warzone: dusk under a sky lit by the fires; ember key low in the west, heavy brown smoke haze.
-	"warzone": {"ambient": "3a3038", "amb_e": 0.62, "key": "ff8a50", "key_e": 0.5, "fog": "3a2420", "fog_d": 0.0045,
+	"warzone": {"ambient": "3e343c", "amb_e": 0.78, "key": "ff8a50", "key_e": 0.5, "fog": "3a2420", "fog_d": 0.0045,
 		"sun": [-12.0, 250.0], "sky": ["120a0c", "4a1a14", "c8501a"], "rim": ["ff6a2a", 0.3], "lights": 0.85,
 		"fog_dim": 0.7, "fog_sat": 0.75, "fog_cool": 0.0},
 }
@@ -511,7 +512,10 @@ func _build_view() -> void:
 	svp = SubViewport.new()
 	svp.own_world_3d = true
 	svp.msaa_3d = Viewport.MSAA_DISABLED
-	svp.use_hdr_2d = true
+	# Not HDR 2D: under Forward+ (the owner's GPU) an HDR 2D buffer holds LINEAR colour, which the post
+	# shader and the screen read as sRGB, so the whole scene came out ~3x darker (luma 0.05 vs 0.17 on
+	# compatibility, which ignores the flag). Glow still runs in the 3D buffer. Same fix as the safehouse.
+	svp.use_hdr_2d = false
 	svp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	add_child(svp)
 	screen = TextureRect.new()
@@ -831,7 +835,7 @@ func _build_world() -> void:
 	floor_nodes = builder.build(world)
 	for s in builder.surfaces():
 		floor_nodes[int(s.get_meta("floor", 0))].add_child(s)
-	builder.lightfield = LightField.bake(m, enc.los, LightPlan.plan(m, m.seed_value) + builder.emitters)
+	builder.lightfield = LightField.bake(m, enc.los, LightPlan.plan(m, m.seed_value) + LightPlan.fill(m, m.seed_value) + builder.emitters)
 	devices = DeviceView.new()
 	world.add_child(devices)
 	devices.build(m, func(v: Vector3i) -> float: return _gy(v))
@@ -936,10 +940,22 @@ func _decal(col: Color, size: float, ring_mode: bool, pulse: float, shadow := fa
 
 func _build_lights() -> void:
 	fires.clear()
-	for e in LightPlan.plan(m, m.seed_value):
+	for e in LightPlan.plan(m, m.seed_value) + LightPlan.fill(m, m.seed_value):
 		var cell: Vector3i = e.cell
 		var fn: Node3D = floor_nodes[cell.z]
 		var base := Vector3(cell.x + 0.5, cell.z * FH, cell.y + 0.5)
+		if e.get("bake", false):   # baked-only (LightField): no OmniLight; a porch lamp still shows its fixture
+			if e.kind == "porch":
+				var pout := Vector3(e.out.x, 0, e.out.y)
+				var lampm := MeshInstance3D.new()
+				var pb := BoxMesh.new()
+				pb.size = Vector3(0.22, 0.05, 0.12) if e.out.y != 0 else Vector3(0.12, 0.05, 0.22)
+				pb.material = _unlit(e.color, 1.0, 1.4)
+				lampm.mesh = pb
+				lampm.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				lampm.position = base + pout * 0.62 + Vector3(0, 1.42, 0)
+				fn.add_child(lampm)
+			continue
 		var l := OmniLight3D.new()
 		l.light_color = e.color
 		l.omni_range = e.range
