@@ -25,7 +25,10 @@ var death_saves := true
 var dead := false
 var unconscious := false
 var wake_in := 0               ## rounds until a stabilized character comes round (1 minute = 20 rounds, p223)
-var prone := false
+var prone := false              ## p.168-169: no Move Action until Get Up (TurnState.get_up). Thrown foes land Prone (p.177).
+## The Grapple this combatant is in, holding or held (Grapple, p.177); null when free. Not saved:
+## a grapple never outlasts the gig (gig_reset clears it).
+var grapple: Grapple = null
 var weapons: Array[Weapon] = []
 var block := ""               ## the printed stat block an NPC was built from (npcs.json), "" for crew
 var hp_max_override := 0       ## a stat block's printed HP when it differs from the formula (0: formula)
@@ -295,6 +298,10 @@ func gig_reset() -> void:
 	kit_spent = [false, false]
 	drugs_taken.clear()
 	drug_fx.clear()
+	if grapple != null:   # a grapple or a fall never carries into the next gig
+		grapple.end()
+	grapple = null
+	prone = false
 	for w in weapons:   # reloaded between gigs: a full magazine of standard rounds (the saved count is last gig's)
 		w.reload()
 		w.jammed = false
@@ -343,7 +350,7 @@ func action_penalty() -> int:
 	if w == Wound.SERIOUS and (stimmed or _cyber_fx().any(func(fx): return fx.get("ignore_seriously_wounded", false)) \
 			or drug_fx.any(func(fx): return fx.get("ignore_seriously_wounded", false))):
 		w = Wound.LIGHT  # Pain Editor (p112), Stim (p150), Black Lace (p.358)
-	return int(WOUND_ACTION_PENALTY.get(w, 0)) + _fx_sum("all")
+	return int(WOUND_ACTION_PENALTY.get(w, 0)) + _fx_sum("all") + (Grapple.PENALTY if grapple != null and grapple.live() else 0)   # grappled: -2 both, p.177
 
 
 ## Penalty for an attack of the given kind ("ranged" or "melee").
@@ -352,7 +359,22 @@ func attack_penalty(kind: String) -> int:
 
 
 func can_dodge_ranged() -> bool:
-	return stat("REF") >= 8 and not _fx_any("no_dodge") and can_act()  # p172
+	return stat("REF") >= 8 and not _fx_any("no_dodge") and can_act() and not is_human_shield()  # p172; a Human Shield can't, p.184
+
+
+## Holding someone in a grapple (the Attacker, p.177), a corpse shield included.
+func is_grappling() -> bool:
+	return grapple != null and grapple.holder == self
+
+
+## Held in a live grapple (the Defender, p.177): no Move Action, dragged along.
+func is_grappled() -> bool:
+	return grapple != null and grapple.held == self and grapple.live()
+
+
+## Held up as someone's Human Shield (p.184).
+func is_human_shield() -> bool:
+	return is_grappled() and grapple.shield
 
 
 func can_act() -> bool:

@@ -551,6 +551,9 @@ func _pick(now: bool) -> void:
 	var w := gun_kind
 	var serious := int(get_meta("wound", 0)) >= Combatant.Wound.SERIOUS
 	var clip := "%s_idle" % w
+	if get_meta("prone", false) or (String(get_meta("grip", "")) != "" and not get_meta("walk", false)):
+		_hold_pose()
+		return
 	if float(get_meta("slump_goal", 0.0)) > 0.5:
 		clip = "dying"
 	elif Time.get_ticks_msec() < _perform_until:
@@ -578,6 +581,31 @@ func _pick(now: bool) -> void:
 	var native: float = CharAnims.speed.get(clip, 0.0)
 	var top := INJURED_RATE if clip == "injured_walk" else 2.5
 	anim.speed_scale = clampf(ground_speed() / native, 0.4, top) if native > 0.0 and get_meta("walk", false) else 1.0
+
+
+## Grapple and Prone poses (Greybox._grapple_pose): the library has no grapple, prone or get-up
+## clips, so these hold one frame of a clip we have. Prone: flat on the back, the last frame of the
+## death-from-the-front fall. In a grapple the holder holds the jab at full reach, the held one the
+## flinch, both swaying a little so they don't read as frozen.
+const HOLD_POSES := {"prone": ["death_front", -1.0], "holder": ["melee", 0.32], "held": ["hit_a", 0.18]}
+
+
+func _hold_pose() -> void:
+	var key := "prone" if get_meta("prone", false) else String(get_meta("grip", ""))
+	var spec: Array = HOLD_POSES[key]
+	var clip := String(spec[0])
+	if not anim.has_animation(clip):
+		return
+	if state != "hold:" + key:
+		state = "hold:" + key
+		anim.speed_scale = 1.0
+		anim.play(clip, 0.2)
+	var at := float(spec[1])
+	if at < 0.0:
+		at = anim.current_animation_length
+	else:
+		at += 0.03 * sin(Time.get_ticks_msec() / 300.0 + index)
+	anim.seek(at, true)
 
 
 ## The Seriously Wounded limp plays at this rate at most (owner, playtest: at the old 2.5 cap it

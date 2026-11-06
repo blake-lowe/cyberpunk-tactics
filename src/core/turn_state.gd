@@ -48,6 +48,8 @@ static func begin(dice: Dice, combatant: Combatant) -> TurnState:
 		t.move_actions = 0
 	if combatant.prone:
 		t.move_actions = 0  # must Get Up first (p168)
+	if combatant.is_grappled():
+		t.move_actions = 0  # held: no Move Action, dragged along by the Attacker's (p.177)
 	return t
 
 
@@ -125,13 +127,22 @@ func use_action() -> bool:
 	return true
 
 
-## Get Up from Prone costs the Action and restores the Move Action (p168).
+## Get Up from Prone costs the Action and restores the Move Action (p168). Still held in a
+## grapple, they stay without one (p.177).
 func get_up() -> bool:
 	if not c.prone or not use_action():
 		return false
 	c.prone = false
-	move_actions = 1
+	if not c.is_grappled():
+		move_actions = 1
 	return true
+
+
+## Out of a grapple mid-turn (escaped): the Move Action the hold took is theirs again if it's
+## unspent. RULES-UNVERIFIED: p.177 only says the Defender can't use one while held.
+func freed() -> void:
+	if not moved_this_turn and not c.prone and move_left == 0:
+		move_actions = maxi(move_actions, 1)
 
 
 ## End of turn: strain injuries trigger after moving more than 4 m/yds on foot (p221-222).

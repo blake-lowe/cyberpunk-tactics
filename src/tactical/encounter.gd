@@ -465,6 +465,7 @@ func end_turn() -> void:
 func _check_end() -> void:
 	_wreck_turrets()
 	_flatline_npcs()
+	_check_grapples()
 	if state != "playing":
 		return
 	_count_civ_harm()
@@ -2108,6 +2109,7 @@ func move_to(dest: Vector3i, allow_run := false) -> bool:
 	var full: Array = [from]
 	full.append_array(p)
 	events.append({"type": "move", "unit": cur.id, "path": full, "run": ran})
+	_drag(cur, full)   # whoever they hold comes along (p.177)
 	if ran:
 		say("%s runs." % cur.c.display_name)
 	for v in p:
@@ -2130,9 +2132,12 @@ func preview(target: Dictionary, weapon: Weapon, mode: Attack.Mode) -> Dictionar
 	if weapon.is_melee():   # melee is from where you stand, never from a lean-out square
 		s.from = cur.pos
 	var dist := _attack_distance(weapon, s.from, target.pos)
-	var p := Attack.preview(_aimer(), weapon, target.c, mode, dist)
+	var sh := shield_for(target, weapon, mode, s.from)   # a Human Shield takes the shot (p.184)
+	var p := Attack.preview(_aimer(), weapon, sh.c if not sh.is_empty() else target.c, mode, dist)
 	p["from"] = s.from
 	p["blocker"] = s.blocker
+	if not sh.is_empty():
+		p["shield"] = sh.id
 	return p
 
 
@@ -2148,6 +2153,12 @@ func attack(target: Dictionary, weapon: Weapon, mode: Attack.Mode) -> Dictionary
 	_keep_peace(cur, [target.pos])
 	_rouse([target])
 	_noise(cur.pos)
+	if p.has("shield"):   # the Human Shield takes it instead (p.184): the attack goes into them
+		var sh: Dictionary = units[int(p.shield)]
+		say("%s's human shield %s takes the shot." % [target.c.display_name, sh.c.display_name])
+		if sh.c.dead:
+			return _attack_corpse(target, sh, weapon, mode, p)
+		target = sh
 	var hp_before: int = target.c.hp
 	var loc := "head" if mode == Attack.Mode.AIMED_HEAD else "body"
 	var sp_before: int = target.c.sp(loc)
@@ -2222,6 +2233,21 @@ func melee(target: Dictionary, weapon: Weapon = null) -> Dictionary:
 	return attack(target, weapon if weapon != null else melee_weapon(cur.c), Attack.Mode.SINGLE)
 
 
+## An attack stopped by a corpse shield (p.183-184): the event the view plays, the log line.
+func _attack_corpse(target: Dictionary, sh: Dictionary, weapon: Weapon, mode: Attack.Mode, p: Dictionary) -> Dictionary:
+	var ammo_before := weapon.ammo
+	var r := _hit_corpse(sh, weapon, mode, p)
+	events.append({"type": "attack", "unit": cur.id, "target": target.id, "from": p.from, "hit": false, "dodged": false, "damage": 0, "through": 0,
+		"location": "body", "sp_before": target.c.sp("body"), "sp_after": target.c.sp("body"), "crit": false, "crit_names": [],
+		"wound_before": target.c.wound_state(), "wound_after": target.c.wound_state(), "mult": 1, "rounds": maxi(1, ammo_before - weapon.ammo),
+		"mode": mode, "weapon": weapon.id(), "dead": target.c.dead, "killed": false, "shielded": r.hit, "shield_left": int(r.get("shield_left", -1))})
+	var ck: Check = r.check
+	say("%s → %s · corpse shield · %d vs %d · %s" % [cur.c.display_name, target.c.display_name, ck.total, ck.dv,
+		("%d into the body (%d HP left)" % [r.damage, int(r.shield_left)]) if r.hit else "MISS"])
+	_check_end()
+	return r
+
+
 ## Ready another carried weapon: it becomes the one in hand (weapons[0]). Drawing an easily
 ## accessible weapon isn't an Action if you have a free hand (CPR core p.128).
 func draw(weapon: Weapon) -> bool:
@@ -2230,6 +2256,341 @@ func draw(weapon: Weapon) -> bool:
 	cur.c.weapons.erase(weapon)
 	cur.c.weapons.insert(0, weapon)
 	return true
+
+
+# --- Grappling (CPR core p.168-169, p.177, p.184; Grapple) -----------------------------------
+
+## The grappling actions open to the active unit, in bar order (the HUD shows these; grapple_act
+## runs them): get_up while Prone; escape while held; choke, throw, shield, release while holding
+## (release alone once it's a corpse shield); grab with a foe in reach; break an ally's hold.
+func grapple_options() -> Array[String]:
+	var out: Array[String] = []
+	if cur.is_empty() or turn == null:
+		return out
+	var c: Combatant = cur.c
+	if c.prone:
+		out.append("get_up")
+	if c.is_grappled():
+		out.append("escape")
+	elif c.is_grappling():
+		if c.grapple.live():
+			out.append_array(["choke", "throw"])
+			if not c.grapple.shield:
+				out.append("shield")
+		out.append("release")
+	elif not grab_targets(cur).is_empty():
+		out.append("grab")
+	if c.grapple == null and not break_targets(cur).is_empty():
+		out.append("break")
+	return out
+
+
+## Foes `u` could Grab: in reach (a neighbouring square, p.177 / MELEE_ADJACENT_M), people (not
+## turrets), free to be grabbed (Grapple.why_not).
+func grab_targets(u: Dictionary) -> Array:
+	return units.filter(func(o): return o != u and not o.has("turret") and hostile(int(u.team), int(o.team)) \
+		and adjacent(u.pos, o.pos) and Grapple.why_not(u.c, o.c) == "")
+
+
+## Allies held by someone `u` can reach: anyone may break a hold (p.177).
+func break_targets(u: Dictionary) -> Array:
+	return units.filter(func(o): return o != u and o.c.is_grappled() and allied(int(u.team), int(o.team)) \
+		and adjacent(u.pos, unit_of(o.c.grapple.holder).pos))
+
+
+## The other end of `u`'s grapple as a unit, or {}.
+func grapple_partner(u: Dictionary) -> Dictionary:
+	if u.is_empty() or u.c.grapple == null:
+		return {}
+	return unit_of(u.c.grapple.other(u.c))
+
+
+## Why the active unit can't Grab `target` ("" if it can).
+func grab_why_not(target: Dictionary) -> String:
+	if target.is_empty() or target == cur:
+		return "pick a neighbouring foe"
+	if target.has("turret"):
+		return "nothing to get hold of"
+	if not adjacent(cur.pos, target.pos):
+		return "out of reach"
+	if not turn.action_available:
+		return "no action left"
+	return Grapple.why_not(cur.c, target.c)
+
+
+## The hit-chance popup for a Grab: {ok, reason, chance, base, defense_base}.
+func grab_preview(target: Dictionary) -> Dictionary:
+	var why := grab_why_not(target)
+	if why != "":
+		return {"ok": false, "reason": why, "chance": 0.0}
+	return {"ok": true, "reason": "", "chance": Grapple.grab_chance(cur.c, target.c), "base": Grapple.base(cur.c), "defense_base": Grapple.base(target.c)}
+
+
+## Grab (p.168, p.177): an Action; DEX + Brawling + 1d10 against the target's, ties to them. It
+## needs a free hand: a two-handed weapon in hand is slung and the first one-handed weapon carried
+## drawn (drawing is free, p.128; RULES-UNVERIFIED: slinging a long arm as part of the Grab).
+## Only grabbing hold of the person is modelled, not taking an object they hold (p.177).
+func grapple(target: Dictionary) -> Dictionary:
+	var why := grab_why_not(target)
+	if why != "":
+		return {"ok": false, "reason": why}
+	turn.use_action()
+	_free_hand(cur.c)
+	_hostile_act(target)
+	var wb: int = target.c.wound_state()
+	var r := Grapple.grab(dice, cur.c, target.c)
+	var ck: Check = r.check
+	events.append({"type": "grapple", "kind": "grab", "unit": cur.id, "target": target.id, "success": r.success,
+		"roll": ck.total, "dv": ck.dv, "wound_before": wb, "wound_after": wb})
+	say("%s → %s · Grab · %d vs %d · %s" % [cur.c.display_name, target.c.display_name, ck.total, ck.dv, "GRAPPLED" if r.success else "BROKE FREE"])
+	return {"ok": true, "success": r.success}
+
+
+func _free_hand(c: Combatant) -> void:
+	if c.weapons.is_empty() or int(c.weapons[0].def.get("hands", 1)) < 2:
+		return
+	for w in c.weapons:
+		if int(w.def.get("hands", 1)) < 2:
+			c.weapons.erase(w)
+			c.weapons.insert(0, w)
+			return
+
+
+## Laying hands on someone is an attack for the peace, the witnesses and the guards.
+func _hostile_act(target: Dictionary) -> void:
+	if int(target.team) == TT_TEAM and cur.team == CREW:
+		tt_hostile = true
+		set_relation(TT_TEAM, CREW, "hostile")
+	_keep_peace(cur, [target.pos])
+	_rouse([target])
+
+
+## Choke (p.168, p.177): an Action on the one you hold; your BODY straight to their HP (Grapple.choke).
+func choke() -> Dictionary:
+	var g: Grapple = cur.c.grapple
+	if g == null or g.holder != cur.c or not g.live():
+		return {"ok": false, "reason": "not holding anyone"}
+	if not turn.use_action():
+		return {"ok": false, "reason": "no action left"}
+	var t := unit_of(g.held)
+	var wb: int = t.c.wound_state()
+	var was_out: bool = t.c.unconscious
+	var r := g.choke(init.round_num)
+	_flatline_npcs()
+	events.append({"type": "grapple", "kind": "choke", "unit": cur.id, "target": t.id, "damage": r.damage, "ko": r.knocked_out and not was_out,
+		"chokes": g.chokes, "wound_before": wb, "wound_after": t.c.wound_state(), "dead": t.c.dead})
+	say("%s chokes %s · %d to HP%s" % [cur.c.display_name, t.c.display_name, r.damage, " · UNCONSCIOUS" if r.knocked_out and not was_out else ""])
+	_check_end()
+	return {"ok": true, "damage": r.damage, "knocked_out": r.knocked_out}
+
+
+## Throw (p.169, p.177): an Action; your BODY straight to their HP, the grapple ends and they land
+## Prone. RULES-UNVERIFIED (the book doesn't place them): in a free square beside you, as far from
+## where they stood as there is (over the shoulder), else where they stand.
+func throw_foe() -> Dictionary:
+	var g: Grapple = cur.c.grapple
+	if g == null or g.holder != cur.c or not g.live():
+		return {"ok": false, "reason": "not holding anyone"}
+	if not turn.use_action():
+		return {"ok": false, "reason": "no action left"}
+	var t := unit_of(g.held)
+	var wb: int = t.c.wound_state()
+	var from: Vector3i = t.pos
+	var occ := occupied(t)
+	var land := from
+	var far := -1.0
+	for dy in [-1, 0, 1]:
+		for dx in [-1, 0, 1]:
+			var v := Vector3i(cur.pos.x + dx, cur.pos.y + dy, cur.pos.z)
+			if v == cur.pos or occ.has(v) or not nav.open(v) or not adjacent(cur.pos, v):
+				continue
+			var d := Vector2(v.x - from.x, v.y - from.y).length()
+			if d > far:
+				far = d
+				land = v
+	t.pos = land
+	var r := g.throw_down()
+	_flatline_npcs()
+	events.append({"type": "grapple", "kind": "throw", "unit": cur.id, "target": t.id, "damage": r.damage, "from": from, "to": land,
+		"wound_before": wb, "wound_after": t.c.wound_state(), "dead": t.c.dead})
+	say("%s throws %s · %d to HP · PRONE" % [cur.c.display_name, t.c.display_name, r.damage])
+	update_alerts()
+	_check_end()
+	return {"ok": true, "damage": r.damage, "to": land}
+
+
+## Human Shield (p.169, p.184): an Action; the one you hold becomes cover against ranged attacks
+## you can see coming, except Aimed Shots at your head (shield_for). They can't dodge them.
+func human_shield() -> Dictionary:
+	var g: Grapple = cur.c.grapple
+	if g == null:
+		return {"ok": false, "reason": "not holding anyone"}
+	var why := g.shield_why_not(cur.c)
+	if why != "":
+		return {"ok": false, "reason": why}
+	if not turn.use_action():
+		return {"ok": false, "reason": "no action left"}
+	g.shield = true
+	var t := unit_of(g.held)
+	events.append({"type": "grapple", "kind": "shield", "unit": cur.id, "target": t.id})
+	say("%s holds %s up as a human shield." % [cur.c.display_name, t.c.display_name])
+	return {"ok": true}
+
+
+## Release (p.177, p.184): letting go is free; dropping a corpse shield takes an Action.
+func release() -> Dictionary:
+	var g: Grapple = cur.c.grapple
+	if g == null or g.holder != cur.c:
+		return {"ok": false, "reason": "not holding anyone"}
+	if not g.live() and not turn.use_action():
+		return {"ok": false, "reason": "dropping a corpse shield takes an Action"}
+	var t := unit_of(g.held)
+	g.end()
+	events.append({"type": "grapple", "kind": "release", "unit": cur.id, "target": t.id})
+	say("%s lets go of %s." % [cur.c.display_name, t.c.display_name])
+	return {"ok": true}
+
+
+## The hit-chance popup for breaking a hold: {ok, reason, chance}. `target` is the ally to free
+## ({}: your own escape).
+func escape_preview(target: Dictionary = {}) -> Dictionary:
+	var held: Dictionary = cur if target.is_empty() else target
+	if not held.c.is_grappled():
+		return {"ok": false, "reason": "nobody's holding them", "chance": 0.0}
+	if held != cur and not break_targets(cur).has(held):
+		return {"ok": false, "reason": "can't reach whoever holds them", "chance": 0.0}
+	if not turn.action_available:
+		return {"ok": false, "reason": "no action left", "chance": 0.0}
+	return {"ok": true, "reason": "", "chance": held.c.grapple.escape_chance(cur.c)}
+
+
+## Escape (p.177): an Action and a won Grab roll against the one holding; the held one or anyone
+## else in reach of the holder (RULES-UNVERIFIED: reach for a third party, as for a Grab).
+func escape_grapple(target: Dictionary = {}) -> Dictionary:
+	var p := escape_preview(target)
+	if not p.ok:
+		return p
+	var held: Dictionary = cur if target.is_empty() else target
+	var g: Grapple = held.c.grapple
+	var holder := unit_of(g.holder)
+	turn.use_action()
+	if held != cur:
+		_hostile_act(holder)
+	var r := g.escape(dice, cur.c)
+	var ck: Check = r.check
+	if r.success and held == cur:
+		turn.freed()
+	events.append({"type": "grapple", "kind": "escape", "unit": cur.id, "target": holder.id, "freed": held.id, "success": r.success, "roll": ck.total, "dv": ck.dv})
+	say("%s %s %s's hold · %d vs %d" % [cur.c.display_name, "breaks" if r.success else "fails to break", holder.c.display_name, ck.total, ck.dv])
+	return {"ok": true, "success": r.success}
+
+
+## Get Up (p.168): an Action; Prone, you have no Move Action until you do (TurnState.get_up).
+func get_up() -> Dictionary:
+	if not cur.c.prone:
+		return {"ok": false, "reason": "not prone"}
+	if not turn.get_up():
+		return {"ok": false, "reason": "no action left"}
+	events.append({"type": "get_up", "unit": cur.id})
+	say("%s gets up." % cur.c.display_name)
+	return {"ok": true}
+
+
+## Run one of grapple_options() by id; `target` for grab and break.
+func grapple_act(id: String, target: Dictionary = {}) -> Dictionary:
+	match id:
+		"grab": return grapple(target)
+		"choke": return choke()
+		"throw": return throw_foe()
+		"shield": return human_shield()
+		"release": return release()
+		"escape": return escape_grapple()
+		"break": return escape_grapple(target)
+		"get_up": return get_up()
+	return {"ok": false, "reason": "unknown action"}
+
+
+## The Attacker's Move Action drags the Defender along (p.177): they end on the last square of the
+## path behind the mover that's free, else any free square beside them. With nowhere to put them
+## the hold is lost (RULES-UNVERIFIED). Dragging costs no extra movement (RULES-UNVERIFIED).
+func _drag(mover: Dictionary, full: Array) -> void:
+	var t := grapple_partner(mover)
+	if t.is_empty() or not mover.c.is_grappling():
+		return
+	var occ := occupied(t)
+	var dest: Vector3i = mover.pos
+	var cand: Array = []
+	for i in range(full.size() - 2, -1, -1):
+		cand.append(full[i])
+	for dy in [-1, 0, 1]:
+		for dx in [-1, 0, 1]:
+			cand.append(Vector3i(dest.x + dx, dest.y + dy, dest.z))
+	for v: Vector3i in cand:
+		if v != dest and not occ.has(v) and nav.open(v) and adjacent(dest, v):
+			var trail: Array = [t.pos]
+			var idx := full.find(v)
+			trail.append_array(full.slice(0, idx + 1) if idx >= 0 else full.slice(0, full.size() - 1))
+			if idx < 0:
+				trail.append(v)
+			t.pos = v
+			events.append({"type": "move", "unit": t.id, "path": trail, "run": false, "dragged": true})
+			return
+	say("%s loses hold of %s." % [mover.c.display_name, t.c.display_name])
+	mover.c.grapple.end()
+	events.append({"type": "grapple", "kind": "broken", "unit": mover.id, "target": t.id})
+
+
+## Grapples that can't go on (checked after everything): the holder can't act (out cold, down);
+## the held one dies (a Human Shield becomes a corpse shield, anyone else is let go); the two are
+## no longer side by side. RULES-UNVERIFIED: p.177 lists only the ways to end a grapple on purpose.
+func _check_grapples() -> void:
+	for u in units:
+		var g: Grapple = u.c.grapple
+		if g == null or g.holder != u.c:
+			continue
+		var t := unit_of(g.held)
+		if g.live() and g.held.dead and u.c.can_act():
+			if g.held_died():
+				say("%s holds on to %s's body: a corpse shield." % [u.c.display_name, g.held.display_name])
+				continue
+		elif u.c.dead or not u.c.can_act() or (g.live() and not adjacent(u.pos, t.pos)):
+			g.end()
+		else:
+			continue
+		if u.c.grapple == null:
+			events.append({"type": "grapple", "kind": "broken", "unit": u.id, "target": t.id})
+
+
+## A Human Shield between `target` and an attack on them from `from` (p.184): the target holds one
+## that still covers and sees the attacker, and the attack is ranged and not an Aimed Shot at the
+## head. Returns the shield's unit or {}. RULES-UNVERIFIED: area attacks (shells, blasts,
+## suppression) ignore it.
+func shield_for(target: Dictionary, weapon: Weapon, mode: Attack.Mode, from: Vector3i) -> Dictionary:
+	if target.is_empty() or not target.c.is_grappling() or weapon.is_melee() or mode == Attack.Mode.AIMED_HEAD:
+		return {}
+	var g: Grapple = target.c.grapple
+	if not g.covers() or _aimer() == g.held or not los.sight(target.pos, from).visible:
+		return {}
+	return unit_of(g.held)
+
+
+## A shot into a corpse shield (p.183-184): it can't dodge, and on a hit it takes the whole attack
+## as HP damage. Returns an Attack.resolve-like result.
+func _hit_corpse(sh: Dictionary, weapon: Weapon, mode: Attack.Mode, p: Dictionary) -> Dictionary:
+	var g: Grapple = sh.c.grapple
+	if weapon.uses_ammo():
+		weapon.spend(weapon.autofire_ammo() if mode == Attack.Mode.AUTOFIRE else 1)
+	var check := Check.vs_dv(dice, int(p.base), int(p.dv))
+	var r := {"ok": true, "hit": check.success, "check": check, "damage": 0, "through": 0, "location": "body", "crits": [], "dodged": false}
+	if check.success:
+		var dmg := 0
+		if mode == Attack.Mode.AUTOFIRE:
+			dmg = dice.roll(2, 6) * mini(check.total - check.dv, weapon.autofire_mult())
+		else:
+			dmg = dice.roll(weapon.dice(), 6)
+		r.damage = dmg
+		r["shield_left"] = g.hit_corpse(dmg)
+	return r
 
 
 ## The attacks a weapon allows, by the book's names (CPR core p.170-177): Single Shot, Aimed Shot
@@ -2637,6 +2998,8 @@ func reload(weapon: Weapon) -> bool:
 
 ## Shoot the cover (or wall, door, window) in the way: damage dice vs its HP; at 0 it's gone.
 func shoot_cover(cell: Vector3i, weapon: Weapon) -> Dictionary:
+	if Attack.grapple_reason(weapon, cur.c) != "":
+		return {"ok": false, "reason": Attack.grapple_reason(weapon, cur.c)}
 	if not turn.take_attack(weapon, weapon.rof() < 2):
 		return {"ok": false, "reason": "no action left" if turn.attacks_left <= 0 else "the second attack must be a single 2 ROF attack"}
 	_keep_peace(cur, [cell])
