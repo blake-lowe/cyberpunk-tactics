@@ -662,7 +662,7 @@ func _debrief_members(went: Array, before: Dictionary, report: Dictionary, kit_o
 		out.append({"name": c.display_name, "role": c.role, "look_seed": c.look_seed, "dead": c.dead,
 			"ip": 0 if c.dead else int(report.ip), "reputation": int(report.reputation.get(c.display_name, 0)),
 			"injuries": new_inj, "wound": WOUND_NAMES[c.wound_state()], "hp": c.hp, "max_hp": c.max_hp(),
-			"kit": kit_of.get(c.display_name, []), "lost": _lost_gear(c, kit_of) if c.dead else [], "addicted": hooked, "episode": c.display_name in report.episodes,
+			"kit": kit_of.get(c.display_name, []), "lost": _lost_gear(c, kit_of) if c.dead else [], "lost_keys": _lost_gear_keys(c) if c.dead else [], "addicted": hooked, "episode": c.display_name in report.episodes,
 			"humanity_lost": maxi(0, int(b.get("humanity", c.humanity)) - c.humanity) if c.tracks_humanity else 0})
 	return out
 
@@ -681,6 +681,21 @@ static func _lost_gear(c: Combatant, kit_of: Dictionary) -> Array:
 	for cw in c.cyberware:
 		out.append(String(RulesDB.cyberware(String(cw)).get("name", cw)))
 	out.append_array(kit_of.get(c.display_name, []))
+	return out
+
+
+## The storage keys beside _lost_gear's names, in the same order ("" where a name has none), so
+## the debrief can style them (QualityText).
+static func _lost_gear_keys(c: Combatant) -> Array:
+	var out: Array = []
+	for w in c.weapons:
+		if not w.builtin:
+			out.append(Items.key_of_weapon(w))
+	for loc in ["head", "body"]:
+		if c.armor.get(loc):
+			out.append("")
+	for cw in c.cyberware:
+		out.append("cyberware/" + String(cw))
 	return out
 
 

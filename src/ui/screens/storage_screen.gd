@@ -273,7 +273,7 @@ func _slot_row(c: Combatant, id: String) -> PanelContainer:
 		elif Loadout.is_armor_slot(id):
 			var a: ArmorPiece = c.armor[id]
 			nm = a.name + (" +1" if a.upgraded else "")
-		nl.add_child(UiKit.fit(UiKit.body(nm if nm != "" else Items.display_name(key), 14, Hud.TEXT, false)))
+		nl.add_child(UiKit.fit(QualityText.apply(UiKit.body(nm if nm != "" else Items.display_name(key), 14, Hud.TEXT, false), key)))
 		if chrome:
 			nl.add_child(UiKit.chip("◆ CHROME", Hud.VIOLET.lightened(0.3)))
 		mid.add_child(_slot_stats(c, id))
@@ -399,7 +399,7 @@ func _storage_row(c: Combatant, key: String, now: String) -> PanelContainer:
 	p.add_child(v)
 	var l1 := UiKit.hbox(6)
 	v.add_child(l1)
-	var nm := UiKit.fit(UiKit.body(Items.display_name(key), 15, Hud.VIOLET.lightened(0.35) if chrome else Hud.TEXT, false))
+	var nm := UiKit.fit(QualityText.apply(UiKit.body(Items.display_name(key), 15, Hud.VIOLET.lightened(0.35) if chrome else Hud.TEXT, false), key))
 	nm.size_flags_stretch_ratio = 1.6
 	l1.add_child(nm)
 	if chrome:
@@ -453,7 +453,7 @@ func _detail(c: Combatant, now: String, wide: bool) -> PanelContainer:
 		v.add_child(UiKit.head(Loadout.slot_label(slot), 28, Hud.DIM))
 		v.add_child(UiKit.body("Empty, and nothing in storage fits it.", 13, Hud.DIM, false))
 		return p
-	v.add_child(UiKit.fit(UiKit.head(Items.display_name(show), 28, Hud.GOLD if pick != "" else Hud.TEXT)))
+	v.add_child(UiKit.fit(QualityText.apply(UiKit.head(Items.display_name(show), 28, Hud.GOLD if pick != "" else Hud.TEXT), show)))
 	v.add_child(UiKit.fit(UiKit.body(_subtitle(show), 12, Hud.DIM, false)))
 	if Items.is_cyberware(show):
 		v.add_child(UiKit.body("Waiting in storage: the Med Bay's ripperdoc installs it on whoever it's for.", 13, Hud.TEXT))
@@ -482,6 +482,8 @@ func _subtitle(key: String) -> String:
 		var w := Items.make_weapon(key)
 		parts.append(String(RulesDB.skill(w.skill()).get("name", w.skill())) if w.skill() != "autofire" else "Autofire")
 		parts.append("%d-handed" % int(w.def.get("hands", 1)))
+		if w.quality != "standard":   # the name shows quality as typography only
+			parts.insert(0, QualityText.quality_note(key))
 		cite = String(w.def.get("cite", ""))
 	elif Items.is_armor(key):
 		parts.append("Armor · head or body")

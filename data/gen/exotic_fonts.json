@@ -1,0 +1,25 @@
+{
+	"_doc": "Display face of each exotic weapon's name (weapons.json category 'exotic'; read by src/ui/quality_text.gd). 'weapons': weapon id -> Google Fonts family and its file under res://assets/fonts/ (every exotic must be listed; tests check the file loads). 'families': per family, its author (credits) and licence file (license_id: OFL-1.1 or Apache-2.0) beside the font (OFL-<family>.txt or APACHE-<family>.txt, copied into licenses/ by tools/build_windows.sh), plus optional 'scale' (multiplies the caller's font size so the face reads at the same height; default 1) and 'case' ('title': Title Case, for faces that look wrong in all caps; 'upper': ALL CAPS; default: as the caller gives it). A file may be a .tres FontVariation over a variable font (Playfair Display Italic at weight 500 over PlayfairDisplay-Italic-VF.ttf). Owner's picks (2026-11-06).",
+	"weapons": {
+		"air_pistol": {"family": "Racing Sans One", "file": "RacingSansOne-Regular.ttf"},
+		"dartgun": {"family": "Racing Sans One", "file": "RacingSansOne-Regular.ttf"},
+		"kendachi_mono_three": {"family": "Racing Sans One", "file": "RacingSansOne-Regular.ttf"},
+		"microwaver": {"family": "Racing Sans One", "file": "RacingSansOne-Regular.ttf"},
+		"shrieker": {"family": "Racing Sans One", "file": "RacingSansOne-Regular.ttf"},
+		"battleglove": {"family": "Iceland", "file": "Iceland-Regular.ttf"},
+		"rhinemetall_emg86": {"family": "Iceland", "file": "Iceland-Regular.ttf"},
+		"stun_gun": {"family": "Iceland", "file": "Iceland-Regular.ttf"},
+		"cowboy_u56": {"family": "Iceland", "file": "Iceland-Regular.ttf"},
+		"malorian_arms_3516": {"family": "Iceland", "file": "Iceland-Regular.ttf"},
+		"stun_baton": {"family": "Iceland", "file": "Iceland-Regular.ttf"},
+		"flamethrower": {"family": "Pirata One", "file": "PirataOne-Regular.ttf"},
+		"hurricane_assault_weapon": {"family": "Pirata One", "file": "PirataOne-Regular.ttf"},
+		"tsunami_helix": {"family": "Playfair Display Italic", "file": "PlayfairDisplay-Italic-500.tres"}
+	},
+	"families": {
+		"Racing Sans One": {"author": "Pablo Impallari, Rodrigo Fuenzalida", "license": "OFL-racingsansone.txt", "license_id": "OFL-1.1", "case": "upper"},
+		"Iceland": {"author": "Cyreal", "license": "OFL-iceland.txt", "license_id": "OFL-1.1", "scale": 1.3, "case": "upper"},
+		"Pirata One": {"author": "Rodrigo Fuenzalida, Nicolas Massi", "license": "OFL-pirataone.txt", "license_id": "OFL-1.1", "scale": 1.25, "case": "title"},
+		"Playfair Display Italic": {"author": "The Playfair Display Project Authors", "license": "OFL-playfairdisplay.txt", "license_id": "OFL-1.1", "scale": 1.1, "case": "title"}
+	}
+}

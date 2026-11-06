@@ -24,7 +24,7 @@ extends Control
 ## (jobs, hire, market, city, storage, workshop, ripperdoc, therapy, injuries, training, crew, debrief);
 ## --crew=n selects crew member n on it; --hover=<room id> shows a room hovered; --demo uses
 ## DemoState's sample campaign (never saved); with it the Armory also takes --slot=<slot id>,
-## --pick=<storage key> and --filter=<chip> (StorageScreen.setup), and the city map --district=<id> or
+## --pick=<storage key>, --filter=<chip> (StorageScreen.setup) and --stash=<key,key> (more in storage), and the city map --district=<id> or
 ## --pin=<board index> (CityTab.setup).
 
 const GB := preload("res://src/tactical/greybox.gd")
@@ -118,6 +118,10 @@ func _ready() -> void:
 	Hud._fonts()
 	if camp == null and "--demo" in OS.get_cmdline_user_args():   # review shots: DEV-ONLY sample campaign, never saved
 		camp = DemoState.make()
+		for a2 in OS.get_cmdline_user_args():   # --stash=weapon/heavy_pistol@poor,... adds to the demo's storage
+			if a2.begins_with("--stash="):
+				for k in a2.get_slice("=", 1).split(","):
+					camp.stash[k] = int(camp.stash.get(k, 0)) + 1
 	elif camp == null:   # (a caller may hand one in before adding the view)
 		camp = Campaign.ensure_current()
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)

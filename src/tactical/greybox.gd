@@ -257,6 +257,7 @@ var _demo_ms := 0
 var _reel := ""
 var tool := ""                  ## M5 target-picking action: melee, shell, grenade, stabilize ("" = normal attacks)
 var _dev_kit: PackedStringArray = []   ## --kit=a,b (review renders)
+var _dev_weapons: PackedStringArray = []   ## --weapons=heavy_pistol@poor,microwaver (review renders)
 var _dev_stage := ""                   ## --stage=attack (review renders)
 var _dev_arm := ""                     ## --arm=brawl|grenade|<attack mode> (review renders)
 var _dev_portrait := false             ## --portrait=1 (review renders): hover the hovered foe's portrait instead
@@ -318,6 +319,7 @@ func _ready() -> void:
 			"variant": gig["variant"] = kv[1]   # with --setpiece: one of its variants by id (the Estates: 1a-1l)
 			"floor": _shot_floor = int(kv[1])   # review renders: look at this storey
 			"kit": _dev_kit = kv[1].split(",")   # review renders: pack every crew member's kit slots
+			"weapons": _dev_weapons = kv[1].split(",")   # review renders: the crew carries these (id[@quality]), first drawn
 			"stage": _dev_stage = kv[1]   # review renders: open the action bar on this stage (attack)
 			"arm": _dev_arm = kv[1]   # review renders: arm this attack (brawl, grenade = kit slot 1, or a mode id)
 			"portrait": _dev_portrait = kv[1] != "0"   # review renders: the hover goes through the foe's portrait
@@ -751,6 +753,8 @@ func new_gig() -> void:
 		for cm in crew:   # review renders: everyone packs the same kit
 			for i in mini(2, _dev_kit.size()):
 				cm.kit[i] = _dev_kit[i]
+			if not _dev_weapons.is_empty():
+				cm.weapons.assign(Array(_dev_weapons).map(func(k): return Items.make_weapon("weapon/" + String(k))))
 		var fid := String(gig.get("faction", ""))
 		if fid != "":
 			eo["faction"] = fid

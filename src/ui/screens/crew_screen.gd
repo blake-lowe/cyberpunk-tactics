@@ -121,7 +121,7 @@ func _condition_col(c: Combatant) -> PanelContainer:
 	if c.cyberware.is_empty():
 		v.add_child(none("None."))
 	for cw in c.cyberware:
-		v.add_child(UiKit.label(String(RulesDB.cyberware(String(cw)).get("name", cw)), 14, Hud.VIOLET.lightened(0.35)))
+		v.add_child(QualityText.apply(UiKit.label(String(RulesDB.cyberware(String(cw)).get("name", cw)), 14, Hud.VIOLET.lightened(0.35)), "cyberware/" + String(cw)))
 	return x[0]
 
 
@@ -130,7 +130,7 @@ func _gear_col(c: Combatant) -> PanelContainer:
 	var v: VBoxContainer = x[1]
 	for i in c.weapons.size():
 		var w: Weapon = c.weapons[i]
-		v.add_child(UiKit.fit(UiKit.label("%d · %s" % [i + 1, w.display_name()], 14, Hud.VIOLET.lightened(0.35) if w.builtin else Hud.TEXT)))
+		v.add_child(UiKit.fit(QualityText.apply(UiKit.label("%d · %s" % [i + 1, w.display_name()], 14, Hud.VIOLET.lightened(0.35) if w.builtin else Hud.TEXT), Items.key_of_weapon(w))))
 	v.add_child(section("ARMOR"))
 	for loc in ["head", "body"]:
 		var a: ArmorPiece = c.armor.get(loc)
