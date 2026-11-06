@@ -13,6 +13,14 @@ const OBJECTIVE_TEXT := {"data": "Download the target file, or eliminate all hos
 	"rescue": "Free the captive and walk them to the extraction zone",
 	"sabotage": "Plant a charge on the target machine, get clear, get out"}
 
+## A Security Code → tint, read from the crew's side: cool blue (low: a response rarely comes,
+## NC2045 p.7) through teal to orange and hot red (high: it almost always does). No yellow or green:
+## gold is selection's colour, green is health.
+const CODE_RAMP := ["5f7cff", "4f88ff", "3d95ff", "17b5f2", "05d9e8", "2fd3bf", "ff9a3c", "ff7f2a", "ff5a3c", "ff3b4f", "ff1f55"]
+## Faction names too long for a card line.
+const SHORT_FACTION := {"san_luis_obispo_county_sheriff": "SLO SHERIFF", "norcal_cog_military_police": "NORCAL MP",
+	"ncu_campus_security": "NCU SECURITY"}
+
 signal take_gig(index: int)
 
 var focus_gig := -1   ## a job opened from the CITY map: JOBS scrolls to it and marks it gold
@@ -30,7 +38,7 @@ func tabs() -> Array:
 	return [["jobs", "JOBS"], ["hire", "HIRE"], ["market", "NIGHT MARKET"], ["city", "CITY"]]
 
 
-## CITY: the Night City map (CityTab); clicking a job pin opens it in JOBS.
+## CITY: the Night City map (CityTab): pick an offer to plot the drive; its pin or button opens it in JOBS.
 func build_body(body: VBoxContainer) -> void:
 	if tab != "jobs":
 		focus_gig = -1
@@ -106,12 +114,45 @@ func _gig_card(i: int, ready: bool) -> PanelContainer:
 	var right := UiKit.vbox(6)
 	right.custom_minimum_size.x = 240
 	row.add_child(right)
-	right.add_child(CityTab.code_block(g, 17, 13))   # NC2045 p.7 Security Code, coloured as on the CITY map
+	right.add_child(code_block(g, 17, 13))   # NC2045 p.7 Security Code
 	right.add_child(UiKit.label("PAY", 12, Hud.DIM))
 	right.add_child(UiKit.label("%s eb" % UiKit.money(int(g.pay)), 22, Hud.TEXT))
 	var b := UiKit.button("TAKE THE GIG", UiKit.PRIMARY, func(): take_gig.emit(i), ready)
 	right.add_child(b)
 	return p
+
+
+## A gig's Security Code in two lines, tinted by the code: "SECURITY 4" over
+## "GOLD DRAGONS · HARDENED LIGHT" (the site's own people when the code names nobody).
+static func code_block(gig: Dictionary, big: int, small: int) -> Control:
+	var c := SecurityCode.normalise(gig.get("security_code"))
+	if c.is_empty():
+		c = SecurityCode.from_level(int(gig.get("security", 1)), String(gig.get("faction", "")))
+	var who := String(c.faction) if String(c.faction) != "" else String(gig.get("faction", ""))
+	var col := code_colour(int(c.n))
+	var v := UiKit.vbox(0)
+	v.add_child(UiKit.label("SECURITY %d" % int(c.n), big, col))
+	var how := ("HARDENED " if bool(c.hardened) else "") + String(c.intensity).to_upper()
+	v.add_child(UiKit.label("%s · %s" % [short_faction(who), how] if who != "" else how, small, col.lightened(0.25)))
+	return v
+
+
+static func code_colour(n: int) -> Color:
+	return Color(CODE_RAMP[clampi(n, 0, CODE_RAMP.size() - 1)])
+
+
+## "NCPD", "WHITEWATER", "SLO SHERIFF": a faction short enough for a card line.
+static func short_faction(id: String) -> String:
+	if SHORT_FACTION.has(id):
+		return SHORT_FACTION[id]
+	var n := SecurityCode.faction_name(id).to_upper().trim_prefix("THE ")
+	var paren := RegEx.create_from_string("\\(([A-Z0-9]+)\\)").search(n)
+	if paren:
+		return paren.get_string(1)
+	if n.length() <= 12:
+		return n
+	var words := n.split(" ", false)
+	return words[0] if words[0].length() >= 4 or words.size() < 2 else words[0] + " " + words[1]
 
 
 # --- Hire -----------------------------------------------------------------------------------
