@@ -1658,10 +1658,10 @@ static func _node_label(n: Dictionary, enc: Encounter = null, run: NetRun = null
 ## greybox._unhandled_input / _process / the portrait strip handles. [section, [[input, does], ...]].
 const HELP := [
 	["MOUSE", [
-		["RIGHT-CLICK", "Attack the enemy under the cursor"],
-		["LEFT-CLICK", "Move or run to a square"],
+		["LEFT-CLICK", "Attack the enemy under the cursor"],
+		["RIGHT-CLICK", "Move or run to a square"],
 		["CLICK PORTRAIT", "Target an enemy from the turn order"],
-		["SHIFT + RIGHT-CLICK", "Shoot the cover in the way"],
+		["SHIFT + LEFT-CLICK", "Shoot the cover in the way"],
 		["HOVER ENEMY", "Line of fire and hit chance"],
 		["HOLD ALT", "Inspect, enemy outlines, range bands"],
 	]],

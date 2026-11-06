@@ -92,9 +92,25 @@ func test_last_known_squares() -> void:
 
 func test_help_says_how_to_attack() -> void:
 	var h := Hud.help_text()
-	assert_true(h.begins_with("MOUSE\nRIGHT-CLICK  Attack"), "the right-click, first")
+	assert_true(h.begins_with("MOUSE\nLEFT-CLICK  Attack"), "the left-click attacks, first")
 	assert_true(h.contains("PORTRAIT"), "targeting from the turn order")
-	for k in ["LEFT-CLICK", "SHIFT + RIGHT-CLICK", "MIDDLE-DRAG", "WHEEL", "ALT", "W A S D", "Q / E"]:
+	for k in ["RIGHT-CLICK  Move", "SHIFT + LEFT-CLICK", "MIDDLE-DRAG", "WHEEL", "ALT", "W A S D", "Q / E"]:
 		assert_true(h.contains(k), k)
 	for k in ["RELOAD", "SPACE", "JACK"]:   # the action bar shows its own keys (owner)
 		assert_false(h.to_upper().contains(k), "no bar key in the help: " + k)
+
+
+func test_click_intent_right_moves_left_attacks() -> void:
+	var L := MOUSE_BUTTON_LEFT
+	var R := MOUSE_BUTTON_RIGHT
+	assert_eq(ClickIntent.of(R, false, false, "", false, false), ClickIntent.MOVE, "right on ground moves")
+	assert_eq(ClickIntent.of(R, false, false, "", false, true), ClickIntent.MOVE, "right on a foe never attacks")
+	assert_eq(ClickIntent.of(R, false, false, "grenade", false, false), ClickIntent.MOVE, "right moves with a tool armed")
+	assert_eq(ClickIntent.of(L, false, false, "", false, true), ClickIntent.ATTACK, "left on a foe attacks")
+	assert_eq(ClickIntent.of(L, false, false, "", false, false), ClickIntent.NONE, "left on ground / a friendly: nothing")
+	assert_eq(ClickIntent.of(L, true, false, "", false, false), ClickIntent.COVER, "shift+left shoots cover")
+	assert_eq(ClickIntent.of(L, false, false, "", true, false), ClickIntent.COVER, "Shoot Cover armed")
+	assert_eq(ClickIntent.of(L, false, false, "melee", false, true), ClickIntent.TOOL, "left uses the armed tool")
+	assert_eq(ClickIntent.of(L, false, true, "", false, true), ClickIntent.NET, "NET: left picks a node")
+	assert_eq(ClickIntent.of(R, false, true, "", false, false), ClickIntent.NET, "NET: right picks a node")
+	assert_eq(ClickIntent.of(MOUSE_BUTTON_MIDDLE, false, false, "", false, true), ClickIntent.NONE, "middle is the camera's")

@@ -9,9 +9,12 @@ extends Node
 ##   WASD / arrows   pan          Mouse wheel   zoom
 ##   Q / E (hold)    rotate (eased)             Middle-drag   rotate freely        H  controls hint
 ##   PageUp/PageDown change the floor you're viewing (floors above open up around the focus)
-##   Left click      move (path preview while hovering the move grid); with an attack armed (F or
-##                   the bar), left-click an enemy or its turn-order portrait to attack
-##   Right click     attack the enemy under the cursor (Shift: shoot the cover in the way)
+##   Right click     move (path preview while hovering the move grid)
+##   Left click      attack the enemy under the cursor or its turn-order portrait; with a tool armed
+##                   (F / the bar), use it on its target; Shift+left: shoot the cover in the way.
+##                   Left on empty ground or a friendly does nothing. NET: either button picks a node.
+##   Esc             cancel the armed attack / tool    B  interact (doors, devices, bodies: not a click)
+##                   (mapping: ClickIntent)
 ##   Hover an enemy  line of fire / swing / throw arc and the hit chance (AimPreview)
 ##   F attack (again: next mode)   Tab next weapon   R reload   J jack in   Space end turn
 ##   Alt (hold) inspect, crew roster, enemy outlines    F4 cyberspace style    N peek out of the NET
@@ -2272,22 +2275,21 @@ func _unhandled_input(ev: InputEvent) -> void:
 		match ev.button_index:
 			MOUSE_BUTTON_WHEEL_UP: cam_dist = maxf(8, cam_dist * 0.9); _place_camera()
 			MOUSE_BUTTON_WHEEL_DOWN: cam_dist = minf(160, cam_dist * 1.1); _place_camera()
-			MOUSE_BUTTON_LEFT:
+			MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT:   # right moves, left attacks (ClickIntent)
 				var run := _net_active()
-				if run:   # in the NET, clicks pick nodes
-					var id := net_overlay.pick(ev.position)
-					if id >= 0 and id != run.current:
-						if run.can_move_to(id):
-							_on_hud("net_move", id)
-						else:
-							hud.toast("Blocked: break the firewall or deal with the ICE first.")
-					return
-				if _lmb_targets():   # an attack (or a tool) is armed: left-clicking its target uses it
-					_click_target(ev.shift_pressed)
-				else:
-					_click_move()
-			MOUSE_BUTTON_RIGHT:
-				_click_target(ev.shift_pressed)
+				var t: Dictionary = _unit_at(hover) if enc else {}
+				match ClickIntent.of(ev.button_index, ev.shift_pressed, run != null, tool, cover_mode, not t.is_empty() and _foe(t)):
+					ClickIntent.NET:
+						var id := net_overlay.pick(ev.position)
+						if id >= 0 and id != run.current:
+							if run.can_move_to(id):
+								_on_hud("net_move", id)
+							else:
+								hud.toast("Blocked: break the firewall or deal with the ICE first.")
+					ClickIntent.MOVE: _click_move()
+					ClickIntent.TOOL: _click_tool()
+					ClickIntent.COVER: _click_attack(true)
+					ClickIntent.ATTACK: _click_attack(false)
 	elif ev is InputEventKey and ev.pressed and not ev.echo:
 		if _end_key(ev.keycode):   # the gig is over: the end panel takes Enter, Space and Esc first
 			get_viewport().set_input_as_handled()
@@ -2354,7 +2356,10 @@ func _on_hud(name: String, arg: Variant) -> void:
 	match name:
 		"portrait_click":   # clicking a foe's portrait does what clicking their figure would
 			if _aim_armed() and _portrait_target(int(arg)):
-				_click_target(false)
+				if tool != "":
+					_click_tool()
+				else:
+					_click_attack(cover_mode)
 		"stage":
 			if String(arg) == "attack" and stage != "attack":
 				if not _spend_check():
@@ -2515,28 +2520,6 @@ func _aim_armed() -> bool:
 	return _crew_turn() and (stage == "attack" or tool in ["melee", "shell", "grenade"])
 
 
-## What a left click on the hovered square does with something armed: use it (true) or move (false).
-func _lmb_targets() -> bool:
-	if not _crew_turn():
-		return false
-	if tool == "grenade":
-		return hover.x >= 0
-	var t := _unit_at(hover)
-	if t.is_empty():
-		return false
-	if tool != "":
-		return true   # every tool picks a unit (a foe to hit, an ally to patch up)
-	return stage == "attack" and _foe(t)
-
-
-## Right click, or a left click with an attack armed: the armed tool or the drawn weapon's attack.
-func _click_target(shift: bool) -> void:
-	if tool != "":
-		_click_tool()
-	else:
-		_click_attack(shift or cover_mode)
-
-
 ## A foe's turn-order portrait: point the hover at them if they're in sight (true).
 func _portrait_target(uid: int) -> bool:
 	for u in enc.units:
@@ -2653,7 +2636,7 @@ func _click_tool() -> void:
 		"melee":
 			if not t.is_empty() and not enc.allied(t.team, enc.cur.team):
 				r = enc.melee(t, Weapon.brawling(enc.cur.c) if atk_mode == "brawl" else (w if w and w.is_melee() else null))
-		"suppress":   # Suppressive Fire hits everyone in sight within 25 m: right-click anywhere
+		"suppress":   # Suppressive Fire hits everyone in sight within 25 m: left-click anywhere
 			if w:
 				r = enc.suppress(w)
 		"shell":
@@ -3195,7 +3178,7 @@ const ATK_ENUM := {"single": Attack.Mode.SINGLE, "aim_head": Attack.Mode.AIMED_H
 	"aim_held": Attack.Mode.AIMED_HELD, "auto": Attack.Mode.AUTOFIRE, "cover": Attack.Mode.SINGLE}
 
 
-## Arm an attack from the attack stage: plain shots set the fire mode (right-click a target);
+## Arm an attack from the attack stage: plain shots set the fire mode (left-click a target);
 ## the rest are target-picking tools; Shoot Cover aims at the cover in the way.
 func _arm(m: String) -> void:
 	atk_mode = m
