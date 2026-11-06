@@ -8,6 +8,7 @@ uniform float levels = 0.0;        // per-channel steps when palette_on is false
 uniform float dither = 0.3;        // 0..1 ordered (Bayer 4x4) dither strength
 uniform float contrast = 1.0;      // strength of the S-curve
 uniform float saturation = 1.0;
+uniform float grade_gamma = 1.0;   // power curve on the 3D view (Greybox.GRADE_GAMMA); 1 = none (portraits)
 uniform float outline = 0.0;       // 0..1 darken pixels on strong luminance edges
 uniform bool palette_on = true;
 uniform vec3 palette[64];          // in OKLab (converted on the CPU)
@@ -168,6 +169,9 @@ void fragment() {
 	// gentle S-curve pivoted low (keeps shadow detail), then a coloured shadow floor so only
 	// deliberate ink reaches black
 	c = clamp(c, 0.0, 1.0);
+	// the grade: a power curve deepens the darks and keeps lights, neon and units' trim bright
+	// (owner light review: one darker look for every scene, readable through the units)
+	c = pow(c, vec3(grade_gamma));
 	c = c + 0.25 * contrast * (c - 0.3) * c * (1.0 - c) * 4.0;
 	c = c * 0.93 + vec3(0.018, 0.022, 0.045);
 	c = mix(vec3(luma(c)), c, saturation);

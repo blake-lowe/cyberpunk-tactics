@@ -41,7 +41,7 @@ func test_every_faction_resolves_against_the_rules_data() -> void:
 		for g in f.get("gigs", []):
 			assert_true(g in gig_kinds, "%s: targetable by a real gig kind (%s)" % [id, g])
 		for k in f.get("look", {}):
-			if k in ["jacket", "accent", "pants"]:
+			if k in ["jacket", "accent", "pants", "trim"]:
 				assert_true(Color.html_is_valid(String(f.look[k])), "%s: look.%s is a colour" % [id, k])
 		for other in f.get("relations", {}):
 			assert_true(kinds.has(String(other)) or World.has_faction(String(other)), "%s: relation to a kind or faction (%s)" % [id, other])
@@ -51,6 +51,49 @@ func test_every_faction_resolves_against_the_rules_data() -> void:
 		assert_true(f.has("cite"), "%s: cited (or ours)" % id)
 		if "gang_hit" in f.get("gigs", []):
 			assert_eq(String(f.kind), "gang", "%s: only gangs take a gang hit (its titles name a gang)" % id)
+
+
+## Owner light review: "ban all-black enemy designs; they should have some lighter or coloured
+## highlights". Every faction's look names a highlight (trim, else accent, else a lightened jacket)
+## that is light or coloured as written in the data, not only after UnitLook lifts it, and so no
+## faction's palette is all near-black.
+func test_no_faction_palette_is_all_near_black() -> void:
+	var n := 0
+	for id in World.factions():
+		var fl: Dictionary = World.faction(id).get("look", {})
+		if fl.is_empty():
+			continue
+		n += 1
+		var jackets: Array = fl.get("jackets", [fl.get("jacket", "000000")])
+		var highs: Array[Color] = []
+		if fl.has("trim"):
+			highs.append(Color(String(fl.trim)))
+		elif fl.has("accent"):
+			highs.append(Color(String(fl.accent)))
+		else:
+			assert_true(fl.has("accent_from_jacket"), "%s: names a highlight (trim, accent or accent_from_jacket)" % id)
+			for j in jackets:
+				highs.append(Color(String(j)).lightened(float(fl.get("accent_from_jacket", 0.0))))
+		for h in highs:
+			assert_true(UnitLook.luma(h) >= UnitLook.TRIM_MIN_LUMA, "%s: highlight %s is light or coloured (luma %.2f)" % [id, h.to_html(false), UnitLook.luma(h)])
+		for j in jackets:   # the faction's whole outfit palette, highlight included
+			var top := maxf(UnitLook.luma(Color(String(j))), UnitLook.luma(Color(String(fl.get("pants", "000000")))))
+			for h in highs:
+				top = maxf(top, UnitLook.luma(h))
+			assert_true(top >= UnitLook.TRIM_MIN_LUMA, "%s: not an all near-black palette" % id)
+	assert_true(n > 100, "the looks were checked (%d)" % n)
+	for i in UnitLook.CREW_ACCENTS.size():   # the crew's own highlights
+		assert_true(UnitLook.luma(UnitLook.CREW_ACCENTS[i]) >= UnitLook.TRIM_MIN_LUMA, "crew accent %d is light" % i)
+
+
+## The model wears it: a uniformed foe of a black-clad faction gets its trim, and the trim is never
+## darker than the floor.
+func test_units_wear_a_light_trim() -> void:
+	for f in ["arasaka", "maelstrom", "tyger_claws", "kill_krashers", "red_chrome_legion"]:
+		var lk := UnitLook.make(3, 1, "solo", f)
+		assert_true(UnitLook.luma(lk.trim) >= UnitLook.TRIM_MIN_LUMA, "%s: trim %s" % [f, (lk.trim as Color).to_html(false)])
+	assert_eq((UnitLook.make(3, 1, "solo", "tyger_claws").trim as Color).to_html(false), "ff2a6d", "the faction's own trim colour")
+	assert_true(UnitLook.luma(UnitLook.trim_of({}, Color("101010"))) >= UnitLook.TRIM_MIN_LUMA, "a near-black accent is lifted")
 
 
 ## Night City 2045: every faction the district and location docs name exists; the owner's
