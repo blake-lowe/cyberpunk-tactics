@@ -69,6 +69,33 @@ static func max_range_m(table: String, autofire := false, cap := 0.0) -> float:
 	return minf(m, cap) if cap > 0.0 else m
 
 
+## Where the DV changes along a shot (the HUD's Alt range ticks): [distance_m, dv] pairs, nearest
+## first, from 0 m; neighbouring bands with the same DV merge (the pistol's 51-100 and 101-200 m,
+## both DV 30, p173). The weapon's reach ends at max_range_m.
+static func brackets(table: String, autofire := false, cap := 0.0) -> Array:
+	var out: Array = []
+	var dvs := band_dvs(table, autofire)
+	var e := edges()
+	var reach := max_range_m(table, autofire, cap)
+	for i in dvs.size():
+		var start := 0.0 if i == 0 else float(e[i - 1])
+		if start >= reach and i > 0:
+			break
+		if out.is_empty() or int(out[-1][1]) != dvs[i]:
+			out.append([start, dvs[i]])
+	return out
+
+
+## The bracket list for firing `w` in `mode` (Attack.Mode): the weapon's own table row (autofire
+## has its own, p173) and its max-range cap. Empty for melee.
+static func brackets_for(w: Weapon, mode: int) -> Array:
+	if w == null or w.is_melee():
+		return []
+	var auto := mode == Attack.Mode.AUTOFIRE
+	var key := String(w.def.get("autofire_range" if auto else "range", ""))
+	return brackets(key, auto, float(w.fx().get("max_range_m", 0.0)))
+
+
 ## Exact hit chance in each in-range band for an attack base (STAT + Skill + modifiers).
 static func band_chances(base: int, table: String, autofire := false, no_fumble := false) -> PackedFloat32Array:
 	var out := PackedFloat32Array()

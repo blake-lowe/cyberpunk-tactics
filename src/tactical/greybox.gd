@@ -16,11 +16,12 @@ extends Node
 ##   F attack (again: next mode)   Tab next weapon   R reload   J jack in   Space end turn
 ##   Alt (hold) inspect, crew roster, enemy outlines    F4 cyberspace style    N peek out of the NET
 ##   C cutaway auto / all seen rooms / off    Z guard sight lines near your move / always / off
-##   F1 new gig    F2 look settings    F3 toggle fog of war
+##   F1 new gig    F2 look settings    F3 toggle fog of war    K collapse / show the combat log
 ## Screenshot mode:  -- --shot=path.png [--scene=x] [--profile=y] [--district=z] [--seed=n] [--pixel=3]
 ##   [--levels=0] [--dither=0.5] [--outline=0.4] [--bloom=0.8] [--contrast=1.1] [--ortho=1]
 ##   [--fog=0] [--zoom=24] [--yaw=45] [--lights=1] [--hover=x,y] [--promo=1] [--cut=auto|all|off]
 ##   [--stage=attack] [--arm=brawl|grenade|<attack mode>] [--portrait=1] [--alt=1] [--near=n] [--help=1]
+##   [--hurt=0.6 (the nearest foes roused and hurt)] [--logt=0..1 (the log slide held there)]
 
 const FH := 1.6           # floor height in squares (3.2 m)
 const POST_SHADER := preload("res://src/tactical/view/post.gdshader")
@@ -210,7 +211,6 @@ var busy := false             ## animating events: input is ignored
 var _rebuild := false         ## cover/wall destroyed during playback: rebuild the world after
 var ring: MeshInstance3D
 var caret: MeshInstance3D
-var target_ring: MeshInstance3D
 var lights: Array = []        ## [OmniLight3D, Vector3i cell, kind]
 var fog_img: Image
 var fog_tex: ImageTexture
@@ -244,6 +244,8 @@ var _dev_arm := ""                     ## --arm=brawl|grenade|<attack mode> (rev
 var _dev_portrait := false             ## --portrait=1 (review renders): hover the hovered foe's portrait instead
 var _alt_demo := false                 ## --alt=1 (review renders): Alt held (outlines, roster)
 var _dev_help := false                 ## --help=1 (review renders): the H panel open
+var _dev_hurt := -1.0                  ## --hurt=f (review renders): the nearest foes roused, f of their HP lost
+var _dev_log_t := -1.0                 ## --logt=t (review renders): the log's slide held at t
 var _dev_near := 0                     ## --near=n (review renders): bring the nearest foe n squares from the crew
 var _alt_on := false                   ## Alt is held: enemy outlines, last-known marks
 var _portrait_uid := -1                ## the turn-order portrait under the mouse (-1 none)
@@ -300,6 +302,8 @@ func _ready() -> void:
 			"portrait": _dev_portrait = kv[1] != "0"   # review renders: the hover goes through the foe's portrait
 			"alt": _alt_demo = kv[1] != "0"   # review renders: Alt held
 			"help": _dev_help = kv[1] != "0"   # review renders: the H panel open
+			"hurt": _dev_hurt = float(kv[1])   # review renders: the nearest foes are roused and lose this share of their HP
+			"logt": _dev_log_t = float(kv[1])   # review renders: hold the log's slide here (0 collapsed .. 1 open)
 			"near": _dev_near = int(kv[1])   # review renders: the nearest foe stands this many squares off, in the line of fire
 			"end": _dev_end = kv[1]   # review renders: the gig ends this way (won | lost | fled), the end panel shows
 			"peace": _dev_peace = true   # review renders: --peace=broken: the crew breaks a neutral house's peace (Totentanz)
@@ -424,6 +428,10 @@ func _process(delta: float) -> void:
 		_frames += 1
 		if _frames == 2 and _dev_help:
 			hud.toggle_hint()
+		if _frames == 2 and _dev_hurt >= 0.0:
+			_demo_hurt()
+		if _frames == 4 and _dev_log_t >= 0.0:
+			hud.set_log_t(_dev_log_t)
 		if _frames == 2 and _dev_near > 0:
 			_demo_near()
 		if _frames == 2 and _shot_hover.x <= -2:  # --hover=guard / turret: the nearest one in sight
@@ -582,7 +590,7 @@ func _build_view() -> void:
 	aim.fn = _draw_aim
 	hud.add_child(aim)
 	hud.move_child(aim, 0)
-	hud.build_hint(Hud.help_text())
+	hud.build_hint()
 	hud.build_settings(look, [["pixel", "Pixel scale (0 auto)", 0, 6, 1], ["palette", "Palette", 0, 1, 1], ["levels", "Channel steps", 0, 32, 1], ["dither", "Dither", 0, 1, 0.05], ["spill", "Light spill", 0, 2, 0.05],
 		["contrast", "Contrast", 0.6, 1.6, 0.05], ["saturation", "Saturation", 0, 2, 0.05], ["outline", "Outline", 0, 1, 0.05],
 		["bloom", "Bloom", 0, 2, 0.05], ["lights", "Light level", 0.2, 2, 0.05], ["ortho", "Orthographic", 0, 1, 1]], _apply_look)
@@ -860,7 +868,6 @@ func _build_world() -> void:
 	world.add_child(path_node)
 	ring = _decal(Color("f9c80e"), 1.1, true, 1.0)
 	caret = _make_caret()
-	target_ring = _decal(Color("ff3b4f"), 1.2, true, 0.0)
 	decals.clear()
 	for u in enc.units:
 		_unit_node(u)
@@ -1982,6 +1989,97 @@ func _draw_aim(c: Control) -> void:
 		return
 	if _alt_on:
 		_draw_last_known(c)
+		_draw_range_labels(c)
+
+
+## Alt with a gun's shot line showing (owner: "bracket ticks"): where the shooter's range bracket
+## changes along the line, from the muzzle out to the weapon's reach or the map's edge. The book's
+## range table (single shot, or Autofire's own when that's the armed mode, p173) via RangeCurve.
+## Each mark: {at: Vector3, edge: bool (a tick) or a label point mid-bracket, dv, chance, past}.
+var _range_marks: Array = []
+
+
+func _calc_range_marks(o: Vector3) -> Array:
+	var out: Array = []
+	if not _alt_on or String(_aim.get("shape", "")) != AimPreview.LINE or String(_aim.get("wid", "")) == "":
+		return out
+	var w: Weapon = null
+	for cw in enc.cur.c.weapons:
+		if cw.id() == String(_aim.wid):
+			w = cw
+			break
+	if w == null or w.is_melee():
+		return out
+	var md: int = _aim.get("mode", Attack.Mode.SINGLE)
+	var brs := RangeCurve.brackets_for(w, md)
+	if brs.is_empty():
+		return out
+	var c: Combatant = enc.cur.c
+	var base := Attack.attack_base(c, w, md)
+	var nf := c.awareness_level("fumble_recovery") > 0
+	var fsq: Vector3i = _aim.fsq
+	var c0 := Vector3(fsq.x + 0.5, 0, fsq.y + 0.5)
+	var to: Vector3 = _aim.to
+	var flat := Vector3(to.x - c0.x, 0, to.z - c0.z)
+	var tlen := flat.length()
+	if tlen < 0.01:
+		return out
+	var dir := flat / tlen
+	var auto := md == Attack.Mode.AUTOFIRE
+	var reach_m := RangeCurve.max_range_m(String(w.def.get("autofire_range" if auto else "range", "")), auto, float(w.fx().get("max_range_m", 0.0)))
+	var lim := minf(reach_m / 2.0, _ray_to_map_edge(c0, dir))   # a square is 2 m (p127), 1 world unit
+	var tgt_m := tlen * 2.0
+	var at := func(d_m: float) -> Vector3:   # along the shot line's slope, kept near it beyond the target
+		var k := d_m / 2.0
+		var y := lerpf(o.y, to.y, k / tlen)
+		return Vector3(c0.x + dir.x * k, clampf(y, o.y - 1.0, o.y + 1.0), c0.z + dir.z * k)
+	for i in brs.size():
+		var a_m := float(brs[i][0])
+		if a_m / 2.0 >= lim:
+			break
+		var b_m := minf(float(brs[i + 1][0]) if i + 1 < brs.size() else reach_m, lim * 2.0)
+		var dv := int(brs[i][1])
+		var ch := Check.chance_vs_dv(base, dv, nf)
+		if a_m > 0.0:
+			out.append({"at": at.call(a_m), "edge": true, "dv": dv, "chance": ch, "past": a_m > tgt_m + 0.5})
+		out.append({"at": at.call((a_m + b_m) / 2.0), "edge": false, "dv": dv, "chance": ch, "past": (a_m + b_m) / 2.0 > tgt_m + 0.5})
+	if lim * 2.0 >= reach_m - 0.01:   # the weapon's reach ends on the map: a last tick there
+		out.append({"at": at.call(reach_m), "edge": true, "dv": -1, "chance": 0.0, "past": reach_m > tgt_m + 0.5})
+	return out
+
+
+## World units from `p` along the flat direction `dir` to the map's edge.
+func _ray_to_map_edge(p: Vector3, dir: Vector3) -> float:
+	var t := INF
+	if dir.x > 0.0001:
+		t = minf(t, (m.w - p.x) / dir.x)
+	elif dir.x < -0.0001:
+		t = minf(t, -p.x / dir.x)
+	if dir.z > 0.0001:
+		t = minf(t, (m.h - p.z) / dir.z)
+	elif dir.z < -0.0001:
+		t = minf(t, -p.z / dir.z)
+	return maxf(0.0, t)
+
+
+## The ticks' DV labels, on the HUD layer (after the pixel shader), in the HUD's smallest face,
+## coloured by the hit chance in that bracket; past the target, a little faded.
+func _draw_range_labels(c: Control) -> void:
+	var vp := c.get_viewport_rect().size
+	for mk in _range_marks:
+		if mk.edge:
+			continue
+		var p: Vector2 = _to_screen(mk.at)
+		if p.x < 0 or p.y < 0 or p.x > vp.x or p.y > vp.y:
+			continue
+		var ch: float = mk.chance
+		var col := Hud.GREEN if ch >= 0.65 else (Hud.GOLD if ch >= 0.35 else Hud.RED)
+		var a := 0.55 if mk.past else 1.0
+		var txt := "DV%d" % int(mk.dv)
+		var tw := Hud.F_TERM.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
+		var at := p + Vector2(-tw / 2.0, -8)
+		c.draw_string_outline(Hud.F_TERM, at, txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, 3, Color(0, 0, 0, 0.85 * a))
+		c.draw_string(Hud.F_TERM, at, txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(col, a))
 
 
 ## The hovered attack's preview in the 3D world, every frame (the muzzle and the sway move):
@@ -1998,9 +2096,11 @@ func _sync_aim_fx() -> void:
 	var shape := String(_aim.get("shape", "")) if on else ""
 	if shape != AimPreview.SWING:
 		_end_melee_hover()
+	_range_marks = []
 	if not on:
 		aim_fx.clear()
 		return
+	aim_fx.set_ticks([], Vector3.ZERO, 0.0, 0.0)
 	var sn: Node3D = unit_nodes.get(enc.cur.id)
 	var col: Color = _aim.col
 	aim_fx.set_cross(false)
@@ -2018,6 +2118,12 @@ func _sync_aim_fx() -> void:
 				paths = [[PackedVector3Array([o, sp]), col], [PackedVector3Array([sp, _aim.to]), Color(Hud.RED, 0.4)]]
 				aim_fx.set_cross(true, sp)
 			aim_fx.set_paths(paths, cam.global_position, _line_width(o.lerp(_aim.to, 0.5)))
+			_range_marks = _calc_range_marks(o)
+			var ticks: Array = []
+			for mk in _range_marks:
+				if mk.edge:
+					ticks.append([mk.at, Color(Color("e8eef2"), 0.4 if mk.past else 0.85)])
+			aim_fx.set_ticks(ticks, cam.global_position, _line_width(o) * 1.4, 0.22, Vector3(_aim.to - o).normalized())
 		AimPreview.THROW:
 			var h: Vector3 = (sn as CharModel).hand_point() if sn is CharModel else _aim.from
 			var o := AimPreview.muzzle_origin(h, _aim.to)
@@ -2173,6 +2279,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 		match ev.keycode:
 			KEY_Q, KEY_E: _turn_keys[ev.keycode] = true   # turns while held (_process)
 			KEY_H: hud.toggle_hint()
+			KEY_K: hud.toggle_log()   # collapse / show the combat log (the chevron does the same)
 			KEY_PAGEUP: view_floor = mini(view_floor + 1, m.floors - 1); _place_camera(); _refresh()
 			KEY_PAGEDOWN: view_floor = maxi(view_floor - 1, 0); _place_camera(); _refresh()
 			KEY_C:
@@ -2434,6 +2541,20 @@ func _portrait_hover(uid: int, rect: Rect2) -> void:
 
 ## --near=n: move the nearest foe onto a free square n squares from the active unit, in its line of
 ## fire (review renders of the attack previews).
+## Review renders (--hurt=f): the three nearest foes join the fight, each a little worse off
+## than the last (f, 2f/3, f/3 of their HP gone), so the portraits show their blood levels.
+func _demo_hurt() -> void:
+	var foes := enc.units.filter(func(o): return _foe(o) and enc.is_guard(o) and not o.c.dead)
+	foes.sort_custom(func(a, b): return Vector3(a.pos - enc.cur.pos).length() < Vector3(b.pos - enc.cur.pos).length())
+	foes = foes.slice(0, 3)
+	enc._rouse(foes)
+	for i in foes.size():
+		var c: Combatant = foes[i].c
+		c.hp = maxi(1, roundi(c.max_hp() * (1.0 - _dev_hurt * (3 - i) / 3.0)))
+		enc.say("%s takes a hit (%d/%d HP)." % [c.display_name, c.hp, c.max_hp()])
+	_refresh()
+
+
 func _demo_near() -> void:
 	var foes := enc.units.filter(func(o): return _foe(o) and not o.c.dead)
 	if foes.is_empty():
@@ -2565,7 +2686,7 @@ func _set_aim(shape: String, from: Vector3i, t: Variant, pct: int, stop := Vecto
 	var b := AimPreview.aim_point(base, head) if t is Dictionary else base + Vector3(0, 0.05, 0)
 	var col := Hud.RED if pct < 0 else (Hud.GREEN if pct >= 65 else (Hud.GOLD if pct >= 35 else Hud.RED))
 	_aim = {"shape": shape, "from": Vector3(from.x + 0.5, _gy(from) + 1.05, from.y + 0.5), "fsq": from, "to": b, "col": col,
-		"tid": int(t.id) if t is Dictionary else -1, "wid": wid}
+		"tid": int(t.id) if t is Dictionary else -1, "wid": wid, "mode": mode}
 	if stop.x >= 0 and shape == AimPreview.LINE:
 		_aim["stop"] = Vector3(stop.x + 0.5, 0, stop.y + 0.5)
 
@@ -4324,7 +4445,7 @@ var _promo := false
 func _hide_overlays() -> void:
 	if hud:
 		hud.visible = false
-	for n in [grid_node, path_node, watch_node, caret, ring, target_ring, obj_node]:
+	for n in [grid_node, path_node, watch_node, caret, ring, obj_node]:
 		if n and is_instance_valid(n):
 			(n as Node3D).visible = false
 
@@ -4369,7 +4490,6 @@ func _on_hover_changed() -> void:
 
 func _update_hover() -> void:
 	_aim = {}
-	target_ring.visible = false
 	hud.mode_pcts({})
 	if blast_node and tool != "grenade":
 		blast_node.visible = false
@@ -4397,12 +4517,10 @@ func _update_hover() -> void:
 		else:
 			hud.tip("", mouse)
 		return
-	target_ring.visible = false   # no rings under units (owner)
 	var w: Weapon = enc.cur.c.weapons[0]
 	if not busy and unit_nodes.has(enc.cur.id) and AimPreview.for_weapon(w) != AimPreview.SWING:   # the active unit turns to aim at the hovered target (melee: the wind-up turns it)
 		var dd := Vector2(t.pos.x - enc.cur.pos.x, t.pos.y - enc.cur.pos.y)
 		(unit_nodes[enc.cur.id] as Node3D).rotation.y = atan2(dd.x, dd.y)
-	target_ring.position = Vector3(t.pos.x + 0.5, _gy(t.pos) + 0.04, t.pos.y + 0.5)
 	var p := enc.preview(t, w, mode)
 	_set_aim(AimPreview.for_weapon(w), p.from if p.ok else enc.cur.pos, t, roundi(p.chance * 100) if p.ok else -1, p.blocker if not p.ok else Vector3i(-1, -1, -1), mode == Attack.Mode.AIMED_HEAD, w.id())
 	var pcts := {}

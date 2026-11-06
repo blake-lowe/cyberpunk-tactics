@@ -92,7 +92,9 @@ func test_last_known_squares() -> void:
 
 func test_help_says_how_to_attack() -> void:
 	var h := Hud.help_text()
-	assert_true(h.contains("RIGHT-CLICK AN ENEMY"), "the right-click, first")
+	assert_true(h.begins_with("MOUSE\nRIGHT-CLICK  Attack"), "the right-click, first")
 	assert_true(h.contains("PORTRAIT"), "targeting from the turn order")
-	for k in ["LMB", "RMB", "SHIFT + RMB", "MIDDLE-DRAG", "WHEEL", "ALT"]:
+	for k in ["LEFT-CLICK", "SHIFT + RIGHT-CLICK", "MIDDLE-DRAG", "WHEEL", "ALT", "W A S D", "Q / E"]:
 		assert_true(h.contains(k), k)
+	for k in ["RELOAD", "SPACE", "JACK"]:   # the action bar shows its own keys (owner)
+		assert_false(h.to_upper().contains(k), "no bar key in the help: " + k)
