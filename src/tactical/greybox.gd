@@ -1320,6 +1320,7 @@ func _demo_av() -> void:
 		for g in enc.units:
 			if g.team == Encounter.OPFOR:
 				g["trauma_card"] = true
+				g.c.death_saves = true
 				g.c.hp = 0
 				g.c.unconscious = true
 				break
@@ -1474,10 +1475,12 @@ func _inspect(v: Vector3i) -> void:
 		return
 	var lines: Array[String] = []
 	var head := "// INSPECT"
+	var head_col := Hud.GOLD
 	var u := _unit_at(v)
 	if not u.is_empty():
 		lines.append(Hud.stat_block(u.c, true, _unit_conditions(u)))
-		head = "// INSPECT · " + ("CREW" if u.team == 0 else ("%s · %s" % [World.display_name(enc.faction_of(u)), "HOSTILE" if _foe(u) else "NEUTRAL"]).to_upper())
+		head = "// INSPECT · " + ("CREW" if u.team == 0 else ("%s · %s" % [World.display_name(enc.faction_of(u)), Hud.stance(enc, int(u.team))]).to_upper())
+		head_col = Hud.CYAN if u.team == 0 else Hud.stance_col(Hud.stance(enc, int(u.team)))
 	var cover_hp: int = enc.los.cover_hp.get(v, 0)
 	for cv in m.cover:
 		if cv.floor == v.z and cv.pos == Vector2i(v.x, v.y) and cover_hp > 0:
@@ -1517,7 +1520,7 @@ func _inspect(v: Vector3i) -> void:
 			return
 		lines.append("[b]%s[/b]" % what)
 		lines.append("Floor %d · no cover" % (v.z + 1))
-	hud.tip("\n".join(lines), mouse, head, Hud.GOLD)
+	hud.tip("\n".join(lines), mouse, head, head_col)
 
 
 func _beside_cover(v: Vector3i) -> bool:
@@ -1666,7 +1669,7 @@ func _update_xray() -> void:
 			continue
 		var seen: bool = u.team == 0 or not fog_on or enc.vision.visible.has(u.pos)
 		var closed := _indoor_structure(u.pos) >= 0 and not (cutaway and open_cells.has(Vector2i(u.pos.x, u.pos.y)))
-		(n as CharModel).set_xray(seen and closed and not _promo, Hud.CYAN if u.team == 0 else (Hud.RED if _foe(u) else Hud.NEUTRAL))
+		(n as CharModel).set_xray(seen and closed and not _promo, Hud.CYAN if u.team == 0 else Hud.stance_col(Hud.stance(enc, int(u.team))))
 
 
 ## Door leaves: closed in the wall line, or swung open 90° on the hinge; a lock light on the frame.
@@ -3459,7 +3462,7 @@ func _ev_alarm(e: Dictionary) -> void:
 	var u: Dictionary = enc.units[e.unit]
 	if _seen(u.pos):
 		_float(u, "CALLING IT IN", Hud.RED)
-	hud.toast("ALARM: BACKUP IN %d ROUNDS" % int(e.rounds))
+	hud.toast(Hud.countdown_text(enc.backup_label, int(e.rounds)))
 	_snd("sfx_alarm", _body_pos(u), -6.0, 0.0, 500)
 
 
@@ -3588,7 +3591,7 @@ func _ev_tt_pickup(e: Dictionary) -> void:
 
 func _ev_target_down(e: Dictionary) -> void:
 	var u: Dictionary = enc.units[e.unit]
-	_float(u, "TARGET DOWN", Hud.GOLD)
+	_float(u, "TARGET FLATLINED" if u.c.dead else "TARGET DOWN", Hud.GOLD)
 	_ui_snd("sfx_ui_confirm", -6.0)
 	hud.toast("THE MARK IS DOWN · GET TO THE EXTRACTION ZONE OR WITHDRAW")
 
@@ -4167,9 +4170,9 @@ func _hit_flash(n: Node3D) -> void:
 func _die(u: Dictionary, n: Node3D, dir: Vector3, dead: bool, head := false) -> void:
 	n.set_meta("slump_goal", 1.0)
 	if not dead:
-		_float(u, "DYING", Hud.RED)
+		_float(u, "MORTALLY WOUNDED", Hud.RED)
 		return
-	_float(u, "DOWN", Hud.RED)
+	_float(u, "FLATLINED", Hud.RED)
 	(n as CharModel).die(dir, head)
 	await get_tree().create_timer(0.35).timeout   # the model lets the gun fall (CharModel._drop_gun)
 	fx.pool(_body_pos(u))
@@ -4425,4 +4428,5 @@ func _update_hover() -> void:
 	var thru := maxf(0.0, avg - c.sp(loc)) * (2.0 if loc == "head" else 1.0)
 	lines.append("[code]%dd6 vs SP %d: ~%d through[/code]" % [w.dice(), c.sp(loc), roundi(thru)] + ("  [color=#ff3b4f]armor likely stops it[/color]" if thru < 1.0 else ""))
 	lines.append(Hud.stat_block(c, false, _unit_conditions(t)))
-	hud.tip("\n".join(lines), mouse, "// TARGET · HOSTILE", Hud.RED)
+	var st := Hud.stance(enc, int(t.team))
+	hud.tip("\n".join(lines), mouse, "// TARGET · " + st, Hud.stance_col(st))

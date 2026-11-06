@@ -129,7 +129,7 @@ func test_police_answering_a_gang_job_fight_the_gang_too() -> void:
 	assert_false(cops.is_empty(), "the NCPD turns up")
 	var t: int = cops[0].team
 	assert_true(t != Encounter.OPFOR, "on their own side")
-	assert_true(e.hostile(t, Encounter.CREW), "after the crew")
+	assert_false(e.hostile(t, Encounter.CREW), "not after the crew until they witness a crime (HOUSE-RULE, Encounter.witness_side)")
 	assert_true(e.hostile(t, Encounter.OPFOR), "and the Voodoo Boys: a three-way fight")
 	var g: Dictionary = e.units.filter(func(u): return u.team == Encounter.OPFOR)[0]
 	assert_true(AI._enemies(e, g).has(cops[0]), "the gang shoots back at them")
@@ -141,7 +141,9 @@ func test_police_answering_a_corp_job_leave_the_guards_alone() -> void:
 	var cops := e.units.filter(func(u): return e.faction_of(u) == "ncpd")
 	assert_false(cops.is_empty())
 	assert_false(e.hostile(cops[0].team, Encounter.OPFOR), "corp security and the NCPD don't trade shots")
-	assert_true(e.opfor().has(cops[0]), "but they count against the crew")
+	assert_false(e.opfor().has(cops[0]), "nor against the crew, until they witness a crime")
+	e._witness(int(cops[0].team), "test")
+	assert_true(e.opfor().has(cops[0]), "then they count against the crew")
 
 
 func test_gunfire_never_puts_bystanders_in_the_initiative() -> void:

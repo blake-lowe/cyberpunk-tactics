@@ -25,7 +25,7 @@ func setup(target_sid: int, origin: Vector2i, _sec: int) -> void:
 func check_end() -> String:
 	var cap: Dictionary = e.units[int(o.captive)]
 	if cap.c.dead:
-		e.say("%s is dead. The job's over." % cap.c.display_name)
+		e.say("%s flatlined. The job's over." % cap.c.display_name)
 		return "lost"
 	if o.freed and e.extract_cells.has(cap.pos) and cap.c.can_act():
 		o.done = true

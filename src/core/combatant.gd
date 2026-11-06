@@ -19,6 +19,9 @@ var armor: Dictionary = {"head": null, "body": null}  ## location → ArmorPiece
 var injuries: Array[Dictionary] = []  ## crit table entries + {"location": ...}
 var base_dsp: int = 0         ## Base Death Save Penalty (raised by some crits).
 var dsp: int = 0              ## Current Death Save Penalty (base + saves rolled since last stabilization).
+## Rolls Death Saves when Mortally Wounded (p.222). HOUSE-RULE (NPC_FLATLINE, Encounter._flatline_npcs):
+## the encounter clears it for NPCs, who flatline below 1 HP instead. Not saved: crew always roll.
+var death_saves := true
 var dead := false
 var unconscious := false
 var wake_in := 0               ## rounds until a stabilized character comes round (1 minute = 20 rounds, p223)
@@ -292,6 +295,10 @@ func gig_reset() -> void:
 	kit_spent = [false, false]
 	drugs_taken.clear()
 	drug_fx.clear()
+	for w in weapons:   # reloaded between gigs: a full magazine of standard rounds (the saved count is last gig's)
+		w.reload()
+		w.jammed = false
+		w.load_special({}, 0)
 
 
 ## A flashbang's or teargas's injuries last "for the next minute" (p.346-347; Attack `expires_in`

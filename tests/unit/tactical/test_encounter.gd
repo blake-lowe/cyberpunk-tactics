@@ -360,6 +360,9 @@ func test_ncpd_follows_backup_if_the_fight_goes_on() -> void:
 			cops = true
 			break
 	assert_true(cops, "NCPD responds")
+	assert_eq(e.ncpd_in, 0, "ARRIVING the round they land")
+	e.init.round_num += 1
+	e._tick_backup()
 	assert_eq(e.ncpd_in, -2, "only once")
 
 

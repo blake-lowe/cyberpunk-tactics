@@ -146,6 +146,8 @@ static func apply_damage(dice: Dice, defender: Combatant, r: Dictionary, halve_s
 			defender.hp = 1
 			defender.unconscious = true
 			r["stunned"] = true
+		elif defender.hp < 1 and not defender.death_saves:   # HOUSE-RULE (NPC_FLATLINE): no Death Saves for NPCs
+			defender.dead = true
 		if int(fx.get("burning", 0)) > defender.burning:   # ignites; a weaker fire is replaced (p348)
 			defender.burning = int(fx.burning)
 			r["ignited"] = true
