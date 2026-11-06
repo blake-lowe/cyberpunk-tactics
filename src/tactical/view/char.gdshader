@@ -66,11 +66,12 @@ void fragment() {
 				: rg == 5 ? gloves : rg == 6 ? belt : forearm;
 			base = c * (0.85 + 0.3 * lum);             // faint folds, mostly flat cloth
 			rough = rg == 4 || rg == 5 || rg == 6 ? 0.45 : 0.8;
-			// trim highlight (owner light review: no all-black designs): the top of the shoulders
-			// and upper sleeves catch the unit's light or coloured trim, the way a pixel-art sprite
-			// gets a light top edge, so a dark outfit still reads from the tactical camera. Matte.
-			if (rg == 1 || rg == 2 || rg == 7) {
-				base = mix(base, trim, smoothstep(0.55, 0.95, wn.y) * trim_sheen);
+			// trim highlight (owner light review: no all-black designs): a narrow edge on top of
+			// the shoulders catches some of the unit's trim, the way a pixel-art sprite gets a light
+			// top edge. Round 5 (whole outfits read light): upper sleeves only, only the surfaces
+			// that face straight up, and blended in part; the torso and forearms keep their cloth.
+			if (rg == 2) {
+				base = mix(base, trim, smoothstep(0.82, 0.97, wn.y) * trim_sheen);
 			}
 		}
 	} else if (mode == 1) {
@@ -93,10 +94,11 @@ void fragment() {
 		emit += lf / max(pk, 0.15) * min(pk, 1.0) * fres * 0.25;
 		// Owner playtest round 3 (enemies hard to see at night): a cool rim on the silhouette, as if
 		// back-lit, so dark bodies separate from dark ground. Round 4 (light review): the world went
-		// back to dark and units carry the contrast, so the rim is stronger. On the body only: no
-		// ring or glow under the unit (owner rule), and off with the light field (cyberspace).
+		// back to dark and units carry the contrast, so the rim got stronger; round 5 (units read
+		// too light) brings it down to a modest edge. On the body only: no ring or glow under the
+		// unit (owner rule), and off with the light field (cyberspace).
 		float rimf = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 2.5);
-		emit += vec3(0.30, 0.36, 0.50) * rimf * 0.5;
+		emit += vec3(0.30, 0.36, 0.50) * rimf * 0.25;
 	}
 	EMISSION = emit + vec3(flash * 0.8);
 }

@@ -9,7 +9,7 @@ What is **book-sourced** per faction: the name, `leader` (as printed), `activiti
 ## How the data reads
 
 ```world factions._doc
-"Factions of Night City (World.faction), from Night City 2045 (NC2045 p.32-52 and the district chapters). The gig's target faction fields the guards; others appear as third parties (bystanders, Trauma Team, NCPD, MaxTac, district security, rival crews). kind (crew/civilian/captive/corp/criminal/gang/police/service) sets defaults; relations are symmetric and resolved most-hostile-wins between kind defaults and per-faction overrides (by faction id, else by kind). leader and activities are as printed; territory is district ids (derived from docs/world/nc_*.md). roster: ranks name the NPC tiers (ours); blocks list the stat blocks (npcs.json) the faction fields per tier: its own printed NC2045 blocks, the rest core or Hardened stand-ins; a tier without blocks falls back to the tier's default pool; responder: who they send when called. look: what the view dresses them in (jacket/accent/pants/trim colours are ours, RULES-UNVERIFIED; vest/helmet/gloves; trim, else accent, is the light or coloured highlight on armbands and helmet: never near-black, owner light review). gigs: the gig kinds (gigs.json templates) this faction can be the target of (ours, from activities, plus the gigs listed on places it owns; gangs never take data_theft/corp_extraction, only gangs take gang_hit). doctrine: security style (data/world/security.json). cite: where the book describes it."
+"Factions of Night City (World.faction), from Night City 2045 (NC2045 p.32-52 and the district chapters). The gig's target faction fields the guards; others appear as third parties (bystanders, Trauma Team, NCPD, MaxTac, district security, rival crews). kind (crew/civilian/captive/corp/criminal/gang/police/service) sets defaults; relations are symmetric and resolved most-hostile-wins between kind defaults and per-faction overrides (by faction id, else by kind). leader and activities are as printed; territory is district ids (derived from docs/world/nc_*.md). roster: ranks name the NPC tiers (ours); blocks list the stat blocks (npcs.json) the faction fields per tier: its own printed NC2045 blocks, the rest core or Hardened stand-ins; a tier without blocks falls back to the tier's default pool; responder: who they send when called. look: what the view dresses them in (jacket/accent/pants/trim colours are ours, RULES-UNVERIFIED; vest/helmet/gloves; trim, else accent, is the light or coloured highlight on armbands, helmet band and pouch flaps: never near-black, and never neon or white (saturation <= 0.7, value <= 0.8; UnitLook caps an accent the same way), owner light review). gigs: the gig kinds (gigs.json templates) this faction can be the target of (ours, from activities, plus the gigs listed on places it owns; gangs never take data_theft/corp_extraction, only gangs take gang_hit). doctrine: security style (data/world/security.json). cite: where the book describes it."
 ```
 
 ## Stat blocks in rosters
@@ -177,7 +177,7 @@ Generic private security (World.DEFAULT_OPFOR), used when a gig names no faction
 	"look": {
 		"jacket": "4e555e",
 		"accent": "ff3030",
-		"trim": "f9c80e",
+		"trim": "ccae3d",
 		"pants": "3a4048",
 		"vest": true,
 		"helmet": true,
@@ -746,7 +746,7 @@ Small, largely harmless gang of monster-sculpted hot-rodders who dominate the st
 	"look": {
 		"jacket": "1a1a1e",
 		"accent": "ff3030",
-		"trim": "f9c80e",
+		"trim": "ccae3d",
 		"pants": "2a1a2a",
 		"vest": false,
 		"helmet": false,
@@ -804,7 +804,7 @@ A secretive cult that holds cyberpsychosis to be humanity's next step. It owns o
 	"look": {
 		"jacket": "3a3a3e",
 		"accent": "ff3030",
-		"trim": "05d9e8",
+		"trim": "3dc3cc",
 		"pants": "2a2a2e",
 		"vest": false,
 		"helmet": false,
@@ -1275,7 +1275,7 @@ Controls busking with a chrome fist: an invitation, a reminder, then weapons for
 	"look": {
 		"jacket": "5a2a3a",
 		"accent": "ff3030",
-		"trim": "e0b020",
+		"trim": "cca83d",
 		"pants": "2a2a2a",
 		"vest": false,
 		"helmet": false,
@@ -1336,7 +1336,7 @@ A dorph gang of teens and young adults who love violence for its own sake: harml
 	"look": {
 		"jacket": "1a1a1a",
 		"accent": "ff2020",
-		"trim": "ff6b1a",
+		"trim": "cc703d",
 		"pants": "2a1414",
 		"vest": false,
 		"helmet": false,
@@ -1515,7 +1515,7 @@ The least-known gang in the city: thieves and Netrunners doing sabotage, espiona
 	"look": {
 		"jacket": "2a3a4a",
 		"accent": "ff3030",
-		"trim": "05d9e8",
+		"trim": "3dc3cc",
 		"pants": "1e2a34",
 		"vest": false,
 		"helmet": false,
@@ -1623,7 +1623,7 @@ Prankers turned goths, named for a 2010s photobomb of the Symphony; now split be
 	"look": {
 		"jacket": "1a1a22",
 		"accent": "ff3030",
-		"trim": "e8e4f0",
+		"trim": "c5c2cc",
 		"pants": "2a1a2a",
 		"vest": false,
 		"helmet": false,
@@ -1911,7 +1911,7 @@ The one doomsday cult that lasted: they preach the Gibbering Eye's coming Harves
 	"look": {
 		"jacket": "3a2a4a",
 		"accent": "ff3030",
-		"trim": "b537f2",
+		"trim": "9d3dcc",
 		"pants": "2a2a2a",
 		"vest": false,
 		"helmet": false,
@@ -2141,7 +2141,7 @@ A goth gang (some sculpted after goth icons) that runs a shanty town for the hom
 	"look": {
 		"jacket": "1e1a22",
 		"accent": "ff3030",
-		"trim": "b537f2",
+		"trim": "9d3dcc",
 		"pants": "2a2228",
 		"vest": false,
 		"helmet": false,
@@ -2375,7 +2375,7 @@ Formed by the assassin Mister Rieper to guard the Columbarium and every site for
 	"look": {
 		"jacket": "1e1e22",
 		"accent": "ff3030",
-		"trim": "dcd8c8",
+		"trim": "ccc8b9",
 		"pants": "1e1e22",
 		"vest": false,
 		"helmet": false,
@@ -2445,7 +2445,7 @@ Once Arasaka's puppet gang, abandoned after the bomb and re-formed to protect Ja
 	"look": {
 		"jacket": "3a1e2a",
 		"accent": "ff3030",
-		"trim": "ff2a6d",
+		"trim": "cc3d6a",
 		"pants": "222226",
 		"vest": false,
 		"helmet": false,
@@ -2505,7 +2505,7 @@ Hotheads "keeping Downtown real" against the Chamber of Commerce's takeover, bad
 	"look": {
 		"jacket": "1a1a1a",
 		"accent": "ff3030",
-		"trim": "05d9e8",
+		"trim": "3dc3cc",
 		"pants": "2a3a5a",
 		"vest": false,
 		"helmet": false,
@@ -2566,7 +2566,7 @@ Once the city's biggest drug importers, they fell back to Rancho Coronado in the
 	"look": {
 		"jacket": "3a2a1e",
 		"accent": "ff3030",
-		"trim": "39f0a0",
+		"trim": "3dcc8e",
 		"pants": "2a221e",
 		"vest": false,
 		"helmet": false,
@@ -2910,7 +2910,7 @@ Night City's Bratva. A small share of most rackets but big in smuggling and pira
 	"look": {
 		"jacket": "2a2a30",
 		"accent": "ff3030",
-		"trim": "c8ccd4",
+		"trim": "c0c4cc",
 		"pants": "1e1e24",
 		"vest": false,
 		"helmet": false,
@@ -2976,7 +2976,7 @@ The newest syndicate: Lu Zho hired edgerunners to steal dozens of corporate desi
 	"look": {
 		"jacket": "2a1e1e",
 		"accent": "ff3030",
-		"trim": "e0b020",
+		"trim": "cca83d",
 		"pants": "1e1a1a",
 		"vest": false,
 		"helmet": false,
@@ -3099,7 +3099,7 @@ What's left of the Yakuza: shut out of Japantown and Kabuki by the NCCS-backed T
 	"look": {
 		"jacket": "1e1e26",
 		"accent": "ff3030",
-		"trim": "dcdfe4",
+		"trim": "c5c8cc",
 		"pants": "1e1e26",
 		"vest": false,
 		"helmet": false,
@@ -3230,7 +3230,7 @@ On the surface the most powerful syndicate: David Ling Po runs Little China, an 
 	"look": {
 		"jacket": "3a1e1e",
 		"accent": "ff3030",
-		"trim": "e0b020",
+		"trim": "cca83d",
 		"pants": "1e1a1a",
 		"vest": false,
 		"helmet": false,
@@ -3340,7 +3340,7 @@ The guards of any corporation with a City Council seat, with full police powers 
 	"look": {
 		"jacket": "4a4e56",
 		"accent": "ff3030",
-		"trim": "f9c80e",
+		"trim": "ccae3d",
 		"pants": "34383e",
 		"vest": true,
 		"helmet": true,
@@ -3562,7 +3562,7 @@ Reckoned the world's best PMC: the Exec Zone's deputized police, and contracted 
 	"look": {
 		"jacket": "2a2e34",
 		"accent": "2a6aff",
-		"trim": "c8ccd4",
+		"trim": "c0c4cc",
 		"pants": "1e2228",
 		"vest": true,
 		"helmet": true,
@@ -3675,7 +3675,7 @@ A small security company owned by Raven Microcybernetics that guards its Night C
 	"look": {
 		"jacket": "3a3e48",
 		"accent": "ff3030",
-		"trim": "f9c80e",
+		"trim": "ccae3d",
 		"pants": "2a2e36",
 		"vest": true,
 		"helmet": true,
@@ -4188,7 +4188,7 @@ Bodyguards for the rich and famous, where visible armour, cyberweapons and guns 
 	"look": {
 		"jacket": "1e1e22",
 		"accent": "ff3030",
-		"trim": "c8ccd4",
+		"trim": "c0c4cc",
 		"pants": "1e1e22",
 		"vest": false,
 		"helmet": false,
@@ -4296,7 +4296,7 @@ The Japanese security megacorp whose Night City HQ the 2023 nuke destroyed; it p
 	"look": {
 		"jacket": "2a2a2e",
 		"accent": "ff3030",
-		"trim": "dcdfe4",
+		"trim": "c5c8cc",
 		"pants": "1e1e22",
 		"vest": true,
 		"helmet": true,
@@ -4353,7 +4353,7 @@ The war-and-security megacorp, nationalised by the US but highly independent, wi
 	"look": {
 		"jacket": "3a4232",
 		"accent": "ff3030",
-		"trim": "d8c860",
+		"trim": "ccbd5b",
 		"pants": "2a3026",
 		"vest": true,
 		"helmet": true,
@@ -4908,7 +4908,7 @@ Self-styled heir of Richard Night: developer and contractor behind public works 
 	"look": {
 		"jacket": "1e2a3a",
 		"accent": "ff3030",
-		"trim": "4fd8ff",
+		"trim": "3fadcc",
 		"pants": "1a1e26",
 		"vest": true,
 		"helmet": true,
@@ -5677,7 +5677,7 @@ Regional HQ at Tengen Towers in Kabuki. *(NC2045 p.207.)*
 	"look": {
 		"jacket": "3a2a3a",
 		"accent": "ff3030",
-		"trim": "39f0a0",
+		"trim": "3dcc8e",
 		"pants": "2a1e2a",
 		"vest": true,
 		"helmet": true,
@@ -5781,7 +5781,7 @@ A financial firm atop Thurgood Towers that takes clients by referral only and es
 	"look": {
 		"jacket": "2a2a3a",
 		"accent": "ff3030",
-		"trim": "c8ccd4",
+		"trim": "c0c4cc",
 		"pants": "1e1e2a",
 		"vest": true,
 		"helmet": true,
@@ -5834,7 +5834,7 @@ Gun retailer occupying the old Mustang Arms plant in Upper Marina. *(NC2045 p.75
 	"look": {
 		"jacket": "2a2a34",
 		"accent": "ff3030",
-		"trim": "ff6b1a",
+		"trim": "cc703d",
 		"pants": "1e1e26",
 		"vest": true,
 		"helmet": true,
@@ -6041,7 +6041,7 @@ Cyberware firm with offices in the Glen and a mostly automated factory in Heywoo
 	"look": {
 		"jacket": "1e1e2a",
 		"accent": "ff3030",
-		"trim": "8ad0ff",
+		"trim": "6ea6cc",
 		"pants": "1a1a22",
 		"vest": true,
 		"helmet": true,
@@ -6256,7 +6256,7 @@ Operator of Playland by the Sea's rides, stalls and venues (many sponsored by ot
 	"look": {
 		"jacket": "2a1e3a",
 		"accent": "ff3030",
-		"trim": "b537f2",
+		"trim": "9d3dcc",
 		"pants": "1e1a2a",
 		"vest": true,
 		"helmet": true,
@@ -6364,7 +6364,7 @@ The corporate alliance actor Shinobu Nakagawa assembled to rebuild a home for Ja
 	"look": {
 		"jacket": "3a1e2a",
 		"accent": "ff3030",
-		"trim": "ff2a6d",
+		"trim": "cc3d6a",
 		"pants": "222226",
 		"vest": true,
 		"helmet": true,
@@ -6893,7 +6893,7 @@ A legendary Netrunner (at least 10,000eb a gig) laired in an abandoned Old Japan
 	"look": {
 		"jacket": "1e1e1e",
 		"accent": "ff3030",
-		"trim": "c8ccd4",
+		"trim": "c0c4cc",
 		"pants": "1e1e1e",
 		"vest": true,
 		"helmet": false,
