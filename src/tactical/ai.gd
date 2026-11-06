@@ -9,6 +9,85 @@ const MIN_CHANCE := 0.15
 
 
 static func act(e: Encounter, u: Dictionary) -> void:
+	if _grapple_first(e, u):
+		return
+	_fight(e, u)
+	if u.c.is_grappled() and e.turn.action_available:   # nothing else worth doing: try to break the hold
+		e.escape_grapple()
+
+
+## Grappling for the AI (CPR core p.168, p.177). Returns true when that was the turn:
+## - Prone: Get Up (the Action), then close in with the Move Action it gives back;
+## - held: break free when the odds are fair (else fight on with a one-handed weapon, and try at the end);
+## - holding someone still fighting: Throw them if it puts them down, else Choke; let go of anyone
+##   out cold (free) and fight on, a corpse shield is kept (it's cover);
+## - beside a lone foe (nobody of theirs within ISOLATED squares): a brawler (Brawling 6+, or no gun
+##   worth using) or anyone next to a jacked-in Netrunner Grabs them when the odds are fair.
+const GRAB_MIN_CHANCE := 0.45
+const ESCAPE_MIN_CHANCE := 0.4
+const ISOLATED := 3
+
+
+static func _grapple_first(e: Encounter, u: Dictionary) -> bool:
+	var c: Combatant = u.c
+	if e.turn == null:
+		return false
+	if c.prone and e.turn.action_available:
+		e.get_up()
+		_advance(e, u)
+		return true
+	if c.is_grappled():
+		var p := e.escape_preview()
+		if p.ok and (p.chance >= ESCAPE_MIN_CHANCE or not _has_one_hander(c)):
+			e.escape_grapple()
+			return true
+		return false
+	if c.is_grappling():
+		var g: Grapple = c.grapple
+		if not g.live():
+			return false
+		var t := e.unit_of(g.held)
+		if not t.c.can_act() or not e.hostile(int(u.team), int(t.team)):
+			e.release()
+			return false
+		if not e.turn.action_available:
+			return false
+		if t.c.hp > 1 and t.c.hp <= c.stat("BODY"):
+			e.throw_foe()
+		else:
+			e.choke()
+		return true
+	if not e.turn.action_available or (e.turn != null and e.turn.psychotic):
+		return false
+	for f in e.grab_targets(u):
+		var runner: bool = e.runs.has(f.id)
+		if not (runner or _brawler(c)) or not _isolated(e, f):
+			continue
+		var p := e.grab_preview(f)
+		if p.ok and p.chance >= GRAB_MIN_CHANCE:
+			e.grapple(f)
+			return true
+	return false
+
+
+static func _has_one_hander(c: Combatant) -> bool:
+	return c.weapons.any(func(w): return int(w.def.get("hands", 1)) < 2)
+
+
+static func _brawler(c: Combatant) -> bool:
+	return c.skill_level("brawling") >= 6 or c.weapons.is_empty() or c.weapons[0].is_melee()
+
+
+## Nobody else on `f`'s side who could help them (standing, on their floor) within ISOLATED squares.
+static func _isolated(e: Encounter, f: Dictionary) -> bool:
+	for o in e.units:
+		if o != f and o.c.can_act() and not o.has("turret") and e.allied(int(o.team), int(f.team)) and o.pos.z == f.pos.z \
+				and maxi(absi(o.pos.x - f.pos.x), absi(o.pos.y - f.pos.y)) <= ISOLATED:
+			return false
+	return true
+
+
+static func _fight(e: Encounter, u: Dictionary) -> void:
 	if u.get("vip", false):
 		_vip(e, u)
 		return
@@ -115,6 +194,8 @@ static func _shoot(e: Encounter, u: Dictionary, w: Weapon, targets: Variant = nu
 			var p := e.preview(t, w, mode)
 			if not p.ok or p.chance < MIN_CHANCE:
 				continue
+			if p.has("shield") and not e.hostile(int(u.team), int(e.units[int(p.shield)].team)):
+				continue   # a friend held up as a Human Shield (p.184) would take it
 			var score: float = p.chance * (w.dice() * 3.5 if mode == Attack.Mode.SINGLE else 7.0 * w.autofire_mult() * 0.6)
 			if t.c.wound_state() == Combatant.Wound.MORTAL:
 				score *= 0.5

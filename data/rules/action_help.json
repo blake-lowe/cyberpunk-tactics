@@ -1,0 +1,61 @@
+{
+ "_source": "Hover cards for the action bar's close-quarters actions (Hud.action_help), like net_help.json for the NET panel. Short paraphrases of CPR core p.168-169, p.177, p.183-184 as distilled in docs/rules/combat.md sections 3, 5 and 7; hand-edited. Each entry: name, cost, text (what it does), key (its roll or numbers), page. Ids are Encounter.grapple_options().",
+ "actions": {
+  "grab": {
+   "name": "Grab",
+   "cost": "Action",
+   "text": "Get hold of a foe in reach. While the grapple lasts you both take -2 to all Actions, they can't use their Move Action (yours drags them along) and neither of you can use a two-handed weapon. A long gun in hand is slung for a one-handed weapon.",
+   "key": "DEX + Brawling + 1d10 vs theirs, ties to them",
+   "page": "p.168, p.177"
+  },
+  "choke": {
+   "name": "Choke",
+   "cost": "Action",
+   "text": "Squeeze the one you hold: your BODY straight to their HP, armour ignored and not ablated. Someone above 1 HP it would put below 0 is left at 1 HP, Unconscious. Choked three Rounds running, they go out whatever their HP.",
+   "key": "no roll · damage = your BODY",
+   "page": "p.168, p.177"
+  },
+  "throw": {
+   "name": "Throw",
+   "cost": "Action",
+   "text": "Throw the one you hold to the ground beside you: your BODY straight to their HP, armour ignored and not ablated. The grapple and its -2 end, and they are Prone until they Get Up.",
+   "key": "no roll · damage = your BODY",
+   "page": "p.169, p.177"
+  },
+  "shield": {
+   "name": "Human Shield",
+   "cost": "Action",
+   "text": "Hold the one you grapple between you and the guns: they are cover against ranged attacks you can see, but not melee or Aimed Shots at your head. They can't dodge, and a shot into them hurts them normally. If they die you hold a corpse shield with HP equal to their BODY.",
+   "key": "cover · no dodge for the shield",
+   "page": "p.169, p.184"
+  },
+  "release": {
+   "name": "Release",
+   "cost": "free (a corpse shield: Action)",
+   "text": "Let go: the grapple ends and so does its -2. Dropping a corpse shield takes an Action.",
+   "key": "",
+   "page": "p.177, p.184"
+  },
+  "escape": {
+   "name": "Escape",
+   "cost": "Action",
+   "text": "Break the hold on you. Win and the grapple is over: your Move Action is yours again if you haven't used it.",
+   "key": "DEX + Brawling + 1d10 vs the holder's, ties to them",
+   "page": "p.177"
+  },
+  "break": {
+   "name": "Break Hold",
+   "cost": "Action",
+   "text": "Anyone can break a hold: step in beside whoever is holding your friend and pry them loose.",
+   "key": "DEX + Brawling + 1d10 vs the holder's, ties to them",
+   "page": "p.177"
+  },
+  "get_up": {
+   "name": "Get Up",
+   "cost": "Action",
+   "text": "Stand up from Prone. Until you do you have no Move Action; once up, your Move Action is back.",
+   "key": "",
+   "page": "p.168-169"
+  }
+ }
+}

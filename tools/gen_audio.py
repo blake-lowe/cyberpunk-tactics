@@ -570,6 +570,19 @@ def grains(total, count, lo_hz, spread, amp=(0.2, 0.8), sec=0.012, tau=0.003):
     for k in range(count):
         g = hp(noise(sec), lo_hz) * env(sec, 0.0002, tau)
         x += at(g * rng.uniform(*amp), rng.uniform(0, spread), total)
+
+
+# --- grappling (CPR core p.177: Grab, Choke, Throw; Greybox._anim_grapple) -----------------------
+# Own seeded generators, like the wound states, so adding these shifts no other recipe.
+
+def _scuffle(seed, sec, lo=250, hi=1600):
+    """Cloth and kevlar bunched in a fist: a few quick rough rustles."""
+    x = np.zeros(int(sec * SR))
+    g = np.random.default_rng(seed)
+    for k in range(5):
+        d = g.uniform(0.04, 0.09)
+        burst = bp(_rn(seed + 10 + k, d), lo, hi) * env(d, 0.002, d * 0.35) * g.uniform(0.5, 1.0)
+        x += at(burst, g.uniform(0.0, sec - d), sec)
     return x
 
 
@@ -819,6 +832,36 @@ def sfx_hit_punch():
     body = lp(noise(0.12), 650) * env(0.12, 0.001, 0.025) * 1.5
     low = sweep(0.1, 140, 70) * env(0.1, 0.001, 0.025) * 0.8
     return fade(mix(slap, body, low))
+
+
+def sfx_grab():
+    """GRAB: a lunge of air, a body pulled in (a dull chest thump) and fabric wrenched in a fist."""
+    total = 0.6
+    lunge = bp(_rn(401, 0.16), 500, 2200) * np.sin(np.pi * t(0.16) / 0.16) ** 2 * 0.5
+    x = mix(at(lunge, 0.0, total), at(_body_hit(403, 0.45) * 0.8, 0.1, total), at(_scuffle(405, 0.4) * 0.9, 0.14, total))
+    return fade(reverb(x, 0.12, 0.1), 0.001, 0.08)
+
+
+@sfx
+def sfx_choke():
+    """CHOKE: a squeezing creak of grip and a strangled, fluttering gasp that cuts off."""
+    total = 0.95
+    grip = _scuffle(411, 0.3, 180, 900) * 0.7
+    gasp = _breath(413, 0.55, 500, 1700, 0.85, 17.0) * 0.6
+    gasp *= np.clip(1.6 - t(0.55) / 0.55 * 1.6, 0.0, 1.0)   # throttled: it chokes off
+    gurgle = lp(_rn(415, 0.4), 260) * (0.5 + 0.5 * np.sign(np.sin(2 * np.pi * 23 * t(0.4)))) * env(0.4, 0.01, 0.15) * 0.5
+    return fade(reverb(mix(at(grip, 0.0, total), at(gasp, 0.12, total), at(gurgle, 0.3, total)), 0.1, 0.08), 0.002, 0.1)
+
+
+@sfx
+def sfx_body_slam():
+    """THROW: a whoosh over the shoulder and a whole body slammed flat on the floor."""
+    total = 0.9
+    whoosh = bp(_rn(421, 0.3), 300, 1400) * np.sin(np.pi * t(0.3) / 0.3) ** 2 * 0.6
+    slam = drive(mix(sweep(0.5, 90, 32, curve=0.4) * env(0.5, 0.001, 0.12) * 1.5, lp(_rn(423, 0.4), 320) * env(0.4, 0.001, 0.06) * 1.7,
+                     bp(_rn(424, 0.08), 600, 2400) * env(0.08, 0.0005, 0.02) * 0.6), 2.4)
+    x = mix(at(whoosh, 0.0, total), at(slam, 0.24, total), at(_breath(426, 0.25, 400, 1300, 0.3) * 0.35, 0.3, total))
+    return fade(reverb(x, 0.2, 0.15, 0.4), 0.0005, 0.12)
 
 
 # --- ambience loops -------------------------------------------------------------------------------

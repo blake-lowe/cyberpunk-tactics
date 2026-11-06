@@ -3,7 +3,8 @@ extends RefCounted
 ## Which mouse button does what in the tactical view (owner: right click moves, left click attacks).
 ## Pure, so the mapping is testable headless; greybox._unhandled_input acts on the intent.
 ##   RIGHT          move / run to the hovered square (path preview on the move grid)
-##   LEFT           the armed tool on its target (melee, shell, grenade square, suppress, stabilize…),
+##   LEFT           the armed tool on its target (melee, shell, grenade square, suppress, stabilize,
+##                  grab a neighbouring foe, break the hold on a friend…),
 ##                  else attack the hovered enemy with the drawn weapon; nothing on ground / a friendly
 ##   SHIFT + LEFT   shoot the cover in the way (also plain left with Shoot Cover armed)
 ##   in the NET     either button picks a node (moving there is the only click there)

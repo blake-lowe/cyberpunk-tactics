@@ -265,6 +265,14 @@ static func handling_reason(weapon: Weapon, attacker: Combatant) -> String:
 	return ""
 
 
+## Neither party in a grapple can use a two-handed weapon (p.177); a corpse shield still fills the
+## grappling hand (p.184).
+static func grapple_reason(weapon: Weapon, attacker: Combatant) -> String:
+	if attacker != null and attacker.grapple != null and int(weapon.def.get("hands", 1)) >= 2:
+		return "two-handed: in a grapple"
+	return ""
+
+
 static func _range_key(weapon: Weapon, mode: Mode) -> String:
 	return weapon.def["autofire_range"] if mode == Mode.AUTOFIRE else weapon.def["range"]
 
@@ -275,6 +283,8 @@ static func _illegal_reason(weapon: Weapon, mode: Mode, distance_m: float, attac
 	var why := handling_reason(weapon, attacker)
 	if why != "":
 		return why
+	if grapple_reason(weapon, attacker) != "":
+		return grapple_reason(weapon, attacker)
 	var fx := weapon.fx()
 	if is_aimed(mode) and fx.get("no_aimed_shot", false):
 		return "can't aim"   # Hurricane, Flamethrower, EMG-86, Helix (p348-349)
@@ -321,6 +331,9 @@ static func shotgun_shell(dice: Dice, attacker: Combatant, weapon: Weapon, targe
 	if handling_reason(weapon, attacker) != "":
 		out.reason = handling_reason(weapon, attacker)
 		return out
+	if grapple_reason(weapon, attacker) != "":
+		out.reason = grapple_reason(weapon, attacker)
+		return out
 	if weapon.ammo < 1:
 		out.reason = "empty"
 		return out
@@ -364,6 +377,9 @@ static func suppressive_fire(dice: Dice, attacker: Combatant, weapon: Weapon, ta
 		return out
 	if weapon.ammo < AUTOFIRE_AMMO:
 		out.reason = "need 10 rounds"
+		return out
+	if grapple_reason(weapon, attacker) != "":
+		out.reason = grapple_reason(weapon, attacker)
 		return out
 	out.ok = true
 	weapon.spend(AUTOFIRE_AMMO)

@@ -23,7 +23,7 @@ extends Node
 ## Screenshot mode:  -- --shot=path.png [--scene=x] [--profile=y] [--district=z] [--seed=n] [--pixel=3]
 ##   [--levels=0] [--dither=0.5] [--outline=0.4] [--bloom=0.8] [--contrast=1.1] [--ortho=1]
 ##   [--fog=0] [--zoom=24] [--yaw=45] [--lights=1] [--hover=x,y] [--promo=1] [--cut=auto|all|off]
-##   [--stage=attack] [--arm=brawl|grenade|<attack mode>] [--portrait=1] [--alt=1] [--near=n] [--help=1]
+##   [--stage=attack] [--arm=brawl|grenade|grab|<attack mode>] [--grapple=hold|shield|throw|held (with --near=1)] [--portrait=1] [--alt=1] [--near=n] [--help=1]
 ##   [--exposure=1 --gamma=1 --ambient=1 --lights=1 --spill=1 (lighting review: grade exposure and power curve, ambient, lamp and baked-spill scales)]
 ##   [--hurt=0.6 (the nearest foes roused and hurt)] [--logt=0..1 (the log slide held there)]
 
@@ -267,6 +267,7 @@ var _dev_help := false                 ## --help=1 (review renders): the H panel
 var _dev_hurt := -1.0                  ## --hurt=f (review renders): the nearest foes roused, f of their HP lost
 var _dev_log_t := -1.0                 ## --logt=t (review renders): the log's slide held at t
 var _dev_near := 0                     ## --near=n (review renders): bring the nearest foe n squares from the crew
+var _dev_grapple := ""                 ## --grapple=hold|shield|throw|held (review renders, with --near=1): a sure Grab on the nearest foe first
 var _alt_on := false                   ## Alt is held: enemy outlines, last-known marks
 var _portrait_uid := -1                ## the turn-order portrait under the mouse (-1 none)
 var _aim := {}                         ## the hovered attack's preview: shape, from, to, col, ...
@@ -329,6 +330,7 @@ func _ready() -> void:
 			"help": _dev_help = kv[1] != "0"   # review renders: the H panel open
 			"hurt": _dev_hurt = float(kv[1])   # review renders: the nearest foes are roused and lose this share of their HP
 			"logt": _dev_log_t = float(kv[1])   # review renders: hold the log's slide here (0 collapsed .. 1 open)
+			"grapple": _dev_grapple = kv[1]   # review renders: hold | shield | throw | held (the foe grabs the crew)
 			"near": _dev_near = int(kv[1])   # review renders: the nearest foe stands this many squares off, in the line of fire
 			"callouts": _dev_callouts = true   # review renders: -14, CRITICAL · BROKEN RIBS and MORTALLY WOUNDED stacked
 			"end": _dev_end = kv[1]   # review renders: the gig ends this way (won | lost | fled), the end panel shows
@@ -491,6 +493,8 @@ func _process(delta: float) -> void:
 		if _frames == 2 and _dev_arm != "":
 			if _dev_arm == "grenade":
 				_on_hud("kit", 0)
+			elif _dev_arm == "grab":   # the close-quarters bar's GRAB armed (left-click target)
+				_on_hud("grapple", "grab")
 			elif _dev_arm == "brawl":
 				stage = "attack"
 				_arm("brawl")
@@ -521,6 +525,8 @@ func _process(delta: float) -> void:
 			_demo_av()
 		if _frames == 10 and _dev_peace:
 			_demo_peace()
+		if _frames == 10 and _dev_grapple != "":
+			_demo_grapple()
 		if _frames == 10 and _dev_callouts:
 			_demo_ms = Time.get_ticks_msec()
 			var cu: Dictionary = enc.units.filter(func(o): return o.team == 0)[0]
@@ -531,7 +537,7 @@ func _process(delta: float) -> void:
 			_demo_ms = Time.get_ticks_msec()
 			enc.state = _dev_end
 			_after_action()
-		var shoot_now: bool = _frames >= 12 if not (_attack_demo or _jack_demo or _av_demo != "" or _dev_peace or _dev_end != "" or _dev_callouts) else (_demo_ms > 0 and Time.get_ticks_msec() - _demo_ms >= int(_shot_delay * 1000.0 / Engine.time_scale))
+		var shoot_now: bool = _frames >= 12 if not (_attack_demo or _jack_demo or _av_demo != "" or _dev_peace or _dev_end != "" or _dev_callouts or _dev_grapple != "") else (_demo_ms > 0 and Time.get_ticks_msec() - _demo_ms >= int(_shot_delay * 1000.0 / Engine.time_scale))
 		if shoot_now and _shot_ms == 0:
 			get_viewport().get_texture().get_image().save_png(_shot_path)
 			_shot_ms = Time.get_ticks_msec()
@@ -1152,6 +1158,7 @@ func _refresh() -> void:
 				foes.sort_custom(func(a, b): return Vector3(a.pos - u.pos).length() < Vector3(b.pos - u.pos).length())
 				var d: Vector3i = foes[0].pos - u.pos
 				n.rotation.y = atan2(float(d.x), float(d.y))
+		_grapple_pose(u, n)
 	if not enc.cur.is_empty():
 		ring.visible = false   # the white outline marks the active unit now
 		_update_outlines()
@@ -2384,6 +2391,14 @@ func _unhandled_input(ev: InputEvent) -> void:
 				if tool != "" or stage != "main" or cover_mode:
 					_back_to_main()
 					_refresh(); _update_hover()
+			# Close quarters (CPR core p.168-169, p.177): X grab / choke / escape, Y throw, I human shield,
+			# O release, U get up, P break an ally's hold. Each acts only when the bar offers it.
+			KEY_X: _grapple_key(["grab", "choke", "escape"])
+			KEY_Y: _grapple_key(["throw"])
+			KEY_I: _grapple_key(["shield"])
+			KEY_O: _grapple_key(["release"])
+			KEY_U: _grapple_key(["get_up"])
+			KEY_P: _grapple_key(["break"])
 			KEY_R: _on_hud("reload", null)
 			KEY_J: _on_hud("jack_in", null)   # JACK OUT while jacked in
 			KEY_SPACE: _on_hud("end_turn", null)
@@ -2454,6 +2469,20 @@ func _on_hud(name: String, arg: Variant) -> void:
 			cover_mode = false
 			_refresh(); _update_hover()
 		"suppress": _suppress()
+		"grapple":   # the close-quarters bar (Hud.GRAPPLE_ACTIONS): grab / break pick a target, the rest act now
+			if not _crew_turn():
+				return
+			var gid := String(arg)
+			if gid in ["grab", "break"]:
+				tool = "" if tool == gid else gid
+				cover_mode = false
+				_refresh(); _update_hover()
+				return
+			var rg := enc.grapple_act(gid)
+			if not rg.get("ok", false):
+				hud.toast(String(rg.get("reason", "can't")).to_upper())
+				return
+			_after_action()
 		"kit":   # the packed consumable: a grenade picks a square; a drug is taken at once
 			if not _crew_turn():
 				return
@@ -2698,6 +2727,10 @@ func _click_tool() -> void:
 		"stabilize":
 			if not t.is_empty():
 				r = enc.stabilize(t)
+		"grab":
+			r = enc.grapple(t) if not t.is_empty() else {"ok": false, "reason": "pick a neighbouring foe"}
+		"break":
+			r = enc.escape_grapple(t) if not t.is_empty() and t != enc.cur else {"ok": false, "reason": "pick a held friend"}
 		"rig":
 			if not t.is_empty():
 				r = enc.jury_rig(t)
@@ -2809,6 +2842,19 @@ func _tool_hover() -> void:
 				return
 			var what := "+%d HP (BODY + WILL)" % mini(t.c.max_hp() - t.c.hp, t.c.raw_stat("BODY") + t.c.raw_stat("WILL")) if drug == "speedheal" else "ignore Seriously Wounded penalties"
 			hud.tip("%s · %s · %d doses left" % [drug.to_upper(), what, c.doses], mouse, "// PHARMACEUTICALS", Hud.GREEN)
+		"grab":
+			if t.is_empty() or enc.allied(t.team, enc.cur.team):
+				hud.tip(Hud.action_help("grab"), mouse, "// GRAB", Color("ff8a3d"))
+				return
+			var gp := enc.grab_preview(t)
+			_set_aim(AimPreview.SWING, enc.cur.pos, t, roundi(gp.chance * 100) if gp.ok else -1, Vector3i(-1, -1, -1), false, "brawling")
+			hud.tip(("[code][font_size=44]%d%%[/font_size][/code]  to Grab · DEX + Brawling [code]%d[/code] vs [code]%d[/code], ties to them\nHeld: -%d to all Actions for you both, no Move Action for them" % [roundi(gp.chance * 100), int(gp.base), int(gp.defense_base), Grapple.PENALTY]) if gp.ok else "[color=#ff3b4f]%s[/color]" % String(gp.reason).capitalize(), mouse, "// GRAB", Color("ff8a3d"))
+		"break":
+			if t.is_empty() or t == enc.cur or not enc.allied(t.team, enc.cur.team):
+				hud.tip(Hud.action_help("break"), mouse, "// BREAK HOLD", Hud.GREEN)
+				return
+			var bp := enc.escape_preview(t)
+			hud.tip(("[code][font_size=44]%d%%[/font_size][/code]  to break the hold · your DEX + Brawling vs the holder's, ties to them" % roundi(bp.chance * 100)) if bp.ok else "[color=#ff3b4f]%s[/color]" % String(bp.reason).capitalize(), mouse, "// BREAK HOLD", Hud.GREEN)
 		"stabilize":
 			if t.is_empty() or not enc.allied(t.team, enc.cur.team) or t.c.wound_state() != Combatant.Wound.MORTAL:
 				hud.tip("Pick a Mortally Wounded ally in reach", mouse, "// STABILIZE", Hud.GREEN)
@@ -3180,6 +3226,165 @@ func _reel_setup_shot(g: Dictionary) -> void:
 	_place_camera()
 	enc.refresh_vision()
 	_refresh()
+
+
+## The bar's close-quarters key: the first of `ids` the bar offers right now.
+func _grapple_key(ids: Array) -> void:
+	if not _crew_turn():
+		return
+	var opts := enc.grapple_options()
+	for id in ids:
+		if id in opts:
+			_on_hud("grapple", id)
+			return
+
+
+## A grapple in the view. The library has no grapple clips (an animation gap, noted in the
+## roadmap): the two stand in neighbouring squares facing each other, the holder in a held frame of
+## the jab reaching in, the held one in a held flinch. Prone: down on the floor until Get Up. No
+## rings or glows.
+func _grapple_pose(u: Dictionary, n: Node3D) -> void:
+	var g: Grapple = u.c.grapple
+	var grip := ""
+	if g != null and not u.c.dead:
+		var o := enc.grapple_partner(u)
+		if not o.is_empty() and (g.live() or g.holder == u.c):
+			var d: Vector3i = o.pos - u.pos
+			if d.x != 0 or d.y != 0:
+				n.rotation.y = atan2(float(d.x), float(d.y))
+			grip = "holder" if g.holder == u.c else "held"
+	n.set_meta("grip", grip)
+	n.set_meta("prone", u.c.prone and not u.c.dead)
+	if u.c.prone:
+		n.set_meta("crouch_goal", 0.0)
+
+
+## Grab, Choke, Throw, Human Shield, Release, Escape, a lost hold (Encounter grapple events).
+func _anim_grapple(e: Dictionary) -> void:
+	var su: Dictionary = enc.units[e.unit]
+	var tu: Dictionary = enc.units[int(e.target)]
+	if not _event_visible(e) and not _seen(tu.pos):
+		return
+	var sn: Node3D = unit_nodes[su.id]
+	var tn: Node3D = unit_nodes[tu.id]
+	_focus_unit = su.id
+	var d := Vector2(tu.pos.x - su.pos.x, tu.pos.y - su.pos.y)
+	match String(e.kind):
+		"grab":
+			_turn_to(sn, atan2(d.x, d.y), 0.1)
+			_turn_to(tn, atan2(-d.x, -d.y), 0.15)
+			var home := sn.position
+			create_tween().tween_property(sn, "position", home + Vector3(d.x, 0, d.y).normalized() * 0.3, 0.16).set_trans(Tween.TRANS_QUAD)
+			(sn as CharModel).play_once("melee", 0.08)
+			_snd("sfx_swing", _body_pos(su), -6.0)
+			await get_tree().create_timer(0.34).timeout
+			if e.success:
+				_snd("sfx_grab", _body_pos(tu), -2.0)
+				_react(tn, Vector3(-d.x, 0, -d.y).normalized(), 0.6)
+				_float(tu, "GRAPPLED", Color("ff8a3d"))
+			else:
+				_float(tu, "BROKE FREE", Hud.CYAN)
+			await get_tree().create_timer(0.3).timeout
+			create_tween().tween_property(sn, "position", home, 0.18)
+			await get_tree().create_timer(0.25).timeout
+		"choke":
+			(tn as CharModel).play_once("hit_a", 0.08)
+			_snd("sfx_choke", _body_pos(tu), -2.0)
+			await get_tree().create_timer(0.35).timeout
+			_float(tu, "-%d CHOKE" % int(e.damage), Hud.RED)
+			_hit_flash(tn)
+			hud.hit_unit(tu.id)
+			_hud_refresh()
+			if e.get("ko", false):
+				_wound_word(tu, "unconscious")
+			else:
+				_wound_word(tu, CalloutQueue.wound_key(int(e.wound_before), int(e.wound_after), bool(e.get("dead", false))))
+			if bool(e.get("dead", false)):
+				_die(tu, tn, Vector3(d.x, 0, d.y).normalized(), true)
+			await get_tree().create_timer(0.5).timeout
+		"throw":
+			var to: Vector3i = e.to
+			var land := Vector3(to.x + 0.5, _gy(to), to.y + 0.5)
+			(sn as CharModel).play_once("grenade", 0.08)   # the toss's swing reads as the heave (no throw clip)
+			_snd("sfx_throw", _body_pos(su), -6.0)
+			var mid := (tn.position + land) / 2.0 + Vector3(0, 0.9, 0)
+			var tw := create_tween()
+			tw.tween_property(tn, "position", mid, 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+			tw.tween_property(tn, "position", land, 0.16).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+			tn.set_meta("grip", "")
+			tn.set_meta("prone", true)
+			await tw.finished
+			_snd("sfx_body_slam", land, 0.0)
+			_kick(_screen_dir(_body_pos(su), land), 3.0)
+			_float(tu, "-%d THROWN" % int(e.damage), Hud.RED)
+			_float(tu, "PRONE", Color("ff8a3d"))
+			_hit_flash(tn)
+			hud.hit_unit(tu.id)
+			_hud_refresh()
+			_wound_word(tu, CalloutQueue.wound_key(int(e.wound_before), int(e.wound_after), bool(e.get("dead", false))))
+			if bool(e.get("dead", false)):
+				_die(tu, tn, Vector3(d.x, 0, d.y).normalized(), true)
+			await get_tree().create_timer(0.45).timeout
+		"shield":
+			_float(su, "HUMAN SHIELD", Hud.GOLD)
+			_snd("sfx_grab", _body_pos(tu), -8.0)
+			await get_tree().create_timer(0.5).timeout
+		"release":
+			_float(tu, "RELEASED", Hud.CYAN)
+			await get_tree().create_timer(0.3).timeout
+		"escape":
+			_snd("sfx_swing", _body_pos(su), -6.0)
+			(sn as CharModel).play_once("hit_b", 0.08)
+			await get_tree().create_timer(0.3).timeout
+			_float(su, "BROKE FREE" if e.success else "STILL HELD", Hud.CYAN if e.success else Hud.RED)
+			await get_tree().create_timer(0.35).timeout
+		"broken":
+			_float(tu, "HOLD BROKEN", Hud.CYAN)
+	_refresh_poses()
+
+
+## Get Up: the prone pose blends back to standing (no get-up clip in the library).
+func _anim_get_up(e: Dictionary) -> void:
+	var u: Dictionary = enc.units[e.unit]
+	if not _seen(u.pos):
+		return
+	unit_nodes[u.id].set_meta("prone", false)
+	_float(u, "GETS UP", Hud.CYAN)
+	await get_tree().create_timer(0.45).timeout
+
+
+func _refresh_poses() -> void:
+	for u in enc.units:
+		if unit_nodes.has(u.id) and not u.c.dead:
+			_grapple_pose(u, unit_nodes[u.id])
+
+
+## --grapple (review renders): the nearest foe (brought beside the crew with --near=1) is grabbed
+## for sure; shield / throw follow; held: the foe grabs the crew member instead.
+func _demo_grapple() -> void:
+	var foes := enc.units.filter(func(o): return _foe(o) and not o.c.dead and enc.adjacent(o.pos, enc.cur.pos))
+	if foes.is_empty():
+		return
+	var g: Dictionary = foes[0]
+	enc._rouse([g])
+	enc.events.clear()
+	var me: Dictionary = enc.cur
+	var by: Dictionary = g if _dev_grapple == "held" else me
+	var on: Dictionary = me if _dev_grapple == "held" else g
+	by.c.skills["brawling"] = 40
+	Grapple.grab(enc.dice, by.c, on.c)
+	match _dev_grapple:
+		"shield":
+			enc.human_shield()
+		"throw":
+			enc.throw_foe()
+	enc.turn.action_available = true   # so the bar shows what the hold allows, lit
+	view_floor = enc.cur.pos.z
+	cam_target = Vector3((me.pos.x + g.pos.x) / 2.0 + 0.5, 0, (me.pos.y + g.pos.y) / 2.0 + 0.5)
+	cam_dist = minf(cam_dist, 14.0)
+	_place_camera()
+	_demo_ms = Time.get_ticks_msec()
+	_after_action()
 
 
 func _demo_attack() -> void:
@@ -3595,6 +3800,8 @@ func _event_handlers() -> Dictionary:
 			"target_down": _ev_target_down,
 			"escape": _ev_escape,
 			"peace_broken": _ev_peace_broken,
+			"grapple": _anim_grapple,
+			"get_up": _anim_get_up,
 		}
 	return _handlers
 
@@ -3615,6 +3822,8 @@ func _play_events() -> void:
 			_ui_snd("sfx_ui_error", -10.0)
 			await get_tree().create_timer(0.3).timeout
 		var h: Variant = _event_handlers().get(String(e.type))
+		if String(e.type) == "move" and not enc.events.is_empty() and enc.events[0].get("dragged", false):
+			_anim_move(enc.events.pop_front())   # the one held is dragged along at the same time (p.177)
 		if h != null:
 			await (h as Callable).call(e)
 	hud.enemy_phase(false)
@@ -4655,6 +4864,9 @@ func _update_hover() -> void:
 		lines.append("Range %d m · DV %d · %s" % [roundi(Los.distance_m(p.from, t.pos)), int(p.dv), w.def.name])
 		if p.blocker.x >= 0 and p.from != enc.cur.pos:
 			lines.append("[color=#05d9e8]Leaning out of cover[/color]")
+		if p.has("shield"):   # p.184: the shot goes into whoever they hold up
+			var shu: Dictionary = enc.units[int(p.shield)]
+			lines.append("[color=#f9c80e]Human shield: the shot goes into %s%s (Aimed head shots and melee get past)[/color]" % [shu.c.display_name, (" (corpse, %d HP)" % shu.c.grapple.corpse_hp) if shu.c.dead else ""])
 	else:
 		lines.append("[color=#ff3b4f]%s[/color]" % String(p.reason).capitalize())
 	# CPR armour often stops everything: show what the weapon averages through it

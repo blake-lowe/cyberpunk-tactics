@@ -52,6 +52,13 @@ const MAIN_ACTIONS := [["shot", "ATTACK", "F", "stage", "attack", Color("05d9e8"
 	["kit0", "KIT", "G", "kit", 0, Color("f9c80e")], ["jack", "JACK IN", "J", "jack_in", null, Color("d68cff")],
 	["interact", "INTERACT", "B", "interact", null, Color("f9c80e")], ["medic", "STABILIZE", "T", "tool", "stabilize", Color("39f0a0")],
 	["role", "ROLE", "V", "role", null, Color("39f0a0")]]
+## Close-quarters actions (CPR core p.168-169, p.177, p.184): [id, title, key, glyph, tint, tool].
+## Shown when Encounter.grapple_options() offers them; `tool` ones pick a target with a left click
+## (ClickIntent.TOOL), the rest act at once. Hover cards: data/rules/action_help.json.
+const GRAPPLE_ACTIONS := [["grab", "GRAB", "X", "hold", Color("ff8a3d"), true], ["choke", "CHOKE", "X", "choke", Color("ff3b4f"), false],
+	["throw", "THROW", "Y", "throw", Color("ff3b4f"), false], ["shield", "HUMAN SHIELD", "I", "hshield", Color("f9c80e"), false],
+	["release", "RELEASE", "O", "release", Color("8a96a0"), false], ["escape", "ESCAPE", "X", "free", Color("05d9e8"), false],
+	["break", "BREAK HOLD", "P", "free", Color("39f0a0"), true], ["get_up", "GET UP", "U", "getup", Color("05d9e8"), false]]
 ## Attack-stage modes: id → [button title, glyph, the book's full name] (CPR core p.170-177).
 const ATK_MODES := {"single": ["SINGLE", "shot", "Single Shot"], "aim_head": ["AIM HEAD", "head", "Aimed Shot: head"],
 	"aim_leg": ["AIM LEG", "head", "Aimed Shot: leg"], "aim_held": ["AIM HELD", "head", "Aimed Shot: held item"],
@@ -584,6 +591,34 @@ class ActBtn extends Button:
 				draw_rect(Rect2(o + Vector2(-r * 1.1, -r * 0.4), Vector2(r * 2.2, r * 1.4)), c, false, 2.0)
 				draw_rect(Rect2(o + Vector2(-r * 0.4, -r * 0.9), Vector2(r * 0.8, r * 0.5)), c, false, 2.0)
 				draw_line(o + Vector2(-r * 1.1, r * 0.25), o + Vector2(r * 1.1, r * 0.25), c, 1.5)
+			"hold":   # two hands locked together
+				draw_arc(o + Vector2(-r * 0.45, 0), r * 0.7, -PI * 0.5, PI * 0.5, 10, c, 3.0)
+				draw_arc(o + Vector2(r * 0.45, 0), r * 0.7, PI * 0.5, PI * 1.5, 10, c, 3.0)
+				draw_line(o + Vector2(-r * 1.4, 0), o + Vector2(-r * 0.8, 0), c, 3.0)
+				draw_line(o + Vector2(r * 0.8, 0), o + Vector2(r * 1.4, 0), c, 3.0)
+			"choke":   # a ring closing on a neck
+				draw_arc(o, r * 0.9, PI * 0.15, PI * 1.85, 16, c, 3.0)
+				draw_line(o + Vector2(r * 0.9, -r * 0.4), o + Vector2(r * 1.4, -r * 0.4), c, 2.0)
+				draw_line(o + Vector2(r * 0.9, r * 0.4), o + Vector2(r * 1.4, r * 0.4), c, 2.0)
+				draw_circle(o, r * 0.3, c)
+			"throw":   # an arc over the shoulder down to the ground
+				draw_arc(o + Vector2(0, r * 0.6), r * 1.1, PI * 1.05, PI * 1.95, 14, c, 2.5)
+				draw_colored_polygon(PackedVector2Array([o + Vector2(r * 1.1, r * 1.0), o + Vector2(r * 0.7, r * 0.3), o + Vector2(r * 1.4, r * 0.4)]), c)
+				draw_line(o + Vector2(-r * 1.4, r * 1.2), o + Vector2(r * 1.4, r * 1.2), Color(c, 0.6), 1.5)
+			"hshield":   # a figure in front of a shield edge
+				draw_arc(o + Vector2(0, -r * 0.6), r * 0.35, 0, TAU, 10, c, 2.0)
+				draw_line(o + Vector2(0, -r * 0.25), o + Vector2(0, r * 0.7), c, 2.5)
+				draw_line(o + Vector2(-r * 0.6, 0), o + Vector2(r * 0.6, 0), c, 2.0)
+				draw_arc(o + Vector2(-r * 1.6, 0), r * 1.3, -PI * 0.3, PI * 0.3, 8, Color(c, 0.6), 2.0)
+			"release":   # hands opening apart
+				draw_arc(o + Vector2(-r * 0.8, 0), r * 0.6, -PI * 0.5, PI * 0.5, 10, c, 2.5)
+				draw_arc(o + Vector2(r * 0.8, 0), r * 0.6, PI * 0.5, PI * 1.5, 10, c, 2.5)
+				draw_line(o + Vector2(-r * 0.2, -r * 0.9), o + Vector2(-r * 0.2, r * 0.9), Color(c, 0.5), 1.0)
+				draw_line(o + Vector2(r * 0.2, -r * 0.9), o + Vector2(r * 0.2, r * 0.9), Color(c, 0.5), 1.0)
+			"getup":   # an arrow up off the floor
+				draw_line(o + Vector2(0, r * 1.0), o + Vector2(0, -r * 0.6), c, 3.0)
+				draw_colored_polygon(PackedVector2Array([o + Vector2(0, -r * 1.2), o + Vector2(-r * 0.6, -r * 0.4), o + Vector2(r * 0.6, -r * 0.4)]), c)
+				draw_line(o + Vector2(-r * 1.3, r * 1.1), o + Vector2(r * 1.3, r * 1.1), Color(c, 0.6), 1.5)
 			"end":
 				draw_colored_polygon(PackedVector2Array([o + Vector2(-r * 1.2, -r), o + Vector2(r * 0.2, 0), o + Vector2(-r * 1.2, r)]), c)
 				draw_colored_polygon(PackedVector2Array([o + Vector2(0, -r), o + Vector2(r * 1.4, 0), o + Vector2(0, r)]), c)
@@ -639,6 +674,15 @@ func _build_bar() -> void:
 		b3.pressed.connect(func(): action.emit(act, arg))
 		_tool_buttons[spec[0]] = b3
 		_buttons.add_child(b3)
+	for spec in GRAPPLE_ACTIONS:   # close quarters: only what the grapple state allows shows (Encounter.grapple_options)
+		var gb := ActBtn.new(spec[3], spec[1], spec[2], spec[4])
+		gb.toggle_mode = spec[5]
+		var gid: String = spec[0]
+		gb.pressed.connect(func(): action.emit("grapple", gid))
+		gb.mouse_entered.connect(func(): _bar_tip(gb, gid))
+		gb.mouse_exited.connect(func(): _tip.visible = false)
+		_tool_buttons[gid] = gb
+		_buttons.add_child(gb)
 	# Attack stage: the weapons you carry (drawing one is free, p.128), then what the drawn one can do.
 	_atk_buttons = HBoxContainer.new()
 	_atk_buttons.add_theme_constant_override("separation", 5)
@@ -791,6 +835,9 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 		_card.add_child(_text("ARMOR  [HEAD %d]  [BODY %d]" % [c.sp("head"), c.sp("body")], F_TERM, Hud.ts(20), TEXT))
 		if not c.injuries.is_empty():
 			_card.add_child(_text("! " + ", ".join(c.injuries.map(func(i): return String(i.get("name", i.id)))).to_upper(), F_TERM, Hud.ts(20), RED))
+		var gs := status_label(c)
+		if gs != "":   # GRAPPLED / GRAPPLING / PRONE: the state that changes what the bar offers
+			_card.add_child(_text(gs, F_DISPLAY, 20, Color("ff8a3d")))
 		var t := enc.turn
 		var act := t.action_available or t.attacks_left > 0
 		_econ.add_child(_text(action_text(t), F_DISPLAY, 20, CYAN if act else Color(DIM, 0.6)))
@@ -825,6 +872,20 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 	if enc.state != "playing":
 		toast(end_toast if end_toast != "" else "GIG %s" % ("COMPLETE" if enc.state == "won" else ("ABANDONED" if enc.state == "fled" else "FAILED")), 1e9)
 	_layout.call_deferred()
+
+
+## The one-word close-quarters state for a unit card: GRAPPLED BY X, GRAPPLING X (HUMAN SHIELD),
+## PRONE; "" when none.
+static func status_label(c: Combatant) -> String:
+	var out: Array[String] = []
+	var g: Grapple = c.grapple
+	if g != null and g.holder == c:
+		out.append(("GRAPPLING %s" % g.held.display_name.to_upper()) + (" · HUMAN SHIELD" if g.shield else "") if g.live() else "CORPSE SHIELD")
+	elif g != null and g.live():
+		out.append("GRAPPLED BY %s" % g.holder.display_name.to_upper())
+	if c.prone:
+		out.append("PRONE")
+	return " · ".join(out)
 
 
 ## The unit card's ACTION line: lit while the Action is unspent, and after the first attack of a
@@ -888,12 +949,18 @@ func _refresh_tools(enc: Encounter, crew_turn: bool) -> void:
 	var jacked := enc.runs.has(enc.cur.id)
 	var show := {"shot": true, "reload": not c.weapons.is_empty() and c.weapons[0].uses_ammo(), "kit0": enc.kit_action(0) in ["grenade", "dose"],
 		"jack": NetRun.interface_rank(c) > 0, "interact": not here.is_empty(), "medic": near_dying, "role": not role.is_empty()}
+	var gopts := enc.grapple_options()
+	var g: Grapple = c.grapple
+	for spec in GRAPPLE_ACTIONS:
+		show[spec[0]] = String(spec[0]) in gopts
 	for k in _tool_buttons:
 		var b: ActBtn = _tool_buttons[k]
 		b.visible = show[k]
 		b.disabled = not crew_turn or (k != "jack" and not can_act) or (k == "reload" and not t.action_available)
+		if show[k] and _is_grapple(k):   # every one is an Action, bar letting go of someone alive (p.177, p.184)
+			b.disabled = not crew_turn or (not t.action_available and not (k == "release" and g != null and g.live()))
 		var armed: bool = {"shot": stage == "attack", "kit0": tool == "grenade", "medic": tool == "stabilize",
-			"role": not role.is_empty() and tool == String(role[0])}.get(k, false)
+			"role": not role.is_empty() and tool == String(role[0]), "grab": tool == "grab", "break": tool == "break"}.get(k, false)
 		b.set_pressed_no_signal(b.toggle_mode and armed)
 		match k:
 			"kit0":
@@ -1098,7 +1165,14 @@ func _party_card(u: Dictionary, active: bool) -> Control:
 	var w: Weapon = c.weapons[0] if not c.weapons.is_empty() else null
 	var wl := _text(("%s %s" % [w.display_name().to_upper(), ("%d/%d" % [w.ammo, int(w.def.get("mag", 0))]) if w.uses_ammo() else ""]) if w else "UNARMED", F_TERM, Hud.ts(16), DIM)
 	v.add_child(QualityText.apply(wl, Items.key_of_weapon(w)) if w else wl)
-	var cond := conditions(c)
+	var gs := status_label(c)
+	if gs != "":
+		var gl := _text(gs, F_DISPLAY, 18, Color("ff8a3d"))
+		gl.custom_minimum_size.x = 200
+		gl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		v.add_child(gl)
+	var gc := grapple_conditions(c)
+	var cond := conditions(c).filter(func(x): return x != "prone" and not x in gc)   # the label above says it
 	if not cond.is_empty():
 		var cl := _text(" · ".join(cond).to_upper(), F_TERM, Hud.ts(16), RED)
 		cl.custom_minimum_size.x = 200
@@ -1153,9 +1227,51 @@ static func stat_block(c: Combatant, full: bool, extra: Array = []) -> String:
 	return "\n".join(out)
 
 
+static func _is_grapple(id: String) -> bool:
+	return GRAPPLE_ACTIONS.any(func(sp): return sp[0] == id)
+
+
+## A close-quarters action's hover card from data/rules/action_help.json (the NET panel's style,
+## net_help): name, cost, what it does, its roll, the page. `live` adds a NOW line. "" if unknown.
+static func action_help(id: String, live := "") -> String:
+	const K := "[color=#7d8a96]%s[/color]"
+	var e: Dictionary = (RulesDB.load_json("action_help.json").actions as Dictionary).get(id, {})
+	if e.is_empty():
+		return ""
+	var out: Array[String] = ["[b]%s[/b]  %s" % [String(e.name), K % String(e.cost)], String(e.text)]
+	if String(e.get("key", "")) != "":
+		out.append((K % "ROLL") + " [code]%s[/code]" % String(e.key))
+	if live != "":
+		out.append((K % "NOW") + " " + live)
+	out.append(K % ("CPR core " + String(e.get("page", ""))))
+	return "\n".join(out)
+
+
+## The hover card above a bar button.
+func _bar_tip(b: Control, id: String) -> void:
+	var r := b.get_global_rect()
+	tip(action_help(id), r.position - global_position + Vector2(-28, -40), "// CLOSE QUARTERS", Color("ff8a3d"))
+
+
+## The grapple a combatant is in, for cards: who's holding whom.
+static func grapple_conditions(c: Combatant) -> Array[String]:
+	var out: Array[String] = []
+	var g: Grapple = c.grapple
+	if g == null:
+		return out
+	if g.holder == c:
+		if not g.live():
+			out.append("holding a corpse shield" + (" (%d HP)" % g.corpse_hp if g.corpse_hp > 0 else " (spent)"))
+		else:
+			out.append("grappling %s: -%d to all Actions%s" % [g.held.display_name, Grapple.PENALTY, " · human shield" if g.shield else ""])
+	elif g.live():
+		out.append("grappled by %s: -%d to all Actions, no Move Action%s" % [g.holder.display_name, Grapple.PENALTY, " · held as a human shield" if g.shield else ""])
+	return out
+
+
 ## What's wrong with someone at a glance: injuries, status, drugs, chrome knocked out.
 static func conditions(c: Combatant) -> Array[String]:
-	var out: Array[String] = []
+	var out: Array[String] = grapple_conditions(c)
 	if c.wound_state() == Combatant.Wound.MORTAL:   # p.220: still acts, at these penalties
 		out.append("mortally wounded: -%d to all Actions, -%d MOVE (min 1)" % [Combatant.WOUND_ACTION_PENALTY[Combatant.Wound.MORTAL], Combatant.MORTAL_MOVE_PENALTY])
 	if c.unconscious:
