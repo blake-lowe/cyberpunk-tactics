@@ -179,6 +179,7 @@ func _ready() -> void:
 	_tip_label.add_theme_font_size_override("bold_font_size", 30)
 	_tip_label.add_theme_font_size_override("mono_font_size", ts(20))
 	_tip_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_tip_label.install_effect(QualityText.SheenFx.new())   # Excellent weapons in stat blocks
 	tv.add_child(_tip_label)
 	_tip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_tip.visible = false
@@ -445,6 +446,12 @@ class ActBtn extends Button:
 	var key := ""
 	var tint := Color.WHITE
 	var pct := -1
+	var qstyle := {}   ## QualityText style of the title (a weapon on the attack stage's wheel), {} = plain
+	func set_quality(st: Dictionary) -> void:
+		qstyle = st
+		set_process(bool(st.get("sheen", false)))
+	func _process(_dt: float) -> void:
+		queue_redraw()   # the Excellent sweep
 	func _init(p_glyph: String, p_title: String, p_key: String, p_tint: Color, w := 66.0, h := 66.0) -> void:
 		glyph = p_glyph
 		title = p_title
@@ -553,10 +560,20 @@ class ActBtn extends Button:
 			"end":
 				draw_colored_polygon(PackedVector2Array([o + Vector2(-r * 1.2, -r), o + Vector2(r * 0.2, 0), o + Vector2(-r * 1.2, r)]), c)
 				draw_colored_polygon(PackedVector2Array([o + Vector2(0, -r), o + Vector2(r * 1.4, 0), o + Vector2(0, r)]), c)
+		var tf: Font = Hud.F_BOLD
+		var tt := title
 		var fs := Hud.ts(17)   # shrink to fit long titles (WITHDRAW, SUPPRESS)
-		while fs > 8 and Hud.F_BOLD.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > w - 4:
+		if not qstyle.is_empty():   # a weapon's quality typography (QualityText)
+			tt = qstyle.text
+			tf = qstyle.font if qstyle.font else tf
+			fs = roundi(fs * float(qstyle.scale))
+		while fs > 8 and tf.get_string_size(tt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > w - 4:
 			fs -= 1
-		draw_string(Hud.F_BOLD, Vector2(0, size.y - 7), title, HORIZONTAL_ALIGNMENT_CENTER, w, fs, Color(Hud.TEXT, 0.45 if disabled else 1.0))
+		var tcol := Color(Hud.TEXT, 0.45 if disabled else 1.0)
+		if qstyle.is_empty():
+			draw_string(tf, Vector2(0, size.y - 7), tt, HORIZONTAL_ALIGNMENT_CENTER, w, fs, tcol)
+		else:
+			QualityText.draw_text(self, tf, Vector2(0, size.y - 7), w, fs, tcol, qstyle)
 		if pct >= 0 and not disabled:   # live hit chance for this mode on the hovered target
 			var pc := Hud.GREEN if pct >= 65 else (Hud.GOLD if pct >= 35 else Hud.RED)
 			draw_string(Hud.F_BOLD, Vector2(4, 16), "%d%%" % pct, HORIZONTAL_ALIGNMENT_LEFT, 40, 14, pc)
@@ -919,6 +936,8 @@ func _build_wheel(tabs: Array, drawn: Weapon, usable: bool) -> void:
 		var w: Weapon = tabs[i]
 		var nm := w.display_name().to_upper() if w else "BRAWLING"
 		var tb := ActBtn.new("melee" if w == null or w.is_melee() else "shot", nm, "TAB %d/%d" % [i + 1, tabs.size()], GOLD, WHEEL_W, WHEEL_H)
+		if w:
+			tb.set_quality(QualityText.weapon_style(w, nm))
 		tb.toggle_mode = true
 		tb.set_pressed_no_signal(true)
 		tb.disabled = not usable
@@ -1052,7 +1071,8 @@ func _party_card(u: Dictionary, active: bool) -> Control:
 	hr.add_child(_text("%d/%d" % [c.hp, c.max_hp()], F_TERM, Hud.ts(20), _hp_col(c)))
 	v.add_child(hr)
 	var w: Weapon = c.weapons[0] if not c.weapons.is_empty() else null
-	v.add_child(_text(("%s %s" % [w.display_name().to_upper(), ("%d/%d" % [w.ammo, int(w.def.get("mag", 0))]) if w.uses_ammo() else ""]) if w else "UNARMED", F_TERM, Hud.ts(16), DIM))
+	var wl := _text(("%s %s" % [w.display_name().to_upper(), ("%d/%d" % [w.ammo, int(w.def.get("mag", 0))]) if w.uses_ammo() else ""]) if w else "UNARMED", F_TERM, Hud.ts(16), DIM)
+	v.add_child(QualityText.apply(wl, Items.key_of_weapon(w)) if w else wl)
 	var cond := conditions(c)
 	if not cond.is_empty():
 		var cl := _text(" · ".join(cond).to_upper(), F_TERM, Hud.ts(16), RED)
@@ -1089,7 +1109,7 @@ static func stat_block(c: Combatant, full: bool, extra: Array = []) -> String:
 	for w in ws:
 		var q := "" if w.quality == "standard" else " (%s)" % w.quality.capitalize()
 		var ap := " AP" if w.special_left > 0 and int(w.special_fx.get("ablate_sp", 1)) > 1 else ""   # a VH Pistol turret's AP rounds (Turret)
-		out.append((K % "WEAPON") + " %s%s · %dd6 · ROF %d%s" % [w.def.name, q, w.dice(), w.rof(), (" · %d/%d%s" % [w.ammo, int(w.def.get("mag", 0)), ap]) if w.uses_ammo() else ""])
+		out.append((K % "WEAPON") + " %s%s · %dd6 · ROF %d%s" % [QualityText.bbcode(Items.key_of_weapon(w), String(w.def.name)), q, w.dice(), w.rof(), (" · %d/%d%s" % [w.ammo, int(w.def.get("mag", 0)), ap]) if w.uses_ammo() else ""])
 	if full:
 		var sk: Array = c.skills.keys().filter(func(k): return int(c.skills[k]) > 0)
 		sk.sort_custom(func(a, b): return c.skill_base(a) > c.skill_base(b))
@@ -1345,7 +1365,8 @@ func _add_weapon_status(c: Combatant, enc: Encounter, w: Weapon) -> void:
 		sel = enc.melee_weapon(c)
 	if sel == null:
 		sel = Weapon.brawling(c)
-	_econ.add_child(_text(status_name(sel), F_TERM, Hud.ts(20), TEXT))
+	var nm := _text(status_name(sel), F_TERM, Hud.ts(20), TEXT)
+	_econ.add_child(QualityText.apply(nm, Items.key_of_weapon(sel)) if sel.id() != "brawling" else nm)
 	if sel.jammed:
 		_econ.add_child(_text("JAMMED · R TO CLEAR", F_TERM, Hud.ts(20), RED))
 	elif sel.uses_ammo():

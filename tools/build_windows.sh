@@ -10,6 +10,7 @@ timeout 900 godot --headless --export-release "Windows Desktop" build/windows/Cy
 cp LICENSE* README* build/windows/ 2>/dev/null || true
 mkdir -p build/windows/licenses
 cp assets/fonts/OFL-*.txt build/windows/licenses/
+cp assets/fonts/APACHE-*.txt build/windows/licenses/ 2>/dev/null || true
 find assets/third_party -iname "LICENSE*.txt" -exec cp {} build/windows/licenses/ \;
 (cd build && rm -f "CyberpunkTactics-windows-$TAG.zip" && zip -qr "CyberpunkTactics-windows-$TAG.zip" windows)
 ls -la "build/CyberpunkTactics-windows-$TAG.zip"

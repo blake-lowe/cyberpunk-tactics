@@ -235,7 +235,8 @@ func _set_opt(k: String, v: Variant) -> void:
 func _credits() -> Control:
 	_box.add_child(UiKit.label("Credits", 18, Hud.CYAN))
 	var v := UiKit.vbox(10)
-	for sec in CREDITS:
+	var secs: Array = CREDITS.slice(0, CREDITS.size() - 1) + QualityText.font_credits() + [CREDITS[-1]]   # the exotic faces as data has them
+	for sec in secs:
 		v.add_child(UiKit.label(sec[0], 15, Hud.GOLD))
 		v.add_child(UiKit.body(sec[1], 15))
 	var sc := UiKit.scroller(v)

@@ -99,8 +99,10 @@ func _member(m: Dictionary) -> PanelContainer:
 		var lost: Array = m.get("lost", m.get("kit", []))
 		if not lost.is_empty():
 			v.add_child(UiKit.label("LOST GEAR", 12, Hud.DIM))
-			for item in lost:
-				v.add_child(UiKit.body(String(item), 15, Hud.TEXT))
+			var keys: Array = m.get("lost_keys", [])
+			for i in lost.size():
+				var ll := UiKit.body(String(lost[i]), 15, Hud.TEXT)
+				v.add_child(QualityText.apply(ll, String(keys[i])) if i < keys.size() and String(keys[i]) != "" else ll)
 		return p
 	var hpc := Hud.GREEN if int(m.get("hp", 0)) >= int(m.get("max_hp", 1)) else (Hud.GOLD if String(m.get("wound", "")) == "Lightly Wounded" else Hud.RED)
 	v.add_child(UiKit.label("HP %d/%d · %s" % [int(m.get("hp", 0)), int(m.get("max_hp", 0)), String(m.get("wound", ""))], 15, hpc))

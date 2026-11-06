@@ -289,7 +289,7 @@ func _item_row(it: Dictionary) -> Control:
 	var top := UiKit.hbox(8)
 	v.add_child(top)
 	var chrome: bool = it.kind == "cyberware"
-	var nm := UiKit.label(String(it.name), 15, Hud.VIOLET.lightened(0.3) if chrome else Hud.TEXT)
+	var nm := QualityText.apply(UiKit.label(String(it.name), 15, Hud.VIOLET.lightened(0.3) if chrome else Hud.TEXT), String(it.key))
 	nm.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	nm.size_flags_vertical = Control.SIZE_SHRINK_CENTER
