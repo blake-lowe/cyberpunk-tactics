@@ -497,7 +497,9 @@ func _process(delta: float) -> void:
 	if ht < _last_hit and float(get_meta("hit_amp", 0.0)) >= 1.0 and not get_meta("fallen", false):
 		play_once("hit_rifle", 0.05)
 	_last_hit = ht
-	if not hold_state:
+	if _windup != "":   # a melee hover: hold the anticipation frame, swaying a little
+		anim.seek(_windup_at + 0.035 * sin(Time.get_ticks_msec() / 260.0), true)
+	elif not hold_state:
 		_pick(false)
 
 
@@ -563,6 +565,39 @@ func head_point() -> Vector3:
 	return skel.global_transform * (skel.get_bone_global_pose(h) * Vector3(0, 0.09, 0.03))
 
 
+## World position of the right hand (what a grenade is thrown from).
+func hand_point() -> Vector3:
+	return skel.global_transform * skel.get_bone_global_pose(skel.find_bone("RightHand")).origin
+
+
+## A melee hover (BG3-style): hold `clip` at its anticipation frame `at` until end_windup() or a
+## real one-shot (play_once) takes over.
+var _windup := ""
+var _windup_at := 0.0
+
+
+func windup(clip: String, at: float) -> void:
+	if anim == null or not anim.has_animation(clip) or get_meta("fallen", false):
+		return
+	_windup_at = at
+	if _windup == clip:
+		return
+	_windup = clip
+	_oneshot = ""
+	state = clip
+	anim.speed_scale = 1.0
+	anim.play(clip, 0.15)
+	anim.seek(at, true)
+
+
+func end_windup() -> void:
+	if _windup == "":
+		return
+	_windup = ""
+	state = ""   # the state picker blends back to the idle
+	_pick(false)
+
+
 ## Freeze on one frame of a clip (portrait studio).
 func pose_still(clip: String, at: float) -> void:
 	set_process(false)   # call after the model is in the tree
@@ -592,13 +627,18 @@ func duck(secs := 0.5) -> void:
 func play_once(clip: String, blend := 0.1) -> void:
 	if not anim.has_animation(clip):
 		return
+	var held := _windup == clip   # from a melee hover's wind-up: start the swing from the top
+	_windup = ""
 	_oneshot = clip
 	anim.play(clip, blend)
+	if held:
+		anim.seek(0.0, true)
 
 
 ## Death: a clip chosen by where the shot came from (front, back or side; headshots and
 ## crouched bodies have their own). The body stays on the clip's last frame.
 func die(dir: Vector3, head := false, instant := false) -> void:
+	_windup = ""
 	var local := global_transform.basis.inverse() * Vector3(dir.x, 0, dir.z)
 	var clip := "death_front"
 	if float(get_meta("crouch", get_meta("crouch_goal", 0.0))) > 0.5 or state == "dying":   # from a crouch or a knee

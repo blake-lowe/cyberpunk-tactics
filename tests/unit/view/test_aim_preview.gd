@@ -41,14 +41,37 @@ func test_throw_arc_ends_on_target_and_rises() -> void:
 	assert_true(pts[4].y > a.y and pts[12].y > b.y, "a parabola, not a line")
 
 
-func test_swing_faces_the_attacker() -> void:
-	var c := Vector3(5, 1, 5)
-	var pts := AimPreview.swing_points(c, Vector3(5, 1, 0), 0.7, 110.0, 12)
-	assert_eq(pts.size(), 13)
-	assert_true(pts[6].z < c.z, "the arc sweeps the attacker's side of the target")
-	for p in pts:
-		assert_near(Vector2(p.x - c.x, p.z - c.z).length(), 0.7, 0.001)
-	assert_true(pts[0].y > pts[12].y, "a diagonal cut, high to low")
+func test_line_starts_ahead_of_the_muzzle() -> void:
+	var mz := Vector3(1, 1, 1)
+	var o := AimPreview.muzzle_origin(mz, Vector3(11, 1, 1))
+	assert_true(o.is_equal_approx(Vector3(1.5, 1, 1)), "1 m (half a square) along the aim: %s" % o)
+	var o2 := AimPreview.muzzle_origin(mz, Vector3(1, 1, 1.4))
+	assert_true(o2.is_equal_approx(Vector3(1, 1, 1.2)), "point blank: never past half way: %s" % o2)
+	assert_true(AimPreview.muzzle_origin(mz, mz).is_equal_approx(mz))
+	var o3 := AimPreview.muzzle_origin(mz, Vector3(1, 5, 4))   # aims up a storey: along the 3D aim
+	assert_near(o3.distance_to(mz), 0.5, 0.001)
+	assert_true(o3.y > mz.y)
+
+
+func test_line_ends_centre_mass_or_head() -> void:
+	var base := Vector3(4.5, 3.0, 2.5)
+	var body := AimPreview.aim_point(base, false)
+	var head := AimPreview.aim_point(base, true)
+	assert_true(body.is_equal_approx(base + Vector3(0, AimPreview.CENTRE_MASS, 0)))
+	assert_true(head.is_equal_approx(base + Vector3(0, AimPreview.HEAD, 0)))
+	assert_true(head.y > body.y and body.y > base.y, "the head above centre mass")
+
+
+func test_blocked_line_stops_on_the_line() -> void:
+	var p := AimPreview.stop_point(Vector3(0, 1, 0), Vector3(10, 2, 0), Vector3(4, 0, 0.5))
+	assert_true(p.is_equal_approx(Vector3(4, 1.4, 0)), "%s" % p)
+
+
+func test_slice_faces_the_target() -> void:
+	assert_near(AimPreview.face_yaw(Vector3.ZERO, Vector3(0, 0, 3)), 0.0, 0.001)
+	assert_near(AimPreview.face_yaw(Vector3.ZERO, Vector3(2, 5, 0)), PI / 2, 0.001)
+	assert_eq(AimPreview.windup("light_melee")[0], "melee_blade")
+	assert_eq(AimPreview.windup("brawling")[0], "melee")
 
 
 func test_last_known_squares() -> void:

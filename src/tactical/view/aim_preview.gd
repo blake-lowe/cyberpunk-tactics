@@ -5,7 +5,7 @@ extends RefCounted
 ## tactical view (greybox.gd) projects them and draws them. Line of fire and cover stay with Los.
 ##
 ##   "line"   guns and other direct-fire weapons: a straight line of fire, shooter to target
-##   "swing"  melee and brawling: a short arc swept across the target
+##   "swing"  melee and brawling: the attacker winds up, a slice sweeps the floor toward the target
 ##   "throw"  thrown weapons, lobbed grenades and kit grenades: a parabola to the target square
 
 const LINE := "line"
@@ -70,19 +70,46 @@ static func peak_for(dist_squares: float) -> float:
 	return clampf(0.6 + dist_squares * 0.22, 0.8, 4.0)
 
 
-## A swing: an arc of `radius` round `centre`, facing back toward `from`, sweeping `deg` degrees
-## from high on one side to lower on the other (a diagonal cut). n + 1 points.
-static func swing_points(centre: Vector3, from: Vector3, radius := 0.7, deg := 110.0, n := 12) -> PackedVector3Array:
-	var out := PackedVector3Array()
-	var back := Vector3(from.x - centre.x, 0, from.z - centre.z)
-	back = back.normalized() if back.length() > 0.001 else Vector3.BACK
-	for i in n + 1:
-		var t := float(i) / n
-		var ang := deg_to_rad(-deg * 0.5 + deg * t)
-		var p := centre + back.rotated(Vector3.UP, ang) * radius
-		p.y += lerpf(0.35, -0.25, t)
-		out.append(p)
-	return out
+const SQUARE_M := 2.0           ## metres per grid square (Los.distance_m)
+const MUZZLE_FWD_M := 1.0       ## the line starts this far ahead of the muzzle (owner)
+const CENTRE_MASS := 0.72       ## aim heights above a unit's floor, as the shot animation aims
+const HEAD := 0.95
+const SLICE_REACH_M := 2.0      ## the melee slice: a ~90° wedge reaching about 2 m (owner)
+
+
+## Where the line of fire starts: `fwd_m` metres from the weapon toward `aim_at`, never more than
+## half way there (point blank, the line still shows).
+static func muzzle_origin(muzzle: Vector3, aim_at: Vector3, fwd_m := MUZZLE_FWD_M) -> Vector3:
+	var d := aim_at - muzzle
+	if d.length() < 0.001:
+		return muzzle
+	return muzzle + d.normalized() * minf(fwd_m / SQUARE_M, d.length() * 0.5)
+
+
+## Where the shot goes on a unit standing at `base` (its floor point): centre mass, or the head for
+## an aimed head shot.
+static func aim_point(base: Vector3, head: bool) -> Vector3:
+	return base + Vector3(0, HEAD if head else CENTRE_MASS, 0)
+
+
+## Where a blocked line stops: on the line from `origin` to `end`, level with the blocking square's
+## centre `stop` (only its x/z count).
+static func stop_point(origin: Vector3, end: Vector3, stop: Vector3) -> Vector3:
+	var h := Vector2(end.x - origin.x, end.z - origin.z)
+	if h.length_squared() < 0.000001:
+		return origin
+	var t := clampf(Vector2(stop.x - origin.x, stop.z - origin.z).dot(h) / h.length_squared(), 0.0, 1.0)
+	return origin.lerp(end, t)
+
+
+## The yaw that faces from `from` to `to` (units face +Z at yaw 0).
+static func face_yaw(from: Vector3, to: Vector3) -> float:
+	return atan2(to.x - from.x, to.z - from.z)
+
+
+## The melee wind-up: the attack clip a weapon swings with and the anticipation frame to hold.
+static func windup(weapon_id: String) -> Array:
+	return ["melee_blade", 0.22] if weapon_id.ends_with("_melee") else ["melee", 0.2]
 
 
 ## Last-known enemy squares (Alt marks them faintly through walls): `foes` are unit dictionaries
