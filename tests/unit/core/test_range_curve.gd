@@ -74,3 +74,19 @@ func test_for_weapon_uses_the_attack_base_and_modes() -> void:
 	assert_true(RangeCurve.for_weapon(c, Weapon.from_id("light_melee")).melee, "melee: no curve")
 	var helix := RangeCurve.for_weapon(c, Weapon.from_id("tsunami_helix"))
 	assert_true(helix.has("autofire") and not helix.has("single"), "the Helix is autofire only (p349)")
+
+
+func test_brackets_mark_where_the_dv_changes() -> void:
+	# Pistol row (p173): 13 | 15 | 20 | 25 | 30 | 30 | N/A: the two DV 30 bands merge, reach 200 m
+	assert_eq(RangeCurve.brackets("pistol"), [[0.0, 13], [6.0, 15], [12.0, 20], [25.0, 25], [50.0, 30]])
+	# Assault rifle autofire (p173): its own row, to 100 m
+	assert_eq(RangeCurve.brackets("assault_rifle", true), [[0.0, 22], [6.0, 20], [12.0, 17], [25.0, 20], [50.0, 25]])
+	assert_eq(RangeCurve.brackets("pistol", false, 25.0), [[0.0, 13], [6.0, 15], [12.0, 20]], "a 25 m cap drops the bands past it")
+	assert_eq(RangeCurve.brackets("no_such_table"), [])
+
+
+func test_brackets_for_follow_the_weapon_and_mode() -> void:
+	var ar := Weapon.from_id("assault_rifle")
+	assert_eq(RangeCurve.brackets_for(ar, Attack.Mode.SINGLE), RangeCurve.brackets(String(ar.def.range)))
+	assert_eq(RangeCurve.brackets_for(ar, Attack.Mode.AUTOFIRE), RangeCurve.brackets(String(ar.def.autofire_range), true))
+	assert_eq(RangeCurve.brackets_for(Weapon.from_id("light_melee"), Attack.Mode.SINGLE), [], "melee: no ticks")

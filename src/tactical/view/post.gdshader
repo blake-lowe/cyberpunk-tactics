@@ -14,6 +14,7 @@ uniform vec3 palette[64];          // in OKLab (converted on the CPU)
 uniform int palette_n = 0;
 uniform int palette_neutral_n = 0;  // entries after this are neon ramps: only for saturated pixels
 uniform vec2 src_size = vec2(640.0, 360.0);
+uniform float blood = 0.0;         // HUD foe portraits only: share of HP lost, filling the bust from the bottom
 // Cyberspace view (while a Netrunner is jacked in): the environment is pushed into the background
 // in one of several styles; the NET itself is drawn on top, crisp and bright (NetOverlay).
 // 0 off, 1 pointillist, 2 Obra Dinn 1-bit, 3 wireframe, 4 Blackwall, 5 Ghost in the Shell,
@@ -188,6 +189,19 @@ void fragment() {
 	} else if (levels > 0.0) {
 		c += bayer4(px) * dither / levels;
 		c = floor(clamp(c, 0.0, 1.0) * levels + 0.5) / levels;
+	}
+	if (blood > 0.0) {   // foe portraits: blood rises from the bottom, its surface wobbling, a meniscus at the walls
+		float x = (px.x + 0.5) / src_size.x;
+		float y = 1.0 - (px.y + 0.5) / src_size.y;   // 0 at the bottom
+		float lvl = blood * 1.04 - 0.02 + 0.022 * sin(x * 8.0 + TIME * 2.4) + 0.012 * sin(x * 19.0 - TIME * 3.9);
+		lvl += 0.035 * pow(abs(x - 0.5) * 2.0, 6.0);
+		if (y < lvl) {
+			float depth = clamp((lvl - y) * 3.0, 0.0, 1.0);
+			c = mix(c, vec3(0.62, 0.03, 0.07) * (1.0 - 0.4 * depth), 0.68);
+			if (lvl - y < 1.0 / src_size.y) {
+				c = mix(c, vec3(1.0, 0.24, 0.31), 0.75);   // the bright surface line
+			}
+		}
 	}
 	COLOR = vec4(c, 1.0);
 	}

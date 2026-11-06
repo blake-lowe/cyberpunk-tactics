@@ -154,18 +154,7 @@ func _ready() -> void:
 	add_child(_round_tab)
 	_overlay_lbl = _text("", F_TERM, Hud.ts(16), DIM)
 	add_child(_overlay_lbl)
-	_log_panel = _panel(CYAN, 0b0100)
-	var lv := VBoxContainer.new()
-	_log_panel.add_child(lv)
-	_log = _text("", F_TERM, Hud.ts(19), Color("9fb4c4"))
-	_log.custom_minimum_size = Vector2(380, 0)
-	_log.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	lv.add_child(_log)
-	add_child(_log_panel)
-	# bottom left above the bar's end: the last 3 lines, fading; hovering expands it (owner)
-	_log_panel.mouse_filter = Control.MOUSE_FILTER_STOP
-	_log_panel.mouse_entered.connect(func(): _log_open = true; _show_log())
-	_log_panel.mouse_exited.connect(func(): _log_open = false; _show_log())
+	_build_log()
 	_net_panel = _panel(VIOLET, 0b0101)
 	_net_box = VBoxContainer.new()
 	_net_box.add_theme_constant_override("separation", 3)
@@ -309,8 +298,15 @@ class Meter extends Control:
 	func _draw() -> void:
 		var w := size.x
 		var h := size.y
-		var gap := 2.0
-		var sw := (w - gap * (segs - 1) - h * 0.4) / segs
+		var gap := Hud.seg_gap(segs)
+		var sw := Hud.seg_width(w - h * 0.4, segs, gap)
+		if sw <= 0.0:   # too many segments to read (a 40-round drum): one continuous slanted fill
+			var full := PackedVector2Array([Vector2(h * 0.4, 0), Vector2(w, 0), Vector2(w - h * 0.4, h), Vector2(0, h)])
+			draw_colored_polygon(full, Color(col, 0.16))
+			var fw := (w - h * 0.4) * clampf(frac, 0.0, 1.0)
+			if fw > 0.0:
+				draw_colored_polygon(PackedVector2Array([Vector2(h * 0.4, 0), Vector2(fw + h * 0.4, 0), Vector2(fw, h), Vector2(0, h)]), col)
+			return
 		var lit := frac * segs
 		var glit := ghost * segs
 		for i in segs:
@@ -325,6 +321,51 @@ class Meter extends Control:
 		pass
 
 
+## Segment geometry for a Meter `w` px wide: small gaps (1 px once there are many segments) and
+## each segment's width, or 0 when it would fall under MIN_SEG_PX (the meter then fills continuously).
+const MIN_SEG_PX := 2.0
+
+
+static func seg_gap(segs: int) -> float:
+	return 2.0 if segs <= 12 else 1.0
+
+
+static func seg_width(w: float, segs: int, gap: float) -> float:
+	var n := maxi(1, segs)
+	var sw := (w - gap * (n - 1)) / n
+	return sw if sw >= MIN_SEG_PX else 0.0
+
+
+## A foe portrait's blood level: the share of their HP lost (owner: it fills from the bottom).
+static func blood_fill(hp: int, max_hp: int) -> float:
+	return clampf(1.0 - float(hp) / maxf(1.0, float(max_hp)), 0.0, 1.0)
+
+
+## The status line's weapon name: Brawling by its skill (its data name is "Fists").
+static func status_name(w: Weapon) -> String:
+	return "BRAWLING" if w == null or w.id() == "brawling" else w.display_name().to_upper()
+
+
+## Where the magazine bar would be, for weapons with no magazine (melee, Brawling): an italic
+## infinity sign, stretched a little wide, centred.
+class Infinity extends Control:
+	var col := Color.WHITE
+	func _init(p_col: Color, w: float, h: float) -> void:
+		col = p_col
+		custom_minimum_size = Vector2(w, h)
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+	func _draw() -> void:
+		var fs := 26
+		var f: Font = Hud.F_BOLD
+		var gs := f.get_string_size("∞", HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
+		var sx := 1.35
+		# x-scale 1.35, skewed right ~12 degrees (italic), centred on the box
+		var xf := Transform2D(Vector2(sx, 0), Vector2(-0.22, 1.0), Vector2(size.x / 2.0, size.y / 2.0))
+		draw_set_transform_matrix(xf)
+		draw_string(f, Vector2(-gs.x / 2.0, f.get_ascent(fs) - gs.y / 2.0), "∞", HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
+		draw_set_transform_matrix(Transform2D.IDENTITY)
+
+
 ## A slanted turn-order slot with the unit's rendered bust.
 class Slot extends Control:
 	var tex: Texture2D
@@ -335,6 +376,24 @@ class Slot extends Control:
 	var dead := false
 	var uid := -1
 	var hot := false   ## under the mouse: lit like a target
+	var foe := false   ## hostile: a solid red outline, and the bust fills with blood as they're hurt
+	var blood := 0.0
+	var blood_from := 0.0   ## the level last shown: the blood rises from it (juice)
+	func _ready() -> void:
+		if not foe:
+			return
+		var ov := Hud.Painter.new()   # the outline on its own canvas item: the palette shader would wash the red out
+		ov.fn = _draw_foe_frame
+		add_child(ov)
+		if not material is ShaderMaterial:
+			return
+		var mt := material as ShaderMaterial
+		mt.set_shader_parameter("blood", blood_from)
+		if blood > blood_from:
+			var tw := create_tween()
+			tw.tween_method(func(v: float): mt.set_shader_parameter("blood", v), blood_from, blood, 0.6).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		else:
+			mt.set_shader_parameter("blood", blood)
 	func _notification(what: int) -> void:
 		if what in [NOTIFICATION_MOUSE_ENTER, NOTIFICATION_MOUSE_EXIT]:
 			hot = what == NOTIFICATION_MOUSE_ENTER
@@ -362,7 +421,8 @@ class Slot extends Control:
 		draw_colored_polygon(PackedVector2Array([Vector2(sk, 0), Vector2(sk + 18, 0), Vector2(sk + 14, 4), Vector2(sk - 1, 4)]), team_col)
 		var loop := poly.duplicate()
 		loop.append(poly[0])
-		draw_polyline(loop, Hud.GOLD if active or hot else Color(team_col, 0.6), 2.0 if active or hot else 1.0)
+		if not foe:
+			draw_polyline(loop, Hud.GOLD if active or hot else Color(team_col, 0.6), 2.0 if active or hot else 1.0)
 		if hot:   # targeted from the strip: corner brackets outside the frame
 			var o := 4.0
 			for cn in [[Vector2(sk - o, -o), Vector2(1, 0), Vector2(0, 1)], [Vector2(w + o, -o), Vector2(-1, 0), Vector2(0, 1)], [Vector2(-o, h + o), Vector2(1, 0), Vector2(0, -1)], [Vector2(w - sk + o, h + o), Vector2(-1, 0), Vector2(0, -1)]]:
@@ -371,6 +431,11 @@ class Slot extends Control:
 		draw_rect(Rect2(0, h + 3, w - sk, 4), Color(team_col, 0.18))
 		draw_rect(Rect2(0, h + 3, bw, 4), Hud.GREEN if hp > 0.6 else (Hud.GOLD if hp > 0.3 else Hud.RED))
 		pass
+	func _draw_foe_frame(c: Control) -> void:
+		var w := size.x
+		var h := size.y - 12
+		var sk := 12.0
+		c.draw_polyline(PackedVector2Array([Vector2(sk, 0), Vector2(w, 0), Vector2(w - sk, h), Vector2(0, h), Vector2(sk, 0)]), Hud.GOLD if active or hot else Hud.RED, 2.0)
 
 
 ## Hotbar action: chamfered square with a drawn glyph, a pixel-font name and its key.
@@ -551,10 +616,8 @@ func _layout() -> void:
 	var s := size
 	_party.position = Vector2(14 if roster_on else -_party.size.x - 30, (hint_tab.position.y + hint_tab.size.y + 10) if hint_tab else 70.0)
 	_init_strip.position = Vector2(s.x / 2 - _init_strip.size.x / 2, 12)
-	_bar.position = Vector2(s.x / 2 - _bar.size.x / 2, s.y - _bar.size.y - 12)
+	_layout_log_and_bar(s)
 	_place_withdraw()
-	# log: bottom left, above the bar
-	_log_panel.position = Vector2(14, _bar.position.y - _log_panel.size.y - 10)
 	_net_panel.reset_size()   # it shrinks as rows go (a held turret's targets come and go)
 	var net_y := _round_tab.position.y + _round_tab.size.y + 30
 	net_y = maxf(_round_tab.position.y + _round_tab.size.y + _overlay_lbl.size.y + 10, minf(net_y, _bar.position.y - _net_panel.size.y - 10))   # never over the action bar or the overlay line
@@ -599,6 +662,11 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 		var slot := Slot.new(portraits.tex(u), _team_col(u, enc), u == enc.cur, float(maxi(c.hp, 0)) / c.max_hp(), c.display_name.to_upper(), c.dead)
 		slot.uid = int(u.id)
 		slot.material = portraits.material()
+		if u.team != 0 and enc.hostile(Encounter.CREW, int(u.team)) and slot.material:   # foes: their own material for the blood level
+			slot.foe = true
+			slot.material = slot.material.duplicate()
+			slot.blood = blood_fill(c.hp, c.max_hp())
+			slot.blood_from = 1.0 - float(_hp_seen.get(u.id, 1.0 - slot.blood))
 		var uid := int(u.id)   # with an attack armed, a foe's portrait targets them (greybox)
 		slot.mouse_entered.connect(func(): action.emit("portrait_hover", [uid, slot.get_global_rect()]))
 		slot.mouse_exited.connect(func(): action.emit("portrait_hover", [-1, Rect2()]))
@@ -654,8 +722,8 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 		_econ.add_child(_text(action_text(t), F_DISPLAY, 20, CYAN if act else Color(DIM, 0.6)))
 		var mv := t.squares_available()
 		var mvmax := maxi(1, c.stat("MOVE"))
-		_econ.add_child(_text("MOVE %d · %d M" % [mv, mv * 2], F_DISPLAY, 20, CYAN if mv > 0 else Color(DIM, 0.6)))   # a square is 2 m (p.127)
-		var mm := Meter.new(float(mv) / mvmax, mvmax, CYAN, 100, 11)
+		_econ.add_child(_text("MOVE", F_DISPLAY, 20, CYAN if mv > 0 else Color(DIM, 0.6)))   # squares and metres: the move tooltip (owner: just MOVE + bar)
+		var mm := Meter.new(float(mv) / mvmax, mvmax, CYAN, STATUS_BAR_W, 11)
 		mm.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		_econ.add_child(mm)
 		var exhausted := not act and mv == 0
@@ -665,7 +733,7 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 			var aw: Weapon = Weapon.brawling(c) if atk_mode == "brawl" else (enc.melee_weapon(c) if atk_mode == "melee" and (w == null or not w.is_melee()) else w)
 			var n_atk := attacks_per_action(aw, atk_mode) if t.action_available else 0
 			_econ.add_child(_text("▸ " + String(ATK_MODES.get(atk_mode, ["", "", ""])[2]).to_upper() + (" · %d ATTACKS THIS TURN" % n_atk if n_atk > 1 else ""), F_DISPLAY, 20, GOLD))
-		_econ.add_child(_text(("%s  %s" % [w.display_name().to_upper(), "JAMMED · R TO CLEAR" if w.jammed else (("%02d/%02d" % [w.ammo, int(w.def.get("mag", 0))]) if w.uses_ammo() else "")]) if w else "UNARMED", F_TERM, Hud.ts(20), TEXT))
+		_add_weapon_status(c, enc, w)
 		if enc.runs.has(enc.cur.id):
 			_econ.add_child(_text("◆ NET %d" % enc.net_left, F_PIXEL, 20, Color("d68cff")))
 	_refresh_tools(enc, crew_turn)
@@ -1081,11 +1149,147 @@ func turn_banner(text: String, col: Color) -> void:
 	tw.parallel().tween_property(_turn_strip, "modulate:a", 0.0, 0.25)
 
 
-func _show_log(fresh := false) -> void:
-	var n := 14 if _log_open else 3
-	_log.text = "\n".join(_log_lines.slice(maxi(0, _log_lines.size() - n)).map(func(l): return "> " + l))
-	_log_panel.visible = not _log_lines.is_empty()
+# --- Combat log: bottom left, beside the action bar (owner, playtest r3) ----------------------
+# Docked at the screen's bottom left with its bottom on the bar's; the bar moves right to make
+# room and slides back to centre when the log is collapsed (the chevron, or K). Hovering it grows it
+# upward to LOG_OPEN_LINES. Too narrow a screen for both side by side: it sits above the bar's left
+# instead, as before. The collapsed state is kept for the session.
+
+const LOG_W := 320.0         ## preferred width (logical px, the HUD's 720-line layout)
+const LOG_MIN_W := 220.0     ## narrower than this beside the bar: stack it above the bar instead
+const LOG_OPEN_LINES := 14
+const EDGE := 14.0           ## screen margin
+const LOG_GAP := 12.0        ## between the log and the bar
+const LOG_SLIDE_S := 0.25
+const STATUS_BAR_W := 90.0   ## the MOVE and magazine bars on the status line
+
+static var log_collapsed := false   ## the session's choice: survives new gigs and scene changes
+var _log_t := 1.0             ## 1 docked open .. 0 collapsed (tweened)
+var _log_slide_tw: Tween
+var _log_head: HBoxContainer
+var _log_tab: Button          ## the collapsed log: a small chevron tab at the bottom left
+
+
+## Flip the session's log state; returns the new collapsed state.
+static func flip_log_state() -> bool:
+	log_collapsed = not log_collapsed
+	return log_collapsed
+
+
+## The log's width beside a bar `bar_w` wide on a `screen_w` screen: LOG_W, or what's left
+## between the margin and a bar pushed to the right margin; 0 when under LOG_MIN_W (stack instead).
+static func log_width(screen_w: float, bar_w: float) -> float:
+	var room := screen_w - bar_w - EDGE * 2.0 - LOG_GAP
+	var w := minf(LOG_W, room)
+	return w if w >= LOG_MIN_W else 0.0
+
+
+## The action bar's left edge: centred when the log is collapsed (`t` 0), and when open (`t` 1)
+## pushed right just enough to clear a `log_w` log, never past the right margin. Eased between.
+static func bar_x(screen_w: float, bar_w: float, log_w: float, t: float) -> float:
+	var centre := (screen_w - bar_w) / 2.0
+	if log_w <= 0.0:
+		return centre
+	var docked := clampf(maxf(centre, EDGE + log_w + LOG_GAP), centre, maxf(centre, screen_w - bar_w - EDGE))
+	return lerpf(centre, docked, clampf(t, 0.0, 1.0))
+
+
+func _build_log() -> void:
+	_log_t = 0.0 if log_collapsed else 1.0
+	_log_panel = _panel(CYAN, 0b0100)
+	var lv := VBoxContainer.new()
+	lv.add_theme_constant_override("separation", 2)
+	_log_panel.add_child(lv)
+	_log_head = HBoxContainer.new()
+	_log_head.add_child(_text("// LOG", F_TERM, 14, DIM))
+	var sp := Control.new()
+	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sp.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_log_head.add_child(sp)
+	_log_head.add_child(_chevron("‹", "Collapse the log (K)"))
+	lv.add_child(_log_head)
+	_log = _text("", F_TERM, Hud.ts(19), Color("9fb4c4"))
+	_log.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_log.clip_text = true
+	_log.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	lv.add_child(_log)
+	add_child(_log_panel)
+	_log_panel.mouse_filter = Control.MOUSE_FILTER_STOP   # hovering grows it upward (owner)
+	_log_panel.mouse_entered.connect(func(): _log_open = true; _show_log())
+	_log_panel.mouse_exited.connect(func():
+		if not _log_panel.get_global_rect().has_point(get_global_mouse_position()):   # not when moving onto the chevron
+			_log_open = false
+			_show_log())
+	_log_tab = _chevron("›  LOG", "Show the log (K)")
+	_log_tab.add_theme_stylebox_override("normal", CutBox.make(INK, Color(CYAN, 0.45), 6, 0b0100))
+	_log_tab.add_theme_stylebox_override("hover", CutBox.make(INK, CYAN, 6, 0b0100))
+	add_child(_log_tab)
+
+
+## A small flat chevron button that toggles the log.
+func _chevron(text: String, tip_text: String) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.flat = true
+	b.focus_mode = Control.FOCUS_NONE
+	b.tooltip_text = tip_text
+	b.add_theme_font_override("font", F_BOLD)
+	b.add_theme_font_size_override("font_size", 15)
+	for st in ["font_color", "font_hover_color", "font_pressed_color"]:
+		b.add_theme_color_override(st, CYAN if st != "font_color" else Color(CYAN, 0.7))
+	b.add_theme_constant_override("h_separation", 0)
+	for st in ["normal", "hover", "pressed", "focus"]:
+		b.add_theme_stylebox_override(st, StyleBoxEmpty.new())
+	b.pressed.connect(toggle_log)
+	return b
+
+
+## Collapse or expand the log (chevron or K): the bar eases to centre and back.
+func toggle_log() -> void:
+	flip_log_state()
+	if _log_slide_tw and _log_slide_tw.is_valid():
+		_log_slide_tw.kill()
+	_log_slide_tw = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	_log_slide_tw.tween_method(func(v: float):
+		_log_t = v
+		_layout(), _log_t, 0.0 if log_collapsed else 1.0, LOG_SLIDE_S)
+
+
+## Review renders: hold the slide at `t` (0 collapsed .. 1 open), as if mid-tween.
+func set_log_t(t: float) -> void:
+	if _log_slide_tw and _log_slide_tw.is_valid():
+		_log_slide_tw.kill()
+	_log_t = t
+	_layout()
+
+
+func _layout_log_and_bar(s: Vector2) -> void:
+	var bw := _bar.size.x
+	var lw := log_width(s.x, bw) if not _log_lines.is_empty() else 0.0   # nothing logged yet: the bar stays centred
+	var beside := lw > 0.0
+	var w := lw if beside else LOG_W
+	var bar_y := s.y - _bar.size.y - 12
+	_bar.position = Vector2(bar_x(s.x, bw, lw, _log_t), bar_y)
+	# the log's text box: as tall as the bar (docked) or a few lines (stacked); taller while hovered
+	var pad := (_log_panel.get_theme_stylebox("panel") as StyleBox).get_minimum_size()
+	var lh := float(_log.get_line_height()) + _log.get_theme_constant("line_spacing")
+	var closed_h := (_bar.size.y - pad.y - _log_head.size.y - 2) if beside else lh * 3
+	var text_h := maxf(closed_h, lh * LOG_OPEN_LINES) if _log_open else closed_h
+	_log.custom_minimum_size = Vector2(w - pad.x, maxf(lh, text_h))
+	_log.max_lines_visible = maxi(1, floori((text_h + _log.get_theme_constant("line_spacing")) / lh))
+	_log.lines_skipped = maxi(0, _log.get_line_count() - _log.max_lines_visible)
 	_log_panel.reset_size()
+	var bottom := (s.y - 12) if beside else (bar_y - 10)
+	_log_panel.position = Vector2(lerpf(-w - EDGE * 2.0, EDGE, _log_t), bottom - _log_panel.size.y)
+	_log_tab.reset_size()
+	_log_tab.position = Vector2(EDGE, bottom - _log_tab.size.y)
+	_log_tab.modulate.a = 1.0 - _log_t
+	_log_tab.visible = _log_t < 0.999 and not _log_lines.is_empty()
+	_log_panel.visible = _log_t > 0.001 and not _log_lines.is_empty()
+
+
+func _show_log(fresh := false) -> void:
+	_log.text = "\n".join(_log_lines.slice(maxi(0, _log_lines.size() - 60)).map(func(l): return "> " + l))
 	if _log_tw and _log_tw.is_valid():
 		_log_tw.kill()
 	if _log_open or fresh:   # new lines show at full strength, then fade back after a few seconds
@@ -1093,8 +1297,30 @@ func _show_log(fresh := false) -> void:
 	if not _log_open:
 		_log_tw = create_tween()
 		_log_tw.tween_interval(5.0)
-		_log_tw.tween_property(_log_panel, "modulate:a", 0.35, 0.6)
+		_log_tw.tween_property(_log_panel, "modulate:a", 0.6, 0.6)
 	_layout.call_deferred()
+
+
+## The status line's weapon part: the selected weapon's name, then its magazine (one segment per
+## round, lit while loaded) or, for melee and Brawling, an infinity sign where the bar would be.
+func _add_weapon_status(c: Combatant, enc: Encounter, w: Weapon) -> void:
+	var sel: Weapon = w
+	if stage == "attack" and atk_mode == "brawl":
+		sel = Weapon.brawling(c)
+	elif stage == "attack" and atk_mode == "melee" and (w == null or not w.is_melee()):
+		sel = enc.melee_weapon(c)
+	if sel == null:
+		sel = Weapon.brawling(c)
+	_econ.add_child(_text(status_name(sel), F_TERM, Hud.ts(20), TEXT))
+	if sel.jammed:
+		_econ.add_child(_text("JAMMED · R TO CLEAR", F_TERM, Hud.ts(20), RED))
+	elif sel.uses_ammo():
+		var mag := maxi(1, int(sel.def.get("mag", 0)))
+		var mb := Meter.new(float(sel.ammo) / mag, mag, CYAN if sel.ammo > 0 else RED, STATUS_BAR_W, 11)
+		mb.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		_econ.add_child(mb)
+	else:
+		_econ.add_child(Infinity.new(TEXT, STATUS_BAR_W, 16))
 
 
 ## Slide the crew roster in (Alt held) or out.
@@ -1393,28 +1619,36 @@ static func _node_label(n: Dictionary, enc: Encounter = null, run: NetRun = null
 	return "%s (L%d)" % [String(n.type).capitalize(), n.zone]
 
 
-## Controls cheat sheet, bottom left (H toggles).
-## The H panel. Attacking comes first (playtest: nobody found the right-click). Every mouse control
-## here is one greybox._unhandled_input / the portrait strip handles.
+## The H panel (owner, playtest r3): only the mouse and camera, one control per row; the
+## keyboard actions are on the action bar's buttons already. Every control here is one
+## greybox._unhandled_input / _process / the portrait strip handles. [section, [[input, does], ...]].
+const HELP := [
+	["MOUSE", [
+		["RIGHT-CLICK", "Attack the enemy under the cursor"],
+		["LEFT-CLICK", "Move or run to a square"],
+		["CLICK PORTRAIT", "Target an enemy from the turn order"],
+		["SHIFT + RIGHT-CLICK", "Shoot the cover in the way"],
+		["HOVER ENEMY", "Line of fire and hit chance"],
+		["HOLD ALT", "Inspect, enemy outlines, range bands"],
+	]],
+	["CAMERA", [
+		["WHEEL", "Zoom"],
+		["MIDDLE-DRAG", "Rotate freely"],
+		["Q / E", "Rotate"],
+		["W A S D", "Pan"],
+		["PG UP / PG DN", "Change floor"],
+	]],
+]
+
+
+## The H panel as plain text (tests, logs): one "INPUT  does" line per control.
 static func help_text() -> String:
-	return "\n".join([
-		"ATTACK  RIGHT-CLICK AN ENEMY",
-		"  OR PICK AN ATTACK (F / BAR), THEN",
-		"  LEFT-CLICK THE ENEMY OR THEIR PORTRAIT",
-		"  IN THE TURN ORDER (HOVER: HIT CHANCE)",
-		"LMB  MOVE / RUN TO A SQUARE",
-		"RMB  ATTACK / USE ON THE TARGET",
-		"SHIFT + RMB  SHOOT THE COVER IN THE WAY",
-		"MIDDLE-DRAG  ROTATE   WHEEL  ZOOM",
-		"F  ATTACK (AGAIN: NEXT MODE)   TAB  WEAPON",
-		"R  RELOAD   G  KIT ITEM   ESC  BACK",
-		"J  JACK IN / OUT   B  INTERACT   T  STABILIZE",
-		"V  ROLE ABILITY   L  WITHDRAW   SPACE  END TURN",
-		"WASD  PAN   Q / E  ROTATE   PGUP / PGDN  FLOOR",
-		"C  CUTAWAY   Z  SIGHT LINES   N  NET PEEK",
-		"ALT (HOLD)  INSPECT · CREW · ENEMY OUTLINES",
-		"F2  LOOK   F4  NET STYLE   H  HIDE",
-	])
+	var out: Array[String] = []
+	for sec in HELP:
+		out.append(String(sec[0]))
+		for r in sec[1]:
+			out.append("%s  %s" % [r[0], r[1]])
+	return "\n".join(out)
 
 
 ## Screen rect of a unit's portrait in the turn-order strip (Rect2() if it has none).
@@ -1429,12 +1663,33 @@ func portrait_rect(uid: int, light := false) -> Rect2:
 	return Rect2()
 
 
-func build_hint(text: String) -> void:
+func build_hint() -> void:
 	hint = _panel(CYAN, 0b0010)
 	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 6)
 	hint.add_child(v)
-	v.add_child(_text("CONTROLS", F_DISPLAY, 20, CYAN))
-	v.add_child(_text(text, F_TERM, Hud.ts(20), Color("9fb4c4")))
+	var g := GridContainer.new()   # one grid for every section: the key caps line up
+	g.columns = 2
+	g.add_theme_constant_override("h_separation", 12)
+	g.add_theme_constant_override("v_separation", 3)
+	v.add_child(g)
+	for sec in HELP:
+		g.add_child(_text(String(sec[0]), F_DISPLAY, 20, CYAN))
+		var pad := Control.new()
+		pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		g.add_child(pad)
+		for r in sec[1]:
+			var cap := PanelContainer.new()   # the input as a key cap, the action beside it
+			cap.add_theme_stylebox_override("panel", CutBox.make(Color(0.06, 0.08, 0.1, 0.95), Color(GOLD, 0.45), 4, 0b0101, Color(0, 0, 0, 0), 6))
+			cap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			var kl := _text(String(r[0]), F_BOLD, 14, GOLD)
+			kl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			cap.add_child(kl)
+			g.add_child(cap)
+			var dl := _text(String(r[1]), F_TERM, Hud.ts(19), TEXT)
+			dl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			g.add_child(dl)
+	v.add_child(_text("H  HIDE", F_TERM, 14, DIM))
 	hint.visible = false
 	add_child(hint)
 	hint_tab = _panel(CYAN, 0b0010)

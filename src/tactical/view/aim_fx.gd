@@ -9,12 +9,21 @@ const DASH := """
 shader_type spatial;
 render_mode unshaded, blend_mix, depth_draw_never, depth_test_disabled, cull_disabled, shadows_disabled, fog_disabled;
 uniform float dash = 0.32;    // world units per dash + gap
-uniform float speed = 3.2;    // periods per second, toward the target
+uniform float speed = 6.4;    // periods per second, toward the target (owner: twice the first 3.2)
 uniform float alpha = 0.6;
 void fragment() {
 	float f = fract(UV.x / dash - TIME * speed);
 	ALBEDO = COLOR.rgb;
 	ALPHA = COLOR.a * alpha * step(f, 0.55);
+}
+"""
+
+const TICK := """
+shader_type spatial;
+render_mode unshaded, blend_mix, depth_draw_never, depth_test_disabled, cull_disabled, shadows_disabled, fog_disabled;
+void fragment() {
+	ALBEDO = COLOR.rgb;
+	ALPHA = COLOR.a;
 }
 """
 
@@ -63,6 +72,8 @@ var _line: MeshInstance3D
 var _im: ImmediateMesh
 var _cross: MeshInstance3D
 var _slice: MeshInstance3D
+var _ticks: MeshInstance3D   ## Alt: the range-bracket cross-ticks along the shot line
+var _tick_im: ImmediateMesh
 
 
 static func _shader(code: String) -> Shader:
@@ -102,6 +113,13 @@ func _init() -> void:
 	_slice.material_override = _mat(SLICE)
 	_slice.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_slice)
+	_tick_im = ImmediateMesh.new()
+	_ticks = MeshInstance3D.new()
+	_ticks.mesh = _tick_im
+	_ticks.material_override = _mat(TICK)
+	_ticks.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_ticks.extra_cull_margin = 1000.0
+	add_child(_ticks)
 	clear()
 
 
@@ -110,6 +128,29 @@ func clear() -> void:
 	_line.visible = false
 	_cross.visible = false
 	_slice.visible = false
+	_tick_im.clear_surfaces()
+	_ticks.visible = false
+
+
+## Short cross-ticks ([position, colour] pairs) across a line running `along`: each `half_len`
+## world units either side of it on screen, `width` thick, facing `eye`.
+func set_ticks(ticks: Array, eye: Vector3, width: float, half_len: float, along := Vector3.RIGHT) -> void:
+	_tick_im.clear_surfaces()
+	_ticks.visible = not ticks.is_empty()
+	if ticks.is_empty():
+		return
+	_tick_im.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+	for tc in ticks:
+		var p: Vector3 = tc[0]
+		var col: Color = tc[1]
+		var view := (p - eye).normalized()
+		var across := along.cross(view).normalized() * half_len   # perpendicular to the line on screen
+		var thick := across.cross(view).normalized() * width * 0.5
+		var q := [p - across - thick, p + across - thick, p + across + thick, p - across + thick]
+		for k in [0, 1, 2, 0, 2, 3]:
+			_tick_im.surface_set_color(col)
+			_tick_im.surface_add_vertex(q[k])
+	_tick_im.surface_end()
 
 
 ## Dashed ribbons along each path ([points, colour] pairs), `width` world units wide, facing `eye`.
