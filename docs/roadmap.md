@@ -32,6 +32,22 @@ Check-ins (🔶) are where work pauses for a user decision or review.
 - Auto-dodge must be legible: the UI shows a "DODGE" callout/animation on the defender whenever the dodge choice is taken (attack result carries `dodged`). → M3.
 - Backlog (scoped, not scheduled): full per-Role starting gear lists (p98-103) replacing the pared-down Recruit.LOADOUT; needs the inventory/gear system (M5+).
 - Deferred within the rules core: Martial Arts special moves, grapple/choke/throw, weapon quality/attachments/special ammo, vehicles, Medtech/Tech Role Abilities (roadmap priority 2-3), non-core Roles.
+- Rules coverage backlog (audit 2026-11-06, core-book combat actions p168-169 against src/core, encounter.gd and the HUD bar). In: Move, Run, Attack (Single, Aimed head/leg/held, Autofire, Suppressive, Shotgun Shell, melee, Brawling, Martial Arts damage), thrown grenades, Reload, Stabilize, draw (free), Ranged dodge (auto), Stealth/Perception, NET Actions, putting out fire, kit use, Electronics bypass and Jury-Rig as objective/role actions. Missing (not scheduled):
+  - **Grab** (p168, p177): DEX+Brawling opposed, free hand; grapple state (-2 both, Defender dragged, no two-handed weapons), escape as an Action. The base for the next four; needs a hand-slot model.
+  - **Choke** (p168, p177): BODY direct to HP, no ablation, leaves at 1 HP + Unconscious; 3 successive Rounds knocks out. Needs Grab plus a per-target choke counter.
+  - **Throw a grabbed foe** (p169, p177): BODY direct to HP, ends the grapple, target Prone. Needs Grab and real Prone.
+  - **Human Shield** (p169, p184): equip a grappled foe as cover; corpse shield HP = BODY; drop costs an Action. Needs Grab plus shield-as-cover in Attack.
+  - **Shields** (p168, p183): equip/drop an Action, interpose instead of dodging, shield HP. Gear data + a cover hook in Attack.preview.
+  - **Get Up / Prone** (p168-169): TurnState.get_up and Combatant.prone exist but nothing knocks anyone Prone and the HUD has no GET UP. Needs a source (Throw, Flying Kick, explosions?) and a bar button.
+  - **Hold Action** (p169): wait for a declared trigger or queue number. Needs an interrupt hook in Encounter.next_turn/move_to and an AI policy (overwatch-style).
+  - **Throw an object** (p169, p177): thrown knives/melee weapons (DEX+Athletics, Grenade Launcher DV row, no SP halving). The grenade path generalises to it.
+  - **Use an Object / stow** (p169-170): stowing a weapon or dropping a shield as an Action, picking up a dropped weapon (Aimed held-item makes them drop). Needs ground items.
+  - **Use a Skill** (p169): only bespoke uses (bypass, tamper, jury-rig, stabilise). A generic skill action (e.g. Conceal/Reveal, Persuasion on a guard) needs per-skill effects; probably stays bespoke.
+  - **Martial Arts Special Moves** (p179-180): Recovery, Disarming Combination, Counter Throw, Armor Breaking Combination, Bone Breaking Strike, Iron Grip, Grab Escape, Pressure Point Strike, Flying Kick. Per-turn hit tracking (which attacks hit whom) and Grab/Prone first.
+  - **Non-Basic ammunition** (p344-347): the fx exist (turrets, complications' Incendiary) but the crew can't buy or load AP/Incendiary/Rubber/etc. Shop entries + a Reload choice of ammo type (no mixing, p170).
+  - **Vehicles: Get into, Start, Maneuver** (p168-169; vehicle rules not in docs/rules): out of scope until vehicles exist (M8+).
+  - **Facedown** (Reputation; page not in docs/rules, RULES-UNVERIFIED): COOL+Reputation contest before a fight. Complication `facedown` fx is skipped; needs Reputation in the meta and a pre-combat prompt.
+  - **Hide** (Stealth as an active Action, p169 Use a Skill): stealth is a passive check while moving; no "hide in place" to break sight once seen. Needs a lose-track rule for alerted guards.
 - M2 review page: `tools/map_viewer/` (build.py + template.html) turns an `export_maps.gd` dump into a comparison page. Reuse it for future generator reviews.
 - HOUSE-RULE (pending review): guaranteed minimum Black ICE per zone (NetGen.MIN_ICE), because map content usually fills the 3d6 floor budget.
 - Principle (user): the NET is not bound by the tabletop architecture rules. Keep the book's node types, DVs, Interface abilities and Black ICE stats for familiarity, but structure (floor order, 3d6 size, d10 branching, lobby table) is ours to redesign for video-game play. Current tree generator is a baseline, pending the Subnets/Graph decision.

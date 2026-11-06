@@ -279,7 +279,8 @@ static func follow(e: Encounter, u: Dictionary) -> void:
 
 
 
-## Trauma Team: get to the patient, carry them back to the AV, lift off. They ignore the fight
+## Trauma Team: get to the patient (alive or flatlined: the body goes too), carry them back to the
+## AV (or the entrance they walked in by), and leave. They ignore the fight
 ## unless someone on the crew shoots at them (then they shoot back, still doing the job).
 static func trauma(e: Encounter, u: Dictionary) -> void:
 	var tt: Dictionary = e.tt
@@ -298,22 +299,19 @@ static func trauma(e: Encounter, u: Dictionary) -> void:
 		if not best.is_empty() and bc >= MIN_CHANCE:
 			e.attack(best, w, Attack.Mode.SINGLE)
 	var carrier: int = int(tt.get("carrier", -1))
-	if carrier < 0 and not patient.c.dead:
+	var reach := 1.5 if tt.get("on_foot", false) else 3.5   # at the gate / beside the AV's door
+	if carrier < 0:
 		if e.adjacent(u.pos, patient.pos) or u.pos == patient.pos:
 			tt.carrier = u.id
 			patient["carried"] = true
 			e.events.append({"type": "tt_pickup", "unit": u.id, "target": patient.id})
-			e.say("Trauma Team has %s." % patient.c.display_name)
+			e.say(("Trauma Team has %s." if not patient.c.dead else "Trauma Team bags %s's body.") % patient.c.display_name)
 			return
 		_go_toward(e, u, patient.pos)
 	elif carrier == u.id:
 		_go_toward(e, u, tt.av)
 		patient.pos = u.pos
-		if Vector2(u.pos.x - tt.av.x, u.pos.y - tt.av.y).length() <= 3.5:
-			e.tt_depart()
-	elif patient.c.dead:
-		_go_toward(e, u, tt.av)   # nothing to save: back to the AV
-		if Vector2(u.pos.x - tt.av.x, u.pos.y - tt.av.y).length() <= 3.5 and e.units.filter(func(o): return o.get("tt", false) and not o.c.dead).all(func(o): return Vector2(o.pos.x - tt.av.x, o.pos.y - tt.av.y).length() <= 3.5):
+		if Vector2(u.pos.x - tt.av.x, u.pos.y - tt.av.y).length() <= reach and u.pos.z == tt.av.z:
 			e.tt_depart()
 
 

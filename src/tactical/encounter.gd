@@ -1035,7 +1035,7 @@ const TT_TEAM := 4
 const TT_ROUNDS := 2              ## HOUSE-RULE: Trauma Team lands two rounds after a cardholder goes down
 var civ_casualties := 0
 var tt_hostile := false             ## someone on the crew shot at Trauma Team: they shoot back
-var tt := {}                        ## the Trauma Team call: {patient, round, av, units, carrier, state}
+var tt := {}                        ## the Trauma Team call: {patient, round, av, units, carrier, state, on_foot}
 var _civ_round := -1
 var _counted := {}
 
@@ -1165,65 +1165,113 @@ func _trauma_cards() -> void:
 				u["trauma_card"] = true
 		elif String(u.c.role) in ["lieutenant", "mini_boss"] and p > 0.0:
 			u["trauma_card"] = p >= 1.0 or dice.rng.randf() < p
-		if u.get("trauma_card", false):
-			u.c.death_saves = true   # a cardholder lives on Death Saves until the AV comes (NPC_FLATLINE)
 
 
 ## HOUSE-RULE (NPC_FLATLINE, owner's call, for pace): NPCs make no Death Saves (p.222 gives
 ## everyone them): one under 1 HP flatlines at once. Attack.apply_damage does it for attacks; this
 ## sweep catches the rest (fire, strain, brain damage). Kept: the crew; a rescue's captive (the job
-## needs them alive, and the crew can stabilise them); a Trauma Team cardholder (the card is what
-## keeps them breathing until the AV lands). Combatant.death_saves marks who rolls.
+## needs them alive, and the crew can stabilise them). Trauma Team cardholders flatline like any
+## other NPC (owner's call), but the card still calls the team, who come for the body
+## (_watch_cardholders). Combatant.death_saves marks who rolls.
 func _flatline_npcs() -> void:
 	for u in units:
 		if not u.c.death_saves and not u.c.dead and u.c.hp < 1 and not u.has("turret"):
 			u.c.dead = true
 
 
-## A cardholder going down (alive) calls Trauma Team, who land TT_ROUNDS rounds later.
+## A cardholder going down, or flatlining (the card's biomonitor pings either way), calls Trauma
+## Team, who arrive TT_ROUNDS rounds later and take the patient, alive or dead, away.
 func _watch_cardholders() -> void:
 	if not tt.is_empty():
 		return
 	for u in units:
-		if u.get("trauma_card", false) and not u.c.dead and not u.c.can_act():
+		if u.get("trauma_card", false) and not u.c.can_act() and not _off_map(u):
 			tt = {"patient": u.id, "round": init.round_num + TT_ROUNDS, "state": "called"}
 			events.append({"type": "tt_call", "unit": u.id})
 			say("%s's Trauma Team card pings. An AV is on its way." % u.c.display_name)
 			return
 
 
+## Gone from the map (ran off, got away, already flown out): nobody left to collect.
+func _off_map(u: Dictionary) -> bool:
+	return u.get("fled", false) or u.get("escaped", false)
+
+
+## The AV sets down near the patient (the body, if they've flatlined) and three responders get out.
+## With nowhere to land (HOUSE-RULE: the book has no rule for it) they come in on foot at the map
+## entrance nearest the patient and carry them out the same way; `tt.av` is then that entrance.
 func _tick_trauma() -> void:
 	if tt.get("state", "") != "called" or init.round_num < int(tt.round):
 		return
 	var patient: Dictionary = units[int(tt.patient)]
-	if patient.c.dead:
+	if _off_map(patient):
 		tt.state = "cancelled"
 		return
 	var spot := av_spot(patient.pos, 2, 30)
-	if spot.x < 0:
+	if spot.x >= 0:
+		var ids := _responders("trauma_team", TT_TEAM, _av_exits(spot, 3), 3)
+		for id in ids:
+			units[id]["tt"] = true
+		tt.merge({"state": "landed", "av": spot, "av_fit": av_fit.duplicate(), "units": ids, "carrier": -1, "on_foot": false}, true)
+		events.append({"type": "av_land", "unit": ids[0] if not ids.is_empty() else 0, "kind": "trauma", "cell": spot, "units": ids, "yaw": av_fit.yaw, "scale": av_fit.scale})
+		say("Trauma Team lands. Stay out of their way.")
+		return
+	var gate := _tt_gate(patient.pos)
+	if gate.x < 0:
 		tt.state = "cancelled"
 		return
-	var ids := _responders("trauma_team", TT_TEAM, _av_exits(spot, 3), 3)
+	var reach: Dictionary = _keys(func(): return nav.reachable(gate, 6, occupied()))
+	var cells: Array = reach.keys().filter(func(v): return v.z == gate.z)
+	cells.sort_custom(func(a, b): return int(reach[a]) < int(reach[b]))
+	var ids := _responders("trauma_team", TT_TEAM, cells, 3)
+	if ids.is_empty():
+		tt.state = "cancelled"
+		return
 	for id in ids:
 		units[id]["tt"] = true
-	tt.merge({"state": "landed", "av": spot, "av_fit": av_fit.duplicate(), "units": ids, "carrier": -1}, true)
-	events.append({"type": "av_land", "unit": ids[0] if not ids.is_empty() else 0, "kind": "trauma", "cell": spot, "units": ids, "yaw": av_fit.yaw, "scale": av_fit.scale})
-	say("Trauma Team lands. Stay out of their way.")
+	tt.merge({"state": "landed", "av": gate, "units": ids, "carrier": -1, "on_foot": true}, true)
+	events.append({"type": "backup", "unit": ids[0], "units": ids, "label": "TRAUMA TEAM"})
+	say("Nowhere to land: Trauma Team comes in on foot. Stay out of their way.")
 
 
-## Trauma Team got the patient aboard: everyone climbs in and the AV lifts off.
+## The walkable map entrance nearest `near` (the team's way in and out on foot), or (-1, -1, -1).
+func _tt_gate(near: Vector3i) -> Vector3i:
+	var best := Vector3i(-1, -1, -1)
+	var bd := INF
+	for en in m.entrances:
+		var v := Vector3i(en.pos.x, en.pos.y, int(en.get("floor", 0)))
+		var d := Vector2(v.x - near.x, v.y - near.y).length() + absi(v.z - near.z) * 4.0
+		if m.walkable(v.z, Vector2i(v.x, v.y)) and d < bd:
+			bd = d
+			best = v
+	return best
+
+
+## Trauma Team got the patient (or the body) aboard, or out the gate on foot: they're gone.
+## Only a live patient counts as saved (Objective.on_evacuated); a body is just a body.
 func tt_depart() -> void:
+	var foot := bool(tt.get("on_foot", false))
 	for id in tt.get("units", []):
 		units[id].c.dead = true
 		units[id]["fled"] = true
+		if foot:
+			events.append({"type": "civ_gone", "unit": id})
 	var patient: Dictionary = units[int(tt.patient)]
+	var alive_out: bool = not patient.c.dead
 	patient.c.dead = true
 	patient["fled"] = true
 	patient["extracted"] = true
+	patient.erase("carried")
 	tt.state = "gone"
-	events.append({"type": "av_leave", "unit": int(tt.patient), "kind": "trauma", "cell": tt.av})
-	say("The Trauma Team AV lifts off with %s." % patient.c.display_name)
-	obj.on_evacuated(int(tt.patient))
+	var who: String = patient.c.display_name if alive_out else "%s's body" % patient.c.display_name
+	if foot:
+		events.append({"type": "civ_gone", "unit": int(tt.patient)})
+		say("Trauma Team carries %s out." % who)
+	else:
+		events.append({"type": "av_leave", "unit": int(tt.patient), "kind": "trauma", "cell": tt.av})
+		say("The Trauma Team AV lifts off with %s." % who)
+	if alive_out:
+		obj.on_evacuated(int(tt.patient))
 
 
 ## MaxTac (HOUSE-RULE stats, RULES-UNVERIFIED against the book's MaxTac block): four operatives,
@@ -1960,9 +2008,11 @@ func engaged() -> bool:
 # --- Movement ----------------------------------------------------------------------
 
 ## Guards carry the keys to their own security doors; the crew needs them hacked or shot open.
+## Trauma Team gets the site's override with the subscriber's contract (HOUSE-RULE: else a patient
+## behind a locked door could never be collected).
 func _with_locks(callable: Callable) -> Variant:
 	var saved := nav.locked
-	if not cur.is_empty() and is_guard(cur):
+	if not cur.is_empty() and (is_guard(cur) or cur.get("tt", false)):
 		nav.locked = {}
 	var r: Variant = callable.call()
 	nav.locked = saved

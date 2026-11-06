@@ -183,7 +183,7 @@ func test_trauma_team_lands_for_a_downed_cardholder_and_lifts_them() -> void:
 	for u in e.units:   # the crew is inside, not at the extraction zone
 		if u.team == 0:
 			u.pos = vip.pos
-	vip.c.hp = 0
+	vip.c.hp = 4   # knocked out, not dead (a flatlined mark: the test below)
 	vip.c.unconscious = true
 	e._check_end()
 	assert_false(e.tt.is_empty(), "the card pings")
@@ -209,6 +209,44 @@ func test_trauma_team_lands_for_a_downed_cardholder_and_lifts_them() -> void:
 	AI.trauma(e, medic)
 	assert_eq(String(e.tt.state), "gone", "they lift off")
 	assert_eq(e.state, "lost", "Trauma Team saved the mark: the hit failed")
+
+
+func test_trauma_team_extracts_a_flatlined_cardholders_body() -> void:
+	var m := SceneGen.generate(11, "lone_building", {"security": 2, "site": "corp_office"})
+	var dice := Dice.new(7)
+	var e := Encounter.setup(m, dice, _crew(dice), "assassinate")
+	var vip: Dictionary = e.units[int(e.objective.target)]
+	assert_false(vip.c.death_saves, "cardholders get no Death Saves (NPC_FLATLINE)")
+	for u in e.units:   # the crew is inside, not at the extraction zone
+		if u.team == 0:
+			u.pos = vip.pos
+	Attack.apply_damage(e.dice, vip.c, {"damage": vip.c.hp + 40, "location": "body"}, false, false, false)
+	assert_true(vip.c.dead, "the mark flatlines below 1 HP")
+	e._check_end()
+	assert_eq(int(e.tt.get("patient", -1)), vip.id, "the card pings for the body")
+	e.init.round_num += Encounter.TT_ROUNDS
+	e._tick_trauma()
+	assert_eq(String(e.tt.state), "landed", "Trauma Team still comes")
+	var team := e.units.filter(func(u): return u.get("tt", false))
+	assert_false(team.is_empty())
+	var medic: Dictionary = team[0]
+	e.cur = medic
+	for k in 30:   # walk to the body (their own pathing), pick it up
+		e.turn = TurnState.begin(e.dice, medic.c)
+		AI.trauma(e, medic)
+		if int(e.tt.carrier) == medic.id:
+			break
+	assert_eq(int(e.tt.carrier), medic.id, "they reach the body and pick it up")
+	assert_true(vip.get("carried", false))
+	for k in 30:   # and carry it back
+		e.turn = TurnState.begin(e.dice, medic.c)
+		AI.trauma(e, medic)
+		if String(e.tt.state) == "gone":
+			break
+	assert_eq(String(e.tt.state), "gone", "they leave with it")
+	assert_true(vip.get("extracted", false), "the body is extracted")
+	assert_true(e.state != "lost", "a body flown out doesn't blow the hit")
+	assert_true(e.objective.get("done", false), "the mark is down")
 
 
 func test_maxtac_drop() -> void:   # no doctrine escalates to it (campaign heat is gone); dev renders call it
