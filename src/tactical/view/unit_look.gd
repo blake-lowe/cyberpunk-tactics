@@ -48,7 +48,26 @@ static func make(id: int, team: int, role: String, faction := "") -> Dictionary:
 			look.accent = (look.jacket as Color).lightened(float(fl.accent_from_jacket))
 		if fl.has("visor"):
 			look.visor = r2.randf() < float(fl.visor)
+	look["trim"] = trim_of(look.get("faction_look", {}), look.accent)
 	return look
+
+
+## The light or coloured highlight a unit wears (armbands, helmet band): the faction's `trim`, else
+## its accent, lifted to at least TRIM_MIN_LUMA. Owner light review: no all-black designs; units read
+## against a dark world through their own colours, not through brighter lighting.
+const TRIM_MIN_LUMA := 0.3
+static func trim_of(fl: Dictionary, accent: Color) -> Color:
+	var c: Color = Color(String(fl.trim)) if fl.has("trim") else accent
+	for i in 8:
+		if luma(c) >= TRIM_MIN_LUMA:
+			break
+		c = c.lightened(0.15)
+	return c
+
+
+## Display (sRGB-encoded) Rec.709 luma, 0..1.
+static func luma(c: Color) -> float:
+	return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b
 
 
 ## The seed team for a unit's look: 0 for the crew and people in street clothes (bystanders,

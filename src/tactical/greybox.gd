@@ -24,11 +24,20 @@ extends Node
 ##   [--levels=0] [--dither=0.5] [--outline=0.4] [--bloom=0.8] [--contrast=1.1] [--ortho=1]
 ##   [--fog=0] [--zoom=24] [--yaw=45] [--lights=1] [--hover=x,y] [--promo=1] [--cut=auto|all|off]
 ##   [--stage=attack] [--arm=brawl|grenade|<attack mode>] [--portrait=1] [--alt=1] [--near=n] [--help=1]
+##   [--exposure=1 --gamma=1 --ambient=1 --lights=1 --spill=1 (lighting review: grade exposure and power curve, ambient, lamp and baked-spill scales)]
 ##   [--hurt=0.6 (the nearest foes roused and hurt)] [--logt=0..1 (the log slide held there)]
 
 const FH := 1.6           # floor height in squares (3.2 m)
 const POST_SHADER := preload("res://src/tactical/view/post.gdshader")
 const SKY_SHADER := preload("res://src/tactical/view/sky.gdshader")
+## The tactical view's one grade (owner light review, round 4: "one look overall", darker than the
+## round-3 renders at 55%): exposure, then a power curve in the post shader that deepens the darks
+## and keeps lights and trim bright. Set once, for every scene; --exposure and --gamma scale them.
+const GRADE_EXPOSURE := 0.9
+const GRADE_GAMMA := 1.2
+## A key light on units only (render layer 2: CharModel), so crew and foes stand out from a dark
+## world through their own lighting. No ring or glow under them (owner rule).
+const UNIT_KEY := 5.0
 
 var m: TacMap
 var enc: Encounter
@@ -79,27 +88,30 @@ const PALETTE := ["05060a", "0b0e16", "141a26", "1e2636", "2a3448", "3a4660", "4
 	"2a1e06", "6a4a08", "f9c80e", "fff0a0", "1e0a2e", "4a1a6a", "b537f2", "e2b0ff",
 	"2e1206", "7a3008", "ff6b1a", "ffc8a0", "06261a", "0e5a3a", "39f0a0", "b8ffe0",
 	"7a1420", "ff3b4f"]
-## Per-scene light: ambient, moon key, fog (round 2: the desert needs moonlit sand; round 3: night
-## ambient raised ~20-25% so units read against the ground, still a night look).
+## Per-scene light: ambient, moon key, fog (round 2: the desert needs moonlit sand). Round 3 raised
+## night ambient; the owner's light review (round 4) put it back: units read through their own look
+## (trim, UNIT_KEY), not a brighter world. One grade for every scene: GRADE_EXPOSURE.
 ## Optional per scene: "sun" [elevation, world yaw] fixes the key light in the world (a real sun;
 ## night scenes let the moon key follow the camera), "sky" [zenith, mid, horizon], "palette",
 ## "rim" colour/energy and "lights" (lamp scale: dusk lamps are weaker than night ones).
 const LOOKS := {
-	"default": {"ambient": "2a3250", "amb_e": 0.75, "key": "8fa0e0", "key_e": 0.5, "fog": "0d1422", "fog_d": 0.0035},
+	"default": {"ambient": "262c44", "amb_e": 0.65, "key": "8fa0e0", "key_e": 0.5, "fog": "0d1422", "fog_d": 0.0035},
 	"badlands": {"ambient": "4c4c90", "amb_e": 0.75, "key": "ffc898", "key_e": 1.15, "fog": "a86a58", "fog_d": 0.0025,
 		"sun": [-17.0, 235.0], "sky": ["1c2050", "9a4466", "ff8c3c"], "palette": "sunset", "rim": ["6a5aa0", 0.35], "lights": 0.55,
 		"fog_dim": 0.78, "fog_sat": 0.9, "fog_cool": 0.0},
 	# Undercity: no sky, no moon. Dim green-black ambient; the work lamps and the glowing runoff
 	# do the lighting. Unseen tunnels stay green-dark rather than going blue.
-	"undercity": {"ambient": "2e4638", "amb_e": 0.85, "key": "6a8a70", "key_e": 0.22, "fog": "0a1a10", "fog_d": 0.006,
+	"undercity": {"ambient": "2a4034", "amb_e": 0.7, "key": "6a8a70", "key_e": 0.22, "fog": "0a1a10", "fog_d": 0.006,
 		"sky": ["020403", "040806", "0a140c"], "rim": ["3a6a4a", 0.2], "lights": 1.15,
 		"fog_dim": 0.62, "fog_sat": 0.55, "fog_cool": 0.0},
-	# Arcology: bright, cold, shadowless light from the atrium roof; a faint red rim.
-	"arcology": {"ambient": "8a98b0", "amb_e": 0.45, "key": "eef2fa", "key_e": 0.55, "fog": "b8c2d0", "fog_d": 0.0015,
-		"sun": [-62.0, 200.0], "sky": ["98a4b4", "c8d0da", "e6eaee"], "rim": ["ff5060", 0.22], "lights": 0.5, "spill": 0.3, "soft_light": true,
+	# Arcology: cold, shadowless light from the atrium roof; a faint red rim. Owner light review:
+	# it read washed out once the colour bug was fixed, so the atrium is lit like an evening
+	# interior now, a lot darker, with its contrast kept.
+	"arcology": {"ambient": "6a7890", "amb_e": 0.06, "key": "e0e8f4", "key_e": 0.07, "fog": "2a303a", "fog_d": 0.0015,
+		"sun": [-62.0, 200.0], "sky": ["181c24", "242a34", "343c48"], "rim": ["ff5060", 0.22], "lights": 0.2, "spill": 0.12, "soft_light": true,
 		"fog_dim": 0.82, "fog_sat": 0.7, "fog_cool": 0.0},
 	# Warzone: dusk under a sky lit by the fires; ember key low in the west, heavy brown smoke haze.
-	"warzone": {"ambient": "3e343c", "amb_e": 0.78, "key": "ff8a50", "key_e": 0.5, "fog": "3a2420", "fog_d": 0.0045,
+	"warzone": {"ambient": "3a3038", "amb_e": 0.62, "key": "ff8a50", "key_e": 0.5, "fog": "3a2420", "fog_d": 0.0045,
 		"sun": [-12.0, 250.0], "sky": ["120a0c", "4a1a14", "c8501a"], "rim": ["ff6a2a", 0.3], "lights": 0.85,
 		"fog_dim": 0.7, "fog_sat": 0.75, "fog_cool": 0.0},
 }
@@ -189,6 +201,7 @@ var keycard_nodes := {}        ## unit id → glinting keycard over a downed car
 var obj_node: Node3D           ## snatch objective: the package (a case on a gold beacon) and the extraction squares
 var dash_opts := {}           ## squares reachable by also spending the Action on a Run (amber contour)
 var rim: DirectionalLight3D
+var unit_key: DirectionalLight3D   ## lights units only (UNIT_KEY)
 var sky_mat: ShaderMaterial
 
 
@@ -262,6 +275,9 @@ var _last_known := {}                  ## foe unit id → the square the crew la
 var _dev_end := ""                     ## --end=won|lost|fled (review renders): the gig ends that way, the end panel shows
 var _dev_peace := false                ## --peace=broken (review renders): the crew breaks a neutral house's peace
 var _jack_turret := false              ## --jack=turret (review renders): the runner also holds a turret's Control Node
+var _dev_ambient := 1.0                ## --ambient=s (review renders): scale the scene's ambient energy (dev only)
+var _dev_exposure := 1.0               ## --exposure=s (review renders): scale the tonemap exposure, the whole lit scene (dev only)
+var _dev_gamma := 1.0                  ## --gamma=s (review renders): scale the grade's power curve (dev only)
 var _campaign_gig := false             ## this map is the campaign's active gig (a board gig)
 var blast_node: MeshInstance3D  ## the grenade's 5x5 blast preview under the cursor
 var _net_cleaned := false
@@ -311,6 +327,9 @@ func _ready() -> void:
 			"near": _dev_near = int(kv[1])   # review renders: the nearest foe stands this many squares off, in the line of fire
 			"end": _dev_end = kv[1]   # review renders: the gig ends this way (won | lost | fled), the end panel shows
 			"peace": _dev_peace = true   # review renders: --peace=broken: the crew breaks a neutral house's peace (Totentanz)
+			"exposure": _dev_exposure = float(kv[1])   # review renders: tonemap exposure x s (darkens world and units alike)
+			"gamma": _dev_gamma = float(kv[1])   # review renders: grade power curve x s
+			"ambient": _dev_ambient = float(kv[1])   # review renders: ambient energy x s (lamps: --lights, baked spill: --spill)
 			"security":
 				gig.security = int(kv[1])
 				_security_flag = true
@@ -546,14 +565,16 @@ func _build_view() -> void:
 	env.ambient_light_color = Color("222a48")
 	env.ambient_light_energy = 0.6
 	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR   # ACES washed saturated neon to white
-	env.tonemap_exposure = 1.0
+	env.tonemap_exposure = GRADE_EXPOSURE
 	env.glow_enabled = true
 	env.glow_hdr_threshold = 0.9
 	env.glow_bloom = 0.0
 	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_ADDITIVE
 	for i in 7:  # wide, chunky halos once the low-res buffer is upscaled
 		env.set_glow_level(i, 1.0 if i in [1, 2, 3, 4] else 0.0)
-	env.ssao_enabled = true        # Forward+ only; ignored by the compatibility renderer
+	# No SSAO: the LightField bakes contact occlusion at wall and cover bases for both renderers.
+	# SSAO (Forward+ only) doubled it into a dark halo along every room's walls (owner light review).
+	env.ssao_enabled = false
 	env.ssr_enabled = true         # wet-street reflections on the user's GPU
 	env.fog_enabled = true
 	env.fog_height = 1.2          # low haze over the far city
@@ -571,7 +592,17 @@ func _build_view() -> void:
 	rim = DirectionalLight3D.new()   # weak back light for silhouettes; `sun` is the key from the camera side
 	rim.light_color = Color("5a6aa0")
 	rim.light_energy = 0.25
+	# No specular: a back light's highlight on a glossy floor faces the camera and bloomed into a
+	# big saturated blob (the arcology's red rim, owner light review). It only edges silhouettes.
+	rim.light_specular = 0.0
 	svp.add_child(rim)
+	unit_key = DirectionalLight3D.new()   # units only: a soft key from above the camera
+	unit_key.light_color = Color("dfe6f0")
+	unit_key.light_energy = UNIT_KEY
+	unit_key.light_cull_mask = 2   # CharModel meshes sit on render layer 2; the world is on layer 1
+	unit_key.shadow_enabled = false
+	unit_key.light_specular = 0.3
+	svp.add_child(unit_key)
 	cam = Camera3D.new()
 	cam.fov = 34
 	svp.add_child(cam)
@@ -661,6 +692,7 @@ func _apply_look() -> void:
 	post.set_shader_parameter("dither", look.dither)
 	post.set_shader_parameter("contrast", look.contrast)
 	post.set_shader_parameter("saturation", look.saturation)
+	post.set_shader_parameter("grade_gamma", GRADE_GAMMA * _dev_gamma)
 	post.set_shader_parameter("outline", look.outline)
 	env.glow_intensity = look.bloom
 	env.glow_strength = 1.0
@@ -726,7 +758,8 @@ func new_gig() -> void:
 	_log_seen = 0
 	var lk := _scene_look()
 	env.ambient_light_color = Color(lk.ambient)
-	env.ambient_light_energy = lk.amb_e
+	env.ambient_light_energy = lk.amb_e * _dev_ambient
+	env.tonemap_exposure = GRADE_EXPOSURE * _dev_exposure
 	sun.light_color = Color(lk.key)
 	sun.light_energy = lk.key_e
 	env.fog_light_color = Color(lk.fog)
@@ -959,6 +992,8 @@ func _build_lights() -> void:
 				lampm.position = base + pout * 0.62 + Vector3(0, 1.42, 0)
 				fn.add_child(lampm)
 			continue
+		if e.kind == "room":   # ceiling light: an even area light baked in the LightField (it lights units
+			continue           # too). An OmniLight here drew a round pool with dark room edges (owner review).
 		var l := OmniLight3D.new()
 		l.light_color = e.color
 		l.omni_range = e.range
@@ -1019,9 +1054,6 @@ func _build_lights() -> void:
 				head.position = base + Vector3(0.22, 1.485, 0.3)
 				fn.add_child(head)
 				l.position = head.position - Vector3(0, 0.05, 0)
-			"room":
-				l.position = base + Vector3(0, FH * 0.85, 0)
-				l.set_meta("base", e.energy * 0.5)   # the baked light field does most of the work
 			"fire":
 				l.position = base + Vector3(0, 0.45, 0)
 				var pit := MeshInstance3D.new()
@@ -1864,6 +1896,8 @@ func _place_camera() -> void:
 		_update_outlines()
 	if rim:
 		rim.rotation_degrees = Vector3(-30, cam_yaw + 190, 0)
+	if unit_key:   # from over the camera's shoulder, whatever the scene's sun does
+		unit_key.rotation_degrees = Vector3(-40, cam_yaw + 20, 0)
 	_update_cut()
 
 

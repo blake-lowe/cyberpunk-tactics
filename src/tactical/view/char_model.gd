@@ -15,6 +15,7 @@ extends Node3D
 ## Facing +Z. 1 world unit = 2 m, so the 1.8 m body is scaled by 0.5 (the view scales units ×1.3).
 
 const SCALE := 0.5
+const TRIM_SHEEN := 0.5   # how much of the trim colour up-facing cloth (shoulders) takes (char.gdshader)
 const SHADER := preload("res://src/tactical/view/char.gdshader")
 const Q := "res://assets/third_party/quaternius/"
 const BODY := {"male": Q + "characters/Superhero_Male_FullBody.gltf", "female": Q + "characters/Superhero_Female_FullBody.gltf"}
@@ -103,10 +104,14 @@ func _make(team: int, idx: int, role: String, weapon: String, faction := "") -> 
 	var pants: Color = Color(String(fl.pants)) if fl.has("pants") else (jacket.darkened(0.5).lerp(Color("3a4660"), 0.5) if team == 0 else Color("3a4048"))
 	var helmet: bool = bool(fl.helmet) if fl.has("helmet") else team == 1
 	var vest := role == "solo" or (bool(fl.vest) if fl.has("vest") else team == 1)   # armour vest over the jacket: torso dark, sleeves in colour
-	var cloth := {"skin": look.skin, "jacket": Color("23262c") if vest else jacket, "sleeve": jacket,
+	var cloth := {"skin": look.skin, "jacket": jacket.lerp(Color("23262c"), 0.55) if vest else jacket, "sleeve": jacket,   # the vest: dark, but in the faction colour (light review)
 		"forearm": look.skin if o.short else jacket.darkened(0.1), "pants": pants, "boots": Color("22262c"),
 		"gloves": Color("1a1c20") if o.gloves else look.skin,
 		"belt": Color("1c1712") if rng.randf() < 0.6 else Color("15171a")}
+	var trim: Color = look.trim   # UnitLook.trim_of: the light or coloured highlight (light review)
+	var uniformed := team == 1 or faction == "" or faction == "crew"   # not bystanders, captives
+	cloth["trim"] = trim
+	cloth["trim_sheen"] = TRIM_SHEEN if uniformed else 0.0
 	for mi: MeshInstance3D in skel.find_children("*", "MeshInstance3D", false, false):
 		mi.layers = 2
 		match String(mi.name):
@@ -136,8 +141,27 @@ func _make(team: int, idx: int, role: String, weapon: String, faction := "") -> 
 	var kit := Color("1e2126")
 	var metal := Color("6a6e74")
 	var hb := _bone("Head")
+	# Trim (owner light review: no all-black designs): armbands in the faction's light or coloured
+	# highlight, and a band round the helmet, so a unit reads against a dark street by its own
+	# colours. Matte cloth, no glow. Bystanders and captives stay in plain street clothes.
+	if uniformed:
+		for side in ["Left", "Right"]:
+			var band := CylinderMesh.new()
+			band.top_radius = 0.066
+			band.bottom_radius = 0.07
+			band.height = 0.09
+			band.radial_segments = 10
+			band.rings = 1
+			_part(_bone(side + "UpperArm"), band, Vector3(0, 0.1, 0), Vector3.ONE, trim, 0.0, 0.7)
 	if helmet:
 		_part(hb, _sphere(0.132, 0.24), Vector3(0, 0.125, -0.01), Vector3(1.0, 0.85, 1.08), Color("2e333a"), 0.0, 0.7)    # ballistic helmet
+		var hband := CylinderMesh.new()
+		hband.top_radius = 0.135
+		hband.bottom_radius = 0.137
+		hband.height = 0.03
+		hband.radial_segments = 14
+		hband.rings = 1
+		_part(hb, hband, Vector3(0, 0.105, -0.01), Vector3(1.0, 1.0, 1.08), trim, 0.0, 0.7)    # helmet band
 		_part(hb, _box(Vector3(0.19, 0.06, 0.03)), Vector3(0, 0.085, 0.11), Vector3.ONE, Color("0c0e10"), 0.0, 0.12)        # smoked visor
 	elif look.get("visor", false):
 		_part(hb, _box(Vector3(0.15, 0.028, 0.02)), Vector3(0, 0.088, 0.1), Vector3.ONE, Color("0e1114"), 0.0, 0.12)        # dark glasses
@@ -168,7 +192,7 @@ func _make(team: int, idx: int, role: String, weapon: String, faction := "") -> 
 	if vest:   # plate carrier: magazine pouches across the front
 		var ch := _bone("UpperChest")
 		for k in 3:
-			_part(ch, _box(Vector3(0.055, 0.09, 0.035)), Vector3((k - 1) * 0.065, -0.15, 0.165 if sex == "male" else 0.15), Vector3.ONE, kit)
+			_part(ch, _box(Vector3(0.055, 0.09, 0.035)), Vector3((k - 1) * 0.065, -0.15, 0.165 if sex == "male" else 0.15), Vector3.ONE, trim.darkened(0.25) if uniformed else kit)   # pouch flaps in the trim colour
 	# --- weapon in the right hand
 	_add_gun(weapon)
 	# --- animation
