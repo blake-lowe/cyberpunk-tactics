@@ -10,7 +10,7 @@ extends RefCounted
 ## Light entry: {cell: Vector3i (where the light sits), color, energy, range} (LightPlan format).
 
 const TPC := 4
-const ROOM_FILL := 0.3   # a room light's even level, per unit of its energy (dim: no interior boost)
+const ROOM_FILL := 0.12   # a room light's even level, per unit of its energy (dim: no interior boost)
 
 
 static func bake(m: TacMap, los: Los, lights: Array) -> ImageTexture:

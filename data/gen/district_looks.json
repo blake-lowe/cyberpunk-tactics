@@ -123,7 +123,7 @@
 				"wall_plaster": {"colors": ["6e6650", "625a48", "7a6e54"]}},
 			"mats": {"concrete": {"color": "4a4636", "color2": "2e2c22"}, "sidewalk": {"color": "4e4a3a", "color2": "302e24"},
 				"asphalt": {"color": "24221c", "color2": "141310"}},
-			"light": {"ambient": "3a3426", "amb_e": 0.4, "key": "d8c080", "key_e": 0.35, "fog": "2c2614", "fog_d": 0.005, "spill": 0.6,
+			"light": {"ambient": "3a3426", "amb_e": 0.18, "key": "d8c080", "key_e": 0.2, "fog": "241e10", "fog_d": 0.005, "spill": 0.15, "lights": 0.35,
 				"sky": ["14120a", "3e3416", "9a8030"], "rim": ["d0b050", 0.25], "fog_cool": 0.0, "fog_sat": 0.6}
 		},
 		"heywood_docks": {

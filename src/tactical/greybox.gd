@@ -107,8 +107,8 @@ const LOOKS := {
 	# Arcology: cold, shadowless light from the atrium roof; a faint red rim. Owner light review:
 	# it read washed out once the colour bug was fixed, so the atrium is lit like an evening
 	# interior now, a lot darker, with its contrast kept.
-	"arcology": {"ambient": "6a7890", "amb_e": 0.14, "key": "e0e8f4", "key_e": 0.18, "fog": "4a5462", "fog_d": 0.0015,
-		"sun": [-62.0, 200.0], "sky": ["3a4250", "566070", "76808e"], "rim": ["ff5060", 0.22], "lights": 0.5, "spill": 0.3, "soft_light": true,
+	"arcology": {"ambient": "6a7890", "amb_e": 0.06, "key": "e0e8f4", "key_e": 0.07, "fog": "2a303a", "fog_d": 0.0015,
+		"sun": [-62.0, 200.0], "sky": ["181c24", "242a34", "343c48"], "rim": ["ff5060", 0.22], "lights": 0.2, "spill": 0.12, "soft_light": true,
 		"fog_dim": 0.82, "fog_sat": 0.7, "fog_cool": 0.0},
 	# Warzone: dusk under a sky lit by the fires; ember key low in the west, heavy brown smoke haze.
 	"warzone": {"ambient": "3a3038", "amb_e": 0.62, "key": "ff8a50", "key_e": 0.5, "fog": "3a2420", "fog_d": 0.0045,
@@ -592,6 +592,9 @@ func _build_view() -> void:
 	rim = DirectionalLight3D.new()   # weak back light for silhouettes; `sun` is the key from the camera side
 	rim.light_color = Color("5a6aa0")
 	rim.light_energy = 0.25
+	# No specular: a back light's highlight on a glossy floor faces the camera and bloomed into a
+	# big saturated blob (the arcology's red rim, owner light review). It only edges silhouettes.
+	rim.light_specular = 0.0
 	svp.add_child(rim)
 	unit_key = DirectionalLight3D.new()   # units only: a soft key from above the camera
 	unit_key.light_color = Color("dfe6f0")
