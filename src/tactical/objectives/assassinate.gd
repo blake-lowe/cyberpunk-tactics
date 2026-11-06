@@ -1,6 +1,6 @@
 extends Objective
 ## Assassination: put the mark down before they reach an exit, then get out (or clear the site).
-## Trauma Team flying the mark out blows the job. State: {target, name, exits, escaped}.
+## Trauma Team flying the mark out alive blows the job (a body they collect doesn't). State: {target, name, exits, escaped}.
 
 
 ## The mark: a Night City civilian who fits the target (vip_block: an executive for a corp, a fixer
@@ -86,7 +86,7 @@ func on_evacuated(patient: int) -> void:
 
 
 func hud_text() -> String:
-	var tt_inbound: bool = not e.tt.is_empty() and String(e.tt.state) in ["called", "landed"]
+	var tt_inbound: bool = not e.tt.is_empty() and String(e.tt.state) in ["called", "landed"] and not e.units[int(e.tt.patient)].c.dead
 	if done():
 		if tt_inbound:
 			return "OBJECTIVE · %s IS DOWN, NOT DEAD\nTRAUMA TEAM INBOUND: FINISH IT" % String(o.name).to_upper()

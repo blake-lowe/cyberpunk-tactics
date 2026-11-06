@@ -205,7 +205,7 @@ func test_npcs_flatline_below_one_hp_and_crew_keep_death_saves() -> void:
 	assert_true(g2.c.dead)
 
 
-func test_captives_and_trauma_cardholders_keep_death_saves() -> void:
+func test_captives_keep_death_saves_and_trauma_cardholders_do_not() -> void:
 	var m := SceneGen.generate(5, "lone_building", {"security": 1})
 	var d := Dice.new(9)
 	var e := Encounter.setup(m, d, _crew(d), "rescue")
@@ -215,7 +215,11 @@ func test_captives_and_trauma_cardholders_keep_death_saves() -> void:
 	assert_false(g.c.death_saves)
 	g["trauma_card"] = true
 	e._trauma_cards()
-	assert_true(g.c.death_saves, "a cardholder lives until Trauma Team lands")
+	assert_false(g.c.death_saves, "a cardholder flatlines like any NPC (the team comes for the body)")
+	g.c.hp = -3
+	e._check_end()
+	assert_true(g.c.dead)
+	assert_eq(int(e.tt.get("patient", -1)), g.id, "the flatlined cardholder still calls Trauma Team")
 
 
 # --- 8. Autofire (p.173-174) ----------------------------------------------------------------

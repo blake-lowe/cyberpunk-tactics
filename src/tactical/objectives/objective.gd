@@ -72,7 +72,7 @@ func withdraw_wins() -> bool:
 	return false
 
 
-## Trauma Team flew `patient` (a unit id) out.
+## Trauma Team got `patient` (a unit id) out alive (a flatlined body they carry off doesn't call this).
 func on_evacuated(_patient: int) -> void:
 	pass
 

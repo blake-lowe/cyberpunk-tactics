@@ -72,8 +72,12 @@ var _line: MeshInstance3D
 var _im: ImmediateMesh
 var _cross: MeshInstance3D
 var _slice: MeshInstance3D
-var _ticks: MeshInstance3D   ## Alt: the range-bracket cross-ticks along the shot line
+var _ticks: MeshInstance3D   ## Alt: the range-bracket arcs along the shot line
 var _tick_im: ImmediateMesh
+var _path_start := Vector3.INF   ## where the first path set_paths drew starts (the muzzle)
+
+const TICK_ARC_DEG := 2.5   ## half the angle each range arc spans about the shooter
+const TICK_SEGS := 6        ## segments per arc
 
 
 static func _shader(code: String) -> Shader:
@@ -132,25 +136,51 @@ func clear() -> void:
 	_ticks.visible = false
 
 
-## Short cross-ticks ([position, colour] pairs) across a line running `along`: each `half_len`
-## world units either side of it on screen, `width` thick, facing `eye`.
-func set_ticks(ticks: Array, eye: Vector3, width: float, half_len: float, along := Vector3.RIGHT) -> void:
+## Range-bracket ticks ([position, colour] pairs) on a line running `along`: short arcs centred on
+## the shooter (`centre`; by default the start of the shot line set_paths last drew), each spanning
+## TICK_ARC_DEG either side of the line, at least `half_len` and at most 4x that in world units,
+## `width` thick. Each arc lies in the plane holding the line and its on-screen perpendicular, so it
+## faces `eye` and reads as a curve across the line, bowed away from the shooter.
+func set_ticks(ticks: Array, eye: Vector3, width: float, half_len: float, along := Vector3.RIGHT, centre := Vector3.INF) -> void:
 	_tick_im.clear_surfaces()
 	_ticks.visible = not ticks.is_empty()
 	if ticks.is_empty():
 		return
+	var c := centre if centre.is_finite() else _path_start
 	_tick_im.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
 	for tc in ticks:
 		var p: Vector3 = tc[0]
 		var col: Color = tc[1]
-		var view := (p - eye).normalized()
-		var across := along.cross(view).normalized() * half_len   # perpendicular to the line on screen
-		var thick := across.cross(view).normalized() * width * 0.5
-		var q := [p - across - thick, p + across - thick, p + across + thick, p - across + thick]
-		for k in [0, 1, 2, 0, 2, 3]:
-			_tick_im.surface_set_color(col)
-			_tick_im.surface_add_vertex(q[k])
+		for seg in tick_arc(p, c, eye, half_len, along):
+			var a: Vector3 = seg[0]
+			var b: Vector3 = seg[1]
+			var thick := (b - a).cross((a - eye).normalized()).normalized() * width * 0.5
+			var q := [a - thick, b - thick, b + thick, a + thick]
+			for k in [0, 1, 2, 0, 2, 3]:
+				_tick_im.surface_set_color(col)
+				_tick_im.surface_add_vertex(q[k])
 	_tick_im.surface_end()
+
+
+## The segments ([a, b] pairs) of one range arc through `p`, centred on `c` (see set_ticks). With no
+## usable centre (unknown, or on top of `p`) it falls back to a straight tick across the line.
+static func tick_arc(p: Vector3, c: Vector3, eye: Vector3, half_len: float, along := Vector3.RIGHT) -> Array:
+	var view := (p - eye).normalized()
+	var across := along.cross(view).normalized()   # perpendicular to the line on screen
+	var out: Array = []
+	var radial := p - c if c.is_finite() else Vector3.ZERO
+	var r := radial.length()
+	if r < 0.01 or across.is_zero_approx():
+		out.append([p - across * half_len, p + across * half_len])
+		return out
+	var axis := radial.cross(across).normalized()   # rotating about it sweeps `radial` toward `across`
+	var half := minf(clampf(deg_to_rad(TICK_ARC_DEG), half_len / r, half_len * 4.0 / r), 0.5)
+	var prev := c + radial.rotated(axis, -half)
+	for i in range(1, TICK_SEGS + 1):
+		var nxt := c + radial.rotated(axis, lerpf(-half, half, float(i) / TICK_SEGS))
+		out.append([prev, nxt])
+		prev = nxt
+	return out
 
 
 ## Dashed ribbons along each path ([points, colour] pairs), `width` world units wide, facing `eye`.
@@ -158,6 +188,7 @@ func set_ticks(ticks: Array, eye: Vector3, width: float, half_len: float, along 
 func set_paths(paths: Array, eye: Vector3, width: float) -> void:
 	_im.clear_surfaces()
 	_line.visible = false
+	_path_start = (paths[0][0] as PackedVector3Array)[0] if not paths.is_empty() and not (paths[0][0] as PackedVector3Array).is_empty() else Vector3.INF
 	for pc in paths:
 		var pts: PackedVector3Array = pc[0]
 		if pts.size() < 2:

@@ -98,3 +98,18 @@ func test_help_says_how_to_attack() -> void:
 		assert_true(h.contains(k), k)
 	for k in ["RELOAD", "SPACE", "JACK"]:   # the action bar shows its own keys (owner)
 		assert_false(h.to_upper().contains(k), "no bar key in the help: " + k)
+
+
+func test_range_ticks_are_short_arcs_centred_on_the_shooter() -> void:
+	var c := Vector3(0, 1, 0)
+	var p := Vector3(20, 1, 0)   # a bracket edge 20 m down the line
+	var eye := Vector3(30, 30, 30)
+	var segs := AimFx.tick_arc(p, c, eye, 0.22, Vector3.RIGHT)
+	assert_eq(segs.size(), AimFx.TICK_SEGS)
+	var a: Vector3 = segs[0][0]
+	var b: Vector3 = segs[-1][1]
+	for q in [a, b, segs[2][1]]:
+		assert_near(q.distance_to(c), 20.0, 0.001, "every point is on the circle about the shooter")
+	assert_near(rad_to_deg((a - c).angle_to(b - c)), AimFx.TICK_ARC_DEG * 2.0, 0.01, "a few degrees wide")
+	assert_true(a.lerp(b, 0.5).distance_to(c) < 20.0, "bowed away from the shooter, not a straight cross-tick")
+	assert_eq(AimFx.tick_arc(p, Vector3.INF, eye, 0.22).size(), 1, "no shooter known: a straight tick")
