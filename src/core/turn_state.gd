@@ -30,7 +30,11 @@ static func begin(dice: Dice, combatant: Combatant) -> TurnState:
 		if combatant.wake_in == 0:
 			combatant.unconscious = false
 	if combatant.wound_state() == Combatant.Wound.MORTAL and not combatant.dead:
-		t.survived = combatant.death_save(dice)
+		if combatant.death_saves:
+			t.survived = combatant.death_save(dice)
+		else:   # HOUSE-RULE (NPC_FLATLINE, Encounter._flatline_npcs): an NPC below 1 HP flatlines
+			combatant.dead = true
+			t.survived = false
 	if not t.survived or not combatant.can_act():
 		t.move_actions = 0
 		t.action_available = false

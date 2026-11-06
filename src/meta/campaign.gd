@@ -685,7 +685,7 @@ static func _lost_gear(c: Combatant, kit_of: Dictionary) -> Array:
 
 
 ## The book's Wound State names (p220), by Combatant.Wound.
-const WOUND_NAMES := ["Unhurt", "Lightly Wounded", "Seriously Wounded", "Mortally Wounded", "Dead"]
+const WOUND_NAMES := ["Unhurt", "Lightly Wounded", "Seriously Wounded", "Mortally Wounded", "Flatlined"]
 
 
 ## The debrief entry for `c` (empty after the next gig starts).

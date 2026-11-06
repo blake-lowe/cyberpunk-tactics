@@ -109,7 +109,8 @@ A turn-based tactical game that blends Cyberpunk Red tabletop rules with XCOM 2-
 - Plus Cyberpunk Red Critical Injuries (triggered on damage dice, apply ongoing penalties, require treatment).
 - Medtech characters meaningfully reduce risk or recovery time (base facilities no longer give bonuses:
   owner ruling, core-book systems only).
-- Death Saves and wound states follow CPR principles.
+- Death Saves and wound states follow CPR principles. HOUSE-RULE (owner, for pace): only the crew, a
+  rescue's captive and Trauma Team cardholders roll Death Saves; other NPCs flatline below 1 HP.
 
 ---
 

@@ -7,7 +7,7 @@
 			"corp": "hostile",
 			"criminal": "hostile",
 			"gang": "hostile",
-			"police": "hostile",
+			"police": "neutral",
 			"service": "neutral",
 			"civilian": "neutral",
 			"captive": "neutral"

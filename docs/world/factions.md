@@ -35,7 +35,7 @@ Militech Veteran).
 
 ## Relations between kinds
 
-Defaults by kind, symmetric (most hostile wins); a faction's own `relations` override replaces them. `criminal` (criminal organisations) is ours: at odds with the police, neutral to corps and gangs (the Skiv Family is "in bed with" corporations, NC2045 p.48).
+Defaults by kind, symmetric (most hostile wins); a faction's own `relations` override replaces them. `criminal` (criminal organisations) is ours: at odds with the police, neutral to corps and gangs (the Skiv Family is "in bed with" corporations, NC2045 p.48). HOUSE-RULE: the police are `neutral` to the crew. Cops who turn up are not there for the crew until they witness a crime (Encounter.witness_side); the gig's own target is always hostile whatever its kind.
 
 ```world factions.kind_relations
 {
@@ -44,7 +44,7 @@ Defaults by kind, symmetric (most hostile wins); a faction's own `relations` ove
 		"corp": "hostile",
 		"criminal": "hostile",
 		"gang": "hostile",
-		"police": "hostile",
+		"police": "neutral",
 		"service": "neutral",
 		"civilian": "neutral",
 		"captive": "neutral"

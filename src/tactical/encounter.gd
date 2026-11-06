@@ -64,12 +64,12 @@ var code: Dictionary = {}
 var street_code: Dictionary = {}    ## {} when there is no separate street roll
 var utility_code := 0               ## NC2045 p.8: 1d10 per utility, under it that utility is out
 var outages: Array[String] = []     ## utilities out this gig: power, water, citinet
-var backup_in := -1                 ## rounds until the site code's response arrives (-1 none coming)
+var backup_in := -1                 ## rounds until the site code's response arrives (0: arriving this round; -1 none coming)
 var backup_label := "BACKUP"        ## who that is, for the HUD
 var _backup_round := 0
 var _patrol_round := -1
 var reinforcements := true          ## responses on (balance tests switch them off)
-var ncpd_in := -1                   ## rounds until the street-level (district code) response; -2 once it came
+var ncpd_in := -1                   ## rounds until the street-level (district code) response (0: arriving this round); -2 once it came
 var ncpd_label := "NCPD"
 var _ncpd_round := 0
 var _response: Dictionary = {}      ## the planned responses: {code, fid, own, label, rank}
@@ -214,12 +214,15 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 
 
 ## Recompute crew sight. Returns true if new cells were explored.
+## Everyone on the crew who can act sees, the Mortally Wounded included (they still take their
+## Turns, p.222: alive() leaves them out, which left a dying crew member blind and unable to aim).
 func refresh_vision() -> bool:
-	return vision.update(alive(0).map(func(u): return u.pos))
+	return vision.update(units.filter(func(u): return u.team == CREW and u.c.can_act()).map(func(u): return u.pos))
 
 
 func _add(c: Combatant, pos: Vector3i, team: int) -> void:
 	c.team = team
+	c.death_saves = team == CREW or team == CAPTIVE   # HOUSE-RULE (NPC_FLATLINE): see _flatline_npcs
 	units.append({"id": units.size(), "c": c, "pos": pos, "team": team, "alerted": team == 0})
 
 
@@ -391,7 +394,7 @@ func next_turn() -> void:
 		if cur.team == OPFOR and cur.alerted and turn.survived and c.can_act():
 			call_it_in(cur)
 		if not turn.survived:
-			say("%s fails a Death Save and dies." % c.display_name)
+			say(("%s fails a Death Save and flatlines." if c.death_saves else "%s flatlines.") % c.display_name)
 			events.append({"type": "death", "unit": cur.id})   # so the view plays the death, not a snap
 		elif c.can_act():
 			if cur.has("turret"):   # bolted down: it shoots or it waits (Turret); a held one waits for its Netrunner
@@ -461,6 +464,7 @@ func end_turn() -> void:
 
 func _check_end() -> void:
 	_wreck_turrets()
+	_flatline_npcs()
 	if state != "playing":
 		return
 	_count_civ_harm()
@@ -512,6 +516,7 @@ func holds_fire(u: Dictionary, t: Dictionary) -> bool:
 ## house's public rooms, or where a bouncer can see it (clear sight within SPOT_RANGE, any
 ## direction), and the peace is over.
 func _keep_peace(by: Dictionary, at: Array) -> void:
+	_witness_attack(by, at)
 	if neutral == null or not neutral.holds or by.is_empty() or not allied(int(by.team), CREW):
 		return
 	var spots: Array = at.duplicate()
@@ -550,6 +555,79 @@ func _break_peace(by: Dictionary) -> void:
 	say("%s: the peace is broken. The whole house turns on the crew." % neutral.name)
 	events.append({"type": "peace_broken", "unit": int(by.id), "units": house.map(func(g): return g.id)})
 	_rouse(house)
+
+
+# --- Witnesses: responders who aren't the site's own -------------------------------------------
+
+## HOUSE-RULE (WITNESS): the Security Codes say who answers a call, not how (NC2045 p.7). Anyone
+## but the site's own people (the NCPD, a district gang, armed locals) comes to look, not to fight:
+## their side is neutral to the crew until one of them witnesses a crime, then it is hostile and
+## joins the opposition. A crime: the crew attacking within earshot (GUNFIRE_RANGE, a floor either
+## way) or attacking them; a crew member spotted (the guards' Perception vs Stealth, _spots) in a
+## restricted area (not in_public) or within sight of a body the crew made; a guard calling in
+## the alarm in front of them. Neutral, they walk toward the crew to see (AI._investigate).
+func witness_side(fid: String) -> int:
+	for t in sides.size():
+		if String(sides[t].faction) == fid and bool(sides[t].get("witness", false)):
+			return t
+	var t := add_side(fid, "guard", false, {"witness": true})
+	set_relation(t, CREW, "neutral")
+	return t
+
+
+## A responder still making up their mind about the crew (see witness_side).
+func watching(g: Dictionary) -> bool:
+	return bool(sides[int(g.team)].get("witness", false)) and not hostile(int(g.team), CREW) and g.c.can_act()
+
+
+func _witness(t: int, why: String) -> void:
+	if hostile(t, CREW):
+		return
+	set_relation(t, CREW, "hostile")
+	sides[t].opfor = true
+	say("%s: %s turns on the crew." % [why, SecurityCode.faction_name(String(sides[t].faction))])
+
+
+func _witness_attack(by: Dictionary, at: Array) -> void:
+	if by.is_empty() or not allied(int(by.team), CREW):
+		return
+	for u in units:
+		if u.pos in at and not u.c.dead and not allied(int(u.team), CREW):
+			u["crew_hit"] = true   # a body later, if this kills them
+	var spots: Array = at.duplicate()
+	spots.append(by.pos)
+	for w in units:
+		if not watching(w):
+			continue
+		var hit: bool = w.pos in at
+		var heard := spots.any(func(p): return absi(p.z - w.pos.z) <= 1 and Vector2(p.x - w.pos.x, p.y - w.pos.y).length() <= GUNFIRE_RANGE)
+		if hit or heard:
+			_witness(int(w.team), "%s %s" % [w.c.display_name, "is attacked" if hit else "witnesses an attack"])
+
+
+## Witnesses who spot a crew member somewhere they shouldn't be, or near a body the crew made.
+func _witness_sightings() -> void:
+	for w in units:
+		if not watching(w):
+			continue
+		for u in units:
+			if u.team != CREW or not u.c.can_act() or not _spots(w, u):
+				continue
+			if not in_public(u.pos):
+				_witness(int(w.team), "%s finds %s trespassing" % [w.c.display_name, u.c.display_name])
+			elif _body_in_sight(w):
+				_witness(int(w.team), "%s finds %s by a body" % [w.c.display_name, u.c.display_name])
+			if not watching(w):
+				break
+
+
+func _body_in_sight(w: Dictionary) -> bool:
+	for b in units:
+		if not b.get("crew_hit", false) or b.get("fled", false) or not (b.c.dead or b.c.wound_state() == Combatant.Wound.MORTAL):
+			continue
+		if b.pos.z == w.pos.z and Vector2(b.pos.x - w.pos.x, b.pos.y - w.pos.y).length() <= SPOT_RANGE and los.trace(w.pos, b.pos).clear:
+			return true
+	return false
 
 
 # --- Automated turrets (Turret: CPR core p.214) ----------------------------------------------
@@ -736,8 +814,9 @@ func fire_turret(tid: int, target_id: int) -> Dictionary:
 ## A turret at 0 HP is wrecked: no Death Saves for a machine.
 func _wreck_turrets() -> void:
 	for u in units:
-		if u.has("turret") and not u.c.dead and u.c.hp < 1:
+		if u.has("turret") and not u.get("wrecked", false) and u.c.hp < 1:   # (apply_damage may have flagged it dead already)
 			u.c.dead = true
+			u["wrecked"] = true
 			say("%s is wrecked." % u.c.display_name)
 
 
@@ -1086,6 +1165,19 @@ func _trauma_cards() -> void:
 				u["trauma_card"] = true
 		elif String(u.c.role) in ["lieutenant", "mini_boss"] and p > 0.0:
 			u["trauma_card"] = p >= 1.0 or dice.rng.randf() < p
+		if u.get("trauma_card", false):
+			u.c.death_saves = true   # a cardholder lives on Death Saves until the AV comes (NPC_FLATLINE)
+
+
+## HOUSE-RULE (NPC_FLATLINE, owner's call, for pace): NPCs make no Death Saves (p.222 gives
+## everyone them): one under 1 HP flatlines at once. Attack.apply_damage does it for attacks; this
+## sweep catches the rest (fire, strain, brain damage). Kept: the crew; a rescue's captive (the job
+## needs them alive, and the crew can stabilise them); a Trauma Team cardholder (the card is what
+## keeps them breathing until the AV lands). Combatant.death_saves marks who rolls.
+func _flatline_npcs() -> void:
+	for u in units:
+		if not u.c.death_saves and not u.c.dead and u.c.hp < 1 and not u.has("turret"):
+			u.c.dead = true
 
 
 ## A cardholder going down (alive) calls Trauma Team, who land TT_ROUNDS rounds later.
@@ -1344,6 +1436,7 @@ func update_alerts() -> Array:
 				fresh.append(g)
 				say("%s spots %s!" % [g.c.display_name, u.c.display_name])
 				break
+	_witness_sightings()
 	var cam_guard := _camera_spots()
 	if not cam_guard.is_empty() and cam_guard not in fresh:
 		fresh.append(cam_guard)
@@ -1502,7 +1595,12 @@ func passing_as_public(u: Dictionary) -> bool:
 		_public_access = bool(SetPieces.rule(m, "public_access", false))
 	if alarm > 0 or not _public_access or int(u.get("team", CREW)) != CREW:
 		return false
-	var p: Vector3i = u.pos
+	return in_public(u.pos)
+
+
+## Open to anyone: the street-level floor's outdoors and doorways, and its public rooms. Anywhere
+## else (an upper floor, a basement, past the first restricted door) is restricted.
+func in_public(p: Vector3i) -> bool:
 	if p.z != m.street:
 		return false
 	var l := m.label(m.street, p.x, p.y)
@@ -1659,6 +1757,9 @@ func call_it_in(g: Dictionary) -> void:
 	if alarm >= 2 or g.c.dead or not reinforcements:
 		return
 	alarm = 2
+	for w in units:   # a raised alarm in front of a witness is a crime they saw
+		if watching(w) and w.pos.z == g.pos.z and Vector2(w.pos.x - g.pos.x, w.pos.y - g.pos.y).length() <= SPOT_RANGE and los.trace(w.pos, g.pos).clear:
+			_witness(int(w.team), "%s sees %s call in the alarm" % [w.c.display_name, g.c.display_name])
 	# The radio call rouses guards within the doctrine's radio range of the caller: the rest hold posts.
 	var radio := float(doctrine.alarm.radio_range)
 	_rouse(units.filter(func(o): return is_guard(o) and allied(int(o.team), int(g.team)) and not o.alerted and not o.c.dead and Vector2(o.pos.x - g.pos.x, o.pos.y - g.pos.y).length() <= radio))
@@ -1702,21 +1803,27 @@ func _plan_response(c: Dictionary) -> Dictionary:
 		"label": "BACKUP" if own else SecurityCode.faction_name(fid).to_upper()}
 
 
+## Once a round: the countdowns tick toward arrival. A response lands the round its count reaches 0
+## and the count stays at 0 for that round (the HUD's ARRIVING), then clears: -1 for the site's
+## response, -2 (once per gig) for the street's.
 func _tick_backup() -> void:
-	if ncpd_in > 0 and init.round_num != _ncpd_round:
+	if ncpd_in >= 0 and init.round_num != _ncpd_round:
 		_ncpd_round = init.round_num
-		ncpd_in -= 1
 		if ncpd_in == 0:
-			ncpd_in = -2   # once per gig
-			_arrive(_street)
+			ncpd_in = -2
+		else:
+			ncpd_in -= 1
+			if ncpd_in == 0:
+				_arrive(_street)
 	if backup_in < 0 or init.round_num == _backup_round:
 		return
 	_backup_round = init.round_num
-	backup_in -= 1
-	if backup_in > 0:
+	if backup_in == 0:
+		backup_in = -1
 		return
-	backup_in = -1
-	_arrive(_response)
+	backup_in -= 1
+	if backup_in == 0:
+		_arrive(_response)
 
 
 ## A planned response turns up at the far entrance, sized by its code's intensity for the crew
@@ -1727,7 +1834,7 @@ func _arrive(r: Dictionary) -> void:
 	if r.is_empty():
 		return
 	var roster := SecurityCode.response_roster(dice, r.code, maxi(1, alive(CREW).size()))
-	var team := OPFOR if bool(r.own) else side_for(String(r.fid), "guard", true)
+	var team := OPFOR if bool(r.own) else witness_side(String(r.fid))
 	var civ: Array[String] = Recruit.civilian_blocks(district) if bool(r.get("civilians", false)) else ([] as Array[String])
 	_spawn_wave(roster, String(r.label), team, String(r.fid), String(r.rank), bool(r.code.get("hardened", false)), civ)
 
@@ -2102,13 +2209,17 @@ static func attack_modes(weapon: Weapon) -> Array[String]:
 
 ## Suppressive Fire (p174): everyone on the other side in sight within 25 m contests WILL +
 ## Concentration; losers must get into cover on their next turn.
+## Who Suppressive Fire from `u` reaches (p.174): foes on foot (not turrets), in sight within 25 m and
+## out of cover (nothing solid beside them on u's side, AI.covered_from).
+func suppress_targets(u: Dictionary) -> Array:
+	return foes(u).filter(func(o): return Los.distance_m(u.pos, o.pos) <= Attack.SUPPRESSIVE_RANGE_M and los.sight(u.pos, o.pos).visible \
+			and not o.has("turret") and not AI.covered_from(self, o.pos, [u]))
+
+
 func suppress(weapon: Weapon) -> Dictionary:
 	if not turn.action_available:
 		return {"ok": false, "reason": "no action left"}
-	var targets: Array = []
-	for o in foes(cur):
-		if Los.distance_m(cur.pos, o.pos) <= Attack.SUPPRESSIVE_RANGE_M and los.sight(cur.pos, o.pos).visible:
-			targets.append(o)
+	var targets := suppress_targets(cur)
 	if targets.is_empty():
 		return {"ok": false, "reason": "nobody in sight within 25 m"}
 	var r := Attack.suppressive_fire(dice, cur.c, weapon, targets.map(func(o): return o.c))

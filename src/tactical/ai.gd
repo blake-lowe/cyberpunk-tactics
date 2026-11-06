@@ -12,6 +12,9 @@ static func act(e: Encounter, u: Dictionary) -> void:
 	if u.get("vip", false):
 		_vip(e, u)
 		return
+	if e.watching(u) and _enemies(e, u).is_empty():
+		_investigate(e, u)
+		return
 	if u.c.weapons.is_empty():
 		return
 	var w: Weapon = u.c.weapons[0]
@@ -92,8 +95,7 @@ static func _special(e: Encounter, u: Dictionary, w: Weapon) -> bool:
 		if e.adjacent(u.pos, f.pos) and ((w.uses_ammo() and w.ammo <= 0) or shot < 4.0):
 			return e.melee(f).get("ok", false)
 	if w.def.get("suppressive", false) and w.ammo >= Attack.AUTOFIRE_AMMO and shot < 5.0:
-		var seen := foes.filter(func(f): return Los.distance_m(u.pos, f.pos) <= Attack.SUPPRESSIVE_RANGE_M and e.los.sight(u.pos, f.pos).visible)
-		if seen.size() >= 3:
+		if e.suppress_targets(u).size() >= 3:
 			return e.suppress(w).get("ok", false)
 	return false
 
@@ -313,6 +315,17 @@ static func trauma(e: Encounter, u: Dictionary) -> void:
 		_go_toward(e, u, tt.av)   # nothing to save: back to the AV
 		if Vector2(u.pos.x - tt.av.x, u.pos.y - tt.av.y).length() <= 3.5 and e.units.filter(func(o): return o.get("tt", false) and not o.c.dead).all(func(o): return Vector2(o.pos.x - tt.av.x, o.pos.y - tt.av.y).length() <= 3.5):
 			e.tt_depart()
+
+
+## A responder neutral to the crew (Encounter.witness_side) with nobody to fight walks toward the
+## nearest crew member to see what's going on (spotting rolls happen as they move).
+static func _investigate(e: Encounter, u: Dictionary) -> void:
+	var best: Dictionary = {}
+	for o in e.units:
+		if o.team == Encounter.CREW and o.c.can_act() and (best.is_empty() or Vector3(o.pos - u.pos).length() < Vector3(best.pos - u.pos).length()):
+			best = o
+	if not best.is_empty():
+		_go_toward(e, u, best.pos)
 
 
 static func _go_toward(e: Encounter, u: Dictionary, goal: Vector3i) -> void:

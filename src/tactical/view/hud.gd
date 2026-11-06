@@ -583,7 +583,39 @@ func _clear(c: Node) -> void:
 func _team_col(u: Dictionary, enc: Encounter = null) -> Color:
 	if u.team == 0:
 		return UnitLook.CREW_ACCENTS[u.id % 4]
-	return RED if enc == null or enc.hostile(Encounter.CREW, int(u.team)) else NEUTRAL
+	return stance_col(stance(enc, int(u.team)))
+
+
+## Where side `team` stands with the crew: one query (Encounter.hostile/allied) for every label,
+## the hover tip, the Alt inspect card and the unit colours. No encounter: HOSTILE.
+static func stance(enc: Encounter, team: int) -> String:
+	if enc == null or enc.hostile(Encounter.CREW, team):
+		return "HOSTILE"
+	return "ALLIED" if enc.allied(Encounter.CREW, team) else "NEUTRAL"
+
+
+## A stance's colour: hostile red, neutral grey, allied cyan.
+static func stance_col(s: String) -> Color:
+	return RED if s == "HOSTILE" else (CYAN if s == "ALLIED" else NEUTRAL)
+
+
+## The alarm's countdown for the HUD: "BACKUP IN 3 ROUNDS" while it counts down, "BACKUP ARRIVING"
+## the round it lands (0), "NOBODY ANSWERS" when nothing is coming (-1 and below).
+static func countdown_text(label: String, n: int) -> String:
+	if n > 0:
+		return "ALARM · %s IN %d ROUND%s" % [label, n, "" if n == 1 else "S"]
+	if n == 0:
+		return "ALARM · %s ARRIVING" % label
+	return "ALARM · NOBODY ANSWERS"
+
+
+## The round box's alarm line: the site's response counting down, then the street's.
+static func alarm_text(enc: Encounter) -> String:
+	if enc.backup_in >= 0:
+		return countdown_text(enc.backup_label, enc.backup_in)
+	if enc.ncpd_in >= 0:
+		return countdown_text(enc.ncpd_label, enc.ncpd_in)
+	return "ALARM"
 
 
 func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) -> void:
@@ -611,7 +643,7 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 	_round_box.add_child(_text("ROUND %02d" % maxi(1, enc.init.round_num), F_TERM, Hud.ts(20), CYAN))
 	var state := "UNDETECTED"
 	if enc.alarm >= 2:
-		state = "ALARM · %s %d" % [enc.backup_label, enc.backup_in] if enc.backup_in > 0 else ("ALARM · %s %d" % [enc.ncpd_label, enc.ncpd_in] if enc.ncpd_in > 0 else "ALARM")
+		state = alarm_text(enc)
 	elif enc.engaged():
 		state = "ENGAGED"
 	_round_box.add_child(_text(state, F_DISPLAY, 20, RED if state != "UNDETECTED" else CYAN))
@@ -636,7 +668,7 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 		nv.add_theme_constant_override("separation", 0)
 		top.add_child(nv)
 		nv.add_child(_text(c.display_name.to_upper(), F_DISPLAY, 40, GOLD if crew_turn else RED))
-		nv.add_child(_text(c.role.to_upper() + "  ·  " + ["UNHURT", "LIGHT WOUNDS", "SERIOUS WOUNDS", "MORTAL", "DEAD"][c.wound_state()], F_DISPLAY, 20, CYAN if crew_turn else RED))
+		nv.add_child(_text(c.role.to_upper() + "  ·  " + ["UNHURT", "LIGHT WOUNDS", "SERIOUS WOUNDS", "MORTALLY WOUNDED", "FLATLINED"][c.wound_state()], F_DISPLAY, 20, CYAN if crew_turn else RED))
 		_card.add_child(top)
 		var hp := HBoxContainer.new()
 		hp.add_theme_constant_override("separation", 8)
@@ -980,9 +1012,9 @@ static func stat_block(c: Combatant, full: bool, extra: Array = []) -> String:
 		out.append(tb + "[/table]")
 	var hp := (K % "HP") + " %d/%d" % [c.hp, c.max_hp()]
 	if full:
-		hp += "  [color=#7d8a96]·[/color] " + ["Unhurt", "Lightly Wounded", "Seriously Wounded", "Mortally Wounded", "Dead"][c.wound_state()] + "  " + (K % "DEATH SAVE") + " %d" % c.death_save_target()   # Seriously Wounded is always half HP: not worth a line (owner)
+		hp += "  [color=#7d8a96]·[/color] " + ["Unhurt", "Lightly Wounded", "Seriously Wounded", "Mortally Wounded", "Flatlined"][c.wound_state()] + "  " + (K % "DEATH SAVE") + " %d" % c.death_save_target()   # Seriously Wounded is always half HP: not worth a line (owner)
 	else:
-		hp += "  [color=#7d8a96]·[/color] " + ["Unhurt", "Lightly Wounded", "Seriously Wounded", "Mortally Wounded", "Dead"][c.wound_state()]
+		hp += "  [color=#7d8a96]·[/color] " + ["Unhurt", "Lightly Wounded", "Seriously Wounded", "Mortally Wounded", "Flatlined"][c.wound_state()]
 	out.append(hp)
 	out.append((K % "ARMOR") + " head SP %d · body SP %d" % [c.sp("head"), c.sp("body")])
 	var ws: Array = c.weapons if full else c.weapons.slice(0, 1)
@@ -1009,6 +1041,8 @@ static func stat_block(c: Combatant, full: bool, extra: Array = []) -> String:
 ## What's wrong with someone at a glance: injuries, status, drugs, chrome knocked out.
 static func conditions(c: Combatant) -> Array[String]:
 	var out: Array[String] = []
+	if c.wound_state() == Combatant.Wound.MORTAL:   # p.220: still acts, at these penalties
+		out.append("mortally wounded: -%d to all Actions, -%d MOVE (min 1)" % [Combatant.WOUND_ACTION_PENALTY[Combatant.Wound.MORTAL], Combatant.MORTAL_MOVE_PENALTY])
 	if c.unconscious:
 		out.append("unconscious")
 	if c.prone:
