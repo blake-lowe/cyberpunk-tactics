@@ -55,8 +55,10 @@ extends RefCounted
 ##     without a `location` (the old generic offers: a scene or site picked by tags) leave the board;
 ##     the save is marked `refill_board` and Campaign.from_dict tops the board up with canon offers
 ##     (the migration can't: it reads no city data and rolls no dice).
+## v15: save slots. The campaign counts the gigs it has played to the end, `gigs_done`, for the
+##     slot listing; an older save doesn't know how many it played and starts at 0.
 
-const CURRENT := 14
+const CURRENT := 15
 
 
 ## Upgrade `d` (a parsed save) to CURRENT. Returns {} for a save from a newer build, which this
@@ -81,6 +83,7 @@ static func migrate(d: Dictionary) -> Dictionary:
 			11: _v11_to_v12(d)
 			12: _v12_to_v13(d)
 			13: _v13_to_v14(d)
+			14: _v14_to_v15(d)
 		v += 1
 		d["version"] = v
 	return d
@@ -271,3 +274,8 @@ static func _v13_to_v14(d: Dictionary) -> void:
 	if kept.size() < board.size():
 		d["refill_board"] = true
 	d["board"] = kept
+
+
+static func _v14_to_v15(d: Dictionary) -> void:
+	if not d.has("gigs_done"):
+		d["gigs_done"] = 0

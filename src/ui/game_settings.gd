@@ -1,0 +1,62 @@
+class_name GameSettings
+extends RefCounted
+## Player options (title screen → Options), kept in user://settings.cfg and applied at startup:
+## master volume, music and sound effects (0-1, scaling the AudioDirector's buses from their mixed
+## levels; SFX covers the SFX, UI and Ambience buses), fullscreen or windowed.
+
+const DEFAULTS := {"master": 1.0, "music": 1.0, "sfx": 1.0, "fullscreen": false}
+const SFX_BUSES := ["SFX", "UI", "Ambience"]
+
+## Tests point this at a temp user:// subfolder (tests/run_tests.gd).
+static var path := "user://settings.cfg"
+static var _applied := false
+
+
+static func load_values() -> Dictionary:
+	var v := DEFAULTS.duplicate()
+	var cf := ConfigFile.new()
+	if cf.load(path) != OK:
+		return v
+	for k in DEFAULTS:
+		var x: Variant = cf.get_value("options", k, DEFAULTS[k])
+		v[k] = bool(x) if DEFAULTS[k] is bool else clampf(float(x), 0.0, 1.0)
+	return v
+
+
+static func save_values(v: Dictionary) -> bool:
+	var cf := ConfigFile.new()
+	for k in DEFAULTS:
+		cf.set_value("options", k, v.get(k, DEFAULTS[k]))
+	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
+	return cf.save(path) == OK
+
+
+## Apply the saved settings once per run (the title screen; the safehouse when launched directly).
+static func apply_at_startup(tree: SceneTree) -> void:
+	if _applied:
+		return
+	_applied = true
+	apply(load_values(), tree)
+
+
+static func apply(v: Dictionary, tree: SceneTree) -> void:
+	AudioDirector.get_or_make(tree)   # makes the buses
+	_bus(0, 0.0, float(v.master))
+	var mi := AudioServer.get_bus_index("Music")
+	if mi >= 0:
+		_bus(mi, float(AudioDirector.DEFAULT_DB.Music), float(v.music))
+	for b in SFX_BUSES:
+		var bi := AudioServer.get_bus_index(b)
+		if bi >= 0:
+			_bus(bi, float(AudioDirector.DEFAULT_DB[b]), float(v.sfx))
+	if DisplayServer.get_name() != "headless":
+		var fs := bool(v.fullscreen)
+		var mode := DisplayServer.window_get_mode()
+		var is_fs := mode == DisplayServer.WINDOW_MODE_FULLSCREEN or mode == DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN
+		if fs != is_fs:
+			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if fs else DisplayServer.WINDOW_MODE_WINDOWED)
+
+
+static func _bus(i: int, base_db: float, gain: float) -> void:
+	AudioServer.set_bus_mute(i, gain <= 0.001)
+	AudioServer.set_bus_volume_db(i, base_db + linear_to_db(maxf(gain, 0.001)))

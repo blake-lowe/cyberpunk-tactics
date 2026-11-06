@@ -11,7 +11,6 @@ extends RefCounted
 ## Economy numbers (pay, fees, prices) are HOUSE-RULE placeholders until checked against the book's
 ## job rates and price lists; they're kept together in ECON so they're easy to tune.
 
-const SAVE_PATH := "user://campaign.json"
 const ECON := {
 	"start_eb": 1000,          # p98: 500eb per starting character, two characters
 	"treat_injury": 200,       # HOUSE-RULE: a street clinic's Treatment for one Critical Injury
@@ -43,6 +42,8 @@ const NO_GIGS := ["playland"]
 const DAY_MINUTES := 24 * 60
 
 static var current: Campaign   ## the running campaign (the board and the tactical view share it)
+## The save slot autosave writes (SaveSlots; the title screen picks it, 1 when launched directly).
+static var slot := 1
 
 var seed_value := 1
 var dice: Dice
@@ -58,6 +59,7 @@ var fallen: Array[Dictionary] = []   ## {name, role, day, gig}: the wall
 var board: Array[Dictionary] = []    ## gig offers
 var recruits: Array[Combatant] = []  ## for hire
 var active_gig: Dictionary = {}
+var gigs_done := 0                   ## gigs played to the end (won or failed), for the save slot listing
 var stash := {}                      ## safehouse storage: Items key → how many (kit, weapons, armour)
 var market := {}                     ## the Night Market that's up (NightMarket.roll)
 var log: Array[String] = []
@@ -69,6 +71,7 @@ var debrief: Array[Dictionary] = []
 ## The running campaign: the one in memory, else the save, else a new game.
 static func ensure_current() -> Campaign:
 	if current == null:
+		SaveSlots.migrate_legacy()
 		current = load_from()
 		if current == null or current.crew.is_empty():
 			current = new_game(int(Time.get_unix_time_from_system()) % 100000)
@@ -639,6 +642,7 @@ func resolve(e: Encounter) -> Dictionary:
 	report["members"] = _debrief_members(went, gig.get("before", {}), report, kit_of, hooked_before)
 	debrief.assign(report.members)
 	active_gig = {}
+	gigs_done += 1
 	day += 1
 	refresh_board()
 	update_market()
@@ -1332,7 +1336,7 @@ func to_dict() -> Dictionary:
 	return {"version": SaveMigrations.CURRENT, "seed": seed_value, "eb": eb, "day": day, "minutes": minutes,
 		"safehouse_district": safehouse_district, "crew": crew.map(func(c): return c.to_dict()),
 		"fallen": fallen, "board": board, "recruits": recruits.map(func(c): return c.to_dict()), "log": log.slice(-50),
-		"rng_state": str(dice.rng.state), "stash": stash, "market": market, "debrief": debrief}
+		"rng_state": str(dice.rng.state), "stash": stash, "market": market, "debrief": debrief, "gigs_done": gigs_done}
 
 
 ## A campaign from a save dictionary, upgraded to the current format first (SaveMigrations).
@@ -1351,6 +1355,7 @@ static func from_dict(raw: Dictionary) -> Campaign:
 		c.dice.rng.state = int(st)
 	c.eb = int(d.eb)
 	c.day = int(d.day)
+	c.gigs_done = int(d.get("gigs_done", 0))
 	c.minutes = clampi(int(d.get("minutes", 0)), 0, DAY_MINUTES - 1)
 	var sh := String(d.get("safehouse_district", DEFAULT_SAFEHOUSE))
 	c.safehouse_district = sh if World.districts().has(sh) else DEFAULT_SAFEHOUSE
@@ -1402,15 +1407,14 @@ static func code_loaded_gig(g: Variant) -> Variant:
 	return g
 
 
-func save(path := SAVE_PATH) -> bool:
-	var f := FileAccess.open(path, FileAccess.WRITE)
-	if f == null:
-		return false
-	f.store_string(JSON.stringify(to_dict(), "\t"))
-	return true
+## Save to `path`, by default the active slot (SaveSlots.write: a meta line, then to_dict).
+func save(path := "") -> bool:
+	return SaveSlots.write(self, path if path != "" else SaveSlots.path(slot))
 
 
-static func load_from(path := SAVE_PATH) -> Campaign:
+static func load_from(path := "") -> Campaign:
+	if path == "":
+		path = SaveSlots.path(slot)
 	if not FileAccess.file_exists(path):
 		return null
 	var d: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))

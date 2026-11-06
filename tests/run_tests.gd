@@ -6,6 +6,9 @@ const ROOT := "res://tests/unit"
 
 
 func _initialize() -> void:
+	# Nothing a test does may touch the player's save slots or options: they live in a temp folder.
+	SaveSlots.dir = "user://test_tmp/slots"
+	GameSettings.path = "user://test_tmp/settings.cfg"
 	var filter := ""
 	var args := OS.get_cmdline_user_args()
 	if args.size() > 0:
