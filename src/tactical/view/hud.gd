@@ -1230,6 +1230,36 @@ func turn_banner(text: String, col: Color) -> void:
 	tw.parallel().tween_property(_turn_strip, "modulate:a", 0.0, 0.25)
 
 
+## The gig is over (EndJuice): the banner slams down from oversize instead of sliding in, the rule
+## snaps across, and it stays up over the end panel.
+func end_banner(text: String, col: Color) -> void:
+	turn_banner(text, col)
+	_banner_tw.kill()
+	var w := _turn_banner.get_minimum_size().x
+	var x := size.x / 2 - w / 2
+	_turn_banner.position.x = x
+	_turn_banner.pivot_offset = _turn_banner.get_minimum_size() / 2.0
+	_turn_banner.scale = Vector2(2.4, 2.4)
+	_turn_banner.add_theme_constant_override("shadow_offset_x", 14)
+	var tw := create_tween()
+	_banner_tw = tw
+	tw.tween_property(_turn_banner, "scale", Vector2.ONE, 0.2).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_IN)
+	tw.parallel().tween_property(_turn_banner, "modulate:a", 1.0, 0.12)
+	tw.parallel().tween_property(_turn_strip, "modulate:a", 1.0, 0.2)
+	tw.tween_callback(func(): flash_screen(Color(col, 0.18)))   # the impact
+	tw.tween_method(func(v: int): _turn_banner.add_theme_constant_override("shadow_offset_x", v), 14, 3, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(_turn_rule, "size:x", w, 0.16).set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
+
+
+## A pulse of coloured edge glow (the enemy-phase vignette's shader) up to `peak`, settling at `rest`.
+func edge_pulse(col: Color, peak: float, rest: float) -> void:
+	var vm := _vignette.material as ShaderMaterial
+	vm.set_shader_parameter("col", col)
+	var tw := create_tween()
+	tw.tween_property(vm, "shader_parameter/amount", peak, 0.12).set_ease(Tween.EASE_OUT)
+	tw.tween_property(vm, "shader_parameter/amount", rest, 0.7).set_trans(Tween.TRANS_SINE)
+
+
 # --- Combat log: bottom left, beside the action bar (owner, playtest r3) ----------------------
 # Docked at the screen's bottom left with its bottom on the bar's; the bar moves right to make
 # room and slides back to centre when the log is collapsed (the chevron, or K). Hovering it grows it
