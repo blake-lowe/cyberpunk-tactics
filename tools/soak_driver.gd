@@ -13,7 +13,8 @@ extends RefCounted
 ## - the crew's turn: a Netrunner on a data job jacks in and goes for the File (taking Control
 ##   Nodes and firing held turrets on the way); everyone else moves toward the objective (its
 ##   square, its mark or captive, then the extraction zone), takes the objective's action when it
-##   is in reach, else shoots what it sees; with no objective to go for, the guards' AI (AI.act);
+##   is in reach, else shoots what it sees; with no objective to go for, the guards' AI (AI.act); a
+##   freed hostage keeps with the crew (AI.follow);
 ## - after `max_rounds` rounds the crew pulls out (state "fled").
 
 const SAVE_DIR := "user://soak"
@@ -259,6 +260,10 @@ func _play(camp: Campaign) -> Encounter:
 
 func _crew_turn(e: Encounter) -> void:
 	var u := e.cur
+	AI.put_out(e, u)   # burning: beat the flames out first when it's sensible (p.180)
+	if e.is_hostage(u):   # a freed hostage is the player's to move: keep them with the crew
+		AI.follow(e, u)
+		return
 	if _net_turn(e, u):
 		return
 	var goal := _goal(e, u)

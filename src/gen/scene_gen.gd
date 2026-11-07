@@ -573,8 +573,6 @@ static func _unlabel(m: TacMap, room: Dictionary, cells: Dictionary) -> void:
 			room.cells -= 1
 
 
-## Crew deployment: the street spawn farthest from the target's main door becomes the player's
-## insertion zone (the 6 nearest open squares); the other spawns stay reinforcement entry points.
 ## Every target NET must be reachable on foot (procgen survey: single-terminal sites behind locked
 ## doors left data gigs unplayable). If no access point can be stood near from the deploy zone
 ## without breaching, a public maintenance junction box goes on a reachable wall inside (or
@@ -638,8 +636,17 @@ static func _ensure_public_access(m: TacMap) -> void:
 		a.access_points.append({"device": dev.id, "entry_node": port})
 
 
+## Crew deployment (params.deploy, data/gen/scenes.json; a set piece's params can override it):
+## - "near": a short walk from the target's street door (DEPLOY_NEAR squares over open ground,
+##   e.g. across the street), so the crew isn't hunting for the way in (playtest round 4);
+## - "far" (the default; open ground and stealth approaches): the street spawn farthest from the
+##   door becomes the insertion zone.
+## The other spawns stay reinforcement entry points. The zone is the 6 nearest open street-level
+## squares. "near" falls back to "far" when no open ground fits (a door into a walled yard).
 static func _deploy_zone(c: Dictionary) -> void:
 	var m: TacMap = c.m
+	if String(c.p.get("deploy", "far")) == "near" and _deploy_near(m):
+		return
 	var door := Vector2i(m.w / 2, m.h / 2)
 	for e in m.entrances:
 		if e.main:
@@ -657,19 +664,95 @@ static func _deploy_zone(c: Dictionary) -> void:
 		return
 	var origin: Vector2i = m.entrances[best].pos
 	m.entrances[best].kind = "deploy"
+	m.entrances[best]["cells"] = _deploy_cells(m, origin)
+
+
+## Walking distance in squares (2 m) from the step outside the target's main door to a "near"
+## deploy zone's first square: [min, goal, max]. 7 squares is 14 m: across a street or a forecourt.
+const DEPLOY_NEAR := [4, 7, 12]
+const DEPLOY_SIZE := 6
+
+
+## The DEPLOY_SIZE nearest open (OUTSIDE, uncovered) street-level squares from `origin`, origin first.
+static func _deploy_cells(m: TacMap, origin: Vector2i) -> Array:
 	var cells: Array = [origin]
 	var seen := {origin: true}
 	var q: Array = [origin]
-	while not q.is_empty() and cells.size() < 6:
+	while not q.is_empty() and cells.size() < DEPLOY_SIZE:
 		var v: Vector2i = q.pop_front()
 		for d in MapGen.DIRS:
 			var n: Vector2i = v + d
 			if not seen.has(n) and m.inb(n.x, n.y) and m.t(m.street, n.x, n.y) == TacMap.T.OUTSIDE and not m.has_cover_at(m.street, n):
 				seen[n] = true
 				q.append(n)
-				if cells.size() < 6:
+				if cells.size() < DEPLOY_SIZE:
 					cells.append(n)
-	m.entrances[best]["cells"] = cells
+	return cells
+
+
+## Ground a crew can start on: street level, outdoors, no cover, and public (the street or a
+## public yard, not a fenced secure compound).
+static func _deploy_open(m: TacMap, v: Vector2i) -> bool:
+	var s := m.street
+	if not m.inb(v.x, v.y) or m.t(s, v.x, v.y) != TacMap.T.OUTSIDE or m.has_cover_at(s, v):
+		return false
+	var l := m.label(s, v.x, v.y)
+	return l < 0 or int(m.rooms[l].zone) <= TacMap.Zone.PUBLIC
+
+
+## The "near" deploy zone: walk the open ground (and unlocked-looking public gates) out from the
+## step in front of the target's main door and take the square closest to DEPLOY_NEAR's goal
+## distance that has room for the whole crew, the open street before yards, and that a street
+## spawn can reach too (not a pocket the crew can't leave). False if there's none.
+static func _deploy_near(m: TacMap) -> bool:
+	var door := m.main_entrance()
+	if door.is_empty():
+		return false
+	var s := m.street
+	var step := Vector2i(-1, -1)
+	for d in MapGen.DIRS:
+		var n: Vector2i = Vector2i(door.pos) + d
+		if _deploy_open(m, n):
+			step = n
+			break
+	if step.x < 0:
+		return false
+	var dist := {step: 0}
+	var q: Array = [step]
+	while not q.is_empty():
+		var v: Vector2i = q.pop_front()
+		if int(dist[v]) >= int(DEPLOY_NEAR[2]):
+			continue
+		for d in MapGen.DIRS:
+			var n: Vector2i = v + d
+			if dist.has(n) or not m.inb(n.x, n.y):
+				continue
+			var gate := m.t(s, n.x, n.y) == TacMap.T.DOOR and m.doors.any(func(o): return o.floor == s and o.pos == n and o.get("gate", false) and not o.security)
+			if gate or _deploy_open(m, n):
+				dist[n] = int(dist[v]) + 1
+				q.append(n)
+	var spawn_reach := {}
+	for e in m.entrances:
+		if e.kind == "spawn" and m.walkable(s, e.pos):
+			spawn_reach = m.reachable(Vector3i(e.pos.x, e.pos.y, s))
+			break
+	var best := Vector2i(-1, -1)
+	var best_score := INF
+	for v in dist:
+		var dd := int(dist[v])
+		if dd < int(DEPLOY_NEAR[0]) or not _deploy_open(m, v):
+			continue
+		if not spawn_reach.is_empty() and not spawn_reach.has(Vector3i(v.x, v.y, s)):
+			continue
+		var sc := absf(dd - float(DEPLOY_NEAR[1])) + (0.0 if m.label(s, v.x, v.y) < 0 else 3.0)
+		if sc >= best_score or _deploy_cells(m, v).size() < DEPLOY_SIZE:
+			continue
+		best_score = sc
+		best = v
+	if best.x < 0:
+		return false
+	m.entrances.append({"floor": s, "pos": best, "main": false, "kind": "deploy", "near": true, "cells": _deploy_cells(m, best)})
+	return true
 
 
 ## Guard posts for placing defenders in M3: the middle of guard rooms, and the secure side of

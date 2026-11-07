@@ -9,11 +9,35 @@ const MIN_CHANCE := 0.15
 
 
 static func act(e: Encounter, u: Dictionary) -> void:
+	if put_out(e, u):   # the Action's gone on the flames: the Move Action is still theirs
+		_advance(e, u)
+		return
 	if _grapple_first(e, u):
 		return
 	_fight(e, u)
 	if u.c.is_grappled() and e.turn.action_available:   # nothing else worth doing: try to break the hold
 		e.escape_grapple()
+
+
+## Put Out Fire (CPR core p.180) when it's sensible: burning low enough that the flames would take
+## them down within a few Turns, or no good shot to spend the Action on instead (nothing to shoot,
+## an empty or jammed gun, every shot under PUT_OUT_SHOT). True if they did. Cyberpsychos don't.
+const PUT_OUT_SHOT := 0.6
+
+
+static func put_out(e: Encounter, u: Dictionary) -> bool:
+	var c: Combatant = u.c
+	if c.burning <= 0 or e.turn == null or not e.turn.action_available or e.turn.psychotic or u.has("turret"):
+		return false
+	var sensible := c.hp <= c.burning * 3 or c.weapons.is_empty()
+	if not sensible:
+		var w: Weapon = c.weapons[0]
+		sensible = w.jammed or (w.uses_ammo() and w.ammo <= 0)
+		if not sensible:
+			sensible = not _enemies(e, u).any(func(t):
+				var p := e.preview(t, w, Attack.Mode.SINGLE)
+				return p.ok and float(p.chance) >= PUT_OUT_SHOT)
+	return sensible and bool(e.put_out_fire().get("ok", false))
 
 
 ## Grappling for the AI (CPR core p.168, p.177). Returns true when that was the turn:
@@ -334,21 +358,24 @@ static func _vip(e: Encounter, u: Dictionary) -> void:
 
 
 ## A freed captive: keep beside the crew member nearest to the extraction zone; step into the zone
-## when they're there. Unarmed, so that's all.
+## when they're there. Unarmed, so that's all. The player moves a freed hostage in a real gig; this
+## stands in for them in auto-play (the soak). Distances are walking ones: a straight line to the
+## lead (the old score) pulled them into the corner of a room nearest the lead through the wall.
 static func follow(e: Encounter, u: Dictionary) -> void:
-	var crew := e.units.filter(func(o): return o.team == 0 and o != u and not o.get("captive", false) and o.c.can_act())
+	var crew := e.units.filter(func(o): return o.team == 0 and o != u and not e.is_hostage(o) and o.c.can_act())
 	if crew.is_empty() or not e.turn.can_move():
 		return
 	var ex: Array = e.extract_cells.keys()
 	var to_ex: Dictionary = e._with_locks(func(): return e.nav.distance_field(ex, {}, 4000))
 	crew.sort_custom(func(a, b): return int(to_ex.get(a.pos, 9999)) < int(to_ex.get(b.pos, 9999)))
 	var lead: Dictionary = crew[0]
+	var to_lead: Dictionary = e._with_locks(func(): return e.nav.distance_field([lead.pos], {}, 4000))
 	var opts := e.move_options()
 	var best: Vector3i = u.pos
 	var best_s := INF
 	var lead_out: bool = e.extract_cells.has(lead.pos)
 	for cell in opts.keys() + [u.pos]:
-		var d := Vector2(cell.x - lead.pos.x, cell.y - lead.pos.y).length() + absi(cell.z - lead.pos.z) * 4.0
+		var d := float(to_lead.get(cell, 999))
 		var sc := maxf(d - 1.5, 0.0) * 2.0 + float(to_ex.get(cell, 999)) * 0.15
 		if lead_out and e.extract_cells.has(cell):
 			sc -= 50.0

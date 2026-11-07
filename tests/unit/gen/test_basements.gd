@@ -9,26 +9,27 @@ const DEEP := ["fort_sumter", "eurasiabank_plaza"]
 static var _cache: Dictionary = {}
 
 ## sha256 of JSON.stringify(SceneGen.generate(seed, scene, overrides).to_dict()), captured on main
-## before below-grade storeys existed. Scenes built from DistrictGen are left out (other work tunes
+## before below-grade storeys existed, and re-captured when params.deploy (near / far deploy
+## zones, playtest round 4) changed every map's params and the near scenes' deploy zones. Scenes built from DistrictGen are left out (other work tunes
 ## district profiles), as are the three set pieces that now dig down.
 const GOLDEN := {
-	"arcology/6/": "19698c6c68dc271212904d6b0b0af700ecae2365629f6ba8a4042638447be298",
-	"badlands/9/": "f204d14c1f8c24a162d960e17caa877b287e47ea22795d4609b16b2927130f74",
-	"corp_campus/12/": "1e4b86bf9729842deabb18cd4e47cc68b293b19c82bbe3164071bb1a4bd63040",
-	"lone_building/11/": "562f89e01e193064789db2fac9d1c3291a13fbe1ea7305bb80bf723d09365343",
-	"lone_building/11/main_port": "6d14f9dad6364149d816a2128a0753e923f2b711a62f05f5c503a9537adffdbf",
-	"lone_building/11/norcal_potentilla": "f3925d66689ccc6d78c7b4d59c6a82a5ed655029041a8f5a9b6dac1782e38339",
-	"lone_building/11/trauma_team_tower": "fce099a85f43b5befdffa5ec6fdcb72683091826180f3dda8c2d2f1c667d11bb",
-	"lone_building/11/ziggurat_hq": "be2ff245c5311a14834edcc260fe0e82d0d89443aae2c6dd74bf32aba3cfeb0c",
-	"lone_building/2024/": "5658f12063c83286188985e7d999210f914c0f9f59debec1b3b86e683ed7dea1",
-	"lone_building/2024/maxtac_hq": "01a2a054829f933197c6bed49e9f94645c73a17df37bd8d932eec0e7ffa8ad4e",
-	"lone_building/2024/totentanz": "a22fdc11b88f7c6740bdb134e6f44738fe3d144ffc1076c47951007543752a66",
-	"lone_building/77031/the_estates": "a4a873bd0d49dd9f601e158cb270ba4003a2fdc6832dc2a7d1ed26092c7fff6e",
-	"megablock/5/": "705303ddd9affaaf15b2211f51ca3264029c04bcb4ac0f5268097368d9030228",
-	"rail_yard/4/": "5ac31e4206140da6a03f0796279f0fbb191b4b911c4c45cca4b5fe7347610611",
-	"shipyard/3/": "d8c318d1ea6adbe6076160061e44fca7e6853d468fc59b6f05f50a89a9f8e916",
-	"skirmish/7/": "b801f36ee25d4f2dd4379c94054284663c7a70abedc4b3738c95f2bc48e18149",
-	"undercity/8/": "295e8d5c20ebac3249dd74516bf95740d470b33368ad4345aadc99140212ee10",
+	"arcology/6/": "2f9eb9d5ccdbcf40bb85b193507bcb87c2f6d3e092f208ee54916b718926279f",
+	"badlands/9/": "78b3b90ba3d4aec9e1aa7ab37e54e8f6a18c7f3cbfbd8b9de8f156c2521ebe4f",
+	"corp_campus/12/": "0569233dfa39f84204fe8ef8bddd6eff774b719aa9d33ae2e09e478ef39a8e1e",
+	"lone_building/11/": "18694589e08611e026d80eb2c4b1c7bcc64c79fde65a19915de85c917198e15f",
+	"lone_building/11/main_port": "ed1a478b3473b84a0ed418717f5724ba9ca3e8f972f89301a9fb4b5e009ceb41",
+	"lone_building/11/norcal_potentilla": "d287772fd632bffab5089088ba7b6cf9879f5054d9bdb570f5a5e5497c3cac2a",
+	"lone_building/11/trauma_team_tower": "9983eba547b493d3cce43d2da007d37293b6091283b7a5d80be8d0e85790c908",
+	"lone_building/11/ziggurat_hq": "294dac7b2ddfff37993afbed2c1c2dee208053705d2430c80cd6364bec690b0c",
+	"lone_building/2024/": "b84ecf4a4b54e0ed6f554d66aea38b4909400ea1a5d122e211456508e529959a",
+	"lone_building/2024/maxtac_hq": "3ee454dc7d3c40b82e1c6abddbf83237281f03196b539ed927b5c85c27bbe3de",
+	"lone_building/2024/totentanz": "ff200e4c9452ee49c9527e2f95ee0888603f34b0c96d6e61cb01ec1209bab8c9",
+	"lone_building/77031/the_estates": "c26e73d779076199b2c97796b6bfa2e0302812fbbf13215d6ccb64561ae738bc",
+	"megablock/5/": "2a1c99880d6ddac2903310ebb876fe9a1935ac673709ee391ea28bb8428166e7",
+	"rail_yard/4/": "7d5ed94945be3e6f8ddbe6baa0fe86e50d66b63fcc4121f7ec0011a9b15cb730",
+	"shipyard/3/": "5860a42e356f7d1090a27d53f135f95beb855d2d265460468b7f39c6d0de936b",
+	"skirmish/7/": "ff230a28e3854ae442148fc00ea95b24541ef5c283a38c67adc563bf761bf554",
+	"undercity/8/": "0b2d67f0e921d25227cbff9977bce4dce3c8c82de261232dcd61e92398058c4f",
 }
 
 

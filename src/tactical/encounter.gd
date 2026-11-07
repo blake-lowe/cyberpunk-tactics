@@ -410,10 +410,8 @@ func next_turn() -> void:
 				AI.trauma(self, cur)
 				end_turn()
 				continue
-			if cur.get("captive", false):   # a freed captive follows the crew on their own
-				AI.follow(self, cur)
-				end_turn()
-				continue
+			# A freed hostage (rescue) is the player's to move now, like the crew (playtest round 4: left
+			# to the AI they got stuck), so their turn comes back to the player below.
 			if is_guard(cur) or turn.psychotic:
 				AI.act(self, cur)
 				end_turn()
@@ -435,14 +433,13 @@ func end_turn() -> void:
 	if turn != null and not cur.is_empty() and cur.team == 0 and alarm < 2 and init.round_num != _patrol_round:
 		_patrol_round = init.round_num   # once a round, not once per crew member
 		patrol_step()
-	if turn != null and not cur.is_empty() and cur.c.burning > 0:   # on fire: Hellhound (p207), flamethrower (p348)
-		if not _netting and not turn.action_available:   # spent the meat Action beating it out
-			cur.c.burning = 0
-			say("%s puts out the fire." % cur.c.display_name)
-		else:
-			var b0: int = cur.c.wound_state()
-			cur.c.hp -= cur.c.burning
-			events.append({"type": "harm", "unit": cur.id, "damage": cur.c.burning, "source": "BURNING", "wound_before": b0, "wound_after": cur.c.wound_state()})
+	# On fire (Hellhound p207, flamethrower p348): direct damage at the end of each Turn until an
+	# Action puts it out (put_out_fire, CPR core p.180). Spending the Action on anything else (a
+	# shot, a reload) doesn't: the old rule here did, so a burning shooter never burned.
+	if turn != null and not cur.is_empty() and cur.c.burning > 0:
+		var b0: int = cur.c.wound_state()
+		cur.c.hp -= cur.c.burning
+		events.append({"type": "harm", "unit": cur.id, "damage": cur.c.burning, "source": "BURNING", "wound_before": b0, "wound_after": cur.c.wound_state()})
 	if turn != null and not cur.is_empty():   # knocked-out cyberware comes back a round at a time
 		for cid in cur.c.cyber_off.keys():
 			cur.c.cyber_off[cid] = int(cur.c.cyber_off[cid]) - 1
@@ -476,8 +473,9 @@ func _check_end() -> void:
 		pt.pos = units[int(tt.carrier)].pos
 		tt.carrier = -1
 	obj.before_check()
-	if units.filter(func(u): return u.team == 0 and u.c.can_act()).is_empty() \
-			and units.filter(func(u): return u.team == 0 and not u.c.dead and u.c.wake_in > 0).is_empty():
+	# a freed hostage doesn't count: alone they can't finish the job (nobody to walk them out)
+	if units.filter(func(u): return u.team == 0 and not is_hostage(u) and u.c.can_act()).is_empty() \
+			and units.filter(func(u): return u.team == 0 and not is_hostage(u) and not u.c.dead and u.c.wake_in > 0).is_empty():
 		state = "lost"   # nobody on the crew can act or will wake up (the loop would otherwise spin)
 		return
 	var r := obj.check_end()
@@ -936,12 +934,19 @@ func loot_keycard() -> Dictionary:
 
 ## The crew can cut and run: on their turn, if everyone still on their feet stands in the deploy
 ## zone. The gig fails (state "fled"); anyone left behind (down or elsewhere) is lost
-## (HOUSE-RULE: nobody comes back for them).
+## (HOUSE-RULE: nobody comes back for them). A freed hostage needn't be there: the crew can abandon
+## the rescue (it fails).
 func can_withdraw() -> bool:
 	if state != "playing" or cur.is_empty() or cur.team != 0:
 		return false
-	var up := units.filter(func(u): return u.team == 0 and u.c.can_act())
+	var up := units.filter(func(u): return u.team == 0 and not is_hostage(u) and u.c.can_act())
 	return not up.is_empty() and up.all(func(u): return extract_cells.has(u.pos))
+
+
+## A rescue's freed captive: on the crew's side and the player's to move, but not on the crew
+## (no pay, no permadeath, never joins the roster: Campaign only settles its own crew).
+func is_hostage(u: Dictionary) -> bool:
+	return bool(u.get("captive", false))
 
 
 func left_behind() -> Array:
@@ -2282,7 +2287,23 @@ func grapple_options() -> Array[String]:
 		out.append("grab")
 	if c.grapple == null and not break_targets(cur).is_empty():
 		out.append("break")
+	if c.burning > 0:   # not close quarters, but the same kind of only-when-it-applies bar entry
+		out.append("put_out")
 	return out
+
+
+## Put Out Fire (CPR core p.180, docs/rules/combat.md "Being On Fire"): spend the Action beating
+## the flames out; On Fire ends and does no more damage. Meat only: a Netrunner's NET Actions
+## don't (their body's still burning).
+func put_out_fire() -> Dictionary:
+	if cur.is_empty() or turn == null or cur.c.burning <= 0:
+		return {"ok": false, "reason": "not on fire"}
+	if not turn.use_action():
+		return {"ok": false, "reason": "no action left"}
+	cur.c.burning = 0
+	events.append({"type": "put_out", "unit": cur.id})
+	say("%s beats out the flames." % cur.c.display_name)
+	return {"ok": true}
 
 
 ## Foes `u` could Grab: in reach (a neighbouring square, p.177 / MELEE_ADJACENT_M), people (not
@@ -2507,6 +2528,7 @@ func grapple_act(id: String, target: Dictionary = {}) -> Dictionary:
 		"escape": return escape_grapple()
 		"break": return escape_grapple(target)
 		"get_up": return get_up()
+		"put_out": return put_out_fire()
 	return {"ok": false, "reason": "unknown action"}
 
 

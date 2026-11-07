@@ -58,7 +58,8 @@ const MAIN_ACTIONS := [["shot", "ATTACK", "F", "stage", "attack", Color("05d9e8"
 const GRAPPLE_ACTIONS := [["grab", "GRAB", "X", "hold", Color("ff8a3d"), true], ["choke", "CHOKE", "X", "choke", Color("ff3b4f"), false],
 	["throw", "THROW", "Y", "throw", Color("ff3b4f"), false], ["shield", "HUMAN SHIELD", "I", "hshield", Color("f9c80e"), false],
 	["release", "RELEASE", "O", "release", Color("8a96a0"), false], ["escape", "ESCAPE", "X", "free", Color("05d9e8"), false],
-	["break", "BREAK HOLD", "P", "free", Color("39f0a0"), true], ["get_up", "GET UP", "U", "getup", Color("05d9e8"), false]]
+	["break", "BREAK HOLD", "P", "free", Color("39f0a0"), true], ["get_up", "GET UP", "U", "getup", Color("05d9e8"), false],
+	["put_out", "PUT OUT FIRE", "", "flame", Color("ff8a3d"), false]]   # only while On Fire (p.180); no key yet: click it
 ## Attack-stage modes: id → [button title, glyph, the book's full name] (CPR core p.170-177).
 const ATK_MODES := {"single": ["SINGLE", "shot", "Single Shot"], "aim_head": ["AIM HEAD", "head", "Aimed Shot: head"],
 	"aim_leg": ["AIM LEG", "head", "Aimed Shot: leg"], "aim_held": ["AIM HELD", "head", "Aimed Shot: held item"],
@@ -615,6 +616,11 @@ class ActBtn extends Button:
 				draw_arc(o + Vector2(r * 0.8, 0), r * 0.6, PI * 0.5, PI * 1.5, 10, c, 2.5)
 				draw_line(o + Vector2(-r * 0.2, -r * 0.9), o + Vector2(-r * 0.2, r * 0.9), Color(c, 0.5), 1.0)
 				draw_line(o + Vector2(r * 0.2, -r * 0.9), o + Vector2(r * 0.2, r * 0.9), Color(c, 0.5), 1.0)
+			"flame":   # a flame, struck through
+				draw_colored_polygon(PackedVector2Array([o + Vector2(0, -r * 1.3), o + Vector2(r * 0.8, -r * 0.1), o + Vector2(r * 0.7, r * 0.7),
+					o + Vector2(0, r * 1.1), o + Vector2(-r * 0.7, r * 0.7), o + Vector2(-r * 0.8, -r * 0.1), o + Vector2(-r * 0.3, -r * 0.4)]), Color(c, 0.35))
+				draw_colored_polygon(PackedVector2Array([o + Vector2(0, -r * 0.3), o + Vector2(r * 0.35, r * 0.4), o + Vector2(0, r * 0.8), o + Vector2(-r * 0.35, r * 0.4)]), c)
+				draw_line(o + Vector2(-r * 1.2, r * 1.0), o + Vector2(r * 1.2, -r * 1.0), Color(Hud.TEXT, c.a), 2.0)
 			"getup":   # an arrow up off the floor
 				draw_line(o + Vector2(0, r * 1.0), o + Vector2(0, -r * 0.6), c, 3.0)
 				draw_colored_polygon(PackedVector2Array([o + Vector2(0, -r * 1.2), o + Vector2(-r * 0.6, -r * 0.4), o + Vector2(r * 0.6, -r * 0.4)]), c)
@@ -735,6 +741,12 @@ func _team_col(u: Dictionary, enc: Encounter = null) -> Color:
 	return stance_col(stance(enc, int(u.team)))
 
 
+## The line under a crew member's name: their role, or HOSTAGE for a rescue's freed captive (on
+## the crew's side and the player's to move, but not one of the crew).
+static func crew_tag(u: Dictionary) -> String:
+	return "HOSTAGE" if bool(u.get("captive", false)) else String(u.c.role).to_upper()
+
+
 ## Where side `team` stands with the crew: one query (Encounter.hostile/allied) for every label,
 ## the hover tip, the Alt inspect card and the unit colours. No encounter: HOSTILE.
 static func stance(enc: Encounter, team: int) -> String:
@@ -822,7 +834,7 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 		nv.add_theme_constant_override("separation", 0)
 		top.add_child(nv)
 		nv.add_child(_text(c.display_name.to_upper(), F_DISPLAY, 40, GOLD if crew_turn else RED))
-		nv.add_child(_text(c.role.to_upper() + "  ·  " + ["UNHURT", "LIGHT WOUNDS", "SERIOUS WOUNDS", "MORTALLY WOUNDED", "FLATLINED"][c.wound_state()], F_DISPLAY, 20, CYAN if crew_turn else RED))
+		nv.add_child(_text(crew_tag(enc.cur) + "  ·  " + ["UNHURT", "LIGHT WOUNDS", "SERIOUS WOUNDS", "MORTALLY WOUNDED", "FLATLINED"][c.wound_state()], F_DISPLAY, 20, CYAN if crew_turn else RED))
 		_card.add_child(top)
 		var hp := HBoxContainer.new()
 		hp.add_theme_constant_override("separation", 8)
@@ -1154,7 +1166,7 @@ func _party_card(u: Dictionary, active: bool) -> Control:
 	v.add_theme_constant_override("separation", 2)
 	h.add_child(v)
 	v.add_child(_text(c.display_name.to_upper(), F_DISPLAY, 30, GOLD if active else TEXT))
-	v.add_child(_text(c.role.to_upper(), F_DISPLAY, 20, DIM))
+	v.add_child(_text(crew_tag(u), F_DISPLAY, 20, GOLD if bool(u.get("captive", false)) else DIM))
 	var hr := HBoxContainer.new()
 	hr.add_theme_constant_override("separation", 6)
 	var hm := _hp_meter(u.id, c, 80, 9)
@@ -1250,7 +1262,7 @@ static func action_help(id: String, live := "") -> String:
 ## The hover card above a bar button.
 func _bar_tip(b: Control, id: String) -> void:
 	var r := b.get_global_rect()
-	tip(action_help(id), r.position - global_position + Vector2(-28, -40), "// CLOSE QUARTERS", Color("ff8a3d"))
+	tip(action_help(id), r.position - global_position + Vector2(-28, -40), "// ON FIRE" if id == "put_out" else "// CLOSE QUARTERS", Color("ff8a3d"))
 
 
 ## The grapple a combatant is in, for cards: who's holding whom.

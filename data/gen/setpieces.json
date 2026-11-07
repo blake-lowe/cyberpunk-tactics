@@ -685,7 +685,7 @@
 
 	"norcal_potentilla": {
 		"name": "The Potentilla (NorCal Military Base)", "locations": {"norcal_military_base_13": {}}, "faction": "estero_bay_military_cog",
-		"base": {"scene": "lone_building", "planner": "compound"}, "params": {"security": 3, "floors": 2},
+		"base": {"scene": "lone_building", "planner": "compound"}, "params": {"security": 3, "floors": 2, "deploy": "far"},
 		"compound": {
 			"margin": 4, "ground": "concrete", "zone": "staff", "yard": "compound_yard", "wall_mat": 1, "booth": true,
 			"court": {"w": [14, 16], "d": [12, 14], "kind": "courtyard", "ground": "grass", "zone": "staff"},
@@ -824,7 +824,7 @@
 
 	"maxtac_hq": {
 		"name": "MAX-TAC Headquarters", "locations": {"south_night_city_9": {}}, "faction": "maxtac",
-		"base": {"scene": "lone_building", "planner": "compound"}, "params": {"security": 3, "floors": 3},
+		"base": {"scene": "lone_building", "planner": "compound"}, "params": {"security": 3, "floors": 3, "deploy": "far"},
 		"compound": {
 			"margin": 4, "ground": "concrete", "zone": "staff", "yard": "compound_yard", "wall_mat": 1, "booth": true,
 			"court": {"w": [12, 14], "d": [10, 12], "kind": "courtyard", "ground": "grass", "zone": "secure"},
