@@ -30,6 +30,8 @@ uniform float fog_cool = 1.0;       // 1: unseen areas shift blue (night scenes)
 uniform float fog_hue = 0.0;        // per material: colour kept out of sight whatever fog_sat says (lawns, foliage: grey grass read as black voids)
 uniform bool cuttable = false;
 uniform bool shell = false;
+uniform bool layout = false;        // floors, walls, doors, stairs: what a blueprint shows (WorldBuilder.is_layout)
+uniform bool blueprint = false;     // this storey is on the fixer's blueprints: its unknown layout shows dimmed (FloorNav)
 uniform sampler2D lightfield : filter_linear, repeat_disable;
 uniform float spill = 0.9;
 global uniform vec3 cut_center;     // xz focus, y = viewed floor index
@@ -99,8 +101,10 @@ void fragment() {
 	// --- fog of war: dithered frontier; explored-but-unseen is dimmer, cooler, with lights low
 	float f = mode != 2 ? fogv.r : 1.0;
 	if (shell) f = 1.0;   // building exteriors are always known and drawn at full value (XCOM-style)
-	if (mode == 0 && f < 0.15 + 0.14 * (bay + 0.5)) discard;
-	if (mode == 1 && f >= 0.22) discard;
+	// blueprint: unknown layout on a blueprint storey draws as a dim cyan plan instead of the void
+	float bp = (blueprint && layout && mode == 0) ? 1.0 - smoothstep(0.15, 0.45, f) : 0.0;
+	if (mode == 0 && bp <= 0.0 && f < 0.15 + 0.14 * (bay + 0.5)) discard;
+	if (mode == 1 && (f >= 0.22 || blueprint)) discard;
 	float vis = smoothstep(0.55, 0.9, f);
 	float k = mode == 0 ? mix(explored_dim, 1.0, vis) : 1.0;
 
@@ -213,6 +217,14 @@ void fragment() {
 		float l = dot(base, vec3(0.3, 0.59, 0.11));
 		base = mix(vec3(l), base, mix(max(fog_sat, fog_hue), 1.0, vis)) * k * mix(mix(vec3(1.0), vec3(0.8, 0.9, 1.15), fog_cool * step(fog_hue, 0.0)), vec3(1.0), vis);
 		emit *= mix(mix(0.4, 0.85, 1.0 - fog_cool), 1.0, vis);
+	}
+	if (bp > 0.0) {   // a plan, not a lit room: grey-blue, faint square lines on the floors
+		float l = dot(base, vec3(0.3, 0.59, 0.11));
+		vec3 plan = vec3(0.03, 0.045, 0.06) + vec3(l) * vec3(0.1, 0.13, 0.17);
+		float grid = up ? max(line(wpos.x, 0.03), line(wpos.z, 0.03)) : 0.0;
+		vec3 pe = up ? vec3(0.03, 0.045, 0.06) + vec3(0.05, 0.11, 0.14) * grid : vec3(0.025, 0.04, 0.055);
+		base = mix(base, plan, bp);
+		emit = mix(emit, pe, bp);
 	}
 	if (flat_shade) NORMAL = normalize(cross(dFdy(VERTEX), dFdx(VERTEX)));
 	ALBEDO = base;

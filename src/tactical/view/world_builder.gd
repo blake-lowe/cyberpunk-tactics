@@ -165,6 +165,7 @@ func mat(name: String, f: int, cut := true, over := {}) -> ShaderMaterial:
 	mt.set_shader_parameter("dry", extra.get("dry", false))
 	mt.set_shader_parameter("fog_hue", float(extra.get("fog_hue", 0.0)))
 	mt.set_shader_parameter("cuttable", cut)
+	mt.set_shader_parameter("layout", is_layout(name))
 	if extra.has("tex"):
 		mt.set_shader_parameter("tex", extra.tex)
 		mt.set_shader_parameter("tex_mix", 1.0)
@@ -239,6 +240,12 @@ func nature(name: String, xf: Transform3D, f := 0, over := {}) -> void:
 	if tag != null:
 		for cell in (tag if tag is Array else [tag]):
 			_tagged.get_or_add(cell, []).append([b, b.xf.size() - 1])
+
+
+## The static layout a blueprint shows (FloorNav.blueprint_floors): floors, walls and their trim,
+## doors and stairs. Furniture, props and devices are not on it.
+static func is_layout(name: String) -> bool:
+	return name.begins_with("floor_") or name.begins_with("wall_") or name in ["stairs", "door", "frame", "skirt", "cornice", "glass", "slab", "concrete", "roof"]
 
 
 ## Every material the builder made (the greybox sets fog/look parameters on them).
