@@ -1,5 +1,5 @@
 {
- "_source": "Hover cards for the action bar's close-quarters actions (Hud.action_help), like net_help.json for the NET panel. Short paraphrases of CPR core p.168-169, p.177, p.183-184 as distilled in docs/rules/combat.md sections 3, 5 and 7; hand-edited. Each entry: name, cost, text (what it does), key (its roll or numbers), page. Ids are Encounter.grapple_options().",
+ "_source": "Hover cards for the action bar's close-quarters actions (Hud.action_help), like net_help.json for the NET panel. Short paraphrases of CPR core p.168-169, p.177, p.183-184 and p.180 (Put Out Fire) as distilled in docs/rules/combat.md sections 3, 5 and 7; hand-edited. Each entry: name, cost, text (what it does), key (its roll or numbers), page. Ids are Encounter.grapple_options().",
  "actions": {
   "grab": {
    "name": "Grab",
@@ -56,6 +56,13 @@
    "text": "Stand up from Prone. Until you do you have no Move Action; once up, your Move Action is back.",
    "key": "",
    "page": "p.168-169"
+  },
+  "put_out": {
+   "name": "Put Out Fire",
+   "cost": "Action",
+   "text": "Beat out the flames. While you're On Fire you take its damage straight to HP at the end of every Turn, armor or not, until you spend an Action on this.",
+   "key": "Mild 2, Strong 4, Deadly 6 a Turn",
+   "page": "p.180"
   }
  }
 }

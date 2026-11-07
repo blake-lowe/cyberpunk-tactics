@@ -102,10 +102,11 @@ func test_captive_is_neutral_until_freed_then_follows_out() -> void:
 	solo.pos = cap.pos + Vector3i(4, 0, 0) if e.m.walkable(cap.pos.z, Vector2i(cap.pos.x + 4, cap.pos.y)) else solo.pos
 	e.cur = cap
 	e.turn = TurnState.begin(e.dice, cap.c)
-	var before: float = Vector2(cap.pos.x - solo.pos.x, cap.pos.y - solo.pos.y).length()
+	var walk: Dictionary = e._with_locks(func(): return e.nav.distance_field([solo.pos], {}, 4000))   # on foot, not as the crow flies
+	var before := int(walk.get(cap.pos, 999))
 	AI.follow(e, cap)
-	var after: float = Vector2(cap.pos.x - solo.pos.x, cap.pos.y - solo.pos.y).length()
-	assert_true(after <= before, "follows (%.1f -> %.1f)" % [before, after])
+	var after := int(walk.get(cap.pos, 999))
+	assert_true(after <= before, "follows (%d -> %d squares' walk)" % [before, after])
 	# into the extraction zone = done
 	cap.pos = e.extract_cells.keys()[0]
 	e._check_end()

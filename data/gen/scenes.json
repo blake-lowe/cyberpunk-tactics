@@ -1,9 +1,10 @@
 {
- "_doc": "Scene types for SceneGen. params override MapGen.DEFAULTS (w/h in squares of 2 m; floors = tallest structure). A scene's turrets: {\"<security>\": chance} is at least the chance for every building's turrets (Furnish.has_turrets: the corporate campus, where military locations play, is armed). The planner code lives in src/gen/scene_gen.gd.",
+ "_doc": "Scene types for SceneGen. params override MapGen.DEFAULTS (w/h in squares of 2 m; floors = tallest structure). A scene's turrets: {\"<security>\": chance} is at least the chance for every building's turrets (Furnish.has_turrets: the corporate campus, where military locations play, is armed). params.deploy: where the crew starts (SceneGen._deploy_zone): \"near\" a short walk from the target building's street door (across the street), or \"far\" at the street spawn farthest from it (open ground and stealth approaches); a set piece's params can override it. The planner code lives in src/gen/scene_gen.gd.",
  "skirmish": {
   "name": "Skirmish",
   "desc": "Small test map for greybox and visual work: one two-storey bar on a street, a back alley, a few crates. Guards start close.",
   "params": {
+   "deploy": "near",
    "w": 30,
    "h": 24,
    "floors": 2,
@@ -14,6 +15,7 @@
  "lone_building": {
   "name": "Lone building",
   "params": {
+   "deploy": "near",
    "w": 40,
    "h": 32,
    "floors": 2
@@ -23,6 +25,7 @@
   "name": "Street block",
   "desc": "A few city blocks from the mixed-residential profile: grid with the odd diagonal or curve, mixed buildings and lots.",
   "params": {
+   "deploy": "near",
    "w": 88,
    "h": 64,
    "floors": 3,
@@ -33,6 +36,7 @@
   "name": "Megablock",
   "desc": "Apartment tower over a courtyard, parking and a corner shop.",
   "params": {
+   "deploy": "near",
    "w": 84,
    "h": 60,
    "floors": 3
@@ -42,6 +46,7 @@
   "name": "Shipyard",
   "desc": "Moored cargo ship, quay cranes, fenced container yard, warehouse and gate booth.",
   "params": {
+   "deploy": "far",
    "w": 104,
    "h": 72,
    "floors": 2
@@ -51,6 +56,7 @@
   "name": "Badlands raider camp",
   "desc": "Open desert with rock outcrops, a riverbed, wrecks and a fenced raider camp.",
   "params": {
+   "deploy": "far",
    "w": 112,
    "h": 80,
    "floors": 1
@@ -60,6 +66,7 @@
   "name": "Rail yard",
   "desc": "Stopped train you can board, freight cars on parallel tracks, platform and station.",
   "params": {
+   "deploy": "far",
    "w": 104,
    "h": 60,
    "floors": 2
@@ -69,6 +76,7 @@
   "name": "Corporate campus",
   "desc": "Fenced grounds, gate booth, parking, plaza, HQ tower and service building.",
   "params": {
+   "deploy": "far",
    "w": 96,
    "h": 72,
    "floors": 3
@@ -80,6 +88,7 @@
   "desc": "Tech demo: a 4 \u00d7 3 grid of city blocks cut by a diagonal avenue, about 40 buildings, skybridges and footbridges.",
   "demo": true,
   "params": {
+   "deploy": "near",
    "w": 220,
    "h": 170,
    "floors": 3,
@@ -91,6 +100,7 @@
   "name": "Neighbourhood",
   "desc": "Any Night City neighbourhood profile from data/gen/districts.json (params.profile).",
   "params": {
+   "deploy": "near",
    "w": 120,
    "h": 90,
    "floors": 3,
@@ -101,6 +111,7 @@
   "name": "Undercity",
   "desc": "Storm drains and maintenance tunnels under the city: runoff channels with plank crossings, a cistern, pump rooms and service tunnels, and the target sealed in a vault chamber at the far end. Sodium work lamps and a sick green glow.",
   "params": {
+   "deploy": "far",
    "w": 72,
    "h": 52,
    "floors": 1
@@ -110,6 +121,7 @@
   "name": "Arcology concourse",
   "desc": "The floor of a corporate arcology's atrium: white stone promenade round a reflecting pool, boutiques and a clinic on both sides, a service lane in, and the corp's offices behind a security line. Cold light, corporate red.",
   "params": {
+   "deploy": "near",
    "w": 84,
    "h": 60,
    "floors": 3
@@ -119,6 +131,7 @@
   "name": "Burning combat zone",
   "desc": "A combat zone at dusk with the fighting still going: ruined blocks, burning wrecks and buildings, smoke over the streets, the power out.",
   "params": {
+   "deploy": "far",
    "w": 96,
    "h": 72,
    "floors": 3,

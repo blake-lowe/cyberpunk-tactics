@@ -1980,13 +1980,29 @@ func _place_camera() -> void:
 
 
 ## Put the unit a little above screen centre (the hotbar covers the bottom), clamped to the map.
-func _frame_unit(u: Dictionary) -> void:
-	var fwd := Vector2(-sin(deg_to_rad(cam_yaw)), -cos(deg_to_rad(cam_yaw)))
-	var p := Vector2(u.pos.x + 0.5, u.pos.y + 0.5) - fwd * cam_dist * 0.12
-	if _last_cur == -1 and m.w > 40:   # first turn on a big map: lean toward the middle (objective)
+## The first turn frames the target's street door too (CamFrame.opening). `smooth`: pan there
+## (a new turn), and not at all when already centred (CamFrame.needs_recentre).
+func _frame_unit(u: Dictionary, smooth := false) -> void:
+	var p := CamFrame.unit_focus(Vector2(u.pos.x, u.pos.y), cam_yaw, cam_dist)
+	var door := m.main_entrance()
+	if _last_cur == -1 and not door.is_empty():   # the opening shot: the crew and the way in
+		var vs := get_viewport().get_visible_rect().size
+		var op := CamFrame.opening(Vector2(u.pos.x, u.pos.y), Vector2(door.pos), cam_yaw, cam_dist, vs.x / maxf(vs.y, 1.0))
+		p = op.focus
+		cam_dist = float(op.dist)
+		cam_yaw = float(op.yaw)
+		smooth = false
+	elif _last_cur == -1 and m.w > 40:   # first turn on a big map with no door: lean toward the middle (objective)
 		p += (Vector2(m.w / 2.0, m.h / 2.0) - p).limit_length(cam_dist * 0.2)   # but keep the unit in view
-	cam_target = Vector3(clampf(p.x, 0, m.w), 0, clampf(p.y, 0, m.h))
+	var goal := Vector3(clampf(p.x, 0, m.w), 0, clampf(p.y, 0, m.h))
 	view_floor = u.pos.z
+	if smooth:
+		if CamFrame.needs_recentre(Vector2(cam_target.x, cam_target.z), Vector2(goal.x, goal.z)):
+			_pan_to(goal, 0.35)   # not awaited: the turn banner plays over it
+		else:
+			_place_camera()
+		return
+	cam_target = goal
 	_place_camera()
 
 
@@ -3679,9 +3695,10 @@ func _after_action() -> void:
 		_rebuild = false
 		_build_world()
 	enc.refresh_vision()
-	var new_turn: bool = not enc.cur.is_empty() and enc.cur.team == 0 and enc.cur.id != _last_cur
+	# a new crew turn, the same unit's next one included (the last one standing after a death)
+	var new_turn := CamFrame.new_crew_turn(int(enc.cur.get("id", -1)), not enc.cur.is_empty() and enc.cur.team == 0, _last_cur, enc.turn, _view_turn)
 	if new_turn:
-		_frame_unit(enc.cur)   # new crew turn: centre the active unit in the space between the panels
+		_frame_unit(enc.cur, _last_cur != -1)   # centre the active unit between the panels (a pan; none if it's there)
 	_last_cur = enc.cur.id if not enc.cur.is_empty() else -1
 	_view_turn = enc.turn
 	_refresh()

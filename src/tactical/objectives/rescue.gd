@@ -5,8 +5,11 @@ extends Objective
 
 ## Held in the target building's most secure room, unarmed and hurt, on the neutral CAPTIVE side
 ## until freed (they neither see for the crew nor draw fire); freed, they join the crew's side and
-## the initiative order and follow the crew on their own turns. They're one of Night City's
-## civilians (any NC2045 civilian block: Recruit.civilian_blocks), stripped of their weapons.
+## the initiative order as a HOSTAGE the player moves on their own turns (playtest round 4: left to
+## the AI they got stuck), but never one of the crew: no pay, no permadeath, not on the roster
+## (Encounter.is_hostage). The job is won when they reach the extraction zone, lost if they
+## flatline. They're one of Night City's civilians (any NC2045 civilian block:
+## Recruit.civilian_blocks), stripped of their weapons.
 func setup(target_sid: int, origin: Vector2i, _sec: int) -> void:
 	var cell := e.secure_cell(target_sid, origin, "captive")
 	var names: Array = cfg.names
