@@ -52,6 +52,10 @@ const MAIN_ACTIONS := [["shot", "ATTACK", "F", "stage", "attack", Color("05d9e8"
 	["kit0", "KIT", "G", "kit", 0, Color("f9c80e")], ["jack", "JACK IN", "J", "jack_in", null, Color("d68cff")],
 	["interact", "INTERACT", "B", "interact", null, Color("f9c80e")], ["medic", "STABILIZE", "T", "tool", "stabilize", Color("39f0a0")],
 	["role", "ROLE", "V", "role", null, Color("39f0a0")]]
+## Stairs (FloorNav.go): [id, title, glyph, dir]. Shown while the active unit stands on a stair
+## square (or elevator / ladder end) that leads that way; lit when the move fits this turn.
+const STAIR_ACTIONS := [["go_up", "GO UP", "go_up", 1], ["go_down", "GO DOWN", "go_down", -1]]
+var stairs := {}          ## FloorNav.go results by direction (1 up, -1 down), set by the view before refresh
 ## Close-quarters actions (CPR core p.168-169, p.177, p.184): [id, title, key, glyph, tint, tool].
 ## Shown when Encounter.grapple_options() offers them; `tool` ones pick a target with a left click
 ## (ClickIntent.TOOL), the rest act at once. Hover cards: data/rules/action_help.json.
@@ -237,7 +241,19 @@ void fragment() {
 	add_child(_turn_rule)
 	_banner = _text("", F_DISPLAY, 20, Color("9fb4c4"))
 	_banner_panel = _panel(CYAN, 0b0100)
-	_banner_panel.add_child(_banner)
+	var brow := HBoxContainer.new()
+	brow.add_theme_constant_override("separation", 6)
+	_banner_panel.add_child(brow)
+	_banner.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	brow.add_child(_banner)
+	_floor_up = FloorBtn.new(1)
+	_floor_up.pressed.connect(func(): action.emit("floor", 1))
+	_floor_up.tooltip_text = "View the floor above (PG UP or ])"
+	brow.add_child(_floor_up)
+	_floor_down = FloorBtn.new(-1)
+	_floor_down.pressed.connect(func(): action.emit("floor", -1))
+	_floor_down.tooltip_text = "View the floor below (PG DN or [)"
+	brow.add_child(_floor_down)
 	add_child(_banner_panel)
 	resized.connect(_layout)
 	_layout()
@@ -267,6 +283,52 @@ func _text(s: String, font: Font, size: int, col := TEXT) -> Label:
 	l.add_theme_constant_override("outline_size", 2 if font != F_PIXEL else 0)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return l
+
+
+var _floor_up: FloorBtn
+var _floor_down: FloorBtn
+
+
+## The floor label's ▲ / ▼: greyed when there is no floor that way; `pulse` (the objective lies that
+## way, owner: subtle, never named) breathes the outline gently.
+class FloorBtn extends Button:
+	var dir := 1
+	var pulse := false
+	func _init(p_dir: int) -> void:
+		dir = p_dir
+		custom_minimum_size = Vector2(26, 26)
+		focus_mode = Control.FOCUS_NONE
+		add_theme_stylebox_override("normal", CutBox.make(Color(0.03, 0.045, 0.06, 0.95), Color(Hud.CYAN, 0.4), 5, 0b0101))
+		add_theme_stylebox_override("hover", CutBox.make(Color(0.02, 0.12, 0.14, 0.97), Hud.CYAN, 5, 0b0101))
+		add_theme_stylebox_override("pressed", CutBox.make(Color(0.14, 0.11, 0.02, 0.97), Hud.GOLD, 5, 0b0101))
+		add_theme_stylebox_override("disabled", CutBox.make(Color(0.02, 0.025, 0.03, 0.6), Color(Hud.DIM, 0.2), 5, 0b0101))
+		add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	func _process(_d: float) -> void:
+		if pulse:
+			queue_redraw()
+	func _draw() -> void:
+		var o := size / 2
+		var r := 6.0
+		var col := Color(Hud.DIM, 0.45) if disabled else Hud.CYAN
+		if pulse and not disabled:
+			var k := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * 2.4)
+			col = Hud.CYAN.lerp(Hud.GOLD, 0.35 + 0.4 * k)
+			draw_rect(Rect2(Vector2(2, 2), size - Vector2(4, 4)), Color(Hud.GOLD, 0.1 + 0.18 * k), false, 1.5)
+		var dy := -r * 0.75 * dir
+		draw_colored_polygon(PackedVector2Array([o + Vector2(-r, -dy), o + Vector2(0, dy), o + Vector2(r, -dy)]), col)
+
+
+## The floor buttons' state: whether there is a floor up / down, and which way the objective lies
+## (FloorNav.objective_dir: that button pulses).
+func floor_nav(up_ok: bool, down_ok: bool, hint_dir: int) -> void:
+	if _floor_up == null:
+		return
+	_floor_up.disabled = not up_ok
+	_floor_down.disabled = not down_ok
+	_floor_up.pulse = hint_dir > 0 and up_ok
+	_floor_down.pulse = hint_dir < 0 and down_ok
+	_floor_up.queue_redraw()
+	_floor_down.queue_redraw()
 
 
 ## A layer that draws with a callable (world-anchored HUD bits: cover shields).
@@ -619,6 +681,18 @@ class ActBtn extends Button:
 				draw_line(o + Vector2(0, r * 1.0), o + Vector2(0, -r * 0.6), c, 3.0)
 				draw_colored_polygon(PackedVector2Array([o + Vector2(0, -r * 1.2), o + Vector2(-r * 0.6, -r * 0.4), o + Vector2(r * 0.6, -r * 0.4)]), c)
 				draw_line(o + Vector2(-r * 1.3, r * 1.1), o + Vector2(r * 1.3, r * 1.1), Color(c, 0.6), 1.5)
+			"go_up", "go_down":   # a flight of steps with an arrow up or down it
+				for i in 3:
+					var sx := o.x - r * 1.3 + i * r * 0.8
+					var sy := o.y + r * 1.0 - i * r * 0.6
+					draw_line(Vector2(sx, sy), Vector2(sx + r * 0.8, sy), c, 2.0)
+					draw_line(Vector2(sx + r * 0.8, sy), Vector2(sx + r * 0.8, sy - r * 0.6), c, 2.0)
+				var up := glyph == "go_up"
+				var ax := o.x + r * 0.9
+				var tipy := o.y - r * 1.2 if up else o.y + r * 0.6
+				draw_line(Vector2(ax, o.y - r * 0.9 if not up else o.y + r * 0.3), Vector2(ax, tipy), c, 2.5)
+				var dd := 1.0 if up else -1.0
+				draw_colored_polygon(PackedVector2Array([Vector2(ax, tipy - dd * 3), Vector2(ax - r * 0.45, tipy + dd * r * 0.5), Vector2(ax + r * 0.45, tipy + dd * r * 0.5)]), c)
 			"end":
 				draw_colored_polygon(PackedVector2Array([o + Vector2(-r * 1.2, -r), o + Vector2(r * 0.2, 0), o + Vector2(-r * 1.2, r)]), c)
 				draw_colored_polygon(PackedVector2Array([o + Vector2(0, -r), o + Vector2(r * 1.4, 0), o + Vector2(0, r)]), c)
@@ -674,6 +748,12 @@ func _build_bar() -> void:
 		b3.pressed.connect(func(): action.emit(act, arg))
 		_tool_buttons[spec[0]] = b3
 		_buttons.add_child(b3)
+	for spec in STAIR_ACTIONS:   # stairs: up or down the flight you stand on (FloorNav.go)
+		var sb := ActBtn.new(spec[2], spec[1], "", Color("05d9e8"))
+		var sdir: int = spec[3]
+		sb.pressed.connect(func(): action.emit("go_floor", sdir))
+		_tool_buttons[spec[0]] = sb
+		_buttons.add_child(sb)
 	for spec in GRAPPLE_ACTIONS:   # close quarters: only what the grapple state allows shows (Encounter.grapple_options)
 		var gb := ActBtn.new(spec[3], spec[1], spec[2], spec[4])
 		gb.toggle_mode = spec[5]
@@ -953,10 +1033,16 @@ func _refresh_tools(enc: Encounter, crew_turn: bool) -> void:
 	var g: Grapple = c.grapple
 	for spec in GRAPPLE_ACTIONS:
 		show[spec[0]] = String(spec[0]) in gopts
+	for spec in STAIR_ACTIONS:
+		show[spec[0]] = stairs.has(spec[3])
 	for k in _tool_buttons:
 		var b: ActBtn = _tool_buttons[k]
 		b.visible = show[k]
 		b.disabled = not crew_turn or (k != "jack" and not can_act) or (k == "reload" and not t.action_available)
+		if show[k] and k in ["go_up", "go_down"]:   # a move, not an Action: lit when the flight fits this turn
+			var sg: Dictionary = stairs[1 if k == "go_up" else -1]
+			b.disabled = not crew_turn or not sg.ok
+			b.tooltip_text = ("Take the stairs %s" % ("up" if k == "go_up" else "down")) + (" (Run: spends your Action)" if sg.run else "") + ("" if sg.ok else " · " + String(sg.reason))
 		if show[k] and _is_grapple(k):   # every one is an Action, bar letting go of someone alive (p.177, p.184)
 			b.disabled = not crew_turn or (not t.action_available and not (k == "release" and g != null and g.live()))
 		var armed: bool = {"shot": stage == "attack", "kit0": tool == "grenade", "medic": tool == "stabilize",
@@ -1864,7 +1950,7 @@ const HELP := [
 		["MIDDLE-DRAG", "Rotate freely"],
 		["Q / E", "Rotate"],
 		["W A S D", "Pan"],
-		["PG UP / PG DN", "Change floor"],
+		["PG UP / PG DN  ·  ] / [", "Change floor (or the arrows by the floor label)"],
 	]],
 ]
 

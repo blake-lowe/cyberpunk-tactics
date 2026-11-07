@@ -8,7 +8,8 @@ extends Node
 ## Controls
 ##   WASD / arrows   pan          Mouse wheel   zoom
 ##   Q / E (hold)    rotate (eased)             Middle-drag   rotate freely        H  controls hint
-##   PageUp/PageDown change the floor you're viewing (floors above open up around the focus)
+##   PageUp/PageDown or ] / [ (or the HUD's ▲ ▼ by the floor label) change the floor you're viewing
+##                   (floors above open up around the focus); standing on stairs, the bar offers GO UP / GO DOWN
 ##   Right click     move (path preview while hovering the move grid)
 ##   Left click      attack the enemy under the cursor or its turn-order portrait; with a tool armed
 ##                   (F / the bar), use it on its target; Shift+left: shoot the cover in the way.
@@ -23,7 +24,7 @@ extends Node
 ## Screenshot mode:  -- --shot=path.png [--scene=x] [--profile=y] [--district=z] [--seed=n] [--pixel=3]
 ##   [--levels=0] [--dither=0.5] [--outline=0.4] [--bloom=0.8] [--contrast=1.1] [--ortho=1]
 ##   [--fog=0] [--zoom=24] [--yaw=45] [--lights=1] [--hover=x,y] [--promo=1] [--cut=auto|all|off]
-##   [--stage=attack] [--arm=brawl|grenade|grab|<attack mode>] [--grapple=hold|shield|throw|held (with --near=1)] [--portrait=1] [--alt=1] [--near=n] [--help=1]
+##   [--stage=attack] [--arm=brawl|grenade|grab|<attack mode>] [--grapple=hold|shield|throw|held (with --near=1)] [--portrait=1] [--alt=1] [--near=n] [--help=1] [--stairs=on|up]
 ##   [--exposure=1 --gamma=1 --ambient=1 --lights=1 --spill=1 (lighting review: grade exposure and power curve, ambient, lamp and baked-spill scales)]
 ##   [--hurt=0.6 (the nearest foes roused and hurt)] [--logt=0..1 (the log slide held there)]
 
@@ -44,6 +45,9 @@ var m: TacMap
 var enc: Encounter
 var dice: Dice
 var view_floor := 0
+var _blueprint := {}   ## floors drawn as the fixer's blueprints while unexplored (FloorNav.blueprint_floors)
+var _bp_shown := {}    ## material instance id → blueprint flag last set
+var _stair_glow: Node3D   ## faint lights on the stairs toward the objective's floor
 var cutaway := true
 var cut_all := false   ## C cycles: AUTO (buildings open only with crew inside or pointed into) → ALL SEEN → OFF
 var sight_mode := 0    ## Z cycles guards' sight lines: 0 near the hovered move / hovered guard, 1 always, 2 off
@@ -266,6 +270,7 @@ var _alt_demo := false                 ## --alt=1 (review renders): Alt held (ou
 var _dev_help := false                 ## --help=1 (review renders): the H panel open
 var _dev_hurt := -1.0                  ## --hurt=f (review renders): the nearest foes roused, f of their HP lost
 var _dev_log_t := -1.0                 ## --logt=t (review renders): the log's slide held at t
+var _dev_stairs := ""                  ## --stairs=on|up (review renders): the active crew member stands on the target building's stairs (up: and takes them)
 var _dev_near := 0                     ## --near=n (review renders): bring the nearest foe n squares from the crew
 var _dev_grapple := ""                 ## --grapple=hold|shield|throw|held (review renders, with --near=1): a sure Grab on the nearest foe first
 var _alt_on := false                   ## Alt is held: enemy outlines, last-known marks
@@ -331,6 +336,7 @@ func _ready() -> void:
 			"hurt": _dev_hurt = float(kv[1])   # review renders: the nearest foes are roused and lose this share of their HP
 			"logt": _dev_log_t = float(kv[1])   # review renders: hold the log's slide here (0 collapsed .. 1 open)
 			"grapple": _dev_grapple = kv[1]   # review renders: hold | shield | throw | held (the foe grabs the crew)
+			"stairs": _dev_stairs = kv[1]   # review renders: on the target's stairs (GO UP on the bar); =up takes them
 			"near": _dev_near = int(kv[1])   # review renders: the nearest foe stands this many squares off, in the line of fire
 			"callouts": _dev_callouts = true   # review renders: -14, CRITICAL · BROKEN RIBS and MORTALLY WOUNDED stacked
 			"end": _dev_end = kv[1]   # review renders: the gig ends this way (won | lost | fled), the end panel shows
@@ -402,6 +408,11 @@ func _process(delta: float) -> void:
 		(_charge_node.get_node("glow") as OmniLight3D).visible = on
 	if devices and not keycard_nodes.is_empty():
 		_update_keycards()
+	if _stair_glow and is_instance_valid(_stair_glow):   # the stairs toward the objective breathe, faintly
+		var pa := 0.16 + 0.1 * sin(Time.get_ticks_msec() / 1000.0 * 2.2)
+		for q in _stair_glow.get_children():
+			if q is MeshInstance3D:
+				((q as MeshInstance3D).material_override as StandardMaterial3D).albedo_color.a = pa
 	if obj_node and is_instance_valid(obj_node) and int(enc.objective.get("carrier", -1)) >= 0:   # the diamond follows the carrier
 		var tag := obj_node.get_node("tag") as Node3D
 		tag.position = (unit_nodes[int(enc.objective.carrier)] as Node3D).position + Vector3(0, 2.75, 0)
@@ -467,6 +478,8 @@ func _process(delta: float) -> void:
 			hud.set_log_t(_dev_log_t)
 		if _frames == 2 and _dev_near > 0:
 			_demo_near()
+		if _frames == 2 and _dev_stairs != "":
+			_demo_stairs()
 		if _frames == 2 and _shot_hover.x <= -2:  # --hover=guard / turret: the nearest one in sight
 			var want_turret := _shot_hover.x == -3
 			var best := INF
@@ -795,6 +808,8 @@ func new_gig() -> void:
 	rim.light_energy = rimc[1]
 	sun.directional_shadow_max_distance = 140.0
 	_apply_look()
+	_blueprint = FloorNav.blueprint_floors(m.floors, enc.alive(0).map(func(u): return u.pos))
+	_bp_shown.clear()
 	_build_world()
 	_last_cur = -1
 	_frame_unit(enc.units[0])
@@ -1119,6 +1134,9 @@ func _refresh() -> void:
 	_update_objective()
 	if devices:
 		devices.refresh(enc)
+		for dn in devices.get_children():   # unseen kit stays hidden (a blueprint storey shows no devices)
+			if dn is Node3D and dn.has_meta("floor"):
+				(dn as Node3D).visible = _grade_shows(int(dn.get_meta("floor"))) and _device_known(dn)
 		_update_keycards()
 	for l in lights:  # rooms stay dark until explored, so a reveal reads as lights coming on
 		var cell: Vector3i = l[1]
@@ -1462,7 +1480,8 @@ func _extract_mark() -> Array:
 	for c2 in enc.extract_cells:
 		acc += Vector2(c2.x + 0.5, c2.y + 0.5)
 	acc /= maxf(1.0, enc.extract_cells.size())
-	return [Vector3(acc.x, 0.3, acc.y), "EXTRACT", Hud.GOLD, Vector3i(int(acc.x), int(acc.y), 0)]
+	var ez: int = (enc.extract_cells.keys()[0] as Vector3i).z if not enc.extract_cells.is_empty() else m.street
+	return [Vector3(acc.x, ez * FH + 0.3, acc.y), "EXTRACT", Hud.GOLD, Vector3i(int(acc.x), int(acc.y), ez)]
 
 
 func objective_marks() -> Array:
@@ -1500,10 +1519,13 @@ func _draw_markers(c: Control) -> void:
 		var sp := _to_screen(wp)
 		var behind := cam.is_position_behind(wp)
 		var dist := int(round(Vector3(Vector3i(mk[3]) - from).length() * 2.0))   # squares are 2 m
+		var fdir := FloorNav.objective_dir(view_floor, Vector3i(mk[3]).z)   # on another floor: a small chevron that way, no floor named
 		if r.has_point(sp) and not behind:
 			var y := sp.y - 18.0 - 4.0 * sin(t * 3.0)
 			c.draw_colored_polygon(PackedVector2Array([Vector2(sp.x - 9, y - 12), Vector2(sp.x + 9, y - 12), Vector2(sp.x, y)]), col)
 			c.draw_polyline(PackedVector2Array([Vector2(sp.x - 13, y - 16), Vector2(sp.x + 13, y - 16), Vector2(sp.x, y + 4), Vector2(sp.x - 13, y - 16)]), Color(col, 0.5), 1.5)
+			if fdir != 0:
+				_draw_chevron(c, Vector2(sp.x + 22, y - 6), fdir, col)
 			var label := "%s  %d M" % [mk[1], dist]
 			var lw := Hud.F_BOLD.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
 			var lp := Vector2(clampf(sp.x - lw * 0.5, r.position.x, r.end.x - lw), y - 22)   # long names stay on screen
@@ -1521,12 +1543,23 @@ func _draw_markers(c: Control) -> void:
 			var p := ctr + dir * k
 			var side := Vector2(-dir.y, dir.x)
 			c.draw_colored_polygon(PackedVector2Array([p + dir * 14, p - dir * 6 + side * 10, p - dir * 6 - side * 10]), col)
+			if fdir != 0:
+				_draw_chevron(c, p - dir * 4 + side * 20, fdir, col)
 			var tag := "%s %d M" % [mk[1], dist]
 			var tw := Hud.F_BOLD.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
 			var at := p - dir * (22.0 + tw * 0.5 * absf(dir.x) + 10.0 * absf(dir.y))   # clear of the arrow, whichever edge
 			at.x = clampf(at.x, r.position.x + tw * 0.5, r.end.x - tw * 0.5)
 			c.draw_string_outline(Hud.F_BOLD, at - Vector2(tw * 0.5, -6), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, 5, Color(0, 0, 0, 0.85))
 			c.draw_string(Hud.F_BOLD, at - Vector2(tw * 0.5, -6), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, col)
+
+
+## A small open chevron, ▲ (dir 1) or ▼ (dir -1), for a marker whose target is on another floor.
+func _draw_chevron(c: Control, at: Vector2, dir: int, col: Color) -> void:
+	var s := 6.0
+	var dy := -s * 0.6 * dir
+	var pts := PackedVector2Array([at + Vector2(-s, -dy), at + Vector2(0, dy), at + Vector2(s, -dy)])
+	c.draw_polyline(pts, Color(0, 0, 0, 0.8), 5.0)
+	c.draw_polyline(pts, col, 2.5)
 
 
 func _draw_cover_shields(c: Control) -> void:
@@ -1652,13 +1685,18 @@ func _below_grade_view() -> void:
 		if group:
 			for n in group.get_children():
 				if n is Node3D and n.has_meta("floor"):
-					(n as Node3D).visible = _grade_shows(int(n.get_meta("floor")))
+					(n as Node3D).visible = _grade_shows(int(n.get_meta("floor"))) and _device_known(n)
 	if ambient and is_instance_valid(ambient):   # embers, wreck fires and the like hang over the street
 		ambient.visible = not below
 
 
 ## Whether storey `f` stands in the below-grade view: viewing a basement shows it and the storeys
 ## under it; otherwise the street and everything above (the basements are out of sight under it).
+## Devices stay hidden until the crew has seen their square (a blueprint storey shows no kit).
+func _device_known(n: Node) -> bool:
+	return not fog_on or not n.has_meta("cell") or enc.vision.explored.has(n.get_meta("cell"))
+
+
 func _grade_shows(f: int) -> bool:
 	if m == null or m.basements == 0:
 		return true
@@ -1688,6 +1726,9 @@ func _update_fog() -> void:
 			var fu: Dictionary = enc.units[_focus_unit]
 			if fu.team == 0 or not fog_on or enc.vision.visible.has(fu.pos):
 				open_s[_indoor_structure(fu.pos)] = true
+		if not enc.alive(0).any(func(u): return u.pos.z == view_floor):   # looking at a floor nobody is on (PgUp, ▲): every building opens at it
+			for sid in struct_rooms:
+				open_s[sid] = true
 		for sid in open_s:
 			for l in struct_rooms.get(sid, {}):
 				open_rooms[l] = true
@@ -1724,7 +1765,20 @@ func _update_fog() -> void:
 				data[((f * m.h + c.y) * m.w + c.x) * 2 + 1] = 255
 	fog_img.set_data(m.w, m.h * m.floors, false, Image.FORMAT_RG8, data)
 	fog_tex.update(fog_img)
+	_update_blueprint()
 	_update_xray()
+
+
+## Blueprint storeys (FloorNav.blueprint_floors): their materials draw the unknown layout as a dim
+## plan (world.gdshader `blueprint`); off with the fog.
+func _update_blueprint() -> void:
+	if builder == null:
+		return
+	for mt in builder.materials():
+		var on: bool = fog_on and _blueprint.has(int((mt as ShaderMaterial).get_shader_parameter("floor_idx")))
+		if _bp_shown.get(mt.get_instance_id(), not on) != on:
+			_bp_shown[mt.get_instance_id()] = on
+			(mt as ShaderMaterial).set_shader_parameter("blueprint", on)
 
 
 ## The building (structure id) whose indoor room holds square v, or -1 outdoors.
@@ -1760,8 +1814,8 @@ func _build_doors() -> void:
 		ch.queue_free()
 	for d in m.doors:
 		var v := Vector3i(d.pos.x, d.pos.y, d.floor)
-		if m.t(d.floor, d.pos.x, d.pos.y) != TacMap.T.DOOR or (fog_on and not enc.vision.explored.has(v)):
-			continue
+		if m.t(d.floor, d.pos.x, d.pos.y) != TacMap.T.DOOR or (fog_on and not enc.vision.explored.has(v) and not _blueprint.has(int(d.floor))):
+			continue   # a blueprint storey shows its doors (layout); lock lamps only once seen
 		var leaf := builder.door_leaf(d)
 		var horiz: bool = leaf.horiz
 		var c: Vector3 = leaf.center
@@ -1789,7 +1843,8 @@ func _build_doors() -> void:
 		lamp.mesh = lm
 		lamp.position = c + (Vector3(0.47, 0.05, 0.26) if horiz else Vector3(0.26, 0.05, 0.47))
 		lamp.set_meta("floor", d.floor)
-		lamp.visible = mi.visible
+		lamp.set_meta("cell", v)
+		lamp.visible = mi.visible and (not fog_on or enc.vision.explored.has(v))
 		door_nodes.add_child(lamp)
 
 
@@ -2287,6 +2342,79 @@ static func floor_label(mp: TacMap, f: int) -> String:
 	return "FLOOR %s" % mp.floor_name(f)
 
 
+## View another floor (dir +1 up, -1 down): PgUp/PgDn, ] / [ and the floor label's ▲ ▼.
+func _change_floor(dir: int) -> void:
+	var f := FloorNav.next_floor(m, view_floor, dir)
+	if f >= 0:
+		_set_view_floor(f)
+
+
+func _set_view_floor(f: int, playback := false) -> void:
+	if f == view_floor:
+		return
+	view_floor = f
+	_place_camera()
+	if playback:   # mid-move: the storey, its fog and cutaway and the label; the rest settles after the action
+		_update_fog()
+		_update_cut()
+		_hud_refresh()
+	else:
+		_refresh()
+
+
+## Which way the objective marker's target lies from the viewed floor (FloorNav.objective_dir),
+## and its cell: the first mark the objective shows (its own last-seen and intel rules apply).
+func _objective_floor_hint() -> Array:
+	var mks := objective_marks()
+	if mks.is_empty():
+		return [0, FloorNav.NONE]
+	var c: Vector3i = mks[0][3]
+	return [FloorNav.objective_dir(view_floor, c.z), c]
+
+
+## GO UP / GO DOWN for the bar: {1: FloorNav.go up, -1: down}, {} off the stairs.
+func _stair_actions() -> Dictionary:
+	if not _crew_turn() or busy or not FloorNav.is_stair(m, enc.cur.pos):
+		return {}
+	var mv: Dictionary = enc.move_options() if enc.turn.can_move() else {}
+	var rn := enc.run_options()
+	var out := {}
+	for d in [1, -1]:
+		if FloorNav.step(m, enc.cur.pos, d) != FloorNav.NONE:
+			out[d] = FloorNav.go(m, enc.cur.pos, d, mv, rn)
+	return out
+
+
+## The objective hint (owner: subtle, never a floor name): the stairs on this floor that lead
+## toward the target's floor glow faintly (the marker's chevron and the HUD's pulse do the rest).
+func _update_stair_glow(hint: Array) -> void:
+	if _stair_glow == null or not is_instance_valid(_stair_glow) or _stair_glow.get_parent() != world:
+		_stair_glow = Node3D.new()
+		_stair_glow.name = "stair_glow"
+		world.add_child(_stair_glow)
+	for ch in _stair_glow.get_children():
+		ch.queue_free()
+	if int(hint[0]) == 0 or _net_cleaned or enc.state != "playing":
+		return
+	for v in FloorNav.hint_stairs(m, view_floor, hint[1]):
+		if fog_on and not enc.vision.explored.has(v) and not _blueprint.has(v.z):
+			continue   # an unknown stair stays unknown
+		var q := MeshInstance3D.new()
+		var pm := PlaneMesh.new()
+		pm.size = Vector2(0.9, 0.9)
+		q.mesh = pm
+		q.material_override = _unlit(Hud.GOLD, 0.16, 1.0)
+		q.position = Vector3(v.x + 0.5, v.z * FH + 0.09, v.y + 0.5)
+		q.set_meta("pulse", true)
+		_stair_glow.add_child(q)
+		var l := OmniLight3D.new()
+		l.light_color = Hud.GOLD
+		l.omni_range = 1.8
+		l.light_energy = 0.35
+		l.position = Vector3(v.x + 0.5, v.z * FH + 0.9, v.y + 0.5)
+		_stair_glow.add_child(l)
+
+
 ## The HUD's place label: a set piece by its name (an estate by its owner's), a board gig by its
 ## place (Campaign.place_name), anything else by its scene.
 static func place_label(mp: TacMap, active: Dictionary, scene: String) -> String:
@@ -2303,7 +2431,16 @@ func _gy(v: Vector3i) -> float:
 	if v.z == m.street and m.inb(v.x, v.y) and m.t(v.z, v.x, v.y) == TacMap.T.OUTSIDE and m.label(v.z, v.x, v.y) < 0 \
 			and m.ground[v.y * m.w + v.x] == TacMap.G.SIDEWALK:
 		y += KERB
+	elif m.inb(v.x, v.y) and v.z >= 0 and v.z < m.floors and m.t(v.z, v.x, v.y) == TacMap.T.STAIRS and _flight_from(v):
+		y += FH * 0.5   # on a flight of steps (WorldBuilder._stairs climbs a storey from this square): stand halfway up, not inside it
 	return y
+
+
+func _flight_from(v: Vector3i) -> bool:
+	for s in m.verticals:
+		if s.type == "stairs" and s.pos == Vector2i(v.x, v.y) and v.z >= int(s.from_floor) and v.z < int(s.to_floor):
+			return true
+	return false
 
 
 func _to_screen(p: Vector3) -> Vector2:
@@ -2355,8 +2492,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 			KEY_Q, KEY_E: _turn_keys[ev.keycode] = true   # turns while held (_process)
 			KEY_H: hud.toggle_hint()
 			KEY_K: hud.toggle_log()   # collapse / show the combat log (the chevron does the same)
-			KEY_PAGEUP: view_floor = mini(view_floor + 1, m.floors - 1); _place_camera(); _refresh()
-			KEY_PAGEDOWN: view_floor = maxi(view_floor - 1, 0); _place_camera(); _refresh()
+			KEY_PAGEUP, KEY_BRACKETRIGHT: _change_floor(1)
+			KEY_PAGEDOWN, KEY_BRACKETLEFT: _change_floor(-1)
 			KEY_C:
 				if not cutaway:
 					cutaway = true
@@ -2416,9 +2553,20 @@ func _on_hud(name: String, arg: Variant) -> void:
 	if name == "portrait_hover":   # [unit id or -1, portrait rect]: hover tracking, even while busy
 		_portrait_hover(int(arg[0]), arg[1])
 		return
+	if name == "floor":   # the floor label's ▲ ▼ (like PgUp/PgDn: only the view changes)
+		_change_floor(int(arg))
+		return
 	if busy:
 		return
 	match name:
+		"go_floor":   # GO UP / GO DOWN: the move along the stair link (FloorNav.go)
+			if not _crew_turn():
+				return
+			var g := FloorNav.go(m, enc.cur.pos, int(arg), enc.move_options() if enc.turn.can_move() else {}, enc.run_options())
+			if not g.ok or not enc.move_to(g.dest, g.run):
+				hud.toast(String(g.reason).to_upper() if not g.ok else "CAN'T MOVE THERE")
+				return
+			_after_action()
 		"portrait_click":   # clicking a foe's portrait does what clicking their figure would
 			if _aim_armed() and _portrait_target(int(arg)):
 				if tool != "":
@@ -2585,6 +2733,21 @@ func _pick(screen_pos: Vector2) -> Vector3i:
 	var o := cam.project_ray_origin(sp)
 	var d := cam.project_ray_normal(sp)
 	var hit: Variant = Plane(Vector3.UP, view_floor * FH).intersects_ray(o, d)
+	# A flight of stairs climbs a whole storey from its square: the steps the cursor is on stand
+	# above the floor plane, so the plane alone picked the square behind them (playtest: clicking a
+	# staircase did nothing). The flight's box is tested first.
+	var best := INF
+	var out := Vector3i(-1, -1, -1)
+	for v in m.verticals:
+		if v.type != "stairs" or view_floor < int(v.from_floor) or view_floor >= int(v.to_floor):
+			continue
+		var box := AABB(Vector3(v.pos.x, view_floor * FH, v.pos.y), Vector3(1, FH, 1))
+		var bh: Variant = box.intersects_ray(o, d)
+		if bh != null and (bh as Vector3).distance_to(o) < best:
+			best = (bh as Vector3).distance_to(o)
+			out = Vector3i(v.pos.x, v.pos.y, view_floor)
+	if out.x >= 0 and (hit == null or best <= (hit as Vector3).distance_to(o)):
+		return out
 	if hit == null:
 		return Vector3i(-1, -1, -1)
 	return Vector3i(floori(hit.x), floori(hit.z), view_floor)
@@ -3387,6 +3550,29 @@ func _demo_grapple() -> void:
 	_after_action()
 
 
+## Review renders: put the active crew member on the target building's stairs at street level.
+func _demo_stairs() -> void:
+	var sid := -1
+	for st in m.structures:
+		if st.target:
+			sid = int(st.id)
+	var pick := {}
+	for v in m.verticals:
+		if v.type == "stairs" and int(v.from_floor) <= m.street and int(v.to_floor) > m.street and (pick.is_empty() or int(v.get("structure", -1)) == sid):
+			pick = v
+	if pick.is_empty():
+		return
+	enc.cur.pos = Vector3i(pick.pos.x, pick.pos.y, m.street)
+	enc.turn = TurnState.begin(dice, enc.cur.c)
+	enc.refresh_vision()
+	_frame_unit(enc.cur)
+	cam_dist = minf(cam_dist, 22.0)
+	_place_camera()
+	_refresh()
+	if _dev_stairs == "up":
+		_on_hud("go_floor", 1)
+
+
 func _demo_attack() -> void:
 	var best := {}
 	for u in enc.units:
@@ -4102,6 +4288,11 @@ func _anim_move(e: Dictionary) -> void:
 			ring.position = to + Vector3(0, 0.04, 0)
 		if n.visible and not inner.has_point(_to_screen(to)):
 			_pan_to(to, 0.35)   # soft follow (not awaited)
+		if b.z != a.z and b.z == (path[-1] as Vector3i).z:   # up or down the stairs for good: the view goes along
+			var ff := FloorNav.follow_floor(view_floor, b.z, u.team == 0, _seen(path[-1]) or _seen(b))
+			if ff != view_floor:
+				_set_view_floor(ff, true)
+				n.visible = (u.team == 0 or _seen(b)) and not _cut_hides(b)
 		await tw.finished
 	n.set_meta("walk", false)
 
@@ -4566,7 +4757,11 @@ func _hud_refresh() -> void:
 	hud.atk_mode = atk_mode
 	var active: Dictionary = Campaign.current.active_gig if _campaign_gig and Campaign.current else {}
 	var place := place_label(m, active, String(gig.scene))
+	var hint := _objective_floor_hint()
+	hud.stairs = _stair_actions()
+	hud.floor_nav(FloorNav.next_floor(m, view_floor, 1) >= 0, FloorNav.next_floor(m, view_floor, -1) >= 0, int(hint[0]))
 	hud.refresh(enc, mode, cover_mode, "%s  ·  %s" % [place.to_upper(), floor_label(m, view_floor)])
+	_update_stair_glow(hint)
 
 
 ## Recoil: kick the weapon back and the chest up; autofire climbs, capped; settles with a spring.
