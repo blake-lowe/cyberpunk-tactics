@@ -66,6 +66,10 @@ var log: Array[String] = []
 ## What the last gig changed for each crew member (resolve's report "members"), shown on the
 ## debrief screen and as marks on crew cards until the next gig starts. Saved.
 var debrief: Array[Dictionary] = []
+## DEV ONLY: custom gigs taken (accept_custom), and the last one's form for REPEAT. Saved, so a
+## save that has played dev gigs says so.
+var dev_gigs := 0
+var last_custom: Dictionary = {}
 
 
 ## The running campaign: the one in memory, else the save, else a new game.
@@ -403,6 +407,20 @@ static func encounter_opts(gig: Dictionary) -> Dictionary:
 	var code := SecurityCode.normalise(gig.get("security_code"))
 	if not code.is_empty():
 		o["guards"] = SecurityCode.guarded_by(code, String(gig.get("faction", World.DEFAULT_OPFOR)), owner)
+	# A dev gig's dials (CustomGig): its complication and utilities as the builder set them.
+	var cx: Variant = gig.get("complication")
+	if cx is Dictionary:
+		o["complication"] = cx
+	elif cx is String and cx == CustomGig.NONE:
+		o["complications"] = false
+	var ut := String(gig.get("utility", ""))
+	if ut == CustomGig.NONE:
+		o["utilities"] = false
+		o["utility_code"] = 0
+	elif ut == "roll":
+		o["utilities"] = false
+	elif ut != "":
+		o["outages"] = Array(ut.split(",", false))
 	return o
 
 
@@ -537,6 +555,9 @@ static func scene_opts(gig: Dictionary) -> Dictionary:
 	if String(gig.get("setpiece", "")) != "":   # a famous place builds its own recipe
 		o["setpiece"] = gig.setpiece
 		o["location"] = String(gig.get("location", ""))
+	for k in ["variant", "deploy", "basement_storeys"]:   # a dev gig's overrides (CustomGig)
+		if gig.has(k):
+			o[k] = gig[k]
 	return o
 
 
@@ -552,9 +573,37 @@ static func _fill(s: String, slots: Dictionary) -> String:
 
 ## Take a gig: it becomes the active one (the tactical view builds the map from it).
 func accept(index: int) -> Dictionary:
-	if index < 0 or index >= board.size() or alive_crew().filter(func(c): return c.can_act()).is_empty():
+	if index < 0 or index >= board.size():
 		return {}
-	active_gig = board[index].duplicate(true)
+	return _start_gig(board[index])
+
+
+## DEV ONLY (the CUSTOM GIG (DEV) card, developer mode): take the gig the builder's form makes
+## (CustomGig.build). It runs as a board offer does, marked dev; the form, its seed filled in, is
+## kept as last_custom for REPEAT.
+func accept_custom(form: Dictionary) -> Dictionary:
+	var g := CustomGig.build(form, self)
+	var out := _start_gig(g)
+	if not out.is_empty():
+		last_custom = (g.form as Dictionary).duplicate(true)
+		dev_gigs += 1
+	return out
+
+
+## Those of the crew who go on `gig`: everyone alive who can act, or the ones a dev gig names.
+func gig_crew(gig: Dictionary) -> Array[Combatant]:
+	var out: Array[Combatant] = []
+	var names: Array = gig.get("crew", [])
+	for c in alive_crew():
+		if c.can_act() and (names.is_empty() or c.display_name in names):
+			out.append(c)
+	return out
+
+
+func _start_gig(gig: Dictionary) -> Dictionary:
+	if gig_crew(gig).is_empty():
+		return {}
+	active_gig = gig.duplicate(true)
 	var drive := travel_minutes(active_gig)   # NC2045 p.18: the drive out from the safehouse district
 	if drive > 0:
 		active_gig["travel_minutes"] = drive
@@ -564,7 +613,7 @@ func accept(index: int) -> Dictionary:
 		before[c.display_name] = {"injuries": c.injuries.size(), "humanity": c.humanity}
 	active_gig["before"] = before
 	debrief.clear()   # the last gig's marks come off the crew cards
-	say("Took '%s' from %s." % [active_gig.title, active_gig.fixer])
+	say("%sTook '%s' from %s." % ["[DEV] " if active_gig.get("dev", false) else "", active_gig.title, active_gig.fixer])
 	if drive > 0:
 		say("Drove %d minutes from %s to %s." % [drive,
 			String(World.district(safehouse_district).get("name", safehouse_district)), district_name(active_gig)])
@@ -599,7 +648,8 @@ func time_label() -> String:
 func resolve(e: Encounter) -> Dictionary:
 	var gig := active_gig
 	var won := e.state == "won"
-	var report := {"gig": gig, "won": won, "state": e.state, "pay": 0, "reputation": {}, "ip": 0, "dead": [], "hurt": [], "episodes": []}
+	var report := {"gig": gig, "won": won, "state": e.state, "pay": 0, "reputation": {}, "ip": 0, "dead": [], "hurt": [], "episodes": [],
+		"dev": bool(gig.get("dev", false))}
 	var kit_of := {}
 	report["kit_used"] = _settle_kits(kit_of)
 	var went := crew.duplicate()   # everyone who went, the fallen included (the debrief lists them)
@@ -1351,7 +1401,8 @@ func to_dict() -> Dictionary:
 	return {"version": SaveMigrations.CURRENT, "seed": seed_value, "eb": eb, "day": day, "minutes": minutes,
 		"safehouse_district": safehouse_district, "crew": crew.map(func(c): return c.to_dict()),
 		"fallen": fallen, "board": board, "recruits": recruits.map(func(c): return c.to_dict()), "log": log.slice(-50),
-		"rng_state": str(dice.rng.state), "stash": stash, "market": market, "debrief": debrief, "gigs_done": gigs_done}
+		"rng_state": str(dice.rng.state), "stash": stash, "market": market, "debrief": debrief, "gigs_done": gigs_done,
+		"dev_gigs": dev_gigs, "last_custom": last_custom}
 
 
 ## A campaign from a save dictionary, upgraded to the current format first (SaveMigrations).
@@ -1371,6 +1422,9 @@ static func from_dict(raw: Dictionary) -> Campaign:
 	c.eb = int(d.eb)
 	c.day = int(d.day)
 	c.gigs_done = int(d.get("gigs_done", 0))
+	c.dev_gigs = int(d.get("dev_gigs", 0))
+	if d.get("last_custom") is Dictionary:
+		c.last_custom = _ints(d.last_custom)
 	c.minutes = clampi(int(d.get("minutes", 0)), 0, DAY_MINUTES - 1)
 	var sh := String(d.get("safehouse_district", DEFAULT_SAFEHOUSE))
 	c.safehouse_district = sh if World.districts().has(sh) else DEFAULT_SAFEHOUSE

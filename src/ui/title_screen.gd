@@ -198,8 +198,15 @@ func _do(mode: String, n: int) -> void:
 			show_page("main")
 
 
+## Clicks on the Options heading: five show the hidden Developer mode toggle (GameSettings.dev_mode).
+const DEV_CLICKS := 5
+var _dev_clicks := 0
+
+
 func _options() -> Control:
-	_box.add_child(UiKit.label("Options", 18, Hud.CYAN))
+	var head := UiKit.label("Options", 18, Hud.CYAN)
+	head.mouse_filter = Control.MOUSE_FILTER_STOP
+	_box.add_child(head)
 	var first: Control = null
 	for k in ["master", "music", "sfx"]:
 		var names := {"master": "Master volume", "music": "Music", "sfx": "Sound effects"}
@@ -222,8 +229,27 @@ func _options() -> Control:
 		_set_opt("fullscreen", not bool(_opts.fullscreen))
 		fs.text = UiKit.caps("Display: " + ("Fullscreen" if _opts.fullscreen else "Windowed")))
 	_box.add_child(fs)
+	# Hidden: developer mode (the custom gig builder on JOBS). Shown once it is on, or after
+	# DEV_CLICKS clicks on the heading, so a release build can turn it on too.
+	var dev := _button(_dev_text(), UiKit.NAV, Callable())
+	dev.name = "DevMode"
+	dev.visible = bool(_opts.dev_mode) or _dev_clicks >= DEV_CLICKS
+	dev.pressed.connect(func() -> void:
+		_opts.dev_mode = not bool(_opts.dev_mode)   # nothing to apply: saved, read by GameSettings.dev_mode
+		GameSettings.save_values(_opts)
+		dev.text = UiKit.caps(_dev_text()))
+	head.gui_input.connect(func(ev: InputEvent) -> void:
+		if ev is InputEventMouseButton and (ev as InputEventMouseButton).pressed and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
+			_dev_clicks += 1
+			if _dev_clicks >= DEV_CLICKS:
+				dev.visible = true)
+	_box.add_child(dev)
 	_box.add_child(_button("Back", UiKit.NAV, show_page.bind("main")))
 	return first
+
+
+func _dev_text() -> String:
+	return "Developer mode: " + ("On (custom gig builder on JOBS)" if bool(_opts.dev_mode) else "Off")
 
 
 func _set_opt(k: String, v: Variant) -> void:

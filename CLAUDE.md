@@ -48,3 +48,7 @@ Design source of truth: `docs/design-spec.md`. Milestones and status: `docs/road
 ## Greybox (M3b)
 - `scenes/greybox.tscn` (main scene) → `src/tactical/greybox.gd` builds a 3D blockout from a generated TacMap and drives `Encounter`.
 - Screenshot it headless with software GL: `timeout 180 xvfb-run -a -s "-screen 0 1280x720x24" godot --rendering-method gl_compatibility --resolution 1280x720 --path . -- --shot=out.png [--scene=x|--profile=y] [--seed=n]`.
+- Dev mode (`--dev`, or click the title screen's Options heading 5 times): JOBS gets a CUSTOM GIG (DEV) card
+  (`src/ui/screens/custom_gig_card.gd`) that sets every gig parameter; `CustomGig` (src/meta/) turns its form or the
+  same greybox-style flags (`CustomGig.from_flags`) into a campaign gig (`Campaign.accept_custom`, marked `dev`).
+  Shot of it: `godot --path . scenes/base.tscn -- --demo --screen=jobs --dev --focus=custom [--setpiece=x ...] --shot=out.png`.

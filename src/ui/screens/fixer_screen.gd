@@ -22,8 +22,14 @@ const SHORT_FACTION := {"san_luis_obispo_county_sheriff": "SLO SHERIFF", "norcal
 	"ncu_campus_security": "NCU SECURITY"}
 
 signal take_gig(index: int)
+## DEV ONLY: the CUSTOM GIG (DEV) card's form (CustomGigCard), developer mode only.
+signal take_custom(form: Dictionary)
 
 var focus_gig := -1   ## a job opened from the CITY map: JOBS scrolls to it and marks it gold
+## DEV ONLY: the custom gig card's form, kept while the screen is open; a dev launch's gig flags
+## (greybox's --setpiece, --objective, ...: CustomGig.from_flags) prefill it.
+var custom_form := CustomGig.from_flags(OS.get_cmdline_user_args())
+var focus_custom := "--focus=custom" in OS.get_cmdline_user_args()   ## review shots: JOBS opens scrolled to the custom card
 
 
 func room_name() -> String:
@@ -81,7 +87,21 @@ func _jobs(body: VBoxContainer) -> void:
 		list.add_child(_gig_card(i, ready))
 	if camp.board.is_empty():
 		list.add_child(none("No offers today."))
-	body.add_child(UiKit.scroller(list))
+	var card: Control = null
+	if shows_custom():   # DEV ONLY: never offered without developer mode
+		card = CustomGigCard.new().setup(camp, ready, custom_form)
+		card.name = "CustomGig"
+		(card as CustomGigCard).take.connect(func(f: Dictionary): take_custom.emit(f))
+		list.add_child(card)
+	var sc := UiKit.scroller(list)
+	body.add_child(sc)
+	if card and focus_custom:
+		(func(): sc.scroll_vertical = int(card.position.y)).call_deferred()
+
+
+## Is the dev-only custom gig card on JOBS? Only in developer mode (GameSettings.dev_mode).
+static func shows_custom() -> bool:
+	return GameSettings.dev_mode()
 
 
 func _gig_card(i: int, ready: bool) -> PanelContainer:

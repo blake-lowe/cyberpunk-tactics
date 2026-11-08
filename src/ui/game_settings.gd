@@ -2,14 +2,28 @@ class_name GameSettings
 extends RefCounted
 ## Player options (title screen → Options), kept in user://settings.cfg and applied at startup:
 ## master volume, music and sound effects (0-1, scaling the AudioDirector's buses from their mixed
-## levels; SFX covers the SFX, UI and Ambience buses), fullscreen or windowed.
+## levels; SFX covers the SFX, UI and Ambience buses), fullscreen or windowed; and developer mode
+## (dev_mode, off by default), which shows the dev-only tools such as the custom gig builder on the
+## Fixer Network's JOBS (CustomGig). Its toggle is hidden on the Options page (click the Options
+## heading five times) so a release build has it too; `--dev` on the command line turns it on for
+## one run.
 
-const DEFAULTS := {"master": 1.0, "music": 1.0, "sfx": 1.0, "fullscreen": false}
+const DEFAULTS := {"master": 1.0, "music": 1.0, "sfx": 1.0, "fullscreen": false, "dev_mode": false}
 const SFX_BUSES := ["SFX", "UI", "Ambience"]
+const DEV_FLAG := "--dev"
 
 ## Tests point this at a temp user:// subfolder (tests/run_tests.gd).
 static var path := "user://settings.cfg"
 static var _applied := false
+## Tests only: -1 reads the flag and the saved option, 0 forces developer mode off, 1 on.
+static var dev_override := -1
+
+
+## Developer mode: `--dev` on the command line, or the hidden Options toggle saved on.
+static func dev_mode() -> bool:
+	if dev_override >= 0:
+		return dev_override == 1
+	return DEV_FLAG in OS.get_cmdline_user_args() or bool(load_values().dev_mode)
 
 
 static func load_values() -> Dictionary:

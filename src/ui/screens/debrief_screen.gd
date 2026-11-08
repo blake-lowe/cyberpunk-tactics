@@ -32,6 +32,8 @@ func build_body(body: VBoxContainer) -> void:
 	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	t.custom_minimum_size.x = 100
 	h.add_child(t)
+	if is_dev(report):   # DEV ONLY: a gig from the custom builder (CustomGig) says so
+		h.add_child(UiKit.chip("DEV GIG · CUSTOM BUILDER", Hud.MAGENTA))
 	var sums := UiKit.hbox(28)
 	tv.add_child(sums)
 	_sum(sums, "PAY", "%s eb" % UiKit.money(int(report.get("pay", 0))), Hud.TEXT)
@@ -55,6 +57,10 @@ func build_body(body: VBoxContainer) -> void:
 	var b := UiKit.button("CONTINUE  ›", UiKit.PRIMARY, func(): closed.emit(), true, 17)
 	b.custom_minimum_size = Vector2(220, 44)
 	bottom.add_child(b)
+
+
+static func is_dev(rep: Dictionary) -> bool:
+	return bool(rep.get("dev", false)) or bool((rep.get("gig", {}) as Dictionary).get("dev", false))
 
 
 ## The headline and its colour, worded as the map's end banner was (greybox end_banner): a gig
