@@ -247,15 +247,8 @@ void fragment() {
 	_banner_panel.add_child(brow)
 	_banner.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	brow.add_child(_banner)
-	_floor_up = FloorBtn.new(1)
-	_floor_up.pressed.connect(func(): action.emit("floor", 1))
-	_floor_up.tooltip_text = "View the floor above (PG UP or ])"
-	brow.add_child(_floor_up)
-	_floor_down = FloorBtn.new(-1)
-	_floor_down.pressed.connect(func(): action.emit("floor", -1))
-	_floor_down.tooltip_text = "View the floor below (PG DN or [)"
-	brow.add_child(_floor_down)
 	add_child(_banner_panel)
+	_build_stack()
 	resized.connect(_layout)
 	_layout()
 
@@ -288,9 +281,129 @@ func _text(s: String, font: Font, size: int, col := TEXT) -> Label:
 
 var _floor_up: FloorBtn
 var _floor_down: FloorBtn
+var _stack: PanelContainer      ## the floor stack (owner-approved H1/H3): the focused building's storeys
+var _stack_head: Label
+var _stack_why: Label
+var _stack_rows: VBoxContainer
+var _stack_else: VBoxContainer  ## 'elsewhere': crew in other buildings, a portrait and where
+var stack_data := {}            ## the last floor_stack() data (tests, review renders)
 
 
-## The floor label's ▲ / ▼: greyed when there is no floor that way; `pulse` (the objective lies that
+## The floor stack (A's stack with crew pips, driven by one focused building: FloorNav.slices).
+## Right edge, under the overlay line: header (the building, and why it has the stack), ▲, one row
+## per storey top down (R the roof, a street line over the B rows), ▼, then the 'elsewhere' row.
+func _build_stack() -> void:
+	_stack = _panel(CYAN, 0b0101)
+	_stack.mouse_filter = Control.MOUSE_FILTER_STOP
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 3)
+	_stack.add_child(v)
+	_stack_head = _text("", F_PIXEL, 20, TEXT)
+	v.add_child(_stack_head)
+	_stack_why = _text("", F_TERM, Hud.ts(13), DIM)
+	v.add_child(_stack_why)
+	_floor_up = FloorBtn.new(1)
+	_floor_up.custom_minimum_size = Vector2(STACK_W, 22)
+	_floor_up.pressed.connect(func(): action.emit("floor", 1))
+	_floor_up.tooltip_text = "View the floor above (SHIFT, PG UP or ])"
+	v.add_child(_floor_up)
+	_stack_rows = VBoxContainer.new()
+	_stack_rows.add_theme_constant_override("separation", 2)
+	v.add_child(_stack_rows)
+	_floor_down = FloorBtn.new(-1)
+	_floor_down.custom_minimum_size = Vector2(STACK_W, 22)
+	_floor_down.pressed.connect(func(): action.emit("floor", -1))
+	_floor_down.tooltip_text = "View the floor below (CTRL, PG DN or [)"
+	v.add_child(_floor_down)
+	_stack_else = VBoxContainer.new()
+	_stack_else.add_theme_constant_override("separation", 2)
+	v.add_child(_stack_else)
+	_stack.visible = false
+	add_child(_stack)
+
+
+const STACK_W := 96.0
+
+
+## Fill the floor stack: {name, why, rows: [{f, label, crew, foes, cur, street}] top down (`street`:
+## the street line is drawn under that row), up_ok, down_ok, hint_dir (the objective lies that way
+## in this building: that arrow breathes, never a floor named), elsewhere: [{unit, label}]}.
+## Empty: hidden (no buildings, the NET owns the clicks).
+func floor_stack(data: Dictionary) -> void:
+	stack_data = data
+	if _stack == null:
+		return
+	_stack.visible = not data.is_empty()
+	if data.is_empty():
+		return
+	_stack_head.text = String(data.get("name", "")).left(14)
+	_stack_why.text = String(data.get("why", ""))
+	_clear(_stack_rows)
+	for r in data.get("rows", []):
+		var row := StackRow.new(r)
+		var f := int(r.f)
+		row.pressed.connect(func(): action.emit("floor_to", f))
+		_stack_rows.add_child(row)
+	floor_nav(bool(data.get("up_ok", false)), bool(data.get("down_ok", false)), int(data.get("hint_dir", 0)))
+	_clear(_stack_else)
+	var els: Array = data.get("elsewhere", [])
+	if not els.is_empty():
+		_stack_else.add_child(_text("ELSEWHERE", F_TERM, Hud.ts(12), Color(DIM, 0.9)))
+		for e in els:
+			var b := Button.new()
+			b.focus_mode = Control.FOCUS_NONE
+			b.flat = true
+			b.custom_minimum_size = Vector2(STACK_W, 22)
+			b.tooltip_text = "Show their floor"
+			var hb := HBoxContainer.new()
+			hb.add_theme_constant_override("separation", 4)
+			hb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			b.add_child(hb)
+			var face := TextureRect.new()
+			face.texture = portraits.tex(e.unit)
+			face.custom_minimum_size = Vector2(20, 20)
+			face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+			face.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			hb.add_child(face)
+			hb.add_child(_text(String(e.label).left(12), F_TERM, Hud.ts(12), GREEN))
+			var uid := int(e.unit.id)
+			b.pressed.connect(func(): action.emit("elsewhere", uid))
+			_stack_else.add_child(b)
+	_stack.reset_size()
+	_layout()
+
+
+## One storey in the floor stack: its name, a green square per crew member on it, a red diamond when
+## a foe is seen there; the viewed one lit. Click: view that storey.
+class StackRow extends Button:
+	var r: Dictionary
+	func _init(p_r: Dictionary) -> void:
+		r = p_r
+		custom_minimum_size = Vector2(Hud.STACK_W, 22)
+		focus_mode = Control.FOCUS_NONE
+		var lit: bool = r.get("cur", false)
+		add_theme_stylebox_override("normal", CutBox.make(Color(0.02, 0.1, 0.12, 0.97) if lit else Color(0.03, 0.045, 0.06, 0.9), Color(Hud.CYAN, 0.95 if lit else 0.25), 4, 0b0101))
+		add_theme_stylebox_override("hover", CutBox.make(Color(0.02, 0.12, 0.14, 0.97), Hud.CYAN, 4, 0b0101))
+		add_theme_stylebox_override("pressed", CutBox.make(Color(0.14, 0.11, 0.02, 0.97), Hud.GOLD, 4, 0b0101))
+		add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+		tooltip_text = "View this floor"
+	func _draw() -> void:
+		var lit: bool = r.get("cur", false)
+		draw_string(Hud.F_BOLD, Vector2(8, size.y / 2 + 6), String(r.get("label", "")), HORIZONTAL_ALIGNMENT_LEFT, -1, Hud.ts(16), Hud.TEXT if lit else Color(Hud.DIM, 0.95))
+		var x := size.x - 10.0
+		if int(r.get("foes", 0)) > 0:   # a seen foe on this storey
+			var o := Vector2(x, size.y / 2)
+			draw_colored_polygon(PackedVector2Array([o + Vector2(0, -5), o + Vector2(4, 0), o + Vector2(0, 5), o + Vector2(-4, 0)]), Hud.RED)
+			x -= 11.0
+		for i in mini(int(r.get("crew", 0)), 3):   # crew on this storey
+			draw_rect(Rect2(Vector2(x - 3, size.y / 2 - 3), Vector2(6, 6)), Hud.GREEN)
+			x -= 9.0
+		if r.get("street", false):   # the street line: the B rows sit under it
+			draw_line(Vector2(-4, size.y + 1), Vector2(size.x + 4, size.y + 1), Color(Hud.DIM, 0.8), 1.0)
+
+
+## The floor stack's ▲ / ▼: greyed when there is no floor that way; `pulse` (the objective lies that
 ## way, owner: subtle, never named) breathes the outline gently.
 class FloorBtn extends Button:
 	var dir := 1
@@ -800,6 +913,10 @@ func _layout() -> void:
 	_round_tab.position = Vector2(s.x - _round_tab.size.x - 14, 12)
 	_overlay_lbl.reset_size()
 	_overlay_lbl.position = Vector2(s.x - _overlay_lbl.size.x - 20, _round_tab.position.y + _round_tab.size.y + 4)
+	if _stack:   # right edge, under the overlay line; the NET panel owns that corner while jacked in
+		_stack.visible = not stack_data.is_empty() and not _net_panel.visible
+		_stack.reset_size()
+		_stack.position = Vector2(s.x - _stack.size.x - 14, _overlay_lbl.position.y + _overlay_lbl.size.y + 14)
 	if hint:   # top left, under the banner: clear of the unit card however wide the bar gets
 		hint.reset_size()
 		var top := _banner_panel.position.y + _banner_panel.size.y + 8
@@ -1957,7 +2074,7 @@ const HELP := [
 		["LEFT-CLICK", "Attack the enemy under the cursor"],
 		["RIGHT-CLICK", "Move or run to a square"],
 		["CLICK PORTRAIT", "Target an enemy from the turn order"],
-		["SHIFT + LEFT-CLICK", "Shoot the cover in the way"],
+		["LEFT-CLICK A BUILDING", "Focus its floors (the floor stack)"],
 		["HOVER ENEMY", "Line of fire and hit chance"],
 		["HOLD ALT", "Inspect, enemy outlines, stairs and exits, range bands"],
 	]],
@@ -1966,7 +2083,9 @@ const HELP := [
 		["MIDDLE-DRAG", "Rotate freely"],
 		["Q / E", "Rotate"],
 		["W A S D", "Pan"],
-		["PG UP / PG DN  ·  ] / [", "Change floor (or the arrows by the floor label)"],
+		["SHIFT / CTRL", "View one floor up / down (hold to keep going)"],
+		["PG UP / PG DN  ·  ] / [", "The same (or the floor stack's arrows and rows)"],
+		["HOME", "Back to the selected unit's building and floor"],
 	]],
 ]
 

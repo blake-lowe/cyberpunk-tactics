@@ -198,3 +198,98 @@ func test_step_edges_light_every_nosing_of_the_flight() -> void:
 	var climb: Vector3 = (e[6][0] as Vector3) - (e[0][0] as Vector3)
 	assert_true(climb.x > 0.5 or climb.z > 0.5, "along the flight")
 	assert_true(WorldBuilder.is_layout("stair_edge"), "a blueprint storey shows them with its stairs")
+
+
+# --- Per-building slices (owner-approved floor controls: hybrid H1 + H3) ----------------------
+
+## A room of structure `sid` over `r` on floor `f` (`outdoor`: a roof or yard of it).
+func _room(f: int, r: Rect2i, sid: int, kind := "office", outdoor := false) -> void:
+	var id := m.rooms.size()
+	m.rooms.append({"id": id, "floor": f, "zone": 0, "kind": kind, "cells": r.get_area(), "bounds": r, "structure": sid, "outdoor": outdoor})
+	for y in range(r.position.y, r.end.y):
+		for x in range(r.position.x, r.end.x):
+			m.labels[f][y * m.w + x] = id
+
+
+func test_slices_cut_each_crewed_building_at_its_crews_floor() -> void:
+	# crew: [building, floor]; -1 is the street
+	var crew := [[3, 1], [-1, 0], [5, 0]]
+	var s := FloorNav.slices(crew, 0, 3, 1)
+	assert_eq(s, {3: 1, 5: 0}, "the selected unit's building at its floor, another crewed one at its crew's")
+	assert_false(s.has(-1), "the street is never cut")
+	assert_eq(FloorNav.slices([[-1, 0]], 0, -1, 0), {}, "crew only outdoors: every building keeps its roof")
+
+
+func test_slices_several_crew_in_one_building_use_the_selected_else_the_highest() -> void:
+	var crew := [[3, 0], [3, 2], [3, 1]]
+	assert_eq(FloorNav.slices(crew, 0, 3, 0)[3], 0, "the selected one's floor, though crew stand higher")
+	assert_eq(FloorNav.slices(crew, -1, -1, 0)[3], 2, "nobody selected in there: the highest crew floor, so all of them show")
+	var other := [[3, 0], [3, 2], [7, 1]]
+	assert_eq(FloorNav.slices(other, 2, 7, 1)[3], 2, "the selected unit is elsewhere: the highest crew floor")
+
+
+func test_slices_the_focused_building_follows_the_stack() -> void:
+	var crew := [[3, 0], [-1, 0]]
+	assert_eq(FloorNav.slices(crew, 0, 3, 2)[3], 2, "the stack peeks upstairs in the selected unit's building")
+	var empty := FloorNav.slices(crew, 0, 9, 1)
+	assert_eq(empty[9], 1, "a focused building with no crew is cut at the stack's floor")
+	assert_eq(empty[3], 0, "the crewed building keeps its crew's cut")
+	assert_eq(FloorNav.slices(crew, 1, -1, 0), {3: 0}, "the selected unit on the street: no focus, the crewed building stays cut")
+
+
+func test_buildings_list_storeys_roof_footprint_and_name() -> void:
+	_room(0, Rect2i(2, 2, 3, 3), 3)
+	_room(1, Rect2i(2, 2, 3, 3), 3)
+	_room(2, Rect2i(2, 2, 3, 3), 3, "roof", true)
+	_room(0, Rect2i(7, 1, 2, 2), 4)
+	_room(0, Rect2i(7, 5, 2, 2), 5, "yard", true)   # a structure with no indoor room is not a building
+	m.structures.append({"id": 3, "kind": "shop", "name": "noodle_bar"})
+	var b := FloorNav.buildings(m)
+	assert_eq(b.keys().size(), 2, "the yard is not a building")
+	assert_eq(b[3].floors, [0, 1, 2] as Array[int], "two storeys and the roof on top")
+	assert_eq(b[3].roof, 2)
+	assert_eq(b[3].rect, Rect2i(1, 1, 5, 5), "the rooms' footprint and its outer walls")
+	assert_eq(b[3].name, "NOODLE BAR")
+	assert_eq(b[4].floors, [0] as Array[int])
+	assert_eq(b[4].roof, -1, "no walkable roof")
+	assert_eq(FloorNav.indoor_structure(m, Vector3i(3, 3, 1)), 3, "upstairs indoors")
+	assert_eq(FloorNav.indoor_structure(m, Vector3i(3, 3, 2)), -1, "on the roof: ground, not indoors")
+	assert_eq(FloorNav.indoor_structure(m, Vector3i(0, 0, 0)), -1, "the street")
+
+
+func test_stack_steps_within_the_focused_building() -> void:
+	var fl := [1, 2, 3, 5]   # a basement under the street (2), and a roof (5) over a gap
+	assert_eq(FloorNav.stack_step(fl, 2, 1), 3)
+	assert_eq(FloorNav.stack_step(fl, 3, 1), 5, "past the gap to the roof")
+	assert_eq(FloorNav.stack_step(fl, 5, 1), -1, "the top")
+	assert_eq(FloorNav.stack_step(fl, 2, -1), 1, "down into the basement")
+	assert_eq(FloorNav.stack_step(fl, 1, -1), -1, "the bottom")
+	assert_eq(FloorNav.stack_step(fl, 4, -1), 3, "from a floor it lacks: the nearest storey that way")
+	assert_eq(FloorNav.focus_floor(fl, 3, 0, 2), 3, "focused: its current cut")
+	assert_eq(FloorNav.focus_floor(fl, -1, 3, 2), 3, "roof on: the viewed floor if it has it")
+	assert_eq(FloorNav.focus_floor(fl, -1, 4, 2), 2, "else its street storey")
+
+
+func test_enemy_moves_carry_the_stack_only_inside_the_focused_building() -> void:
+	assert_true(FloorNav.follow_in_focus(3, 0, 3, 1, true), "a seen foe goes upstairs in the focused building")
+	assert_false(FloorNav.follow_in_focus(3, 0, 3, 1, false), "unseen: nothing moves")
+	assert_false(FloorNav.follow_in_focus(3, 0, 4, 1, true), "another building: its slice stays")
+	assert_false(FloorNav.follow_in_focus(3, 0, -1, 1, true), "outdoors: nothing")
+	assert_false(FloorNav.follow_in_focus(-1, 0, 3, 1, true), "no building focused (the street)")
+	assert_false(FloorNav.follow_in_focus(3, 1, 3, 1, true), "already on that floor")
+
+
+func test_shift_and_ctrl_are_the_floor_keys_only_on_their_own() -> void:
+	assert_eq(FloorNav.modifier_floor_dir(KEY_SHIFT, false), 1, "Shift: a floor up")
+	assert_eq(FloorNav.modifier_floor_dir(KEY_CTRL, false), -1, "Ctrl: a floor down")
+	assert_eq(FloorNav.modifier_floor_dir(KEY_SHIFT, true), 0, "Shift with another key held is a chord, not a floor key")
+	assert_eq(FloorNav.modifier_floor_dir(KEY_CTRL, true), 0)
+	assert_eq(FloorNav.modifier_floor_dir(KEY_ALT, false), 0, "Alt is the inspect key")
+	assert_eq(FloorNav.repeat_steps(0.0), 1, "the press is the first step")
+	assert_eq(FloorNav.repeat_steps(FloorNav.FLOOR_REPEAT_DELAY - 0.01), 1, "a tap never repeats")
+	assert_eq(FloorNav.repeat_steps(FloorNav.FLOOR_REPEAT_DELAY), 2, "held: a second step after the delay")
+	assert_eq(FloorNav.repeat_steps(FloorNav.FLOOR_REPEAT_DELAY + FloorNav.FLOOR_REPEAT_EVERY * 2), 4, "then one every interval")
+	assert_true(FloorNav.FLOOR_REPEAT_EVERY >= 0.2, "slow enough to stop on the floor you want")
+	assert_false(Hud.help_text().contains("SHIFT + LEFT-CLICK"), "Shift-click no longer shoots cover")
+	assert_true(Hud.help_text().contains("SHIFT / CTRL"), "the H card names the floor keys")
+	assert_true(Encounter.attack_modes(Items.make_weapon("weapon/heavy_pistol")).has("cover"), "the attack stage still offers COVER")

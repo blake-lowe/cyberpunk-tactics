@@ -94,8 +94,9 @@ func test_help_says_how_to_attack() -> void:
 	var h := Hud.help_text()
 	assert_true(h.begins_with("MOUSE\nLEFT-CLICK  Attack"), "the left-click attacks, first")
 	assert_true(h.contains("PORTRAIT"), "targeting from the turn order")
-	for k in ["RIGHT-CLICK  Move", "SHIFT + LEFT-CLICK", "MIDDLE-DRAG", "WHEEL", "ALT", "W A S D", "Q / E"]:
+	for k in ["RIGHT-CLICK  Move", "LEFT-CLICK A BUILDING", "SHIFT / CTRL", "MIDDLE-DRAG", "WHEEL", "ALT", "W A S D", "Q / E"]:
 		assert_true(h.contains(k), k)
+	assert_false(h.contains("SHIFT + LEFT-CLICK"), "Shift is a floor key now: shoot cover is the attack stage's COVER")
 	for k in ["RELOAD", "SPACE", "JACK"]:   # the action bar shows its own keys (owner)
 		assert_false(h.to_upper().contains(k), "no bar key in the help: " + k)
 
@@ -118,14 +119,28 @@ func test_range_ticks_are_short_arcs_centred_on_the_shooter() -> void:
 func test_click_intent_right_moves_left_attacks() -> void:
 	var L := MOUSE_BUTTON_LEFT
 	var R := MOUSE_BUTTON_RIGHT
-	assert_eq(ClickIntent.of(R, false, false, "", false, false), ClickIntent.MOVE, "right on ground moves")
-	assert_eq(ClickIntent.of(R, false, false, "", false, true), ClickIntent.MOVE, "right on a foe never attacks")
-	assert_eq(ClickIntent.of(R, false, false, "grenade", false, false), ClickIntent.MOVE, "right moves with a tool armed")
-	assert_eq(ClickIntent.of(L, false, false, "", false, true), ClickIntent.ATTACK, "left on a foe attacks")
-	assert_eq(ClickIntent.of(L, false, false, "", false, false), ClickIntent.NONE, "left on ground / a friendly: nothing")
-	assert_eq(ClickIntent.of(L, true, false, "", false, false), ClickIntent.COVER, "shift+left shoots cover")
-	assert_eq(ClickIntent.of(L, false, false, "", true, false), ClickIntent.COVER, "Shoot Cover armed")
-	assert_eq(ClickIntent.of(L, false, false, "melee", false, true), ClickIntent.TOOL, "left uses the armed tool")
-	assert_eq(ClickIntent.of(L, false, true, "", false, true), ClickIntent.NET, "NET: left picks a node")
-	assert_eq(ClickIntent.of(R, false, true, "", false, false), ClickIntent.NET, "NET: right picks a node")
-	assert_eq(ClickIntent.of(MOUSE_BUTTON_MIDDLE, false, false, "", false, true), ClickIntent.NONE, "middle is the camera's")
+	assert_eq(ClickIntent.of(R, false, "", false, false), ClickIntent.MOVE, "right on ground moves")
+	assert_eq(ClickIntent.of(R, false, "", false, true), ClickIntent.MOVE, "right on a foe never attacks")
+	assert_eq(ClickIntent.of(R, false, "grenade", false, false), ClickIntent.MOVE, "right moves with a tool armed")
+	assert_eq(ClickIntent.of(R, false, "", false, false, 3), ClickIntent.MOVE, "right on a building still moves")
+	assert_eq(ClickIntent.of(L, false, "", false, true), ClickIntent.ATTACK, "left on a foe attacks")
+	assert_eq(ClickIntent.of(L, false, "", false, false), ClickIntent.NONE, "left on open ground: nothing")
+	assert_eq(ClickIntent.of(L, false, "", true, false), ClickIntent.COVER, "Shoot Cover armed (the attack stage's COVER)")
+	assert_eq(ClickIntent.of(L, false, "melee", false, true), ClickIntent.TOOL, "left uses the armed tool")
+	assert_eq(ClickIntent.of(L, true, "", false, true), ClickIntent.NET, "NET: left picks a node")
+	assert_eq(ClickIntent.of(R, true, "", false, false), ClickIntent.NET, "NET: right picks a node")
+	assert_eq(ClickIntent.of(MOUSE_BUTTON_MIDDLE, false, "", false, true), ClickIntent.NONE, "middle is the camera's")
+
+
+## H3 (owner-approved): a left-click on a building with nothing under the cursor focuses it; a foe
+## always wins, and an armed attack or tool never turns into a focus.
+func test_click_intent_focuses_a_building_only_when_nothing_else_claims_the_click() -> void:
+	var L := MOUSE_BUTTON_LEFT
+	assert_eq(ClickIntent.of(L, false, "", false, false, 2), ClickIntent.FOCUS, "left on a building: focus it")
+	assert_eq(ClickIntent.of(L, false, "", false, true, 2), ClickIntent.ATTACK, "a foe in the building's window: attack, foe first")
+	assert_eq(ClickIntent.of(L, false, "", false, false, 2, true), ClickIntent.NONE, "attack armed: a near-miss is never a focus")
+	assert_eq(ClickIntent.of(L, false, "", true, false, 2, true), ClickIntent.COVER, "COVER armed: shoots the cover, not a focus")
+	assert_eq(ClickIntent.of(L, false, "grenade", false, false, 2), ClickIntent.TOOL, "a tool armed: the tool")
+	assert_eq(ClickIntent.of(L, false, "", false, false, 2, false, true), ClickIntent.NONE, "a friendly under the cursor: nothing")
+	assert_eq(ClickIntent.of(L, false, "", false, false, -1), ClickIntent.NONE, "the street: nothing")
+	assert_eq(ClickIntent.of(L, true, "", false, false, 2), ClickIntent.NET, "in the NET the overlay owns the click")
