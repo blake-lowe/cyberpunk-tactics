@@ -119,6 +119,15 @@ const LOOKS := {
 		"sun": [-62.0, 200.0], "sky": ["181c24", "242a34", "343c48"], "rim": ["ff5060", 0.22], "lights": 0.2, "spill": 0.12, "soft_light": true,
 		"fog_dim": 0.82, "fog_sat": 0.7, "fog_cool": 0.0},
 	# Warzone: dusk under a sky lit by the fires; ember key low in the west, heavy brown smoke haze.
+	# Tower bands (TowerGen): the night city's light up high, a little more moon on the plate (no
+	# street lamps up here) and the haze moved under the band: height fog from just below its lowest
+	# storey thickens with the drop (fog_h, fog_hd), the smog the facade falls into (WorldBuilder._sky_band).
+	"tower_top": {"ambient": "2a3250", "amb_e": 0.7, "key": "8fa0e0", "key_e": 0.62, "fog": "1c1a30", "fog_d": 0.0015,
+		"rim": ["6a7ab0", 0.32], "fog_h": -4.0, "fog_hd": 0.012, "smog": "2a2238"},
+	# ... and by day (--sky=day, review renders): an overcast noon over the smog, cool and grey.
+	"tower_day": {"ambient": "8090a8", "amb_e": 0.85, "key": "fff0dc", "key_e": 1.15, "fog": "8c8a86", "fog_d": 0.0022,
+		"sun": [-48.0, 210.0], "sky": ["5a7090", "98a6b4", "c8c0b0"], "palette": "clinical", "rim": ["c0c8d8", 0.3], "lights": 0.45,
+		"fog_dim": 0.8, "fog_sat": 0.75, "fog_cool": 0.0, "fog_h": -1.5, "fog_hd": 0.03, "smog": "a09a90", "day": true},
 	"warzone": {"ambient": "3a3038", "amb_e": 0.62, "key": "ff8a50", "key_e": 0.5, "fog": "3a2420", "fog_d": 0.0045,
 		"sun": [-12.0, 250.0], "sky": ["120a0c", "4a1a14", "c8501a"], "rim": ["ff6a2a", 0.3], "lights": 0.85,
 		"fog_dim": 0.7, "fog_sat": 0.75, "fog_cool": 0.0},
@@ -221,7 +230,10 @@ func _scene_look() -> Dictionary:
 	if m == null:
 		return LOOKS["default"]
 	var lk: Dictionary = LOOKS.get(String(m.params.get("scene", "")), LOOKS["default"])
-	var dl: Dictionary = SceneTheme.of(m).get("light", {})
+	var day := m.is_tower() and _sky == "day"
+	var dl: Dictionary = SceneTheme.of(m).get("light", {}) if not day else {}   # by day the tower's own sky, not the district's night
+	if day:
+		lk = LOOKS["tower_day"]
 	if dl.is_empty():
 		return lk
 	lk = lk.duplicate()
@@ -320,6 +332,7 @@ var _jack_mode := ""                   ## --jack=<mode> (review renders): turret
 var _dev_ambient := 1.0                ## --ambient=s (review renders): scale the scene's ambient energy (dev only)
 var _dev_exposure := 1.0               ## --exposure=s (review renders): scale the tonemap exposure, the whole lit scene (dev only)
 var _dev_gamma := 1.0                  ## --gamma=s (review renders): scale the grade's power curve (dev only)
+var _sky := ""                         ## --sky=day (review renders): a tower band's daylight look (LOOKS tower_day); night by default
 var _campaign_gig := false             ## this map is the campaign's active gig (a board gig)
 var blast_node: MeshInstance3D  ## the grenade's 5x5 blast preview under the cursor
 var _net_cleaned := false
@@ -358,6 +371,11 @@ func _ready() -> void:
 			"setpiece": gig["setpiece"] = kv[1]   # a set piece (setpieces.json): its scene, buildings and faction
 			"location": gig["location"] = kv[1]   # with --setpiece: the World location it is played for
 			"variant": gig["variant"] = kv[1]   # with --setpiece: one of its variants by id (the Estates: 1a-1l)
+			"tower":   # a tower gig's band (TowerGen): a tower's short id or location id (raven, highcourt, ...)
+				gig["tower"] = kv[1]
+				gig.scene = "tower_top"
+			"band": gig["band"] = kv[1]   # with --tower: which band (stage 1a: sky)
+			"sky": _sky = kv[1]   # review renders: a tower band's light, night (default) or day
 			"floor": _shot_floor = int(kv[1])   # review renders: look at this storey
 			"inside": _dev_inside = Array(kv[1].split(","))   # review renders: crew inside buildings (FloorNav.slices): storey, or building:storey
 			"focusb": _dev_focus_b = kv[1]   # review renders: focus a building (H3), "k" or "k:storey"
@@ -717,6 +735,10 @@ func _build_view() -> void:
 	markers.fn = _draw_markers
 	hud.add_child(markers)
 	hud.move_child(markers, 0)
+	var tdash := Hud.Painter.new()   # a tower band's cut-away storeys, dashed (_update_tower_dash)
+	tdash.fn = _draw_tower_dash
+	hud.add_child(tdash)
+	hud.move_child(tdash, 0)
 	var shields := Hud.Painter.new()
 	shields.fn = _draw_cover_shields
 	hud.add_child(shields)
@@ -815,6 +837,9 @@ func new_gig() -> void:
 		o["profile"] = gig.profile
 	if String(gig.site) != "":
 		o["site"] = gig.site
+	if String(gig.get("tower", "")) != "":   # review renders: --tower (TowerGen)
+		o["tower"] = String(gig.tower)
+		o["band"] = String(gig.get("band", TowerGen.DEFAULT_BAND))
 	if String(gig.get("setpiece", "")) != "":
 		o["setpiece"] = gig.setpiece
 		o["location"] = String(gig.get("location", ""))
@@ -863,10 +888,16 @@ func new_gig() -> void:
 	sun.light_energy = lk.key_e
 	env.fog_light_color = Color(lk.fog)
 	env.fog_density = lk.fog_d
+	# the low haze over the far city (see _build_view); a tower band hangs it under the band instead
+	env.fog_height = float(lk.get("fog_h", 1.2))
+	env.fog_height_density = float(lk.get("fog_hd", 0.08))
 	var skc: Array = lk.get("sky", ["030308", "0d0817", "521a29"])
 	sky_mat.set_shader_parameter("zenith", Color(skc[0]))
 	sky_mat.set_shader_parameter("mid", Color(skc[1]))
 	sky_mat.set_shader_parameter("horizon", Color(skc[2]))
+	# below the horizon: a tower band looks down into lit smog (sky.gdshader `below`), else the dark ground
+	sky_mat.set_shader_parameter("below", Color(String(lk.get("smog", ""))) if lk.has("smog") else Color(skc[2]) * 0.4)
+	sky_mat.set_shader_parameter("below_blend", 0.35 if lk.has("smog") else 0.0)
 	var rimc: Array = lk.get("rim", ["5a6aa0", 0.25])
 	rim.light_color = Color(rimc[0])
 	rim.light_energy = rimc[1]
@@ -957,6 +988,7 @@ func _build_world() -> void:
 	if world:
 		world.queue_free()
 	world = Node3D.new()
+	_tower_dash_key = ""   # the dashed storeys above a tower's cut went with the old world
 	svp.add_child(world)
 	fog_img = Image.create(m.w, m.h * m.floors, false, Image.FORMAT_RG8)
 	fog_tex = ImageTexture.create_from_image(fog_img)
@@ -986,6 +1018,10 @@ func _build_world() -> void:
 	_col_sid.merge(walls)
 	_update_fog()
 	builder = WorldBuilder.new(m, enc.vision, fog_tex)
+	var slk := _scene_look()
+	if slk.has("smog"):   # a tower band: the haze the facade falls into, by night or day
+		builder.smog = Color(String(slk.smog))
+		builder.daylight = bool(slk.get("day", false))
 	floor_nodes = builder.build(world)
 	for s in builder.surfaces():
 		floor_nodes[int(s.get_meta("floor", 0))].add_child(s)
@@ -1922,6 +1958,63 @@ func _update_fog() -> void:
 	fog_tex.update(fog_img)
 	_update_blueprint()
 	_update_xray()
+	_update_tower_dash()
+
+
+var _tower_dash: Array = []      ## a tower band cut below its roof: the storeys above, [[a, b]] world edges drawn dashed
+var _tower_dash_key := ""
+
+
+## A tower band cut at a storey under its roof (docs/plans/towers.md V1: the cut at 49 with 50 dashed
+## above): the cut-away storeys stand as a dashed cyan outline of the plate, a ring at each storey
+## line and the corners up to the roof, so the band keeps its height in the frame. Drawn on the HUD
+## layer (_draw_tower_dash: crisp, the same width at any zoom); the edges change only with the cut.
+func _update_tower_dash() -> void:
+	var key := ""
+	var sid := -1
+	if m != null and m.is_tower():
+		for s in _cuts:
+			if _bld.has(s) and int(_cuts[s]) < int(_bld[s].roof):
+				sid = int(s)
+		if sid >= 0:
+			key = "%d:%d" % [sid, int(_cuts[sid])]
+	if key == _tower_dash_key:
+		return
+	_tower_dash_key = key
+	_tower_dash.clear()
+	if key == "":
+		return
+	var r: Rect2i = (_bld[sid].rect as Rect2i)
+	var lo := Vector2(r.position.x + 0.15, r.position.y + 0.15)
+	var hi := Vector2(r.end.x - 0.15, r.end.y - 0.15)
+	var y0 := (int(_cuts[sid]) + 1) * FH
+	var y1 := int(_bld[sid].roof) * FH + 0.25
+	var ys: Array[float] = []
+	var y := y0
+	while y < y1 - 0.3:
+		ys.append(y)
+		y += FH
+	ys.append(y1)
+	for yy in ys:   # a ring at each storey line and the roof's edge
+		var c := [Vector3(lo.x, yy, lo.y), Vector3(hi.x, yy, lo.y), Vector3(hi.x, yy, hi.y), Vector3(lo.x, yy, hi.y)]
+		for i in 4:
+			_tower_dash.append([c[i], c[(i + 1) % 4]])
+	for cx in [lo.x, hi.x]:   # the corners
+		for cz in [lo.y, hi.y]:
+			_tower_dash.append([Vector3(cx, y0, cz), Vector3(cx, y1, cz)])
+
+
+func _draw_tower_dash(c: Control) -> void:
+	if _tower_dash.is_empty() or cam == null:
+		return
+	var col := Color(0.42, 0.86, 1.0, 0.7)
+	for e in _tower_dash:
+		var a: Vector3 = e[0]
+		var b: Vector3 = e[1]
+		if cam.is_position_behind(a) or cam.is_position_behind(b):
+			continue
+		c.draw_dashed_line(_to_screen(a), _to_screen(b), col, 1.5, 6.0)
+
 
 
 ## Blueprint storeys (FloorNav.blueprint_floors): their materials draw the unknown layout as a dim
@@ -2345,12 +2438,21 @@ func _draw_floor_signs(c: Control) -> void:
 ## ways it goes; a way out: a door with an arrow leaving it.
 func _draw_sign(c: Control, p: Vector2, kind: String, dirs: Array, a: float) -> void:
 	var g := Color(SIGN_GREEN, a)
-	var w := 30.0 if kind == "stairs" else 26.0
+	var w := 30.0 if kind in ["stairs", "lift"] else 26.0
 	var r := Rect2(p - Vector2(w / 2.0, 11), Vector2(w, 22))
 	c.draw_rect(r, Color(0.02, 0.05, 0.035, 0.88 * a))
 	c.draw_rect(r.grow(-0.5), Color(SIGN_GREEN, 0.5 * a), false, 1.0)
 	var o := r.position + Vector2(4, 4)   # a 14 x 14 pictogram, then the arrows
-	if kind == "stairs":
+	if kind == "lift":   # a tower's lift car: a pair of doors, ▲ / ▼ for the ways it runs
+		c.draw_rect(Rect2(o + Vector2(0, 0), Vector2(13, 14)), g, false, 1.5)
+		c.draw_rect(Rect2(o + Vector2(2, 2), Vector2(4, 11)), g)
+		c.draw_rect(Rect2(o + Vector2(7, 2), Vector2(4, 11)), g)
+		var lx := o.x + 19.0
+		for d in dirs:
+			var ly := o.y + (7.0 if dirs.size() == 1 else (3.0 if int(d) > 0 else 11.0))
+			var lt := -3.5 if int(d) > 0 else 3.5
+			c.draw_colored_polygon(PackedVector2Array([Vector2(lx, ly + lt), Vector2(lx + 3.5, ly - lt), Vector2(lx - 3.5, ly - lt)]), g)
+	elif kind == "stairs":
 		for i in 3:   # three steps rising to the right
 			c.draw_rect(Rect2(o + Vector2(i * 5, 10 - i * 5), Vector2(5 if i < 2 else 4, 4 + i * 5)), g)
 		var ax := o.x + 19.0
@@ -2956,6 +3058,8 @@ static func place_label(mp: TacMap, active: Dictionary, scene: String) -> String
 		return SetPieces.place_name(mp)
 	if not active.is_empty():
 		return Campaign.place_name(active)
+	if mp.is_tower():
+		return String(mp.tower.get("name", "tower"))
 	return String(mp.params.get("scene", scene)).replace("_", " ")
 
 
@@ -5690,7 +5794,27 @@ func _stack_data(hint: Array) -> Dictionary:
 				"cur": f == view_floor, "street": f == m.street and int(fl[0]) < m.street})
 		data = {"name": bd.name, "rows": rows, "up_ok": FloorNav.stack_step(fl, view_floor, 1) >= 0,
 			"down_ok": FloorNav.stack_step(fl, view_floor, -1) >= 0, "hint_dir": int(hint[0]) if obj_sid == b else 0}
+		if m.is_tower():
+			tower_strip(m, data, hint)
 	return data
+
+
+## A tower band's floor stack is the tower strip (docs/plans/towers.md T1/T3): each row also names
+## its storey's programme ("labs"), the lift car's row carries the car, the objective's storey a gold
+## notch (owner: towers may show the floor number; the room stays unmarked until seen), and under the
+## rows a hairline stands for the storeys below the band ("2-47 · 46 floors") and a dim row for the
+## street lobby, off the map (Hud.StackGap, StackRow `off`).
+static func tower_strip(mp: TacMap, data: Dictionary, hint: Array) -> void:
+	var car := TowerGen.car(mp)
+	var obj_z: int = (hint[1] as Vector3i).z if hint.size() > 1 and hint[1] is Vector3i and hint[1] != FloorNav.NONE else -1
+	for r in data.rows:
+		var f := int(r.f)
+		r["prog"] = TowerGen.programme_name(mp, f)
+		r["car"] = not car.is_empty() and f == int(car.from_floor)
+		r["obj"] = f == obj_z
+	var lo := mp.storey(mp.street)
+	data["name"] = String(mp.tower.get("name", data.name)).to_upper()
+	data["tower"] = {"storeys": int(mp.tower.get("storeys", 0)), "below": "1-%d" % (lo - 1) if lo > 2 else "1", "below_n": lo - 1}
 
 
 ## The Alt roster's location line: a building's name (or STREET) and the floor, "BD PARLOR · 2".

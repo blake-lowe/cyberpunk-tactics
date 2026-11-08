@@ -196,6 +196,7 @@ func test_the_crew_deploys_from_the_lift_car_in_the_lift_lobby() -> void:
 			for u in e.alive(Encounter.CREW):
 				assert_true(cells.has(u.pos), "%s: %s starts in the lobby by the car" % [tag, u.c.display_name])
 				assert_true(e.extract_cells.has(u.pos), "%s: riding the car down is the way out" % tag)
+				assert_true(e.passing_as_public(u), "%s: stepping out of the car, the crew passes as visitors (HOUSE-RULE)" % tag)
 			assert_eq(e.extract_cells.size(), cells.size(), "%s: the extraction zone is the deploy zone" % tag)
 			assert_true(e.can_withdraw() or e.cur.is_empty() or e.cur.team != Encounter.CREW, "%s: the crew can ride straight back down" % tag)
 

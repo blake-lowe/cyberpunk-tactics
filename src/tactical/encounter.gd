@@ -1649,13 +1649,16 @@ func _spots(g: Dictionary, u: Dictionary) -> bool:
 ## HOUSE-RULE (set pieces with `public_access`: Ziggurat's museum floor, Fort Sumter's petition
 ## floor): while no alarm is up, crew in the public rooms of the ground floor or out on the open
 ## street and grounds pass as visitors; guards only take them for intruders past the first
-## restricted door (any room above the public zone, any upper floor).
+## restricted door (any room above the public zone, any upper floor). HOUSE-RULE (towers, stage 1a):
+## a tower band has it too: its lowest storey's public rooms (the sky lobby the lift car opens onto,
+## a hotel's lift lobby and guest corridor) take visitors who come up with an appointment, so a
+## crew stepping out of the car is not an intruder until it passes a restricted door.
 var _public_access = null   ## the set piece's rule, read once
 
 
 func passing_as_public(u: Dictionary) -> bool:
 	if _public_access == null:
-		_public_access = bool(SetPieces.rule(m, "public_access", false))
+		_public_access = bool(SetPieces.rule(m, "public_access", false)) or m.is_tower()
 	if alarm > 0 or not _public_access or int(u.get("team", CREW)) != CREW:
 		return false
 	return in_public(u.pos)

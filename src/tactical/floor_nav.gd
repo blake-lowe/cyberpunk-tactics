@@ -103,13 +103,17 @@ static func hint_stairs(m: TacMap, view_floor: int, target: Vector3i) -> Array[V
 ## Alt's floor signs (owner-approved signposts): every stair square on `view_floor` (shafts and ladder
 ## ends) with the ways it leads (`dirs`: 1 up, -1 down), and every way out of a building there
 ## (`is_exit`). Only squares `known` accepts (Callable(Vector3i) -> bool: seen by the crew, or on a
-## blueprint storey). [{kind: "stairs" | "exit", cell: Vector3i, dirs: Array[int]}]
+## blueprint storey). A tower's lift car (TowerGen) is a "lift" plate. [{kind: "stairs" | "lift" | "exit", cell:
+## Vector3i, dirs: Array[int]}]
 static func signs(m: TacMap, view_floor: int, known: Callable) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	var cells: Array[Vector3i] = []
+	var cars := {}
 	for s in m.verticals:
 		if view_floor >= int(s.from_floor) and view_floor <= int(s.to_floor):
 			cells.append(Vector3i(s.pos.x, s.pos.y, view_floor))
+			if bool(s.get("car", false)):
+				cars[Vector2i(s.pos)] = true
 	for c in m.connectors:
 		for e in [c.a, c.b]:
 			if (e as Vector3i).z == view_floor:
@@ -124,7 +128,7 @@ static func signs(m: TacMap, view_floor: int, known: Callable) -> Array[Dictiona
 			if step(m, v, d) != NONE:
 				dirs.append(d)
 		if not dirs.is_empty():
-			out.append({"kind": "stairs", "cell": v, "dirs": dirs})
+			out.append({"kind": "lift" if cars.has(Vector2i(v.x, v.y)) else "stairs", "cell": v, "dirs": dirs})
 	for d in m.doors:
 		var v := Vector3i(d.pos.x, d.pos.y, int(d.floor))
 		if v.z == view_floor and not done.has(v) and is_exit(m, d) and known.call(v):

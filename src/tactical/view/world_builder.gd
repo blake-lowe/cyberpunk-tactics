@@ -166,6 +166,7 @@ func mat(name: String, f: int, cut := true, over := {}) -> ShaderMaterial:
 	mt.set_shader_parameter("flat_shade", extra.get("flat", false))
 	mt.set_shader_parameter("offmap", extra.get("offmap", false))
 	mt.set_shader_parameter("near_fade", extra.get("near_fade", false))
+	mt.set_shader_parameter("no_spill", extra.get("no_spill", false))
 	mt.set_shader_parameter("dry", extra.get("dry", false))
 	mt.set_shader_parameter("fog_hue", float(extra.get("fog_hue", 0.0)))
 	mt.set_shader_parameter("cuttable", cut)
@@ -360,6 +361,8 @@ func build(root: Node3D) -> Array[Node3D]:
 			_bedrock_ring()
 		"atrium":
 			_atrium()
+		"sky":
+			_sky_band()
 		"ruins":
 			_skyline(true)
 		_:
@@ -979,6 +982,9 @@ func _unknown(f: int) -> void:
 
 func _stairs(f: int) -> void:
 	for v in m.verticals:
+		if bool(v.get("car", false)) and f >= int(v.from_floor) and f <= int(v.to_floor):
+			_lift_car(v, f)
+			continue
 		if f < v.from_floor or f >= v.to_floor:
 			continue
 		var p: Vector2i = v.pos
@@ -1010,6 +1016,63 @@ func _stairs(f: int) -> void:
 			box(mat("post", f, false), cpos + Vector3(side, 0, 0), Vector3(0.04, top - base + 0.4, 0.04))
 		for i in int((top - base) / 0.18):
 			box(mat("post", f, false), Vector3(cpos.x, base + 0.15 + i * 0.18, cpos.z), Vector3(0.36, 0.025, 0.03))
+
+
+## A tower's lift car (BuildingGen._lift_car, TowerGen): steel shaft walls either side of its square,
+## the doors on the lobby side under a dark header with the floor indicator: amber seven-segment
+## digits naming the storey the car is at (the band's lowest, where the crew came up: stage 1a has
+## no rides). There the doors stand open on a lit car; on the other storeys they are shut. Never cut
+## down on the camera side like a wall (a one-square car, as furniture): the indicator stays in view.
+func _lift_car(v: Dictionary, f: int) -> void:
+	var p: Vector2i = v.pos
+	var face: Vector2i = v.get("face", Vector2i.DOWN)
+	var y0 := f * FH
+	var fw := Vector3(face.x, 0, face.y)
+	var side := Vector3(-face.y, 0, face.x)
+	var c := Vector3(p.x + 0.5, y0, p.y + 0.5)
+	var here := f == int(v.from_floor)   # the car stands at the band's lowest storey
+	var steel := mat("wall_steel", f, false)
+	var brushed := mat("steel", f, false, {"color": Color("8a96a4"), "color2": Color("5a6470")})
+	var h := FH - WALL_GAP - 0.02
+	var along := func(a: float, b: float) -> Vector3: return Vector3(absf(fw.x) * a + absf(side.x) * b, 0, absf(fw.z) * a + absf(side.z) * b)
+	for s in [-1.0, 1.0]:   # the shaft walls either side, back to the core wall
+		box(steel, c + side * s * 0.46 - fw * 0.04 + Vector3(0, h / 2, 0), along.call(0.92, 0.08) + Vector3(0, h, 0))
+	var front := c + fw * 0.46
+	box(mat("frame", f, false), front + Vector3(0, h - 0.13, 0), along.call(0.1, 1.0) + Vector3(0, 0.26, 0))   # header
+	if here:   # doors open: the leaves slid into the jambs, the car lit inside
+		for s in [-1.0, 1.0]:
+			box(brushed, front + side * s * 0.38 + Vector3(0, (h - 0.26) / 2, 0), along.call(0.06, 0.16) + Vector3(0, h - 0.26, 0))
+		box(mat("dark", f, false, {"glow": 1.2, "emit": Color("e8f0ff")}), c - fw * 0.3 + Vector3(0, h - 0.3, 0), along.call(0.08, 0.6) + Vector3(0, 0.03, 0))
+		box(mat("floor_metal", f, false), c + Vector3(0, 0.012, 0), Vector3(0.9, 0.02, 0.9))
+	else:   # shut: a brushed pair with a dark seam
+		box(brushed, front + Vector3(0, (h - 0.26) / 2, 0), along.call(0.05, 0.84) + Vector3(0, h - 0.26, 0))
+		box(mat("frame", f, false), front + fw * 0.03 + Vector3(0, (h - 0.26) / 2, 0), along.call(0.01, 0.025) + Vector3(0, h - 0.3, 0))
+	# the floor indicator over the doors: where the car is (stage 1a: always the band's lowest storey)
+	var panel := front + fw * 0.06 + Vector3(0, h - 0.13, 0)
+	box(mat("dark", f, false, {"color": Color("0a0c10")}), panel, along.call(0.02, 0.44) + Vector3(0, 0.2, 0))
+	var label := m.floor_name(int(v.from_floor))
+	_digits(label, panel + fw * 0.015, -side, 0.15, mat("dark", f, false, {"glow": 1.6, "emit": Color("ffb030"), "color": Color("ffb030")}))
+	box(mat("dark", f, false, {"glow": 1.4, "emit": Color("39f0a0")}), c + fw * 0.3 + side * 0.51 + Vector3(0, 0.62, 0), along.call(0.08, 0.02) + Vector3(0, 0.12, 0))   # the call button
+
+
+## Seven-segment digits (a lift's floor indicator): `text`'s digits centred on `at`, reading along
+## `right`, `h` tall, each segment a small emissive box.
+const SEGS := {"0": "abcdef", "1": "bc", "2": "abged", "3": "abgcd", "4": "fgbc", "5": "afgcd", "6": "afgedc", "7": "abc", "8": "abcdefg", "9": "abcdfg", "R": "efabg"}
+func _digits(text: String, at: Vector3, right: Vector3, h: float, mt: Material) -> void:
+	var w := h * 0.55
+	var t := h * 0.16
+	var gap := h * 0.25
+	var total := text.length() * w + (text.length() - 1) * gap
+	var horiz := Vector3(absf(right.x) * w, t, absf(right.z) * w) + Vector3(absf(right.z), 0, absf(right.x)) * 0.01
+	var vert := Vector3(absf(right.x) * t, h / 2, absf(right.z) * t) + Vector3(absf(right.z), 0, absf(right.x)) * 0.01
+	for i in text.length():
+		var segs: String = SEGS.get(text[i], "")
+		var o := at + right * (-total / 2 + w / 2 + i * (w + gap))
+		var spots := {"a": [Vector3(0, h / 2, 0), horiz], "g": [Vector3.ZERO, horiz], "d": [Vector3(0, -h / 2, 0), horiz],
+			"f": [right * -w / 2 + Vector3(0, h / 4, 0), vert], "b": [right * w / 2 + Vector3(0, h / 4, 0), vert],
+			"e": [right * -w / 2 + Vector3(0, -h / 4, 0), vert], "c": [right * w / 2 + Vector3(0, -h / 4, 0), vert]}
+		for s in segs:
+			box(mt, o + spots[s][0], spots[s][1])
 
 
 ## Which way a flight from square p on storey f climbs: along x when there is floor beside it on x.
@@ -1724,9 +1787,116 @@ func _frame(mt: Material, margin: float) -> void:
 	box(mt, Vector3(m.w + margin / 2, y, m.h / 2.0), Vector3(margin, 0.1, m.h))
 
 
-## What surrounds the map (SceneTheme): lit towers by default, desert for open country.
+## What surrounds the map (SceneTheme): lit towers by default, desert for open country; a tower band
+## hangs in the sky over the city (_sky_band).
 func _surround() -> String:
+	if m.is_tower():
+		return "sky"
 	return String(SceneTheme.of(m).get("surround", "desert" if natural else "skyline"))
+
+
+var smog := Color("2a2238")   ## a tower band's smog colour (greybox LOOKS smog), set before build
+var daylight := false         ## a tower band by day: fewer lit windows below, no street-light carpet glow
+## How far the drawn city lies below a tower band (world units; the real drop is storey_base x FH,
+## but past the smog nothing more shows).
+const SKY_DROP := 64.0
+
+
+## A tower band (TowerGen; docs/plans/towers.md T1 sky deck): the map is the top of a skyscraper.
+## Its facade carries on down under the band's lowest storey as an impostor (lit windows a storey
+## apart, a slab edge every storey) and falls away into layers of smog over a far city plane: a
+## carpet of street lights, lower tower tops with aircraft lights and, behind the map from the
+## default camera, a few neighbours nearly as tall. Nothing here is in the TacMap.
+## A sky-band material: never fogged, never cut, no baked spill (the band's light is storeys up).
+func _skm(name: String, over: Dictionary) -> ShaderMaterial:
+	var o := over.duplicate()
+	o["no_spill"] = true
+	o["mode"] = 2
+	return mat(name, 0, false, o)
+
+
+func _sky_band() -> void:
+	rng.seed = m.seed_value * 13 + 5
+	var plate := Rect2(0, 0, m.w, m.h)
+	for st in m.structures:
+		if st.get("target", false) and st.has("rect"):
+			var r: Rect2i = st.rect
+			plate = Rect2(r.position, r.size)
+	var drop := minf(maxf(m.storey_base * FH, 12.0), SKY_DROP)
+	var mid := plate.get_center()
+	# the facade below the band: one box under the plate with the tower-window pattern, a storey a row
+	var facade := _skm("tower", {"scale": 0.39, "color": Color("2a3140"), "color2": Color("1a1e28")})
+	box(facade, Vector3(mid.x, -drop / 2 - 0.03, mid.y), Vector3(plate.size.x - 0.1, drop, plate.size.y - 0.1))
+	var slab := _skm("cornice", {"mode": 2, "color": Color("3a4458")})
+	for k in range(1, int(drop / FH) + 1):   # a slab edge each storey, proud of the glass
+		var y := -k * FH + 0.06
+		box(slab, Vector3(mid.x, y, plate.position.y + 0.02), Vector3(plate.size.x + 0.12, 0.14, 0.12))
+		box(slab, Vector3(mid.x, y, plate.end.y - 0.02), Vector3(plate.size.x + 0.12, 0.14, 0.12))
+		box(slab, Vector3(plate.position.x + 0.02, y, mid.y), Vector3(0.12, 0.14, plate.size.y + 0.12))
+		box(slab, Vector3(plate.end.x - 0.02, y, mid.y), Vector3(0.12, 0.14, plate.size.y + 0.12))
+	for cx in [plate.position.x, plate.end.x]:   # the corner piers, down into the haze
+		for cz in [plate.position.y, plate.end.y]:
+			box(slab, Vector3(cx, -drop / 2, cz), Vector3(0.5, drop, 0.5))
+	var rf := int(m.bands[0].get("roof_floor", -1)) if not m.bands.is_empty() else -1
+	if rf > 0:   # a knee-high parapet round the band's roof (cut with its storey, never fogged)
+		var par := mat("wall_concrete", rf, true, {"shell": true})
+		var py := rf * FH + 0.2
+		box(par, Vector3(mid.x, py, plate.position.y + 0.12), Vector3(plate.size.x, 0.4, 0.24))
+		box(par, Vector3(mid.x, py, plate.end.y - 0.12), Vector3(plate.size.x, 0.4, 0.24))
+		box(par, Vector3(plate.position.x + 0.12, py, mid.y), Vector3(0.24, 0.4, plate.size.y))
+		box(par, Vector3(plate.end.x - 0.12, py, mid.y), Vector3(0.24, 0.4, plate.size.y))
+	# the far city: dark ground with a carpet of street lights, lower towers rising from it
+	var floor_y := -drop - 4.0
+	var far := _skm("far_ground", {"color": Color("0d0f14") if not daylight else Color("3a3c40")})
+	box(far, Vector3(mid.x, floor_y - 0.1, mid.y), Vector3(900, 0.2, 900))
+	var lamp := _skm("dark", {"mode": 2, "glow": 1.5, "emit": Color("ffb860"), "color": Color("ffb860")})
+	var lamp2 := _skm("dark", {"mode": 2, "glow": 1.5, "emit": Color("b8d8ff"), "color": Color("b8d8ff")})
+	var reach := 240.0
+	if not daylight:
+		for i in 64:   # street grid: lines of lights along x and along z
+			var along_x := i % 2 == 0
+			var off := roundf(rng.randf_range(-reach, reach) / 9.0) * 9.0 + 0.5   # on a 18 m block grid
+			var mt := lamp if rng.randf() < 0.7 else lamp2
+			var t := -reach
+			while t < reach:
+				var p := Vector3(mid.x + (t if along_x else off), floor_y + 0.05, mid.y + (off if along_x else t))
+				box(mt, p, Vector3(0.45, 0.1, 0.45))
+				t += rng.randf_range(1.6, 3.4)
+	var T := _skm("tower", {"scale": 0.39})
+	var top := _skm("tower_top", {})
+	var beacon := _skm("dark", {"glow": 1.6, "emit": Color("ff2020"), "mode": 2})
+	var placed: Array[Rect2] = [plate.grow(3.0)]
+	for i in 170:
+		var ang := rng.randf() * TAU
+		var dist := rng.randf_range(maxf(plate.size.x, plate.size.y) * 0.8, 200.0)
+		var w := rng.randf_range(6.0, 16.0)
+		var d := rng.randf_range(6.0, 16.0)
+		var p := mid + Vector2(cos(ang), sin(ang)) * dist
+		var r := Rect2(p - Vector2(w, d) / 2, Vector2(w, d))
+		if placed.any(func(q: Rect2) -> bool: return q.grow(1.5).intersects(r)):
+			continue
+		placed.append(r)
+		# lower than the band (the city drops away): the nearer, the lower, so none hides the plate;
+		# a few behind the map from the default camera (-x / -z) stand nearly as tall
+		var behind := (p.x - mid.x) + (p.y - mid.y) < -40.0
+		var top_y := -drop * rng.randf_range(0.15, 0.75)
+		if behind and rng.randf() < 0.18:
+			top_y = rng.randf_range(-8.0, 6.0)
+		var hgt := top_y - floor_y
+		box(T, Vector3(p.x, floor_y + hgt / 2, p.y), Vector3(w, hgt, d))
+		box(top, Vector3(p.x, top_y + 0.2, p.y), Vector3(w * 0.7, 0.4, d * 0.7))
+		if rng.randf() < 0.5:   # aircraft warning light
+			box(beacon, Vector3(p.x, top_y + 0.6, p.y), Vector3(0.2, 0.2, 0.2))
+		if rng.randf() < 0.18 * signs:   # a neon edge so the mass has an outline
+			var sc: Color = neon[rng.randi() % neon.size()]
+			box(_skm("dark", {"glow": 1.4, "emit": sc, "mode": 2}), Vector3(p.x + w / 2, top_y - 3.0, p.y + d / 2), Vector3(0.15, 6.0, 0.15))
+	# smog: layers of haze below the band, each a little thicker, so the facade fades out storey by storey
+	for k in 3:
+		var y := -5.0 - k * 12.0
+		if y < floor_y + 1.0:
+			break
+		var hz := _skm("dark", {"mode": 2, "alpha": 0.1 + 0.05 * k, "color": smog, "glow": 0.35 if not daylight else 0.1, "emit": smog})
+		box(hz, Vector3(mid.x, y, mid.y), Vector3(900, 0.02, 900))
 
 
 ## Undercity: the solid ground between the tunnels, a block up to wall height over every VOID

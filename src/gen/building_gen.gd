@@ -278,7 +278,9 @@ static func _sealed_root(m: TacMap, first: int, kinds: Array) -> Dictionary:
 ## lobby's inner wall (not the facade), its doors facing into the lobby, on the same square
 ## storey over storey (the program's band depths stack the lobbies). It runs through the band's
 ## storeys, not to the roof (the fire stair goes up there). The vertical carries `car: true` and
-## `face` (the way its doors open). Nearest the lobby's middle, so the doors open onto open floor.
+## `face` (the way its doors open). Nearest the lobby's middle, so the doors open onto open floor,
+## its doors facing +x or +z where it can (the default camera looks from there: the doors and the
+## floor indicator over them face the player).
 static func _lift_car(m: TacMap, first: int, floors: int, sid: int, kinds: Array, fp: Footprint) -> void:
 	if floors < 2:
 		return
@@ -297,6 +299,8 @@ static func _lift_car(m: TacMap, first: int, floors: int, sid: int, kinds: Array
 			if not _car_fits(m, v, d, floors, kinds, fp):
 				continue
 			var dd := Vector2(v).distance_to(mid) + v.y * 0.001 + v.x * 0.00001
+			if not -d in [Vector2i.DOWN, Vector2i.RIGHT]:   # doors toward the default camera (+x +z) read best
+				dd += 100.0
 			if dd < best_d:
 				best_d = dd
 				best = v

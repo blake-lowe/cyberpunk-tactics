@@ -26,6 +26,23 @@ const DEFAULT_BAND := "sky"
 const DEPLOY := 6
 
 
+## What the tower strip calls a storey programme (sites.json tower_* storeys).
+const PROGRAMME_NAMES := {"reception": "sky lobby", "office": "offices", "lab": "labs", "exec": "exec suite",
+	"apex": "apex suite", "guest": "guest rooms", "suite": "suites", "spa": "spa"}
+
+
+## The strip's name for floor f of a tower band: its programme's ("labs"), "roof" for its roof, "" off a band.
+static func programme_name(m: TacMap, f: int) -> String:
+	var b := m.band_of(f)
+	if b.is_empty():
+		return ""
+	if f == int(b.get("roof_floor", -1)):
+		return "roof"
+	var names: Array = b.get("programme", [])
+	var i := f - int(b.from_floor)
+	return String(PROGRAMME_NAMES.get(String(names[i]), String(names[i]))) if i >= 0 and i < names.size() else ""
+
+
 ## The tower record (World.tower) and band a scene's params name, the defaults filled in:
 ## [tower, band def, band id]. The band falls back to the tower's first one.
 static func resolve(p: Dictionary) -> Array:
@@ -107,7 +124,7 @@ static func plan(c: Dictionary) -> void:
 	var roof := storeys.size() if bool(b.get("roof", true)) and storeys.size() < m.floors else -1
 	m.storey_base = storeys[0] - 1
 	m.bands.assign([{"id": String(r[2]), "kind": String(r[2]), "from_floor": 0, "to_floor": storeys.size() - 1,
-		"storey_from": storeys[0], "roof_floor": roof}])
+		"storey_from": storeys[0], "roof_floor": roof, "programme": prog_names.duplicate()}])
 	m.tower = {"location": String(t.get("location", "")), "id": String(t.get("id", "")), "name": String(t.get("name", "")),
 		"storeys": int(t.get("storeys", storeys[-1])), "recipe": site}
 	_deploy(m, int(st.id))

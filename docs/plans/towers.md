@@ -173,3 +173,31 @@ The roadmap principle holds: we keep the book's node types, DVs, abilities, ICE 
 9. Missing heights: plausible values where floors are a reasonable expectation, tagged ours.
 - Tower gigs are rare and gated to later progression; keep a good mix of high-rise and low-rise gigs.
 - Admin custom gig builder (dev mode) for debugging all content.
+
+## 9. Stage 1a as built (2026-11-08)
+
+- **Storeys.** `TacMap.storey_base`, `TacMap.bands` (one record in 1a: `{id, kind, from_floor, to_floor, storey_from,
+  roof_floor, programme}`; stage 2 appends) and `TacMap.tower`; `floor_name` prints 48, 49, 50, R. Saved in
+  `to_dict` on tower maps only (`storeys_from_dict` reads them back); ordinary maps are byte-identical.
+- **Data.** `docs/world/towers.md` sets `locations.<id>.tower` for nine towers (Raven, MA&F, Continental, Ziggurat apex,
+  Haakensen, New Libertine, Segotari, N54, Highcourt Plaza); heights the book omits are ours and flagged.
+  Recipes `tower_corp` / `tower_hotel` in sites.json: a shared five-band plan with storey programmes.
+- **Generation.** Scene `tower_top` (TowerGen): one sealed BuildingGen pass (no street door, rooms grow from the lift
+  lobby), the lift car on an inner lobby wall with its doors toward the default camera, VOID sky round the plate.
+  Deploy = the car and the lobby squares before it (also the extraction zone: riding down is getting out).
+- **Responders.** `Encounter.arrival_cell`: out of the lift or up the fire stair on the crew's storey, the farther
+  free one (complication waves too). The assassination mark's only exit is the car on the band's lowest storey,
+  so a crew member standing in it holds the lift and traps the mark.
+- **HOUSE-RULE (ours):** a tower band's lowest storey has public access like a set piece's public floor (the crew
+  stepping out of the car passes as visitors until a restricted door), else the lobby camera raised the alarm on
+  every tower gig at round 1.
+- **Campaign.** gigs.json `tower`: past best Reputation 4, one board in four carries one tower offer in place of an
+  ordinary one; pay x1.5. Ordinary offers at a tower's place still play its street building until stage 1b.
+  Dev builder: Tower field, `--tower=<id|location|any>`, `--band`.
+- **View.** WorldBuilder surround `sky`: impostor facade under the plate (tower windows a storey a row, slab edges,
+  corner piers), smog layers, a far city plane with a street-light grid and lower towers (a few behind the map
+  nearly as tall), a roof parapet. Height fog hangs under the band (LOOKS `tower_top`, `tower_day` via `--sky=day`).
+  Lift car with seven-segment floor indicator; Alt lift plate; the tower strip (programme names, car, gold
+  objective notch, `2-47 · 46 floors` hairline, `1 lobby · off map`); the cut-away storeys above the cut dashed.
+- **Deferred to stage 2+** (V1 items not built): call mode, the moving car and ride cut, padlocked rows, amber
+  lockdown, intel range rows, DING, stairwell transition, street band (1b).
