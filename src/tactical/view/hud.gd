@@ -2130,7 +2130,6 @@ const HELP := [
 		["SHIFT / CTRL", "View one floor up / down (hold to keep going)"],
 		["PG UP / PG DN  ·  ] / [", "The same (or the floor stack's arrows and rows)"],
 		["HOME", "Back to the selected unit's building and floor"],
-		["C", "Cutaway: auto / every seen room / off"],
 	]],
 	["OVERLAYS", [
 		["Z", "Guard sight lines: near your move / always / off"],

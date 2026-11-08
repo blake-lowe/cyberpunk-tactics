@@ -22,7 +22,7 @@ extends Node
 ##   Hover an enemy  line of fire / swing / throw arc and the hit chance (AimPreview)
 ##   F attack (again: next mode)   Tab next weapon   R reload   J jack in   Space end turn
 ##   Alt (hold) inspect, crew roster, enemy outlines, stair / exit signs    F4 cyberspace style    N peek out of the NET
-##   C cutaway auto / all seen rooms / off    Z guard sight lines near your move / always / off
+##   Z guard sight lines near your move / always / off
 ##   F1 new gig    F2 look settings    F3 toggle fog of war    K collapse / show the combat log
 ## Screenshot mode:  -- --shot=path.png [--scene=x] [--profile=y] [--district=z] [--seed=n] [--pixel=3]
 ##   [--levels=0] [--dither=0.5] [--outline=0.4] [--bloom=0.8] [--contrast=1.1] [--ortho=1]
@@ -51,8 +51,7 @@ var view_floor := 0
 var _blueprint := {}   ## floors drawn as the fixer's blueprints while unexplored (FloorNav.blueprint_floors)
 var _bp_shown := {}    ## material instance id → blueprint flag last set
 var _stair_glow: Node3D   ## faint lights on the stairs toward the objective's floor
-var cutaway := true
-var cut_all := false   ## C cycles: AUTO (buildings open only with crew inside or pointed into) → ALL SEEN → OFF
+var cutaway := true   ## buildings cut open per FloorNav.slices (owner retired the C modes, 2026-11-08); --cut=off for renders
 var sight_mode := 0    ## Z cycles guards' sight lines: 0 near the hovered move / hovered guard, 1 always, 2 off
 var fog_on := true
 var mode := Attack.Mode.SINGLE
@@ -389,9 +388,8 @@ func _ready() -> void:
 			"ap_icons": ap_icons = kv[1] != "0"   # access-point way-finding: Alt port icons
 			"ap_lines": ap_lines = kv[1] != "0"   # access-point way-finding: a Netrunner's idle data lines
 			"ap_led": ap_led = kv[1] != "0"   # access-point way-finding: pulsing port LED
-			"cut":   # review renders: auto | all | off
+			"cut":   # review renders: on | off
 				cutaway = kv[1] != "off"
-				cut_all = kv[1] == "all"
 			"sight": sight_mode = int(kv[1])
 			"promo":   # beauty renders: the world and the characters only (no HUD, grid, markers)
 				_promo = kv[1] != "0"
@@ -1883,17 +1881,6 @@ func _slice_z(c: Vector2i) -> int:
 func _update_fog() -> void:
 	open_cells.clear()
 	_cuts = _slices() if cutaway and enc != null else {}
-	if cutaway and cut_all:   # ALL SEEN: every room the crew has seen into opens too, at the viewed floor
-		for v in enc.vision.explored:
-			var l2 := m.label(v.z, v.x, v.y)
-			if l2 >= 0 and v.z <= view_floor and not m.rooms[l2].get("outdoor", false):
-				var sid2 := int(m.rooms[l2].get("structure", -1))
-				if sid2 >= 0 and not _cuts.has(sid2):
-					_cuts[sid2] = view_floor
-		if not fog_on:
-			for sid3 in _bld:
-				if not _cuts.has(sid3):
-					_cuts[sid3] = view_floor
 	for c in _col_sid:
 		if _cuts.has(_col_sid[c]):
 			open_cells[c] = _col_sid[c]
@@ -3054,16 +3041,6 @@ func _unhandled_input(ev: InputEvent) -> void:
 					_floor_key_t = 0.0
 					_floor_key_steps = 1
 					_change_floor(fd)
-			KEY_C:
-				if not cutaway:
-					cutaway = true
-					cut_all = false
-				elif not cut_all:
-					cut_all = true
-				else:
-					cutaway = false
-				hud.toast("CUTAWAY: " + ("OFF" if not cutaway else ("ALL SEEN ROOMS" if cut_all else "AUTO")))
-				_refresh()
 			KEY_Z:
 				sight_mode = (sight_mode + 1) % 3
 				hud.toast("GUARD SIGHT LINES: " + ["NEAR YOUR MOVE", "ALWAYS", "OFF"][sight_mode])

@@ -98,7 +98,7 @@ func test_help_says_how_to_attack() -> void:
 		assert_true(h.contains(k), k)
 	assert_false(h.contains("SHIFT + LEFT-CLICK"), "Shift is a floor key now: shoot cover is the attack stage's COVER")
 	assert_true(h.contains("Z  Guard sight lines"), "Z's sight-line modes live on the H card, not a HUD line (owner)")
-	assert_true(h.contains("C  Cutaway"), "so does C's cutaway")
+	assert_false(h.contains("Cutaway"), "C's cutaway modes are retired (owner): buildings always cut per FloorNav")
 	for k in ["RELOAD", "SPACE", "JACK"]:   # the action bar shows its own keys (owner)
 		assert_false(h.to_upper().contains(k), "no bar key in the help: " + k)
 
