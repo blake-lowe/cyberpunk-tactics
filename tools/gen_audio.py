@@ -864,6 +864,71 @@ def sfx_body_slam():
     return fade(reverb(x, 0.2, 0.15, 0.4), 0.0005, 0.12)
 
 
+# --- NET device work (CPR core p.199: Control, Eye-Dee; Greybox._ev_net_control / _ev_net_device /
+# _ev_eye_dee). Own seeded generators (own_rng), so adding these shifts no other recipe. Bit-crushed
+# square-wave blips in the jack-in sound's family.
+
+def _crush(x, steps=8):
+    return np.round(x * steps) / steps
+
+
+@sfx
+@own_rng
+def sfx_net_take():
+    """A Control Node taken: three rising square blips and a short handshake chirp, crushed."""
+    total = 0.55
+    x = np.zeros(int(total * SR))
+    for k, f in enumerate([392, 587, 880]):
+        x += at(tone(0.06, f, "square") * env(0.06, 0.001, 0.025) * 0.3, k * 0.07, total)
+    x += at(sweep(0.18, 900, 2600, "square", 1.5) * env(0.18, 0.002, 0.07) * 0.16, 0.22, total)
+    x += at(hp(rng.standard_normal(int(0.03 * SR)), 3000) * env(0.03, 0.0005, 0.008) * 0.15, 0.21, total)
+    return fade(reverb(_crush(x), 0.15, 0.15))
+
+
+@sfx
+@own_rng
+def sfx_net_lock():
+    """A lock thrown shut from the NET: a falling blip and a heavy electric bolt clunk."""
+    total = 0.45
+    blip = sweep(0.09, 1400, 500, "square", 1.0) * env(0.09, 0.001, 0.04) * 0.25
+    clunk = drive(lp(rng.standard_normal(int(0.12 * SR)), 700) * env(0.12, 0.0005, 0.03) * 1.2 + tone(0.12, 70) * env(0.12, 0.001, 0.05), 2.0)
+    return fade(mix(at(_crush(blip), 0.0, total), at(clunk * 0.7, 0.08, total)))
+
+
+@sfx
+@own_rng
+def sfx_net_unlock():
+    """A lock released from the NET: a rising blip and a light bolt snap back."""
+    total = 0.4
+    blip = sweep(0.09, 600, 1600, "square", 1.0) * env(0.09, 0.001, 0.04) * 0.25
+    snap = hp(rng.standard_normal(int(0.05 * SR)), 1500) * env(0.05, 0.0005, 0.012) * 0.6 + tone(0.05, 180) * env(0.05, 0.001, 0.02) * 0.4
+    return fade(mix(at(_crush(blip), 0.0, total), at(snap, 0.09, total)))
+
+
+@sfx
+@own_rng
+def sfx_net_feed():
+    """A camera feed patched through: a short burst of video static that settles into a hum."""
+    total = 0.6
+    stat = bp(rng.standard_normal(int(0.25 * SR)), 1500, 6000) * env(0.25, 0.002, 0.09) * 0.35
+    hum = tone(0.5, 120, "square") * 0.06 * np.sin(np.pi * t(0.5) / 0.5) + tone(0.5, 15734 / 4) * 0.02 * np.sin(np.pi * t(0.5) / 0.5)
+    return fade(mix(at(stat, 0.0, total), at(hum, 0.08, total)))
+
+
+@sfx
+@own_rng
+def sfx_net_eyedee():
+    """Eye-Dee: a fast run of data ticks climbing in pitch, ending on a bright two-note read-out."""
+    total = 0.75
+    x = np.zeros(int(total * SR))
+    for k in range(10):
+        f = 700 + 90 * k + rng.uniform(-30, 30)
+        x += at(tone(0.025, f, "square") * env(0.025, 0.0005, 0.01) * 0.18, k * 0.035, total)
+    x += at(tone(0.12, 1318, "square") * env(0.12, 0.002, 0.06) * 0.22, 0.4, total)
+    x += at(tone(0.18, 1760, "square") * env(0.18, 0.002, 0.08) * 0.2, 0.5, total)
+    return fade(reverb(_crush(x), 0.2, 0.2))
+
+
 # --- ambience loops -------------------------------------------------------------------------------
 
 AMB = {}

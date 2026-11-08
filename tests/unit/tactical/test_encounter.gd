@@ -457,13 +457,14 @@ func test_jack_out_loses_held_nodes_and_relocks_doors() -> void:
 	run.held[ctl] = true
 	var lock: Dictionary = {}
 	for did in run.arch.nodes[ctl].devices:
-		e.disabled_devices[did] = true
 		if e.m.devices[did].type == "door_lock":
 			lock = e.m.devices[did]
 	var cell := Vector3i(lock.pos.x, lock.pos.y, lock.floor)
-	e.nav.locked.erase(cell)
+	assert_true(e.nav.locked.has(cell), "a security door starts locked")
+	assert_true(e.net_device(ctl, int(lock.id)).ok, "unlocked from the NET")
+	assert_false(e.nav.locked.has(cell))
 	e.net_action("jack_out")
-	assert_true(e.disabled_devices.is_empty(), "p199: held nodes are lost")
+	assert_false(e.disabled_devices.has(int(lock.id)), "p199: held nodes are lost")
 	assert_true(e.nav.locked.has(cell), "the door locks again")
 
 

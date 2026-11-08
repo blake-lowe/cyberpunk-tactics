@@ -11,6 +11,7 @@ const DIRS8: Array[Vector2i] = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1),
 var m: TacMap
 var locked := {}          ## Vector3i door cells that are locked (security doors until hacked)
 var _links := {}          ## Vector3i → [[Vector3i, cost]] for shafts and connectors
+var halted := {}          ## Vector2i shaft squares whose elevator car is stopped (held from the NET): nobody rides it
 
 
 func _init(p_map: TacMap) -> void:
@@ -46,7 +47,7 @@ func neighbours(v: Vector3i, occupied: Dictionary) -> Array:
 				continue
 		out.append([n, 1])
 	for l in _links.get(v, []):
-		if open(l[0]) and not occupied.has(l[0]):
+		if open(l[0]) and not occupied.has(l[0]) and not (halted.has(Vector2i(v.x, v.y)) and l[0].x == v.x and l[0].y == v.y):
 			out.append(l)
 	return out
 

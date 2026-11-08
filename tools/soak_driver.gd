@@ -28,7 +28,7 @@ var verbose := false
 var debug := false        ## every crew Move, for chasing a stuck crew
 var failures: Array[String] = []
 var trace: Array[String] = []
-var stats := {"gigs": 0, "won": 0, "fled": 0, "lost": 0, "rounds": 0, "turret_units": 0, "turret_shots": 0,
+var stats := {"gigs": 0, "won": 0, "fled": 0, "lost": 0, "rounds": 0, "turret_units": 0, "turret_shots": 0, "device_ops": 0,
 	"complications": 0, "utilities": 0, "neutral": 0, "peace_broken": 0, "setpieces": {}, "sides": {}, "kinds": {}, "offers": {}, "looks": {}}
 
 var _ctx := ""            ## "seed 3 gig 2 (title)": prefixed to failures
@@ -357,6 +357,8 @@ func _net_turn(e: Encounter, u: Dictionary) -> bool:
 			continue
 		if _fire_held_turret(e, u):
 			continue
+		if _work_device(e, u):
+			continue
 		if run.current == target and run.action_block("eye_dee") == "":
 			e.net_action("eye_dee")
 			continue
@@ -375,6 +377,19 @@ func _fire_held_turret(e: Encounter, u: Dictionary) -> bool:
 		if String(t.why) == "" and not (t.targets as Array).is_empty():
 			stats.turret_shots += 1
 			return bool(e.fire_turret(int(t.id), int(t.targets[0].id)).get("ok", false))
+	return false
+
+
+## Work a held node's device (Encounter.net_device, a NET Action): loop live cameras, open a door
+## the NET still has locked. Once per node a turn (p199), like the turrets.
+func _work_device(e: Encounter, u: Dictionary) -> bool:
+	for row in e.device_ops(int(u.id)):
+		for op in row.ops:
+			if String(op.why) == "" and ((op.op == "loop" and not op.on) or (op.op == "lock" and op.on)):
+				var r := e.net_device(int(op.node), int(op.device))
+				if bool(r.get("ok", false)):
+					stats.device_ops += 1
+					return true
 	return false
 
 

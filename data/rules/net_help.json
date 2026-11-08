@@ -1,5 +1,5 @@
 {
- "_source": "Hover cards for the NET panel (Hud.net_help). Short paraphrases of CPR core p.197-207 as distilled in docs/rules/cyber-net.md sections 3.2-3.7; hand-edited. Each entry: name, cost, text (what it does), key (its numbers), page. Ids are Encounter.NET_ACTIONS (plus jack_out_unsafe and fire_turret), Combatant.programs, and the NET Actions header (net_actions).",
+ "_source": "Hover cards for the NET panel (Hud.net_help). Short paraphrases of CPR core p.197-207 as distilled in docs/rules/cyber-net.md sections 3.2-3.7; hand-edited. Each entry: name, cost, text (what it does), key (its numbers), page. Ids are Encounter.NET_ACTIONS (plus jack_out_unsafe, fire_turret, held and the dev_<op> rows of data/rules/net_devices.json), Combatant.programs, and the NET Actions header (net_actions).",
  "actions": {
   "net_actions": {
    "name": "NET Actions",
@@ -11,21 +11,21 @@
   "backdoor": {
    "name": "Backdoor",
    "cost": "1 NET Action",
-   "text": "Break the Password that bars the way (a firewall here). Knowing the password gets you through without a roll.",
+   "text": "Break a Password: here, the firewall that bars the way deeper. A broken Password stays open until you jack out; knowing the password gets you through without a roll. Access that outlasts the run needs a Virus left at the lowest floor (p.200), not in the game yet.",
    "key": "Interface + 1d10 vs the Password's DV",
    "page": "p.199"
   },
   "control": {
    "name": "Control",
    "cost": "1 NET Action",
-   "text": "Take a Control Node and what hangs off it: cameras, turrets, door locks. While you hold it, working each device costs a NET Action, from anywhere in the NET, once a turn per node. Jacking out drops every node you hold.",
+   "text": "Take a Control Node and what hangs off it: cameras, turrets, door locks, lights, elevators. Taking it changes nothing by itself: each thing on it is then worked with its own NET Action (the HELD NODES rows), from anywhere in the NET, each node once a turn. Held cameras feed you what they see. Jacking out drops every node you hold.",
    "key": "Interface + 1d10 vs the Node's DV",
    "page": "p.199"
   },
   "eye_dee": {
    "name": "Eye-Dee",
    "cost": "1 NET Action",
-   "text": "Identify a File and what it is worth. On a data gig, identifying the target File gets the job done.",
+   "text": "Identify a File: what the data is and what it is worth (value 1-5: scrap, routine, useful, valuable, paydata). On a data gig, identifying the target File downloads it and gets the job done.",
    "key": "Interface + 1d10 vs the File's DV",
    "page": "p.199"
   },
@@ -77,6 +77,69 @@
    "text": "Work a turret on a Control Node you hold: it shoots with your own aim. Each node can act once a turn.",
    "key": "your REF + the weapon's Skill + 1d10 vs the range DV",
    "page": "p.199, p.214"
+  },
+  "held": {
+   "name": "Held Control Node",
+   "cost": "held until you jack out",
+   "text": "You hold this node. Each thing on it is one NET Action to work, from anywhere in the NET; the node acts once a turn, whichever of its rows you use (a turret's FIRE included). The HELD badge marks its devices on the map too.",
+   "key": "no roll: holding it is enough",
+   "page": "p.199"
+  },
+  "dev_loop": {
+   "name": "Loop Camera Feed",
+   "cost": "1 NET Action",
+   "text": "The node's cameras show the site a recording: they stop reporting anyone they see. You keep watching the real feed. Restore it the same way. While you hold the node its cameras feed the crew what they see, looped or not (house rule: watching isn't operating).",
+   "key": "no roll · all the node's cameras at once (house rule: one camera system)",
+   "page": "p.199, p.215"
+  },
+  "dev_lock": {
+   "name": "Lock / Unlock Door",
+   "cost": "1 NET Action",
+   "text": "Throw the door's lock from the NET. Unlocked, anyone walks through. Locked, it swings shut and stays shut to everyone: the guards' keycards don't open a lock you hold (house rule). Jack out and the site has its locks back.",
+   "key": "no roll · not while someone stands in the doorway",
+   "page": "p.199"
+  },
+  "dev_seal": {
+   "name": "Seal / Open",
+   "cost": "1 NET Action",
+   "text": "Close and lock every door this control works (a vault door, the cells, the shutters, the gates), or open them all. Sealed doors keep everyone out, keycards or not, until you open them or jack out.",
+   "key": "no roll · one device, all its doors",
+   "page": "p.199, p.210-211"
+  },
+  "dev_halt": {
+   "name": "Halt / Run Elevator",
+   "cost": "1 NET Action",
+   "text": "Stop the elevator car: nobody rides that shaft until you start it again or jack out.",
+   "key": "no roll",
+   "page": "p.199"
+  },
+  "dev_lights": {
+   "name": "Lights Off / On",
+   "cost": "1 NET Action",
+   "text": "Kill the lights in the rooms these lights serve. Anyone in the dark is harder to spot: -4 to a guard's or camera's Perception.",
+   "key": "no roll · darkness: -4 Perception",
+   "page": "p.199, p.210-211"
+  },
+  "dev_cut_alarm": {
+   "name": "Cut Alarm Line",
+   "cost": "1 NET Action",
+   "text": "Cut the site's alarm line. A guard who calls it in must go by radio alone: help takes twice as long to come (house rule). Restore it the same way.",
+   "key": "no roll · response time x2",
+   "page": "p.199"
+  },
+  "dev_sprinklers": {
+   "name": "Run Sprinklers",
+   "cost": "1 NET Action",
+   "text": "Set off the building's sprinklers: anyone on fire indoors is put out.",
+   "key": "no roll",
+   "page": "p.199, p.210-211"
+  },
+  "dev_distract": {
+   "name": "Start Up",
+   "cost": "1 NET Action",
+   "text": "Kick the machine into life (or page someone over the PA). Unalerted guards near it on its floor turn to look its way, their backs to everything else (house rule).",
+   "key": "no roll · guards within 10 squares",
+   "page": "p.199"
   }
  },
  "programs": {

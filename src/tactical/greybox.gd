@@ -191,6 +191,8 @@ var world: Node3D
 var floor_nodes: Array[Node3D] = []
 var unit_nodes := {}
 var door_nodes: Node3D
+var feed_node: MultiMeshInstance3D   ## squares a held camera shows the crew (NetDevices.feed_cells): a faint cyan wash
+var _feed_key := -1
 var grid_node: MeshInstance3D
 var watch_node: MeshInstance3D   ## stealth: ground that visible, unalerted guards and cameras watch
 var watch_img: Image
@@ -297,6 +299,13 @@ var _alt_on := false                   ## Alt is held: enemy outlines, last-know
 var _portrait_uid := -1                ## the turn-order portrait under the mouse (-1 none)
 var _aim := {}                         ## the hovered attack's preview: shape, from, to, col, ...
 var aim_fx: AimFx                      ## ... drawn in the 3D world (the post shader pixelates it)
+var jack_lines: JackLines              ## a Netrunner's idle turn: data lines to the access points in reach (ap_lines)
+## Access-point way-finding, three options for the owner to choose between (all off until chosen;
+## dev flags --ap_icons=1 --ap_lines=1 --ap_led=1): Alt port icons over every seen access point,
+## data lines from an idle Netrunner to the ones they could jack in at this turn, a pulsing port LED.
+var ap_icons := false
+var ap_lines := false
+var ap_led := false
 var _mh := {}                          ## the melee hover: attacker node, target id, yaw to restore
 var _shot2 := ""                       ## --shot2=path (review renders): a second frame 0.15 s later
 var _shot_ms := 0
@@ -305,6 +314,7 @@ var _dev_callouts := false             ## --callouts (review renders): a crit an
 var _dev_end := ""                     ## --end=won|lost|fled (review renders): the gig ends that way, the end panel shows
 var _dev_peace := false                ## --peace=broken (review renders): the crew breaks a neutral house's peace
 var _jack_turret := false              ## --jack=turret (review renders): the runner also holds a turret's Control Node
+var _jack_mode := ""                   ## --jack=<mode> (review renders): turret | camera | lock | eyedee | held (_demo_net_work)
 var _dev_ambient := 1.0                ## --ambient=s (review renders): scale the scene's ambient energy (dev only)
 var _dev_exposure := 1.0               ## --exposure=s (review renders): scale the tonemap exposure, the whole lit scene (dev only)
 var _dev_gamma := 1.0                  ## --gamma=s (review renders): scale the grade's power curve (dev only)
@@ -372,6 +382,10 @@ func _ready() -> void:
 			"objective": gig["objective"] = kv[1]
 			"complication": gig["complication"] = kv[1]   # force one: mook:2, lieutenant:1, mini_boss:4
 			"fog": fog_on = kv[1] != "0"
+			"netview": net_view = kv[1] != "0"   # review renders: 0 shows the plain world while jacked in (the N key)
+			"ap_icons": ap_icons = kv[1] != "0"   # access-point option (owner to pick): Alt port icons
+			"ap_lines": ap_lines = kv[1] != "0"   # access-point option: a Netrunner's idle data lines
+			"ap_led": ap_led = kv[1] != "0"   # access-point option: pulsing port LED
 			"cut":   # review renders: auto | all | off
 				cutaway = kv[1] != "off"
 				cut_all = kv[1] == "all"
@@ -396,6 +410,7 @@ func _ready() -> void:
 			"jack":  # review renders: the Netrunner jacks in at the nearest terminal (turret: one holding a turret's node)
 				_jack_demo = true
 				_jack_turret = kv[1] == "turret"
+				_jack_mode = kv[1]
 			"av":  # review renders: an AV lands (trauma | maxtac); --shot-delay sets when to capture
 				_av_demo = kv[1]
 			"reel":  # review videos: script one combat scene, then quit (record with --write-movie)
@@ -480,6 +495,7 @@ func _process(delta: float) -> void:
 					_update_hover()
 	_update_shake(delta)
 	_sync_aim_fx()
+	_sync_jack_lines()
 	# hold Alt to inspect what's under the cursor (owner: a dwell timer would be annoying)
 	var alt := Input.is_key_pressed(KEY_ALT) or _inspect_demo or _alt_demo
 	if hud and alt != hud.roster_on:
@@ -967,6 +983,7 @@ func _build_world() -> void:
 	builder.lightfield = LightField.bake(m, enc.los, LightPlan.plan(m, m.seed_value) + LightPlan.fill(m, m.seed_value) + builder.emitters)
 	devices = DeviceView.new()
 	world.add_child(devices)
+	devices.ap_led = ap_led
 	devices.build(m, func(v: Vector3i) -> float: return _gy(v))
 	keycard_nodes.clear()
 	RenderingServer.global_shader_parameter_set("lf_tex", builder.lightfield)   # units read it too
@@ -1198,8 +1215,9 @@ func _refresh() -> void:
 		_update_keycards()
 	for l in lights:  # rooms stay dark until explored, so a reveal reads as lights coming on
 		var cell: Vector3i = l[1]
-		l[0].visible = not _net_cleaned and not enc.lights_out() and (l[2] != "room" or not fog_on or enc.vision.explored.has(cell))
+		l[0].visible = not _net_cleaned and not enc.lights_out() and not enc.is_dark(cell) and (l[2] != "room" or not fog_on or enc.vision.explored.has(cell))
 	_build_doors()
+	_update_feed_tiles()
 	AimPreview.remember(_last_known, enc.units.filter(func(o): return _foe(o)), _seen)
 	for u in enc.units:
 		var n: Node3D = _unit_node(u)
@@ -1681,7 +1699,7 @@ func _inspect(v: Vector3i) -> void:
 				for ap in m.architectures[sid].access_points:
 					if ap.device == d.id:
 						on_net = true
-			lines.append("Device: %s%s%s" % [String(d.type).replace("_", " "), " · access point" if on_net else "", " · under control" if enc.disabled_devices.has(d.id) else ""])
+			lines.append("Device: %s%s%s" % [String(d.type).replace("_", " "), " · access point" if on_net else "", _device_state_text(d)])
 	if lines.is_empty():
 		var t2 := m.t(v.z, v.x, v.y)
 		var l := m.label(v.z, v.x, v.y)
@@ -1695,6 +1713,21 @@ func _inspect(v: Vector3i) -> void:
 		lines.append("[b]%s[/b]" % what)
 		lines.append("Floor %d · no cover" % (v.z + 1))
 	hud.tip("\n".join(lines), mouse, head, head_col)
+
+
+## The inspector's word on a device's state: held from the NET (and what it is doing), or off.
+func _device_state_text(d: Dictionary) -> String:
+	var did := int(d.id)
+	var out := ""
+	if enc.device_holder(did) >= 0:
+		out = " · HELD (NET)"
+		if String(d.type) == "camera":
+			out += " · feeding the crew" + (" · looped" if enc.looped.has(did) else " · still reporting")
+		elif NetDevices.is_on(enc, d) and String(NetDevices.spec(String(d.type)).get("op", "")) in ["seal", "halt", "lights", "cut_alarm"]:
+			out += " · " + String(DEVICE_WORDS[String(NetDevices.spec(String(d.type)).op)][0]).to_lower()
+	elif enc.disabled_devices.has(did) and String(d.type) != "door_lock":
+		out = " · off"
+	return out
 
 
 func _beside_cover(v: Vector3i) -> bool:
@@ -1813,6 +1846,9 @@ func _slices() -> Dictionary:
 		if not su.is_empty() and int(u.id) == int(su.id):
 			sel = crew.size()
 		crew.append([_indoor_structure(u.pos), int(u.pos.z)])
+	for did in NetDevices.feeding(enc):   # a held camera's feed opens its building like an eye inside it
+		var d: Dictionary = m.devices[int(did)]
+		crew.append([_indoor_structure(Vector3i(d.pos.x, d.pos.y, d.floor)), int(d.floor)])
 	var f := _focused()
 	return FloorNav.slices(crew, sel, f if _bld.has(f) else -1, view_floor)
 
@@ -2258,6 +2294,8 @@ func _draw_aim(c: Control) -> void:
 		return
 	if _alt_on:
 		_draw_floor_signs(c)
+		if ap_icons:
+			_draw_access_icons(c)
 		_draw_last_known(c)
 		_draw_range_labels(c)
 
@@ -2402,6 +2440,102 @@ func _draw_range_labels(c: Control) -> void:
 		var at := p + Vector2(-tw / 2.0, -8)
 		c.draw_string_outline(Hud.F_TERM, at, txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, 3, Color(0, 0, 0, 0.85 * a))
 		c.draw_string(Hud.F_TERM, at, txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(col, a))
+
+
+## While a held camera feeds the crew: a faint cyan wash on the floor of every square it shows (on
+## the floors the view draws), so the feed reads as the camera's view and not just less fog.
+func _update_feed_tiles() -> void:
+	if world == null or enc == null:
+		return
+	var cells := NetDevices.feed_cells(enc) if not _promo else {}
+	var key := hash([cells.keys(), view_floor, _cuts])
+	if key == _feed_key and feed_node != null:
+		return
+	_feed_key = key
+	if feed_node == null or not is_instance_valid(feed_node):
+		feed_node = MultiMeshInstance3D.new()
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		var pm := PlaneMesh.new()
+		pm.size = Vector2(0.94, 0.94)
+		var mt := StandardMaterial3D.new()
+		mt.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mt.albedo_color = Color(0.22, 0.85, 1.0, 0.22)
+		mt.no_depth_test = false
+		pm.material = mt
+		mm.mesh = pm
+		feed_node.multimesh = mm
+		feed_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		world.add_child(feed_node)
+	var shown := cells.keys().filter(func(v): return _slice_z(Vector2i(v.x, v.y)) == int(v.z) or int(v.z) == view_floor)
+	var mm2 := feed_node.multimesh
+	mm2.instance_count = shown.size()
+	for i in shown.size():
+		var v: Vector3i = shown[i]
+		mm2.set_instance_transform(i, Transform3D(Basis(), Vector3(v.x + 0.5, _gy(v) + 0.04, v.y + 0.5)))
+	feed_node.visible = not shown.is_empty()
+
+
+var _jack_key := []        ## what the access points in reach were worked out for (unit, square, turn, move left, seen)
+var _jack_reach: Array = []
+
+
+## ap_lines: on a crew Netrunner's own turn, while idle (not aiming, moving or in the NET), thin
+## data lines to every seen access point they could reach and jack in at this turn
+## (AccessPoints.in_reach), packets flowing out along them. Worked out again only when the unit,
+## its square, its move left or what the crew has seen changes.
+func _sync_jack_lines() -> void:
+	if world == null or not is_instance_valid(world):
+		return
+	if jack_lines == null or not is_instance_valid(jack_lines):
+		jack_lines = JackLines.new()
+		world.add_child(jack_lines)
+	var on := ap_lines and enc != null and not busy and not _promo and _crew_turn() and _aim.is_empty() and stage == "main" \
+		and not enc.runs.has(enc.cur.id) and NetRun.interface_rank(enc.cur.c) > 0 and _net_active() == null
+	if not on:
+		jack_lines.set_lines(Vector3.ZERO, [], Vector3.ZERO, 0.0)
+		return
+	var key := [int(enc.cur.id), enc.cur.pos, enc.turn, enc.turn.squares_available() if enc.turn else 0, enc.vision.explored.size()]
+	if key != _jack_key:
+		_jack_key = key
+		_jack_reach = AccessPoints.in_reach(enc, enc.cur, fog_on)
+	var sn: Node3D = unit_nodes.get(enc.cur.id)
+	var from := (sn.global_position if sn else _body_pos(enc.cur)) + Vector3(0, 0.9, 0)
+	var to := []
+	for p in _jack_reach:
+		var c: Vector3i = p.cell
+		to.append(Vector3(c.x + 0.5, _gy(c) + 0.7, c.y + 0.5))
+	jack_lines.set_lines(from, to, cam.global_position, _line_width(from) * 1.5)
+
+
+## ap_icons, Alt held: a cyan port pictogram on a dark plate over every access point the crew has
+## seen, in the floor signs' style and cap (nearest first, far ones fade).
+func _draw_access_icons(c: Control) -> void:
+	var vp := c.get_viewport_rect().size
+	var list: Array = AccessPoints.seen(enc, fog_on).filter(func(p): return _grade_shows(int(p.cell.z)))
+	for s in FloorNav.nearest_signs(list, Vector2(cam_target.x, cam_target.z), SIGN_CAP):
+		var v: Vector3i = s.cell
+		var wp := Vector3(v.x + 0.5, _gy(v) + 1.15, v.y + 0.5)
+		if cam.is_position_behind(wp):
+			continue
+		var p := _to_screen(wp).round()
+		if p.x < -20 or p.y < -20 or p.x > vp.x + 20 or p.y > vp.y + 20:
+			continue
+		_draw_port_sign(c, p, float(s.alpha))
+
+
+## One access-point sign: a jack plug (a body with two prongs) and a cable on a dark plate, cyan.
+func _draw_port_sign(c: Control, p: Vector2, a: float) -> void:
+	var g := Color(Hud.CYAN, a)
+	var r := Rect2(p - Vector2(13, 11), Vector2(26, 22))
+	c.draw_rect(r, Color(0.02, 0.04, 0.06, 0.88 * a))
+	c.draw_rect(r.grow(-0.5), Color(Hud.CYAN, 0.5 * a), false, 1.0)
+	var o := r.position + Vector2(6, 4)   # a 14 x 14 pictogram
+	c.draw_rect(Rect2(o + Vector2(3, 0), Vector2(2, 4)), g)   # prongs
+	c.draw_rect(Rect2(o + Vector2(9, 0), Vector2(2, 4)), g)
+	c.draw_rect(Rect2(o + Vector2(1, 4), Vector2(12, 6)), g)   # the plug's body
+	c.draw_line(o + Vector2(7, 10), o + Vector2(7, 14), g, 2.0)   # the cable
 
 
 ## The hovered attack's preview in the 3D world, every frame (the muzzle and the sway move):
@@ -3121,7 +3255,7 @@ func _on_hud(name: String, arg: Variant) -> void:
 				var r := enc.net_action(String(arg))
 				if not r.get("ok", false):
 					hud.toast(String(r.get("reason", "can't")))
-				elif r.has("success"):
+				elif r.has("success") and String(arg) not in ["control", "eye_dee"]:   # those two play their own events
 					_float(enc.cur, "%s %s" % [String(arg).replace("_", "-").to_upper(), "OK" if r.success else "FAILED"], Color("d68cff"))
 				_after_action()
 		"net_move":
@@ -3134,6 +3268,12 @@ func _on_hud(name: String, arg: Variant) -> void:
 				var rt: Dictionary = enc.fire_turret(int(arg[0]), int(arg[1]))
 				if not rt.get("ok", false):
 					hud.toast(String(rt.get("reason", "can't")).to_upper())
+				_after_action()
+		"net_device":   # [node id, device id]: work a device on a held Control Node (Encounter.net_device)
+			if _crew_turn():
+				var rd: Dictionary = enc.net_device(int(arg[0]), int(arg[1]))
+				if not rd.get("ok", false):
+					hud.toast(String(rd.get("reason", "can't")).to_upper())
 				_after_action()
 		"net_slide":
 			if _crew_turn():
@@ -3525,6 +3665,9 @@ func _demo_jack() -> void:
 			runner = u
 	if runner.is_empty():
 		return
+	if _jack_mode == "idle":   # --jack=idle (access-point option renders): the runner's idle turn, not jacked in
+		_demo_idle_runner(runner)
+		return
 	var best := Vector3i(-1, -1, -1)
 	for sid in m.architectures:
 		var a: NetArchitecture = m.architectures[sid]
@@ -3557,9 +3700,143 @@ func _demo_jack() -> void:
 			run.held[tn] = true
 			enc._retake_turrets()
 			_demo_turret_target(runner)
+		if _jack_mode in ["camera", "lock", "eyedee", "held"]:
+			enc.refresh_vision()
+			await _demo_net_work(runner, run)
+			return
 	enc.refresh_vision()
 	_frame_unit(runner)
 	_refresh()
+	_demo_ms = Time.get_ticks_msec()
+
+
+## Review renders (--jack=idle): the crew's Netrunner takes their turn standing 6-8 squares from the
+## access point nearest the deploy zone (a square they can walk from), not jacked in, with the
+## camera on both; the same framing for every access-point option render (ap_icons, ap_lines, ap_led).
+func _demo_idle_runner(runner: Dictionary) -> void:
+	var aps := AccessPoints.all(enc)
+	if aps.is_empty():
+		return
+	var from: Vector3i = runner.pos
+	aps.sort_custom(func(a, b): return Vector3(a.cell - from).length() < Vector3(b.cell - from).length())
+	var ap: Vector3i = aps[0].cell
+	for o in enc.alive(0):   # nobody standing on the device: it should show
+		if o != runner and maxi(absi(o.pos.x - ap.x), absi(o.pos.y - ap.y)) <= 1 and o.pos.z == ap.z:
+			for v in enc.nav.reachable(o.pos, 6, enc.occupied()):
+				if maxi(absi(v.x - ap.x), absi(v.y - ap.y)) >= 3 and not enc.occupied().has(v):
+					o.pos = v
+					break
+	var reach: Dictionary = enc.nav.reachable(ap, 12, enc.occupied())
+	var keys := reach.keys().filter(func(v): return v.z == ap.z and int(reach[v]) >= 5 and not enc.occupied().has(v))
+	var indoor := func(v: Vector3i) -> int: return 0 if m.label(v.z, v.x, v.y) >= 0 else 1   # inside first: the building opens round them
+	keys.sort_custom(func(a, b): return [indoor.call(a), int(reach[a]), a.y * 1000 + a.x] < [indoor.call(b), int(reach[b]), b.y * 1000 + b.x])
+	var home: Vector3i = runner.pos
+	enc.cur = runner
+	for v in keys:   # a square a walk away from which the runner can still get in range this turn
+		runner.pos = v
+		enc.turn = TurnState.begin(dice, runner.c)
+		if not AccessPoints.in_reach(enc, runner, false).is_empty():
+			break
+		runner.pos = home
+	enc.turn = TurnState.begin(dice, runner.c)
+	view_floor = int(runner.pos.z)
+	_last_cur = int(runner.id)
+	_sel_id = int(runner.id)
+	_view_turn = enc.turn
+	enc.refresh_vision()
+	var mid := Vector2((runner.pos.x + ap.x) / 2.0, (runner.pos.y + ap.y) / 2.0)
+	var p := CamFrame.unit_focus(mid, cam_yaw, cam_dist)
+	cam_target = Vector3(p.x, 0, p.y)
+	_place_camera()
+	_refresh()
+	_demo_ms = Time.get_ticks_msec()
+
+
+## Review renders (--jack=camera | lock | eyedee | held): NET device work played through the real
+## actions and their events. camera: a camera node taken (its feed reveals what it sees) and looped;
+## lock: a lock node taken and a door locked or unlocked; eyedee: the runner identifies a File (the
+## target's if there is one); held: a camera, a lock and a turret node held at once (the NET
+## panel's HELD NODES). Firewalls and ICE are cleared out of the way first.
+func _demo_net_work(runner: Dictionary, run: NetRun) -> void:
+	for n in run.arch.nodes_of_type("firewall"):
+		run.broken[n.id] = true
+	for i in run.arch.ice:
+		i["derezzed"] = true
+	var want: Array = {"camera": ["camera"], "lock": ["door_lock"], "held": ["camera", "door_lock", "turret"], "eyedee": []}[_jack_mode]
+	var focus := Vector3i(-1, -1, -1)
+	var home := run.current
+	for kind in want:   # the node with the most of this kind
+		var best := -1
+		var best_n := 0
+		for n in run.arch.nodes_of_type("control"):
+			var k := (n.devices as Array).filter(func(did): return String(m.devices[int(did)].type) == kind).size()
+			if k > best_n and String(n.group) != "master_cameras":
+				best = int(n.id)
+				best_n = k
+		if best < 0:
+			continue
+		run.current = best
+		run.revealed[best] = true
+		for tries in 40:
+			enc.net_left = 3
+			enc._netting = true
+			if bool(enc.net_action("control").get("success", false)) or run.held.has(best):
+				break
+		for did in run.arch.nodes[best].devices:
+			if String(m.devices[int(did)].type) == kind and focus.x < 0:
+				var d: Dictionary = m.devices[int(did)]
+				focus = Vector3i(d.pos.x, d.pos.y, d.floor)
+		if kind == "turret":
+			_demo_turret_target(runner)
+	if _jack_mode == "eyedee":
+		var f: int = int(enc.objective.get("node", -1))
+		if f < 0 or f >= run.arch.nodes.size() or String(run.arch.nodes[f].type) != "file":
+			var fs := run.arch.nodes_of_type("file")
+			f = int(fs[0].id) if not fs.is_empty() else -1
+		if f >= 0:
+			run.current = f
+			run.revealed[f] = true
+			for tries in 40:
+				enc.net_left = 3
+				enc._netting = true
+				if bool(enc.net_action("eye_dee").get("success", false)):
+					break
+			enc.state = "playing"   # keep the gig up for the shot (the target File would end it)
+	elif home >= 0 and _jack_mode != "held":
+		run.current = home
+	enc.init.round_num += 1   # a fresh turn: the node taken this one can be worked
+	enc.net_left = 3
+	enc._netting = true
+	var worked := false
+	for row in enc.device_ops(runner.id):   # work the first thing of the kind asked for
+		for o in row.ops:
+			if not worked and ((_jack_mode == "camera" and o.op == "loop") or (_jack_mode == "lock" and o.op == "lock")):
+				worked = bool(enc.net_device(int(o.node), int(o.device)).get("ok", false))
+				if o.op == "lock":
+					var d2: Dictionary = m.devices[int(o.device)]
+					focus = Vector3i(d2.pos.x, d2.pos.y, d2.floor)
+	if _jack_mode == "camera":   # frame what the cameras show, not the mount
+		var fc := NetDevices.feed_cells(enc).keys().filter(func(v): return int(v.z) == focus.z)
+		if not fc.is_empty():
+			var sum := Vector2.ZERO
+			for v in fc:
+				sum += Vector2(v.x, v.y)
+			focus = Vector3i(roundi(sum.x / fc.size()), roundi(sum.y / fc.size()), focus.z)
+	var frame := func():
+		if focus.x >= 0 and _jack_mode in ["camera", "lock"]:   # the device, centred between the panels
+			view_floor = focus.z
+			var p := CamFrame.unit_focus(Vector2(focus.x, focus.y), cam_yaw, cam_dist)
+			cam_target = Vector3(p.x, 0, p.y)
+			_place_camera()
+		else:
+			_frame_unit(runner)
+	_last_cur = int(runner.id)   # no opening shot, no new-turn reframe on the way through _after_action
+	_view_turn = enc.turn
+	frame.call()
+	enc.refresh_vision()
+	_refresh()
+	await _after_action()
+	frame.call()
 	_demo_ms = Time.get_ticks_msec()
 
 
@@ -4444,6 +4721,9 @@ func _event_handlers() -> Dictionary:
 			"keycard": _ev_keycard,
 			"tamper": _ev_tamper,
 			"camera": _ev_camera,
+			"net_control": _ev_net_control,
+			"net_device": _ev_net_device,
+			"eye_dee": _ev_eye_dee,
 			"death": _anim_death,
 			"grab": _ev_grab,
 			"drop": _ev_drop,
@@ -4581,7 +4861,109 @@ func _ev_tamper(e: Dictionary) -> void:
 func _ev_camera(e: Dictionary) -> void:
 	var tu: Dictionary = enc.units[e.target]
 	_float(tu, "ON CAMERA", Hud.RED)
-	hud.toast("A CAMERA SPOTTED %s · TAKE THE CAMERAS IN THE NET" % tu.c.display_name.to_upper())
+	hud.toast("A CAMERA SPOTTED %s · TAKE ITS NODE IN THE NET AND LOOP IT" % tu.c.display_name.to_upper())
+
+
+const NET_VIOLET := Color("d68cff")
+
+
+## Where a device's lamp sits in the world (the FX and callouts for NET work land there).
+func _device_point(did: int) -> Vector3:
+	var d: Dictionary = m.devices[did]
+	var c := Vector3i(d.pos.x, d.pos.y, d.floor)
+	return Vector3(c.x + 0.5, _gy(c) + 1.1, c.y + 0.5)
+
+
+## Devices of `ids` the crew may be shown (seen squares, or anywhere with the fog off).
+func _shown_devices(ids: Array) -> Array:
+	var out := []
+	for did in ids:
+		var d: Dictionary = m.devices[int(did)]
+		if not fog_on or enc.vision.explored.has(Vector3i(d.pos.x, d.pos.y, d.floor)):
+			out.append(did)
+	return out
+
+
+## A Control Node taken (p199): a violet data burst on each of its devices the crew has seen, a
+## HELD callout, the take sound; held cameras start feeding the crew.
+func _ev_net_control(e: Dictionary) -> void:
+	var ru: Dictionary = enc.units[e.unit]
+	if not e.ok:
+		_float(ru, "CONTROL FAILED", Hud.RED)
+		_ui_snd("sfx_ui_error", -6.0)
+		await get_tree().create_timer(0.3).timeout
+		return
+	_ui_snd("sfx_net_take", -3.0)
+	var shown := _shown_devices(e.devices)
+	for did in shown.slice(0, 6):
+		fx.net_take(_device_point(int(did)))
+	if not shown.is_empty():
+		_float_at(_device_point(int(shown[0])), "HELD", NET_VIOLET)
+	_float(ru, "NODE HELD", NET_VIOLET)
+	var cams: int = (e.devices as Array).filter(func(did): return String(m.devices[int(did)].type) == "camera").size()
+	if cams > 0:
+		_ui_snd("sfx_net_feed", -6.0)
+		for did in (e.devices as Array).filter(func(x): return String(m.devices[int(x)].type) == "camera").slice(0, 6):
+			fx.feed(_device_point(int(did)))
+	var n: Dictionary = enc.runs[ru.id].arch.nodes[int(e.node)] if enc.runs.has(ru.id) else {}
+	hud.toast("NODE HELD · %s%s" % [enc._devices_text(n).to_upper(), " · FEED LIVE" if cams > 0 else ""], 3.2)
+	await get_tree().create_timer(0.45).timeout
+
+
+const DEVICE_WORDS := {"loop": ["FEED LOOPED", "FEED RESTORED"], "lock": ["LOCKED", "UNLOCKED"], "seal": ["SEALED", "OPENED"],
+	"halt": ["ELEVATOR HALTED", "ELEVATOR RUNNING"], "lights": ["LIGHTS OUT", "LIGHTS ON"], "cut_alarm": ["ALARM CUT", "ALARM LINE BACK"],
+	"sprinklers": ["SPRINKLERS", "SPRINKLERS"], "distract": ["STARTED UP", "STARTED UP"]}
+
+
+## A device worked from the NET: the lock lamp flips (and the door shuts or springs), a looped feed
+## glitches, the rest pulse; a callout says what changed, a sound to go with it.
+func _ev_net_device(e: Dictionary) -> void:
+	var op := String(e.op)
+	var words: Array = DEVICE_WORDS.get(op, ["DONE", "DONE"])
+	var word := String(words[0] if e.on else words[1])
+	match op:
+		"lock", "seal":
+			for c in (e.cells as Array).slice(0, 6):
+				var cell: Vector3i = c
+				fx.lock_flip(Vector3(cell.x + 0.5, _gy(cell) + 0.66, cell.y + 0.5), bool(e.on))
+			_ui_snd("sfx_net_lock" if e.on else "sfx_net_unlock", -3.0)
+			if not (e.cells as Array).is_empty():
+				var c0: Vector3i = e.cells[0]
+				_float_at(Vector3(c0.x + 0.5, _gy(c0) + 1.3, c0.y + 0.5), word, Hud.RED if e.on else Hud.GREEN)
+		"loop":
+			for did in _shown_devices(e.devices).slice(0, 6):
+				fx.feed(_device_point(int(did)), true)
+			_ui_snd("sfx_net_feed", -4.0)
+			var sd := _shown_devices(e.devices)
+			if not sd.is_empty():
+				_float_at(_device_point(int(sd[0])), word, Hud.GREEN if e.on else Hud.RED)
+		_:
+			for did in _shown_devices(e.devices).slice(0, 4):
+				fx.net_take(_device_point(int(did)))
+			_ui_snd("sfx_net_take", -6.0)
+			var sd2 := _shown_devices(e.devices)
+			if not sd2.is_empty():
+				_float_at(_device_point(int(sd2[0])), word, NET_VIOLET)
+	_float(enc.units[e.unit], word, NET_VIOLET)
+	await get_tree().create_timer(0.4).timeout
+
+
+## Eye-Dee (p.199): the File's contents and worth scroll up over the runner, a gold reveal burst,
+## and the result in a toast (and the NET panel's file line). The target File says so.
+func _ev_eye_dee(e: Dictionary) -> void:
+	var ru: Dictionary = enc.units[e.unit]
+	if not e.ok:
+		_float(ru, "EYE-DEE FAILED", Hud.RED)
+		_ui_snd("sfx_ui_error", -6.0)
+		await get_tree().create_timer(0.3).timeout
+		return
+	_ui_snd("sfx_net_eyedee", -3.0)
+	fx.eye_dee(_body_pos(ru) + Vector3(0, 1.6, 0), bool(e.target))
+	_float(ru, "VALUE %d/5 · %s" % [int(e.value), String(e.tier).to_upper()], Hud.GOLD)
+	hud.toast("%s · %d/5 %s%s" % [String(e.what).to_upper(), int(e.value), String(e.tier).to_upper(), " · ★ TARGET" if e.target else ""], 3.4)
+	if e.target:
+		hud.flash_screen(Color(1.0, 0.85, 0.2, 0.08))
+	await get_tree().create_timer(0.5).timeout
 
 
 func _ev_grab(e: Dictionary) -> void:
