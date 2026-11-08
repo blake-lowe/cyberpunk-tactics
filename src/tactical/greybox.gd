@@ -3074,6 +3074,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			KEY_I: _grapple_key(["shield"])
 			KEY_O: _grapple_key(["release"])
 			KEY_U: _grapple_key(["get_up"])
+			KEY_C: _grapple_key(["put_out"])   # only while On Fire (p.180)
 			KEY_P: _grapple_key(["break"])
 			KEY_R: _on_hud("reload", null)
 			KEY_J: _on_hud("jack_in", null)   # JACK OUT while jacked in

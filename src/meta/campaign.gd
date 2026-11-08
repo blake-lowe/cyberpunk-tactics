@@ -253,7 +253,7 @@ func _pick_location(kind: String, sec: int, known: int, used: Dictionary) -> Str
 			if used.has(id):
 				continue
 			var raw: Dictionary = all[id]
-			if String(raw.get("district", "")) in NO_GIGS:
+			if String(raw.get("district", "")) in NO_GIGS or not place_fits(String(id), kind):
 				continue
 			var w := 0.0
 			if (raw.get("hooks", []) as Array).any(func(h): return kind in (h.get("gigs", []) as Array)):
@@ -274,6 +274,15 @@ func _pick_location(kind: String, sec: int, known: int, used: Dictionary) -> Str
 		if not ids.is_empty():
 			return String(ids[_weighted(ws)])
 	return ""
+
+
+## Can a `kind` job be played at canon location `lid`? A data theft needs a NET, so never at a
+## site generated without one (sites.json `networked: false`: shacks, squats).
+static func place_fits(lid: String, kind: String) -> bool:
+	if String(OBJECTIVES.get(kind, "")) != "data":
+		return true
+	var site := String(World.location(lid).get("site", ""))
+	return site == "" or bool((RulesDB.gen("sites.json").get(site, {}) as Dictionary).get("networked", true))
 
 
 ## May a gig be offered at canon location `lid`? Not in a district on NO_GIGS.
@@ -436,7 +445,7 @@ func _unique_offer(g: Dictionary, used: Dictionary = {}) -> void:
 	var sec := int(t.security)
 	var kind := String(t.kind)
 	var slots := _target_slots(kind)
-	var owned: Array = World.locations_for(String(slots.faction), kind).filter(func(id): return offered_at(String(id)) and not used.has(id))
+	var owned: Array = World.locations_for(String(slots.faction), kind).filter(func(id): return offered_at(String(id)) and place_fits(String(id), kind) and not used.has(id))
 	var lid: String = String(_pick(owned)) if not owned.is_empty() else _pick_location(kind, sec, best_reputation(), used)
 	if lid == "":
 		return

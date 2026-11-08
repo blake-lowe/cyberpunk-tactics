@@ -63,7 +63,7 @@ const GRAPPLE_ACTIONS := [["grab", "GRAB", "X", "hold", Color("ff8a3d"), true], 
 	["throw", "THROW", "Y", "throw", Color("ff3b4f"), false], ["shield", "HUMAN SHIELD", "I", "hshield", Color("f9c80e"), false],
 	["release", "RELEASE", "O", "release", Color("8a96a0"), false], ["escape", "ESCAPE", "X", "free", Color("05d9e8"), false],
 	["break", "BREAK HOLD", "P", "free", Color("39f0a0"), true], ["get_up", "GET UP", "U", "getup", Color("05d9e8"), false],
-	["put_out", "PUT OUT FIRE", "", "flame", Color("ff8a3d"), false]]   # only while On Fire (p.180); no key yet: click it
+	["put_out", "PUT OUT FIRE", "C", "flame", Color("ff8a3d"), false]]   # only while On Fire (p.180)
 ## Attack-stage modes: id → [button title, glyph, the book's full name] (CPR core p.170-177).
 const ATK_MODES := {"single": ["SINGLE", "shot", "Single Shot"], "aim_head": ["AIM HEAD", "head", "Aimed Shot: head"],
 	"aim_leg": ["AIM LEG", "head", "Aimed Shot: leg"], "aim_held": ["AIM HELD", "head", "Aimed Shot: held item"],

@@ -388,3 +388,23 @@ func test_no_gig_is_offered_in_playland() -> void:
 		for b in c.board:
 			assert_false(String(b.get("district", "")) == "playland", "board gig %s in Playland" % b.get("title", ""))
 			assert_false(String(b.get("location", "")) in park, "board gig %s at a Playland location" % b.get("title", ""))
+
+
+func test_no_data_theft_where_the_site_has_no_net() -> void:
+	var netless := []
+	for id in World.locations():
+		var site := String(World.location(String(id)).get("site", ""))
+		if site != "" and not bool((RulesDB.gen("sites.json").get(site, {}) as Dictionary).get("networked", true)):
+			netless.append(String(id))
+	assert_false(netless.is_empty(), "the city has shacks or squats")
+	for id in netless:
+		assert_false(Campaign.place_fits(id, "data_theft"), "%s has no NET: no data job" % id)
+		assert_true(Campaign.place_fits(id, "gang_hit"), "%s still takes other jobs" % id)
+	var c := Campaign.new_game(5)
+	var used := {}
+	while true:   # every place a data job could go, until none is left
+		var lid := c._pick_location("data_theft", 3, 10, used)
+		if lid == "":
+			break
+		assert_false(lid in netless, "data theft offered at %s" % lid)
+		used[lid] = true
