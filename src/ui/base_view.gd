@@ -898,6 +898,7 @@ func open_screen(id: String, crew_index := 0, report := {}) -> void:
 	s.navigate.connect(func(to: String): open_screen(to, s.sel))
 	if s is FixerScreen:
 		(s as FixerScreen).take_gig.connect(_take_gig)
+		(s as FixerScreen).take_custom.connect(_take_custom)
 	_screen = s
 	hover = ""
 	selected = ""
@@ -917,7 +918,16 @@ func close_screen() -> void:
 
 
 func _take_gig(i: int) -> void:
-	if camp.accept(i).is_empty():
+	_go(camp.accept(i))
+
+
+## DEV ONLY: the custom gig builder's form (FixerScreen, developer mode).
+func _take_custom(form: Dictionary) -> void:
+	_go(camp.accept_custom(form))
+
+
+func _go(gig: Dictionary) -> void:
+	if gig.is_empty():
 		return
 	if not camp.has_meta("demo"):
 		camp.save()

@@ -91,6 +91,7 @@ var _gunner: Combatant = null       ## who aims this attack when not `cur` itsel
 ## a contractor's, or "" when the code is an outside authority's; default worked out from the code
 ## and the target alone); utility_code: the Utility Code (default 0, nothing goes out), rolled
 ## every time unless utilities: true, which rolls it only on one gig in SecurityCode.UTILITY_CHANCE_IN;
+## outages: the utilities out, forced (nothing rolled; the dev gig builder);
 ## complications: true to roll for one of the book's complications (Complication.CHANCE_IN);
 ## complication: {tier?, roll?} to force one; district: the gig's district, whose civilians make up
 ## the crowd and the people the objectives need (Recruit.civilian_blocks); owner: the location's
@@ -192,7 +193,9 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 		if u.alerted:
 			e.init.add(u.c)
 	e.vision = Vision.new(p_map, e.los)
-	if not bool(opts.get("utilities", false)) or SecurityCode.utilities_happen(p_dice):
+	if opts.has("outages"):   # forced (the dev gig builder, CustomGig): exactly these, nothing rolled
+		e.outages.assign((opts.outages as Array).filter(func(u): return String(u) in SecurityCode.UTILITIES).map(func(u): return String(u)))
+	elif not bool(opts.get("utilities", false)) or SecurityCode.utilities_happen(p_dice):
 		e.outages = SecurityCode.roll_utilities(p_dice, e.utility_code)
 	e._apply_outages()
 	e._compute_light()

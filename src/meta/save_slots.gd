@@ -64,6 +64,9 @@ static func meta_for(c: Campaign) -> Dictionary:
 	else:
 		m["where"] = "gig"
 		m["place"] = Campaign.place_name(c.active_gig)
+	if c.dev_gigs > 0 or c.active_gig.get("dev", false):   # DEV ONLY: custom gigs played (CustomGig)
+		m["dev_gigs"] = c.dev_gigs
+		m["dev"] = bool(c.active_gig.get("dev", false))
 	return m
 
 
@@ -116,6 +119,10 @@ static func describe(m: Dictionary) -> Dictionary:
 	var where := "Safehouse"
 	if String(m.get("where", "")) == "gig":
 		where = "Mid-gig: %s" % String(m.get("place", "unknown"))
+		if m.get("dev", false):
+			where += " (DEV GIG)"
+	if int(m.get("dev_gigs", 0)) > 0:
+		where += " · %d dev gig%s" % [int(m.dev_gigs), "" if int(m.dev_gigs) == 1 else "s"]
 	return {"empty": false, "when": local_time(int(m.get("saved_unix", 0))),
 		"gigs": "%d gig%s completed" % [g, "" if g == 1 else "s"], "where": where}
 
