@@ -118,3 +118,83 @@ func test_blueprint_floors_are_the_ones_the_crew_does_not_start_on() -> void:
 	assert_true(bp.has(1) and bp.has(2), "the floors above are on the fixer's blueprints")
 	assert_true(WorldBuilder.is_layout("wall_concrete") and WorldBuilder.is_layout("stairs") and WorldBuilder.is_layout("door"), "layout materials")
 	assert_false(WorldBuilder.is_layout("wood") or WorldBuilder.is_layout("steel"), "furniture stays fogged")
+
+
+func _all(_v: Vector3i) -> bool:
+	return true
+
+
+func _sign_at(list: Array, v: Vector3i) -> Dictionary:
+	for s in list:
+		if s.cell == v:
+			return s
+	return {}
+
+
+func test_alt_signs_mark_every_stair_with_its_directions() -> void:
+	var s0 := FloorNav.signs(m, 0, _all)
+	assert_eq(s0.size(), 3, "the two shafts and the ladder foot")
+	assert_eq(_sign_at(s0, Vector3i(1, 1, 0)).get("dirs"), [1] as Array[int], "the shaft's foot: up only")
+	assert_eq(_sign_at(s0, Vector3i(5, 7, 0)).get("dirs"), [1] as Array[int], "the ladder foot climbs")
+	var s1 := FloorNav.signs(m, 1, _all)
+	assert_eq(_sign_at(s1, Vector3i(1, 1, 1)).get("dirs"), [1, -1] as Array[int], "mid-shaft: up and down")
+	assert_eq(_sign_at(s1, Vector3i(8, 6, 1)).get("dirs"), [-1] as Array[int], "the short flight's top: down only")
+	assert_eq(_sign_at(s1, Vector3i(5, 7, 1)).get("dirs"), [-1] as Array[int], "the ladder's top")
+	assert_eq(FloorNav.signs(m, 2, _all).size(), 1, "only the long shaft reaches floor 2")
+	for s in s1:
+		assert_eq(s.kind, "stairs")
+
+
+func test_alt_signs_only_show_what_the_crew_knows() -> void:
+	var known := {Vector3i(8, 6, 0): true}
+	var s0 := FloorNav.signs(m, 0, func(v: Vector3i) -> bool: return known.has(v))
+	assert_eq(s0.size(), 1, "unseen stairs get no sign")
+	assert_eq(s0[0].cell, Vector3i(8, 6, 0))
+
+
+func test_alt_signs_mark_doors_out_of_a_building() -> void:
+	m.rooms.append({"id": 0, "floor": 0, "zone": 0, "kind": "office", "cells": 4, "bounds": Rect2i(2, 2, 2, 2), "structure": 1})
+	m.rooms.append({"id": 1, "floor": 0, "zone": 0, "kind": "office", "cells": 4, "bounds": Rect2i(4, 2, 2, 2), "structure": 1})
+	m.rooms.append({"id": 2, "floor": 1, "zone": 0, "kind": "terrace", "cells": 4, "bounds": Rect2i(6, 2, 2, 2), "structure": 1, "outdoor": true})
+	var doors := [[0, Vector2i(2, 4), -1, 0, {}], [0, Vector2i(4, 3), 0, 1, {}], [1, Vector2i(6, 4), 2, 1, {}],
+		[0, Vector2i(7, 0), -1, 2, {"gate": true}]]
+	for d in doors:
+		m.set_t(d[0], d[1].x, d[1].y, TacMap.T.DOOR)
+		var door := {"floor": d[0], "pos": d[1], "a": d[2], "b": d[3], "security": false, "structure": 1}
+		door.merge(d[4])
+		m.doors.append(door)
+	var exits := FloorNav.signs(m, 0, _all).filter(func(s): return s.kind == "exit")
+	assert_eq(exits.size(), 1, "the street door only: not the inner door, not the yard gate")
+	assert_eq(exits[0].cell, Vector3i(2, 4, 0))
+	assert_true((exits[0].dirs as Array).is_empty())
+	assert_eq(FloorNav.signs(m, 1, _all).filter(func(s): return s.kind == "exit").size(), 1, "a door onto a terrace is a way out too")
+	assert_false(FloorNav.signs(m, 0, func(v: Vector3i) -> bool: return v != Vector3i(2, 4, 0)).any(func(s): return s.kind == "exit"), "an unseen door gets no sign")
+	m.set_t(0, 2, 4, TacMap.T.FLOOR)
+	assert_false(FloorNav.is_exit(m, m.doors[0]), "a door blown out of its frame is no longer a door")
+
+
+func test_alt_signs_are_capped_nearest_first_and_far_ones_fade() -> void:
+	var list: Array = []
+	for x in 30:
+		list.append({"kind": "stairs", "cell": Vector3i(x, 0, 0), "dirs": [1]})
+	var near := FloorNav.nearest_signs(list, Vector2(0.5, 0.5), 5)
+	assert_eq(near.size(), 5, "capped")
+	assert_eq(near.map(func(s): return s.cell.x), [0, 1, 2, 3, 4], "nearest the focus first")
+	assert_near(float(near[0].alpha), 1.0, 0.001, "close: full strength")
+	var every := FloorNav.nearest_signs(list, Vector2(0.5, 0.5), 100)
+	assert_eq(every.size(), 30)
+	assert_near(float(every[29].alpha), FloorNav.SIGN_FAR_ALPHA, 0.001, "far: faded, still there")
+	assert_between(float(every[14].alpha), FloorNav.SIGN_FAR_ALPHA + 0.01, 0.99, "in between: part faded")
+	assert_false((list[0] as Dictionary).has("alpha"), "the input list is left as it was")
+
+
+func test_step_edges_light_every_nosing_of_the_flight() -> void:
+	var e := WorldBuilder.step_edges(m, 0, Vector2i(1, 1))
+	assert_eq(e.size(), 7, "one strip per step")
+	for i in 7:
+		var top: float = (e[i][0] as Vector3).y + (e[i][1] as Vector3).y / 2.0
+		assert_between(top, WorldBuilder.FH * (i + 1) / 7.0, WorldBuilder.FH * (i + 1) / 7.0 + 0.02, "just proud of step %d's tread" % i)
+		assert_true((e[i][1] as Vector3).y < 0.06, "thin")
+	var climb: Vector3 = (e[6][0] as Vector3) - (e[0][0] as Vector3)
+	assert_true(climb.x > 0.5 or climb.z > 0.5, "along the flight")
+	assert_true(WorldBuilder.is_layout("stair_edge"), "a blueprint storey shows them with its stairs")

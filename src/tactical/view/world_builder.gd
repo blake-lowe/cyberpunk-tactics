@@ -20,6 +20,9 @@ const EXT_T := 0.42       # exterior wall thickness
 const INT_T := 0.24       # interior wall thickness
 const WALL_GAP := 0.012   # walls stop just under the next floor: tops at the floor's own height z-fought (r8 review: white roof dashes)
 const SHADER := preload("res://src/tactical/view/world.gdshader")
+const EDGE_COL := Color("ffa23a")   ## stair step nosings: a warm amber strip (owner: "not obnoxious but enough")
+const EDGE_GLOW := 0.6              ## ... dimmer than lamps (1.2-1.4)
+const EDGE_HINT_GLOW := 1.15        ## the same edges on the stairs toward the objective's floor (greybox pulses it)
 
 ## name → [albedo, albedo2, pattern, scale, rough, metal, extra{}]
 const LIB := {
@@ -42,6 +45,7 @@ const LIB := {
 	"floor_vault": [Color("2c2228"), Color("15101a"), 1, 0.9, 0.35, 0.3],
 	"roof": [Color("3a4252"), Color("232833"), 4, 0.5, 0.85, 0.0, {"shell": true, "dry": true}],
 	"stairs": [Color("4a5058"), Color("2a2e33"), 6, 3.0, 0.5, 0.3],
+	"stair_edge": [Color("a8641e"), Color("a8641e"), 0, 1.0, 0.6, 0.2, {"glow": EDGE_GLOW, "emit": EDGE_COL}],   # lit step nosings (owner: signposted floors)
 	"wall_concrete": [Color("5a5f66"), Color("34373c"), 7, 1.0, 0.85, 0.0],
 	"wall_plaster": [Color("6e675d"), Color("47423b"), 7, 1.0, 0.9, 0.0],
 	"wall_steel": [Color("46505b"), Color("2a3038"), 8, 1.0, 0.45, 0.5],
@@ -245,7 +249,7 @@ func nature(name: String, xf: Transform3D, f := 0, over := {}) -> void:
 ## The static layout a blueprint shows (FloorNav.blueprint_floors): floors, walls and their trim,
 ## doors and stairs. Furniture, props and devices are not on it.
 static func is_layout(name: String) -> bool:
-	return name.begins_with("floor_") or name.begins_with("wall_") or name in ["stairs", "door", "frame", "skirt", "cornice", "glass", "slab", "concrete", "roof"]
+	return name.begins_with("floor_") or name.begins_with("wall_") or name in ["stairs", "stair_edge", "door", "frame", "skirt", "cornice", "glass", "slab", "concrete", "roof"]
 
 
 ## Every material the builder made (the greybox sets fog/look parameters on them).
@@ -984,12 +988,15 @@ func _stairs(f: int) -> void:
 			box(mat("steel", f, true, {"glow": 0.8, "emit": Color("39f0a0")}), Vector3(p.x + 0.5, y0 + 0.6, p.y + 0.12), Vector3(0.08, 0.12, 0.02))
 			continue
 		# 7 steps climbing along whichever axis has floor at both ends
-		var along_x := m.walkable(f, p + Vector2i(-1, 0)) or m.walkable(f, p + Vector2i(1, 0))
+		var along_x := flight_along_x(m, f, p)
 		for i in 7:
 			var h := FH * (i + 1) / 7.0
 			var off := -0.5 + (i + 0.5) / 7.0
 			var c := Vector3(p.x + 0.5 + (off if along_x else 0.0), y0 + h / 2, p.y + 0.5 + (0.0 if along_x else off))
 			box(mat("stairs", f), c, Vector3(1.0 / 7.0, h, 0.9) if along_x else Vector3(0.9, h, 1.0 / 7.0))
+		for e in step_edges(m, f, p):   # a thin lit strip on each nosing
+			box(mat("stair_edge", f), e[0], e[1])
+		hint_edge_mat(f)   # made with the build, so the greybox's look and fog settings reach it
 	for c in m.connectors:
 		var a: Vector3i = c.a
 		var b: Vector3i = c.b
@@ -1003,6 +1010,29 @@ func _stairs(f: int) -> void:
 			box(mat("post", f, false), cpos + Vector3(side, 0, 0), Vector3(0.04, top - base + 0.4, 0.04))
 		for i in int((top - base) / 0.18):
 			box(mat("post", f, false), Vector3(cpos.x, base + 0.15 + i * 0.18, cpos.z), Vector3(0.36, 0.025, 0.03))
+
+
+## Which way a flight from square p on storey f climbs: along x when there is floor beside it on x.
+static func flight_along_x(mp: TacMap, f: int, p: Vector2i) -> bool:
+	return mp.walkable(f, p + Vector2i(-1, 0)) or mp.walkable(f, p + Vector2i(1, 0))
+
+
+## The lit nosings of the flight _stairs draws from square p on storey f (owner: lit step edges):
+## [center, size] per step, bottom step first: a thin strip along each step's front top edge, just
+## proud of the tread and riser so it never z-fights them.
+static func step_edges(mp: TacMap, f: int, p: Vector2i) -> Array:
+	var along_x := flight_along_x(mp, f, p)
+	var out: Array = []
+	for i in 7:
+		var front := -0.5 + i / 7.0 + 0.02   # the step's lower edge, the strip straddling it
+		var c := Vector3(p.x + 0.5 + (front if along_x else 0.0), f * FH + FH * (i + 1) / 7.0 - 0.015, p.y + 0.5 + (0.0 if along_x else front))
+		out.append([c, Vector3(0.05, 0.04, 0.86) if along_x else Vector3(0.86, 0.04, 0.05)])
+	return out
+
+
+## The objective hint's brighter copy of the step edges on storey f (same hue, more glow).
+func hint_edge_mat(f: int) -> ShaderMaterial:
+	return mat("stair_edge", f, true, {"glow": EDGE_HINT_GLOW})
 
 
 # --- Cover and props ------------------------------------------------------------------

@@ -1959,7 +1959,7 @@ const HELP := [
 		["CLICK PORTRAIT", "Target an enemy from the turn order"],
 		["SHIFT + LEFT-CLICK", "Shoot the cover in the way"],
 		["HOVER ENEMY", "Line of fire and hit chance"],
-		["HOLD ALT", "Inspect, enemy outlines, range bands"],
+		["HOLD ALT", "Inspect, enemy outlines, stairs and exits, range bands"],
 	]],
 	["CAMERA", [
 		["WHEEL", "Zoom"],
