@@ -94,3 +94,33 @@ func test_a_near_start_is_not_already_spotted() -> void:
 			if e.alarm > 0 or e.units.any(func(u): return e.is_guard(u) and u.alerted):
 				spotted += 1
 	assert_true(spotted * 4 <= n, "at most a quarter of near starts begin with the guards alerted (%d of %d)" % [spotted, n])
+
+
+## No NET access point within jack-in reach (SceneGen.AP_CLEAR_M, no wall between) of a deploy
+## square or a crew start square (owner: a corp office crew deployed on a junction box and jacked
+## in on turn 1). [scene, overrides, seed, security]: maps the generator survey caught (a junction
+## box on the deploy zone; Totentanz's plaza camera beside it), and two that were always clear.
+const AP_CASES := [["lone_building", {"site": "corp_office"}, 11, 2], ["lone_building", {"site": "gang_hideout"}, 1, 2],
+	["lone_building", {"site": "ship"}, 1, 2], ["neighborhood", {"profile": "market_streets"}, 1, 2],
+	["neighborhood", {"profile": "pacifica"}, 2, 3], ["lone_building", {"setpiece": "totentanz"}, 2, 3],
+	["lone_building", {"setpiece": "totentanz"}, 1, 2], ["skirmish", {}, 3, 2], ["street_block", {}, 3, 2]]
+
+
+func test_no_access_point_in_reach_of_the_start() -> void:
+	var dice := Dice.new(4)
+	var n := 0
+	for cs in AP_CASES:
+		var o: Dictionary = (cs[1] as Dictionary).duplicate()
+		o["security"] = int(cs[3])
+		var m := SceneGen.generate(int(cs[2]), String(cs[0]), o)
+		var label := "%s %s seed %d" % [cs[0], cs[1], cs[2]]
+		assert_eq(SceneGen.deploy_ap_clashes(m), [], "%s: deploy squares in jack-in reach of an access point" % label)
+		var crew: Array[Combatant] = [Recruit.generate(dice, "netrunner", "edgerunner", "Patch"), Recruit.generate(dice, "solo", "edgerunner", "Vex")]
+		var e := Encounter.setup(m, Dice.new(int(cs[2])), crew, "data")
+		var los := Los.new(m)
+		var aps := SceneGen.access_point_cells(m)
+		n += aps.size()
+		for u in e.units.filter(func(x): return x.team == Encounter.CREW):
+			assert_eq(e.jack_points(u), [], "%s: %s can jack in from the start" % [label, u.c.display_name])
+			assert_false(SceneGen.any_jack_reach(los, [u.pos], aps), "%s: %s starts within %d m of an access point" % [label, u.c.display_name, SceneGen.AP_CLEAR_M])
+	assert_true(n > 0, "the sweep met some access points")

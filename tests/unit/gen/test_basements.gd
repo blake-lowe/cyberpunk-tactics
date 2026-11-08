@@ -23,7 +23,7 @@ const GOLDEN := {
 	"lone_building/11/ziggurat_hq": "294dac7b2ddfff37993afbed2c1c2dee208053705d2430c80cd6364bec690b0c",
 	"lone_building/2024/": "b84ecf4a4b54e0ed6f554d66aea38b4909400ea1a5d122e211456508e529959a",
 	"lone_building/2024/maxtac_hq": "3ee454dc7d3c40b82e1c6abddbf83237281f03196b539ed927b5c85c27bbe3de",
-	"lone_building/2024/totentanz": "ff200e4c9452ee49c9527e2f95ee0888603f34b0c96d6e61cb01ec1209bab8c9",
+	"lone_building/2024/totentanz": "088d47e86f88610d4520e9c156b3300a4f9d23c28c2fbe9e793d4853c91e013a",   # re-captured: its near deploy zone sat beside the plaza camera access point (SceneGen.AP_CLEAR_M)
 	"lone_building/77031/the_estates": "c26e73d779076199b2c97796b6bfa2e0302812fbbf13215d6ccb64561ae738bc",
 	"megablock/5/": "2a1c99880d6ddac2903310ebb876fe9a1935ac673709ee391ea28bb8428166e7",
 	"rail_yard/4/": "7d5ed94945be3e6f8ddbe6baa0fe86e50d66b63fcc4121f7ec0011a9b15cb730",
