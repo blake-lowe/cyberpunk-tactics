@@ -99,7 +99,6 @@ var _log_lines: Array = []
 var _log_open := false
 var roster_on := false    ## the crew roster slides in while Alt is held (owner: strip only by default)
 var log_hold := false     ## the view holds the log while an action plays, so lines land with the callouts
-var _overlay_lbl: Label   ## which overlays are on (sight lines, cutaway), under the round tab
 var _log_tw: Tween
 var end_toast := ""        ## the view's headline once the gig is over ("" = the plain GIG COMPLETE / ABANDONED / FAILED)
 var _round_box: VBoxContainer              ## unit id → party card (hit shake)
@@ -164,8 +163,6 @@ func _ready() -> void:
 	_round_box.add_theme_constant_override("separation", 0)
 	_round_tab.add_child(_round_box)
 	add_child(_round_tab)
-	_overlay_lbl = _text("", F_TERM, Hud.ts(16), DIM)
-	add_child(_overlay_lbl)
 	_build_log()
 	_net_panel = _panel(VIOLET, 0b0101)
 	_net_box = VBoxContainer.new()
@@ -289,7 +286,7 @@ var crew_where := {}            ## unit id → where they stand, "BD PARLOR · 2
 
 
 ## The floor stack (A's stack with crew pips, driven by one focused building: FloorNav.slices).
-## Right edge, under the overlay line: header (the building), ▲ (SHIFT), one row per storey top
+## Right edge, under the round tab: header (the building), ▲ (SHIFT), one row per storey top
 ## down (R the roof, a street line over the B rows), ▼ (CTRL). Where the rest of the crew stands
 ## is on the Alt roster's cards (crew_where), not here.
 func _build_stack() -> void:
@@ -880,18 +877,16 @@ func _layout() -> void:
 	_place_withdraw()
 	_net_panel.reset_size()   # it shrinks as rows go (a held turret's targets come and go)
 	var net_y := _round_tab.position.y + _round_tab.size.y + 30
-	net_y = maxf(_round_tab.position.y + _round_tab.size.y + _overlay_lbl.size.y + 10, minf(net_y, _bar.position.y - _net_panel.size.y - 10))   # never over the action bar or the overlay line
+	net_y = maxf(_round_tab.position.y + _round_tab.size.y + 10, minf(net_y, _bar.position.y - _net_panel.size.y - 10))   # never over the action bar or the round tab
 	_net_panel.position = Vector2(s.x - _net_panel.size.x - 14, net_y)
 	_toast.position = Vector2(s.x / 2 - 400, 148)   # under the turn banner and its rule (y 100-136), never over them
 	_toast.size = Vector2(800, 40)
 	_banner_panel.position = Vector2(14, 12)
 	_round_tab.position = Vector2(s.x - _round_tab.size.x - 14, 12)
-	_overlay_lbl.reset_size()
-	_overlay_lbl.position = Vector2(s.x - _overlay_lbl.size.x - 20, _round_tab.position.y + _round_tab.size.y + 4)
-	if _stack:   # right edge, under the overlay line; the NET panel owns that corner while jacked in
+	if _stack:   # right edge, under the round tab; the NET panel owns that corner while jacked in
 		_stack.visible = not stack_data.is_empty() and not _net_panel.visible
 		_stack.reset_size()
-		_stack.position = Vector2(s.x - _stack.size.x - 14, _overlay_lbl.position.y + _overlay_lbl.size.y + 14)
+		_stack.position = Vector2(s.x - _stack.size.x - 14, _round_tab.position.y + _round_tab.size.y + 14)
 	if hint:   # top left, under the banner: clear of the unit card however wide the bar gets
 		hint.reset_size()
 		var top := _banner_panel.position.y + _banner_panel.size.y + 8
@@ -1757,12 +1752,6 @@ func show_roster(on: bool) -> void:
 	tw.tween_property(_party, "position:x", 14.0 if on else -_party.size.x - 30, 0.16)
 
 
-## Which view overlays are on, shown small under the round tab.
-func set_overlays(text: String) -> void:
-	_overlay_lbl.text = text
-	_layout.call_deferred()
-
-
 ## A one-frame-ish full-screen flash (crits, alerts).
 func flash_screen(col: Color) -> void:
 	_flash.color = col
@@ -2141,6 +2130,10 @@ const HELP := [
 		["SHIFT / CTRL", "View one floor up / down (hold to keep going)"],
 		["PG UP / PG DN  ·  ] / [", "The same (or the floor stack's arrows and rows)"],
 		["HOME", "Back to the selected unit's building and floor"],
+		["C", "Cutaway: auto / every seen room / off"],
+	]],
+	["OVERLAYS", [
+		["Z", "Guard sight lines: near your move / always / off"],
 	]],
 ]
 

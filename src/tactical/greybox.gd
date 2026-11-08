@@ -1211,8 +1211,6 @@ func _build_lights() -> void:
 func _refresh() -> void:
 	if enc and not enc.cur.is_empty() and enc.cur.team == 0:
 		_sel_id = int(enc.cur.id)
-	if hud:   # which overlays are on, so a toggled-off one isn't a mystery
-		hud.set_overlays("SIGHT LINES %s [Z]  ·  CUTAWAY %s [C]" % [["NEAR MOVE", "ALWAYS", "OFF"][sight_mode], "OFF" if not cutaway else ("ALL" if cut_all else "AUTO")])
 	_update_fog()
 	_update_cut()
 	_update_objective()
