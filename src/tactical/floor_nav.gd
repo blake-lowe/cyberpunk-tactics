@@ -181,3 +181,143 @@ static func blueprint_floors(floors: int, crew_start: Array) -> Dictionary:
 	for p in crew_start:
 		out.erase((p as Vector3i).z)
 	return out
+
+
+# --- Per-building slices (owner-approved floor controls: hybrid H1 + H3) --------------------------
+# Every building is cut on its own instead of at one map-wide viewed floor. One floor stack in the
+# HUD drives the focused building (the selected unit's by default; a left-click on another building
+# focuses it, ClickIntent.FOCUS). Outdoors and the street are never cut.
+
+## The building (structure id) whose indoor room holds square `v`, or -1 outdoors (the street,
+## yards, roofs and terraces: a roof is ground, so a unit up there leaves its building whole).
+static func indoor_structure(m: TacMap, v: Vector3i) -> int:
+	if v.z < 0 or v.z >= m.floors or not m.inb(v.x, v.y):
+		return -1
+	var l := m.label(v.z, v.x, v.y)
+	if l < 0 or l >= m.rooms.size() or m.rooms[l].get("outdoor", false):
+		return -1
+	return int(m.rooms[l].get("structure", -1))
+
+
+## The cut floor of every building that is cut, {structure id: floor}; a building left out keeps
+## its roof on. `crew`: one [structure id, floor] per crew member on the map (-1: outdoors, which
+## is never cut); `selected`: the index in `crew` of the selected unit (-1 none); `focus`: the
+## focused building (-1 none) and `focus_floor` the floor the floor stack views there.
+##  - a building with crew inside is cut at the selected unit's floor if it is in there, else at
+##    the highest crew floor in it (so all of its crew show);
+##  - the focused building is cut at the stack's floor, crew or not (a peek: what the crew does not
+##    know still draws as the fixer's blueprint);
+##  - every other building keeps its roof on.
+static func slices(crew: Array, selected: int, focus: int, focus_floor: int) -> Dictionary:
+	var out := {}
+	for c in crew:
+		var sid := int(c[0])
+		if sid >= 0:
+			out[sid] = maxi(int(out.get(sid, c[1])), int(c[1]))
+	if selected >= 0 and selected < crew.size() and int(crew[selected][0]) >= 0:
+		out[int(crew[selected][0])] = int(crew[selected][1])
+	if focus >= 0:
+		out[focus] = focus_floor
+	return out
+
+
+## Every building on the map, by structure id: {floors: its storeys bottom up (indoor floors, then
+## its walkable roof), roof: the roof's floor or -1, rect: its footprint grown by one square for
+## the outer walls, name: what the floor stack's header calls it}. Structures with no indoor room
+## (a yard, a fence) are not buildings.
+static func buildings(m: TacMap) -> Dictionary:
+	var acc := {}
+	for f in m.floors:
+		for y in m.h:
+			for x in m.w:
+				var l := m.label(f, x, y)
+				if l < 0:
+					continue
+				var r: Dictionary = m.rooms[l]
+				var sid := int(r.get("structure", -1))
+				if sid < 0:
+					continue
+				var b: Dictionary = acc.get_or_add(sid, {"indoor": {}, "roofs": {}})
+				if r.get("outdoor", false):
+					if String(r.get("kind", "")) == "roof":
+						b.roofs[f] = true
+					continue
+				b.indoor[f] = true
+				b["lo"] = Vector2i(mini(b.get("lo", Vector2i(x, y)).x, x), mini(b.get("lo", Vector2i(x, y)).y, y))
+				b["hi"] = Vector2i(maxi(b.get("hi", Vector2i(x, y)).x, x), maxi(b.get("hi", Vector2i(x, y)).y, y))
+	var names := {}
+	for st in m.structures:
+		names[int(st.id)] = String(st.get("name", st.get("site", st.get("kind", "building"))))
+	var out := {}
+	for sid in acc:
+		var b: Dictionary = acc[sid]
+		if (b.indoor as Dictionary).is_empty():
+			continue
+		var floors: Array[int] = []
+		floors.assign((b.indoor as Dictionary).keys())
+		floors.sort()
+		var roof := -1
+		for f in (b.roofs as Dictionary):
+			if int(f) > floors[-1] and (roof < 0 or int(f) < roof):
+				roof = int(f)
+		if roof >= 0:
+			floors.append(roof)
+		var lo: Vector2i = b.lo
+		out[sid] = {"floors": floors, "roof": roof, "rect": Rect2i(lo, Vector2i(b.hi) - lo + Vector2i.ONE).grow(1),
+			"name": String(names.get(sid, "building")).replace("_", " ").to_upper()}
+	return out
+
+
+## The next storey of a building's stack that way (dir +1 up, -1 down), or -1 at its top / bottom.
+## From a floor between two of its storeys it steps to the nearest one that way.
+static func stack_step(floors: Array, cur: int, dir: int) -> int:
+	var best := -1
+	for f in floors:
+		if signi(int(f) - cur) == signi(dir) and (best < 0 or absi(int(f) - cur) < absi(best - cur)):
+			best = int(f)
+	return best
+
+
+## The floor a building's stack opens at when it gets focus: its current cut if it has one, else
+## the viewed floor if it has that storey, else its storey nearest the street.
+static func focus_floor(floors: Array, cut: int, view_floor: int, street: int) -> int:
+	if cut >= 0:
+		return cut
+	if floors.has(view_floor):
+		return view_floor
+	var best := int(floors[0]) if not floors.is_empty() else street
+	for f in floors:
+		if absi(int(f) - street) < absi(best - street):
+			best = int(f)
+	return best
+
+
+## Whether a move ending at `end_sid` / `end_z` carries the floor stack along on the enemy's turn
+## (the slices stay as they are): only a move the crew sees, ending inside the focused building on
+## another floor than the stack shows.
+static func follow_in_focus(focus: int, view_floor: int, end_sid: int, end_z: int, seen: bool) -> bool:
+	return seen and focus >= 0 and end_sid == focus and end_z != view_floor
+
+
+## The floor keys (owner): Shift views one floor up and Ctrl one floor down, so the left hand works
+## them while the right stays on the mouse. Only a modifier pressed on its own counts (with any other
+## key held it is part of a chord): +1, -1 or 0.
+static func modifier_floor_dir(keycode: int, others_held: bool) -> int:
+	if others_held:
+		return 0
+	if keycode == KEY_SHIFT:
+		return 1
+	if keycode == KEY_CTRL:
+		return -1
+	return 0
+
+
+const FLOOR_REPEAT_DELAY := 0.45   ## a held floor key steps again after this long (s)
+const FLOOR_REPEAT_EVERY := 0.3    ## ... then this often
+
+
+## How many floor steps a floor key held for `held` seconds has made in all (the press is the first).
+static func repeat_steps(held: float) -> int:
+	if held < FLOOR_REPEAT_DELAY:
+		return 1
+	return 2 + int(floor((held - FLOOR_REPEAT_DELAY) / FLOOR_REPEAT_EVERY))

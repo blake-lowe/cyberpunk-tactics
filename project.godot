@@ -39,6 +39,10 @@ lf_tex={
 "type": "sampler2D",
 "value": ""
 }
+cut_map={
+"type": "sampler2D",
+"value": ""
+}
 lf_dims={
 "type": "vec3",
 "value": Vector3(0, 0, 0)

@@ -8,12 +8,15 @@ extends Node
 ## Controls
 ##   WASD / arrows   pan          Mouse wheel   zoom
 ##   Q / E (hold)    rotate (eased)             Middle-drag   rotate freely        H  controls hint
-##   PageUp/PageDown or ] / [ (or the HUD's ▲ ▼ by the floor label) change the floor you're viewing
-##                   (floors above open up around the focus); standing on stairs, the bar offers GO UP / GO DOWN
+##   Shift / Ctrl (alone; hold to repeat), PageUp/PageDown or ] / [ (or the floor stack's ▲ ▼ and
+##                   rows) view a floor up / down in the focused building (each building is cut on
+##                   its own: FloorNav.slices); Home: back to the selected unit's building and floor.
+##                   Standing on stairs, the bar offers GO UP / GO DOWN
 ##   Right click     move (path preview while hovering the move grid)
 ##   Left click      attack the enemy under the cursor or its turn-order portrait; with a tool armed
-##                   (F / the bar), use it on its target; Shift+left: shoot the cover in the way.
-##                   Left on empty ground or a friendly does nothing. NET: either button picks a node.
+##                   (F / the bar), use it on its target (the attack stage's COVER shoots cover).
+##                   Left on a building with nothing under the cursor focuses it (the floor stack
+##                   drives it). NET: either button picks a node.
 ##   Esc             cancel the armed attack / tool    B  interact (doors, devices, bodies: not a click)
 ##                   (mapping: ClickIntent)
 ##   Hover an enemy  line of fire / swing / throw arc and the hit chance (AimPreview)
@@ -222,10 +225,24 @@ func _scene_look() -> Dictionary:
 	lk = lk.duplicate()
 	lk.merge(dl, true)
 	return lk
-var open_cells := {}             ## Vector2i squares the cutaway may open (seen-into rooms + walls)
+var open_cells := {}             ## Vector2i square → the cut building (structure id) over it (its rooms + walls)
 var struct_rooms := {}           ## structure id → {room label: true}, indoor rooms only
-var _hover_sid := -1             ## building the pointer is planning into (opens it in AUTO)
 var room_xy := {}                ## room label → its squares, for opening rooms
+## Per-building slices (owner-approved floor controls, H1 + H3): every building is cut on its own.
+## `view_floor` is the floor the floor stack shows in the focused building.
+var _bld := {}                   ## structure id → FloorNav.buildings entry (storeys, roof, footprint, name)
+var _col_sid := {}               ## Vector2i square → the building whose footprint holds it
+var _cuts := {}                  ## structure id → cut floor (FloorNav.slices); a building left out keeps its roof
+var _focus_pin := -1             ## a building focused by a click (H3), -1: the stack follows the selected unit's
+var _sel_id := -1                ## the selected crew unit: the active one on the crew's turn, the last one since
+var _hover_bld := -1             ## the building under the pointer (a left-click there focuses it)
+var _pick_dist := INF            ## how far down the pointer's ray the hovered square was hit
+var _held_keys := {}             ## keycodes held now (the floor keys count only when pressed on their own)
+var _floor_key := 0              ## Shift / Ctrl held as a floor key: it repeats while held
+var _floor_key_t := 0.0
+var _floor_key_steps := 0
+var cut_map_img: Image           ## the per-square cut (world.gdshader cut_map)
+var cut_map_tex: ImageTexture
 const KERB := 0.07               # sidewalk height (WorldBuilder raises sidewalks)
 var _last_cur := -1
 var fx: Fx
@@ -245,6 +262,9 @@ var _reveal := false
 var _walk := 0
 var _focus := ""
 var _shot_floor := -1
+var _dev_inside: Array = []   ## review renders: crew member i stands in the i-th building (nearest the crew first) on its storey [i] (-1 stays out), or "b:s": building b, storey s
+var _dev_zoom := false        ## review renders: --zoom given (the demos keep it)
+var _dev_focus_b := ""        ## review renders: "k" or "k:s" focuses the k-th building (same order), on its storey s
 var _attack_demo := false
 var _demo_weapon := ""                 ## --weapon=id (review renders, with --attack): the shooter fires this weapon (data/rules/weapons.json)
 var _jack_demo := false
@@ -326,6 +346,8 @@ func _ready() -> void:
 			"location": gig["location"] = kv[1]   # with --setpiece: the World location it is played for
 			"variant": gig["variant"] = kv[1]   # with --setpiece: one of its variants by id (the Estates: 1a-1l)
 			"floor": _shot_floor = int(kv[1])   # review renders: look at this storey
+			"inside": _dev_inside = Array(kv[1].split(","))   # review renders: crew inside buildings (FloorNav.slices): storey, or building:storey
+			"focusb": _dev_focus_b = kv[1]   # review renders: focus a building (H3), "k" or "k:storey"
 			"kit": _dev_kit = kv[1].split(",")   # review renders: pack every crew member's kit slots
 			"weapons": _dev_weapons = kv[1].split(",")   # review renders: the crew carries these (id[@quality]), first drawn
 			"stage": _dev_stage = kv[1]   # review renders: open the action bar on this stage (attack)
@@ -356,7 +378,9 @@ func _ready() -> void:
 			"sight": sight_mode = int(kv[1])
 			"promo":   # beauty renders: the world and the characters only (no HUD, grid, markers)
 				_promo = kv[1] != "0"
-			"zoom": cam_dist = float(kv[1])
+			"zoom":
+				cam_dist = float(kv[1])
+				_dev_zoom = true
 			"yaw":
 				cam_yaw = float(kv[1])
 			"reveal":  # review renders: everything explored
@@ -428,6 +452,18 @@ func _process(delta: float) -> void:
 	if pan != Vector3.ZERO:
 		cam_target += pan.rotated(Vector3.UP, deg_to_rad(cam_yaw)).normalized() * delta * cam_dist * 0.9
 		_place_camera()
+	if _floor_key != 0:   # a floor key held on its own steps again after a pause, then steadily
+		if not Input.is_key_pressed(_floor_key) or busy:
+			_floor_key = 0
+		else:
+			_floor_key_t += delta
+			var want := FloorNav.repeat_steps(_floor_key_t)
+			while _floor_key_steps < want and _floor_key != 0:
+				_floor_key_steps += 1
+				_change_floor(1 if _floor_key == KEY_SHIFT else -1)
+	for k in _held_keys.keys():   # a release that went elsewhere (focus lost): forget it
+		if not Input.is_key_pressed(int(k)):
+			_held_keys.erase(k)
 	for k in _turn_keys.keys():   # a key let go (wherever the release went) stops turning
 		if not Input.is_key_pressed(k):
 			_turn_keys.erase(k)
@@ -838,6 +874,8 @@ func new_gig() -> void:
 		enc.update_alerts()
 	if _walk > 0:
 		_frame_unit(enc.cur)
+	if not _dev_inside.is_empty() or _dev_focus_b != "":
+		_demo_inside()
 	if _focus != "":
 		var fc := Vector2(m.w / 2.0, m.h / 2.0)
 		var o_unit := enc.obj.focus_unit()
@@ -872,6 +910,8 @@ func new_gig() -> void:
 		_last_cur = enc.cur.id
 	if _shot_floor >= 0:   # review renders: a storey of the building (with --cut=all, the floors above cut away)
 		view_floor = mini(_shot_floor, m.floors - 1)
+		if not _bld.has(_focused()):   # from the street: the building nearest the view takes the stack
+			_focus_pin = _nearest_building()
 		_last_cur = enc.cur.id if not enc.cur.is_empty() else -1   # the first turn keeps this storey (it would frame the crew's)
 		_place_camera()
 	_after_action()
@@ -895,10 +935,12 @@ func _build_world() -> void:
 	svp.add_child(world)
 	fog_img = Image.create(m.w, m.h * m.floors, false, Image.FORMAT_RG8)
 	fog_tex = ImageTexture.create_from_image(fog_img)
-	_update_fog()
+	cut_map_img = Image.create(m.w, m.h, false, Image.FORMAT_RGBAF)
+	cut_map_tex = ImageTexture.create_from_image(cut_map_img)
+	RenderingServer.global_shader_parameter_set("cut_map", cut_map_tex)
 	room_xy.clear()
 	struct_rooms.clear()
-	_hover_sid = -1
+	_col_sid.clear()
 	for f in m.floors:
 		for y in m.h:
 			for x in m.w:
@@ -907,6 +949,17 @@ func _build_world() -> void:
 					room_xy.get_or_add(l, []).append(Vector2i(x, y))
 					if not m.rooms[l].get("outdoor", false):
 						struct_rooms.get_or_add(int(m.rooms[l].structure), {})[l] = true
+						_col_sid[Vector2i(x, y)] = int(m.rooms[l].structure)
+	_bld = FloorNav.buildings(m)
+	var walls := {}   # a building's outer walls belong to it too (unless a neighbour's room is there)
+	for c in _col_sid:
+		for dy in range(-1, 2):
+			for dx in range(-1, 2):
+				var n := Vector2i(c.x + dx, c.y + dy)
+				if not _col_sid.has(n) and m.inb(n.x, n.y):
+					walls[n] = _col_sid[c]
+	_col_sid.merge(walls)
+	_update_fog()
 	builder = WorldBuilder.new(m, enc.vision, fog_tex)
 	floor_nodes = builder.build(world)
 	for s in builder.surfaces():
@@ -1130,6 +1183,8 @@ func _build_lights() -> void:
 # --- Refresh: fog, cutaway, units, grid, HUD -------------------------------------
 
 func _refresh() -> void:
+	if enc and not enc.cur.is_empty() and enc.cur.team == 0:
+		_sel_id = int(enc.cur.id)
 	if hud:   # which overlays are on, so a toggled-off one isn't a mystery
 		hud.set_overlays("SIGHT LINES %s [Z]  ·  CUTAWAY %s [C]" % [["NEAR MOVE", "ALWAYS", "OFF"][sight_mode], "OFF" if not cutaway else ("ALL" if cut_all else "AUTO")])
 	_update_fog()
@@ -1513,6 +1568,7 @@ func _runner_id() -> int:
 
 
 func _draw_markers(c: Control) -> void:
+	_draw_focus_brackets(c)
 	var r := _safe_rect()
 	var from: Vector3i = enc.cur.pos if enc and not enc.cur.is_empty() else Vector3i.ZERO
 	var t := Time.get_ticks_msec() / 1000.0
@@ -1522,7 +1578,8 @@ func _draw_markers(c: Control) -> void:
 		var sp := _to_screen(wp)
 		var behind := cam.is_position_behind(wp)
 		var dist := int(round(Vector3(Vector3i(mk[3]) - from).length() * 2.0))   # squares are 2 m
-		var fdir := FloorNav.objective_dir(view_floor, Vector3i(mk[3]).z)   # on another floor: a small chevron that way, no floor named
+		var mc := Vector3i(mk[3])
+		var fdir := FloorNav.objective_dir(_slice_z(Vector2i(mc.x, mc.y)), mc.z)   # on another floor than its building's slice: a small chevron that way, no floor named
 		if r.has_point(sp) and not behind:
 			var y := sp.y - 18.0 - 4.0 * sin(t * 3.0)
 			c.draw_colored_polygon(PackedVector2Array([Vector2(sp.x - 9, y - 12), Vector2(sp.x + 9, y - 12), Vector2(sp.x, y)]), col)
@@ -1709,52 +1766,102 @@ func _grade_shows(f: int) -> bool:
 func _cut_hides(v: Vector3i) -> bool:
 	if m != null and view_floor < m.street and v.z > view_floor:   # below grade: everything above is lifted off
 		return true
-	if v.z <= view_floor or not cutaway:
+	if not cutaway:
 		return false
-	return open_cells.has(Vector2i(v.x, v.y))
+	var sid: int = open_cells.get(Vector2i(v.x, v.y), -1)
+	return sid >= 0 and _cuts.has(sid) and v.z > int(_cuts[sid])   # above its building's cut
 
 
-## Fog texture: R = vision state per square, G = 1 where the cutaway may open: rooms the crew is
-## in or has seen into (grown by one square for their walls), on every floor so the storeys above
-## them lift too. Unseen rooms keep their walls and roof (round-4 critique).
+# --- Per-building slices (FloorNav.slices) ---------------------------------------------------
+
+## The selected crew unit: the active one on the crew's turn; through the other side's turns the
+## last one that was (else the first of the crew).
+func _sel_unit() -> Dictionary:
+	if enc == null:
+		return {}
+	if not enc.cur.is_empty() and enc.cur.team == 0:
+		return enc.cur
+	var crew := enc.alive(0)
+	for u in crew:
+		if int(u.id) == _sel_id:
+			return u
+	return crew[0] if not crew.is_empty() else {}
+
+
+## The building a unit stands in for the slices: its indoor room's; -1 on the street, a yard or a
+## roof (a roof is ground: that building stays whole unless focused).
+func _unit_building(u: Dictionary) -> int:
+	return _indoor_structure(u.pos) if not u.is_empty() else -1
+
+
+## The focused building, which the floor stack drives: a clicked one (H3), else the selected unit's.
+func _focused() -> int:
+	if _focus_pin >= 0 and _bld.has(_focus_pin):
+		return _focus_pin
+	return _unit_building(_sel_unit())
+
+
+## Every building's cut (FloorNav.slices): crew-occupied ones at their crew's floor (the selected
+## unit's, else the highest), the focused one at the stack's floor; the rest keep their roofs on.
+func _slices() -> Dictionary:
+	var crew := []
+	var sel := -1
+	var su := _sel_unit()
+	for u in enc.alive(0):
+		if u.get("fled", false) or u.get("carried", false):
+			continue
+		if not su.is_empty() and int(u.id) == int(su.id):
+			sel = crew.size()
+		crew.append([_indoor_structure(u.pos), int(u.pos.z)])
+	var f := _focused()
+	return FloorNav.slices(crew, sel, f if _bld.has(f) else -1, view_floor)
+
+
+## The floor a square's column is picked and drawn at: its building's cut, the viewed floor in a
+## building with its roof on (and outdoors where that floor has ground), else the street.
+func _slice_z(c: Vector2i) -> int:
+	var sid: int = _col_sid.get(c, -1)
+	if sid >= 0:
+		return int(_cuts[sid]) if _cuts.has(sid) and cutaway else view_floor
+	if m.inb(c.x, c.y) and view_floor >= 0 and view_floor < m.floors and m.t(view_floor, c.x, c.y) != TacMap.T.VOID:
+		return view_floor
+	return m.street
+
+
+## Fog texture: R = vision state per square (G unused). The cut itself is per building now
+## (FloorNav.slices): `open_cells` maps every square of a cut building (its rooms and walls) to
+## it, and the cut map (world.gdshader cut_map) carries each square's cut floor and footprint.
 func _update_fog() -> void:
 	open_cells.clear()
-	var open_rooms := {}
-	if cutaway and not cut_all:   # AUTO: whole buildings, only where the crew is or is heading
-		var open_s := {}
-		for u in enc.alive(0):
-			open_s[_indoor_structure(u.pos)] = true
-		open_s[_hover_sid] = true
-		if _focus_unit >= 0 and _focus_unit < enc.units.size():   # playback: the unit being followed, if seen
-			var fu: Dictionary = enc.units[_focus_unit]
-			if fu.team == 0 or not fog_on or enc.vision.visible.has(fu.pos):
-				open_s[_indoor_structure(fu.pos)] = true
-		if not enc.alive(0).any(func(u): return u.pos.z == view_floor):   # looking at a floor nobody is on (PgUp, ▲): every building opens at it
-			for sid in struct_rooms:
-				open_s[sid] = true
-		for sid in open_s:
-			for l in struct_rooms.get(sid, {}):
-				open_rooms[l] = true
-	for u in ([] if not cut_all else enc.alive(0)):
-		var l := m.label(u.pos.z, u.pos.x, u.pos.y)
-		if l >= 0 and not m.rooms[l].get("outdoor", false):
-			open_rooms[l] = true
-	for v in (enc.vision.explored if cut_all else {}):
-		var l2 := m.label(v.z, v.x, v.y)
-		if l2 >= 0 and v.z <= view_floor and not m.rooms[l2].get("outdoor", false):
-			open_rooms[l2] = true
-	for l3 in open_rooms:
-		for c in room_xy.get(l3, []):
-			for dy in range(-1, 2):
-				for dx in range(-1, 2):
-					open_cells[Vector2i(c.x + dx, c.y + dy)] = true
-	if not fog_on and cut_all:
-		for st in m.structures:
-			if st.has("rect"):
-				var r: Rect2i = (st.rect as Rect2i).grow(1)
-				for y in range(r.position.y, r.end.y):
-					for x in range(r.position.x, r.end.x):
-						open_cells[Vector2i(x, y)] = true
+	_cuts = _slices() if cutaway and enc != null else {}
+	if cutaway and cut_all:   # ALL SEEN: every room the crew has seen into opens too, at the viewed floor
+		for v in enc.vision.explored:
+			var l2 := m.label(v.z, v.x, v.y)
+			if l2 >= 0 and v.z <= view_floor and not m.rooms[l2].get("outdoor", false):
+				var sid2 := int(m.rooms[l2].get("structure", -1))
+				if sid2 >= 0 and not _cuts.has(sid2):
+					_cuts[sid2] = view_floor
+		if not fog_on:
+			for sid3 in _bld:
+				if not _cuts.has(sid3):
+					_cuts[sid3] = view_floor
+	for c in _col_sid:
+		if _cuts.has(_col_sid[c]):
+			open_cells[c] = _col_sid[c]
+	var cd := PackedFloat32Array()
+	cd.resize(m.w * m.h * 4)
+	for i in m.w * m.h:
+		cd[i * 4] = -1.0
+	for c: Vector2i in open_cells:
+		var sid4: int = open_cells[c]
+		var r: Rect2i = _bld[sid4].rect if _bld.has(sid4) else Rect2i(0, 0, m.w, m.h)
+		var i4 := (c.y * m.w + c.x) * 4
+		cd[i4] = float(_cuts[sid4])
+		cd[i4 + 1] = float(maxi(r.position.x, 0) + 1024 * maxi(r.end.x - 1, 0))
+		cd[i4 + 2] = float(maxi(r.position.y, 0) + 1024 * maxi(r.end.y - 1, 0))
+	if cut_map_img:
+		cut_map_img.set_data(m.w, m.h, false, Image.FORMAT_RGBAF, cd.to_byte_array())
+		cut_map_tex.update(cut_map_img)
 	var data := PackedByteArray()
 	data.resize(m.w * m.h * m.floors * 2)
 	for f in m.floors:
@@ -1762,10 +1869,6 @@ func _update_fog() -> void:
 			for x in m.w:
 				var i := ((f * m.h + y) * m.w + x) * 2
 				data[i] = 255 if not fog_on else [0, 128, 255][enc.vision.state(Vector3i(x, y, f))]
-	for c in open_cells:
-		if m.inb(c.x, c.y):
-			for f in m.floors:
-				data[((f * m.h + c.y) * m.w + c.x) * 2 + 1] = 255
 	fog_img.set_data(m.w, m.h * m.floors, false, Image.FORMAT_RG8, data)
 	fog_tex.update(fog_img)
 	_update_blueprint()
@@ -1784,14 +1887,9 @@ func _update_blueprint() -> void:
 			(mt as ShaderMaterial).set_shader_parameter("blueprint", on)
 
 
-## The building (structure id) whose indoor room holds square v, or -1 outdoors.
+## The building (structure id) whose indoor room holds square v, or -1 outdoors (FloorNav).
 func _indoor_structure(v: Vector3i) -> int:
-	if not m.inb(v.x, v.y) or v.z < 0 or v.z >= m.floors:
-		return -1
-	var l := m.label(v.z, v.x, v.y)
-	if l < 0 or m.rooms[l].get("outdoor", false):
-		return -1
-	return int(m.rooms[l].structure)
+	return FloorNav.indoor_structure(m, v)
 
 
 ## Units the crew can see inside a building that is still closed (roof on) show as a silhouette
@@ -1862,16 +1960,17 @@ func _draw_grid() -> void:
 		dash_opts = enc.run_options()
 	var data := PackedByteArray()
 	data.resize(m.w * m.h * 2)
+	var gz := _grid_floor()
 	for v in move_opts:
-		if v.z == view_floor:
+		if v.z == gz and _grid_shows(v):
 			data[(v.y * m.w + v.x) * 2] = 255
 	if not move_opts.is_empty():   # draw-only: the contour never wraps a teammate's square
 		for u in enc.alive(0):
-			if u.pos.z == view_floor:
+			if u.pos.z == gz and _grid_shows(u.pos):
 				data[(u.pos.y * m.w + u.pos.x) * 2] = 255
 				data[(u.pos.y * m.w + u.pos.x) * 2 + 1] = 255
 	for v in dash_opts:
-		if v.z == view_floor:
+		if v.z == gz and _grid_shows(v):
 			data[(v.y * m.w + v.x) * 2 + 1] = 255
 	grid_node.visible = not (move_opts.is_empty() and dash_opts.is_empty())
 	_watchers.clear()
@@ -1884,9 +1983,26 @@ func _draw_grid() -> void:
 		else:
 			range_tex.update(big)
 		(grid_node.material_override as ShaderMaterial).set_shader_parameter("mask", range_tex)
-		grid_node.position.y = view_floor * FH + 0.1
+		grid_node.position.y = gz * FH + 0.1
 	_draw_path()
 	_draw_watch(grid_node.visible)
+
+
+## The floor the move range (and the guards' sight lines) is drawn on: the slice the selected unit
+## stands in (its building's cut, a peek up or down included); the viewed floor while another
+## building has the floor stack would float the range over the wrong storey.
+func _grid_floor() -> int:
+	var su := _sel_unit()
+	if su.is_empty() or (_focus_pin < 0 and _unit_building(su) >= 0):
+		return view_floor
+	return _slice_z(Vector2i(su.pos.x, su.pos.y))
+
+
+## Whether a square of the move range draws on the grid's floor: not where another building is
+## cut at a different floor (the range would float over, or sink under, what is drawn there).
+func _grid_shows(v: Vector3i) -> bool:
+	var sid: int = open_cells.get(Vector2i(v.x, v.y), -1)
+	return sid < 0 or not _cuts.has(sid) or int(_cuts[sid]) == v.z
 
 
 func _draw_path() -> void:
@@ -1999,6 +2115,9 @@ func _frame_unit(u: Dictionary, smooth := false) -> void:
 		p += (Vector2(m.w / 2.0, m.h / 2.0) - p).limit_length(cam_dist * 0.2)   # but keep the unit in view
 	var goal := Vector3(clampf(p.x, 0, m.w), 0, clampf(p.y, 0, m.h))
 	view_floor = u.pos.z
+	_focus_pin = -1   # selecting a unit (its turn) hands the floor stack back to its building
+	if u.team == 0:
+		_sel_id = int(u.id)
 	if smooth:
 		if CamFrame.needs_recentre(Vector2(cam_target.x, cam_target.z), Vector2(goal.x, goal.z)):
 			_pan_to(goal, 0.35)   # not awaited: the turn banner plays over it
@@ -2057,7 +2176,7 @@ func _draw_watch(show: bool) -> void:
 	else:
 		watch_tex.update(big)
 	(watch_node.material_override as ShaderMaterial).set_shader_parameter("mask", watch_tex)
-	watch_node.position.y = view_floor * FH + 0.11
+	watch_node.position.y = _grid_floor() * FH + 0.11
 
 
 ## Every live watcher the crew knows about on this floor → the squares it watches (cached until
@@ -2066,11 +2185,11 @@ func _watch_map() -> Dictionary:
 	if not _watchers.is_empty() or enc.alarm >= 2:
 		return _watchers
 	for g in enc.units:
-		if enc.is_guard(g) and _foe(g) and not g.alerted and g.c.can_act() and g.pos.z == view_floor and (not fog_on or enc.vision.visible.has(g.pos)):
+		if enc.is_guard(g) and _foe(g) and not g.alerted and g.c.can_act() and g.pos.z == _grid_floor() and (not fog_on or enc.vision.visible.has(g.pos)):
 			_watchers["g%d" % g.id] = enc.watched_cells(g)
 	for d in m.devices:   # live cameras the crew has seen watch their floor too
 		var cp := Vector3i(d.pos.x, d.pos.y, d.floor)
-		if String(d.type) == "camera" and not enc.disabled_devices.has(d.id) and cp.z == view_floor and (not fog_on or enc.vision.explored.has(cp)):
+		if String(d.type) == "camera" and not enc.disabled_devices.has(d.id) and cp.z == _grid_floor() and (not fog_on or enc.vision.explored.has(cp)):
 			_watchers["c%d" % d.id] = enc.camera_cells(d)
 	return _watchers
 
@@ -2153,7 +2272,13 @@ const SIGN_GREEN := Color("3ddc84")      ## exit-sign green
 func _draw_floor_signs(c: Control) -> void:
 	var known := func(v: Vector3i) -> bool: return not fog_on or enc.vision.explored.has(v) or _blueprint.has(v.z)
 	var vp := c.get_viewport_rect().size
-	for s in FloorNav.nearest_signs(FloorNav.signs(m, view_floor, known), Vector2(cam_target.x, cam_target.z), SIGN_CAP):
+	var list: Array = []   # every slice's floor (each building is cut on its own): the signs standing on their column's slice
+	var zs := {view_floor: true}
+	for sid in _cuts:
+		zs[int(_cuts[sid])] = true
+	for z in zs:
+		list.append_array(FloorNav.signs(m, int(z), known).filter(func(g): return _slice_z(Vector2i(g.cell.x, g.cell.y)) == int(z)))
+	for s in FloorNav.nearest_signs(list, Vector2(cam_target.x, cam_target.z), SIGN_CAP):
 		var v: Vector3i = s.cell
 		var wp := Vector3(v.x + 0.5, v.z * FH + (2.5 if s.kind == "stairs" and _flight_from(v) else 1.6), v.y + 0.5)   # a flight up: above a head on it
 		if cam.is_position_behind(wp):
@@ -2376,7 +2501,7 @@ func _draw_last_known(c: Control) -> void:
 		if not _last_known.has(u.id) or (_seen(u.pos) and not u.c.dead):
 			continue
 		var v: Vector3i = _last_known[u.id]
-		if _seen(v) or v.z != view_floor:   # in sight now and not there: they've moved on
+		if _seen(v) or v.z != _slice_z(Vector2i(v.x, v.y)):   # in sight now and not there: they've moved on (or off the slice drawn there)
 			continue
 		var wp := Vector3(v.x + 0.5, _gy(v) + 1.2, v.y + 0.5)
 		if cam.is_position_behind(wp):
@@ -2385,6 +2510,48 @@ func _draw_last_known(c: Control) -> void:
 		var d := PackedVector2Array([p + Vector2(0, -12), p + Vector2(9, 0), p + Vector2(0, 12), p + Vector2(-9, 0), p + Vector2(0, -12)])
 		c.draw_polyline(d, Color(Hud.RED, a), 2.0)
 		c.draw_string(Hud.F_BOLD, p + Vector2(-4, 6), "?", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(Hud.RED, a))
+
+
+## Thin corner brackets round the focused building while it is not the selected unit's (H1: the
+## common case stays clean), with a name tag: the building and the floor the stack shows. Clamped
+## to the screen when the building is partly off it.
+func _draw_focus_brackets(c: Control) -> void:
+	if enc == null or _promo or _focus_pin < 0 or not _bld.has(_focus_pin) or net_overlay.visible:
+		return
+	var bd: Dictionary = _bld[_focus_pin]
+	var r: Rect2i = bd.rect
+	var top: int = int(_cuts.get(_focus_pin, bd.floors[-1]))
+	var bottom: int = mini(m.street, top)
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for x in [r.position.x, r.end.x]:
+		for z in [r.position.y, r.end.y]:
+			for y in [bottom * FH, (top + 1) * FH]:
+				var wp := Vector3(x, y, z)
+				if cam.is_position_behind(wp):
+					return
+				var p := _to_screen(wp)
+				lo = lo.min(p)
+				hi = hi.max(p)
+	var sr := _safe_rect().grow_side(SIDE_RIGHT, -110.0)   # clear of the floor stack on the right
+	lo = (lo - Vector2(6, 6)).clamp(sr.position, sr.end)
+	hi = (hi + Vector2(6, 6)).clamp(sr.position, sr.end)
+	if hi.x - lo.x < 8 or hi.y - lo.y < 8:
+		return
+	var arm := minf(18.0, minf(hi.x - lo.x, hi.y - lo.y) * 0.25)
+	var col := Color(Hud.CYAN, 0.9)
+	for k in [[lo, Vector2(1, 1)], [Vector2(hi.x, lo.y), Vector2(-1, 1)], [Vector2(lo.x, hi.y), Vector2(1, -1)], [hi, Vector2(-1, -1)]]:
+		var o: Vector2 = k[0]
+		var s2: Vector2 = k[1]
+		c.draw_polyline(PackedVector2Array([o + Vector2(arm * s2.x, 0), o, o + Vector2(0, arm * s2.y)]), col, 2.0)
+	var fl: int = view_floor
+	var tag := "%s · %s" % [bd.name, "R" if fl == int(bd.roof) else m.floor_name(fl)]
+	var fs := 14
+	var tw := Hud.F_BOLD.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	var tp := Vector2(lo.x + 4, lo.y - 8 if lo.y - 8 - fs >= sr.position.y else lo.y + fs + 8)   # above the top-left bracket, else just inside it
+	c.draw_rect(Rect2(tp + Vector2(-4, -fs), Vector2(tw + 8, fs + 6)), Color(Hud.INK, 0.85))
+	c.draw_rect(Rect2(tp + Vector2(-4, -fs), Vector2(tw + 8, fs + 6)), Color(Hud.CYAN, 0.6), false, 1.0)
+	c.draw_string(Hud.F_BOLD, tp, tag, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Hud.CYAN)
 
 
 func _make_caret() -> MeshInstance3D:
@@ -2408,11 +2575,147 @@ static func floor_label(mp: TacMap, f: int) -> String:
 	return "FLOOR %s" % mp.floor_name(f)
 
 
-## View another floor (dir +1 up, -1 down): PgUp/PgDn, ] / [ and the floor label's ▲ ▼.
+## View another floor (dir +1 up, -1 down) in the focused building: Shift / Ctrl, PgUp/PgDn, ] / [
+## and the floor stack's ▲ ▼. Keys never jump to another building; on the street (no building
+## focused) the first press focuses the building nearest the middle of the view.
 func _change_floor(dir: int) -> void:
-	var f := FloorNav.next_floor(m, view_floor, dir)
+	var b := _focused()
+	if not _bld.has(b):
+		b = _nearest_building()
+		if b < 0:   # no buildings (the badlands): the map's floors
+			var g := FloorNav.next_floor(m, view_floor, dir)
+			if g >= 0:
+				_set_view_floor(g)
+			return
+		_focus_pin = b
+		view_floor = FloorNav.focus_floor(_bld[b].floors, -1, view_floor, m.street)
+	var f := FloorNav.stack_step(_bld[b].floors, view_floor, dir)
 	if f >= 0:
 		_set_view_floor(f)
+	else:
+		_place_camera()
+		_refresh()
+
+
+## Review renders (--inside, --focusb): the buildings with two or more storeys, nearest the crew's
+## first member first.
+func _demo_buildings() -> Array:
+	var from: Vector3i = enc.alive(0)[0].pos
+	var out: Array = []
+	for sid in _bld:
+		if (_bld[sid].floors as Array).size() - (1 if int(_bld[sid].roof) >= 0 else 0) >= 2:
+			out.append(int(sid))
+	var dist := func(sid: int) -> float: return Vector2((_bld[sid].rect as Rect2i).get_center()).distance_to(Vector2(from.x, from.y))
+	out.sort_custom(func(a, b): return dist.call(a) < dist.call(b))
+	return out
+
+
+## Review renders: crew member i stands inside the i-th building on its storey --inside[i] (-1:
+## stays out); --focusb=k[:s] focuses the k-th building on its storey s. The camera frames them.
+func _demo_inside() -> void:
+	var bl := _demo_buildings()
+	var crew := enc.alive(0)
+	if not enc.cur.is_empty() and enc.cur.team == 0:   # the active (selected) unit is crew member 0 here
+		crew.erase(enc.cur)
+		crew.push_front(enc.cur)
+	var used: Array = []
+	for i in mini(_dev_inside.size(), crew.size()):
+		var spec := String(_dev_inside[i]).split(":")
+		var bi := int(spec[0]) if spec.size() > 1 else i
+		var k := int(spec[-1])
+		if k < 0 or bi >= bl.size():
+			continue
+		var sid: int = bl[bi]
+		var fl: Array = _bld[sid].floors
+		var f: int = fl[mini(k, fl.size() - 1)]
+		var cc := Vector2((_bld[sid].rect as Rect2i).get_center())
+		var best := Vector3i(-1, -1, -1)
+		var bd := INF
+		for l in struct_rooms.get(sid, {}):
+			if int(m.rooms[l].floor) != f:
+				continue
+			for xy in room_xy.get(l, []):
+				var v := Vector3i(xy.x, xy.y, f)
+				if m.label(f, xy.x, xy.y) != l or not m.walkable(f, xy) or m.t(f, xy.x, xy.y) != TacMap.T.FLOOR or enc.units.any(func(o): return o.pos == v):
+					continue
+				var d := Vector2(xy).distance_to(cc)
+				if d < bd:
+					bd = d
+					best = v
+		if best.x >= 0:
+			crew[i].pos = best
+			if not used.has(sid):
+				used.append(sid)
+	var fk := _dev_focus_b.split(":")
+	var fb := int(fk[0]) if _dev_focus_b != "" else -1
+	if fb >= 0 and fb < bl.size():
+		used.append(bl[fb])
+	elif bl.size() > used.size():
+		used.append(bl[used.size()])   # the next building along, roof on, for contrast
+	enc.refresh_vision()
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for sid in used:
+		var r: Rect2i = _bld[sid].rect
+		lo = lo.min(Vector2(r.position))
+		hi = hi.max(Vector2(r.end))
+	if lo.x < INF:
+		cam_target = Vector3((lo.x + hi.x) / 2.0, 0, (lo.y + hi.y) / 2.0)
+		if not _dev_zoom:
+			cam_dist = clampf((hi - lo).length() * 0.8 + 4.0, 16.0, 60.0)
+	if not crew.is_empty():
+		view_floor = int(crew[0].pos.z)
+		_sel_id = int(crew[0].id)
+	if fb >= 0 and fb < bl.size():
+		var fs: Array = _bld[bl[fb]].floors
+		_focus_pin = bl[fb]
+		view_floor = int(fs[mini(int(fk[1]), fs.size() - 1)]) if fk.size() > 1 else FloorNav.focus_floor(fs, -1, view_floor, m.street)
+	_place_camera()
+	_last_cur = enc.cur.id if not enc.cur.is_empty() else -1   # the first turn keeps this view and focus
+	_view_turn = enc.turn
+
+
+## The building nearest the middle of the view (the street's floor keys focus it), -1 none.
+func _nearest_building() -> int:
+	var best := -1
+	var bd := INF
+	var at := Vector2(cam_target.x, cam_target.z)
+	for sid in _bld:
+		var r: Rect2i = _bld[sid].rect
+		var d := at.distance_to(at.clamp(Vector2(r.position), Vector2(r.end)))
+		if d < bd:
+			bd = d
+			best = int(sid)
+	return best
+
+
+## Focus a building (H3: a left-click on it): the floor stack drives it and corner brackets mark
+## it while it is not the selected unit's. It opens at its current cut, else the viewed floor.
+func _focus_building(sid: int) -> void:
+	if not _bld.has(sid) or sid == _focused():
+		return
+	var mine := _unit_building(_sel_unit())
+	view_floor = FloorNav.focus_floor(_bld[sid].floors, int(_cuts.get(sid, -1)), view_floor, m.street)
+	_focus_pin = -1 if sid == mine else sid
+	_ui_snd("sfx_ui_click", -10.0)
+	_place_camera()
+	_refresh()
+	_update_hover()
+
+
+## Home (and Esc with nothing armed): the floor stack back on the selected unit's building, cut at
+## its floor; `recentre` pans the camera back to it too.
+func _home(recentre: bool) -> void:
+	var su := _sel_unit()
+	_focus_pin = -1
+	if not su.is_empty():
+		view_floor = int(su.pos.z)
+		if recentre:
+			var p := CamFrame.unit_focus(Vector2(su.pos.x, su.pos.y), cam_yaw, cam_dist)
+			_pan_to(Vector3(clampf(p.x, 0, m.w), 0, clampf(p.y, 0, m.h)), 0.3)
+	_place_camera()
+	_refresh()
+	_update_hover()
 
 
 func _set_view_floor(f: int, playback := false) -> void:
@@ -2435,7 +2738,7 @@ func _objective_floor_hint() -> Array:
 	if mks.is_empty():
 		return [0, FloorNav.NONE]
 	var c: Vector3i = mks[0][3]
-	return [FloorNav.objective_dir(view_floor, c.z), c]
+	return [FloorNav.objective_dir(_slice_z(Vector2i(c.x, c.y)), c.z), c, _col_sid.get(Vector2i(c.x, c.y), -1)]
 
 
 ## GO UP / GO DOWN for the bar: {1: FloorNav.go up, -1: down}, {} off the stairs.
@@ -2465,7 +2768,8 @@ func _update_stair_glow(hint: Array) -> void:
 	if int(hint[0]) == 0 or _net_cleaned or enc.state != "playing":
 		return
 	var col := WorldBuilder.EDGE_COL
-	for v in FloorNav.hint_stairs(m, view_floor, hint[1]):
+	var tc: Vector3i = hint[1]
+	for v in FloorNav.hint_stairs(m, _slice_z(Vector2i(tc.x, tc.y)), tc):   # on the floor its building is drawn at
 		if fog_on and not enc.vision.explored.has(v) and not _blueprint.has(v.z):
 			continue   # an unknown stair stays unknown
 		if int(hint[0]) > 0 and _flight_from(v):   # a flight up from here: its own lit step edges brighten
@@ -2530,6 +2834,20 @@ func _to_screen(p: Vector3) -> Vector2:
 
 # --- Input ------------------------------------------------------------------------
 
+## Which keys are held (the floor keys count only when pressed on their own); a floor key's repeat
+## stops as soon as another key joins it.
+func _input(ev: InputEvent) -> void:
+	if ev is InputEventKey and not ev.echo:
+		if ev.pressed:
+			if _floor_key != 0 and ev.keycode != _floor_key:
+				_floor_key = 0
+			_held_keys[ev.keycode] = true
+		else:
+			_held_keys.erase(ev.keycode)
+			if ev.keycode == _floor_key:
+				_floor_key = 0
+
+
 func _unhandled_input(ev: InputEvent) -> void:
 	if ev is InputEventMouseMotion:
 		if ev.button_mask & MOUSE_BUTTON_MASK_MIDDLE:   # middle-drag: free rotation
@@ -2539,6 +2857,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 		if net_overlay.visible:
 			net_overlay.hot = net_overlay.pick(mouse)
 		var h := _pick(ev.position)
+		_hover_bld = _building_at(ev.position) if enc else -1
 		if h != hover:
 			hover = h
 			_on_hover_changed()
@@ -2553,7 +2872,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 			MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT:   # right moves, left attacks (ClickIntent)
 				var run := _net_active()
 				var t: Dictionary = _unit_at(hover) if enc else {}
-				match ClickIntent.of(ev.button_index, ev.shift_pressed, run != null, tool, cover_mode, not t.is_empty() and _foe(t)):
+				var on_b := _building_at(ev.position) if enc and _crew_turn() else -1
+				match ClickIntent.of(ev.button_index, run != null, tool, cover_mode, not t.is_empty() and _foe(t), on_b, _aim_armed(), not t.is_empty() and not _foe(t)):
 					ClickIntent.NET:
 						var id := net_overlay.pick(ev.position)
 						if id >= 0 and id != run.current:
@@ -2565,6 +2885,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 					ClickIntent.TOOL: _click_tool()
 					ClickIntent.COVER: _click_attack(true)
 					ClickIntent.ATTACK: _click_attack(false)
+					ClickIntent.FOCUS: _focus_building(on_b)
 	elif ev is InputEventKey and ev.pressed and not ev.echo:
 		if _end_key(ev.keycode):   # the gig is over: the end panel takes Enter, Space and Esc first
 			get_viewport().set_input_as_handled()
@@ -2575,6 +2896,15 @@ func _unhandled_input(ev: InputEvent) -> void:
 			KEY_K: hud.toggle_log()   # collapse / show the combat log (the chevron does the same)
 			KEY_PAGEUP, KEY_BRACKETRIGHT: _change_floor(1)
 			KEY_PAGEDOWN, KEY_BRACKETLEFT: _change_floor(-1)
+			KEY_HOME: _home(true)
+			KEY_SHIFT, KEY_CTRL:   # the floor keys (owner): alone, a floor up / down; held, they repeat (_process)
+				var held_others := _held_keys.keys().any(func(k): return int(k) != int(ev.keycode))
+				var fd := FloorNav.modifier_floor_dir(ev.keycode, held_others)
+				if fd != 0 and enc and not net_overlay.visible:
+					_floor_key = ev.keycode
+					_floor_key_t = 0.0
+					_floor_key_steps = 1
+					_change_floor(fd)
 			KEY_C:
 				if not cutaway:
 					cutaway = true
@@ -2609,6 +2939,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 				if tool != "" or stage != "main" or cover_mode:
 					_back_to_main()
 					_refresh(); _update_hover()
+				elif _focus_pin >= 0:   # nothing armed: a focused building hands the stack back (H3)
+					_home(false)
 			# Close quarters (CPR core p.168-169, p.177): X grab / choke / escape, Y throw, I human shield,
 			# O release, U get up, P break an ally's hold. Each acts only when the bar offers it.
 			KEY_X: _grapple_key(["grab", "choke", "escape"])
@@ -2634,8 +2966,23 @@ func _on_hud(name: String, arg: Variant) -> void:
 	if name == "portrait_hover":   # [unit id or -1, portrait rect]: hover tracking, even while busy
 		_portrait_hover(int(arg[0]), arg[1])
 		return
-	if name == "floor":   # the floor label's ▲ ▼ (like PgUp/PgDn: only the view changes)
+	if name == "floor":   # the floor stack's ▲ ▼ (like PgUp/PgDn: only the view changes)
 		_change_floor(int(arg))
+		return
+	if name == "floor_to":   # a floor stack row: view that storey of the focused building
+		if int(arg) != view_floor:
+			_set_view_floor(int(arg))
+		return
+	if name == "elsewhere":   # an 'elsewhere' portrait: their building takes the stack, at their floor
+		for u in enc.alive(0):
+			if int(u.id) == int(arg):
+				var ub := _pip_building(u)
+				if ub >= 0:
+					_focus_pin = -1 if ub == _unit_building(_sel_unit()) else ub
+					view_floor = int(u.pos.z)
+					var p := CamFrame.unit_focus(Vector2(u.pos.x, u.pos.y), cam_yaw, cam_dist)
+					_pan_to(Vector3(clampf(p.x, 0, m.w), 0, clampf(p.y, 0, m.h)), 0.3)
+					_refresh()
 		return
 	if busy:
 		return
@@ -2809,29 +3156,83 @@ func _on_hud(name: String, arg: Variant) -> void:
 				_after_action()
 
 
+## The square under the pointer. Every building is cut on its own (FloorNav.slices), so the ray
+## is tested against the floor of each slice and the nearest square that stands at its column's
+## slice wins (_slice_z: a cut building's cut, the viewed floor elsewhere, the street where that
+## floor has no ground). A seen foe drawn off those floors (on a roof, upstairs in a building with
+## its roof on) is picked by its body, so it stays targetable.
 func _pick(screen_pos: Vector2) -> Vector3i:
 	var sp := (screen_pos - screen.position) / _px()
 	var o := cam.project_ray_origin(sp)
 	var d := cam.project_ray_normal(sp)
-	var hit: Variant = Plane(Vector3.UP, view_floor * FH).intersects_ray(o, d)
-	# A flight of stairs climbs a whole storey from its square: the steps the cursor is on stand
-	# above the floor plane, so the plane alone picked the square behind them (playtest: clicking a
-	# staircase did nothing). The flight's box is tested first.
+	var zs := {view_floor: true, m.street: true}
+	for sid in _cuts:
+		zs[int(_cuts[sid])] = true
 	var best := INF
 	var out := Vector3i(-1, -1, -1)
-	for v in m.verticals:
-		if v.type != "stairs" or view_floor < int(v.from_floor) or view_floor >= int(v.to_floor):
+	for z in zs:
+		var hit: Variant = Plane(Vector3.UP, int(z) * FH).intersects_ray(o, d)
+		if hit == null:
 			continue
-		var box := AABB(Vector3(v.pos.x, view_floor * FH, v.pos.y), Vector3(1, FH, 1))
+		var c := Vector3i(floori(hit.x), floori(hit.z), int(z))
+		var dist := (hit as Vector3).distance_to(o)
+		if dist < best and m.inb(c.x, c.y) and _slice_z(Vector2i(c.x, c.y)) == c.z:
+			best = dist
+			out = c
+	# A flight of stairs climbs a whole storey from its square: the steps the cursor is on stand
+	# above the floor plane, so the plane alone picked the square behind them (playtest: clicking a
+	# staircase did nothing). The flight's box counts too, nearest first.
+	for v in m.verticals:
+		if v.type != "stairs":
+			continue
+		var z2 := _slice_z(v.pos)
+		if z2 < int(v.from_floor) or z2 >= int(v.to_floor):
+			continue
+		var box := AABB(Vector3(v.pos.x, z2 * FH, v.pos.y), Vector3(1, FH, 1))
 		var bh: Variant = box.intersects_ray(o, d)
-		if bh != null and (bh as Vector3).distance_to(o) < best:
+		if bh != null and (bh as Vector3).distance_to(o) <= best:
 			best = (bh as Vector3).distance_to(o)
-			out = Vector3i(v.pos.x, v.pos.y, view_floor)
-	if out.x >= 0 and (hit == null or best <= (hit as Vector3).distance_to(o)):
-		return out
-	if hit == null:
-		return Vector3i(-1, -1, -1)
-	return Vector3i(floori(hit.x), floori(hit.z), view_floor)
+			out = Vector3i(v.pos.x, v.pos.y, z2)
+	if enc:
+		for u in enc.units:
+			if u.c.dead or not _foe(u) or not _seen(u.pos) or int(u.pos.z) == _slice_z(Vector2i(u.pos.x, u.pos.y)):
+				continue
+			var n: Node3D = unit_nodes.get(u.id)
+			if n == null or not n.visible:
+				continue
+			var body := AABB(Vector3(u.pos.x + 0.15, _gy(u.pos), u.pos.y + 0.15), Vector3(0.7, 1.9, 0.7))
+			var uh: Variant = body.intersects_ray(o, d)
+			if uh != null and (uh as Vector3).distance_to(o) < best:
+				best = (uh as Vector3).distance_to(o)
+				out = u.pos
+	_pick_dist = best
+	return out
+
+
+## The building under the pointer (its footprint box up to its cut, or its roof), -1 when open
+## ground nearer the camera is in the way or there is none. H3: a left-click there focuses it.
+func _building_at(screen_pos: Vector2) -> int:
+	if _bld.is_empty():
+		return -1
+	var sp := (screen_pos - screen.position) / _px()
+	var o := cam.project_ray_origin(sp)
+	var d := cam.project_ray_normal(sp)
+	var best := INF
+	var out := -1
+	for sid in _bld:
+		var bd: Dictionary = _bld[sid]
+		var r: Rect2i = bd.rect
+		var fl: Array = bd.floors
+		var top: int = int(_cuts[sid]) if _cuts.has(sid) and cutaway else int(fl[-1])
+		var bottom: int = mini(m.street, top)
+		var box := AABB(Vector3(r.position.x, bottom * FH, r.position.y), Vector3(r.size.x, (top - bottom + 1) * FH, r.size.y))
+		var hit: Variant = box.intersects_ray(o, d)
+		if hit != null and (hit as Vector3).distance_to(o) < best:
+			best = (hit as Vector3).distance_to(o)
+			out = int(sid)
+	if out >= 0 and hover.x >= 0 and not _col_sid.has(Vector2i(hover.x, hover.y)) and _pick_dist < best:
+		return -1   # the street in front of it
+	return out
 
 
 func _crew_turn() -> bool:
@@ -4371,7 +4772,14 @@ func _anim_move(e: Dictionary) -> void:
 		if n.visible and not inner.has_point(_to_screen(to)):
 			_pan_to(to, 0.35)   # soft follow (not awaited)
 		if b.z != a.z and b.z == (path[-1] as Vector3i).z:   # up or down the stairs for good: the view goes along
-			var ff := FloorNav.follow_floor(view_floor, b.z, u.team == 0, _seen(path[-1]) or _seen(b))
+			# a crew move carries the stack (unless another building is focused); on the other
+			# side's turn the slices stay as they are and only a seen move inside the focused
+			# building moves its stack (FloorNav.follow_in_focus)
+			var ff := view_floor
+			if u.team == 0 and _focus_pin < 0:
+				ff = FloorNav.follow_floor(view_floor, b.z, true, true)
+			elif u.team != 0 and FloorNav.follow_in_focus(_focused(), view_floor, _indoor_structure(b), b.z, _seen(path[-1]) or _seen(b)):
+				ff = b.z
 			if ff != view_floor:
 				_set_view_floor(ff, true)
 				n.visible = (u.team == 0 or _seen(b)) and not _cut_hides(b)
@@ -4426,8 +4834,9 @@ func _anim_attack(e: Dictionary) -> void:
 	var tn: Node3D = unit_nodes[tu.id]
 	_focus_unit = su.id
 	var restore_floor := -1
-	if su.team == 0 and su.pos.z != view_floor:   # follow a crew shooter to their floor (XCOM-style)
+	if su.team == 0 and (su.pos.z != view_floor or _focus_pin >= 0):   # follow a crew shooter to their floor (XCOM-style)
 		view_floor = su.pos.z
+		_focus_pin = -1
 		_refresh()
 	elif enc.is_guard(su) and maxi(su.pos.z, tu.pos.z) > view_floor and _seen(su.pos):   # a guard firing from above: lift the view for the shot
 		restore_floor = view_floor
@@ -4841,9 +5250,71 @@ func _hud_refresh() -> void:
 	var place := place_label(m, active, String(gig.scene))
 	var hint := _objective_floor_hint()
 	hud.stairs = _stair_actions()
-	hud.floor_nav(FloorNav.next_floor(m, view_floor, 1) >= 0, FloorNav.next_floor(m, view_floor, -1) >= 0, int(hint[0]))
 	hud.refresh(enc, mode, cover_mode, "%s  ·  %s" % [place.to_upper(), floor_label(m, view_floor)])
+	hud.floor_stack(_stack_data(hint))
 	_update_stair_glow(hint)
+
+
+## A unit's building for the floor stack's pips: its indoor room's, or the building whose roof it
+## stands on; -1 on the street.
+func _pip_building(u: Dictionary) -> int:
+	var sid := _indoor_structure(u.pos)
+	if sid >= 0:
+		return sid
+	var c: int = _col_sid.get(Vector2i(u.pos.x, u.pos.y), -1)
+	return c if _bld.has(c) and int(_bld[c].roof) == int(u.pos.z) else -1
+
+
+## The floor stack's rows for the focused building (FloorNav.buildings): one per storey top down,
+## crew squares and seen-foe diamonds on each, the viewed one lit; the objective's arrow breathes
+## only while the stack drives the objective's own building (subtle: a direction, never a floor).
+## On the street: a single lit STREET row (Shift or a click on a building opens one). The NET hides
+## it (the overlay owns the clicks).
+func _stack_data(hint: Array) -> Dictionary:
+	if _bld.is_empty() or net_overlay.visible or _net_active() != null or enc.state != "playing":
+		return {}
+	var b := _focused()
+	var rows: Array = []
+	var data := {}
+	var obj_sid: int = int(hint[2]) if hint.size() > 2 else -1
+	if not _bld.has(b):
+		var crew_out := 0
+		for u in enc.alive(0):
+			if _pip_building(u) < 0 and int(u.pos.z) == view_floor:
+				crew_out += 1
+		rows.append({"f": view_floor, "label": "STREET" if view_floor == m.street else m.floor_name(view_floor), "crew": crew_out, "foes": 0, "cur": true})
+		data = {"name": "STREET", "why": "outdoors", "rows": rows, "up_ok": true, "down_ok": m.basements > 0,
+			"hint_dir": int(hint[0]) if obj_sid < 0 else 0}
+	else:
+		var bd: Dictionary = _bld[b]
+		var fl: Array = bd.floors
+		for i in range(fl.size() - 1, -1, -1):
+			var f: int = fl[i]
+			var crew_n := 0
+			var foes_n := 0
+			for u in enc.units:
+				if u.c.dead or u.get("fled", false) or int(u.pos.z) != f or _pip_building(u) != b:
+					continue
+				if u.team == 0:
+					crew_n += 1
+				elif _foe(u) and _seen(u.pos):
+					foes_n += 1
+			rows.append({"f": f, "label": "R" if f == int(bd.roof) else m.floor_name(f), "crew": crew_n, "foes": foes_n,
+				"cur": f == view_floor, "street": f == m.street and int(fl[0]) < m.street})
+		var why := "selected"
+		if _focus_pin >= 0:
+			why = "focused · HOME"
+		elif not _crew_turn():
+			why = "enemy turn"
+		data = {"name": bd.name, "why": why, "rows": rows, "up_ok": FloorNav.stack_step(fl, view_floor, 1) >= 0,
+			"down_ok": FloorNav.stack_step(fl, view_floor, -1) >= 0, "hint_dir": int(hint[0]) if obj_sid == b else 0}
+	var els: Array = []
+	for u in enc.alive(0):
+		var ub := _pip_building(u)
+		if ub >= 0 and ub != b and els.size() < 3:
+			els.append({"unit": u, "label": "%s %s" % [String(_bld[ub].name).left(10).strip_edges(), "R" if int(u.pos.z) == int(_bld[ub].roof) else m.floor_name(u.pos.z)]})
+	data["elsewhere"] = els
+	return data
 
 
 ## Recoil: kick the weapon back and the chest up; autofire climbs, capped; settles with a spring.
@@ -5040,8 +5511,9 @@ func _wound_word(u: Dictionary, key: String) -> void:
 	get_tree().create_timer(ms / 1000.0).timeout.connect(show)
 
 
-## The pointer moved to another square: the path ribbon, the sight lines that matter for it, and
-## the building it points into (AUTO cutaway opens it).
+## The pointer moved to another square: the path ribbon and the sight lines that matter for it.
+## (Pointing into a building no longer opens it: buildings with no crew keep their roofs on unless
+## focused, FloorNav.slices.)
 var _promo := false
 
 
@@ -5082,13 +5554,6 @@ func _update_audio() -> void:
 func _on_hover_changed() -> void:
 	_draw_path()
 	_draw_watch(grid_node != null and grid_node.visible)
-	var hs := -1
-	var hu := _unit_at(hover)
-	if _crew_turn() and (move_opts.has(hover) or dash_opts.has(hover) or (not hu.is_empty() and _foe(hu))):
-		hs = _indoor_structure(hover)
-	if hs != _hover_sid:
-		_hover_sid = hs
-		_update_fog()
 
 
 func _update_hover() -> void:
@@ -5117,6 +5582,8 @@ func _update_hover() -> void:
 			hud.tip("[code]%d / %d[/code] squares%s" % [enc.nav.cost_of(enc.cur.pos, p), enc.turn.squares_available(), warn], mouse, "// MOVE", Hud.CYAN)
 		elif dash_opts.has(hover):
 			hud.tip("Uses your [b]Action[/b] as a Run (an extra Move Action)", mouse, "// RUN", Color("ffb000"))
+		elif _hover_bld >= 0 and _hover_bld != _focused() and t.is_empty() and not _aim_armed():   # H3: say what a left-click does here
+			hud.tip("Nothing to attack here", mouse, "// LEFT-CLICK  FOCUS FLOORS", Hud.CYAN)
 		else:
 			hud.tip("", mouse)
 		return

@@ -506,6 +506,6 @@ func test_grapple_and_prone_never_persist() -> void:
 func test_left_click_grabs_with_the_tool_armed_right_click_still_moves() -> void:
 	var L := MOUSE_BUTTON_LEFT
 	var R := MOUSE_BUTTON_RIGHT
-	assert_eq(ClickIntent.of(L, false, false, "grab", false, true), ClickIntent.TOOL, "left on a foe with GRAB armed grabs")
-	assert_eq(ClickIntent.of(L, false, false, "break", false, false), ClickIntent.TOOL, "left on a held friend breaks the hold")
-	assert_eq(ClickIntent.of(R, false, false, "grab", false, true), ClickIntent.MOVE, "right still moves")
+	assert_eq(ClickIntent.of(L, false, "grab", false, true), ClickIntent.TOOL, "left on a foe with GRAB armed grabs")
+	assert_eq(ClickIntent.of(L, false, "break", false, false), ClickIntent.TOOL, "left on a held friend breaks the hold")
+	assert_eq(ClickIntent.of(R, false, "grab", false, true), ClickIntent.MOVE, "right still moves")

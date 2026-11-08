@@ -38,6 +38,11 @@ global uniform vec3 cut_center;     // xz focus, y = viewed floor index
 global uniform float cut_radius;    // 0 = no cutaway
 global uniform vec2 cut_dir;        // camera forward on the ground plane
 global uniform vec4 focus_view;     // focus in screen UV (xy), its view depth (z), hole radius (w)
+// per-building slices (FloorNav.slices): one texel per map square (greybox._update_fog). r: the cut
+// floor of the building over that square, -1 whole (roof on; the street is never cut); g, b: the
+// building's footprint packed as x0 + 1024 * x1 and y0 + 1024 * y1, so the camera-side walls drop
+// around the focus clamped into that building.
+global uniform sampler2D cut_map : filter_nearest, repeat_disable;
 uniform bool flat_shade = false;    // faceted lighting (rocks)
 uniform bool offmap = false;        // ground beyond the map: fades out with distance
 uniform bool near_fade = false;
@@ -76,6 +81,13 @@ void fragment() {
 		uvbase = vec2(c.x / map_size.x, (floor_idx * map_size.y + clamp(c.y, 0.5, map_size.y - 0.5)) / (map_size.y * floors));
 	}
 	vec2 fogv = texture(fog, uvbase).rg;
+	vec4 cm;
+	{
+		vec2 c = wpos.xz - wnorm.xz * 0.08;
+		ivec2 sq = ivec2(floor(c));
+		cm = (sq.x >= 0 && sq.y >= 0 && float(sq.x) < map_size.x && float(sq.y) < map_size.y) ? texelFetch(cut_map, sq, 0) : vec4(-1.0);
+	}
+	bool cut_open = cm.r > -0.5;   // this building is cut (crew inside, or focused)
 	float bay = bayer4(FRAGCOORD.xy);
 	// --- see-through hole: tall things between the camera and the focus (skyline, buildings that
 	// haven't been opened) dissolve in a dithered disc around the focus (BG3/Divinity style)
@@ -84,17 +96,22 @@ void fragment() {
 		float far = smoothstep(4.0, 9.0, -dot(wpos.xz - cut_center.xz, cut_dir));
 		if (far > (emission_energy > 0.9 ? 0.35 : bay + 0.5)) discard;   // glowing strips go cleanly (dithered they left dotted lines)
 	}
-	if ((mode == 2 || (shell && fogv.g < 0.5)) && focus_view.w > 0.0 && wpos.y > cut_center.y * 1.6 + 0.9 && -VERTEX.z < focus_view.z - 1.5) {
+	if ((mode == 2 || (shell && !cut_open)) && focus_view.w > 0.0 && wpos.y > cut_center.y * 1.6 + 0.9 && -VERTEX.z < focus_view.z - 1.5) {
 		float r = length((SCREEN_UV - focus_view.xy) * vec2(VIEWPORT_SIZE.x / VIEWPORT_SIZE.y, 1.0)) / focus_view.w;
 		if (smoothstep(0.7, 1.0, r) < bay + 0.5) discard;
 	}
-	// --- cutaway (XCOM roof-off): in buildings the crew is in or has seen into (fog G), every
-	// storey above the viewed one goes, and walls on the camera side of the focus drop to waist
-	// height with a dithered edge. Far walls stay up for context. Cut faces show as section caps.
-	if (cut_radius > 0.0 && fogv.g > 0.5) {
-		if (floor_idx > cut_center.y + 0.5) discard;
-		if (cuttable && floor_idx > cut_center.y - 0.5 && wpos.y - floor_idx * 1.6 > 0.72) {
-			float along = dot(wpos.xz - cut_center.xz, cut_dir);
+	// --- cutaway (XCOM roof-off), per building: in a cut building every storey above its cut goes,
+	// and on the cut storey the walls on the camera side of the focus (clamped into that building,
+	// so a second cut building opens toward the camera too) drop to waist height with a dithered
+	// edge. Far walls stay up for context. Cut faces show as section caps.
+	if (cut_radius > 0.0 && cut_open) {
+		float cutf = cm.r;
+		if (floor_idx > cutf + 0.5) discard;
+		if (cuttable && floor_idx > cutf - 0.5 && wpos.y - floor_idx * 1.6 > 0.72) {
+			vec2 lo = vec2(mod(cm.g, 1024.0), mod(cm.b, 1024.0));
+			vec2 hi = vec2(floor(cm.g / 1024.0), floor(cm.b / 1024.0)) + 1.0;
+			vec2 piv = clamp(cut_center.xz, lo + 1.5, max(hi - 1.5, lo + 1.5));
+			float along = dot(wpos.xz - piv, cut_dir);
 			if (smoothstep(-0.12, 0.12, along) < bay + 0.5) discard;
 		}
 	}
