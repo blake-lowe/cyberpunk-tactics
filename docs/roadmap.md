@@ -20,6 +20,7 @@ Check-ins (🔶) are where work pauses for a user decision or review.
 | M8+ | Fabrication/Invention, story gigs and fixer betrayals, downtime assignments, civilians/hazards/weather, vehicles, equipment models (owner: keep painted clothes for now), economy tuning, story gigs | — | per feature |
 
 ## Decisions log
+- Floor navigation (owner, 2026-11-08, after research of 25 games): no auto-floor-on-hover. Keep: lit stair step edges; Alt-held fire-escape/exit icons over stairs and external doors; one global floor-stack selector. Per-building slicing is needed but without per-building floor tabs (control scheme being explored). Explore seriously: highrise verticality via elevators with only some floors playable and a cross-section strip as navigator.
 - Backlog (owner, 2026-11-07): Virus at the lowest floor (CPR core p.200 examples: disable a Black ICE, make a Control Node malfunction, delete Black ICE, halve floors...), and a netrunning pass on accessibility, readability and juice.
 - Backlog (owner, 2026-11-06): Trauma Team and MAX-TAC need no clear landing zone: they rappel on cables or jump from the hovering AV onto any open square (replaces the walk-in-from-the-edge fallback and the landing-zone search).
 - Descoped (owner, 2026-11-04): Playland by the Sea as gigs, multi-map operations and the Combat Zone's MIST are removed, not disabled. Playland's district and 52 locations stay in the world data as book facts (Campaign.NO_GIGS keeps jobs out); save v13 drops any operation in progress and its offers, returning van-held weapons to storage.
