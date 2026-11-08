@@ -2,7 +2,7 @@ class_name AccessPoints
 extends RefCounted
 ## Where the crew can jack in (CPR core p.198: within 6 m of an access point, no wall between), for
 ## the view's way-finding: Alt's port icons over every access point the crew has seen, and the data
-## lines a Netrunner's idle turn draws to each one they could reach and jack in at this turn. Pure
+## lines a Netrunner's idle turn draws to each one they sense (Interface range, a straight line). Pure
 ## lookups on the Encounter, so they are testable headless.
 
 
@@ -31,34 +31,28 @@ static func device_ids(m: TacMap) -> Dictionary:
 	return out
 
 
-## Seen access points the active unit `u` (a Netrunner, Encounter.cur) could jack in at this turn:
-## one with a square in jack range (no wall between, p198) that `u` stands on or can still reach
-## by moving or running this turn. Each entry adds `from`: the nearest such square.
-static func in_reach(e: Encounter, u: Dictionary, fog_on := true) -> Array:
+## HOUSE-RULE: a Netrunner senses access points by Interface rather than by where MOVE could take
+## them this turn (owner: a role-ability stat and a straight line read better than a move+run
+## reach): every access point within Interface x SENSE_M_PER_RANK metres as the crow flies
+## (Los.distance_m: through walls, 3 m a storey), seen or not. Nothing for a non-Netrunner or a
+## runner already jacked in. Entries add `dist_m`, nearest first.
+const SENSE_M_PER_RANK := 4.0
+
+
+static func sense_range_m(c: Combatant) -> float:
+	return NetRun.interface_rank(c) * SENSE_M_PER_RANK
+
+
+static func sensed(e: Encounter, u: Dictionary) -> Array:
 	var out := []
 	if NetRun.interface_rank(u.c) <= 0 or e.runs.has(u.id):
 		return out
-	var opts := {u.pos: 0}
-	if e.cur == u and e.turn != null:
-		opts.merge(e.move_options())
-		opts.merge(e.run_options())
-	var rng := Encounter.jack_range(u.c)
-	var sq := int(ceil(rng / 2.0))
-	for p in seen(e, fog_on):
-		var c: Vector3i = p.cell
-		var best := Vector3i(-1, -1, -1)
-		var bd := INF
-		for dy in range(-sq, sq + 1):
-			for dx in range(-sq, sq + 1):
-				var v := Vector3i(c.x + dx, c.y + dy, c.z)
-				if not opts.has(v) or Los.distance_m(v, c) > rng or e._wall_between(v, c):
-					continue
-				var dist := Vector3(v - u.pos).length()
-				if dist < bd:
-					bd = dist
-					best = v
-		if best.x >= 0:
+	var rng := sense_range_m(u.c)
+	for p in all(e):
+		var d := Los.distance_m(u.pos, p.cell)
+		if d <= rng:
 			var q: Dictionary = p.duplicate()
-			q["from"] = best
+			q["dist_m"] = d
 			out.append(q)
+	out.sort_custom(func(a, b): return a.dist_m < b.dist_m)
 	return out

@@ -1,7 +1,7 @@
 extends TestCase
 ## Access-point way-finding (AccessPoints): which access points get Alt's port icons (every one the
-## crew has seen) and which get an idle Netrunner's data lines (seen, and reachable to jack in at
-## this turn: within 6 m with no wall between, p198, from a square they stand on or can still reach).
+## crew has seen) and which get an idle Netrunner's data lines (sensed: within Interface x 4 m in a
+## straight line, HOUSE-RULE), and the access point models.
 
 static var _m: TacMap
 
@@ -40,47 +40,31 @@ func test_icons_only_for_access_points_the_crew_has_seen() -> void:
 	assert_true(AccessPoints.seen(e).any(func(p): return p.cell == ap.cell), "seen: its icon")
 
 
-func test_lines_go_to_seen_access_points_in_reach_this_turn() -> void:
+func test_a_netrunner_senses_access_points_in_interface_range_through_walls() -> void:
 	var r := _enc()
 	var e: Encounter = r[0]
 	var runner: Dictionary = r[1]
 	var ap: Dictionary = AccessPoints.all(e)[0]
 	var c: Vector3i = ap.cell
-	e.vision.explored[c] = true
-	# standing right by it: in reach from where they stand
-	var near := Vector3i(-1, -1, -1)
-	for v in e.nav.reachable(c, 2, e.occupied()):
-		if v != c and not e._wall_between(v, c) and not e.occupied().has(v):
-			near = v
-			break
-	assert_true(near.x >= 0, "a square beside the access point")
-	runner.pos = near
-	e.turn = TurnState.begin(e.dice, runner.c)
-	var hits := AccessPoints.in_reach(e, runner)
-	assert_true(hits.any(func(p): return p.cell == c), "beside it: a line")
-	var hit: Dictionary = hits.filter(func(p): return p.cell == c)[0]
-	assert_true(Los.distance_m(hit.from, c) <= Encounter.jack_range(runner.c), "from a square in jack range (p198)")
-	# unseen: no line, even in reach
+	var rng := AccessPoints.sense_range_m(runner.c)
+	assert_eq(rng, NetRun.interface_rank(runner.c) * AccessPoints.SENSE_M_PER_RANK, "Interface x 4 m (HOUSE-RULE)")
 	e.vision.explored.erase(c)
-	assert_false(AccessPoints.in_reach(e, runner).any(func(p): return p.cell == c), "unseen: no line")
-	e.vision.explored[c] = true
-	# out of this turn's reach: no line
-	runner.pos = Vector3i(0, 0, 0)
-	var far := Vector3i(-1, -1, -1)
-	for v in e.nav.reachable(c, 200, {}):
-		if Vector2(v.x - c.x, v.y - c.y).length() > 40 and v.z == c.z:
-			far = v
-			break
-	if far.x >= 0:
-		runner.pos = far
-		e.turn = TurnState.begin(e.dice, runner.c)
-		assert_false(AccessPoints.in_reach(e, runner).any(func(p): return p.cell == c), "too far to get there this turn")
-	# a turn's moving spent: only where they stand counts
-	runner.pos = near
-	e.turn = TurnState.begin(e.dice, runner.c)
+	runner.pos = c
+	assert_true(AccessPoints.sensed(e, runner).any(func(p): return p.cell == c), "sensed even unseen")
+	# just inside and just outside the range, in a straight line along the row (walls don't matter)
+	var sq := int(floor(rng / 2.0))
+	runner.pos = Vector3i(c.x + sq, c.y, c.z)
+	assert_true(AccessPoints.sensed(e, runner).any(func(p): return p.cell == c), "at the edge of range")
+	runner.pos = Vector3i(c.x + sq + 1, c.y, c.z)
+	assert_false(AccessPoints.sensed(e, runner).any(func(p): return p.cell == c), "a square past it")
+	# no MOVE in it: a runner who has spent their move senses the same
+	runner.pos = c
 	e.turn.move_left = 0
 	e.turn.action_available = false
-	assert_true(AccessPoints.in_reach(e, runner).any(func(p): return p.cell == c), "already in range")
+	assert_true(AccessPoints.sensed(e, runner).any(func(p): return p.cell == c))
+	var hits := AccessPoints.sensed(e, runner)
+	for k in range(1, hits.size()):
+		assert_true(float(hits[k - 1].dist_m) <= float(hits[k].dist_m), "nearest first")
 
 
 func test_no_lines_for_a_non_netrunner_or_once_jacked_in() -> void:
@@ -93,10 +77,19 @@ func test_no_lines_for_a_non_netrunner_or_once_jacked_in() -> void:
 	solo.pos = ap.cell
 	e.cur = solo
 	e.turn = TurnState.begin(e.dice, solo.c)
-	assert_true(AccessPoints.in_reach(e, solo).is_empty(), "no Interface: no lines")
+	assert_true(AccessPoints.sensed(e, solo).is_empty(), "no Interface: no lines")
 	runner.pos = ap.cell
 	e.cur = runner
 	e.turn = TurnState.begin(e.dice, runner.c)
-	assert_false(AccessPoints.in_reach(e, runner).is_empty())
+	assert_false(AccessPoints.sensed(e, runner).is_empty())
 	assert_true(e.jack_in(e.jack_points(runner)[0]))
-	assert_true(AccessPoints.in_reach(e, runner).is_empty(), "jacked in: the lines go")
+	assert_true(AccessPoints.sensed(e, runner).is_empty(), "jacked in: the lines go")
+
+
+func test_access_points_come_in_every_model() -> void:
+	var seen := {}
+	for id in 16:
+		var k := DeviceView.access_point_model(id)
+		assert_true(k >= 0 and k < DeviceView.AP_MODELS)
+		seen[k] = true
+	assert_eq(seen.size(), DeviceView.AP_MODELS, "consecutive ids cycle through every model")

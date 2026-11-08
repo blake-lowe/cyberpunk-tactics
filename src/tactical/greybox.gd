@@ -300,14 +300,16 @@ var _portrait_uid := -1                ## the turn-order portrait under the mous
 var _aim := {}                         ## the hovered attack's preview: shape, from, to, col, ...
 var aim_fx: AimFx                      ## ... drawn in the 3D world (the post shader pixelates it)
 var jack_lines: JackLines              ## a Netrunner's idle turn: data lines to the access points in reach (ap_lines)
-## Access-point way-finding, three options for the owner to choose between (all off until chosen;
-## dev flags --ap_icons=1 --ap_lines=1 --ap_led=1): Alt port icons over every seen access point,
-## data lines from an idle Netrunner to the ones they could jack in at this turn, a pulsing port LED.
-var ap_icons := false
-var ap_lines := false
-var ap_led := false
+## Access-point way-finding (owner verdicts: all three on; --ap_icons=0 --ap_lines=0 --ap_led=0 turn
+## one off): violet Alt port icons over every seen access point, data lines into an idle Netrunner
+## from the ones they sense, a pulsing port LED.
+var ap_icons := true
+var ap_lines := true
+var ap_led := true
 var _mh := {}                          ## the melee hover: attacker node, target id, yaw to restore
 var _shot2 := ""                       ## --shot2=path (review renders): a second frame 0.15 s later
+var _shot_seq := 0                     ## --shot_seq=n (review renders): n more frames 0.1 s apart, <shot>_01.png ...
+var _seq_i := 0
 var _shot_ms := 0
 var _last_known := {}                  ## foe unit id → the square the crew last saw them on
 var _dev_callouts := false             ## --callouts (review renders): a crit and a wound word stacked over a crew member
@@ -346,6 +348,7 @@ func _ready() -> void:
 		match kv[0]:
 			"shot": _shot_path = kv[1]
 			"shot2": _shot2 = kv[1]
+			"shot_seq": _shot_seq = int(kv[1])
 			"scene": gig.scene = kv[1]
 			"profile": gig.profile = kv[1]
 			"district": gig["district"] = kv[1]   # a Night City district (city.json): its look, and its profile unless --profile/--scene say otherwise
@@ -383,9 +386,9 @@ func _ready() -> void:
 			"complication": gig["complication"] = kv[1]   # force one: mook:2, lieutenant:1, mini_boss:4
 			"fog": fog_on = kv[1] != "0"
 			"netview": net_view = kv[1] != "0"   # review renders: 0 shows the plain world while jacked in (the N key)
-			"ap_icons": ap_icons = kv[1] != "0"   # access-point option (owner to pick): Alt port icons
-			"ap_lines": ap_lines = kv[1] != "0"   # access-point option: a Netrunner's idle data lines
-			"ap_led": ap_led = kv[1] != "0"   # access-point option: pulsing port LED
+			"ap_icons": ap_icons = kv[1] != "0"   # access-point way-finding: Alt port icons
+			"ap_lines": ap_lines = kv[1] != "0"   # access-point way-finding: a Netrunner's idle data lines
+			"ap_led": ap_led = kv[1] != "0"   # access-point way-finding: pulsing port LED
 			"cut":   # review renders: auto | all | off
 				cutaway = kv[1] != "off"
 				cut_all = kv[1] == "all"
@@ -609,8 +612,14 @@ func _process(delta: float) -> void:
 		if shoot_now and _shot_ms == 0:
 			get_viewport().get_texture().get_image().save_png(_shot_path)
 			_shot_ms = Time.get_ticks_msec()
-			if _shot2 == "":
+			if _shot2 == "" and _shot_seq <= 0:
 				get_tree().quit()
+		elif _shot_ms > 0 and _shot_seq > 0:
+			if Time.get_ticks_msec() - _shot_ms >= 100 * (_seq_i + 1):
+				_seq_i += 1
+				get_viewport().get_texture().get_image().save_png(_shot_path.get_basename() + "_%02d.png" % _seq_i)
+				if _seq_i >= _shot_seq:
+					get_tree().quit()
 		elif _shot_ms > 0 and Time.get_ticks_msec() - _shot_ms >= 150:
 			get_viewport().get_texture().get_image().save_png(_shot2)
 			get_tree().quit()
@@ -1590,6 +1599,10 @@ func _draw_markers(c: Control) -> void:
 	var r := _safe_rect()
 	var from: Vector3i = enc.cur.pos if enc and not enc.cur.is_empty() else Vector3i.ZERO
 	var t := Time.get_ticks_msec() / 1000.0
+	var ap_cells := {}
+	if _alt_on and ap_icons:
+		for p in AccessPoints.seen(enc, fog_on):
+			ap_cells[p.cell] = true
 	for mk in objective_marks():
 		var wp: Vector3 = mk[0]
 		var col: Color = mk[2]
@@ -1599,6 +1612,8 @@ func _draw_markers(c: Control) -> void:
 		var mc := Vector3i(mk[3])
 		var fdir := FloorNav.objective_dir(_slice_z(Vector2i(mc.x, mc.y)), mc.z)   # on another floor than its building's slice: a small chevron that way, no floor named
 		if r.has_point(sp) and not behind:
+			if _alt_on and ap_icons and ap_cells.has(mc):   # Alt's port icon stands there instead (owner: they overlapped)
+				continue
 			var y := sp.y - 18.0 - 4.0 * sin(t * 3.0)
 			c.draw_colored_polygon(PackedVector2Array([Vector2(sp.x - 9, y - 12), Vector2(sp.x + 9, y - 12), Vector2(sp.x, y)]), col)
 			c.draw_polyline(PackedVector2Array([Vector2(sp.x - 13, y - 16), Vector2(sp.x + 13, y - 16), Vector2(sp.x, y + 4), Vector2(sp.x - 13, y - 16)]), Color(col, 0.5), 1.5)
@@ -2477,14 +2492,14 @@ func _update_feed_tiles() -> void:
 	feed_node.visible = not shown.is_empty()
 
 
-var _jack_key := []        ## what the access points in reach were worked out for (unit, square, turn, move left, seen)
+var _jack_key := []        ## what the sensed access points were worked out for (unit, square, turn)
 var _jack_reach: Array = []
 
 
 ## ap_lines: on a crew Netrunner's own turn, while idle (not aiming, moving or in the NET), thin
-## data lines to every seen access point they could reach and jack in at this turn
-## (AccessPoints.in_reach), packets flowing out along them. Worked out again only when the unit,
-## its square, its move left or what the crew has seen changes.
+## data lines from every access point they sense (AccessPoints.sensed: Interface range, a straight
+## line, HOUSE-RULE) on the floors the view shows, packets flowing in from the port to the runner.
+## Worked out again only when the unit, its square or the turn changes.
 func _sync_jack_lines() -> void:
 	if world == null or not is_instance_valid(world):
 		return
@@ -2496,21 +2511,23 @@ func _sync_jack_lines() -> void:
 	if not on:
 		jack_lines.set_lines(Vector3.ZERO, [], Vector3.ZERO, 0.0)
 		return
-	var key := [int(enc.cur.id), enc.cur.pos, enc.turn, enc.turn.squares_available() if enc.turn else 0, enc.vision.explored.size()]
+	var key := [int(enc.cur.id), enc.cur.pos, enc.turn]
 	if key != _jack_key:
 		_jack_key = key
-		_jack_reach = AccessPoints.in_reach(enc, enc.cur, fog_on)
+		_jack_reach = AccessPoints.sensed(enc, enc.cur)
 	var sn: Node3D = unit_nodes.get(enc.cur.id)
 	var from := (sn.global_position if sn else _body_pos(enc.cur)) + Vector3(0, 0.9, 0)
 	var to := []
 	for p in _jack_reach:
 		var c: Vector3i = p.cell
-		to.append(Vector3(c.x + 0.5, _gy(c) + 0.7, c.y + 0.5))
-	jack_lines.set_lines(from, to, cam.global_position, _line_width(from) * 1.5)
+		if _grade_shows(c.z):
+			to.append(Vector3(c.x + 0.5, _gy(c) + 0.7, c.y + 0.5))
+	jack_lines.set_lines(from, to, cam.global_position, _line_width(from) * 2.2)
 
 
-## ap_icons, Alt held: a cyan port pictogram on a dark plate over every access point the crew has
-## seen, in the floor signs' style and cap (nearest first, far ones fade).
+## ap_icons, Alt held: a violet (the NET's colour) port pictogram on a dark plate over every access
+## point the crew has seen, in the floor signs' style and cap (nearest first, far ones fade). The
+## objective marker's triangle steps aside for it while Alt is held (_draw_markers).
 func _draw_access_icons(c: Control) -> void:
 	var vp := c.get_viewport_rect().size
 	var list: Array = AccessPoints.seen(enc, fog_on).filter(func(p): return _grade_shows(int(p.cell.z)))
@@ -2525,12 +2542,12 @@ func _draw_access_icons(c: Control) -> void:
 		_draw_port_sign(c, p, float(s.alpha))
 
 
-## One access-point sign: a jack plug (a body with two prongs) and a cable on a dark plate, cyan.
+## One access-point sign: a jack plug (a body with two prongs) and a cable on a dark plate, violet.
 func _draw_port_sign(c: Control, p: Vector2, a: float) -> void:
-	var g := Color(Hud.CYAN, a)
+	var g := Color(Hud.VIOLET.lightened(0.25), a)
 	var r := Rect2(p - Vector2(13, 11), Vector2(26, 22))
-	c.draw_rect(r, Color(0.02, 0.04, 0.06, 0.88 * a))
-	c.draw_rect(r.grow(-0.5), Color(Hud.CYAN, 0.5 * a), false, 1.0)
+	c.draw_rect(r, Color(0.05, 0.02, 0.07, 0.88 * a))
+	c.draw_rect(r.grow(-0.5), Color(Hud.VIOLET, 0.6 * a), false, 1.0)
 	var o := r.position + Vector2(6, 4)   # a 14 x 14 pictogram
 	c.draw_rect(Rect2(o + Vector2(3, 0), Vector2(2, 4)), g)   # prongs
 	c.draw_rect(Rect2(o + Vector2(9, 0), Vector2(2, 4)), g)
@@ -3732,10 +3749,10 @@ func _demo_idle_runner(runner: Dictionary) -> void:
 	keys.sort_custom(func(a, b): return [indoor.call(a), int(reach[a]), a.y * 1000 + a.x] < [indoor.call(b), int(reach[b]), b.y * 1000 + b.x])
 	var home: Vector3i = runner.pos
 	enc.cur = runner
-	for v in keys:   # a square a walk away from which the runner can still get in range this turn
+	for v in keys:   # a square a walk away from which the runner still senses it
 		runner.pos = v
 		enc.turn = TurnState.begin(dice, runner.c)
-		if not AccessPoints.in_reach(enc, runner, false).is_empty():
+		if not AccessPoints.sensed(enc, runner).is_empty():
 			break
 		runner.pos = home
 	enc.turn = TurnState.begin(dice, runner.c)

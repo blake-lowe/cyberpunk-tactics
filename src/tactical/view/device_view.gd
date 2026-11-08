@@ -22,7 +22,7 @@ var _jack := {}     ## device id → true: NET access points
 var _roots := {}    ## device id → its Node3D (the HELD badge hangs off it)
 var _badges := {}   ## device id → the HELD diamond while a Netrunner holds it
 var _types := {}    ## device id → device type
-var ap_led := false ## access-point option (owner to pick; greybox --ap_led=1): a slow-pulsing cyan port LED on each access point
+var ap_led := true ## access-point way-finding (owner: on; greybox --ap_led=0 turns it off): a slow-pulsing cyan port LED on each access point
 var _ports: Array[MeshInstance3D] = []
 
 
@@ -52,10 +52,14 @@ func build(m: TacMap, gy: Callable) -> void:
 		_roots[int(d.id)] = root
 		_types[int(d.id)] = String(d.type)
 		var back := -0.42   # against the wall
+		var port_at := Vector3(0, 0.44, back + 0.33)   # where an access point's port LED sits
 		match String(d.type):
 			"terminal", "med_scanner", "bd_rig", "ship_controls", "crane_controls", "engine_controls", "plant_controls", "gate_controls", "cooling_controls":
-				_kit(root, "Prop_Computer", Vector3(0, 0, back + 0.12), 0.55)
-				_led(d.id, root, Vector3(0, 0.62, back + 0.27), Vector3(0.22, 0.14, 0.01), CYAN, 2.2, "screen")
+				if _jack.has(int(d.id)):
+					port_at = _access_point_model(int(d.id), root, back)
+				else:
+					_kit(root, "Prop_Computer", Vector3(0, 0, back + 0.12), 0.55)
+					_led(d.id, root, Vector3(0, 0.62, back + 0.27), Vector3(0.22, 0.14, 0.01), CYAN, 2.2, "screen")
 			"data_core", "junction":
 				_kit(root, "Prop_AccessPoint", Vector3(0, -0.66 * KIT * 0.0, back + 0.12), 0.75)
 				_led(d.id, root, Vector3(0, 0.75, back + 0.27), Vector3(0.18, 0.05, 0.01), CYAN, 2.6, "screen")
@@ -78,7 +82,7 @@ func build(m: TacMap, gy: Callable) -> void:
 			_:
 				pass
 		if ap_led and _jack.has(d.id):   # an access point's own port: a cyan socket LED that breathes slowly
-			var port := _box(root, Vector3(0.24, 0.09, 0.05), Vector3(0, 0.44, back + 0.33), CYAN)
+			var port := _box(root, Vector3(0.24, 0.09, 0.05), port_at, CYAN)
 			var pm := StandardMaterial3D.new()
 			pm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 			pm.albedo_color = CYAN
@@ -178,6 +182,41 @@ func _process(_d: float) -> void:   # jack-point rings breathe, HELD badges turn
 		if ch.name.begins_with("ring_"):
 			var a := 0.35 + 0.25 * sin(t * 2.4)
 			((ch as MeshInstance3D).material_override as StandardMaterial3D).albedo_color = Color(CYAN, a)
+
+
+## Access points come in a few models (owner: variety), picked by device id so a map keeps its
+## look: 0 a desk terminal, 1 the kit's wall access unit, 2 a slim wall jack box on a cable
+## conduit, 3 a floor-standing server pillar. Each has its cyan screen lamp (the status light);
+## returns where its port LED sits.
+const AP_MODELS := 4
+
+
+static func access_point_model(id: int) -> int:
+	return posmod(id * 7 + 3, AP_MODELS)
+
+
+func _access_point_model(id: int, root: Node3D, back: float) -> Vector3:
+	match access_point_model(id):
+		1:
+			_kit(root, "Prop_AccessPoint", Vector3(0, 0, back + 0.12), 0.75)
+			_led(id, root, Vector3(0, 0.75, back + 0.27), Vector3(0.18, 0.05, 0.01), CYAN, 2.6, "screen")
+			return Vector3(0, 0.44, back + 0.33)
+		2:
+			_box(root, Vector3(0.05, 1.6, 0.05), Vector3(0.12, 1.5, back + 0.03), Color("1b1f27"))   # the conduit up the wall
+			_box(root, Vector3(0.34, 0.46, 0.08), Vector3(0, 0.78, back + 0.05), Color("252b36"))
+			_box(root, Vector3(0.3, 0.04, 0.09), Vector3(0, 0.58, back + 0.05), Color("3a4250"))   # a lip under the sockets
+			_led(id, root, Vector3(0, 0.9, back + 0.1), Vector3(0.2, 0.08, 0.01), CYAN, 2.4, "screen")
+			return Vector3(0, 0.7, back + 0.1)
+		3:
+			_box(root, Vector3(0.42, 1.3, 0.4), Vector3(0, 0.65, back + 0.2), Color("1e232c"))
+			for k in 4:   # vent slots down the face
+				_box(root, Vector3(0.3, 0.03, 0.01), Vector3(0, 0.25 + k * 0.08, back + 0.405), Color("0d1015"))
+			_led(id, root, Vector3(0, 1.12, back + 0.405), Vector3(0.26, 0.1, 0.01), CYAN, 2.4, "screen")
+			return Vector3(0, 0.82, back + 0.42)
+		_:
+			_kit(root, "Prop_Computer", Vector3(0, 0, back + 0.12), 0.55)
+			_led(id, root, Vector3(0, 0.62, back + 0.27), Vector3(0.22, 0.14, 0.01), CYAN, 2.2, "screen")
+			return Vector3(0, 0.44, back + 0.33)
 
 
 func _led(id: int, parent: Node3D, pos: Vector3, size: Vector3, col: Color, glow: float, kind: String) -> void:

@@ -1,20 +1,21 @@
 class_name JackLines
 extends Node3D
 ## A Netrunner's idle turn (owner: make access points easy to find): thin translucent cyan lines
-## from the runner to every access point they have seen and could reach and jack in at this turn
-## (AccessPoints.in_reach), with small data packets flowing out along them. Drawn in the 3D world
+## between the runner and every access point they sense (AccessPoints.sensed), with bright data
+## packets flowing in along them, from the port to the runner (owner verdict). Drawn in the 3D world
 ## inside the low-res SubViewport, so the post shader pixelates them like AimFx's line of fire.
 
 const LINE := """
 shader_type spatial;
 render_mode unshaded, blend_mix, depth_draw_never, depth_test_disabled, cull_disabled, shadows_disabled, fog_disabled;
 uniform float period = 1.1;   // world units between packets
-uniform float speed = 0.9;    // periods per second, from the runner out to the port
-uniform float base = 0.32;    // the line itself: faint
-uniform float packet = 0.68;  // a packet: bright
+uniform float speed = 0.8;    // periods per second, from the port in to the runner
+uniform float base = 0.3;     // the line itself: faint
+uniform float packet = 0.7;   // a packet: bright
 void fragment() {
-	float f = fract(UV.x / period - TIME * speed);
-	float p = step(f, 0.22) * (1.0 - 0.5 * f / 0.22);
+	// UV.x is metres from the runner; + TIME moves each packet toward the runner, its bright head first
+	float f = fract(UV.x / period + TIME * speed);
+	float p = step(f, 0.35) * (1.0 - 0.6 * f / 0.35);
 	ALBEDO = COLOR.rgb;
 	ALPHA = COLOR.a * (base + packet * p);
 }
