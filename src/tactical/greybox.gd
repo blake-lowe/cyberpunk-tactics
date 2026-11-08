@@ -1681,7 +1681,7 @@ func _inspect(v: Vector3i) -> void:
 				for ap in m.architectures[sid].access_points:
 					if ap.device == d.id:
 						on_net = true
-			lines.append("Device: %s%s%s" % [String(d.type).replace("_", " "), " · jack-in point" if on_net else "", " · under control" if enc.disabled_devices.has(d.id) else ""])
+			lines.append("Device: %s%s%s" % [String(d.type).replace("_", " "), " · access point" if on_net else "", " · under control" if enc.disabled_devices.has(d.id) else ""])
 	if lines.is_empty():
 		var t2 := m.t(v.z, v.x, v.y)
 		var l := m.label(v.z, v.x, v.y)
@@ -2973,17 +2973,6 @@ func _on_hud(name: String, arg: Variant) -> void:
 		if int(arg) != view_floor:
 			_set_view_floor(int(arg))
 		return
-	if name == "elsewhere":   # an 'elsewhere' portrait: their building takes the stack, at their floor
-		for u in enc.alive(0):
-			if int(u.id) == int(arg):
-				var ub := _pip_building(u)
-				if ub >= 0:
-					_focus_pin = -1 if ub == _unit_building(_sel_unit()) else ub
-					view_floor = int(u.pos.z)
-					var p := CamFrame.unit_focus(Vector2(u.pos.x, u.pos.y), cam_yaw, cam_dist)
-					_pan_to(Vector3(clampf(p.x, 0, m.w), 0, clampf(p.y, 0, m.h)), 0.3)
-					_refresh()
-		return
 	if busy:
 		return
 	match name:
@@ -3513,7 +3502,7 @@ func _jack_in() -> void:
 		return
 	var pts := enc.jack_points(enc.cur)
 	if pts.is_empty():
-		hud.toast("No terminal within %d m." % int(Encounter.jack_range(enc.cur.c)))
+		hud.toast("No access point within %d m." % int(Encounter.jack_range(enc.cur.c)))
 	elif not enc.jack_in(pts[0]):
 		hud.toast("Your Action is spent this turn.")
 	else:
@@ -5250,6 +5239,7 @@ func _hud_refresh() -> void:
 	var place := place_label(m, active, String(gig.scene))
 	var hint := _objective_floor_hint()
 	hud.stairs = _stair_actions()
+	hud.crew_where = _crew_where()
 	hud.refresh(enc, mode, cover_mode, "%s  ·  %s" % [place.to_upper(), floor_label(m, view_floor)])
 	hud.floor_stack(_stack_data(hint))
 	_update_stair_glow(hint)
@@ -5283,7 +5273,7 @@ func _stack_data(hint: Array) -> Dictionary:
 			if _pip_building(u) < 0 and int(u.pos.z) == view_floor:
 				crew_out += 1
 		rows.append({"f": view_floor, "label": "STREET" if view_floor == m.street else m.floor_name(view_floor), "crew": crew_out, "foes": 0, "cur": true})
-		data = {"name": "STREET", "why": "outdoors", "rows": rows, "up_ok": true, "down_ok": m.basements > 0,
+		data = {"name": "STREET", "rows": rows, "up_ok": true, "down_ok": m.basements > 0,
 			"hint_dir": int(hint[0]) if obj_sid < 0 else 0}
 	else:
 		var bd: Dictionary = _bld[b]
@@ -5301,20 +5291,29 @@ func _stack_data(hint: Array) -> Dictionary:
 					foes_n += 1
 			rows.append({"f": f, "label": "R" if f == int(bd.roof) else m.floor_name(f), "crew": crew_n, "foes": foes_n,
 				"cur": f == view_floor, "street": f == m.street and int(fl[0]) < m.street})
-		var why := "selected"
-		if _focus_pin >= 0:
-			why = "focused · HOME"
-		elif not _crew_turn():
-			why = "enemy turn"
-		data = {"name": bd.name, "why": why, "rows": rows, "up_ok": FloorNav.stack_step(fl, view_floor, 1) >= 0,
+		data = {"name": bd.name, "rows": rows, "up_ok": FloorNav.stack_step(fl, view_floor, 1) >= 0,
 			"down_ok": FloorNav.stack_step(fl, view_floor, -1) >= 0, "hint_dir": int(hint[0]) if obj_sid == b else 0}
-	var els: Array = []
-	for u in enc.alive(0):
-		var ub := _pip_building(u)
-		if ub >= 0 and ub != b and els.size() < 3:
-			els.append({"unit": u, "label": "%s %s" % [String(_bld[ub].name).left(10).strip_edges(), "R" if int(u.pos.z) == int(_bld[ub].roof) else m.floor_name(u.pos.z)]})
-	data["elsewhere"] = els
 	return data
+
+
+## The Alt roster's location line: a building's name (or STREET) and the floor, "BD PARLOR · 2".
+static func where_label(place: String, floor_name: String) -> String:
+	return "%s · %s" % [place.left(16).strip_edges(), floor_name]
+
+
+## Every crew member's where_label (Hud.crew_where): the building they stand in or on (its roof
+## reads R), else STREET, and their floor.
+func _crew_where() -> Dictionary:
+	var out := {}
+	for u in enc.units:
+		if u.team != 0:
+			continue
+		var ub := _pip_building(u)
+		if ub >= 0 and _bld.has(ub):
+			out[int(u.id)] = where_label(String(_bld[ub].name), "R" if int(u.pos.z) == int(_bld[ub].roof) else m.floor_name(u.pos.z))
+		else:
+			out[int(u.id)] = where_label("STREET", m.floor_name(u.pos.z))
+	return out
 
 
 ## Recoil: kick the weapon back and the chest up; autofire climbs, capped; settles with a spring.

@@ -67,7 +67,7 @@ func _job(kind: String, site := "corp_office") -> Encounter:
 func test_every_job_with_a_person_or_thing_marks_it() -> void:
 	# owner: in an assassination you couldn't tell where or who the mark was. Each module names its
 	# own marker target (the view only draws marks()); the label starts "★ <WHAT>" and names it.
-	var want := {"data": "★ JACK POINT", "assassinate": "★ TARGET · ", "rescue": "★ CAPTIVE · ", "snatch": "★ PACKAGE", "sabotage": "★ SABOTAGE · "}
+	var want := {"data": "★ ACCESS POINT", "assassinate": "★ TARGET · ", "rescue": "★ CAPTIVE · ", "snatch": "★ PACKAGE", "sabotage": "★ SABOTAGE · "}
 	for kind in want:
 		var e := _job(kind)
 		for fog in [false, true]:
