@@ -147,6 +147,7 @@ func refresh_board() -> void:
 	board.clear()
 	var used := {}
 	_fill_board(g, used)
+	_tower_offer(g, used)
 	_unique_offer(g, used)
 
 
@@ -456,6 +457,90 @@ func _unique_offer(g: Dictionary, used: Dictionary = {}) -> void:
 	board.append(gig)
 
 
+## Tower gigs (docs/plans/towers.md; owner 2026-11-08: rare, gated to later progression, a good
+## mix of high-rise and ordinary gigs). HOUSE-RULE: once the crew's best Reputation reaches
+## gigs.json `tower.rep` (4: "all over the local area", CPR p.193; a corp's sky floors don't open
+## to nobodies), a board has one chance in `tower.chance_in` (4) of one tower offer, which takes the
+## place of its last ordinary offer, so the board keeps its size and most offers stay low-rise.
+## Before the gate no board rolls for one (its dice are untouched: early boards are as they were).
+## The other offers at a tower's location still play its street-level building.
+func _tower_offer(g: Dictionary, used: Dictionary) -> void:
+	var tw: Dictionary = g.get("tower", {})
+	if tw.is_empty() or not tower_unlocked(g) or dice.d(int(tw.get("chance_in", 4))) != 1:
+		return
+	var ids: Array = World.towers().keys().filter(func(id): return offered_at(String(id)) and not used.has(id) \
+		and not (World.tower(String(id)).get("bands", {}) as Dictionary).is_empty())
+	if ids.is_empty():
+		return
+	ids.sort()
+	var lid := String(ids[dice.d(ids.size()) - 1])
+	var gig := tower_gig(g, lid, "", TowerGen.DEFAULT_BAND)
+	if gig.is_empty():
+		return
+	used[lid] = true
+	var ordinary: Array = board.filter(func(b): return not b.get("unique", false))
+	if ordinary.size() >= board_size():   # the tower job takes the place of the last ordinary offer
+		var last: Dictionary = ordinary[-1]
+		gig["id"] = String(last.get("id", "%d-t" % day))
+		used.erase(String(last.get("location", "")))
+		board.erase(last)
+	else:
+		gig["id"] = "%d-t" % day
+	board.append(gig)
+
+
+## Tower offers are open to this crew: its best Reputation reaches gigs.json tower.rep.
+func tower_unlocked(g: Dictionary = {}) -> bool:
+	if g.is_empty():
+		g = RulesDB.gen("gigs.json")
+	return best_reputation() >= int(g.get("tower", {}).get("rep", 4))
+
+
+## A tower gig at tower location `lid`: a `kind` job (else one of the band's, drawn) in band `bid`
+## of the tower (TowerGen), offered by a Fixer working the district, against the place's target as
+## any offer there (_target_for), at the place's own security level. Pay: the level's, times
+## gigs.json tower.pay_mult (HOUSE-RULE: a job sixty storeys up pays for the ride). {} if the
+## tower has no such band.
+func tower_gig(g: Dictionary, lid: String, kind := "", bid := "sky") -> Dictionary:
+	var t := World.tower(lid)
+	var b: Dictionary = t.get("bands", {}).get(bid, {})
+	if b.is_empty():
+		return {}
+	var kinds: Array = b.get("gigs", [])
+	if kind == "":
+		kind = String(kinds[dice.d(kinds.size()) - 1]) if not kinds.is_empty() else "data_theft"
+	var l := World.location(lid)
+	var did := String(l.get("district", ""))
+	var known := best_reputation()
+	var fid := _target_for(l, kind)
+	var rng: Array = location_levels(l, fid)
+	var level := clampi(int(rng[0]) if rng.size() >= 2 else 2, 1, 3)
+	var fx := _pick_fixer(did, kind, known)
+	var hook := _hook_for(l, kind)
+	var label := kind.capitalize()
+	for tp in g.templates:
+		if String(tp.kind) == kind:
+			label = String(tp.get("label", label))
+	var floors := "floors %d-%d" % [int(b.storeys[0]), int(b.storeys[1])]
+	var pitch := hook if hook != "" else "the job is %s up, on %s." % ["%d storeys" % int(b.storeys[0]), floors]
+	pitch = pitch.left(1).to_upper() + pitch.substr(1)
+	var gig := {"kind": kind, "fixer": String(fx.get("name", "A fixer")), "fixer_id": String(fx.get("id", "")),
+		"faction": fid, "location": lid, "district": did, "hook": hook,
+		"title": "%s: %s %s" % [label, String(l.name), floors.replace("floors ", "")],
+		"blurb": "%s has work at %s (%s), %s: %s" % [String(fx.get("name", "A fixer")), String(l.name), String(World.district(did).get("name", did)), floors, pitch],
+		"security": level, "pay": int(int(g.pay[str(level)]) * float(g.get("tower", {}).get("pay_mult", 1.0))),
+		"seed": dice.rng.randi_range(1, 99999)}
+	gig.merge(tower_place(lid, bid))
+	gig.merge(codes_for(gig, did), true)
+	return gig
+
+
+## Where a tower gig at `lid` is played: its band of the tower (scene tower_top; TowerGen).
+static func tower_place(lid: String, bid := "sky") -> Dictionary:
+	var t := World.tower(lid)
+	return {"scene": "tower_top", "profile": "", "site": TowerGen.recipe(t), "location": lid, "tower": lid, "band": bid}
+
+
 ## The gig's target (World faction able to be the target of this kind; `fid` if given) and the
 ## {corp}/{gang} names its text uses: the target's own name in its slot, another faction's in the other.
 func _target_slots(kind: String, fid := "") -> Dictionary:
@@ -555,6 +640,9 @@ static func scene_opts(gig: Dictionary) -> Dictionary:
 	if String(gig.get("setpiece", "")) != "":   # a famous place builds its own recipe
 		o["setpiece"] = gig.setpiece
 		o["location"] = String(gig.get("location", ""))
+	if String(gig.get("tower", "")) != "":   # a tower gig: its band (TowerGen)
+		o["tower"] = String(gig.tower)
+		o["band"] = String(gig.get("band", TowerGen.DEFAULT_BAND))
 	for k in ["variant", "deploy", "basement_storeys"]:   # a dev gig's overrides (CustomGig)
 		if gig.has(k):
 			o[k] = gig[k]

@@ -137,5 +137,15 @@
    "floors": 3,
    "profile": "burning_zone"
   }
+ },
+ "tower_top": {
+  "name": "Tower band",
+  "desc": "A band of storeys near the top of a skyscraper (TowerGen; docs/plans/towers.md stage 1a): the floor plate in the sky, the facade falling away into the smog over the far city. The crew rides up in the lift car and deploys in the band's lift lobby; riding it down is the way out. Responders come up the lift and the fire stair. Floors are numbered by their real storey.",
+  "params": {
+   "deploy": "near",
+   "floors": 3,
+   "tower": "the_glen_24",
+   "band": "sky"
+  }
  }
 }

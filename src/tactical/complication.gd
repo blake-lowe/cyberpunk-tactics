@@ -295,22 +295,10 @@ static func spawn(e: Encounter, batch: Dictionary, now: bool) -> Array:
 	return ids
 
 
-## The non-deploy entrance farthest from the crew (where reinforcements walk in), or (-1,-1,-1).
+## The non-deploy entrance farthest from the crew (where reinforcements walk in; in a tower band
+## the lift car or the fire stair: Encounter.arrival_cell), or (-1,-1,-1).
 static func _far_entrance(e: Encounter) -> Vector3i:
-	var crew_c := Vector2.ZERO
-	var crew := e.alive(Encounter.CREW)
-	for u in crew:
-		crew_c += Vector2(u.pos.x, u.pos.y)
-	crew_c /= maxf(1.0, crew.size())
-	var best := -1.0
-	var out := Vector3i(-1, -1, -1)
-	for en in e.m.entrances:
-		var v := Vector3i(en.pos.x, en.pos.y, int(en.floor))
-		var d := Vector2(v.x, v.y).distance_to(crew_c)
-		if en.kind != "deploy" and d > best and e.m.walkable(v.z, Vector2i(v.x, v.y)):
-			best = d
-			out = v
-	return out
+	return e.arrival_cell()
 
 
 ## Units due this round (Encounter.next_turn calls it at each new round).

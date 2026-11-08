@@ -97,6 +97,17 @@ func _build() -> void:
 	_basements = _opt("basements", [["", AUTO], ["on", "Forced on"], ["off", "Forced off"]])
 	_basements.tooltip_text = "Ordinary target buildings whose site has below-grade storeys; a set piece keeps its recipe's."
 	_field(grid, "Basements", _basements)
+	var towers: Array = [["", "Off (street level)"], ["any", "Any tower"]]
+	var tids: Array = World.towers().keys()
+	tids.sort()
+	for lid in tids:
+		var tw := World.tower(String(lid))
+		var b: Dictionary = (tw.get("bands", {}) as Dictionary).get(TowerGen.DEFAULT_BAND, {})
+		var fl := " %d-%d" % [int(b.storeys[0]), int(b.storeys[1])] if b.has("storeys") else ""
+		towers.append([String(tw.get("id", lid)), String(tw.get("name", lid)) + fl])
+	var tower_opt := _opt("tower", towers)
+	tower_opt.tooltip_text = "A tower gig: the sky band of a tall building (TowerGen; the crew rides up in the lift). Off plays a tower's location as its street-level building."
+	_field(grid, "Tower", tower_opt)
 	_field(grid, "Pay (eb)", _spin("pay", 0, 200000, 500))
 	_field(grid, "Seed", _spin("seed", 0, 99999, 1))
 	_field(grid, "Complication", _complication())

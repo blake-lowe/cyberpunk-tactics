@@ -1556,5 +1556,1499 @@
   "net_chance": 0.6,
   "windows": 0.6,
   "shapes": {"rect": 1}
+ },
+ "tower_corp": {
+  "name": "Corporate tower",
+  "_why": "Stage 1a tower bands (docs/plans/towers.md): one storey of a corporate skyscraper per programme, built over a shared plan of five depth bands from the facade in: a row of rooms, a corridor, the core (the lift lobby at one end, the fire stair at the other, restrooms and services between: two means of escape), a second corridor and a back row. Every storey shares the band depths, so the lift lobby, the stair hall and the corridors stack storey over storey and the lift car and the fire stair run straight through. TowerGen picks a storey's programme from the tower's band (docs/world/towers.md): reception (a sky lobby with a waiting room the lift opens onto), office, lab, exec (executive offices, the data vault, a security post by the lift) and apex (a founder's suite). The plate (squares, along x across y) is ours: 52-60 m by 40-48 m, a typical office tower floor (Neufert, high-rise offices: a central core and 12-15 m deep office bays). Bulletproof glass all round (a tower's curtain wall; CPR p.182 bulletproof glass).",
+  "turrets": {
+   "1": 0,
+   "2": 0.35,
+   "3": 0.75
+  },
+  "tower": true,
+  "plate": [
+   [
+    26,
+    30
+   ],
+   [
+    20,
+    24
+   ]
+  ],
+  "layout": {
+   "algorithm": "program",
+   "loops": 0.25,
+   "verticality": 1,
+   "stairs": 1,
+   "stair_in": [
+    "stair_hall"
+   ],
+   "lift_in": [
+    "lift_lobby"
+   ],
+   "enter": [
+    "lift_lobby"
+   ],
+   "roof_access": true,
+   "program": {
+    "ground": [
+     {
+      "w": 1.25,
+      "min": 5,
+      "rooms": [
+       {
+        "repeat": {
+         "room": "office",
+         "zone": "staff",
+         "doors": [
+          "corridor"
+         ]
+        },
+        "size": [
+         5,
+         7
+        ],
+        "w": 3.0
+       },
+       {
+        "room": "meeting",
+        "zone": "staff",
+        "w": 1.2,
+        "min": 4,
+        "doors": [
+         "corridor"
+        ]
+       }
+      ]
+     },
+     {
+      "cells": 2,
+      "rooms": [
+       {
+        "room": "corridor",
+        "zone": "staff",
+        "w": 1
+       }
+      ]
+     },
+     {
+      "w": 1.0,
+      "min": 5,
+      "rooms": [
+       {
+        "room": "lift_lobby",
+        "zone": "staff",
+        "cells": 6,
+        "doors": [
+         "corridor"
+        ]
+       },
+       {
+        "room": "restroom",
+        "zone": "staff",
+        "cells": 3,
+        "doors": [
+         "corridor"
+        ]
+       },
+       {
+        "room": "break_room",
+        "zone": "staff",
+        "w": 1,
+        "min": 4,
+        "doors": [
+         "corridor"
+        ]
+       },
+       {
+        "room": "archive",
+        "zone": "staff",
+        "w": 0.8,
+        "min": 3,
+        "doors": [
+         "corridor"
+        ],
+        "p": 0.6
+       },
+       {
+        "room": "stair_hall",
+        "zone": "staff",
+        "cells": 4,
+        "doors": [
+         "corridor"
+        ]
+       }
+      ]
+     },
+     {
+      "cells": 2,
+      "rooms": [
+       {
+        "room": "corridor",
+        "zone": "staff",
+        "w": 1
+       }
+      ]
+     },
+     {
+      "w": 1.25,
+      "min": 5,
+      "rooms": [
+       {
+        "room": "meeting",
+        "zone": "staff",
+        "w": 1.1,
+        "min": 4,
+        "doors": [
+         "corridor"
+        ],
+        "p": 0.7
+       },
+       {
+        "repeat": {
+         "room": "office",
+         "zone": "staff",
+         "doors": [
+          "corridor"
+         ]
+        },
+        "size": [
+         5,
+         7
+        ],
+        "w": 3.0
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "storeys": {
+   "reception": [
+    {
+     "w": 1.25,
+     "min": 5,
+     "rooms": [
+      {
+       "room": "waiting",
+       "zone": "public",
+       "w": 1.6,
+       "min": 5,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "meeting",
+       "zone": "staff",
+       "w": 1.1,
+       "min": 4,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "repeat": {
+        "room": "office",
+        "zone": "staff",
+        "doors": [
+         "corridor"
+        ]
+       },
+       "size": [
+        5,
+        7
+       ],
+       "w": 2.2
+      }
+     ]
+    },
+    {
+     "cells": 2,
+     "rooms": [
+      {
+       "room": "corridor",
+       "zone": "public",
+       "w": 1
+      }
+     ]
+    },
+    {
+     "w": 1.0,
+     "min": 5,
+     "rooms": [
+      {
+       "room": "lift_lobby",
+       "zone": "public",
+       "cells": 6,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "restroom",
+       "zone": "public",
+       "cells": 3,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "break_room",
+       "zone": "staff",
+       "w": 1,
+       "min": 4,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "storage",
+       "zone": "staff",
+       "w": 0.7,
+       "min": 3,
+       "doors": [
+        "corridor"
+       ],
+       "p": 0.6
+      },
+      {
+       "room": "stair_hall",
+       "zone": "staff",
+       "cells": 4,
+       "doors": [
+        "corridor"
+       ]
+      }
+     ]
+    },
+    {
+     "cells": 2,
+     "rooms": [
+      {
+       "room": "corridor",
+       "zone": "staff",
+       "w": 1
+      }
+     ]
+    },
+    {
+     "w": 1.25,
+     "min": 5,
+     "rooms": [
+      {
+       "repeat": {
+        "room": "office",
+        "zone": "staff",
+        "doors": [
+         "corridor"
+        ]
+       },
+       "size": [
+        5,
+        7
+       ],
+       "w": 2.0
+      },
+      {
+       "room": "security_office",
+       "zone": "secure",
+       "w": 1,
+       "min": 4,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "server_room",
+       "zone": "secure",
+       "w": 1.1,
+       "min": 4,
+       "doors": [
+        "corridor"
+       ],
+       "p": 0.6
+      }
+     ]
+    }
+   ],
+   "office": [
+    {
+     "w": 1.25,
+     "min": 5,
+     "rooms": [
+      {
+       "repeat": {
+        "room": "office",
+        "zone": "staff",
+        "doors": [
+         "corridor"
+        ]
+       },
+       "size": [
+        5,
+        7
+       ],
+       "w": 3.0
+      },
+      {
+       "room": "meeting",
+       "zone": "staff",
+       "w": 1.2,
+       "min": 4,
+       "doors": [
+        "corridor"
+       ]
+      }
+     ]
+    },
+    {
+     "cells": 2,
+     "rooms": [
+      {
+       "room": "corridor",
+       "zone": "staff",
+       "w": 1
+      }
+     ]
+    },
+    {
+     "w": 1.0,
+     "min": 5,
+     "rooms": [
+      {
+       "room": "lift_lobby",
+       "zone": "staff",
+       "cells": 6,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "restroom",
+       "zone": "staff",
+       "cells": 3,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "break_room",
+       "zone": "staff",
+       "w": 1,
+       "min": 4,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "archive",
+       "zone": "staff",
+       "w": 0.8,
+       "min": 3,
+       "doors": [
+        "corridor"
+       ],
+       "p": 0.6
+      },
+      {
+       "room": "stair_hall",
+       "zone": "staff",
+       "cells": 4,
+       "doors": [
+        "corridor"
+       ]
+      }
+     ]
+    },
+    {
+     "cells": 2,
+     "rooms": [
+      {
+       "room": "corridor",
+       "zone": "staff",
+       "w": 1
+      }
+     ]
+    },
+    {
+     "w": 1.25,
+     "min": 5,
+     "rooms": [
+      {
+       "room": "meeting",
+       "zone": "staff",
+       "w": 1.1,
+       "min": 4,
+       "doors": [
+        "corridor"
+       ],
+       "p": 0.7
+      },
+      {
+       "repeat": {
+        "room": "office",
+        "zone": "staff",
+        "doors": [
+         "corridor"
+        ]
+       },
+       "size": [
+        5,
+        7
+       ],
+       "w": 3.0
+      }
+     ]
+    }
+   ],
+   "lab": [
+    {
+     "w": 1.25,
+     "min": 5,
+     "rooms": [
+      {
+       "room": "lab",
+       "zone": "secure",
+       "w": 1.6,
+       "min": 5,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "workshop",
+       "zone": "staff",
+       "w": 1.1,
+       "min": 4,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "lab",
+       "zone": "secure",
+       "w": 1.6,
+       "min": 5,
+       "doors": [
+        "corridor"
+       ]
+      }
+     ]
+    },
+    {
+     "cells": 2,
+     "rooms": [
+      {
+       "room": "corridor",
+       "zone": "staff",
+       "w": 1
+      }
+     ]
+    },
+    {
+     "w": 1.0,
+     "min": 5,
+     "rooms": [
+      {
+       "room": "lift_lobby",
+       "zone": "staff",
+       "cells": 6,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "restroom",
+       "zone": "staff",
+       "cells": 3,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "cooling",
+       "zone": "secure",
+       "w": 0.8,
+       "min": 3,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "storage",
+       "zone": "staff",
+       "w": 0.8,
+       "min": 3,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "stair_hall",
+       "zone": "staff",
+       "cells": 4,
+       "doors": [
+        "corridor"
+       ]
+      }
+     ]
+    },
+    {
+     "cells": 2,
+     "rooms": [
+      {
+       "room": "corridor",
+       "zone": "secure",
+       "w": 1
+      }
+     ]
+    },
+    {
+     "w": 1.25,
+     "min": 5,
+     "rooms": [
+      {
+       "room": "server_room",
+       "zone": "secure",
+       "w": 1.4,
+       "min": 4,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "office",
+       "zone": "staff",
+       "w": 1,
+       "min": 4,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "comms_room",
+       "zone": "secure",
+       "w": 0.9,
+       "min": 3,
+       "doors": [
+        "corridor"
+       ],
+       "p": 0.7
+      },
+      {
+       "room": "lab",
+       "zone": "secure",
+       "w": 1.4,
+       "min": 5,
+       "doors": [
+        "corridor"
+       ]
+      }
+     ]
+    }
+   ],
+   "exec": [
+    {
+     "w": 1.25,
+     "min": 5,
+     "rooms": [
+      {
+       "room": "exec_office",
+       "zone": "vault",
+       "w": 1.8,
+       "min": 5,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "meeting",
+       "zone": "secure",
+       "w": 1.3,
+       "min": 4,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "vip_lounge",
+       "zone": "secure",
+       "w": 1.4,
+       "min": 5,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "exec_office",
+       "zone": "secure",
+       "w": 1.4,
+       "min": 5,
+       "doors": [
+        "corridor"
+       ],
+       "p": 0.7
+      }
+     ]
+    },
+    {
+     "cells": 2,
+     "rooms": [
+      {
+       "room": "corridor",
+       "zone": "secure",
+       "w": 1
+      }
+     ]
+    },
+    {
+     "w": 1.0,
+     "min": 5,
+     "rooms": [
+      {
+       "room": "lift_lobby",
+       "zone": "staff",
+       "cells": 6,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "restroom",
+       "zone": "secure",
+       "cells": 3,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "security_post",
+       "zone": "secure",
+       "w": 1,
+       "min": 4,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "storage",
+       "zone": "secure",
+       "w": 0.7,
+       "min": 3,
+       "doors": [
+        "corridor"
+       ],
+       "p": 0.6
+      },
+      {
+       "room": "stair_hall",
+       "zone": "staff",
+       "cells": 4,
+       "doors": [
+        "corridor"
+       ]
+      }
+     ]
+    },
+    {
+     "cells": 2,
+     "rooms": [
+      {
+       "room": "corridor",
+       "zone": "secure",
+       "w": 1
+      }
+     ]
+    },
+    {
+     "w": 1.25,
+     "min": 5,
+     "rooms": [
+      {
+       "room": "data_vault",
+       "zone": "vault",
+       "w": 1.0,
+       "min": 4,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "security_office",
+       "zone": "secure",
+       "w": 1,
+       "min": 4,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "repeat": {
+        "room": "office",
+        "zone": "secure",
+        "doors": [
+         "corridor"
+        ]
+       },
+       "size": [
+        5,
+        7
+       ],
+       "w": 2.0
+      }
+     ]
+    }
+   ],
+   "apex": [
+    {
+     "w": 1.25,
+     "min": 5,
+     "rooms": [
+      {
+       "room": "ceo_suite",
+       "zone": "vault",
+       "w": 3.0,
+       "min": 8,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "vip_lounge",
+       "zone": "secure",
+       "w": 1.4,
+       "min": 5,
+       "doors": [
+        "corridor"
+       ]
+      }
+     ]
+    },
+    {
+     "cells": 2,
+     "rooms": [
+      {
+       "room": "corridor",
+       "zone": "secure",
+       "w": 1
+      }
+     ]
+    },
+    {
+     "w": 1.0,
+     "min": 5,
+     "rooms": [
+      {
+       "room": "lift_lobby",
+       "zone": "staff",
+       "cells": 6,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "restroom",
+       "zone": "secure",
+       "cells": 3,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "security_post",
+       "zone": "secure",
+       "w": 1,
+       "min": 4,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "storage",
+       "zone": "secure",
+       "w": 0.7,
+       "min": 3,
+       "doors": [
+        "corridor"
+       ],
+       "p": 0.6
+      },
+      {
+       "room": "stair_hall",
+       "zone": "staff",
+       "cells": 4,
+       "doors": [
+        "corridor"
+       ]
+      }
+     ]
+    },
+    {
+     "cells": 2,
+     "rooms": [
+      {
+       "room": "corridor",
+       "zone": "secure",
+       "w": 1
+      }
+     ]
+    },
+    {
+     "w": 1.25,
+     "min": 5,
+     "rooms": [
+      {
+       "room": "data_vault",
+       "zone": "vault",
+       "w": 1.0,
+       "min": 4,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "exec_office",
+       "zone": "vault",
+       "w": 1.4,
+       "min": 5,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "meeting",
+       "zone": "secure",
+       "w": 1.2,
+       "min": 4,
+       "doors": [
+        "corridor"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "zones": {
+   "public": {
+    "rotation": [
+     "waiting"
+    ]
+   },
+   "staff": {
+    "small": "storage",
+    "rotation": [
+     "office",
+     "meeting",
+     "office",
+     "break_room"
+    ]
+   },
+   "secure": {
+    "small": "storage",
+    "rotation": [
+     "lab",
+     "server_room",
+     "security_office"
+    ]
+   },
+   "vault": {
+    "rotation": [
+     "data_vault",
+     "exec_office"
+    ]
+   }
+  },
+  "anchors": {
+   "vip": {
+    "ceo_suite": 120,
+    "exec_office": 100,
+    "vip_lounge": 30
+   },
+   "package": {
+    "lab": 100,
+    "exec_office": 40
+   },
+   "captive": {
+    "security_office": 80,
+    "storage": 40
+   },
+   "machine": {
+    "server_room": 110,
+    "cooling": 90,
+    "comms_room": 70
+   }
+  },
+  "exterior": 1,
+  "windows": 0.85,
+  "armored_windows": true,
+  "density": 0.3,
+  "levels": 4,
+  "net_chance": 1.0,
+  "networked": true,
+  "massing": {},
+  "shapes": {
+   "rect": 1
+  }
+ },
+ "tower_hotel": {
+  "name": "Hotel tower",
+  "_why": "Stage 1a tower bands (docs/plans/towers.md): the top of a hotel tower, over the same five-band plan as tower_corp (a row of rooms, a corridor, the core with the lift lobby and the fire stair at its ends, a corridor, a back row), so the lift and the stair run straight through. Programmes: guest (double-loaded guest rooms, a linen store and laundry chute by the core), suite (suites both sides, a security post by the lift) and spa (an indoor pool deck, lounge and bar over a row of suites, the valuables vault behind; NC2045 p.132 Highcourt Plaza: indoor pools, spas). Slab plate ours (as the hotel site: 60-72 m by 36-40 m).",
+  "turrets": {
+   "1": 0,
+   "2": 0.03,
+   "3": 0.1
+  },
+  "tower": true,
+  "plate": [
+   [
+    30,
+    36
+   ],
+   [
+    18,
+    20
+   ]
+  ],
+  "layout": {
+   "algorithm": "program",
+   "loops": 0.25,
+   "verticality": 1,
+   "stairs": 1,
+   "stair_in": [
+    "stair_hall"
+   ],
+   "lift_in": [
+    "lift_lobby"
+   ],
+   "enter": [
+    "lift_lobby"
+   ],
+   "roof_access": true,
+   "program": {
+    "ground": [
+     {
+      "w": 1.25,
+      "min": 5,
+      "rooms": [
+       {
+        "repeat": {
+         "room": "guest_room",
+         "zone": "staff",
+         "doors": [
+          "corridor"
+         ]
+        },
+        "size": [
+         4,
+         5
+        ],
+        "w": 1
+       }
+      ]
+     },
+     {
+      "cells": 2,
+      "rooms": [
+       {
+        "room": "corridor",
+        "zone": "public",
+        "w": 1
+       }
+      ]
+     },
+     {
+      "w": 1.0,
+      "min": 5,
+      "rooms": [
+       {
+        "room": "lift_lobby",
+        "zone": "public",
+        "cells": 6,
+        "doors": [
+         "corridor"
+        ]
+       },
+       {
+        "room": "storage",
+        "zone": "staff",
+        "cells": 3,
+        "doors": [
+         "corridor"
+        ]
+       },
+       {
+        "room": "laundry",
+        "zone": "staff",
+        "w": 1,
+        "min": 3,
+        "doors": [
+         "corridor"
+        ],
+        "p": 0.6
+       },
+       {
+        "repeat": {
+         "room": "guest_room",
+         "zone": "staff",
+         "doors": [
+          "corridor"
+         ]
+        },
+        "size": [
+         4,
+         5
+        ],
+        "w": 1.5
+       },
+       {
+        "room": "stair_hall",
+        "zone": "staff",
+        "cells": 4,
+        "doors": [
+         "corridor"
+        ]
+       }
+      ]
+     },
+     {
+      "cells": 2,
+      "rooms": [
+       {
+        "room": "corridor",
+        "zone": "staff",
+        "w": 1
+       }
+      ]
+     },
+     {
+      "w": 1.25,
+      "min": 5,
+      "rooms": [
+       {
+        "repeat": {
+         "room": "guest_room",
+         "zone": "staff",
+         "doors": [
+          "corridor"
+         ]
+        },
+        "size": [
+         4,
+         5
+        ],
+        "w": 1
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "storeys": {
+   "guest": [
+    {
+     "w": 1.25,
+     "min": 5,
+     "rooms": [
+      {
+       "repeat": {
+        "room": "guest_room",
+        "zone": "staff",
+        "doors": [
+         "corridor"
+        ]
+       },
+       "size": [
+        4,
+        5
+       ],
+       "w": 1
+      }
+     ]
+    },
+    {
+     "cells": 2,
+     "rooms": [
+      {
+       "room": "corridor",
+       "zone": "public",
+       "w": 1
+      }
+     ]
+    },
+    {
+     "w": 1.0,
+     "min": 5,
+     "rooms": [
+      {
+       "room": "lift_lobby",
+       "zone": "public",
+       "cells": 6,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "storage",
+       "zone": "staff",
+       "cells": 3,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "laundry",
+       "zone": "staff",
+       "w": 1,
+       "min": 3,
+       "doors": [
+        "corridor"
+       ],
+       "p": 0.6
+      },
+      {
+       "repeat": {
+        "room": "guest_room",
+        "zone": "staff",
+        "doors": [
+         "corridor"
+        ]
+       },
+       "size": [
+        4,
+        5
+       ],
+       "w": 1.5
+      },
+      {
+       "room": "stair_hall",
+       "zone": "staff",
+       "cells": 4,
+       "doors": [
+        "corridor"
+       ]
+      }
+     ]
+    },
+    {
+     "cells": 2,
+     "rooms": [
+      {
+       "room": "corridor",
+       "zone": "staff",
+       "w": 1
+      }
+     ]
+    },
+    {
+     "w": 1.25,
+     "min": 5,
+     "rooms": [
+      {
+       "repeat": {
+        "room": "guest_room",
+        "zone": "staff",
+        "doors": [
+         "corridor"
+        ]
+       },
+       "size": [
+        4,
+        5
+       ],
+       "w": 1
+      }
+     ]
+    }
+   ],
+   "suite": [
+    {
+     "w": 1.25,
+     "min": 5,
+     "rooms": [
+      {
+       "repeat": {
+        "room": "suite",
+        "zone": "secure",
+        "doors": [
+         "corridor"
+        ]
+       },
+       "size": [
+        7,
+        9
+       ],
+       "w": 1
+      }
+     ]
+    },
+    {
+     "cells": 2,
+     "rooms": [
+      {
+       "room": "corridor",
+       "zone": "staff",
+       "w": 1
+      }
+     ]
+    },
+    {
+     "w": 1.0,
+     "min": 5,
+     "rooms": [
+      {
+       "room": "lift_lobby",
+       "zone": "staff",
+       "cells": 6,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "storage",
+       "zone": "staff",
+       "cells": 3,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "security_post",
+       "zone": "secure",
+       "w": 1,
+       "min": 4,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "stair_hall",
+       "zone": "staff",
+       "cells": 4,
+       "doors": [
+        "corridor"
+       ]
+      }
+     ]
+    },
+    {
+     "cells": 2,
+     "rooms": [
+      {
+       "room": "corridor",
+       "zone": "staff",
+       "w": 1
+      }
+     ]
+    },
+    {
+     "w": 1.25,
+     "min": 5,
+     "rooms": [
+      {
+       "repeat": {
+        "room": "suite",
+        "zone": "secure",
+        "doors": [
+         "corridor"
+        ]
+       },
+       "size": [
+        7,
+        9
+       ],
+       "w": 1
+      }
+     ]
+    }
+   ],
+   "spa": [
+    {
+     "w": 1.25,
+     "min": 5,
+     "rooms": [
+      {
+       "room": "pool_deck",
+       "zone": "staff",
+       "w": 2.5,
+       "min": 6,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "lounge",
+       "zone": "staff",
+       "w": 1.2,
+       "min": 4,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "bar",
+       "zone": "staff",
+       "w": 1.1,
+       "min": 4,
+       "doors": [
+        "corridor"
+       ],
+       "p": 0.7
+      }
+     ]
+    },
+    {
+     "cells": 2,
+     "rooms": [
+      {
+       "room": "corridor",
+       "zone": "staff",
+       "w": 1
+      }
+     ]
+    },
+    {
+     "w": 1.0,
+     "min": 5,
+     "rooms": [
+      {
+       "room": "lift_lobby",
+       "zone": "staff",
+       "cells": 6,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "restroom",
+       "zone": "staff",
+       "cells": 3,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "storage",
+       "zone": "staff",
+       "w": 0.8,
+       "min": 3,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "security_post",
+       "zone": "secure",
+       "w": 1,
+       "min": 4,
+       "doors": [
+        "corridor"
+       ]
+      },
+      {
+       "room": "stair_hall",
+       "zone": "staff",
+       "cells": 4,
+       "doors": [
+        "corridor"
+       ]
+      }
+     ]
+    },
+    {
+     "cells": 2,
+     "rooms": [
+      {
+       "room": "corridor",
+       "zone": "staff",
+       "w": 1
+      }
+     ]
+    },
+    {
+     "w": 1.25,
+     "min": 5,
+     "rooms": [
+      {
+       "repeat": {
+        "room": "suite",
+        "zone": "secure",
+        "doors": [
+         "corridor"
+        ]
+       },
+       "size": [
+        7,
+        9
+       ],
+       "w": 1
+      },
+      {
+       "room": "vault",
+       "zone": "vault",
+       "w": 0.6,
+       "min": 3,
+       "doors": [
+        "corridor"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "zones": {
+   "public": {
+    "rotation": [
+     "lift_lobby"
+    ]
+   },
+   "staff": {
+    "rotation": [
+     "guest_room"
+    ]
+   },
+   "secure": {
+    "rotation": [
+     "suite"
+    ]
+   },
+   "vault": {
+    "rotation": [
+     "vault"
+    ]
+   }
+  },
+  "anchors": {
+   "vip": {
+    "suite": 100,
+    "guest_room": 30
+   },
+   "package": {
+    "suite": 80,
+    "security_post": 40
+   },
+   "captive": {
+    "guest_room": 40,
+    "storage": 50
+   },
+   "machine": {
+    "laundry": 100,
+    "pool_deck": 90
+   }
+  },
+  "exterior": 1,
+  "windows": 0.75,
+  "room_windows": [
+   "guest_room",
+   "suite"
+  ],
+  "density": 0.3,
+  "levels": 4,
+  "net_chance": 1.0,
+  "massing": {},
+  "shapes": {
+   "rect": 1
+  }
  }
 }

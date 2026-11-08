@@ -23,6 +23,16 @@ var basements := 0
 var street: int:
 	get:
 		return basements
+## Towers (docs/plans/towers.md, stage 1a): the real storeys the map's floors stand for. A tower gig
+## plays one band of a tall building (Raven's 48-50 and the roof), so the HUD names floors by their
+## storey, not 1, 2, 3. `storey_base`: storeys under the map, so floor `street` is storey
+## storey_base + 1 (0 on every ordinary map). `bands`: one record per band on the map
+## [{id, from_floor, to_floor, storey_from, roof_floor (-1 none), kind}] (stage 2 stacks several,
+## each its own range); `tower`: the building's own record {location, id, name, storeys} (World.tower).
+## Both empty on an ordinary map.
+var storey_base := 0
+var bands: Array[Dictionary] = []
+var tower: Dictionary = {}
 var seed_value: int
 var algorithm: String
 var params: Dictionary
@@ -85,9 +95,34 @@ func level(f: int) -> int:
 	return f - basements
 
 
-## A floor's name for the HUD: B1, B2 below the street, 1, 2, ... from street level up.
+## A floor's name for the HUD: B1, B2 below the street, 1, 2, ... from street level up. In a tower
+## band, its real storey (48, 49, 50) and R for the band's roof.
 func floor_name(f: int) -> String:
-	return "B%d" % (basements - f) if f < basements else str(f - basements + 1)
+	var b := band_of(f)
+	if not b.is_empty():
+		return "R" if f == int(b.get("roof_floor", -1)) else str(int(b.storey_from) + f - int(b.from_floor))
+	return "B%d" % (basements - f) if f < basements else str(f - basements + 1 + storey_base)
+
+
+## The real storey of floor f (1 the street storey; a tower band's roof is its top storey + 1).
+func storey(f: int) -> int:
+	var b := band_of(f)
+	if not b.is_empty():
+		return int(b.storey_from) + f - int(b.from_floor)
+	return f - basements + 1 + storey_base if f >= basements else f - basements
+
+
+## A tower gig: the map plays a band of a tall building (TacMap.tower).
+func is_tower() -> bool:
+	return not tower.is_empty()
+
+
+## The band holding floor f ({} off a tower, or outside every band).
+func band_of(f: int) -> Dictionary:
+	for b in bands:
+		if f >= int(b.from_floor) and f <= maxi(int(b.to_floor), int(b.get("roof_floor", -1))):
+			return b
+	return {}
 
 
 ## Below-grade floors: insert `n` empty storeys under floor 0 and shift every floor reference up by
@@ -319,4 +354,24 @@ func to_dict() -> Dictionary:
 	}
 	if basements > 0:   # only maps with storeys below the street carry it: older maps stay byte-identical
 		out["basements"] = basements
+	if is_tower():   # likewise the tower fields: only a tower band's map has them
+		out["storey_base"] = storey_base
+		out["bands"] = bands.duplicate(true)
+		out["tower"] = tower.duplicate(true)
 	return out
+
+
+## The storey fields of a saved map (to_dict) put back on `m` (the rest of a map is rebuilt from its
+## seed): a tower band's numbering survives a save and reload.
+static func storeys_from_dict(m: TacMap, d: Dictionary) -> void:
+	m.storey_base = int(d.get("storey_base", 0))
+	m.bands.clear()
+	for b in d.get("bands", []):
+		var e: Dictionary = (b as Dictionary).duplicate(true)
+		for k in ["from_floor", "to_floor", "storey_from", "roof_floor"]:
+			if e.has(k):
+				e[k] = int(e[k])
+		m.bands.append(e)
+	m.tower = (d.get("tower", {}) as Dictionary).duplicate(true)
+	if m.tower.has("storeys"):
+		m.tower.storeys = int(m.tower.storeys)

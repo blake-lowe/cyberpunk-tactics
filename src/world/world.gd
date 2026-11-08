@@ -144,6 +144,39 @@ static func location(id: String) -> Dictionary:
 	return l
 
 
+## Towers (docs/world/towers.md): every location with a `tower` record, {location id: record}, in
+## data order. A tower gig plays one band of it (TowerGen); see docs/plans/towers.md.
+static func towers() -> Dictionary:
+	var out := {}
+	for id in locations():
+		var t: Variant = (locations()[id] as Dictionary).get("tower")
+		if t is Dictionary and not (t as Dictionary).is_empty():
+			out[String(id)] = t
+	return out
+
+
+## The location id of a tower named by its location id or its short id ("raven"), else "".
+static func tower_location(id: String) -> String:
+	var all := towers()
+	if all.has(id):
+		return id
+	for lid in all:
+		if String(all[lid].get("id", "")) == id:
+			return String(lid)
+	return ""
+
+
+## A tower's record with its `location` filled in ({} if `id` names no tower). `id`: a location id
+## or the tower's short id.
+static func tower(id: String) -> Dictionary:
+	var lid := tower_location(id)
+	if lid == "":
+		return {}
+	var t: Dictionary = (towers()[lid] as Dictionary).duplicate(true)
+	t["location"] = lid
+	return t
+
+
 ## Location type → generator (docs/world/locations.md).
 static func location_types() -> Dictionary:
 	return RulesDB.world("locations.json").get("types", {})

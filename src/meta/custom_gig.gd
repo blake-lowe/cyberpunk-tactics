@@ -7,7 +7,7 @@ extends RefCounted
 ##
 ## The form speaks the greybox's dev flags (--district --location --setpiece --variant --scene
 ## --profile --site --objective --faction --security --complication --seed), plus flags of its own
-## for the rest (--code --utility --pay --deploy --basements, and --gig-crew=<names>: the base
+## for the rest (--code --utility --pay --deploy --basements --tower --band, and --gig-crew=<names>: the base
 ## view's --crew picks a crew card): from_flags / to_flags convert, so a gig built on the card and
 ## one launched from the command line are the same gig (a dev launch's flags prefill the card).
 ##
@@ -20,13 +20,17 @@ extends RefCounted
 ## roll (the code rolled every time), or the utilities out ("power", "power,water", ...).
 ## complication: auto (the campaign's 1-in-3), none, random (forced, its roll rolled), or
 ## <tier>[:<roll>] / <roll> as greybox --complication. deploy: near | far. basements: on | off
-## (ordinary target buildings whose site has below_grade). crew: names; [] everyone fit to go.
+## (ordinary target buildings whose site has below_grade). tower: a tower gig (TowerGen, a band of a
+## tall building: docs/world/towers.md): a tower's short id or location id ("raven", "the_glen_24"),
+## or "any" (one drawn); "" plays a tower's location as its street-level building, as the board's
+## ordinary offers do. band: the tower's band ("" its sky band, the only one stage 1a builds).
+## crew: names; [] everyone fit to go.
 const FIELDS := {"district": "", "location": "", "setpiece": "", "variant": "", "scene": "", "profile": "",
 	"site": "", "objective": "", "faction": "", "security": 0, "code": "", "utility": "auto",
-	"complication": "auto", "pay": 0, "seed": 0, "deploy": "", "basements": "", "crew": []}
+	"complication": "auto", "pay": 0, "seed": 0, "deploy": "", "basements": "", "tower": "", "band": "", "crew": []}
 const NONE := "none"
 const STRING_FLAGS := ["district", "location", "setpiece", "variant", "scene", "profile", "site", "objective",
-	"faction", "code", "utility", "complication", "deploy", "basements"]
+	"faction", "code", "utility", "complication", "deploy", "basements", "tower", "band"]
 const INT_FLAGS := ["security", "pay", "seed"]
 const UTILITY_MODES := ["auto", "none", "roll"]
 ## Scenes where an empty profile takes the district's own streets (as greybox --district does).
@@ -140,6 +144,12 @@ static func build(form: Dictionary, camp: Campaign = null) -> Dictionary:
 	var kind := kind_of(String(f.objective))
 	var direct := String(f.scene) != "" or String(f.profile) != "" or String(f.site) != ""
 	var sp := String(f.setpiece)
+	# A tower gig (the tower field, or the tower_top scene picked directly): its tower's band.
+	var tw := String(f.tower)
+	if tw == "" and String(f.scene) == "tower_top":
+		tw = "any"
+	if tw != "" and tw != NONE:
+		return _tower_build(f, d, g, kind, tw)
 	# Where: a canon place (given, one of the set piece's, or one in the district), else the scene direct.
 	var lid := String(f.location)
 	if lid == "" and sp != "":
@@ -230,6 +240,66 @@ static func build(form: Dictionary, camp: Campaign = null) -> Dictionary:
 	gig["blurb"] = "Custom gig from the dev builder. Flags: %s" % " ".join(to_flags(f))
 	gig["form"] = f
 	return gig
+
+
+## A tower gig from the form (build: f.tower set): the named tower ("any": one drawn on `d`, in the
+## form's district when it has one), its band (f.band, else the sky band), a kind the band hosts (the
+## form's objective if the band has it, else drawn), the rest as build() fills a gig.
+static func _tower_build(f: Dictionary, d: Dice, g: Dictionary, kind: String, tw: String) -> Dictionary:
+	var lid := World.tower_location(tw)
+	if lid == "":
+		var ids: Array = World.towers().keys().filter(func(id): return Campaign.offered_at(String(id)))
+		ids.sort()
+		var did0 := String(f.district)
+		var in_d := ids.filter(func(id): return String(World.location(String(id)).get("district", "")) == did0)
+		lid = String(_pick(d, in_d if not in_d.is_empty() else ids))
+	var t := World.tower(lid)
+	var bands: Dictionary = t.get("bands", {})
+	var bid := String(f.band) if String(f.band) != "" else TowerGen.DEFAULT_BAND
+	if not bands.has(bid):
+		bid = String(bands.keys()[0])
+	var b: Dictionary = bands[bid]
+	var kinds: Array = b.get("gigs", [])
+	if kind == "" or not kind in kinds:
+		kind = String(_pick(d, kinds)) if not kinds.is_empty() else "data_theft"
+	var tmp := Campaign.new()   # Campaign.tower_gig draws on its dice: lend it ours
+	tmp.dice = d
+	var gig := tmp.tower_gig(g, lid, kind, bid)
+	gig.merge({"id": "dev", "dev": true, "seed": int(f.seed), "fixer": "DEV BUILDER", "fixer_id": "", "hook": ""}, true)
+	if String(f.faction) != "":
+		gig["faction"] = String(f.faction)
+	var sec := int(f.security)
+	if sec >= 1 and sec <= 3:
+		gig["security"] = sec
+	gig.merge(Campaign.codes_for(gig, String(gig.get("district", ""))), true)
+	if String(f.code) != "":
+		var code := SecurityCode.normalise(String(f.code))
+		if not code.is_empty():
+			gig["security_code"] = code
+	if int(f.pay) > 0:
+		gig["pay"] = int(f.pay)
+	_dials(f, gig)
+	var floors := "%d-%d" % [int(b.storeys[0]), int(b.storeys[1])]
+	gig["title"] = "DEV · %s: %s %s" % [String(gig.title).get_slice(":", 0), String(World.location(lid).get("name", lid)), floors]
+	gig["blurb"] = "Custom tower gig from the dev builder (%s, floors %s). Flags: %s" % [String(t.get("name", lid)), floors, " ".join(to_flags(f))]
+	gig["form"] = f
+	return gig
+
+
+## The encounter's dials from the form (utilities, complication, deploy, crew) onto `gig`.
+static func _dials(f: Dictionary, gig: Dictionary) -> void:
+	var ut := String(f.utility)
+	if ut != "auto" and ut != "":
+		gig["utility"] = ut
+	var cx := String(f.complication)
+	if cx == NONE:
+		gig["complication"] = NONE
+	elif cx != "auto" and cx != "":
+		gig["complication"] = parse_complication(cx)
+	if String(f.deploy) in ["near", "far"]:
+		gig["deploy"] = String(f.deploy)
+	if not (f.crew as Array).is_empty():
+		gig["crew"] = (f.crew as Array).map(func(n): return String(n))
 
 
 ## The gig kinds a location's hooks and `gigs` name, as a set.
