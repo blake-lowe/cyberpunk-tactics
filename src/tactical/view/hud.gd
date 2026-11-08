@@ -283,15 +283,15 @@ var _floor_up: FloorBtn
 var _floor_down: FloorBtn
 var _stack: PanelContainer      ## the floor stack (owner-approved H1/H3): the focused building's storeys
 var _stack_head: Label
-var _stack_why: Label
 var _stack_rows: VBoxContainer
-var _stack_else: VBoxContainer  ## 'elsewhere': crew in other buildings, a portrait and where
 var stack_data := {}            ## the last floor_stack() data (tests, review renders)
+var crew_where := {}            ## unit id → where they stand, "BD PARLOR · 2" (greybox.where_label): the Alt roster's line
 
 
 ## The floor stack (A's stack with crew pips, driven by one focused building: FloorNav.slices).
-## Right edge, under the overlay line: header (the building, and why it has the stack), ▲, one row
-## per storey top down (R the roof, a street line over the B rows), ▼, then the 'elsewhere' row.
+## Right edge, under the overlay line: header (the building), ▲ (SHIFT), one row per storey top
+## down (R the roof, a street line over the B rows), ▼ (CTRL). Where the rest of the crew stands
+## is on the Alt roster's cards (crew_where), not here.
 func _build_stack() -> void:
 	_stack = _panel(CYAN, 0b0101)
 	_stack.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -300,9 +300,7 @@ func _build_stack() -> void:
 	_stack.add_child(v)
 	_stack_head = _text("", F_PIXEL, 20, TEXT)
 	v.add_child(_stack_head)
-	_stack_why = _text("", F_TERM, Hud.ts(13), DIM)
-	v.add_child(_stack_why)
-	_floor_up = FloorBtn.new(1)
+	_floor_up = FloorBtn.new(1, "SHIFT")
 	_floor_up.custom_minimum_size = Vector2(STACK_W, 22)
 	_floor_up.pressed.connect(func(): action.emit("floor", 1))
 	_floor_up.tooltip_text = "View the floor above (SHIFT, PG UP or ])"
@@ -310,14 +308,11 @@ func _build_stack() -> void:
 	_stack_rows = VBoxContainer.new()
 	_stack_rows.add_theme_constant_override("separation", 2)
 	v.add_child(_stack_rows)
-	_floor_down = FloorBtn.new(-1)
+	_floor_down = FloorBtn.new(-1, "CTRL")
 	_floor_down.custom_minimum_size = Vector2(STACK_W, 22)
 	_floor_down.pressed.connect(func(): action.emit("floor", -1))
 	_floor_down.tooltip_text = "View the floor below (CTRL, PG DN or [)"
 	v.add_child(_floor_down)
-	_stack_else = VBoxContainer.new()
-	_stack_else.add_theme_constant_override("separation", 2)
-	v.add_child(_stack_else)
 	_stack.visible = false
 	add_child(_stack)
 
@@ -325,9 +320,9 @@ func _build_stack() -> void:
 const STACK_W := 96.0
 
 
-## Fill the floor stack: {name, why, rows: [{f, label, crew, foes, cur, street}] top down (`street`:
+## Fill the floor stack: {name, rows: [{f, label, crew, foes, cur, street}] top down (`street`:
 ## the street line is drawn under that row), up_ok, down_ok, hint_dir (the objective lies that way
-## in this building: that arrow breathes, never a floor named), elsewhere: [{unit, label}]}.
+## in this building: that arrow breathes, never a floor named)}.
 ## Empty: hidden (no buildings, the NET owns the clicks).
 func floor_stack(data: Dictionary) -> void:
 	stack_data = data
@@ -337,7 +332,6 @@ func floor_stack(data: Dictionary) -> void:
 	if data.is_empty():
 		return
 	_stack_head.text = String(data.get("name", "")).left(14)
-	_stack_why.text = String(data.get("why", ""))
 	_clear(_stack_rows)
 	for r in data.get("rows", []):
 		var row := StackRow.new(r)
@@ -345,31 +339,6 @@ func floor_stack(data: Dictionary) -> void:
 		row.pressed.connect(func(): action.emit("floor_to", f))
 		_stack_rows.add_child(row)
 	floor_nav(bool(data.get("up_ok", false)), bool(data.get("down_ok", false)), int(data.get("hint_dir", 0)))
-	_clear(_stack_else)
-	var els: Array = data.get("elsewhere", [])
-	if not els.is_empty():
-		_stack_else.add_child(_text("ELSEWHERE", F_TERM, Hud.ts(12), Color(DIM, 0.9)))
-		for e in els:
-			var b := Button.new()
-			b.focus_mode = Control.FOCUS_NONE
-			b.flat = true
-			b.custom_minimum_size = Vector2(STACK_W, 22)
-			b.tooltip_text = "Show their floor"
-			var hb := HBoxContainer.new()
-			hb.add_theme_constant_override("separation", 4)
-			hb.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			b.add_child(hb)
-			var face := TextureRect.new()
-			face.texture = portraits.tex(e.unit)
-			face.custom_minimum_size = Vector2(20, 20)
-			face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-			face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-			face.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			hb.add_child(face)
-			hb.add_child(_text(String(e.label).left(12), F_TERM, Hud.ts(12), GREEN))
-			var uid := int(e.unit.id)
-			b.pressed.connect(func(): action.emit("elsewhere", uid))
-			_stack_else.add_child(b)
 	_stack.reset_size()
 	_layout()
 
@@ -404,12 +373,15 @@ class StackRow extends Button:
 
 
 ## The floor stack's ▲ / ▼: greyed when there is no floor that way; `pulse` (the objective lies that
-## way, owner: subtle, never named) breathes the outline gently.
+## way, owner: subtle, never named) breathes the outline gently. `key`: its hold key, small and dim
+## grey at the right end (SHIFT up, CTRL down).
 class FloorBtn extends Button:
 	var dir := 1
 	var pulse := false
-	func _init(p_dir: int) -> void:
+	var key := ""
+	func _init(p_dir: int, p_key := "") -> void:
 		dir = p_dir
+		key = p_key
 		custom_minimum_size = Vector2(26, 26)
 		focus_mode = Control.FOCUS_NONE
 		add_theme_stylebox_override("normal", CutBox.make(Color(0.03, 0.045, 0.06, 0.95), Color(Hud.CYAN, 0.4), 5, 0b0101))
@@ -421,8 +393,8 @@ class FloorBtn extends Button:
 		if pulse:
 			queue_redraw()
 	func _draw() -> void:
-		var o := size / 2
 		var r := 6.0
+		var o := size / 2 if key == "" else Vector2(8 + r, size.y / 2)   # with a key hint: left, under the rows' labels
 		var col := Color(Hud.DIM, 0.45) if disabled else Hud.CYAN
 		if pulse and not disabled:
 			var k := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * 2.4)
@@ -430,6 +402,9 @@ class FloorBtn extends Button:
 			draw_rect(Rect2(Vector2(2, 2), size - Vector2(4, 4)), Color(Hud.GOLD, 0.1 + 0.18 * k), false, 1.5)
 		var dy := -r * 0.75 * dir
 		draw_colored_polygon(PackedVector2Array([o + Vector2(-r, -dy), o + Vector2(0, dy), o + Vector2(r, -dy)]), col)
+		if key != "":   # the smallest legible HUD size (Hud.ts floor), dim grey: a hint, not a label
+			var fs := Hud.ts(12)
+			draw_string(Hud.F_TERM, Vector2(0, size.y / 2 + fs * 0.35), key, HORIZONTAL_ALIGNMENT_RIGHT, size.x - 6, fs, Color(Hud.DIM, 0.4 if disabled else 0.75))
 
 
 ## The floor buttons' state: whether there is a floor up / down, and which way the objective lies
@@ -1384,6 +1359,11 @@ func _party_card(u: Dictionary, active: bool) -> Control:
 	var w: Weapon = c.weapons[0] if not c.weapons.is_empty() else null
 	var wl := _text(("%s %s" % [w.display_name().to_upper(), ("%d/%d" % [w.ammo, int(w.def.get("mag", 0))]) if w.uses_ammo() else ""]) if w else "UNARMED", F_TERM, Hud.ts(16), DIM)
 	v.add_child(QualityText.apply(wl, Items.key_of_weapon(w)) if w else wl)
+	var wh := String(crew_where.get(int(u.id), ""))
+	if wh != "" and not c.dead:   # where they stand: the building (or STREET) and the floor
+		var whl := _text(wh, F_TERM, Hud.ts(14), Color(DIM, 0.8))
+		whl.name = "Where"
+		v.add_child(whl)
 	var gs := status_label(c)
 	if gs != "":
 		var gl := _text(gs, F_DISPLAY, 18, Color("ff8a3d"))

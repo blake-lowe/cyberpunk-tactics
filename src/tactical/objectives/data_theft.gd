@@ -27,11 +27,11 @@ func check_end() -> String:
 func hud_text() -> String:
 	if int(o.get("node", -1)) >= 0 and e.m.architectures.has(int(o.structure)):
 		var fn: Dictionary = (e.m.architectures[int(o.structure)] as NetArchitecture).nodes[int(o.node)]
-		return "STEAL THE DATA\nJACK IN AND REACH NET LEVEL %d\nOR ELIMINATE ALL HOSTILES" % int(fn.zone)
+		return "STEAL THE DATA\nJACK IN AT THE ACCESS POINT\nREACH NET LEVEL %d\nOR ELIMINATE ALL HOSTILES" % int(fn.zone)
 	return "ELIMINATE ALL HOSTILES"
 
 
-## The nearest jack point into the target NET while nobody on the crew is jacked in.
+## The nearest Access Point (CPR core p.197) into the target NET while nobody on the crew is jacked in.
 func marks(_fog: bool) -> Array:
 	if int(o.get("node", -1)) < 0 or not e.m.architectures.has(int(o.structure)):
 		return []
@@ -51,4 +51,4 @@ func marks(_fog: bool) -> Array:
 			best = dp
 	if best.x < 0:
 		return []
-	return [{"cell": best, "h": 0.7, "label": "★ JACK POINT", "tone": "cyan"}]
+	return [{"cell": best, "h": 0.7, "label": "★ ACCESS POINT", "tone": "cyan"}]
