@@ -195,7 +195,7 @@ func _label(nd: Dictionary) -> String:
 	match String(nd.type):
 		"firewall": return "FIREWALL DV%d" % int(nd.dv)
 		"file": return "FILE DV%d" % int(nd.dv)
-		"control": return "CONTROL: " + Hud.control_name(String(nd.group)).to_upper()
+		"control": return "CONTROL: " + Hud.control_name(String(nd.group)).to_upper() + (" · HELD" if run != null and run.held.has(int(nd.id)) else "")
 		"socket": return "SOCKET"
 		"port": return "ACCESS PORT"
 		"hub": return "L%d HUB" % int(nd.zone)

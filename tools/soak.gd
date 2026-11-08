@@ -50,7 +50,7 @@ func _initialize() -> void:
 	print("district looks: %s" % JSON.stringify(d.stats.looks))
 	print("sides: %s" % JSON.stringify(d.stats.sides))
 	print("neutral ground %d (peace broken %d)" % [d.stats.neutral, d.stats.peace_broken])
-	print("complications %d, utility outages %d, turrets %d, held-turret shots %d" % [d.stats.complications, d.stats.utilities, d.stats.turret_units, d.stats.turret_shots])
+	print("complications %d, utility outages %d, turrets %d, held-turret shots %d, NET device ops %d" % [d.stats.complications, d.stats.utilities, d.stats.turret_units, d.stats.turret_shots, d.stats.device_ops])
 	for f in d.failures:
 		print("FAIL " + f)
 	print("%d failures" % d.failures.size())

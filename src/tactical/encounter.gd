@@ -77,7 +77,12 @@ var _street: Dictionary = {}
 var _hardened_posts := false        ## the posts use Hardened blocks (a Hardened code of the people holding them)
 var _spot_rolls := {}               ## [guard id, crew id, round] → result: one stealth roll per pair per round
 var jack_pos := {}                  ## runner unit id → the square of the device they jacked in at
-var disabled_devices := {}          ## device id → true (turrets/cameras under the runner's control)
+var disabled_devices := {}          ## device id → true: off for the site (a camera killed, looped or out of power; a lock opened)
+var looped := {}                    ## camera device id → runner unit id: its feed looped from the NET (NetDevices)
+var sealed := {}                    ## door cell → true: locked from the NET; the guards' keys don't open it (NetDevices)
+var _net_doors := {}                ## door cell → [runner unit id, locked before the NET touched it]
+var dev_state := {}                 ## device id → runner unit id: a device switched from the NET (a seal, an alarm line cut)
+var dark_rooms := {}                ## room id → runner unit id: its lights killed from the NET
 var neutral: NeutralGround = null   ## a house where nobody fights (Totentanz's club floor), null for none
 var turret_side := -1               ## the site's automated turrets (Turret); -1 until the map has one
 var _crew_turret_side := -1         ## turrets a Netrunner holds; -1 until one does
@@ -220,7 +225,7 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 ## Everyone on the crew who can act sees, the Mortally Wounded included (they still take their
 ## Turns, p.222: alive() leaves them out, which left a dying crew member blind and unable to aim).
 func refresh_vision() -> bool:
-	return vision.update(units.filter(func(u): return u.team == CREW and u.c.can_act()).map(func(u): return u.pos))
+	return vision.update(units.filter(func(u): return u.team == CREW and u.c.can_act()).map(func(u): return u.pos), NetDevices.feed_cells(self))
 
 
 func _add(c: Combatant, pos: Vector3i, team: int) -> void:
@@ -870,6 +875,7 @@ func bypass_lock() -> Dictionary:
 
 func _unlock(cell: Vector3i) -> void:
 	nav.locked.erase(cell)
+	sealed.erase(cell)
 	for d in m.devices:
 		if String(d.type) == "door_lock" and d.floor == cell.z and d.pos == Vector2i(cell.x, cell.y):
 			disabled_devices[d.id] = true
@@ -1693,17 +1699,27 @@ func _compute_light() -> void:
 	var day: bool = bool(m.params.get("daylight", false)) or String(m.params.get("scene", "")) == "badlands"
 	for e in ([] if lights_out() else LightPlan.plan(m, m.seed_value)):
 		var c: Vector3i = e.cell
+		if is_dark(c):   # its lights killed from the NET (NetDevices)
+			continue
 		var r := float(e.range) * 0.6
 		for dy in range(-int(r), int(r) + 1):
 			for dx in range(-int(r), int(r) + 1):
 				var v := Vector3i(c.x + dx, c.y + dy, c.z)
-				if Vector2(dx, dy).length() <= r and m.inb(v.x, v.y) and not lit.has(v) and los.trace(c, v).clear:
+				if Vector2(dx, dy).length() <= r and m.inb(v.x, v.y) and not lit.has(v) and not is_dark(v) and los.trace(c, v).clear:
 					lit[v] = true
 	if day:
 		for y in m.h:
 			for x in m.w:
 				if m.t(m.street, x, y) == TacMap.T.OUTSIDE and m.label(m.street, x, y) < 0:
 					lit[Vector3i(x, y, m.street)] = true
+
+
+## A room whose lights were killed from the NET (NetDevices "lights").
+func is_dark(v: Vector3i) -> bool:
+	if dark_rooms.is_empty() or not m.inb(v.x, v.y):
+		return false
+	var l := m.label(v.z, v.x, v.y)
+	return l >= 0 and dark_rooms.has(l)
 
 
 ## Unalerted guards face somewhere sensible (into their room, or along the street) and some walk a
@@ -1823,6 +1839,8 @@ func call_it_in(g: Dictionary) -> void:
 	_backup_round = init.round_num
 	_ncpd_round = init.round_num
 	var slow := 2 if "citinet" in outages else 1   # OWNER-ACCEPTED: CitiNet out doubles response time
+	if NetDevices.alarm_cut(self):   # HOUSE-RULE: the alarm line cut from the NET, the call goes by radio alone: as slow
+		slow *= 2
 	var msg := "%s calls it in." % g.c.display_name
 	if SecurityCode.responds(dice, code):
 		_response = _plan_response(code)
@@ -2021,8 +2039,10 @@ func engaged() -> bool:
 ## behind a locked door could never be collected).
 func _with_locks(callable: Callable) -> Variant:
 	var saved := nav.locked
-	if not cur.is_empty() and (is_guard(cur) or cur.get("tt", false)):
+	if not cur.is_empty() and cur.get("tt", false):
 		nav.locked = {}
+	elif not cur.is_empty() and is_guard(cur):
+		nav.locked = sealed   # a door locked from the NET keeps them out too (NetDevices)
 	var r: Variant = callable.call()
 	nav.locked = saved
 	return r
@@ -2031,7 +2051,7 @@ func _with_locks(callable: Callable) -> Variant:
 ## Paths for guards outside their own turn (patrols, posting): they have the keys.
 func _keys(callable: Callable) -> Variant:
 	var saved := nav.locked
-	nav.locked = {}
+	nav.locked = sealed
 	var r: Variant = callable.call()
 	nav.locked = saved
 	return r
@@ -3048,6 +3068,7 @@ func shoot_cover(cell: Vector3i, weapon: Weapon) -> Dictionary:
 	if hp == 0:
 		m.set_t(cell.z, cell.x, cell.y, TacMap.T.FLOOR if cell.z != m.street or m.label(cell.z, cell.x, cell.y) >= 0 else TacMap.T.OUTSIDE)
 		nav.locked.erase(cell)
+		sealed.erase(cell)
 		say("The %s gives way." % wc.material)
 	events[-1]["left"] = hp
 	return {"ok": true, "damage": dmg, "left": hp}
@@ -3152,23 +3173,28 @@ func net_action(kind: String, arg: int = -1) -> Dictionary:
 			var c := run.backdoor(dice)
 			say("Backdoor %s." % ("succeeds" if c.success else "fails"))
 			return {"ok": true, "success": c.success}
-		"control":
+		"control":   # take the Node (p199); its devices are then worked one NET Action each (net_device)
 			var c2 := run.control(dice)
+			events.append({"type": "net_control", "unit": cur.id, "node": int(n.id), "devices": (n.get("devices", []) as Array).duplicate(), "ok": c2.success, "roll": c2.total, "dv": int(n.dv)})
 			if c2.success:
-				for did in n.get("devices", []):
-					disabled_devices[did] = true
-					var dev: Dictionary = m.devices[did]
-					if dev.type == "door_lock":
-						nav.locked.erase(Vector3i(dev.pos.x, dev.pos.y, dev.floor))
-				say("Control of %s." % String(n.group).replace("_", " "))
+				say("%s takes the %s node: %s." % [cur.c.display_name, String(n.group).replace("_", " "), _devices_text(n)])
 				_retake_turrets()
+			else:
+				say("%s fails to take the %s node (%d vs DV %d)." % [cur.c.display_name, String(n.group).replace("_", " "), c2.total, int(n.dv)])
 			return {"ok": true, "success": c2.success}
-		"eye_dee":
+		"eye_dee":   # what the File is and what it is worth (p199)
 			var c3 := run.eye_dee(dice)
-			if c3.success and objective.get("node", -2) == n.id and run.arch.structure == objective.structure:
-				objective.done = true
+			var target: bool = int(objective.get("node", -2)) == int(n.id) and run.arch.structure == int(objective.get("structure", -2))
+			var info := NetDevices.file_info(self, n)
+			events.append({"type": "eye_dee", "unit": cur.id, "node": int(n.id), "ok": c3.success, "what": info.what, "value": info.value, "tier": info.tier, "target": target, "roll": c3.total, "dv": int(n.dv)})
+			if c3.success:
+				say("Eye-Dee: %s, value %d/5 (%s)%s." % [info.what, int(info.value), info.tier, ": the target data, downloaded" if target else ""])
+				if target:
+					objective.done = true
+			else:
+				say("Eye-Dee fails (%d vs DV %d)." % [c3.total, int(n.dv)])
 			_check_end()
-			return {"ok": true, "success": c3.success}
+			return {"ok": true, "success": c3.success, "what": info.what, "value": info.value, "tier": info.tier, "target": target}
 		"zap":
 			var ice: Array = run.arch.ice_at(run.current)
 			if ice.is_empty():
@@ -3223,6 +3249,63 @@ func net_action(kind: String, arg: int = -1) -> Dictionary:
 	return {"ok": false, "reason": "unknown"}
 
 
+## The devices on Control Node `n` in words ("3 cameras, door lock").
+func _devices_text(n: Dictionary) -> String:
+	var count := {}
+	var order: Array[String] = []
+	for did in n.get("devices", []):
+		var k := String(m.devices[did].type)
+		if not count.has(k):
+			order.append(k)
+		count[k] = int(count.get(k, 0)) + 1
+	var parts: Array[String] = []
+	for k in order:
+		var nm := String(NetDevices.spec(k).get("name", k.replace("_", " ")))
+		parts.append("%d %s%s" % [int(count[k]), nm, "" if nm.ends_with("s") else "s"] if int(count[k]) > 1 else nm)
+	return ", ".join(parts) if not parts.is_empty() else "nothing wired to it"
+
+
+## The held Control Nodes of runner `uid` and what can be done with each (NetDevices.rows).
+func device_ops(uid: int) -> Array:
+	return NetDevices.rows(self, uid)
+
+
+## Who holds device `did` through the NET (a runner's unit id), -1 for nobody.
+func device_holder(did: int) -> int:
+	return NetDevices.holder(self, did)
+
+
+## Work a device on a held Control Node (p199): a NET Action, from anywhere in the Architecture,
+## each Node once per Turn (shared with its turrets' FIRE). `did` names the device (any one of a
+## bank: NetDevices). What it does is data/rules/net_devices.json.
+func net_device(nid: int, did: int) -> Dictionary:
+	var run: NetRun = runs.get(cur.id)
+	if run == null or net_left <= 0:
+		return {"ok": false, "reason": "no NET Actions left"}
+	if not _netting and not turn.action_available:   # the meat Action is spent: no NET this turn (p197)
+		return {"ok": false, "reason": "your Action is spent"}
+	if not run.held.has(nid) or did < 0 or did >= m.devices.size() or not (run.arch.nodes[nid].get("devices", []) as Array).has(did):
+		return {"ok": false, "reason": "not on a node you hold"}
+	var d: Dictionary = m.devices[did]
+	var op := String(NetDevices.spec(String(d.type)).get("op", ""))
+	if op == "" or op == "fire":
+		return {"ok": false, "reason": "nothing to work remotely" if op == "" else "fire it from its FIRE row"}
+	if int(run.activated.get(nid, -1)) == init.round_num:
+		return {"ok": false, "reason": "node already used this turn"}   # each Node once per Turn (p199)
+	var why := NetDevices.why_not(self, d, NetDevices.is_on(self, d))
+	if why != "":
+		return {"ok": false, "reason": why}
+	turn.action_available = false
+	_netting = true
+	net_left -= 1
+	run.activated[nid] = init.round_num
+	var r := NetDevices.operate(self, int(cur.id), nid, did)
+	say(String(r.text))
+	events.append({"type": "net_device", "unit": cur.id, "node": nid, "device": did, "kind": String(d.type), "op": r.op, "on": r.on, "devices": r.devices, "cells": r.cells})
+	refresh_vision()
+	return r
+
+
 ## Patrolling Black ICE (complex NETs) moves one node a round along its subnet's links, never
 ## through a firewall or onto a port; landing on a runner means a meeting (p205). ICE already
 ## engaged with a runner (on their node) stays.
@@ -3274,13 +3357,12 @@ func _drop_run(uid: int, unsafe: bool, keep_met := Vector2i(-1, -1)) -> void:
 	var run: NetRun = runs.get(uid)
 	if run == null:
 		return
-	for did in run.controlled_devices():
-		var dev: Dictionary = m.devices[did]
-		if not _unpowered(dev):   # a dead camera stays dead when the runner lets go
-			disabled_devices.erase(did)
-		var cell := Vector3i(dev.pos.x, dev.pos.y, dev.floor)
-		if dev.type == "door_lock" and not los.open_doors.has(cell) and m.t(cell.z, cell.x, cell.y) == TacMap.T.DOOR:
-			nav.locked[cell] = true
+	var had := run.held.size()
+	runs.erase(uid)   # the nodes go first: NetDevices.release asks who still holds what
+	NetDevices.release(self, uid)
+	runs[uid] = run
+	if had > 0:
+		say("%s's hold on %d node%s is lost: the site has its devices back." % [units[uid].c.display_name, had, "" if had == 1 else "s"])
 	_met_memory[uid] = run.met.duplicate()
 	if keep_met.x >= 0:   # a Giant that threw you out stays met (it doesn't re-ambush)
 		_met_memory[uid][keep_met] = true

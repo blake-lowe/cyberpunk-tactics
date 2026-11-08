@@ -1859,6 +1859,14 @@ func _net_refresh(enc: Encounter) -> void:
 	_net_box.add_child(head_row)
 	var here := run.cur_node()
 	_net_box.add_child(_text(_node_label(here, enc, run, true).to_upper(), F_DISPLAY, 20, Color("e2c8ff")))
+	if String(here.type) == "file" and run.identified.has(run.current):   # Eye-Dee's answer (p.199)
+		var fi := NetDevices.file_info(enc, here)
+		var fl := _text("EYE-DEE · VALUE %d/5 · %s%s" % [int(fi.value), String(fi.tier).to_upper(), " · THE JOB'S FILE" if _is_target(enc, run, run.current) else ""],
+			F_TERM, Hud.ts(18), GOLD)
+		fl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		fl.custom_minimum_size.x = 296
+		_net_hover(fl, "eye_dee", "%s, value %d of 5 (%s)" % [String(fi.what), int(fi.value), String(fi.tier)])
+		_net_box.add_child(fl)
 	var status: Array[String] = []
 	if run.armor_rez > 0:
 		status.append("ARMOR ON")
@@ -1920,26 +1928,7 @@ func _net_refresh(enc: Encounter) -> void:
 	add.call("PATHFINDER", "pathfinder")
 	add.call("JACK OUT", "jack_out", run.kraken_until < enc.init.round_num)
 	_net_box.add_child(acts)
-	# Turrets on held Control Nodes: a NET Action fires one, each node once a turn, with the
-	# runner's own Skill (p.199, p.213-214; Encounter.fire_turret)
-	var turret_rows := 0
-	for ht in enc.held_turrets(enc.cur.id):
-		turret_rows += 1 + mini(4, (ht.targets as Array).size())
-		var tu: Dictionary = enc.units[int(ht.id)]
-		var tw: Weapon = tu.c.weapons[0]
-		var why := String(ht.why)
-		_net_box.add_child(_text("%s · %s %d/%d%s" % [tu.c.display_name.to_upper(), tw.display_name().to_upper(), tw.ammo, tw.mag(), (" · " + why.to_upper()) if why != "" else ""],
-			F_PIXEL, 20, DIM if why != "" else Color("e2c8ff")))
-		if why != "":
-			continue
-		if (ht.targets as Array).is_empty():
-			_net_box.add_child(_text("   NOTHING IN ITS SIGHTS", F_TERM, Hud.ts(16), DIM))
-		for tg in (ht.targets as Array).slice(0, 4):
-			var pair := [int(ht.id), int(tg.id)]
-			var fb := _net_button("FIRE TURRET → %s · %d%%" % [enc.units[int(tg.id)].c.display_name.to_upper(), roundi(float(tg.chance) * 100)],
-				func(): action.emit("net_turret", pair), 296, 26, none or float(tg.chance) <= 0.0)
-			_net_hover(fb, "fire_turret", "%d%% to hit %s" % [roundi(float(tg.chance) * 100), enc.units[int(tg.id)].c.display_name])
-			_net_box.add_child(fb)
+	var turret_rows := _net_held(enc, none)
 	var unsafe := _net_button("UNSAFE JACK OUT", func(): action.emit("net", "jack_out_unsafe"), 296, 24)
 	_net_hover(unsafe, "jack_out_unsafe")
 	unsafe.add_theme_color_override("font_color", RED)
@@ -1964,6 +1953,89 @@ func _net_refresh(enc: Encounter) -> void:
 		if _is_target(enc, run, nid):
 			b.add_theme_color_override("font_color", GOLD)
 		_net_box.add_child(b)
+
+
+const HELD_ROWS := 7   ## held-node rows the NET panel shows before folding the rest into "+N MORE"
+const OPS_PER_NODE := 3   ## device rows per held node (nearest the crew first), the rest folded
+
+
+## The NET panel's held Control Nodes (p.199): a HELD badge and the node's name, then a row for
+## each thing on it that can be worked (a NET Action each, every node once a turn: Encounter
+## net_device) and its turrets' FIRE rows (Encounter.fire_turret). Nodes with something to do
+## come first. Returns the rows used (the route list shrinks to fit).
+func _net_held(enc: Encounter, none: bool) -> int:
+	var nodes: Array = enc.device_ops(enc.cur.id)
+	var turrets: Array = enc.held_turrets(enc.cur.id)
+	if nodes.is_empty():
+		return 0
+	var ready := func(row: Dictionary) -> bool:
+		return (row.ops as Array).any(func(o): return String(o.why) == "") or turrets.any(func(t): return int(t.node) == int(row.node) and String(t.why) == "")
+	nodes.sort_custom(func(a, b): return ready.call(a) and not ready.call(b))
+	_net_box.add_child(_text("HELD NODES · 1 NET ACTION EACH · ONCE A TURN", F_PIXEL, 20, DIM))
+	var rows := 1
+	var shown := 0
+	for row in nodes:
+		var mine := turrets.filter(func(t): return int(t.node) == int(row.node))
+		var need := 1 + mini((row.ops as Array).size(), OPS_PER_NODE) + mine.size()
+		if rows + need > HELD_ROWS and shown > 0:
+			_net_box.add_child(_text("   +%d MORE HELD" % (nodes.size() - shown), F_TERM, Hud.ts(16), DIM))
+			return rows + 1
+		shown += 1
+		var head := HBoxContainer.new()
+		head.add_theme_constant_override("separation", 6)
+		head.add_child(held_badge())
+		var nl := _text(control_name(String(row.group)).to_upper() + (" · USED THIS TURN" if row.used else ""), F_TERM, Hud.ts(18), DIM if row.used else Color("e2c8ff"))
+		_net_hover(nl, "held", "%d thing%s to work here" % [(row.ops as Array).size() + mine.size(), "" if (row.ops as Array).size() + mine.size() == 1 else "s"])
+		head.add_child(nl)
+		_net_box.add_child(head)
+		rows += 1
+		for o in (row.ops as Array).slice(0, OPS_PER_NODE):
+			var why := String(o.why)
+			var pair := [int(o.node), int(o.device)]
+			var b := _net_button("  %s · %s%s" % [String(o.label), String(o.name).to_upper(), (" · " + why.to_upper()) if why != "" and not row.used else ""],
+				func(): action.emit("net_device", pair), 296, 24, none or why != "")
+			_net_hover(b, "dev_" + String(o.op), ("%s: %s" % [String(o.name), "on" if o.on else "off"]) if String(o.op) not in ["sprinklers", "distract"] else String(o.name))
+			_net_box.add_child(b)
+			rows += 1
+		if (row.ops as Array).size() > OPS_PER_NODE:
+			_net_box.add_child(_text("     +%d MORE ON THIS NODE (FARTHER FROM THE CREW)" % ((row.ops as Array).size() - OPS_PER_NODE), F_TERM, Hud.ts(16), DIM))
+			rows += 1
+		for ht in mine:   # its turrets: a NET Action fires one with the runner's own Skill (p.199, p.213-214)
+			rows += _net_turret(enc, ht, none)
+	return rows
+
+
+## One held turret: its line (gun, rounds, why it can't fire) and a FIRE row per target in its sights.
+func _net_turret(enc: Encounter, ht: Dictionary, none: bool) -> int:
+	var tu: Dictionary = enc.units[int(ht.id)]
+	var tw: Weapon = tu.c.weapons[0]
+	var why := String(ht.why)
+	_net_box.add_child(_text("  %s · %s %d/%d%s" % [tu.c.display_name.to_upper(), tw.display_name().to_upper(), tw.ammo, tw.mag(), (" · " + why.to_upper()) if why != "" else ""],
+		F_PIXEL, 20, DIM if why != "" else Color("e2c8ff")))
+	if why != "":
+		return 1
+	if (ht.targets as Array).is_empty():
+		_net_box.add_child(_text("     NOTHING IN ITS SIGHTS", F_TERM, Hud.ts(16), DIM))
+		return 2
+	var n := 1
+	for tg in (ht.targets as Array).slice(0, 3):
+		var pair := [int(ht.id), int(tg.id)]
+		var fb := _net_button("  FIRE TURRET → %s · %d%%" % [enc.units[int(tg.id)].c.display_name.to_upper(), roundi(float(tg.chance) * 100)],
+			func(): action.emit("net_turret", pair), 296, 26, none or float(tg.chance) <= 0.0)
+		_net_hover(fb, "fire_turret", "%d%% to hit %s" % [roundi(float(tg.chance) * 100), enc.units[int(tg.id)].c.display_name])
+		_net_box.add_child(fb)
+		n += 1
+	return n
+
+
+## The small HELD pill (violet, cut corner) the NET panel puts beside a node the runner holds.
+func held_badge() -> PanelContainer:
+	var p := PanelContainer.new()
+	p.add_theme_stylebox_override("panel", CutBox.make(Color(VIOLET, 0.85), Color(VIOLET, 1.0), 4, 0b0100, Color(0, 0, 0, 0), 4))
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var l := _text("HELD", F_PIXEL, 16, Color(0.05, 0.0, 0.08))
+	p.add_child(l)
+	return p
 
 
 ## The NET panel's hover card for `id` (bbcode, in the stat_block style: labels dim, values bright):
@@ -2052,7 +2124,10 @@ static func _node_label(n: Dictionary, enc: Encounter = null, run: NetRun = null
 			return "Firewall%s (L%d)%s" % ["" if open else dv, n.zone, " · open" if open else ""]
 		"file":
 			var known := run != null and run.identified.has(int(n.id))
-			return "%sFile%s%s%s" % [star, dv, (" · " + String(n.get("label", "data")).to_upper()) if known or star != "" else "", " · IDENTIFIED" if known else ""]
+			if known and enc != null:   # Eye-Dee told what it is and its worth (p.199)
+				var fi := NetDevices.file_info(enc, n)
+				return "%sFile · %s · VALUE %d/5" % [star, String(fi.what).to_upper(), int(fi.value)]
+			return "%sFile%s%s" % [star, dv, (" · " + String(n.get("label", "data")).to_upper()) if star != "" else " · UNIDENTIFIED"]
 		"control":
 			var held := run != null and run.held.has(int(n.id))
 			return "Control Node: %s%s%s" % [control_name(String(n.group)), "" if held else dv, " · HELD" if held else ""]

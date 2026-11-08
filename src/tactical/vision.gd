@@ -47,11 +47,13 @@ func _touches_outdoor(f: int, x: int, y: int) -> bool:
 	return false
 
 
-## Recompute sight from the given eye positions. Returns true if anything new was explored.
-func update(eyes: Array) -> bool:
+## Recompute sight from the given eye positions, plus `extra` squares seen another way (a held
+## camera's feed, NetDevices.feed_cells). Returns true if anything new was explored.
+func update(eyes: Array, extra: Dictionary = {}) -> bool:
 	visible = {}
 	for e in eyes:
 		_cast(e)
+	visible.merge(extra)
 	var before := explored.size()
 	explored.merge(visible)
 	return explored.size() != before

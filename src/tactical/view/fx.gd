@@ -243,6 +243,63 @@ func lock_crackle(at: Vector3, ok: bool) -> void:
 	burst(at, Color.WHITE, 4, 0.8, 0.02, 0.18, 4.0, 0.0)
 
 
+## NET work on a device (a Control Node taken, a device switched): a puff of violet data bits off
+## its lamp, rising, and a short white tick.
+func net_take(at: Vector3) -> void:
+	burst(at, Color("d68cff"), 12, 1.2, 0.03, 0.55, 3.0, 1.2)
+	burst(at, Color.WHITE, 3, 0.5, 0.02, 0.15, 4.0, 0.0)
+
+
+## A camera feed patched through (or looped: `looped` adds a red-green glitch): a flat cyan frame
+## that blinks open over the lens and a scatter of scan bits.
+func feed(at: Vector3, looped := false) -> void:
+	var fr := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.34, 0.22, 0.01)
+	fr.mesh = bm
+	fr.material_override = _unlit(Color("39d8ff"), 2.0, 0.35)
+	fr.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(fr)
+	fr.global_position = at + Vector3(0, 0.15, 0)
+	fr.scale = Vector3(0.1, 1.0, 1.0)
+	var tw := create_tween()
+	tw.tween_property(fr, "scale", Vector3.ONE, 0.12).set_trans(Tween.TRANS_BACK)
+	tw.tween_property(fr, "scale", Vector3(1.0, 0.05, 1.0), 0.3).set_delay(0.35)
+	tw.tween_callback(fr.queue_free)
+	burst(at, Color("39d8ff"), 8, 0.7, 0.02, 0.4, 3.0, 0.0)
+	if looped:
+		burst(at, Color("ff3048"), 5, 0.6, 0.02, 0.25, 3.0, 0.0)
+		burst(at, Color("3cf08c"), 5, 0.6, 0.02, 0.35, 3.0, 0.0)
+
+
+## A lock thrown from the NET: a burst in the lamp's new colour (red locked, green open) and a
+## brief spark of white where the bolt goes.
+func lock_flip(at: Vector3, locked: bool) -> void:
+	var col := Color("ff2a4a") if locked else Color("3cf08c")
+	burst(at, col, 10, 1.0, 0.025, 0.4, 3.0, -2.0)
+	burst(at, Color.WHITE, 3, 0.4, 0.02, 0.12, 4.0, 0.0)
+
+
+## Eye-Dee: a thin gold column of data rising out of the runner and a shower of gold bits (a
+## bigger one on the target File).
+func eye_dee(at: Vector3, target := false) -> void:
+	var col := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.05, 1.0, 0.05)
+	col.mesh = bm
+	col.material_override = _unlit(Color("f9c80e"), 2.5, 0.6)
+	col.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(col)
+	col.global_position = at
+	col.scale = Vector3(1.0, 0.05, 1.0)
+	var tw := create_tween()
+	tw.tween_property(col, "scale", Vector3(1.0, 1.2, 1.0), 0.18)
+	tw.parallel().tween_property(col, "position:y", col.position.y + 0.6, 0.18)
+	tw.tween_property(col, "scale", Vector3(0.1, 1.4, 0.1), 0.35)
+	tw.tween_callback(col.queue_free)
+	burst(at + Vector3(0, 0.4, 0), Color("f9c80e"), 22 if target else 12, 1.4, 0.03, 0.7, 3.0, 0.6)
+
+
 ## A keycard lifted off a body: a gold glint that rises and pops.
 func glint(at: Vector3) -> void:
 	_snd("sfx_beep", at, -2.0)
