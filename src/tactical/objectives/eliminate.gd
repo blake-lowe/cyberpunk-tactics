@@ -9,7 +9,18 @@ func check_end() -> String:
 
 
 func hud_text() -> String:
-	return "ELIMINATE ALL HOSTILES\n%d LEFT" % e.opfor().size()
+	return "ELIMINATE %s\n%d HOSTILES LEFT" % [target_name(String(World.faction(e.opfor_faction).get("name", ""))), e.opfor().size()]
+
+
+## The gang as the order names it: "THE TYGER CLAWS", "MAELSTROM", "THE BOZOS"; plural names
+## take "the", one already starting with it keeps it, and no name falls back to "ALL HOSTILES".
+static func target_name(name: String) -> String:
+	if name.strip_edges() == "":
+		return "ALL HOSTILES"
+	var n := name.strip_edges().to_upper()
+	if n.begins_with("THE ") or not n.ends_with("S"):
+		return n
+	return "THE " + n
 
 
 func before_check() -> void:   # every sighting updates the crew's fix on the hostiles

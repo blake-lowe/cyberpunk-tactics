@@ -139,3 +139,12 @@ func test_elimination_points_at_the_last_known_hostile_when_none_is_in_sight() -
 	assert_eq(mk[0].cell, seen_at)
 	assert_true(String(mk[0].label).begins_with("★ HOSTILE · %d LEFT" % left.size()), String(mk[0].label))
 	assert_eq(e.obj.marks(false).size(), 1, "fog off: the nearest hostile")
+
+
+func test_gang_hit_names_the_gang() -> void:
+	var El = load("res://src/tactical/objectives/eliminate.gd")
+	assert_eq(El.target_name("Tyger Claws"), "THE TYGER CLAWS")
+	assert_eq(El.target_name("Maelstrom"), "MAELSTROM")
+	assert_eq(El.target_name("The Bozos"), "THE BOZOS")
+	assert_eq(El.target_name("6th Street"), "6TH STREET")
+	assert_eq(El.target_name(""), "ALL HOSTILES")
