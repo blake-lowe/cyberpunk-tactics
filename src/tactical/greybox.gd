@@ -18,7 +18,7 @@ extends Node
 ##                   (mapping: ClickIntent)
 ##   Hover an enemy  line of fire / swing / throw arc and the hit chance (AimPreview)
 ##   F attack (again: next mode)   Tab next weapon   R reload   J jack in   Space end turn
-##   Alt (hold) inspect, crew roster, enemy outlines    F4 cyberspace style    N peek out of the NET
+##   Alt (hold) inspect, crew roster, enemy outlines, stair / exit signs    F4 cyberspace style    N peek out of the NET
 ##   C cutaway auto / all seen rooms / off    Z guard sight lines near your move / always / off
 ##   F1 new gig    F2 look settings    F3 toggle fog of war    K collapse / show the combat log
 ## Screenshot mode:  -- --shot=path.png [--scene=x] [--profile=y] [--district=z] [--seed=n] [--pixel=3]
@@ -273,7 +273,7 @@ var _dev_log_t := -1.0                 ## --logt=t (review renders): the log's s
 var _dev_stairs := ""                  ## --stairs=on|up (review renders): the active crew member stands on the target building's stairs (up: and takes them)
 var _dev_near := 0                     ## --near=n (review renders): bring the nearest foe n squares from the crew
 var _dev_grapple := ""                 ## --grapple=hold|shield|throw|held (review renders, with --near=1): a sure Grab on the nearest foe first
-var _alt_on := false                   ## Alt is held: enemy outlines, last-known marks
+var _alt_on := false                   ## Alt is held: enemy outlines, last-known marks, stair and exit signs
 var _portrait_uid := -1                ## the turn-order portrait under the mouse (-1 none)
 var _aim := {}                         ## the hovered attack's preview: shape, from, to, col, ...
 var aim_fx: AimFx                      ## ... drawn in the 3D world (the post shader pixelates it)
@@ -409,10 +409,13 @@ func _process(delta: float) -> void:
 	if devices and not keycard_nodes.is_empty():
 		_update_keycards()
 	if _stair_glow and is_instance_valid(_stair_glow):   # the stairs toward the objective breathe, faintly
-		var pa := 0.16 + 0.1 * sin(Time.get_ticks_msec() / 1000.0 * 2.2)
+		var wave := sin(Time.get_ticks_msec() / 1000.0 * 2.2)
 		for q in _stair_glow.get_children():
-			if q is MeshInstance3D:
-				((q as MeshInstance3D).material_override as StandardMaterial3D).albedo_color.a = pa
+			if q is MeshInstance3D and q.has_meta("pulse"):
+				((q as MeshInstance3D).material_override as StandardMaterial3D).albedo_color.a = 0.16 + 0.1 * wave
+		var em: Variant = _stair_glow.get_meta("edge_mat") if _stair_glow.has_meta("edge_mat") else null   # the hinted flight's step edges, in step
+		if em is ShaderMaterial:
+			(em as ShaderMaterial).set_shader_parameter("emission_energy", WorldBuilder.EDGE_HINT_GLOW * (1.0 + 0.25 * wave))
 	if obj_node and is_instance_valid(obj_node) and int(enc.objective.get("carrier", -1)) >= 0:   # the diamond follows the carrier
 		var tag := obj_node.get_node("tag") as Node3D
 		tag.position = (unit_nodes[int(enc.objective.carrier)] as Node3D).position + Vector3(0, 2.75, 0)
@@ -2135,8 +2138,55 @@ func _draw_aim(c: Control) -> void:
 	if enc == null or _promo:
 		return
 	if _alt_on:
+		_draw_floor_signs(c)
 		_draw_last_known(c)
 		_draw_range_labels(c)
+
+
+const SIGN_CAP := 8                      ## Alt's floor signs: at most this many, nearest the focus first
+const SIGN_GREEN := Color("3ddc84")      ## exit-sign green
+
+
+## Alt held (owner: floor-navigation signposts): an exit-sign style pictogram over every stair and
+## every way out on the viewed floor that the crew has seen (or that its blueprint shows), on the
+## HUD layer so it stays crisp after the pixel shader. The nearest few only; far ones fade.
+func _draw_floor_signs(c: Control) -> void:
+	var known := func(v: Vector3i) -> bool: return not fog_on or enc.vision.explored.has(v) or _blueprint.has(v.z)
+	var vp := c.get_viewport_rect().size
+	for s in FloorNav.nearest_signs(FloorNav.signs(m, view_floor, known), Vector2(cam_target.x, cam_target.z), SIGN_CAP):
+		var v: Vector3i = s.cell
+		var wp := Vector3(v.x + 0.5, v.z * FH + (2.5 if s.kind == "stairs" and _flight_from(v) else 1.6), v.y + 0.5)   # a flight up: above a head on it
+		if cam.is_position_behind(wp):
+			continue
+		var p := _to_screen(wp).round()
+		if p.x < -20 or p.y < -20 or p.x > vp.x + 20 or p.y > vp.y + 20:
+			continue
+		var a: float = float(s.alpha) * (1.0 if not fog_on or enc.vision.explored.has(v) else 0.6)   # blueprint only: dimmer
+		_draw_sign(c, p, String(s.kind), s.dirs, a)
+
+
+## One sign: a green pictogram on a dark plate, centred on p. Stairs: a flight with ▲ / ▼ for the
+## ways it goes; a way out: a door with an arrow leaving it.
+func _draw_sign(c: Control, p: Vector2, kind: String, dirs: Array, a: float) -> void:
+	var g := Color(SIGN_GREEN, a)
+	var w := 30.0 if kind == "stairs" else 26.0
+	var r := Rect2(p - Vector2(w / 2.0, 11), Vector2(w, 22))
+	c.draw_rect(r, Color(0.02, 0.05, 0.035, 0.88 * a))
+	c.draw_rect(r.grow(-0.5), Color(SIGN_GREEN, 0.5 * a), false, 1.0)
+	var o := r.position + Vector2(4, 4)   # a 14 x 14 pictogram, then the arrows
+	if kind == "stairs":
+		for i in 3:   # three steps rising to the right
+			c.draw_rect(Rect2(o + Vector2(i * 5, 10 - i * 5), Vector2(5 if i < 2 else 4, 4 + i * 5)), g)
+		var ax := o.x + 19.0
+		for d in dirs:
+			var cy := o.y + (7.0 if dirs.size() == 1 else (3.0 if int(d) > 0 else 11.0))
+			var tip := -3.5 if int(d) > 0 else 3.5
+			c.draw_colored_polygon(PackedVector2Array([Vector2(ax, cy + tip), Vector2(ax + 3.5, cy - tip), Vector2(ax - 3.5, cy - tip)]), g)
+	else:
+		c.draw_rect(Rect2(o + Vector2(0, 0), Vector2(8, 14)), g, false, 1.5)   # the frame
+		c.draw_colored_polygon(PackedVector2Array([o + Vector2(1, 1), o + Vector2(6, 3), o + Vector2(6, 15), o + Vector2(1, 13)]), g)   # the leaf, ajar
+		c.draw_line(o + Vector2(9, 7), o + Vector2(15, 7), g, 2.0)   # out
+		c.draw_colored_polygon(PackedVector2Array([o + Vector2(18, 7), o + Vector2(14, 3), o + Vector2(14, 11)]), g)
 
 
 ## Alt with a gun's shot line showing (owner: "bracket ticks"): where the shooter's range bracket
@@ -2410,21 +2460,36 @@ func _update_stair_glow(hint: Array) -> void:
 		world.add_child(_stair_glow)
 	for ch in _stair_glow.get_children():
 		ch.queue_free()
+	if _stair_glow.has_meta("edge_mat"):
+		_stair_glow.remove_meta("edge_mat")
 	if int(hint[0]) == 0 or _net_cleaned or enc.state != "playing":
 		return
+	var col := WorldBuilder.EDGE_COL
 	for v in FloorNav.hint_stairs(m, view_floor, hint[1]):
 		if fog_on and not enc.vision.explored.has(v) and not _blueprint.has(v.z):
 			continue   # an unknown stair stays unknown
-		var q := MeshInstance3D.new()
-		var pm := PlaneMesh.new()
-		pm.size = Vector2(0.9, 0.9)
-		q.mesh = pm
-		q.material_override = _unlit(Hud.GOLD, 0.16, 1.0)
-		q.position = Vector3(v.x + 0.5, v.z * FH + 0.09, v.y + 0.5)
-		q.set_meta("pulse", true)
-		_stair_glow.add_child(q)
+		if int(hint[0]) > 0 and _flight_from(v):   # a flight up from here: its own lit step edges brighten
+			var hm := builder.hint_edge_mat(v.z)   # world shader: obeys cutaway and fog like the steps
+			for e in WorldBuilder.step_edges(m, v.z, Vector2i(v.x, v.y)):
+				var em := MeshInstance3D.new()
+				var bm := BoxMesh.new()
+				bm.size = (e[1] as Vector3) + Vector3(0.012, 0.012, 0.012)   # just over the plain strip
+				em.mesh = bm
+				em.material_override = hm
+				em.position = e[0]
+				_stair_glow.add_child(em)
+			_stair_glow.set_meta("edge_mat", hm)
+		else:   # the top of a flight, or a ladder: the square glows faintly in the same amber
+			var q := MeshInstance3D.new()
+			var pm := PlaneMesh.new()
+			pm.size = Vector2(0.9, 0.9)
+			q.mesh = pm
+			q.material_override = _unlit(col, 0.16, 1.0)
+			q.position = Vector3(v.x + 0.5, v.z * FH + 0.09, v.y + 0.5)
+			q.set_meta("pulse", true)
+			_stair_glow.add_child(q)
 		var l := OmniLight3D.new()
-		l.light_color = Hud.GOLD
+		l.light_color = col
 		l.omni_range = 1.8
 		l.light_energy = 0.35
 		l.position = Vector3(v.x + 0.5, v.z * FH + 0.9, v.y + 0.5)
