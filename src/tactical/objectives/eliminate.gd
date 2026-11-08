@@ -9,7 +9,7 @@ func check_end() -> String:
 
 
 func hud_text() -> String:
-	return "OBJECTIVE · ELIMINATE ALL HOSTILES (%d LEFT)" % e.opfor().size()
+	return "ELIMINATE ALL HOSTILES\n%d LEFT" % e.opfor().size()
 
 
 func before_check() -> void:   # every sighting updates the crew's fix on the hostiles

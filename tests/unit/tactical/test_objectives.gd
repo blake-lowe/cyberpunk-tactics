@@ -15,7 +15,9 @@ func test_every_registered_kind_loads_sets_up_and_reports() -> void:
 		assert_eq(String(e.objective.kind), String(kind), "%s: the module is the one asked for" % kind)
 		assert_true(e.obj is Objective, "%s: a module" % kind)
 		assert_true(e.objective == e.obj.o, "%s: one state dictionary, shared" % kind)
-		assert_true(e.obj.hud_text().begins_with("OBJECTIVE") or e.obj.hud_text().begins_with("CHARGE"), "%s: a HUD line" % kind)
+		var ht: String = e.obj.hud_text()
+		assert_true(ht != "" and not ht.contains("OBJECTIVE ·") and ht == ht.to_upper(), "%s: a short upper-case order, no prefix" % kind)
+		assert_true(ht.split("\n")[0].length() <= 40, "%s: the order fits one line: %s" % [kind, ht])
 		for mk in e.obj.marks(false):
 			assert_true(mk.get("extract", false) or (mk.has("cell") and mk.has("label") and String(mk.tone) in ["gold", "red", "cyan"]), "%s: well-formed marks" % kind)
 		e.next_turn()

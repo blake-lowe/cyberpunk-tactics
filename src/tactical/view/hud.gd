@@ -893,13 +893,17 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 	elif enc.engaged():
 		state = "ENGAGED"
 	_round_box.add_child(_text(state, F_DISPLAY, 20, RED if state != "UNDETECTED" else CYAN))
-	_round_box.add_child(_text(objective_text(enc), F_TERM, Hud.ts(18), GOLD))
+	# The objective: a small OBJECTIVE label, the order in gold, then dim context lines.
+	_round_box.add_child(_text("OBJECTIVE", F_TERM, Hud.ts(14), Color(DIM, 0.9)))
+	var olines := objective_text(enc).split("\n", false)
+	for i in olines.size():
+		_round_box.add_child(_text(olines[i], F_TERM, Hud.ts(18 if i == 0 else 15), GOLD if i == 0 else Color(DIM, 0.95)))
 	if not enc.outages.is_empty():   # Utility Codes (NC2045 p.8)
 		_round_box.add_child(_text(" · ".join(enc.outages.map(func(o): return String(o).to_upper() + " OUT")), F_TERM, Hud.ts(18), RED))
 	if enc.neutral != null:   # a house where nobody fights (NeutralGround: Totentanz's club floor)
 		_round_box.add_child(_text(enc.neutral.hud_text(), F_TERM, Hud.ts(18), GOLD if enc.neutral.holds else RED))
 	if not enc.complication.is_empty():   # the book's complication (Complication), shown once it springs
-		var cx := _text("COMPLICATION · " + String(enc.complication.text).to_upper(), F_TERM, Hud.ts(18), RED)
+		var cx := _text("COMPLICATION · " + String(enc.complication.get("hud", enc.complication.text)).to_upper(), F_TERM, Hud.ts(18), RED)
 		cx.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		cx.custom_minimum_size.x = 260
 		_round_box.add_child(cx)

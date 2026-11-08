@@ -77,9 +77,10 @@ func on_evacuated(_patient: int) -> void:
 	pass
 
 
-## The round tab's line (upper case, may hold a second line).
+## The objective panel's text, upper case: line 1 the order (short imperative, what a game
+## objective says), later lines dim context. No "OBJECTIVE ·" prefix: the panel has its own label.
 func hud_text() -> String:
-	return "OBJECTIVE · ELIMINATE ALL HOSTILES"
+	return "ELIMINATE ALL HOSTILES"
 
 
 ## Where the view points: [{cell: Vector3i, h: metres above that square's floor, label: String,

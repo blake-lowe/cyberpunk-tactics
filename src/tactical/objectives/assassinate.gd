@@ -89,13 +89,13 @@ func hud_text() -> String:
 	var tt_inbound: bool = not e.tt.is_empty() and String(e.tt.state) in ["called", "landed"] and not e.units[int(e.tt.patient)].c.dead
 	if done():
 		if tt_inbound:
-			return "OBJECTIVE · %s IS DOWN, NOT DEAD\nTRAUMA TEAM INBOUND: FINISH IT" % String(o.name).to_upper()
-		return "OBJECTIVE · %s IS DOWN\nGET TO THE EXTRACTION ZONE" % String(o.name).to_upper()
+			return "FINISH OFF %s\nTRAUMA TEAM IS ON THE WAY" % String(o.name).to_upper()
+		return "REACH EXTRACTION\n%s IS DOWN" % String(o.name).to_upper()
 	var vip: Dictionary = e.units[int(o.target)]
-	var run := " · RUNNING FOR AN EXIT" if (vip.alerted or e.alarm >= 1) else ""
+	var run := "\nTHE TARGET IS RUNNING" if (vip.alerted or e.alarm >= 1) else ""
 	if tt_inbound and int(e.tt.patient) == vip.id:
-		run = " · TRAUMA TEAM INBOUND: FINISH IT"
-	return "OBJECTIVE · TAKE DOWN %s%s" % [String(o.name).to_upper(), run]
+		run = "\nTRAUMA TEAM IS ON THE WAY"
+	return "KILL %s%s" % [String(o.name).to_upper(), run]
 
 
 func before_check() -> void:   # every sighting updates the crew's fix on the mark

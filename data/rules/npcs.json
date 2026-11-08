@@ -11231,7 +11231,8 @@
 					"affects": 1,
 					"kit": "ammo/incendiary_ammo",
 					"qty": 10
-				}
+				},
+				"hud": "Incendiary rounds"
 			},
 			{
 				"roll": 2,
@@ -11239,7 +11240,8 @@
 				"fx": {
 					"add_units": 2,
 					"round": 2
-				}
+				},
+				"hud": "Two more hostiles inbound"
 			},
 			{
 				"roll": 3,
@@ -11247,7 +11249,8 @@
 				"fx": {
 					"affects": 2,
 					"drug": "black_lace"
-				}
+				},
+				"hud": "Hostiles on Black Lace"
 			},
 			{
 				"roll": 4,
@@ -11258,7 +11261,8 @@
 					"skill_base": {
 						"athletics": 12
 					}
-				}
+				},
+				"hud": "Hostile with an AP grenade"
 			},
 			{
 				"roll": 5,
@@ -11273,7 +11277,8 @@
 						"DEX": 2,
 						"MOVE": 2
 					}
-				}
+				},
+				"hud": "Heavily armored hostile"
 			},
 			{
 				"roll": 6,
@@ -11284,7 +11289,8 @@
 						"tactics": 13
 					},
 					"kit": "ammo/smoke_ammo"
-				}
+				},
+				"hud": "Organized hostiles, smoke grenade"
 			},
 			{
 				"roll": 7,
@@ -11292,7 +11298,8 @@
 				"fx": {
 					"add_units": 1,
 					"unit": "different_type"
-				}
+				},
+				"hud": "Another hostile joins"
 			},
 			{
 				"roll": 8,
@@ -11300,7 +11307,8 @@
 				"fx": {
 					"add_units": 2,
 					"crit_injury": "head"
-				}
+				},
+				"hud": "Two more hostiles, already hurt"
 			},
 			{
 				"roll": 9,
@@ -11312,7 +11320,8 @@
 						3,
 						4
 					]
-				}
+				},
+				"hud": "Hostiles keep arriving"
 			},
 			{
 				"roll": 10,
@@ -11327,7 +11336,8 @@
 						"head": ""
 					},
 					"ai": "reckless"
-				}
+				},
+				"hud": "Reckless SMG gunner"
 			}
 		],
 		"lieutenant": [
@@ -11336,7 +11346,8 @@
 				"text": "The Lieutenant and allies ambush the crew (CPR p.399).",
 				"fx": {
 					"tactic": "ambush"
-				}
+				},
+				"hud": "Ambush"
 			},
 			{
 				"roll": 2,
@@ -11344,28 +11355,32 @@
 				"fx": {
 					"tactic": "human_shield",
 					"kit": "shields/human_shield"
-				}
+				},
+				"hud": "Human shield"
 			},
 			{
 				"roll": 3,
 				"text": "The Lieutenant has allies focus one crew member.",
 				"fx": {
 					"tactic": "focus_fire"
-				}
+				},
+				"hud": "They're focusing fire"
 			},
 			{
 				"roll": 4,
 				"text": "The Lieutenant orders a wild charge.",
 				"fx": {
 					"tactic": "charge"
-				}
+				},
+				"hud": "They're charging"
 			},
 			{
 				"roll": 5,
 				"text": "The Lieutenant holds a strong position using cover.",
 				"fx": {
 					"tactic": "hold_cover"
-				}
+				},
+				"hud": "Dug in behind cover"
 			},
 			{
 				"roll": 6,
@@ -11375,7 +11390,8 @@
 						"first_aid": 14,
 						"paramedic": 14
 					}
-				}
+				},
+				"hud": "Their leader is a medic"
 			},
 			{
 				"roll": 7,
@@ -11388,12 +11404,14 @@
 						"disarm_dv": 9,
 						"disarm_skill": "demolitions"
 					}
-				}
+				},
+				"hud": "Booby trap"
 			},
 			{
 				"roll": 8,
 				"text": "The Lieutenant has studied the crew's combat abilities.",
-				"fx": {}
+				"fx": {},
+				"hud": "They've studied your crew"
 			},
 			{
 				"roll": 9,
@@ -11404,7 +11422,8 @@
 					},
 					"reputation": 2,
 					"facedown": true
-				}
+				},
+				"hud": "Their leader tries to stare you down"
 			},
 			{
 				"roll": 10,
@@ -11414,7 +11433,8 @@
 						"tactics": 16
 					},
 					"tactic": "command"
-				}
+				},
+				"hud": "Coordinated squad"
 			}
 		],
 		"mini_boss": [
@@ -11427,14 +11447,16 @@
 						"to": 17,
 						"count": 1
 					}
-				}
+				},
+				"hud": "The boss is a specialist"
 			},
 			{
 				"roll": 2,
 				"text": "+10 HP.",
 				"fx": {
 					"hp_bonus": 10
-				}
+				},
+				"hud": "The boss is extra tough"
 			},
 			{
 				"roll": 3,
@@ -11447,7 +11469,8 @@
 					},
 					"add_units": 1,
 					"unit": "team_member"
-				}
+				},
+				"hud": "The boss has a team"
 			},
 			{
 				"roll": 4,
@@ -11458,21 +11481,24 @@
 						"body": "medium_armorjack"
 					},
 					"no_armor_penalty": true
-				}
+				},
+				"hud": "The boss wears tech armor"
 			},
 			{
 				"roll": 5,
 				"text": "600eb more cyberware.",
 				"fx": {
 					"cyberware_eb": 600
-				}
+				},
+				"hud": "The boss is heavily chromed"
 			},
 			{
 				"roll": 6,
 				"text": "Reputation 5.",
 				"fx": {
 					"reputation": 5
-				}
+				},
+				"hud": "The boss is notorious"
 			},
 			{
 				"roll": 7,
@@ -11482,7 +11508,8 @@
 					"skill_base": {
 						"athletics": 16
 					}
-				}
+				},
+				"hud": "The boss has an EMP grenade"
 			},
 			{
 				"roll": 8,
@@ -11493,7 +11520,8 @@
 						"synthcoke"
 					],
 					"when": "pre_combat"
-				}
+				},
+				"hud": "The boss is on combat drugs"
 			},
 			{
 				"roll": 9,
@@ -11511,7 +11539,8 @@
 							}
 						}
 					]
-				}
+				},
+				"hud": "The boss is fast"
 			},
 			{
 				"roll": 10,
@@ -11520,7 +11549,8 @@
 					"cyberware": [
 						"gills"
 					]
-				}
+				},
+				"hud": "The boss has gills"
 			}
 		]
 	}

@@ -64,9 +64,9 @@ static func start(e: Encounter, force: Dictionary = {}) -> Dictionary:
 	for row in rows:
 		if int(row.get("roll", 0)) == r:
 			entry = row
-	var out := {"tier": tier, "roll": r, "text": String(entry.get("text", "")), "applied": [], "skipped": []}
+	var out := {"tier": tier, "roll": r, "text": String(entry.get("text", "")), "hud": String(entry.get("hud", entry.get("text", ""))), "applied": [], "skipped": []}
 	e.complication = out
-	e.say("Complication (%s table, %d): %s" % [TIER_NAMES.get(tier, tier), r, out.text])
+	e.say("Complication: %s. %s" % [out.hud, out.text])   # the alert, then the rules detail for the log
 	apply(e, tier, entry.get("fx", {}), out)
 	if not (out.skipped as Array).is_empty():
 		e.say("Not modelled yet, skipped: %s." % ", ".join(out.skipped))

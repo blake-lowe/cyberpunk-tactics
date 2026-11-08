@@ -49,7 +49,7 @@ func act(action: String) -> Dictionary:
 
 
 func hud_text() -> String:
-	return "OBJECTIVE · CARRY THE PACKAGE TO THE EXTRACTION ZONE" if int(o.get("carrier", -1)) >= 0 else "OBJECTIVE · RECOVER THE PACKAGE"
+	return "GET THE PACKAGE TO EXTRACTION" if int(o.get("carrier", -1)) >= 0 else "RECOVER THE PACKAGE"
 
 
 func marks(_fog: bool) -> Array:

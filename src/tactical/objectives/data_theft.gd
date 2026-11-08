@@ -27,8 +27,8 @@ func check_end() -> String:
 func hud_text() -> String:
 	if int(o.get("node", -1)) >= 0 and e.m.architectures.has(int(o.structure)):
 		var fn: Dictionary = (e.m.architectures[int(o.structure)] as NetArchitecture).nodes[int(o.node)]
-		return "OBJECTIVE · DOWNLOAD THE ★ FILE (NET LEVEL %d)\nOR ELIMINATE ALL HOSTILES" % int(fn.zone)
-	return "OBJECTIVE · ELIMINATE ALL HOSTILES"
+		return "STEAL THE DATA\nJACK IN AND REACH NET LEVEL %d\nOR ELIMINATE ALL HOSTILES" % int(fn.zone)
+	return "ELIMINATE ALL HOSTILES"
 
 
 ## The nearest jack point into the target NET while nobody on the crew is jacked in.

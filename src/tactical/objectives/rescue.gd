@@ -66,8 +66,8 @@ func act(action: String) -> Dictionary:
 func hud_text() -> String:
 	var cap: Dictionary = e.units[int(o.captive)]
 	if o.get("freed", false):
-		return "OBJECTIVE · GET %s TO THE EXTRACTION ZONE" % cap.c.display_name.to_upper()
-	return "OBJECTIVE · FIND AND FREE %s" % cap.c.display_name.to_upper()
+		return "GET %s TO EXTRACTION" % cap.c.display_name.to_upper()
+	return "FIND AND FREE %s" % cap.c.display_name.to_upper()
 
 
 func marks(_fog: bool) -> Array:

@@ -70,10 +70,10 @@ func withdraw_wins() -> bool:
 
 func hud_text() -> String:
 	if done():
-		return "OBJECTIVE · %s IS WRECKED\nGET TO THE EXTRACTION ZONE" % String(o.name).to_upper()
+		return "REACH EXTRACTION\n%s DESTROYED" % String(o.name).to_upper()
 	if o.get("planted", false):
-		return "CHARGE SET · %d ROUND%s · GET CLEAR" % [fuse_left(), "" if fuse_left() == 1 else "S"]
-	return "OBJECTIVE · PLANT A CHARGE ON %s" % String(o.name).to_upper()
+		return "GET CLEAR\nCHARGE BLOWS IN %d ROUND%s" % [fuse_left(), "" if fuse_left() == 1 else "S"]
+	return "DESTROY %s\nPLANT A CHARGE, THEN GET CLEAR" % String(o.name).to_upper()
 
 
 func marks(_fog: bool) -> Array:
