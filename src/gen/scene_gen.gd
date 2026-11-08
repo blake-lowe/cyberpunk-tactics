@@ -73,7 +73,8 @@ static func generate(seed_value: int, scene: String, overrides: Dictionary = {})
 
 ## Devices the crew can't reach from the deploy zone (boxed in by props placed after them) move to
 ## the nearest reachable free square in their room, else in their structure; grounds devices move to
-## the nearest reachable open-air square within 8. Door locks sit on doors and stay put.
+## the nearest reachable open-air square within 8. Door locks sit on doors and stay put. An access
+## point never moves into jack-in reach of the deploy zone (AP_CLEAR_M).
 static func _reseat_devices(m: TacMap) -> void:
 	var dep := Vector3i(-1, -1, -1)
 	for e in m.entrances:
@@ -86,6 +87,12 @@ static func _reseat_devices(m: TacMap) -> void:
 	var used := {}
 	for dv in m.devices:
 		used[Vector3i(dv.pos.x, dv.pos.y, dv.floor)] = true
+	var ap_ids := {}
+	for sid in m.architectures:
+		for ap in (m.architectures[sid] as NetArchitecture).access_points:
+			ap_ids[int(ap.device)] = true
+	var los := Los.new(m)
+	var dcells := deploy_cells(m)
 	for dv in m.devices:
 		var at := Vector3i(dv.pos.x, dv.pos.y, dv.floor)
 		if dv.type == "door_lock" or reach.has(at):
@@ -103,7 +110,7 @@ static func _reseat_devices(m: TacMap) -> void:
 			var dd := Vector2(cell.x - at.x, cell.y - at.y).length() + (0.0 if l == int(dv.get("room", -2)) else 50.0)
 			if sid < 0 and dd > 8.0:
 				continue
-			if dd < best_d:
+			if dd < best_d and not (ap_ids.has(int(dv.id)) and any_jack_reach(los, dcells, [cell])):
 				best_d = dd
 				best = cell
 		if best.x >= 0:
@@ -573,14 +580,69 @@ static func _unlabel(m: TacMap, room: Dictionary, cells: Dictionary) -> void:
 			room.cells -= 1
 
 
+## No NET access point within jack-in reach of a square the crew starts on (owner: a crew deployed
+## on or beside one jacked in on turn 1 and skipped the infiltration). Reach is Encounter.jack_points'
+## rule (same floor, no wall or closed door between: Los.blocker) out to AP_CLEAR_M, which is the
+## longest jack-in reach there is, 6 m (CPR core p.198) or 10 m with the Long Leash perk
+## (perks.json), so not even a perked Netrunner jacks in from the deploy zone.
+const AP_CLEAR_M := 10.0
+
+
+## Every NET access point's square, all structures: [Vector3i].
+static func access_point_cells(m: TacMap) -> Array:
+	var out := []
+	for sid in m.architectures:
+		for ap in (m.architectures[sid] as NetArchitecture).access_points:
+			var d: Dictionary = m.devices[int(ap.device)]
+			out.append(Vector3i(d.pos.x, d.pos.y, d.floor))
+	return out
+
+
+## The deploy zone's squares at street level (the crew's start squares are these: Encounter.setup).
+static func deploy_cells(m: TacMap) -> Array:
+	for e in m.entrances:
+		if e.kind == "deploy":
+			return (e.get("cells", [e.pos]) as Array).map(func(c): return Vector3i(c.x, c.y, m.street))
+	return []
+
+
+## Could a Netrunner standing on `from` jack in at an access point on `ap` (within AP_CLEAR_M)?
+static func jack_reach(los: Los, from: Vector3i, ap: Vector3i) -> bool:
+	return from.z == ap.z and Los.distance_m(from, ap) <= AP_CLEAR_M and not Los.ray(from, ap).any(func(r): return los.blocker(r) == "wall")
+
+
+## True if any of `cells` is within jack-in reach of any of `aps` (both [Vector3i]).
+static func any_jack_reach(los: Los, cells: Array, aps: Array) -> bool:
+	for a in aps:
+		for v in cells:
+			if jack_reach(los, v, a):
+				return true
+	return false
+
+
+## [[deploy square, access point square]] for every pair in jack-in reach: empty on a good map.
+static func deploy_ap_clashes(m: TacMap) -> Array:
+	var los := Los.new(m)
+	var out := []
+	for a in access_point_cells(m):
+		for v in deploy_cells(m):
+			if jack_reach(los, v, a):
+				out.append([v, a])
+	return out
+
+
 ## Every target NET must be reachable on foot (procgen survey: single-terminal sites behind locked
 ## doors left data gigs unplayable). If no access point can be stood near from the deploy zone
 ## without breaching, a public maintenance junction box goes on a reachable wall inside (or
-## against) the target building, wired to its shallowest hub.
+## against) the target building, wired to its shallowest hub, but never within jack-in reach of
+## the deploy zone (AP_CLEAR_M: it used to go on the reachable square nearest the zone, which
+## against a near start's facade was a deploy square itself).
 static func _ensure_public_access(m: TacMap) -> void:
 	var deploy := m.entrances.filter(func(e): return e.kind == "deploy")
 	if deploy.is_empty():
 		return
+	var los := Los.new(m)
+	var dcells := deploy_cells(m)
 	var nav := Nav.new(m)
 	var origin: Vector2i = deploy[0].pos
 	var field: Dictionary = nav.distance_field([Vector3i(origin.x, origin.y, m.street)], {}, 3000)
@@ -600,7 +662,8 @@ static func _ensure_public_access(m: TacMap) -> void:
 						reachable = true
 		if reachable:
 			continue
-		# the reachable floor cell beside a wall of the target that's closest to the deploy zone
+		# the reachable floor cell beside a wall of the target that's closest to the deploy zone, out of
+		# jack-in reach of it
 		var best := Vector3i(-1, -1, -1)
 		var best_d := INF
 		for cell in field:
@@ -610,14 +673,14 @@ static func _ensure_public_access(m: TacMap) -> void:
 				and m.label(cell.z, cell.x + dd.x * 2, cell.y + dd.y * 2) >= 0 and m.rooms[m.label(cell.z, cell.x + dd.x * 2, cell.y + dd.y * 2)].structure == st.id)
 			if (inside or beside) and not m.has_cover_at(cell.z, Vector2i(cell.x, cell.y)) and m.devices.all(func(o): return not (o.floor == cell.z and o.pos == Vector2i(cell.x, cell.y))):
 				var dd2 := float(field[cell]) + (0.0 if inside else 6.0)
-				if dd2 < best_d:
+				if dd2 < best_d and not any_jack_reach(los, dcells, [cell]):
 					best_d = dd2
 					best = cell
 		if best.x < 0:   # fenced or walled-off sites: a field relay on the reachable square nearest the target
 			var tc := Vector2((st.rect as Rect2i).get_center()) if st.has("rect") else Vector2(m.w / 2.0, m.h / 2.0)
 			for cell in field:
 				var dd3: float = Vector2(cell.x, cell.y).distance_to(tc) + absi(m.level(cell.z)) * 4.0
-				if dd3 < best_d and not m.has_cover_at(cell.z, Vector2i(cell.x, cell.y)):
+				if dd3 < best_d and not m.has_cover_at(cell.z, Vector2i(cell.x, cell.y)) and not any_jack_reach(los, dcells, [cell]):
 					best_d = dd3
 					best = cell
 		if best.x < 0:
@@ -642,21 +705,28 @@ static func _ensure_public_access(m: TacMap) -> void:
 ## - "far" (the default; open ground and stealth approaches): the street spawn farthest from the
 ##   door becomes the insertion zone.
 ## The other spawns stay reinforcement entry points. The zone is the 6 nearest open street-level
-## squares. "near" falls back to "far" when no open ground fits (a door into a walled yard).
+## squares. "near" falls back to "far" when no open ground fits (a door into a walled yard). Either
+## way no square of the zone is within jack-in reach of an access point (AP_CLEAR_M): a near zone
+## by a street-facing terminal's window looks elsewhere, and a far one prefers a clear spawn.
 static func _deploy_zone(c: Dictionary) -> void:
 	var m: TacMap = c.m
-	if String(c.p.get("deploy", "far")) == "near" and _deploy_near(m):
+	var los := Los.new(m)
+	var aps := access_point_cells(m)
+	if String(c.p.get("deploy", "far")) == "near" and _deploy_near(m, los, aps):
 		return
 	var door := Vector2i(m.w / 2, m.h / 2)
 	for e in m.entrances:
 		if e.main:
 			door = e.pos
 	var best := -1
-	var best_d := -1
+	var best_d := -(1 << 40)
 	for i in m.entrances.size():
 		var e: Dictionary = m.entrances[i]
 		if e.kind == "spawn" and m.walkable(m.street, e.pos):
 			var dd := absi(e.pos.x - door.x) + absi(e.pos.y - door.y)
+			var cells := (_deploy_cells(m, e.pos) as Array).map(func(v): return Vector3i(v.x, v.y, m.street))
+			if any_jack_reach(los, cells, aps):
+				dd -= 1 << 30   # a last resort only
 			if dd > best_d:
 				best_d = dd
 				best = i
@@ -671,6 +741,10 @@ static func _deploy_zone(c: Dictionary) -> void:
 ## deploy zone's first square: [min, goal, max]. 7 squares is 14 m: across a street or a forecourt.
 const DEPLOY_NEAR := [4, 7, 12]
 const DEPLOY_SIZE := 6
+## A near start that only finds squares in jack-in reach of an access point within DEPLOY_NEAR's max
+## (an open forecourt with a jack-in camera by the door, as at Totentanz) looks out to this walk
+## before it gives up and deploys far: a slightly longer approach beats one across the map.
+const DEPLOY_NEAR_STRETCH := 20
 
 
 ## The DEPLOY_SIZE nearest open (OUTSIDE, uncovered) street-level squares from `origin`, origin first.
@@ -703,8 +777,9 @@ static func _deploy_open(m: TacMap, v: Vector2i) -> bool:
 ## The "near" deploy zone: walk the open ground (and unlocked-looking public gates) out from the
 ## step in front of the target's main door and take the square closest to DEPLOY_NEAR's goal
 ## distance that has room for the whole crew, the open street before yards, and that a street
-## spawn can reach too (not a pocket the crew can't leave). False if there's none.
-static func _deploy_near(m: TacMap) -> bool:
+## spawn can reach too (not a pocket the crew can't leave), and out of jack-in reach of every
+## access point `aps` (AP_CLEAR_M), out to DEPLOY_NEAR_STRETCH if it must. False if there's none.
+static func _deploy_near(m: TacMap, los: Los, aps: Array) -> bool:
 	var door := m.main_entrance()
 	if door.is_empty():
 		return false
@@ -721,7 +796,7 @@ static func _deploy_near(m: TacMap) -> bool:
 	var q: Array = [step]
 	while not q.is_empty():
 		var v: Vector2i = q.pop_front()
-		if int(dist[v]) >= int(DEPLOY_NEAR[2]):
+		if int(dist[v]) >= DEPLOY_NEAR_STRETCH:
 			continue
 		for d in MapGen.DIRS:
 			var n: Vector2i = v + d
@@ -737,18 +812,24 @@ static func _deploy_near(m: TacMap) -> bool:
 			spawn_reach = m.reachable(Vector3i(e.pos.x, e.pos.y, s))
 			break
 	var best := Vector2i(-1, -1)
-	var best_score := INF
-	for v in dist:
-		var dd := int(dist[v])
-		if dd < int(DEPLOY_NEAR[0]) or not _deploy_open(m, v):
-			continue
-		if not spawn_reach.is_empty() and not spawn_reach.has(Vector3i(v.x, v.y, s)):
-			continue
-		var sc := absf(dd - float(DEPLOY_NEAR[1])) + (0.0 if m.label(s, v.x, v.y) < 0 else 3.0)
-		if sc >= best_score or _deploy_cells(m, v).size() < DEPLOY_SIZE:
-			continue
-		best_score = sc
-		best = v
+	for reach_max in [int(DEPLOY_NEAR[2]), DEPLOY_NEAR_STRETCH]:
+		var best_score := INF
+		for v in dist:
+			var dd := int(dist[v])
+			if dd < int(DEPLOY_NEAR[0]) or dd > reach_max or not _deploy_open(m, v):
+				continue
+			if not spawn_reach.is_empty() and not spawn_reach.has(Vector3i(v.x, v.y, s)):
+				continue
+			var sc := absf(dd - float(DEPLOY_NEAR[1])) + (0.0 if m.label(s, v.x, v.y) < 0 else 3.0)
+			if sc >= best_score:
+				continue
+			var cells := _deploy_cells(m, v)
+			if cells.size() < DEPLOY_SIZE or any_jack_reach(los, cells.map(func(c): return Vector3i(c.x, c.y, s)), aps):
+				continue
+			best_score = sc
+			best = v
+		if best.x >= 0:
+			break
 	if best.x < 0:
 		return false
 	m.entrances.append({"floor": s, "pos": best, "main": false, "kind": "deploy", "near": true, "cells": _deploy_cells(m, best)})

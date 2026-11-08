@@ -215,6 +215,7 @@ func _play(camp: Campaign) -> Encounter:
 	if e.neutral != null:
 		stats.neutral += 1
 	_check_units(e, "at setup")
+	_check_start(e)
 	e.next_turn()
 	var turns := 0
 	var last_round := e.init.round_num
@@ -482,6 +483,18 @@ func _check_units(e: Encounter, when: String) -> void:
 
 
 ## Money, IP and storage never negative; no offer pays less than nothing.
+## No NET access point within jack-in reach of the deploy zone or a crew start square
+## (SceneGen.AP_CLEAR_M, no wall between): the crew infiltrates before it jacks in.
+func _check_start(e: Encounter) -> void:
+	for cl in SceneGen.deploy_ap_clashes(e.m):
+		_fail("deploy square %s is in jack-in reach of the access point at %s" % [cl[0], cl[1]], "ap-deploy")
+	var los := Los.new(e.m)
+	var aps := SceneGen.access_point_cells(e.m)
+	for u in e.units:
+		if u.team == Encounter.CREW and SceneGen.any_jack_reach(los, [u.pos], aps):
+			_fail("%s starts in jack-in reach of an access point at %s" % [u.c.display_name, u.pos], "ap-start")
+
+
 func _check_campaign(camp: Campaign, when: String) -> void:
 	if camp.eb < 0:
 		_fail("eb %d %s" % [camp.eb, when], "eb")
