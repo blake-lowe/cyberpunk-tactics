@@ -29,7 +29,7 @@ var debug := false        ## every crew Move, for chasing a stuck crew
 var failures: Array[String] = []
 var trace: Array[String] = []
 var stats := {"gigs": 0, "won": 0, "fled": 0, "lost": 0, "rounds": 0, "turret_units": 0, "turret_shots": 0, "device_ops": 0,
-	"complications": 0, "utilities": 0, "neutral": 0, "peace_broken": 0, "setpieces": {}, "sides": {}, "kinds": {}, "offers": {}, "looks": {}}
+	"complications": 0, "utilities": 0, "neutral": 0, "peace_broken": 0, "setpieces": {}, "towers": {}, "sides": {}, "kinds": {}, "offers": {}, "looks": {}}
 
 var _ctx := ""            ## "seed 3 gig 2 (title)": prefixed to failures
 var _seen_fail := {}      ## one report per kind of breach per gig
@@ -63,7 +63,8 @@ static func kinds_at(lid: String) -> Array:
 
 
 ## Plays `gigs` gigs of a campaign started with `seed_value`. `plan` picks each gig: an Array of
-## "board", "setpiece" (the next set-piece location in turn) or "setpiece:<location>[:<kind>]",
+## "board", "setpiece" (the next set-piece location in turn), "setpiece:<location>[:<kind>]", "tower"
+## (the next tower in turn: its sky band, TowerGen) or "tower:<tower id or location>[:<kind>]",
 ## cycled through; empty for the default rotation (board, board, setpiece). Returns the campaign
 ## as it ends.
 func run_campaign(seed_value: int, gigs: int, plan: Array = []) -> Campaign:
@@ -79,6 +80,9 @@ func run_campaign(seed_value: int, gigs: int, plan: Array = []) -> Campaign:
 		var pick: String = plan[n % plan.size()] if not plan.is_empty() else ["board", "board", "setpiece"][n % 3]
 		if pick == "setpiece":
 			pick = "setpiece:%s" % sps[(seed_value * 3 + n) % sps.size()][1]
+		elif pick == "tower":
+			var tws := tower_locations()
+			pick = "tower:%s" % tws[(seed_value * 3 + n) % tws.size()]
 		var idx := _offer(camp, pick, seed_value + n)
 		if idx < 0:
 			continue
@@ -129,8 +133,30 @@ func _offer(camp: Campaign, pick: String, k: int) -> int:
 		_count("setpieces", String(gig.get("setpiece", "")))
 		_count("offers", "setpiece")
 		return camp.board.size() - 1
+	if pick.begins_with("tower:"):
+		var tid := World.tower_location(pick.get_slice(":", 1))
+		var tkind := pick.get_slice(":", 2) if pick.get_slice_count(":") > 2 else ""
+		if tid == "":
+			_fail("no tower %s" % pick)
+			return -1
+		var tgig := camp.tower_gig(RulesDB.gen("gigs.json"), tid, tkind)
+		if tgig.is_empty():
+			_fail("no tower offer at %s" % pick)
+			return -1
+		tgig["id"] = "%d-%s-soak" % [camp.day, tid]
+		camp.board.append(tgig)
+		_count("towers", String(World.tower(tid).get("id", tid)))
+		_count("offers", "tower")
+		return camp.board.size() - 1
 	_fail("unknown plan entry %s" % pick)
 	return -1
+
+
+## Every tower location (World.towers), sorted: what the "tower" plan entry cycles through.
+static func tower_locations() -> Array:
+	var out: Array = World.towers().keys().filter(func(id): return Campaign.offered_at(String(id)))
+	out.sort()
+	return out
 
 
 ## A board offer at canon location `lid` (a `kind` job, else one its hooks name, picked by `k`),
@@ -205,6 +231,8 @@ func _play(camp: Campaign) -> Encounter:
 	var sp := String(gs.map.params.get("setpiece", ""))
 	if String(camp.active_gig.get("setpiece", "")) != sp:
 		_fail("the gig's set piece %s built as '%s'" % [camp.active_gig.get("setpiece", ""), sp])
+	if String(camp.active_gig.get("tower", "")) != "":
+		_check_tower(camp, e)
 	stats.turret_units += e.units.filter(func(u): return u.has("turret")).size()
 	if not e.complication_waves.is_empty() or e.events.any(func(ev): return String(ev.get("type", "")) == "complication"):
 		stats.complications += 1
@@ -493,6 +521,30 @@ func _check_start(e: Encounter) -> void:
 	for u in e.units:
 		if u.team == Encounter.CREW and SceneGen.any_jack_reach(los, [u.pos], aps):
 			_fail("%s starts in jack-in reach of an access point at %s" % [u.c.display_name, u.pos], "ap-start")
+
+
+## A tower gig (TowerGen) built as one: its band's map, the floors named by storey, the crew in the
+## lift lobby with the lift car among their squares, and arrival points (the lift and the fire stair)
+## for responders.
+func _check_tower(camp: Campaign, e: Encounter) -> void:
+	var m := e.m
+	if not m.is_tower() or String(m.tower.get("location", "")) != String(camp.active_gig.tower):
+		_fail("tower gig %s built as no tower" % camp.active_gig.tower, "tower")
+		return
+	var b: Dictionary = m.bands[0]
+	if m.floor_name(int(b.from_floor)) != str(int(b.storey_from)):
+		_fail("the band's lowest floor is named %s, not storey %d" % [m.floor_name(int(b.from_floor)), int(b.storey_from)], "tower-storey")
+	var car := TowerGen.car(m)
+	var dep: Array = SceneGen.deploy_cells(m)
+	if car.is_empty() or not dep.has(Vector3i(car.pos.x, car.pos.y, m.street)):
+		_fail("the crew does not start in the lift car", "tower-deploy")
+	for u in e.units:
+		if u.team == Encounter.CREW:
+			var l := m.label(u.pos.z, u.pos.x, u.pos.y)
+			if l < 0 or String(m.rooms[l].kind) != "lift_lobby":
+				_fail("%s starts outside the lift lobby" % u.c.display_name, "tower-deploy")
+	if not m.entrances.any(func(en): return String(en.get("arrival", "")) == "lift") or not m.entrances.any(func(en): return String(en.get("arrival", "")) == "stairs"):
+		_fail("the band has no lift or fire-stair arrival point", "tower-arrival")
 
 
 func _check_campaign(camp: Campaign, when: String) -> void:

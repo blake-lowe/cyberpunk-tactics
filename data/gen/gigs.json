@@ -123,5 +123,6 @@
 			"pay_mult": 2.0
 		}
 	],
-	"unique_rep": 3
+	"unique_rep": 3,
+	"tower": {"rep": 4, "chance_in": 4, "pay_mult": 1.5, "_why": "HOUSE-RULE (owner 2026-11-08: tower gigs are rare and gated to later progression, with a good mix of high-rise and ordinary gigs). Once the crew's best Reputation reaches rep (4: known all over the local area, CPR p.193), one board in chance_in carries one tower offer (Campaign._tower_offer), in place of its last ordinary offer. A tower job pays its level's rate times pay_mult (the ride up is part of the risk)."}
 }

@@ -165,6 +165,8 @@ static func where(e: Encounter, d: Dictionary) -> String:
 		what = "door"
 	var r := int(d.get("room", -1))
 	var room := String(e.m.rooms[r].kind).replace("_", " ") + " " if r >= 0 and r < e.m.rooms.size() and String(d.type) in ["door_lock", "vault_lock", "cell_locks", "shutter_control"] else ""
+	if e.m.is_tower():   # a tower band names its floors by storey (TacMap.floor_name: "server room door, F49")
+		return "%s%s, F%s" % [room, what, e.m.floor_name(int(d.floor))]
 	return "%s%s, F%d" % [room, what, int(d.floor) + 1]
 
 

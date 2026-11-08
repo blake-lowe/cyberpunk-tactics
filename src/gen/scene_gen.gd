@@ -10,7 +10,7 @@ const G := TacMap.G
 
 ## Every scene id generate() can build (its match below), for data validation.
 const PLANNERS := ["lone_building", "skirmish", "street_block", "city_district", "neighborhood", "megablock",
-	"shipyard", "badlands", "rail_yard", "corp_campus", "undercity", "arcology", "warzone"]
+	"shipyard", "badlands", "rail_yard", "corp_campus", "undercity", "arcology", "warzone", "tower_top"]
 
 static func scene_types() -> Array:
 	return RulesDB.gen("scenes.json").keys().filter(func(k): return not k.begins_with("_"))
@@ -45,6 +45,8 @@ static func generate(seed_value: int, scene: String, overrides: Dictionary = {})
 		SetPieceGen.size(dice, p, overrides)
 	elif scene == "lone_building":
 		_site_size(dice, p, overrides)
+	elif scene == "tower_top":   # a tower band: its floor plate and storeys (TowerGen)
+		TowerGen.size(dice, p, overrides)
 	var m := TacMap.new(int(p.w), int(p.h), int(p.floors) + 1)  # + roof level
 	m.seed_value = seed_value
 	m.algorithm = scene
@@ -134,6 +136,7 @@ static func _plan(c: Dictionary, scene: String) -> void:
 		"undercity": ThemedScenes.undercity(c)
 		"arcology": ThemedScenes.arcology(c)
 		"warzone": ThemedScenes.warzone(c)
+		"tower_top": TowerGen.plan(c)
 		_: push_error("unknown scene " + scene)
 
 
@@ -671,7 +674,7 @@ static func _ensure_public_access(m: TacMap) -> void:
 			var inside: bool = l >= 0 and m.rooms[l].structure == st.id
 			var beside := MapGen.DIRS.any(func(dd): return m.inb(cell.x + dd.x, cell.y + dd.y) and m.t(cell.z, cell.x + dd.x, cell.y + dd.y) == TacMap.T.WALL \
 				and m.label(cell.z, cell.x + dd.x * 2, cell.y + dd.y * 2) >= 0 and m.rooms[m.label(cell.z, cell.x + dd.x * 2, cell.y + dd.y * 2)].structure == st.id)
-			if (inside or beside) and not m.has_cover_at(cell.z, Vector2i(cell.x, cell.y)) and m.devices.all(func(o): return not (o.floor == cell.z and o.pos == Vector2i(cell.x, cell.y))):
+			if (inside or beside) and m.t(cell.z, cell.x, cell.y) != TacMap.T.ELEVATOR and not (m.is_tower() and m.t(cell.z, cell.x, cell.y) == TacMap.T.STAIRS) and not m.has_cover_at(cell.z, Vector2i(cell.x, cell.y)) and m.devices.all(func(o): return not (o.floor == cell.z and o.pos == Vector2i(cell.x, cell.y))):
 				var dd2 := float(field[cell]) + (0.0 if inside else 6.0)
 				if dd2 < best_d and not any_jack_reach(los, dcells, [cell]):
 					best_d = dd2
@@ -710,6 +713,8 @@ static func _ensure_public_access(m: TacMap) -> void:
 ## by a street-facing terminal's window looks elsewhere, and a far one prefers a clear spawn.
 static func _deploy_zone(c: Dictionary) -> void:
 	var m: TacMap = c.m
+	if m.entrances.any(func(e): return e.kind == "deploy"):
+		return   # the planner placed it (a tower band's lift car: TowerGen)
 	var los := Los.new(m)
 	var aps := access_point_cells(m)
 	if String(c.p.get("deploy", "far")) == "near" and _deploy_near(m, los, aps):

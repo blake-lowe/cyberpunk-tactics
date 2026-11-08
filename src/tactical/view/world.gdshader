@@ -46,6 +46,7 @@ global uniform sampler2D cut_map : filter_nearest, repeat_disable;
 uniform bool flat_shade = false;    // faceted lighting (rocks)
 uniform bool offmap = false;        // ground beyond the map: fades out with distance
 uniform bool near_fade = false;
+uniform bool no_spill = false;      // no baked light spill (a tower band's impostor facade and the city below)
 uniform bool dry = false;
 uniform bool soft_light = false;    // bright scenes (arcology): no hard banding of light pools           // no puddles (roofs: their specular read as white streaks)     // tall surroundings on every side (arcology walls) dissolve on the camera side
 uniform sampler2D tex : source_color, filter_linear_mipmap, repeat_enable;   // imported models (nature kit)
@@ -216,6 +217,7 @@ void fragment() {
 	vec2 t = vec2(0.25 / map_size.x, 0.25 / (map_size.y * floors));
 	vec4 lfs = (texture(lightfield, luv) * 2.0 + texture(lightfield, luv + vec2(t.x, 0)) + texture(lightfield, luv - vec2(t.x, 0))
 		+ texture(lightfield, luv + vec2(0, t.y)) + texture(lightfield, luv - vec2(0, t.y))) / 6.0;
+	if (no_spill) lfs = vec4(0.0);   // a tower band's facade and city below it: the baked light is the band's, storeys up
 	vec3 lf = lfs.rgb;
 	if (pattern == 10) lf *= 0.5;   // water: lamp light as a dim sheen, not a lit floor
 	if (up && local_h < 0.2 && mode != 2) base *= 1.0 - 0.45 * clamp(lfs.a, 0.0, 1.0);

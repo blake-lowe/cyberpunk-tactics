@@ -4,7 +4,7 @@ extends SceneTree
 ## first campaigns played again must give the same trace). Exit code 1 on any failure.
 ## Run it through tools/soak.sh, which also fails on script errors in Godot's output.
 ## Usage: godot --headless --path . -s tools/soak.gd -- [--campaigns=30] [--gigs=6] [--seed=1]
-##   [--rounds=12] [--repeat=2] [--plan=board,setpiece,setpiece:<location>[:<kind>]] [--verbose] [--debug]
+##   [--rounds=12] [--repeat=2] [--plan=board,setpiece,setpiece:<location>[:<kind>],tower,tower:<tower>[:<kind>]] [--verbose] [--debug]
 func _initialize() -> void:
 	var campaigns := 30
 	var gigs := 6
@@ -47,6 +47,7 @@ func _initialize() -> void:
 	print("offers: %s" % JSON.stringify(d.stats.offers))
 	print("objectives: %s" % JSON.stringify(d.stats.kinds))
 	print("set pieces: %s" % JSON.stringify(d.stats.setpieces))
+	print("towers: %s" % JSON.stringify(d.stats.towers))
 	print("district looks: %s" % JSON.stringify(d.stats.looks))
 	print("sides: %s" % JSON.stringify(d.stats.sides))
 	print("neutral ground %d (peace broken %d)" % [d.stats.neutral, d.stats.peace_broken])

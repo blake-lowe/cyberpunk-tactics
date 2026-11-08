@@ -74,14 +74,20 @@ static func build(m: TacMap, dice: Dice, hints: Array, ctx: Dictionary) -> Dicti
 			m.rooms[i]["glass"] = hints[i].glass
 			m.rooms[i]["front"] = hints[i].front
 	_verticals(m, dice, shell, floors, int(p.verticality), sid, p.get("stair_in", []), int(p.get("stairs", 1)), p.get("lift_in", []))
-	var door := _main_door(m, dice, fp, entry_side, sdef.get("enter_corridor", false), p.get("enter", []))
+	# A tower band (TowerGen, ctx.sealed): no street door. The rooms grow from the lift lobby on the
+	# band's lowest storey, where the lift car opens (the crew's way in and out).
+	var sealed := bool(ctx.get("sealed", false))
+	var door := _sealed_root(m, first_id, p.get("lift_in", [])) if sealed else _main_door(m, dice, fp, entry_side, sdef.get("enter_corridor", false), p.get("enter", []))
 	if door.is_empty():
 		push_warning("BuildingGen: no facade faces open ground for %s at %s" % [ctx.site, shell])
 		return st
 	var root: int = door.room
 	_connect(m, dice, hints, p, first_id, root, int(st.base_zone))
-	_place_main_door(m, door, sid, bool(st.target))
-	_service_door(m, dice, fp, door.side, sid, int(st.base_zone), p.get("service", []))
+	if sealed:
+		_lift_car(m, first_id, floors, sid, p.get("lift_in", []), fp)
+	else:
+		_place_main_door(m, door, sid, bool(st.target))
+		_service_door(m, dice, fp, door.side, sid, int(st.base_zone), p.get("service", []))
 	_wall_materials(m, fps, floors, int(sdef.get("exterior", 1)))
 	_glass_fronts(m, first_id)
 	_room_kinds(m, sdef["zones"], first_id, root)
@@ -251,6 +257,78 @@ static func _verticals(m: TacMap, dice: Dice, shell: Rect2i, floors: int, vertic
 		for f in floors:
 			m.set_t(f, pos.x, pos.y, kind)
 		m.verticals.append({"type": "stairs" if kind == TacMap.T.STAIRS else "elevator", "pos": pos, "from_floor": 0, "to_floor": floors - 1, "structure": sid})
+
+
+## A sealed building's root (a tower band): its largest lowest-storey room of the `kinds` it is
+## entered by (the lift lobby), else its largest lowest-storey room. {room} or {} if it has none.
+static func _sealed_root(m: TacMap, first: int, kinds: Array) -> Dictionary:
+	var best := -1
+	for pass_kinds in [true, false]:
+		for r in m.rooms.slice(first):
+			if int(r.cells) == 0 or int(r.floor) != 0 or (pass_kinds and not String(r.get("program_kind", "")) in kinds):
+				continue
+			if best < 0 or int(r.cells) > int(m.rooms[best].cells):
+				best = int(r.id)
+		if best >= 0:
+			break
+	return {"room": best, "side": ""} if best >= 0 else {}
+
+
+## A tower's lift car (TowerGen): one square in the lift lobby on every storey, backed onto the
+## lobby's inner wall (not the facade), its doors facing into the lobby, on the same square
+## storey over storey (the program's band depths stack the lobbies). It runs through the band's
+## storeys, not to the roof (the fire stair goes up there). The vertical carries `car: true` and
+## `face` (the way its doors open). Nearest the lobby's middle, so the doors open onto open floor,
+## its doors facing +x or +z where it can (the default camera looks from there: the doors and the
+## floor indicator over them face the player).
+static func _lift_car(m: TacMap, first: int, floors: int, sid: int, kinds: Array, fp: Footprint) -> void:
+	if floors < 2:
+		return
+	var r0: Dictionary = {}
+	for r in m.rooms.slice(first):
+		if int(r.cells) > 0 and int(r.floor) == 0 and String(r.get("program_kind", "")) in kinds and (r0.is_empty() or int(r.cells) > int(r0.cells)):
+			r0 = r
+	if r0.is_empty():
+		return
+	var best := Vector2i(-1, -1)
+	var face := Vector2i.ZERO
+	var best_d := INF
+	var mid := Vector2((r0.bounds as Rect2i).get_center())
+	for v in Furnish.room_cells(m, r0):
+		for d in MapGen.DIRS:
+			if not _car_fits(m, v, d, floors, kinds, fp):
+				continue
+			var dd := Vector2(v).distance_to(mid) + v.y * 0.001 + v.x * 0.00001
+			if not -d in [Vector2i.DOWN, Vector2i.RIGHT]:   # doors toward the default camera (+x +z) read best
+				dd += 100.0
+			if dd < best_d:
+				best_d = dd
+				best = v
+				face = -d
+	if best.x < 0:
+		push_warning("BuildingGen: no square for the lift car in structure %d" % sid)
+		return
+	for f in floors:
+		m.set_t(f, best.x, best.y, TacMap.T.ELEVATOR)
+	m.verticals.append({"type": "elevator", "pos": best, "from_floor": 0, "to_floor": floors - 1, "structure": sid, "car": true, "face": face})
+
+
+## Square `v` takes the lift car with its back on the wall at `v + d`: on every storey it is lobby
+## floor, the wall behind is an inner wall, and the squares in front and beside it are open floor of
+## the same lobby (no doorway against the car).
+static func _car_fits(m: TacMap, v: Vector2i, d: Vector2i, floors: int, kinds: Array, fp: Footprint) -> bool:
+	var perp := Vector2i(d.y, d.x)
+	for f in floors:
+		var l := m.label(f, v.x, v.y)
+		if l < 0 or m.t(f, v.x, v.y) != TacMap.T.FLOOR or not String(m.rooms[l].get("program_kind", "")) in kinds:
+			return false
+		var back: Vector2i = v + d
+		if m.t(f, back.x, back.y) != TacMap.T.WALL or fp.exterior(back):
+			return false
+		for n in [v - d, v + perp, v - perp]:
+			if m.t(f, n.x, n.y) != TacMap.T.FLOOR or m.label(f, n.x, n.y) != l:
+				return false
+	return true
 
 
 ## Every storey's room at `v` is one of `kinds` (by program kind).

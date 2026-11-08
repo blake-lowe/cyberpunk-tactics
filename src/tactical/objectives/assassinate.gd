@@ -6,7 +6,8 @@ extends Objective
 ## The mark: a Night City civilian who fits the target (vip_block: an executive for a corp, a fixer
 ## for a gang), else one of the target faction's own Lieutenants (a Mini Boss at security 2+), in
 ## the target building's most secure room, with bodyguards beside them. Exits: the map's entrances
-## other than the deploy zone, where the mark runs once the alarm goes up.
+## other than the deploy zone (in a tower band, the lift car on its lowest storey: TowerGen `exit`), where
+## the mark runs once the alarm goes up.
 func setup(target_sid: int, origin: Vector2i, sec: int) -> void:
 	var cell := e.secure_cell(target_sid, origin, "vip")
 	var names: Array = cfg.names
@@ -34,7 +35,9 @@ func setup(target_sid: int, origin: Vector2i, sec: int) -> void:
 			guards += 1
 	var exits: Array = []
 	for en in e.m.entrances:
-		if en.kind != "deploy" and e.m.walkable(int(en.get("floor", 0)), en.pos):
+		# a tower band's fire stairs and its car on the upper storeys are arrival points only: the mark
+		# rides down in the car from the band's lowest storey (TowerGen `exit`), unless the crew holds it
+		if en.kind != "deploy" and bool(en.get("exit", true)) and e.m.walkable(int(en.get("floor", 0)), en.pos):
 			exits.append(Vector3i(en.pos.x, en.pos.y, int(en.get("floor", 0))))
 	# intel: the fixer names the room the mark is holed up in (the crew's marker starts there)
 	o.merge({"target": vu.id, "name": name, "exits": exits, "escaped": false, "intel": cell})

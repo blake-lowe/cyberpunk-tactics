@@ -1649,13 +1649,16 @@ func _spots(g: Dictionary, u: Dictionary) -> bool:
 ## HOUSE-RULE (set pieces with `public_access`: Ziggurat's museum floor, Fort Sumter's petition
 ## floor): while no alarm is up, crew in the public rooms of the ground floor or out on the open
 ## street and grounds pass as visitors; guards only take them for intruders past the first
-## restricted door (any room above the public zone, any upper floor).
+## restricted door (any room above the public zone, any upper floor). HOUSE-RULE (towers, stage 1a):
+## a tower band has it too: its lowest storey's public rooms (the sky lobby the lift car opens onto,
+## a hotel's lift lobby and guest corridor) take visitors who come up with an appointment, so a
+## crew stepping out of the car is not an intruder until it passes a restricted door.
 var _public_access = null   ## the set piece's rule, read once
 
 
 func passing_as_public(u: Dictionary) -> bool:
 	if _public_access == null:
-		_public_access = bool(SetPieces.rule(m, "public_access", false))
+		_public_access = bool(SetPieces.rule(m, "public_access", false)) or m.is_tower()
 	if alarm > 0 or not _public_access or int(u.get("team", CREW)) != CREW:
 		return false
 	return in_public(u.pos)
@@ -1965,18 +1968,7 @@ func _responders(fid: String, team: int, cells: Array, cap: int) -> Array:
 ## Reinforcements for side `team` (faction `fid`), named "<rank> <n>".
 ## `civ`: civilian blocks (Recruit.civilian_blocks) the wave's Mooks are drawn from instead.
 func _spawn_wave(roster: Array[String], label: String, team: int, fid: String, rank := "", hardened := false, civ: Array[String] = []) -> void:
-	var crew_c := Vector2.ZERO
-	for u in alive(0):
-		crew_c += Vector2(u.pos.x, u.pos.y)
-	crew_c /= maxf(1.0, alive(0).size())
-	var spawn := Vector3i(-1, -1, -1)
-	var best := -1.0
-	for en in m.entrances:
-		var v := Vector3i(en.pos.x, en.pos.y, int(en.floor))
-		var dd := Vector2(v.x, v.y).distance_to(crew_c)
-		if en.kind != "deploy" and dd > best and m.walkable(v.z, Vector2i(v.x, v.y)):
-			best = dd
-			spawn = v
+	var spawn := arrival_cell()
 	if spawn.x < 0:
 		return
 	var arrived := []
@@ -1998,6 +1990,49 @@ func _spawn_wave(roster: Array[String], label: String, team: int, fid: String, r
 	say("%s arrives: %d more." % [label.capitalize(), arrived.size()])
 	if not arrived.is_empty():
 		events.append({"type": "backup", "unit": arrived[0], "units": arrived, "label": label})
+
+
+## Where people sent to the site step onto the map (responders, a complication's arrivals), or
+## (-1, -1, -1): on an ordinary map the entrance farthest from the crew (the far street edge). In a
+## tower band (TacMap.is_tower: there is no street) they come out of the lift car or up the fire
+## stair (TowerGen `arrival` entrances) on the storey most of the crew is on, whichever of those is
+## farther from the crew and free; with both taken, the nearest storey that has one free.
+func arrival_cell() -> Vector3i:
+	var crew := alive(CREW)
+	var crew_c := Vector2.ZERO
+	for u in crew:
+		crew_c += Vector2(u.pos.x, u.pos.y)
+	crew_c /= maxf(1.0, crew.size())
+	var spawn := Vector3i(-1, -1, -1)
+	if m.is_tower():
+		var on := {}
+		for u in crew:
+			on[u.pos.z] = int(on.get(u.pos.z, 0)) + 1
+		var floor_z := m.street
+		for z in on:
+			if int(on[z]) > int(on.get(floor_z, 0)) or (int(on[z]) == int(on.get(floor_z, 0)) and int(z) < floor_z):
+				floor_z = int(z)
+		var occ := occupied()
+		var best_s := INF
+		for en in m.entrances:
+			if not en.has("arrival"):
+				continue
+			var v := Vector3i(en.pos.x, en.pos.y, int(en.floor))
+			if occ.has(v) or not m.walkable(v.z, Vector2i(v.x, v.y)):
+				continue
+			var s := absi(v.z - floor_z) * 1000.0 - Vector2(v.x, v.y).distance_to(crew_c)
+			if s < best_s:
+				best_s = s
+				spawn = v
+		return spawn
+	var best := -1.0
+	for en in m.entrances:
+		var v := Vector3i(en.pos.x, en.pos.y, int(en.floor))
+		var dd := Vector2(v.x, v.y).distance_to(crew_c)
+		if en.kind != "deploy" and dd > best and m.walkable(v.z, Vector2i(v.x, v.y)):
+			best = dd
+			spawn = v
+	return spawn
 
 
 ## Gunfire at `at` alerts guards within GUNFIRE_RANGE on any floor.

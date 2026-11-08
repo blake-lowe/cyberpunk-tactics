@@ -764,7 +764,40 @@
 				"corp_extraction"
 			],
 			"interior": "Lower floors public: Oasis Megamart, ticketed tours of the Oasis Test Kitchen, Cooking with Kibble; middle floors staff-only offices, marketing rooms and labs under Continental security; top five floors executive suites.",
-			"cite": "NC2045 p.83"
+			"cite": "NC2045 p.83",
+			"tower": {
+				"id": "continental",
+				"name": "Continental Brands",
+				"storeys": 40,
+				"storeys_ours": true,
+				"recipe": "tower_corp",
+				"bands": {
+					"sky": {
+						"storeys": [
+							38,
+							40
+						],
+						"roof": true,
+						"programme": [
+							"exec",
+							"lab",
+							"exec"
+						],
+						"gigs": [
+							"data_theft",
+							"sabotage",
+							"corp_extraction"
+						]
+					}
+				},
+				"ours": [
+					"storeys 40",
+					"sky band 38-40 of the top five",
+					"storey programmes",
+					"plate"
+				],
+				"cite": "NC2045 p.83"
+			}
 		},
 		"downtown_6": {
 			"name": "Continental Plaza",
@@ -1144,7 +1177,40 @@
 				"sabotage"
 			],
 			"interior": "Whitewater Security on the bottom three floors; City Manager Ortega's offices on the top two; tenants include GHP Architectural, law firm Gueller and Stravinsky, and Rael Sanschez's private clinic on floor five.",
-			"cite": "NC2045 p.86"
+			"cite": "NC2045 p.86",
+			"tower": {
+				"id": "libertine",
+				"name": "New Libertine Tower",
+				"storeys": 36,
+				"storeys_ours": true,
+				"recipe": "tower_corp",
+				"bands": {
+					"sky": {
+						"storeys": [
+							34,
+							36
+						],
+						"roof": true,
+						"programme": [
+							"office",
+							"exec",
+							"exec"
+						],
+						"gigs": [
+							"data_theft",
+							"assassination",
+							"sabotage"
+						]
+					}
+				},
+				"ours": [
+					"storeys 36",
+					"sky band 34-36",
+					"storey programmes",
+					"plate"
+				],
+				"cite": "NC2045 p.86"
+			}
 		},
 		"downtown_19": {
 			"name": "Night City Firestation #2",
@@ -3417,7 +3483,39 @@
 				"sabotage"
 			],
 			"interior": "Segotari offices on the upper floors; bottom nine floors are EXCEL-1 (arcades, karaoke, net café, bath, bowling, laser tag, go-karts, food court; 20eb/hour, closed 4-8am for cleaning); Elfhold cube hotel in the basement (20eb/night).",
-			"cite": "NC2045 p.206"
+			"cite": "NC2045 p.206",
+			"tower": {
+				"id": "segotari",
+				"name": "Segotari HQ",
+				"storeys": 30,
+				"storeys_ours": true,
+				"recipe": "tower_corp",
+				"bands": {
+					"sky": {
+						"storeys": [
+							28,
+							30
+						],
+						"roof": true,
+						"programme": [
+							"office",
+							"lab",
+							"exec"
+						],
+						"gigs": [
+							"data_theft",
+							"sabotage"
+						]
+					}
+				},
+				"ours": [
+					"storeys 30",
+					"sky band 28-30",
+					"storey programmes",
+					"plate"
+				],
+				"cite": "NC2045 p.206"
+			}
 		},
 		"kabuki_20": {
 			"name": "Tengen Towers",
@@ -5181,7 +5279,40 @@
 				"sabotage"
 			],
 			"interior": "Self-contained fortress tower: offices, studios, restaurants, clinic, spa and housing for top talent; public reception and viewing rooms for tourists; Lazarus guards plus bodyguards for talent and execs.",
-			"cite": "NC2045 p.218"
+			"cite": "NC2045 p.218",
+			"tower": {
+				"id": "n54",
+				"name": "Network 54 Plaza",
+				"storeys": 55,
+				"storeys_ours": true,
+				"recipe": "tower_corp",
+				"bands": {
+					"sky": {
+						"storeys": [
+							53,
+							55
+						],
+						"roof": true,
+						"programme": [
+							"office",
+							"exec",
+							"exec"
+						],
+						"gigs": [
+							"data_theft",
+							"corp_extraction",
+							"sabotage"
+						]
+					}
+				},
+				"ours": [
+					"storeys 55",
+					"sky band 53-55",
+					"storey programmes",
+					"plate"
+				],
+				"cite": "NC2045 p.218"
+			}
 		},
 		"new_westbrook_16": {
 			"name": "Network 54 Westbrook Private Acres",
@@ -7085,7 +7216,41 @@
 				"data_theft"
 			],
 			"interior": "Art Deco throughout, with indoor pools, spas and fine dining. Guests fly in and out by Aerocab AV. Staff ride an armoured shuttle bus from the Kue Street NCART station in Little China.",
-			"cite": "NC2045 p.132"
+			"cite": "NC2045 p.132",
+			"tower": {
+				"id": "highcourt",
+				"name": "Highcourt Plaza",
+				"storeys": 30,
+				"storeys_ours": true,
+				"recipe": "tower_hotel",
+				"bands": {
+					"sky": {
+						"storeys": [
+							28,
+							30
+						],
+						"roof": true,
+						"programme": [
+							"guest",
+							"suite",
+							"spa"
+						],
+						"gigs": [
+							"assassination",
+							"corp_extraction",
+							"data_theft"
+						]
+					}
+				},
+				"ours": [
+					"storeys 30",
+					"a tower at all (the book gives no height)",
+					"sky band 28-30",
+					"storey programmes",
+					"plate"
+				],
+				"cite": "NC2045 p.132"
+			}
 		},
 		"old_japantown_9": {
 			"name": "Honest Hiro's Used Cars",
@@ -11772,7 +11937,40 @@
 				"sabotage"
 			],
 			"interior": "Haakensen's apartments and offices on the top floors; cronies rent the others; Scythe Security on 2F and the underground garage; a cafe, Mayoral Race, on the ground floor.",
-			"cite": "NC2045 p.143"
+			"cite": "NC2045 p.143",
+			"tower": {
+				"id": "haakensen",
+				"name": "Haakensen Tower",
+				"storeys": 45,
+				"storeys_ours": true,
+				"recipe": "tower_corp",
+				"bands": {
+					"sky": {
+						"storeys": [
+							43,
+							45
+						],
+						"roof": true,
+						"programme": [
+							"office",
+							"exec",
+							"exec"
+						],
+						"gigs": [
+							"data_theft",
+							"assassination",
+							"sabotage"
+						]
+					}
+				},
+				"ours": [
+					"storeys 45",
+					"sky band 43-45",
+					"storey programmes",
+					"plate"
+				],
+				"cite": "NC2045 p.143"
+			}
 		},
 		"south_night_city_7": {
 			"name": "KidZ",
@@ -12671,7 +12869,40 @@
 				"assassination"
 			],
 			"interior": "Twin towers with walkways every 10 floors. MA&F has the top floors, reached by appointment only with armed escorts, plus the usual guards, defences and cameras. About half the other floors are empty. Ground-floor tenants: 2A, a shooting range and gun shop (east tower); Ebony Chair barbers and the Body Lotto Office (west tower).",
-			"cite": "NC2045 p.123"
+			"cite": "NC2045 p.123",
+			"tower": {
+				"id": "maf",
+				"name": "Thurgood Towers (MA&F)",
+				"storeys": 60,
+				"storeys_ours": true,
+				"recipe": "tower_corp",
+				"bands": {
+					"sky": {
+						"storeys": [
+							58,
+							60
+						],
+						"roof": true,
+						"programme": [
+							"office",
+							"exec",
+							"exec"
+						],
+						"gigs": [
+							"data_theft",
+							"corp_extraction",
+							"assassination"
+						]
+					}
+				},
+				"ours": [
+					"storeys 60",
+					"sky band 58-60",
+					"storey programmes",
+					"plate"
+				],
+				"cite": "NC2045 p.123"
+			}
 		},
 		"the_glen_20": {
 			"name": "The Molly May",
@@ -12850,7 +13081,39 @@
 				"corp_extraction"
 			],
 			"interior": "The lobby has opaque windows and a bulletproof door. Floors 1-39 hold Raven-affiliated tenants: Clean Sweep Enterprises (cleaning and bug sweeps), Dayton Aeronautics, Everest VentureWare, KillStrom Music (an EBM subsidiary) and Dr. William Galen's surgery. Raven itself is on floors 40-50.",
-			"cite": "NC2045 p.124-125"
+			"cite": "NC2045 p.124-125",
+			"tower": {
+				"id": "raven",
+				"name": "Raven Microcybernetics",
+				"storeys": 50,
+				"storeys_ours": false,
+				"recipe": "tower_corp",
+				"bands": {
+					"sky": {
+						"storeys": [
+							48,
+							50
+						],
+						"roof": true,
+						"programme": [
+							"reception",
+							"lab",
+							"exec"
+						],
+						"gigs": [
+							"data_theft",
+							"corp_extraction",
+							"assassination"
+						]
+					}
+				},
+				"ours": [
+					"sky band storeys 48-50 of Raven's 40-50",
+					"storey programmes",
+					"plate"
+				],
+				"cite": "NC2045 p.124-125"
+			}
 		},
 		"the_glen_25": {
 			"name": "Seafoam",
@@ -14568,7 +14831,41 @@
 				"assassination"
 			],
 			"interior": "Lower floors: bays for CitiNet repair vehicles and tech squads; middle: development, CitiNet and Data Pool content control, sales; upper: executives, UR's suite at the apex of the curve; public first floor with the Ihara-Grubb Net Museum and a press auditorium; private fire/EMS station at the base.",
-			"cite": "NC2045 p.78"
+			"cite": "NC2045 p.78",
+			"tower": {
+				"id": "ziggurat",
+				"name": "Ziggurat HQ",
+				"storeys": 70,
+				"storeys_ours": true,
+				"recipe": "tower_corp",
+				"bands": {
+					"sky": {
+						"storeys": [
+							68,
+							70
+						],
+						"roof": true,
+						"programme": [
+							"exec",
+							"exec",
+							"apex"
+						],
+						"gigs": [
+							"data_theft",
+							"sabotage",
+							"corp_extraction",
+							"assassination"
+						]
+					}
+				},
+				"ours": [
+					"storeys 70",
+					"apex band 68-70",
+					"storey programmes",
+					"plate"
+				],
+				"cite": "NC2045 p.78"
+			}
 		},
 		"watson_development_1": {
 			"name": "Akagi-ryu Karate",

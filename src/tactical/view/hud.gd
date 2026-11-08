@@ -315,6 +315,7 @@ func _build_stack() -> void:
 
 
 const STACK_W := 96.0
+const STACK_W_TOWER := 190.0   ## a tower strip's rows also name their storey's programme
 
 
 ## Fill the floor stack: {name, rows: [{f, label, crew, foes, cur, street}] top down (`street`:
@@ -328,36 +329,67 @@ func floor_stack(data: Dictionary) -> void:
 	_stack.visible = not data.is_empty()
 	if data.is_empty():
 		return
-	_stack_head.text = String(data.get("name", "")).left(14)
+	var tw: Dictionary = data.get("tower", {})
+	_stack_head.text = String(data.get("name", "")).left(14) if tw.is_empty() else "%s · %d F" % [String(data.get("name", "")).left(16).strip_edges(), int(tw.storeys)]
+	var w := STACK_W if tw.is_empty() else STACK_W_TOWER
+	_floor_up.custom_minimum_size.x = w
+	_floor_down.custom_minimum_size.x = w
 	_clear(_stack_rows)
 	for r in data.get("rows", []):
 		var row := StackRow.new(r)
+		row.custom_minimum_size.x = w
 		var f := int(r.f)
 		row.pressed.connect(func(): action.emit("floor_to", f))
 		_stack_rows.add_child(row)
+	if not tw.is_empty():   # the tower strip: the storeys below the band, off the map
+		if int(tw.below_n) > 1:
+			_stack_rows.add_child(StackGap.new("2-%d · %d floors" % [int(tw.below_n), int(tw.below_n) - 1], w))
+		_stack_rows.add_child(StackRow.new({"f": -1, "label": "1", "prog": "lobby · off map", "off": true}, w))
 	floor_nav(bool(data.get("up_ok", false)), bool(data.get("down_ok", false)), int(data.get("hint_dir", 0)))
 	_stack.reset_size()
 	_layout()
 
 
 ## One storey in the floor stack: its name, a green square per crew member on it, a red diamond when
-## a foe is seen there; the viewed one lit. Click: view that storey.
+## a foe is seen there; the viewed one lit. Click: view that storey. In a tower strip (Hud.floor_stack
+## `tower`) also its programme ("labs"), the lift car on its row (a green car outline at the left),
+## a gold notch on the objective's storey; an `off` row (the street lobby, off the map) is dim and dead.
 class StackRow extends Button:
 	var r: Dictionary
-	func _init(p_r: Dictionary) -> void:
+	func _init(p_r: Dictionary, w := Hud.STACK_W) -> void:
 		r = p_r
-		custom_minimum_size = Vector2(Hud.STACK_W, 22)
+		custom_minimum_size = Vector2(w, 22)
 		focus_mode = Control.FOCUS_NONE
 		var lit: bool = r.get("cur", false)
+		if r.get("off", false):
+			disabled = true
+			mouse_filter = Control.MOUSE_FILTER_IGNORE
+			add_theme_stylebox_override("disabled", CutBox.make(Color(0.02, 0.03, 0.04, 0.6), Color(Hud.DIM, 0.25), 4, 0b0101))
 		add_theme_stylebox_override("normal", CutBox.make(Color(0.02, 0.1, 0.12, 0.97) if lit else Color(0.03, 0.045, 0.06, 0.9), Color(Hud.CYAN, 0.95 if lit else 0.25), 4, 0b0101))
 		add_theme_stylebox_override("hover", CutBox.make(Color(0.02, 0.12, 0.14, 0.97), Hud.CYAN, 4, 0b0101))
 		add_theme_stylebox_override("pressed", CutBox.make(Color(0.14, 0.11, 0.02, 0.97), Hud.GOLD, 4, 0b0101))
 		add_theme_stylebox_override("focus", StyleBoxEmpty.new())
-		tooltip_text = "View this floor"
+		tooltip_text = "" if r.get("off", false) else "View this floor"
 	func _draw() -> void:
 		var lit: bool = r.get("cur", false)
-		draw_string(Hud.F_BOLD, Vector2(8, size.y / 2 + 6), String(r.get("label", "")), HORIZONTAL_ALIGNMENT_LEFT, -1, Hud.ts(16), Hud.TEXT if lit else Color(Hud.DIM, 0.95))
+		var off: bool = r.get("off", false)
+		var x0 := 8.0
+		if r.get("car", false):   # the lift car stands at this storey
+			draw_rect(Rect2(Vector2(5, size.y / 2 - 5), Vector2(7, 10)), Hud.GREEN, false, 1.5)
+			draw_line(Vector2(8.5, size.y / 2 - 4), Vector2(8.5, size.y / 2 + 4), Hud.GREEN, 1.0)
+			x0 = 17.0
+		var lc := Hud.TEXT if lit else Color(Hud.DIM, 0.95)
+		if off:
+			lc = Color(Hud.DIM, 0.5)
+		draw_string(Hud.F_BOLD, Vector2(x0, size.y / 2 + 6), String(r.get("label", "")), HORIZONTAL_ALIGNMENT_LEFT, -1, Hud.ts(16), lc)
+		var prog := String(r.get("prog", ""))
+		if prog != "":   # the storey's programme, small and dim
+			draw_string(Hud.F_TERM, Vector2(x0 + 30, size.y / 2 + 5), prog, HORIZONTAL_ALIGNMENT_LEFT, size.x - x0 - 72, Hud.ts(12), Color(Hud.DIM, 0.45 if off else 0.8))
 		var x := size.x - 10.0
+		if r.get("obj", false):   # the objective's storey (towers only): a gold notch at the edge
+			var o2 := Vector2(size.x - 3, size.y / 2)
+			draw_colored_polygon(PackedVector2Array([o2 + Vector2(0, -5), o2 + Vector2(0, 5), o2 + Vector2(-6, 0)]), Hud.GOLD)
+			x -= 9.0
 		if int(r.get("foes", 0)) > 0:   # a seen foe on this storey
 			var o := Vector2(x, size.y / 2)
 			draw_colored_polygon(PackedVector2Array([o + Vector2(0, -5), o + Vector2(4, 0), o + Vector2(0, 5), o + Vector2(-4, 0)]), Hud.RED)
@@ -367,6 +399,26 @@ class StackRow extends Button:
 			x -= 9.0
 		if r.get("street", false):   # the street line: the B rows sit under it
 			draw_line(Vector2(-4, size.y + 1), Vector2(size.x + 4, size.y + 1), Color(Hud.DIM, 0.8), 1.0)
+
+
+## The tower strip's run of storeys between the band and the street lobby, off the map: hairlines
+## with break marks and a count ("2-47 · 46 floors"). Not a button.
+class StackGap extends Control:
+	var text := ""
+	func _init(p_text: String, w: float) -> void:
+		text = p_text
+		custom_minimum_size = Vector2(w, 26)
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+	func _draw() -> void:
+		for i in 4:
+			var y := 3.0 + i * 6.5
+			draw_line(Vector2(14, y), Vector2(size.x - 14, y), Color(Hud.DIM, 0.22), 1.0)
+		for sx in [6.0, size.x - 6.0]:   # break marks
+			draw_line(Vector2(sx - 4, size.y / 2 + 3), Vector2(sx + 4, size.y / 2 - 3), Color(Hud.DIM, 0.6), 1.0)
+		var fs := Hud.ts(12)
+		var tw := Hud.F_TERM.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+		draw_rect(Rect2(Vector2((size.x - tw) / 2 - 4, size.y / 2 - fs * 0.6), Vector2(tw + 8, fs * 1.2)), Color(0.02, 0.03, 0.04, 0.95))
+		draw_string(Hud.F_TERM, Vector2((size.x - tw) / 2, size.y / 2 + fs * 0.35), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(Hud.DIM, 0.85))
 
 
 ## The floor stack's ▲ / ▼: greyed when there is no floor that way; `pulse` (the objective lies that
