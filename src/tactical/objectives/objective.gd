@@ -97,7 +97,7 @@ func order() -> String:
 
 
 ## The round tab's second line: the one step that applies right now, upper case and short
-## ("JACK IN AT THE ACCESS POINT", "HOLD 2 MORE ROUNDS"). Never an alternative ("OR ELIMINATE ALL
+## ("GET TO AN ACCESS POINT", "HOLD 2 MORE ROUNDS"). Never an alternative ("OR ELIMINATE ALL
 ## HOSTILES"), never a list. Default: every hostile left.
 func current_step() -> String:
 	return count_text(e.opfor().size(), "HOSTILE") + " LEFT"

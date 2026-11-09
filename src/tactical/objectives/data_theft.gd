@@ -50,7 +50,7 @@ func target_level() -> int:
 func hud_text() -> String:
 	if int(o.get("node", -1)) >= 0 and e.m.architectures.has(int(o.structure)):
 		var fn: Dictionary = (e.m.architectures[int(o.structure)] as NetArchitecture).nodes[int(o.node)]
-		return "STEAL THE %s\nJACK IN AT THE ACCESS POINT\nREACH NET LEVEL %d\nOR ELIMINATE ALL HOSTILES" % [item_marker("DATA"), int(fn.zone)]
+		return "STEAL THE %s\nGET TO AN ACCESS POINT\nREACH NET LEVEL %d\nOR ELIMINATE ALL HOSTILES" % [item_marker("DATA"), int(fn.zone)]
 	return "ELIMINATE ALL HOSTILES"
 
 
@@ -62,7 +62,7 @@ func order() -> String:
 func current_step() -> String:
 	if target_level() < 0:
 		return super()
-	return "REACH NET LEVEL %d" % target_level() if jacked_in() else "JACK IN AT THE ACCESS POINT"
+	return "REACH NET LEVEL %d" % target_level() if jacked_in() else "GET TO AN ACCESS POINT"
 
 
 ## The nearest Access Point (CPR core p.197) into the target NET while nobody on the crew is jacked in.

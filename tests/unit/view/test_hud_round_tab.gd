@@ -63,7 +63,7 @@ func test_every_kind_has_an_order_and_a_current_step() -> void:
 func test_data_theft_steps() -> void:
 	var e := _job("data")
 	assert_eq(e.obj.order(), "STEAL THE DATA")
-	assert_eq(e.obj.current_step(), "JACK IN AT THE ACCESS POINT")
+	assert_eq(e.obj.current_step(), "GET TO AN ACCESS POINT")
 	_jack(e, _crew_member(e))
 	var fn: Dictionary = (e.m.architectures[int(e.objective.structure)] as NetArchitecture).nodes[int(e.objective.node)]
 	assert_eq(e.obj.current_step(), "REACH NET LEVEL %d" % int(fn.zone))
@@ -199,7 +199,7 @@ func test_panel_is_order_step_alert_only() -> void:
 	e.init.round_num = 3
 	h.round_tab(e)
 	var texts := _labels(h._round_box)
-	assert_eq(texts, ["STEAL THE DATA", "JACK IN AT THE ACCESS POINT", "UNDETECTED"], "order, step, alert: %s" % [texts])
+	assert_eq(texts, ["STEAL THE DATA", "GET TO AN ACCESS POINT", "UNDETECTED"], "order, step, alert: %s" % [texts])
 	for t in texts:
 		assert_false(t.begins_with("ROUND"), "no round counter")
 		assert_false(t.contains("OR ELIMINATE"), "no alternative")
