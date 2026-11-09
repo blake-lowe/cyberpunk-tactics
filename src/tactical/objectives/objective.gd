@@ -83,10 +83,24 @@ func on_evacuated(_patient: int) -> void:
 	pass
 
 
-## The objective panel's text, upper case: line 1 the order (short imperative, what a game
-## objective says), later lines dim context. No "OBJECTIVE ·" prefix: the panel has its own label.
+## The objective's full text, upper case: line 1 the order (short imperative, what a game
+## objective says), later lines context (every step, alternatives). The round tab shows order()
+## and current_step() instead; this stays for the log, tests and anything wanting the whole brief.
 func hud_text() -> String:
 	return "ELIMINATE ALL HOSTILES"
+
+
+## The round tab's top line: the order, upper case ("STEAL THE DATA"). It names the job and stays
+## put while the job's steps go by. Default: hud_text()'s first line.
+func order() -> String:
+	return hud_text().get_slice("\n", 0)
+
+
+## The round tab's second line: the one step that applies right now, upper case and short
+## ("JACK IN AT THE ACCESS POINT", "HOLD 2 MORE ROUNDS"). Never an alternative ("OR ELIMINATE ALL
+## HOSTILES"), never a list. Default: every hostile left.
+func current_step() -> String:
+	return count_text(e.opfor().size(), "HOSTILE") + " LEFT"
 
 
 ## Where the view points: [{cell: Vector3i, h: metres above that square's floor, label: String,
@@ -168,6 +182,11 @@ func focus_cell() -> Vector3i:
 
 func done() -> bool:
 	return bool(o.get("done", false))
+
+
+## "1 ROUND", "3 ROUNDS": a count and its noun, for the HUD's steps.
+static func count_text(n: int, noun: String) -> String:
+	return "%d %s%s" % [n, noun, "" if n == 1 else "S"]
 
 
 ## What the job is about, upper case for markers and the HUD ("PROTOTYPE"), or `fallback`: the

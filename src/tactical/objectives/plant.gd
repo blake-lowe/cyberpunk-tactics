@@ -99,6 +99,16 @@ func hud_text() -> String:
 	return "\n".join(lines)
 
 
+## By hand at the device, a few Actions; or, jacked in, at the File's level.
+func current_step() -> String:
+	var what := String(o.name).trim_prefix("the ").to_upper()
+	if int(o.get("progress", 0)) > 0:
+		return "%s AT THE %s" % [count_text(plant_actions() - int(o.progress), "MORE ACTION"), what]
+	if target_level() >= 0 and jacked_in():
+		return "REACH NET LEVEL %d" % target_level()
+	return "GET TO THE %s" % what
+
+
 ## The device; and while nobody on the crew is jacked in, the nearest Access Point into the NET.
 func marks(fog: bool) -> Array:
 	var out: Array = [{"cell": o.cell, "h": 1.6, "label": "★ PLANT · %s" % String(o.name).trim_prefix("the ").to_upper(), "tone": "cyan"}]

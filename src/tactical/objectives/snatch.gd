@@ -56,6 +56,14 @@ func hud_text() -> String:
 	return "GET THE %s TO EXTRACTION" % item_marker("PACKAGE") if int(o.get("carrier", -1)) >= 0 else "RECOVER THE %s" % item_marker("PACKAGE")
 
 
+func order() -> String:
+	return "RECOVER THE %s" % item_marker("PACKAGE")
+
+
+func current_step() -> String:
+	return "GET IT TO EXTRACTION" if int(o.get("carrier", -1)) >= 0 else "GRAB IT"
+
+
 func marks(_fog: bool) -> Array:
 	if int(o.get("carrier", -1)) < 0:
 		return [{"cell": o.cell, "h": 0.4, "label": "★ " + item_marker("PACKAGE"), "tone": "gold"}]

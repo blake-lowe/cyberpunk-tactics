@@ -235,6 +235,20 @@ func hud_text() -> String:
 	return "\n".join(lines)
 
 
+func order() -> String:
+	return "HOLD THE %s" % _room_text()
+
+
+## Set up, then hold out the rounds; with the room theirs, take it back first.
+func current_step() -> String:
+	if e.init.round_num < int(o.start):
+		return "TAKE COVER · THEY HIT IN %d" % maxi(1, int(o.start) - e.init.round_num)
+	if theirs():
+		return "TAKE THE ROOM BACK"
+	var left := rounds_left()
+	return "HOLD %s" % count_text(left, "MORE ROUND") if left > 0 else "LAST ROUND · HOLD ON"
+
+
 func marks(_fog: bool) -> Array:
 	var label := "★ HOLD · %s" % _room_text()
 	return [{"cell": o.cell, "h": 1.8, "label": label, "tone": "red" if theirs() else "gold"}]

@@ -80,6 +80,18 @@ func hud_text() -> String:
 	return "DESTROY %s\nPLANT A CHARGE, THEN GET CLEAR" % String(o.name).to_upper()
 
 
+func order() -> String:
+	return "DESTROY %s" % String(o.name).to_upper()
+
+
+func current_step() -> String:
+	if done():
+		return "REACH EXTRACTION"
+	if o.get("planted", false):
+		return "GET CLEAR · BLOWS IN %s" % count_text(fuse_left(), "ROUND")
+	return "PLANT A CHARGE ON IT"
+
+
 func marks(_fog: bool) -> Array:
 	if done():
 		return [_extract_mark()]

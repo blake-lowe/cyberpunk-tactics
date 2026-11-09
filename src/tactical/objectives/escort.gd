@@ -155,6 +155,19 @@ func hud_text() -> String:
 	return "\n".join(lines)
 
 
+func order() -> String:
+	return "ESCORT %s" % String(client().c.display_name).to_upper()
+
+
+func current_step() -> String:
+	var cu := client()
+	if not cu.c.dead and cu.c.wound_state() == Combatant.Wound.MORTAL:
+		return "THEY'RE BLEEDING OUT"
+	if not o.get("met", true):
+		return "MEET THEM INSIDE"
+	return "GET THEM TO THE RENDEZVOUS" if o.mode == "through" else "GET THEM TO EXTRACTION"
+
+
 ## The client (a ward on the crew's side, so always in sight) and, once met, where they're going.
 func marks(_fog: bool) -> Array:
 	var cu := client()

@@ -19,6 +19,18 @@ func hud_text() -> String:
 	return "ELIMINATE %s\n%d HOSTILES LEFT" % [target_name(String(World.faction(e.opfor_faction).get("name", ""))), e.opfor().size()]
 
 
+
+func order() -> String:
+	return "ELIMINATE %s" % target_name(String(World.faction(e.opfor_faction).get("name", "")))
+
+
+## How many are left; with none on the map and their backup still coming, that.
+func current_step() -> String:
+	if e.opfor().is_empty() and e.backup_in > 0:
+		return "THEIR BACKUP IS COMING"
+	return super()
+
+
 ## The gang as the order names it: "THE TYGER CLAWS", "MAELSTROM", "THE BOZOS"; plural names
 ## take "the", one already starting with it keeps it, and no name falls back to "ALL HOSTILES".
 static func target_name(name: String) -> String:
