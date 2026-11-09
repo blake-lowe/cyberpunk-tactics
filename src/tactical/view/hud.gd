@@ -771,6 +771,11 @@ class ActBtn extends Button:
 				draw_rect(Rect2(o + Vector2(-r * 1.1, -r * 0.7), Vector2(r * 2.2, r * 1.4)), c, false, 2.0)
 				draw_rect(Rect2(o + Vector2(-r * 1.1, -r * 0.35), Vector2(r * 2.2, r * 0.3)), c)
 				draw_rect(Rect2(o + Vector2(r * 0.3, r * 0.15), Vector2(r * 0.5, r * 0.35)), c)
+			"search":   # a magnifier over a pocket
+				draw_rect(Rect2(o + Vector2(-r * 1.1, -r * 0.2), Vector2(r * 1.3, r * 1.2)), c, false, 2.0)
+				draw_line(o + Vector2(-r * 1.1, r * 0.2), o + Vector2(r * 0.2, r * 0.2), c, 1.5)
+				draw_arc(o + Vector2(r * 0.45, -r * 0.45), r * 0.55, 0, TAU, 14, c, 2.0)
+				draw_line(o + Vector2(r * 0.85, -r * 0.05), o + Vector2(r * 1.35, r * 0.5), c, 3.0)
 			"tamper":   # a camera with a slash
 				draw_rect(Rect2(o + Vector2(-r * 1.0, -r * 0.5), Vector2(r * 1.4, r * 1.0)), c, false, 2.0)
 				draw_colored_polygon(PackedVector2Array([o + Vector2(r * 0.4, -r * 0.3), o + Vector2(r * 1.1, -r * 0.6), o + Vector2(r * 1.1, r * 0.6), o + Vector2(r * 0.4, r * 0.3)]), c)
@@ -889,6 +894,9 @@ func _build_bar() -> void:
 		var arg: Variant = spec[4]
 		var act: String = spec[3]
 		b3.pressed.connect(func(): action.emit(act, arg))
+		if spec[0] == "interact":   # what B does here, when it has a card (Search Body)
+			b3.mouse_entered.connect(func(): _interact_tip(b3))
+			b3.mouse_exited.connect(func(): _tip.visible = false)
 		_tool_buttons[spec[0]] = b3
 		_buttons.add_child(b3)
 	for spec in STAIR_ACTIONS:   # stairs: up or down the flight you stand on (FloorNav.go)
@@ -999,6 +1007,7 @@ static func alarm_text(enc: Encounter) -> String:
 
 
 func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) -> void:
+	interact_enc = enc
 	_clear(_party)
 	for u in enc.units:
 		if u.team == 0:
@@ -1152,6 +1161,8 @@ static func interact_here(enc: Encounter) -> Array:
 		return [String(objs[0]), String(objs[0]).to_upper(), String(objs[0])]
 	if enc.keycard_in_reach(enc.cur).size() > 0:
 		return ["keycard", "KEYCARD", "keycard"]
+	if not enc.body_in_reach(enc.cur).is_empty():
+		return ["search", "SEARCH BODY", "search"]
 	if enc.lock_in_reach(enc.cur).x >= 0:
 		return ["bypass", "BYPASS", "bypass"]
 	if not enc.camera_in_reach(enc.cur).is_empty():
@@ -1489,8 +1500,32 @@ static func action_help(id: String, live := "") -> String:
 		out.append((K % "ROLL") + " [code]%s[/code]" % String(e.key))
 	if live != "":
 		out.append((K % "NOW") + " " + live)
-	out.append(K % ("CPR core " + String(e.get("page", ""))))
+	out.append(K % ("%s %s" % [String(e.get("book", "CPR core")), String(e.get("page", ""))]))
 	return "\n".join(out)
+
+
+## The interact button's hover card, for the interacts that have one (Search Body: whose body,
+## and that it's searched once).
+var interact_enc: Encounter = null   ## set by the view each refresh (the bar has no Encounter of its own)
+
+
+func _interact_tip(b: Control) -> void:
+	if interact_enc == null or interact_enc.cur.is_empty():
+		return
+	var here := interact_here(interact_enc)
+	if here.is_empty() or String(here[0]) != "search":
+		return
+	tip(search_help(interact_enc), b.get_global_rect().position - global_position + Vector2(-28, -40), "// SEARCH BODY", GOLD)
+
+
+## Search Body's card (action_help.json search_body) with the body in reach and its odds now.
+static func search_help(enc: Encounter) -> String:
+	var g := enc.body_in_reach(enc.cur)
+	var live := ""
+	if not g.is_empty():
+		var state := "surrendered" if String(g.get("broke", "")) == "surrender" else ("flatlined" if g.c.dead else "down")
+		live = "%s (%s): something on them on 1-%d of 1d6" % [g.c.display_name, state, CorpseLoot.has_loot_target(g)]
+	return action_help("search_body", live)
 
 
 ## The hover card above a bar button.

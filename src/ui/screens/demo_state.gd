@@ -66,6 +66,8 @@ static func make() -> Campaign:
 	for line in ["Rested 2 days.", "Bought %s" % Items.display_name(cons[0]) if not cons.is_empty() else "Bought gear", "Bought %s" % Items.display_name(cons[0]) if not cons.is_empty() else "Bought gear"]:
 		c.say(line)
 	c.debrief.assign(report(c).members)
+	for l in report(c).leads:   # the sample debrief's leads, kept in storage
+		c.leads.append(l)
 	return c
 
 
@@ -85,5 +87,13 @@ static func report(c: Campaign) -> Dictionary:
 	members.append({"name": "Wraith", "role": "solo", "look_seed": 9, "dead": true, "ip": 0, "reputation": 0, "injuries": [], "wound": "Dead",
 		"hp": 0, "max_hp": 40, "kit": ["Smoke Grenade"], "lost": ["Assault Rifle", "Heavy Pistol", "Light Armorjack", "Wolvers", "Smoke Grenade"],
 		"addicted": [], "episode": false, "humanity_lost": 0})
+	var loot: Array = [
+		{"label": "loaded credstick", "text": "loaded credstick · 500eb", "kind": "eb", "by": a.display_name, "from": "Guard 2", "keys": []},
+		{"label": "stripped-down VH pistol", "text": "stripped-down VH pistol: Very Heavy Pistol", "kind": "item", "by": b.display_name, "from": "Lieutenant 1", "keys": ["weapon/very_heavy_pistol"]},
+		{"label": "bottle of Synthcoke", "text": "bottle of Synthcoke: Synthcoke x3", "kind": "item", "by": a.display_name, "from": "Guard 4", "keys": ["drugs/synthcoke"]},
+		{"label": "heist plans chip", "text": "heist plans chip", "kind": "lead", "by": b.display_name, "from": "Lieutenant 1", "keys": []},
+		{"label": "Night Market invite", "text": "Night Market invite", "kind": "lead", "by": a.display_name, "from": "Guard 1", "keys": []}]
 	return {"won": true, "gig": {"title": "Retire a Biotechnica manager", "fixer": "Mr. Blue", "security": 2}, "pay": 1500, "ip": 30,
-		"reputation": {a.display_name: 3}, "dead": ["Wraith"], "hurt": [], "episodes": [], "kit_used": ["Flashbang"], "addicted": [], "members": members}
+		"reputation": {a.display_name: 3}, "dead": ["Wraith"], "hurt": [], "episodes": [], "kit_used": ["Flashbang"], "addicted": [], "members": members,
+		"loot": loot, "loot_eb": 500, "loot_lost": 1, "surrendered": 2, "fled": 1,
+		"leads": loot.filter(func(f): return f.kind == "lead").map(func(f): return {"label": f.label, "hook": "heist" if String(f.label).contains("heist") else "night_market", "day": 9, "gig": "Retire a Biotechnica manager"})}

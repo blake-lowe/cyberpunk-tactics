@@ -61,6 +61,9 @@ var recruits: Array[Combatant] = []  ## for hire
 var active_gig: Dictionary = {}
 var gigs_done := 0                   ## gigs played to the end (won or failed), for the save slot listing
 var stash := {}                      ## safehouse storage: Items key → how many (kit, weapons, armour)
+## Plot hooks found on bodies (CorpseLoot, SPM p.65-70): {label, hook, day, gig, faction, district,
+## location, from}, oldest first. Kept for later follow-up offers; listed on the debrief and in storage.
+var leads: Array[Dictionary] = []
 var market := {}                     ## the Night Market that's up (NightMarket.roll)
 var log: Array[String] = []
 ## What the last gig changed for each crew member (resolve's report "members"), shown on the
@@ -781,6 +784,7 @@ func resolve(e: Encounter) -> Dictionary:
 	if won:
 		report.pay = int(gig.get("pay", 0))
 	eb += report.pay
+	_take_loot(e, gig, report)
 	report.episodes = _downtime_episodes()
 	report["addicted"] = _addiction_checks()
 	report.ip = int(IP_GROUP["failed" if not won else ("barely" if not report.dead.is_empty() else "together")])   # p410
@@ -805,6 +809,43 @@ func resolve(e: Encounter) -> Dictionary:
 	refresh_board()
 	update_market()
 	return report
+
+
+## What the crew found on bodies and brought home (CorpseLoot.kept): items into storage, eb into
+## the wallet, leads onto the lead list. The report gains loot ({label, text, kind, by, from}
+## per find kept), loot_eb, loot_lost (finds left behind), leads (the new ones), and the Morale
+## counts surrendered and fled.
+func _take_loot(e: Encounter, gig: Dictionary, report: Dictionary) -> void:
+	var kept := CorpseLoot.kept(e)
+	var lines: Array = []
+	var new_leads: Array = []
+	var got := 0
+	for f in kept:
+		match String(f.kind):
+			"eb":
+				got += int(f.eb)
+			"item":
+				for k in f.items:
+					if Items.is_stored(String(k)):
+						_put(String(k), int(f.items[k]))
+			"lead":
+				var l := {"label": String(f.label), "hook": String(f.hook), "day": day, "gig": String(gig.get("title", "")),
+					"faction": String(gig.get("faction", "")), "district": String(gig.get("district", "")),
+					"location": String(gig.get("location", "")), "from": String(f.get("from", ""))}
+				leads.append(l)
+				new_leads.append(l)
+		lines.append({"label": String(f.label), "text": CorpseLoot.describe(f, false), "kind": String(f.kind), "by": String(f.get("by_name", "")),
+			"from": String(f.get("from", "")), "keys": (f.get("items", {}) as Dictionary).keys()})
+	eb += got
+	report["loot"] = lines
+	report["loot_eb"] = got
+	report["loot_lost"] = e.loot.filter(func(f): return String(f.kind) in ["eb", "item", "lead"]).size() - kept.size()
+	report["leads"] = new_leads
+	var mc := e.morale_counts()
+	report["surrendered"] = int(mc.surrendered)
+	report["fled"] = int(mc.fled)
+	if not lines.is_empty():
+		say("Found on bodies: %s." % ", ".join(kept.map(func(x): return CorpseLoot.describe(x))))
 
 
 ## One crew member's debrief: {name, role, look_seed, dead, ip, reputation (the new Level, 0 if
@@ -1569,7 +1610,7 @@ func to_dict() -> Dictionary:
 		"safehouse_district": safehouse_district, "crew": crew.map(func(c): return c.to_dict()),
 		"fallen": fallen, "board": board, "recruits": recruits.map(func(c): return c.to_dict()), "log": log.slice(-50),
 		"rng_state": str(dice.rng.state), "stash": stash, "market": market, "debrief": debrief, "gigs_done": gigs_done,
-		"dev_gigs": dev_gigs, "last_custom": last_custom}
+		"dev_gigs": dev_gigs, "last_custom": last_custom, "leads": leads}
 
 
 ## A campaign from a save dictionary, upgraded to the current format first (SaveMigrations).
@@ -1612,6 +1653,9 @@ static func from_dict(raw: Dictionary) -> Campaign:
 	for m in d.get("debrief", []):
 		if m is Dictionary:
 			c.debrief.append(_ints(m))   # hp, IP, Reputation: ints again
+	for l in d.get("leads", []):
+		if l is Dictionary:
+			c.leads.append(_ints(l))   # the day found: an int again
 	c.update_market()   # a save from before markets (v5) gets one now
 	if bool(d.get("refill_board", false)):   # v14 dropped its generic offers: canon ones take their places
 		c._fill_board(RulesDB.gen("gigs.json"), {})

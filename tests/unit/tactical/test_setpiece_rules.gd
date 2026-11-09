@@ -410,6 +410,7 @@ func test_fire_turret_is_a_net_action_once_per_turn_per_node() -> void:
 	var t: Dictionary = h.t
 	var runner: Dictionary = h.runner
 	var g: Dictionary = h.guard
+	e.morale = false   # the same guard is shot three times: hurt, he'd break (Morale) and stop being a target
 	runner.c.skills["shoulder_arms"] = 40   # the runner's own Skill aims it (p.213-214): a sure hit
 	var w: Weapon = t.c.weapons[0]
 	assert_true(e.turret_chance(t, g, runner.c) > e.turret_chance(t, g, t.c), "their Skill, not the turret's Combat Number")

@@ -1,8 +1,9 @@
 class_name DebriefScreen
 extends SafehouseScreen
 ## After a gig, before the safehouse: how it went (pay, Improvement Points, the Reputation the deed
-## earned, CPR core p193 and p410) and, per crew member, what it cost them (Critical Injuries, Wound
-## State, consumables used, a new addiction, Humanity, death; the fallen's LOST GEAR one item a line). CONTINUE goes to the safehouse; the
+## earned, CPR core p193 and p410; who surrendered or fled, SPM p.20-21) and, per crew member, what it cost them (Critical Injuries, Wound
+## State, consumables used, a new addiction, Humanity, death; the fallen's LOST GEAR one item a line),
+## then what the crew found on bodies and the leads among it (CorpseLoot, SPM p.65-70). CONTINUE goes to the safehouse; the
 ## room screens' crew cards keep the marks until the next gig (Campaign.marks_for).
 
 var report: Dictionary = {}
@@ -40,6 +41,10 @@ func build_body(body: VBoxContainer) -> void:
 	_sum(sums, "IMPROVEMENT POINTS", "%d each" % int(report.get("ip", 0)), Hud.CYAN)
 	if String(gig.get("fixer", "")) != "":
 		_sum(sums, "FIXER", String(gig.fixer), Hud.TEXT)
+	if int(report.get("loot_eb", 0)) > 0:
+		_sum(sums, "FOUND ON BODIES", "+%s eb" % UiKit.money(int(report.loot_eb)), Hud.GOLD)
+	if int(report.get("surrendered", 0)) > 0 or int(report.get("fled", 0)) > 0:
+		_sum(sums, "SURRENDERED · FLED", "%d · %d" % [int(report.get("surrendered", 0)), int(report.get("fled", 0))], Hud.TEXT)
 	var members: Array = report.get("members", [])
 	var grid := GridContainer.new()
 	grid.columns = clampi(members.size(), 1, 4)
@@ -50,6 +55,9 @@ func build_body(body: VBoxContainer) -> void:
 		grid.add_child(_member(m))
 	var sc := UiKit.scroller(grid)
 	body.add_child(sc)
+	var finds := loot_panel(report)
+	if finds:
+		body.add_child(finds)
 	var bottom := UiKit.hbox(12)
 	body.add_child(bottom)
 	bottom.add_child(UiKit.body("The crew cards in the Bunks, Med Bay and Training Room keep these marks until the next gig.", 14, Hud.DIM, false))
@@ -57,6 +65,40 @@ func build_body(body: VBoxContainer) -> void:
 	var b := UiKit.button("CONTINUE  ›", UiKit.PRIMARY, func(): closed.emit(), true, 17)
 	b.custom_minimum_size = Vector2(220, 44)
 	bottom.add_child(b)
+
+
+## What the crew found on bodies and brought home (Campaign._take_loot): one line per find, a
+## LEAD chip on the plot hooks (Campaign.leads), and what was left behind. Null when nothing was found.
+static func loot_panel(rep: Dictionary) -> PanelContainer:
+	var loot: Array = rep.get("loot", [])
+	var lost := int(rep.get("loot_lost", 0))
+	if loot.is_empty() and lost <= 0:
+		return null
+	var p := UiKit.panel(Hud.GOLD, 10)
+	p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var v := UiKit.vbox(4)
+	p.add_child(v)
+	var head := UiKit.hbox(10)
+	v.add_child(head)
+	head.add_child(UiKit.label("FOUND ON BODIES", 12, Hud.DIM))
+	var nl := loot.filter(func(f): return String(f.get("kind", "")) == "lead").size()
+	if nl > 0:
+		head.add_child(UiKit.label("%d NEW LEAD%s · KEPT IN STORAGE" % [nl, "" if nl == 1 else "S"], 12, Hud.MAGENTA))
+	var flow := UiKit.flow(18)
+	v.add_child(flow)
+	for f in loot:
+		var row := UiKit.hbox(6)
+		if String(f.get("kind", "")) == "lead":
+			row.add_child(UiKit.chip("LEAD", Hud.MAGENTA))
+		var keys: Array = f.get("keys", [])
+		var t := UiKit.body(String(f.get("text", f.get("label", ""))), 15, Hud.TEXT, false)
+		row.add_child(QualityText.apply(t, String(keys[0])) if keys.size() == 1 and String(f.get("kind", "")) == "item" else t)
+		if String(f.get("by", "")) != "":
+			row.add_child(UiKit.body("· " + String(f.by), 13, Hud.DIM, false))
+		flow.add_child(row)
+	if lost > 0:
+		v.add_child(UiKit.body("%d find%s left behind with those who didn't get out." % [lost, "" if lost == 1 else "s"], 13, Hud.RED, false))
+	return p
 
 
 static func is_dev(rep: Dictionary) -> bool:

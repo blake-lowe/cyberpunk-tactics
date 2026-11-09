@@ -1,0 +1,1703 @@
+{
+	"_source": "Cyberpunk RED: Single Player Mode (R. Talsorian), Corpse Loot: Streetrat (printed p.65-66), Edgerunner (p.67-68) and Corporate (p.69-70) Corpse Items, 1d100 each. Labels are our own few words for each row, not the book's text.",
+	"_doc": "tables: per table {cite, rows}: one row per d100 result, {roll, label (ours), kind, ...}. kind eb: {eb: amount, or 'NdS' / 'NdSxM' dice}; fence: true for a valuable rather than cash (sold at CorpseLoot.FENCE, HOUSE-RULE). kind item: {items: {storage key: count or 'NdS' dice}} (Items keys; every key must be something the Night Market could sell, NightMarket.on_sale: the game plays it). kind lead: {hook}: a plot hook kept in the campaign's leads (Campaign.leads) with its label; hook is the kind of follow-up a later offer can make of it (meet, map, cache, blueprint, safehouse, heist, missing_exec, exec, names, evidence, corp_secret, fixer, fixer_iou, night_market, party, person, hotel, locker, message, briefcase, defector, blackmail, shipment, courier, safe, contact). kind keycard: {zone: low (opens the site's lowest locked zone) | high (every lock)}. kind net_code: a login code for this site's NET (Encounter.login_codes). unmodelled: why the row can't play yet; such a row is re-rolled (the table plays as if it held only the modelled rows). Which table a body rolls on and how often a body has anything at all: CorpseLoot.",
+	"tables": {
+		"streetrat": {
+			"cite": "SPM p.65-66",
+			"rows": [
+				{
+					"roll": 1,
+					"label": "blank memory chips",
+					"unmodelled": "memory chips aren't modelled"
+				},
+				{
+					"roll": 2,
+					"label": "collectible bottle caps",
+					"kind": "eb",
+					"eb": "1d10x10",
+					"fence": true
+				},
+				{
+					"roll": 3,
+					"label": "fake eurobucks",
+					"unmodelled": "counterfeit: worth nothing"
+				},
+				{
+					"roll": 4,
+					"label": "loose VHP bullets",
+					"unmodelled": "loose ammunition isn't modelled"
+				},
+				{
+					"roll": 5,
+					"label": "grocery gift card",
+					"unmodelled": "good at one store only"
+				},
+				{
+					"roll": 6,
+					"label": "bag of kibble",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 7,
+					"label": "synth gem baggie",
+					"kind": "eb",
+					"eb": 100,
+					"fence": true
+				},
+				{
+					"roll": 8,
+					"label": "spiked bat",
+					"kind": "item",
+					"items": {
+						"weapon/medium_melee": 1
+					}
+				},
+				{
+					"roll": 9,
+					"label": "bloodied police badge",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 10,
+					"label": "lottery ticket",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 11,
+					"label": "self-help paperback",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 12,
+					"label": "cheap painkillers",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 13,
+					"label": "clown nose",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 14,
+					"label": "dead cyberdeck",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 15,
+					"label": "wrecked car part",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 16,
+					"label": "scorched warning letter",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 17,
+					"label": "can of Smash",
+					"unmodelled": "Smash isn't modelled"
+				},
+				{
+					"roll": 18,
+					"label": "burnt fixer photo",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 19,
+					"label": "bloody toy",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 20,
+					"label": "cheap deck program",
+					"kind": "eb",
+					"eb": 50,
+					"fence": true
+				},
+				{
+					"roll": 21,
+					"label": "napkin cipher",
+					"kind": "lead",
+					"hook": "message"
+				},
+				{
+					"roll": 22,
+					"label": "cracked compact",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 23,
+					"label": "smashed credstick",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 24,
+					"label": "corp ID card",
+					"unmodelled": "whose corp, and which door? not modelled"
+				},
+				{
+					"roll": 25,
+					"label": "loaded credstick",
+					"kind": "eb",
+					"eb": 100
+				},
+				{
+					"roll": 26,
+					"label": "broken cybereye",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 27,
+					"label": "deck of cards",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 28,
+					"label": "Boost pill",
+					"kind": "item",
+					"items": {
+						"drugs/boost": 1
+					}
+				},
+				{
+					"roll": 29,
+					"label": "dummy grenade",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 30,
+					"label": "homemade pistol",
+					"kind": "item",
+					"items": {
+						"weapon/medium_pistol@poor": 1
+					}
+				},
+				{
+					"roll": 31,
+					"label": "family snapshot",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 32,
+					"label": "pocket flashlight",
+					"unmodelled": "flashlights aren't modelled"
+				},
+				{
+					"roll": 33,
+					"label": "flask of rotgut",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 34,
+					"label": "heavy pistol AP clip",
+					"unmodelled": "loose ammunition isn't modelled"
+				},
+				{
+					"roll": 35,
+					"label": "gang emblem",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 36,
+					"label": "fake gold chain",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 37,
+					"label": "glow paint can",
+					"unmodelled": "glow paint isn't modelled"
+				},
+				{
+					"roll": 38,
+					"label": "perfume bottle",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 39,
+					"label": "unfinished farewell note",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 40,
+					"label": "hand-drawn map",
+					"kind": "lead",
+					"hook": "map"
+				},
+				{
+					"roll": 41,
+					"label": "barbed-wire propeller",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 42,
+					"label": "gang-colours jacket",
+					"unmodelled": "fashion isn't modelled"
+				},
+				{
+					"roll": 43,
+					"label": "hacked Agent",
+					"unmodelled": "Agents aren't modelled"
+				},
+				{
+					"roll": 44,
+					"label": "mystery key",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 45,
+					"label": "lockpick kit",
+					"unmodelled": "lockpicks aren't modelled"
+				},
+				{
+					"roll": 46,
+					"label": "love letter",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 47,
+					"label": "chip with a letter",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 48,
+					"label": "bootleg game chip",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 49,
+					"label": "compromising photos chip",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 50,
+					"label": "chip labelled evidence",
+					"kind": "lead",
+					"hook": "evidence"
+				},
+				{
+					"roll": 51,
+					"label": "logo-stamped chip",
+					"kind": "lead",
+					"hook": "corp_secret"
+				},
+				{
+					"roll": 52,
+					"label": "upscale restaurant menu",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 53,
+					"label": "blood-scrawled photo",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 54,
+					"label": "transit pass",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 55,
+					"label": "bone necklace",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 56,
+					"label": "pink deck case",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 57,
+					"label": "pair of binoculars",
+					"unmodelled": "binoculars aren't modelled"
+				},
+				{
+					"roll": 58,
+					"label": "boots with a stash",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 59,
+					"label": "blinking novelty shades",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 60,
+					"label": "stolen sneakers",
+					"unmodelled": "fashion isn't modelled"
+				},
+				{
+					"roll": 61,
+					"label": "party mask",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 62,
+					"label": "rave pass",
+					"kind": "lead",
+					"hook": "party"
+				},
+				{
+					"roll": 63,
+					"label": "patched backpack",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 64,
+					"label": "vial of coloured sand",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 65,
+					"label": "battered shotgun",
+					"kind": "item",
+					"items": {
+						"weapon/shotgun@poor": 1
+					}
+				},
+				{
+					"roll": 66,
+					"label": "spice pouch",
+					"kind": "eb",
+					"eb": 50,
+					"fence": true
+				},
+				{
+					"roll": 67,
+					"label": "screamsheet printouts",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 68,
+					"label": "gacha figure",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 69,
+					"label": "duct tape roll",
+					"unmodelled": "duct tape isn't modelled"
+				},
+				{
+					"roll": 70,
+					"label": "samurai rubber duck",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 71,
+					"label": "gang-logo rag",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 72,
+					"label": "scuffed credstick",
+					"kind": "eb",
+					"eb": 50
+				},
+				{
+					"roll": 73,
+					"label": "storage locker key",
+					"kind": "lead",
+					"hook": "locker"
+				},
+				{
+					"roll": 74,
+					"label": "watch made of skin",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 75,
+					"label": "Black Lace patch",
+					"kind": "item",
+					"items": {
+						"drugs/black_lace": 1
+					}
+				},
+				{
+					"roll": 76,
+					"label": "thawing ready meal",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 77,
+					"label": "plastic trophy",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 78,
+					"label": "ringed cyberfinger",
+					"unmodelled": "loose cyberfingers aren't modelled"
+				},
+				{
+					"roll": 79,
+					"label": "map with red circles",
+					"kind": "lead",
+					"hook": "map"
+				},
+				{
+					"roll": 80,
+					"label": "old game ticket stub",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 81,
+					"label": "fight-night ticket",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 82,
+					"label": "midnight docks note",
+					"kind": "lead",
+					"hook": "meet"
+				},
+				{
+					"roll": 83,
+					"label": "poison pen",
+					"unmodelled": "poison vials aren't modelled"
+				},
+				{
+					"roll": 84,
+					"label": "missing exec's Agent",
+					"kind": "lead",
+					"hook": "missing_exec"
+				},
+				{
+					"roll": 85,
+					"label": "Synthcoke airhypo",
+					"kind": "item",
+					"items": {
+						"drugs/synthcoke": 1
+					}
+				},
+				{
+					"roll": 86,
+					"label": "armour-piercing grenade",
+					"kind": "item",
+					"items": {
+						"ammo/armor_piercing_ammo": 1
+					}
+				},
+				{
+					"roll": 87,
+					"label": "game keychain",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 88,
+					"label": "bloody empty airhypo",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 89,
+					"label": "empty medkit",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 90,
+					"label": "Night Market invite",
+					"kind": "lead",
+					"hook": "night_market"
+				},
+				{
+					"roll": 91,
+					"label": "fixer's signed IOU",
+					"kind": "lead",
+					"hook": "fixer_iou"
+				},
+				{
+					"roll": 92,
+					"label": "chewing gum",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 93,
+					"label": "math homework",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 94,
+					"label": "leather mirrorshades",
+					"unmodelled": "fashion isn't modelled"
+				},
+				{
+					"roll": 95,
+					"label": "smashed drone bits",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 96,
+					"label": "loose kibble",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 97,
+					"label": "a severed thumb",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 98,
+					"label": "stun baton battery",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 99,
+					"label": "cyberarm elbow joint",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 100,
+					"label": "nomad jacket patch",
+					"unmodelled": "flavour: nothing the game plays"
+				}
+			]
+		},
+		"edgerunner": {
+			"cite": "SPM p.67-68",
+			"rows": [
+				{
+					"roll": 1,
+					"label": "microwaver batteries",
+					"unmodelled": "spare batteries aren't modelled"
+				},
+				{
+					"roll": 2,
+					"label": "incendiary shotgun shells",
+					"unmodelled": "loose ammunition isn't modelled"
+				},
+				{
+					"roll": 3,
+					"label": "burner phones",
+					"unmodelled": "phones aren't modelled"
+				},
+				{
+					"roll": 4,
+					"label": "bottle of Synthcoke",
+					"kind": "item",
+					"items": {
+						"drugs/synthcoke": "1d6"
+					}
+				},
+				{
+					"roll": 5,
+					"label": "radio handsets",
+					"unmodelled": "radios aren't modelled"
+				},
+				{
+					"roll": 6,
+					"label": "smoke grenades",
+					"unmodelled": "smoke grenades aren't modelled yet"
+				},
+				{
+					"roll": 7,
+					"label": "handful of techtools",
+					"unmodelled": "techtools aren't modelled"
+				},
+				{
+					"roll": 8,
+					"label": "casino chips",
+					"kind": "eb",
+					"eb": 500
+				},
+				{
+					"roll": 9,
+					"label": "deck programs",
+					"kind": "eb",
+					"eb": 500,
+					"fence": true
+				},
+				{
+					"roll": 10,
+					"label": "scrawled treasure map",
+					"kind": "lead",
+					"hook": "map"
+				},
+				{
+					"roll": 11,
+					"label": "bag of rare seeds",
+					"kind": "eb",
+					"eb": 500,
+					"fence": true
+				},
+				{
+					"roll": 12,
+					"label": "odd socks",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 13,
+					"label": "biotoxin grenade",
+					"unmodelled": "biotoxin grenades aren't kit yet"
+				},
+				{
+					"roll": 14,
+					"label": "blank SIN card",
+					"unmodelled": "forged IDs aren't modelled"
+				},
+				{
+					"roll": 15,
+					"label": "bloody letter to a fixer",
+					"kind": "lead",
+					"hook": "fixer"
+				},
+				{
+					"roll": 16,
+					"label": "scuffed armorjack helmet",
+					"kind": "item",
+					"items": {
+						"armor/medium_armorjack@sp10": 1
+					}
+				},
+				{
+					"roll": 17,
+					"label": "factory blueprint",
+					"kind": "lead",
+					"hook": "blueprint"
+				},
+				{
+					"roll": 18,
+					"label": "cyberware parts",
+					"kind": "eb",
+					"eb": 500,
+					"fence": true
+				},
+				{
+					"roll": 19,
+					"label": "box of food sticks",
+					"unmodelled": "food isn't modelled"
+				},
+				{
+					"roll": 20,
+					"label": "broken bug detector",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 21,
+					"label": "coded meeting spots",
+					"kind": "lead",
+					"hook": "meet"
+				},
+				{
+					"roll": 22,
+					"label": "half a coded message",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 23,
+					"label": "combat skill chip",
+					"unmodelled": "skill chips aren't modelled"
+				},
+				{
+					"roll": 24,
+					"label": "enforcer's manual",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 25,
+					"label": "loaded credstick",
+					"kind": "eb",
+					"eb": 100
+				},
+				{
+					"roll": 26,
+					"label": "loaded credstick",
+					"kind": "eb",
+					"eb": 500
+				},
+				{
+					"roll": 27,
+					"label": "napkin with a meet",
+					"kind": "lead",
+					"hook": "meet"
+				},
+				{
+					"roll": 28,
+					"label": "designer deck case",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 29,
+					"label": "diary page, betrayal",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 30,
+					"label": "map, three buildings",
+					"kind": "lead",
+					"hook": "map"
+				},
+				{
+					"roll": 31,
+					"label": "stripped-down VH pistol",
+					"kind": "item",
+					"items": {
+						"weapon/very_heavy_pistol": 1
+					}
+				},
+				{
+					"roll": 32,
+					"label": "stripped-down sniper rifle",
+					"kind": "item",
+					"items": {
+						"weapon/sniper_rifle": 1
+					}
+				},
+				{
+					"roll": 33,
+					"label": "full AP magazine",
+					"unmodelled": "loose ammunition isn't modelled"
+				},
+				{
+					"roll": 34,
+					"label": "working cybereye",
+					"kind": "item",
+					"items": {
+						"cyberware/cybereye": 1
+					}
+				},
+				{
+					"roll": 35,
+					"label": "hologram chain",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 36,
+					"label": "grapple gun",
+					"unmodelled": "grapple guns aren't modelled"
+				},
+				{
+					"roll": 37,
+					"label": "charred combat zone map",
+					"kind": "lead",
+					"hook": "map"
+				},
+				{
+					"roll": 38,
+					"label": "hotel room keycard",
+					"kind": "lead",
+					"hook": "hotel"
+				},
+				{
+					"roll": 39,
+					"label": "house key",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 40,
+					"label": "janitor's access badge",
+					"kind": "keycard",
+					"zone": "low"
+				},
+				{
+					"roll": 41,
+					"label": "musical keychain",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 42,
+					"label": "unworn armorjack helmet",
+					"kind": "item",
+					"items": {
+						"armor/light_armorjack": 1
+					}
+				},
+				{
+					"roll": 43,
+					"label": "spent armorjack vest",
+					"kind": "item",
+					"items": {
+						"armor/light_armorjack@sp2": 1
+					}
+				},
+				{
+					"roll": 44,
+					"label": "gold-plated heavy pistol",
+					"kind": "item",
+					"items": {
+						"weapon/heavy_pistol": 1
+					}
+				},
+				{
+					"roll": 45,
+					"label": "list of names",
+					"kind": "lead",
+					"hook": "names"
+				},
+				{
+					"roll": 46,
+					"label": "note from mum",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 47,
+					"label": "well-kept rifle",
+					"kind": "item",
+					"items": {
+						"weapon/assault_rifle": 1
+					}
+				},
+				{
+					"roll": 48,
+					"label": "pair of fancy pistols",
+					"kind": "item",
+					"items": {
+						"weapon/heavy_pistol": 2
+					}
+				},
+				{
+					"roll": 49,
+					"label": "stocked medtech bag",
+					"unmodelled": "medtech bags aren't modelled"
+				},
+				{
+					"roll": 50,
+					"label": "journalist's notes chip",
+					"kind": "lead",
+					"hook": "evidence"
+				},
+				{
+					"roll": 51,
+					"label": "sermon recording",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 52,
+					"label": "heist plans chip",
+					"kind": "lead",
+					"hook": "heist"
+				},
+				{
+					"roll": 53,
+					"label": "music chip",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 54,
+					"label": "chip marked danger",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 55,
+					"label": "flashlight microwaver",
+					"kind": "item",
+					"items": {
+						"weapon/microwaver": 1
+					}
+				},
+				{
+					"roll": 56,
+					"label": "fish lighter",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 57,
+					"label": "nomad boots",
+					"unmodelled": "fashion isn't modelled"
+				},
+				{
+					"roll": 58,
+					"label": "smart glasses",
+					"unmodelled": "smart glasses aren't modelled"
+				},
+				{
+					"roll": 59,
+					"label": "theatre tickets",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 60,
+					"label": "photo: find them",
+					"kind": "lead",
+					"hook": "person"
+				},
+				{
+					"roll": 61,
+					"label": "crossed-out group photo",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 62,
+					"label": "exec family photo",
+					"kind": "lead",
+					"hook": "exec"
+				},
+				{
+					"roll": 63,
+					"label": "businesswear jewellery",
+					"unmodelled": "fashion isn't modelled"
+				},
+				{
+					"roll": 64,
+					"label": "mismatched dice",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 65,
+					"label": "gemstone pouch",
+					"kind": "eb",
+					"eb": 500,
+					"fence": true
+				},
+				{
+					"roll": 66,
+					"label": "PI's business card",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 67,
+					"label": "spa booking card",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 68,
+					"label": "scorched rubber chicken",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 69,
+					"label": "scrambler unit",
+					"unmodelled": "scramblers aren't modelled"
+				},
+				{
+					"roll": 70,
+					"label": "empty lockbox",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 71,
+					"label": "stylish armorjack vest",
+					"kind": "item",
+					"items": {
+						"armor/light_armorjack": 1
+					}
+				},
+				{
+					"roll": 72,
+					"label": "signed band t-shirt",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 73,
+					"label": "empty little box",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 74,
+					"label": "card game starter",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 75,
+					"label": "storage locker key",
+					"kind": "lead",
+					"hook": "locker"
+				},
+				{
+					"roll": 76,
+					"label": "playoff ticket",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 77,
+					"label": "safehouse diary page",
+					"kind": "lead",
+					"hook": "safehouse"
+				},
+				{
+					"roll": 78,
+					"label": "vehicle key",
+					"unmodelled": "vehicles aren't modelled"
+				},
+				{
+					"roll": 79,
+					"label": "glowing vial",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 80,
+					"label": "surgical nanobots",
+					"kind": "eb",
+					"eb": 500,
+					"fence": true
+				},
+				{
+					"roll": 81,
+					"label": "dead club VIP pass",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 82,
+					"label": "free tattoo voucher",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 83,
+					"label": "rugged Agent",
+					"unmodelled": "Agents aren't modelled"
+				},
+				{
+					"roll": 84,
+					"label": "cracked Agent",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 85,
+					"label": "acid paintball pistol",
+					"kind": "item",
+					"items": {
+						"weapon/air_pistol": 1
+					}
+				},
+				{
+					"roll": 86,
+					"label": "EMP grenade",
+					"unmodelled": "EMP grenades aren't modelled"
+				},
+				{
+					"roll": 87,
+					"label": "encrypted logo chip",
+					"kind": "lead",
+					"hook": "corp_secret"
+				},
+				{
+					"roll": 88,
+					"label": "box-set chip",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 89,
+					"label": "top-quality VH pistol",
+					"kind": "item",
+					"items": {
+						"weapon/very_heavy_pistol@excellent": 1
+					}
+				},
+				{
+					"roll": 90,
+					"label": "missing exec's ID",
+					"kind": "lead",
+					"hook": "missing_exec"
+				},
+				{
+					"roll": 91,
+					"label": "hood and robe",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 92,
+					"label": "loose cyberarm",
+					"kind": "item",
+					"items": {
+						"cyberware/cyberarm": 1
+					}
+				},
+				{
+					"roll": 93,
+					"label": "loose grapple hand",
+					"unmodelled": "the Grapple Hand isn't modelled"
+				},
+				{
+					"roll": 94,
+					"label": "loose hidden holster",
+					"unmodelled": "the Hidden Holster isn't modelled"
+				},
+				{
+					"roll": 95,
+					"label": "loose interface plugs",
+					"unmodelled": "the ripperdoc doesn't fit these yet"
+				},
+				{
+					"roll": 96,
+					"label": "loose Kerenzikov",
+					"kind": "item",
+					"items": {
+						"cyberware/kerenzikov": 1
+					}
+				},
+				{
+					"roll": 97,
+					"label": "loose sensor array",
+					"unmodelled": "the Sensor Array isn't modelled"
+				},
+				{
+					"roll": 98,
+					"label": "loose Wolvers",
+					"kind": "item",
+					"items": {
+						"cyberware/wolvers": 1
+					}
+				},
+				{
+					"roll": 99,
+					"label": "loose smartgun link",
+					"unmodelled": "the Smartgun Link isn't modelled"
+				},
+				{
+					"roll": 100,
+					"label": "way to a weapons cache",
+					"kind": "lead",
+					"hook": "cache"
+				}
+			]
+		},
+		"corporate": {
+			"cite": "SPM p.69-70",
+			"rows": [
+				{
+					"roll": 1,
+					"label": "luxury fruit",
+					"kind": "eb",
+					"eb": "1d10x100",
+					"fence": true
+				},
+				{
+					"roll": 2,
+					"label": "flashy jewellery",
+					"unmodelled": "fashion isn't modelled"
+				},
+				{
+					"roll": 3,
+					"label": "biotoxin vials",
+					"unmodelled": "toxin vials aren't modelled"
+				},
+				{
+					"roll": 4,
+					"label": "baggies of Synthcoke",
+					"kind": "item",
+					"items": {
+						"drugs/synthcoke": "2d10"
+					}
+				},
+				{
+					"roll": 5,
+					"label": "black ICE programs",
+					"kind": "eb",
+					"eb": 500,
+					"fence": true
+				},
+				{
+					"roll": 6,
+					"label": "loose fashionware",
+					"kind": "eb",
+					"eb": 500,
+					"fence": true
+				},
+				{
+					"roll": 7,
+					"label": "long-service pin",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 8,
+					"label": "bare battleglove",
+					"unmodelled": "the Battleglove isn't modelled"
+				},
+				{
+					"roll": 9,
+					"label": "locked monoblade",
+					"unmodelled": "biometric lock: useless to anyone else"
+				},
+				{
+					"roll": 10,
+					"label": "locked ring box",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 11,
+					"label": "corp building blueprint",
+					"kind": "lead",
+					"hook": "blueprint"
+				},
+				{
+					"roll": 12,
+					"label": "tongue in a bottle",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 13,
+					"label": "hotel shampoo",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 14,
+					"label": "fine wine",
+					"kind": "eb",
+					"eb": 500,
+					"fence": true
+				},
+				{
+					"roll": 15,
+					"label": "half a box of condoms",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 16,
+					"label": "biometric briefcase",
+					"kind": "lead",
+					"hook": "briefcase"
+				},
+				{
+					"roll": 17,
+					"label": "safehouse address",
+					"kind": "lead",
+					"hook": "safehouse"
+				},
+				{
+					"roll": 18,
+					"label": "logo wristwatch",
+					"unmodelled": "fashion isn't modelled"
+				},
+				{
+					"roll": 19,
+					"label": "defection message",
+					"kind": "lead",
+					"hook": "defector"
+				},
+				{
+					"roll": 20,
+					"label": "best-boss mug",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 21,
+					"label": "corrupted Agent",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 22,
+					"label": "store-only credstick",
+					"unmodelled": "good at one corp store only"
+				},
+				{
+					"roll": 23,
+					"label": "loaded credstick",
+					"kind": "eb",
+					"eb": 1000
+				},
+				{
+					"roll": 24,
+					"label": "odd-sum credstick",
+					"kind": "eb",
+					"eb": 666
+				},
+				{
+					"roll": 25,
+					"label": "crushed designer hat",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 26,
+					"label": "dead panic button",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 27,
+					"label": "jewelled lighter",
+					"kind": "eb",
+					"eb": 500,
+					"fence": true
+				},
+				{
+					"roll": 28,
+					"label": "tiny tracer",
+					"unmodelled": "tracers aren't modelled"
+				},
+				{
+					"roll": 29,
+					"label": "dry cleaning ticket",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 30,
+					"label": "baseball EMP grenade",
+					"unmodelled": "EMP grenades aren't modelled"
+				},
+				{
+					"roll": 31,
+					"label": "family photo",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 32,
+					"label": "poisoned hip flask",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 33,
+					"label": "queasy glass figure",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 34,
+					"label": "empty gold credstick",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 35,
+					"label": "gold-plated techtool",
+					"unmodelled": "techtools aren't modelled"
+				},
+				{
+					"roll": 36,
+					"label": "encrypted transfer list",
+					"kind": "lead",
+					"hook": "corp_secret"
+				},
+				{
+					"roll": 37,
+					"label": "designer handbag",
+					"unmodelled": "fashion isn't modelled"
+				},
+				{
+					"roll": 38,
+					"label": "homemade adult chip",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 39,
+					"label": "knife and poison",
+					"kind": "item",
+					"items": {
+						"weapon/light_melee": 1
+					}
+				},
+				{
+					"roll": 40,
+					"label": "locket with hair",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 41,
+					"label": "luxury car key",
+					"unmodelled": "vehicles aren't modelled"
+				},
+				{
+					"roll": 42,
+					"label": "marked transit map",
+					"kind": "lead",
+					"hook": "map"
+				},
+				{
+					"roll": 43,
+					"label": "journalist's card",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 44,
+					"label": "corp secret chip",
+					"kind": "lead",
+					"hook": "corp_secret"
+				},
+				{
+					"roll": 45,
+					"label": "half an apology chip",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 46,
+					"label": "lost media chip",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 47,
+					"label": "exec contacts chip",
+					"kind": "lead",
+					"hook": "names"
+				},
+				{
+					"roll": 48,
+					"label": "trading notes chip",
+					"kind": "lead",
+					"hook": "corp_secret"
+				},
+				{
+					"roll": 49,
+					"label": "meeting notes chip",
+					"kind": "lead",
+					"hook": "meet"
+				},
+				{
+					"roll": 50,
+					"label": "beating video",
+					"kind": "lead",
+					"hook": "blackmail"
+				},
+				{
+					"roll": 51,
+					"label": "folded bodysuit armour",
+					"kind": "item",
+					"items": {
+						"armor/bodyweight_suit": 1
+					}
+				},
+				{
+					"roll": 52,
+					"label": "thank-you note",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 53,
+					"label": "small painting",
+					"kind": "eb",
+					"eb": 1000,
+					"fence": true
+				},
+				{
+					"roll": 54,
+					"label": "napkin phone number",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 55,
+					"label": "concert ticket",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 56,
+					"label": "bloody family portrait",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 57,
+					"label": "circled book page",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 58,
+					"label": "prototype power cell",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 59,
+					"label": "scrambled radio",
+					"unmodelled": "radios aren't modelled"
+				},
+				{
+					"roll": 60,
+					"label": "unreleased tracks",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 61,
+					"label": "leather briefcase",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 62,
+					"label": "leather holster",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 63,
+					"label": "big-ticket receipt",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 64,
+					"label": "safe passcode",
+					"kind": "lead",
+					"hook": "safe"
+				},
+				{
+					"roll": 65,
+					"label": "ship's name",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 66,
+					"label": "blackmail photos",
+					"kind": "lead",
+					"hook": "blackmail"
+				},
+				{
+					"roll": 67,
+					"label": "eyeball in a cryobag",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 68,
+					"label": "silver dentures",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 69,
+					"label": "escort's card",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 70,
+					"label": "shipping manifest",
+					"kind": "lead",
+					"hook": "shipment"
+				},
+				{
+					"roll": 71,
+					"label": "vial of something",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 72,
+					"label": "pen stun gun",
+					"kind": "item",
+					"items": {
+						"weapon/stun_gun": 1
+					}
+				},
+				{
+					"roll": 73,
+					"label": "cactus in gold",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 74,
+					"label": "pocket techscanner",
+					"kind": "item",
+					"items": {
+						"gear/techscanner": 1
+					}
+				},
+				{
+					"roll": 75,
+					"label": "opera ticket, deliver this",
+					"kind": "lead",
+					"hook": "courier"
+				},
+				{
+					"roll": 76,
+					"label": "failed takeover memo",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 77,
+					"label": "8 PM docks note",
+					"kind": "lead",
+					"hook": "meet"
+				},
+				{
+					"roll": 78,
+					"label": "double skill chip",
+					"unmodelled": "skill chips aren't modelled"
+				},
+				{
+					"roll": 79,
+					"label": "bottled drone swarm",
+					"unmodelled": "drones aren't modelled"
+				},
+				{
+					"roll": 80,
+					"label": "empty secret folder",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 81,
+					"label": "empty lingerie box",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 82,
+					"label": "gold airhypo, empty",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 83,
+					"label": "top-quality cyberdeck",
+					"unmodelled": "cyberdecks aren't storage items yet"
+				},
+				{
+					"roll": 84,
+					"label": "exec office keycard",
+					"kind": "keycard",
+					"zone": "high"
+				},
+				{
+					"roll": 85,
+					"label": "logo-carved VH pistol",
+					"kind": "item",
+					"items": {
+						"weapon/very_heavy_pistol@excellent": 1
+					}
+				},
+				{
+					"roll": 86,
+					"label": "Trauma Team card",
+					"unmodelled": "Trauma Team cover isn't modelled for the crew"
+				},
+				{
+					"roll": 87,
+					"label": "experimental gadget",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 88,
+					"label": "high-end party invite",
+					"kind": "lead",
+					"hook": "party"
+				},
+				{
+					"roll": 89,
+					"label": "poker game invite",
+					"kind": "lead",
+					"hook": "party"
+				},
+				{
+					"roll": 90,
+					"label": "exclusive club pass",
+					"kind": "lead",
+					"hook": "party"
+				},
+				{
+					"roll": 91,
+					"label": "loose Pain Editor",
+					"kind": "item",
+					"items": {
+						"cyberware/pain_editor": 1
+					}
+				},
+				{
+					"roll": 92,
+					"label": "odd challenge coin",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 93,
+					"label": "apartment keys",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 94,
+					"label": "level-damping earmuffs",
+					"unmodelled": "ear protectors aren't modelled"
+				},
+				{
+					"roll": 95,
+					"label": "designer mirrorshades",
+					"unmodelled": "fashion isn't modelled"
+				},
+				{
+					"roll": 96,
+					"label": "booby-trapped skill chip",
+					"unmodelled": "flavour: nothing the game plays"
+				},
+				{
+					"roll": 97,
+					"label": "top fixer's contact",
+					"kind": "lead",
+					"hook": "fixer"
+				},
+				{
+					"roll": 98,
+					"label": "aerodyne key",
+					"unmodelled": "vehicles aren't modelled"
+				},
+				{
+					"roll": 99,
+					"label": "NET login code",
+					"kind": "net_code"
+				},
+				{
+					"roll": 100,
+					"label": "VIP's direct line",
+					"kind": "lead",
+					"hook": "contact"
+				}
+			]
+		}
+	}
+}

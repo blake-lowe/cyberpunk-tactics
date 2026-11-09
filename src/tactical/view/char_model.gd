@@ -551,6 +551,9 @@ func _pick(now: bool) -> void:
 	var w := gun_kind
 	var serious := int(get_meta("wound", 0)) >= Combatant.Wound.SERIOUS
 	var clip := "%s_idle" % w
+	if get_meta("surrender", false) and not get_meta("walk", false):
+		_hold_surrender()
+		return
 	if get_meta("prone", false) or (String(get_meta("grip", "")) != "" and not get_meta("walk", false)):
 		_hold_pose()
 		return
@@ -606,6 +609,40 @@ func _hold_pose() -> void:
 	else:
 		at += 0.03 * sin(Time.get_ticks_msec() / 300.0 + index)
 	anim.seek(at, true)
+
+
+## Gave up (Morale, SPM p.20-21): down on the knees with the hands up. The library has no
+## surrender clip, so this holds the kneeling middle of the kneel clip (KNEEL_AT, swaying a
+## little) and the Pose layer lifts the arms (HANDS_UP); the gun falls to the floor beside them.
+const KNEEL_AT := 4.5
+var _hands_t := 0.0   ## 0..1: the arms going up
+
+
+func surrender() -> void:
+	set_meta("surrender", true)
+	_windup = ""
+	_oneshot = ""
+	_perform_until = 0
+	_hands_t = 0.0
+	if gun and gun.get_parent() == skel:   # let go: it drops in front of them (_drop_gun lands it)
+		var gx := gun.global_transform
+		skel.remove_child(gun)
+		add_child(gun)
+		gun.global_transform = gx
+		_drop_v = global_transform.basis.z.normalized() * 0.35 + Vector3(0, 0.25, 0)
+		_drop_w = Vector3(4.0, 1.5, 3.0)
+		_dropping = true
+
+
+func _hold_surrender() -> void:
+	if not anim.has_animation("kneel"):
+		return
+	if state != "hold:surrender":
+		state = "hold:surrender"
+		anim.speed_scale = 1.0
+		anim.play("kneel", 0.25)
+	anim.seek(KNEEL_AT + 0.08 * sin(Time.get_ticks_msec() / 700.0 + index), true)
+	_hands_t = minf(1.0, _hands_t + get_process_delta_time() * 2.5)
 
 
 ## The Seriously Wounded limp plays at this rate at most (owner, playtest: at the old 2.5 cap it
@@ -857,7 +894,7 @@ func reset_gun() -> void:
 func _drop_gun(delta: float) -> void:
 	if gun == null or not is_instance_valid(gun):
 		return
-	if not state.begins_with("death"):
+	if not state.begins_with("death") and not (get_meta("surrender", false) and _dropping):
 		_death_t = -1.0
 		return
 	_death_t = maxf(_death_t, 0.0) + delta
@@ -907,6 +944,8 @@ class Pose extends SkeletonModifier3D:
 			lh = model.global_transform.basis.inverse() * Vector3(hd.x, 0, hd.z).normalized()
 		var pitch := -(rc * 0.8 + kick * 0.05) + lh.z * 0.3 * env
 		var roll := -lh.x * 0.3 * env
+		if model.get_meta("surrender", false):
+			_hands_up(s, model._hands_t)
 		if absf(pitch) + absf(roll) < 0.0001:
 			model.place_gun(s)
 			return
@@ -915,3 +954,29 @@ class Pose extends SkeletonModifier3D:
 			if i >= 0:
 				s.set_bone_pose_rotation(i, s.get_bone_pose_rotation(i) * Quaternion.from_euler(Vector3(pitch * 0.5, 0, roll * 0.5)))
 		model.place_gun(s)
+
+	## Hands up (a surrender): each upper arm swung out to the side and a little up, the forearm
+	## straight up, palms forward, by `w` (0..1). Directions are in the skeleton's space (the body
+	## faces +Z, its left is +X); each bone is turned so its length axis (+Y) points that way.
+	const ARM_OUT := Vector3(0.92, 0.32, 0.18)
+	const FOREARM_UP := Vector3(0.12, 1.0, 0.1)
+
+	func _hands_up(s: Skeleton3D, w: float) -> void:
+		if w <= 0.0:
+			return
+		for side in ["Left", "Right"]:
+			var sx := 1.0 if side == "Left" else -1.0
+			_aim_bone(s, side + "UpperArm", Vector3(ARM_OUT.x * sx, ARM_OUT.y, ARM_OUT.z).normalized(), w)
+			_aim_bone(s, side + "LowerArm", Vector3(FOREARM_UP.x * sx, FOREARM_UP.y, FOREARM_UP.z).normalized(), w)
+
+	func _aim_bone(s: Skeleton3D, bone: String, want: Vector3, w: float) -> void:
+		var i := s.find_bone(bone)
+		if i < 0:
+			return
+		var gp := s.get_bone_global_pose(i)
+		var cur := gp.basis.y.normalized()
+		var turn := Quaternion(cur, want)
+		var g_new := Basis(Quaternion.IDENTITY.slerp(turn, w)) * gp.basis
+		var par := s.get_bone_parent(i)
+		var pb := s.get_bone_global_pose(par).basis if par >= 0 else Basis.IDENTITY
+		s.set_bone_pose_rotation(i, (pb.inverse() * g_new).get_rotation_quaternion())

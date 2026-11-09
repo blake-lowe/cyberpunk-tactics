@@ -223,6 +223,8 @@ static func _shoot(e: Encounter, u: Dictionary, w: Weapon, targets: Variant = nu
 			var score: float = p.chance * (w.dice() * 3.5 if mode == Attack.Mode.SINGLE else 7.0 * w.autofire_mult() * 0.6)
 			if t.c.wound_state() == Combatant.Wound.MORTAL:
 				score *= 0.5
+			if t.has("broke"):   # running for the edge (Morale): no threat any more
+				score *= 0.25
 			score *= e.obj.ai_target_mult(t)   # e.g. stop the package leaving
 			if int(t.id) == e.focus_id and e.hostile(int(u.team), Encounter.CREW):
 				score *= 2.0   # a Lieutenant's focus_fire tactic (Complication)
@@ -355,6 +357,40 @@ static func _vip(e: Encounter, u: Dictionary) -> void:
 			best = cell
 	if best != u.pos and e.move_to(best, true) and int(field.get(best, 999)) == 0:
 		e._vip_escapes(u)
+
+
+## A unit that broke and runs (Morale): up off the floor or out of a hold first, then Move and a
+## Run for the nearest way off the map (Morale.flee_field), gone on reaching it (Encounter.flee_out).
+## It never fights back. With nowhere left to run it gives up instead.
+static func flee(e: Encounter, u: Dictionary) -> void:
+	if e.turn == null:
+		return
+	if u.c.prone and e.turn.action_available:
+		e.get_up()
+	if u.c.is_grappled():
+		if e.turn.action_available:
+			e.escape_grapple()
+		if u.c.is_grappled():
+			return
+	var field := Morale.flee_field(e)
+	if not field.has(u.pos):
+		e.surrender(u, "cornered", 0, 0)
+		return
+	if int(field[u.pos]) == 0:
+		e.flee_out(u)
+		return
+	if not e.turn.can_move():
+		return
+	var budget: int = e.turn.squares_available() + (u.c.stat("MOVE") if e.turn.action_available else 0)
+	var opts: Dictionary = e._with_locks(func(): return e.nav.reachable(u.pos, budget, e._blocking(u)))
+	var best: Vector3i = u.pos
+	for cell in opts:
+		if int(field.get(cell, 9999)) < int(field.get(best, 9999)) and not e.occupied(u).has(cell):
+			best = cell
+	if best != u.pos:
+		e.move_to(best, true)
+	if int(field.get(u.pos, 9999)) == 0:
+		e.flee_out(u)
 
 
 ## A freed captive: keep beside the crew member nearest to the extraction zone; step into the zone

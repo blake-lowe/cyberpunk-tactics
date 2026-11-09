@@ -57,8 +57,11 @@ extends RefCounted
 ##     (the migration can't: it reads no city data and rolls no dice).
 ## v15: save slots. The campaign counts the gigs it has played to the end, `gigs_done`, for the
 ##     slot listing; an older save doesn't know how many it played and starts at 0.
+## v16: corpse loot (Single Player Mode, CorpseLoot). The campaign keeps `leads`, the plot hooks
+##     found on bodies ({label, hook, day, gig, faction, district, location, from}); an older save
+##     found none and starts with an empty list. Loot itself lands in the stash, which is unchanged.
 
-const CURRENT := 15
+const CURRENT := 16
 
 
 ## Upgrade `d` (a parsed save) to CURRENT. Returns {} for a save from a newer build, which this
@@ -84,6 +87,7 @@ static func migrate(d: Dictionary) -> Dictionary:
 			12: _v12_to_v13(d)
 			13: _v13_to_v14(d)
 			14: _v14_to_v15(d)
+			15: _v15_to_v16(d)
 		v += 1
 		d["version"] = v
 	return d
@@ -279,3 +283,8 @@ static func _v13_to_v14(d: Dictionary) -> void:
 static func _v14_to_v15(d: Dictionary) -> void:
 	if not d.has("gigs_done"):
 		d["gigs_done"] = 0
+
+
+static func _v15_to_v16(d: Dictionary) -> void:
+	if not (d.get("leads") is Array):
+		d["leads"] = []

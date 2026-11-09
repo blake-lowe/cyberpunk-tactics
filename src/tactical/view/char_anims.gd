@@ -51,6 +51,7 @@ const CLIPS := {
 	"idle_talk": "mx:idle_talk",
 	"idle_shift": "mx:idle_shift",
 	"cover_idle": "mx:cover_idle",
+	"kneel": "mx:kneel",   # stand, kneel, stand: a surrender holds its kneeling middle (CharModel.surrender)
 }
 const LOOP := ["rifle_idle", "rifle_aim", "rifle_crouch", "rifle_crouch_aim", "rifle_walk", "rifle_run", "rifle_sprint",
 	"pistol_idle", "pistol_aim", "pistol_walk", "pistol_run", "pistol_sprint", "pistol_crouch", "injured_idle", "injured_walk",

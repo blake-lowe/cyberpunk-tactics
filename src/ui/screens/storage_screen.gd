@@ -376,7 +376,35 @@ func _storage_panel(c: Combatant, wide: bool) -> PanelContainer:
 		go.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 		list.add_child(go)
 	v.add_child(_detail(c, now, wide))
+	if not camp.leads.is_empty():
+		v.add_child(leads_box(camp))
 	return p
+
+
+## The plot hooks found on bodies (Campaign.leads, CorpseLoot), newest first: a later fixer offer
+## can follow one up. Up to LEADS_SHOWN, then how many more.
+const LEADS_SHOWN := 6
+
+
+static func leads_box(cp: Campaign) -> Control:
+	var v := UiKit.vbox(3)
+	var head := UiKit.hbox(8)
+	v.add_child(head)
+	head.add_child(UiKit.label("LEADS · %d" % cp.leads.size(), 12, Hud.MAGENTA))
+	head.add_child(UiKit.label("found on bodies; a fixer may follow one up", 12, Hud.DIM))
+	var flow := UiKit.flow(14)
+	v.add_child(flow)
+	var shown := 0
+	for i in range(cp.leads.size() - 1, -1, -1):
+		if shown >= LEADS_SHOWN:
+			break
+		var l: Dictionary = cp.leads[i]
+		var where := String(l.get("gig", ""))
+		flow.add_child(UiKit.body("%s%s" % [String(l.get("label", "")), (" (" + where + ")") if where != "" else ""], 13, Hud.TEXT, false))
+		shown += 1
+	if cp.leads.size() > shown:
+		flow.add_child(UiKit.body("+%d more" % (cp.leads.size() - shown), 13, Hud.DIM, false))
+	return v
 
 
 ## The name of what's in a slot, as the loadout shows it.

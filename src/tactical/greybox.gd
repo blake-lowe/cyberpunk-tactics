@@ -306,6 +306,7 @@ var _dev_hurt := -1.0                  ## --hurt=f (review renders): the nearest
 var _dev_log_t := -1.0                 ## --logt=t (review renders): the log's slide held at t
 var _dev_stairs := ""                  ## --stairs=on|up (review renders): the active crew member stands on the target building's stairs (up: and takes them)
 var _dev_near := 0                     ## --near=n (review renders): bring the nearest foe n squares from the crew
+var _dev_morale := ""                  ## --morale=surrender | flee | search (review renders): stage Morale or Search Body
 var _dev_grapple := ""                 ## --grapple=hold|shield|throw|held (review renders, with --near=1): a sure Grab on the nearest foe first
 var _alt_on := false                   ## Alt is held: enemy outlines, last-known marks, stair and exit signs
 var _portrait_uid := -1                ## the turn-order portrait under the mouse (-1 none)
@@ -391,6 +392,7 @@ func _ready() -> void:
 			"grapple": _dev_grapple = kv[1]   # review renders: hold | shield | throw | held (the foe grabs the crew)
 			"stairs": _dev_stairs = kv[1]   # review renders: on the target's stairs (GO UP on the bar); =up takes them
 			"near": _dev_near = int(kv[1])   # review renders: the nearest foe stands this many squares off, in the line of fire
+			"morale": _dev_morale = kv[1]   # review renders: surrender | flee (the nearest foe breaks) | search (a body beside the crew, the card up)
 			"callouts": _dev_callouts = true   # review renders: -14, CRITICAL · BROKEN RIBS and MORTALLY WOUNDED stacked
 			"end": _dev_end = kv[1]   # review renders: the gig ends this way (won | lost | fled), the end panel shows
 			"peace": _dev_peace = true   # review renders: --peace=broken: the crew breaks a neutral house's peace (Totentanz)
@@ -615,6 +617,8 @@ func _process(delta: float) -> void:
 			_demo_peace()
 		if _frames == 10 and _dev_grapple != "":
 			_demo_grapple()
+		if _frames == 10 and _dev_morale != "":
+			_demo_morale()
 		if _frames == 10 and _dev_callouts:
 			_demo_ms = Time.get_ticks_msec()
 			var cu: Dictionary = enc.units.filter(func(o): return o.team == 0)[0]
@@ -625,7 +629,7 @@ func _process(delta: float) -> void:
 			_demo_ms = Time.get_ticks_msec()
 			enc.state = _dev_end
 			_after_action()
-		var shoot_now: bool = _frames >= 12 if not (_attack_demo or _jack_demo or _av_demo != "" or _dev_peace or _dev_end != "" or _dev_callouts or _dev_grapple != "") else (_demo_ms > 0 and Time.get_ticks_msec() - _demo_ms >= int(_shot_delay * 1000.0 / Engine.time_scale))
+		var shoot_now: bool = _frames >= 12 if not (_attack_demo or _jack_demo or _av_demo != "" or _dev_peace or _dev_end != "" or _dev_callouts or _dev_grapple != "" or _dev_morale != "") else (_demo_ms > 0 and Time.get_ticks_msec() - _demo_ms >= int(_shot_delay * 1000.0 / Engine.time_scale))
 		if shoot_now and _shot_ms == 0:
 			get_viewport().get_texture().get_image().save_png(_shot_path)
 			_shot_ms = Time.get_ticks_msec()
@@ -1266,6 +1270,9 @@ func _refresh() -> void:
 		dc.visible = false
 		n.set_meta("wound", u.c.wound_state())
 		n.set_meta("calm", enc.is_guard(u) and not u.alerted)
+		if String(u.get("broke", "")) == "surrender" and not n.get_meta("surrender", false) and not u.c.dead:
+			(n as CharModel).surrender()
+		_flee_mark(u, String(u.get("broke", "")) == "flee" and not u.c.dead)
 		n.set_meta("jack", enc.runs.has(u.id))
 		if u.c.dead:
 			if not n.get_meta("fallen", false):   # died out of sight: just lie there
@@ -3052,7 +3059,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 				var run := _net_active()
 				var t: Dictionary = _unit_at(hover) if enc else {}
 				var on_b := _building_at(ev.position) if enc and _crew_turn() else -1
-				match ClickIntent.of(ev.button_index, run != null, tool, cover_mode, not t.is_empty() and _foe(t), on_b, _aim_armed(), not t.is_empty() and not _foe(t)):
+				match ClickIntent.of(ev.button_index, run != null, tool, cover_mode, not t.is_empty() and _targetable(t), on_b, _aim_armed(), not t.is_empty() and not _targetable(t)):
 					ClickIntent.NET:
 						var id := net_overlay.pick(ev.position)
 						if id >= 0 and id != run.current:
@@ -3257,6 +3264,12 @@ func _on_hud(name: String, arg: Variant) -> void:
 				if not rb.get("ok", false):
 					hud.toast(String(rb.get("reason", "can't")))
 				_after_action()
+		"search":
+			if _crew_turn():
+				var rs := enc.search_body()
+				if not rs.get("ok", false):
+					hud.toast(String(rs.get("reason", "can't")).to_upper())
+				_after_action()
 		"keycard":
 			if _crew_turn():
 				var rk := enc.loot_keycard()
@@ -3441,6 +3454,68 @@ func _demo_hurt() -> void:
 		c.hp = maxi(1, roundi(c.max_hp() * (1.0 - _dev_hurt * (3 - i) / 3.0)))
 		enc.say("%s takes a hit (%d/%d HP)." % [c.display_name, c.hp, c.max_hp()])
 	_refresh()
+
+
+## --morale (review renders). surrender: the nearest foe, brought 3 squares from the active unit
+## and hurt, gives up (the card over them hovered); flee: one 7 squares off breaks and runs a few
+## squares toward the edge; search: a flatlined foe beside the active unit and Search Body's card
+## up over the bar.
+func _demo_morale() -> void:
+	_demo_ms = Time.get_ticks_msec()
+	_dev_near = 7 if _dev_morale == "flee" else (1 if _dev_morale == "search" else 3)
+	_demo_near()
+	var foes := enc.units.filter(func(o): return _foe(o) and not o.c.dead and not o.has("turret"))
+	if foes.is_empty():
+		return
+	foes.sort_custom(func(a, b): return Vector3(a.pos - enc.cur.pos).length() < Vector3(b.pos - enc.cur.pos).length())
+	var g: Dictionary = foes[0]
+	enc._rouse([g])
+	enc.events.clear()
+	match _dev_morale:
+		"surrender":
+			g.c.hp = mini(g.c.hp, g.c.seriously_wounded_threshold() - 1)
+			enc.surrender(g, "wounded", 3, Morale.threshold(enc, g))
+			cam_target = Vector3(g.pos.x + 0.5, 0, g.pos.y + 0.5)
+			if not _dev_zoom:
+				cam_dist = 11.0
+			_place_camera()
+			hover = g.pos
+		"flee":
+			enc.start_flight(g, "half", 4, Morale.threshold(enc, g))
+			var field := Morale.flee_field(enc)
+			var at: Vector3i = g.pos
+			var full: Array = [at]
+			for k in 5:   # five steps downhill toward the nearest way out
+				var nxt := at
+				for d in [Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 1, 0), Vector3i(0, -1, 0)]:
+					if int(field.get(at + d, 9999)) < int(field.get(nxt, 9999)) and not enc.occupied(g).has(at + d):
+						nxt = at + d
+				if nxt == at:
+					break
+				at = nxt
+				full.append(at)
+			if full.size() > 1:
+				g.pos = at
+				enc.events.append({"type": "move", "unit": g.id, "path": full, "run": true})
+			cam_target = Vector3(at.x + 0.5, 0, at.y + 0.5)
+			if not _dev_zoom:
+				cam_dist = 14.0
+			_place_camera()
+		"search":
+			g.c.hp = 0
+			g.c.dead = true
+			enc.say("%s goes down." % g.c.display_name)
+	_after_action()
+	if _dev_morale == "search":
+		await get_tree().create_timer(0.4).timeout
+		hud._interact_tip(hud._tool_buttons["interact"])
+	elif _dev_morale == "surrender":
+		await get_tree().create_timer(0.3).timeout
+		var gu := _unit_at(hover)
+		if not gu.is_empty():   # the card beside them, clear of the body
+			mouse = _to_screen(Vector3(gu.pos.x + 0.5, view_floor * FH, gu.pos.y + 0.5)) + Vector2(150, 40)
+		_on_hover_changed()
+		_update_hover()
 
 
 func _demo_near() -> void:
@@ -4403,7 +4478,12 @@ func _unit_conditions(u: Dictionary) -> Array:
 	var out: Array = []
 	if u.has("suppressed_by"):
 		out.append("suppressed")
-	if u.team != 0 and not u.get("alerted", true) and not u.has("held_by"):
+	match String(u.get("broke", "")):   # Morale
+		"surrender":
+			out.append("surrendered")
+		"flee":
+			out.append("fleeing")
+	if u.team != 0 and not u.get("alerted", true) and not u.has("held_by") and not u.has("broke"):
 		out.append("unaware")
 	if u.has("held_by"):   # a turret a Netrunner operates (Encounter.fire_turret)
 		out.append("held by %s's deck" % enc.units[int(u.held_by)].c.display_name)
@@ -4718,6 +4798,12 @@ func _foe(u: Dictionary) -> bool:
 	return enc.hostile(Encounter.CREW, int(u.team))
 
 
+## A left-click attacks them: a foe, or someone who surrendered (Morale: out of the fight, but
+## shooting them is the crew's call; the target card says so).
+func _targetable(u: Dictionary) -> bool:
+	return _foe(u) or String(u.get("broke", "")) == "surrender"
+
+
 func _seen(v: Vector3i) -> bool:
 	return not fog_on or enc.vision.visible.has(v)
 
@@ -4728,7 +4814,7 @@ func _body_pos(u: Dictionary) -> Vector3:
 
 ## Events that don't count as "hostile activity" for the enemy-phase banner (bookkeeping, third
 ## parties, things the crew caused).
-const QUIET_EVENTS := ["alert", "death", "camera", "tt_call", "av_land", "av_leave", "tt_pickup", "panic", "civ_gone"]
+const QUIET_EVENTS := ["alert", "death", "camera", "tt_call", "av_land", "av_leave", "tt_pickup", "panic", "civ_gone", "morale", "fled", "search"]
 
 var _handlers: Dictionary = {}
 
@@ -4767,6 +4853,9 @@ func _event_handlers() -> Dictionary:
 			"plant": _ev_plant,
 			"panic": _ev_panic,
 			"civ_gone": _ev_civ_gone,
+			"morale": _ev_morale,
+			"fled": _ev_fled,
+			"search": _ev_search,
 			"tt_call": _ev_tt_call,
 			"av_land": _anim_av_land,
 			"tt_pickup": _ev_tt_pickup,
@@ -4789,7 +4878,7 @@ func _play_events() -> void:
 	while not enc.events.is_empty():
 		var e: Dictionary = enc.events.pop_front()
 		var u: Dictionary = enc.units[e.unit]
-		if enc.is_guard(u) and _foe(u) and not hostile_shown and String(e.type) not in QUIET_EVENTS and not e.get("patrol", false) and _event_visible(e):
+		if enc.is_guard(u) and _foe(u) and not u.has("broke") and not hostile_shown and String(e.type) not in QUIET_EVENTS and not e.get("patrol", false) and _event_visible(e):
 			hostile_shown = true
 			hud.enemy_phase(true)
 			hud.turn_banner("HOSTILE ACTIVITY", Hud.RED)
@@ -5061,6 +5150,106 @@ func _ev_panic(e: Dictionary) -> void:
 func _ev_civ_gone(e: Dictionary) -> void:
 	var u: Dictionary = enc.units[e.unit]
 	(unit_nodes[u.id] as Node3D).visible = false
+
+
+## Someone broke at a stress point (Morale): a callout over them naming them ("GUARD 3
+## SURRENDERS", held as long as a wound word); a surrender drops to its knees, hands up, and lets
+## the gun fall; a runner gets the flee mark.
+const FLEE_COL := Color("ff8a24")
+
+
+func _ev_morale(e: Dictionary) -> void:
+	var u: Dictionary = enc.units[e.unit]
+	var nm: String = u.c.display_name.to_upper()
+	var seen := _seen(u.pos)
+	if String(e.result) == "surrender":
+		(unit_nodes[u.id] as CharModel).surrender()
+		if seen:
+			_focus_unit = u.id
+			_float(u, "%s SURRENDERS" % nm, Hud.GOLD, CalloutQueue.WOUND_LIFE_MS)
+	else:
+		_flee_mark(u, true)
+		if seen:
+			_focus_unit = u.id
+			_float(u, "%s FLEES" % nm, FLEE_COL, CalloutQueue.WOUND_LIFE_MS)
+	if seen:
+		await get_tree().create_timer(0.6).timeout
+
+
+## A fleeing unit made it off the map.
+func _ev_fled(e: Dictionary) -> void:
+	var u: Dictionary = enc.units[e.unit]
+	if _seen(u.pos):
+		hud.toast("%s GETS AWAY" % u.c.display_name.to_upper())
+	(unit_nodes[u.id] as Node3D).visible = false
+
+
+## A small running mark over a fleeing unit's head (owner: no rings or glows under units): two
+## chevrons, amber, billboarded.
+func _flee_mark(u: Dictionary, on: bool) -> void:
+	var n: Node3D = unit_nodes.get(u.id)
+	if n == null:
+		return
+	var mk: Label3D = n.get_node_or_null("FleeMark")
+	if not on:
+		if mk:
+			mk.queue_free()
+		return
+	if mk:
+		return
+	mk = Label3D.new()
+	mk.name = "FleeMark"
+	mk.text = "»"
+	mk.font = Hud.F_DISPLAY
+	mk.font_size = 64
+	mk.pixel_size = 0.007
+	mk.modulate = FLEE_COL
+	mk.outline_size = 10
+	mk.outline_modulate = Color.BLACK
+	mk.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	mk.no_depth_test = true
+	mk.shaded = false
+	mk.position = Vector3(0, 1.08, 0)
+	n.add_child(mk)
+
+
+## Search Body (CorpseLoot): the searcher kneels by the body, a glint, and what turned up.
+func _ev_search(e: Dictionary) -> void:
+	var u: Dictionary = enc.units[e.unit]
+	var b: Dictionary = enc.units[e.body]
+	_focus_unit = u.id
+	var sn: CharModel = unit_nodes[u.id]
+	var d := Vector2(b.pos.x - u.pos.x, b.pos.y - u.pos.y)
+	if d.length() > 0.1:
+		_turn_to(sn, atan2(d.x, d.y), 0.15)
+	sn.perform("jack", 0.8)   # down on one knee, going through pockets
+	await get_tree().create_timer(0.6).timeout
+	var f: Dictionary = e.find
+	var kind := String(f.kind)
+	if kind != "nothing":
+		fx.glint(Vector3(b.pos.x + 0.5, _gy(b.pos) + 0.4, b.pos.y + 0.5))
+	var txt := "NOTHING"
+	var col := Hud.DIM
+	match kind:
+		"eb":
+			txt = "+%d EB" % int(f.eb)
+			col = Hud.GOLD
+		"item":
+			var k: String = (f.items as Dictionary).keys()[0]
+			txt = Items.display_name(k).to_upper() + (" x%d" % int(f.items[k]) if int(f.items[k]) > 1 else "")
+			col = Hud.CYAN
+		"lead":
+			txt = "LEAD · " + String(f.label).to_upper()
+			col = Hud.MAGENTA
+		"keycard":
+			txt = "KEYCARD"
+			col = Hud.GOLD
+		"net_code":
+			txt = "NET LOGIN CODE"
+			col = Hud.CYAN
+	_float(u, txt, col)
+	hud.toast(("FOUND: " + CorpseLoot.describe(f)).to_upper() if kind != "nothing" else "NOTHING WORTH TAKING", 2.5)
+	await get_tree().create_timer(0.5).timeout
 
 
 func _ev_tt_call(e: Dictionary) -> void:
@@ -6045,6 +6234,10 @@ func _update_hover() -> void:
 		lines.append("Range %d m · DV %d · %s" % [roundi(Los.distance_m(p.from, t.pos)), int(p.dv), w.def.name])
 		if p.blocker.x >= 0 and p.from != enc.cur.pos:
 			lines.append("[color=#05d9e8]Leaning out of cover[/color]")
+		if p.get("surrendered", false):   # Morale: the crew's call, not a mistake
+			lines.append("[color=#f9c80e]Surrendered: unarmed and out of the fight. Shooting them is your call.[/color]")
+		elif p.get("fleeing", false):
+			lines.append("[color=#ff8a24]Running for the edge: no threat now. Let them go, or not.[/color]")
 		if p.has("shield"):   # p.184: the shot goes into whoever they hold up
 			var shu: Dictionary = enc.units[int(p.shield)]
 			lines.append("[color=#f9c80e]Human shield: the shot goes into %s%s (Aimed head shots and melee get past)[/color]" % [shu.c.display_name, (" (corpse, %d HP)" % shu.c.grapple.corpse_hp) if shu.c.dead else ""])
@@ -6057,4 +6250,12 @@ func _update_hover() -> void:
 	lines.append("[code]%dd6 vs SP %d: ~%d through[/code]" % [w.dice(), c.sp(loc), roundi(thru)] + ("  [color=#ff3b4f]armor likely stops it[/color]" if thru < 1.0 else ""))
 	lines.append(Hud.stat_block(c, false, _unit_conditions(t)))
 	var st := Hud.stance(enc, int(t.team))
-	hud.tip("\n".join(lines), mouse, "// TARGET · " + st, Hud.stance_col(st))
+	var stc := Hud.stance_col(st)
+	match String(t.get("broke", "")):   # the card's badge: they've quit (Morale)
+		"surrender":
+			st = "SURRENDERED"
+			stc = Hud.GOLD
+		"flee":
+			st += " · FLEEING"
+			stc = FLEE_COL
+	hud.tip("\n".join(lines), mouse, "// TARGET · " + st, stc)
