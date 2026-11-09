@@ -300,7 +300,8 @@ func _init_sides() -> void:
 ## `extra` keys ride on the side: `stands_with` (a team whose relations it shares, kept shared by
 ## set_relation: the site's turrets stand with the guards, the crew's with the crew, Totentanz's
 ## bouncers with Maelstrom), `at_war` (hostile to every side that fights: the crew, guards and
-## turrets; FreeForAll).
+## turrets; FreeForAll), `spares_crew` (with at_war: a street gang war, SceneEvent._gangs, that
+## leaves the crew and anyone standing with it neutral until the crew provokes it: _provoke).
 func add_side(faction: String, ai: String, opfor: bool, extra: Dictionary = {}) -> int:
 	var t := sides.size()
 	var side := {"faction": faction, "ai": ai, "opfor": opfor}
@@ -313,7 +314,7 @@ func add_side(faction: String, ai: String, opfor: bool, extra: Dictionary = {}) 
 		elif o != t and sides[o].has("stands_with"):
 			r = relation(t, int(sides[o].stands_with))
 		if o != t and _at_war(side, sides[o]):
-			r = "hostile"
+			r = "neutral" if _spares(side, o) or _spares(sides[o], t) else "hostile"
 		if (o == CREW and opfor) or (t == CREW and bool(sides[o].opfor)):
 			r = "hostile"
 		if o != t and (ai == "surrendered" or String(sides[o].ai) == "surrendered"):
@@ -328,6 +329,23 @@ const WAR_AIS := ["crew", "guard", "turret"]   ## the sides an `at_war` side fig
 
 static func _at_war(a: Dictionary, b: Dictionary) -> bool:
 	return (bool(a.get("at_war", false)) and String(b.ai) in WAR_AIS) or (bool(b.get("at_war", false)) and String(a.ai) in WAR_AIS)
+
+
+## Does `side` (still) leave team `o` alone: a `spares_crew` side not yet provoked, and `o` the crew
+## or a side standing with it.
+func _spares(side: Dictionary, o: int) -> bool:
+	return bool(side.get("spares_crew", false)) and (o == CREW or (sides[o].has("stands_with") and int(sides[o].stands_with) == CREW))
+
+
+## The crew attacked or hit someone of team `t`: a side that was sparing the crew (a street gang
+## war, SceneEvent._gangs) turns on it. It is still not the gig's opposition (objectives, the
+## alarm): a neighbourhood's fight, now with the crew in it.
+func _provoke(t: int) -> void:
+	if not bool(sides[t].get("spares_crew", false)):
+		return
+	sides[t].spares_crew = false
+	set_relation(t, CREW, "hostile")
+	say("%s turn on the crew." % SecurityCode.faction_name(String(sides[t].faction)))
 
 
 ## The side a faction plays `ai` on, added if it isn't here yet (NCPD and MaxTac turning up).
@@ -647,6 +665,7 @@ func _witness_attack(by: Dictionary, at: Array) -> void:
 	for u in units:
 		if u.pos in at and not u.c.dead and not allied(int(u.team), CREW):
 			u["crew_hit"] = true   # a body later, if this kills them
+			_provoke(int(u.team))   # a gang the crew shoots at (or catches in a blast) is in the fight now
 	var spots: Array = at.duplicate()
 	spots.append(by.pos)
 	for w in units:
@@ -1309,43 +1328,144 @@ func _add_civilian(c: Combatant, v: Vector3i, armed: bool) -> void:
 		u["local"] = true
 
 
+## HOUSE-RULE (owner verdict 2026-11-09, "a lot of these bystanders would scatter if there is a
+## gunfight"): gunfire or a blast at `at` spooks the bystanders who hear it (a floor either way):
+## all of them within PANIC_NEAR squares, fewer the further off (panic_chance), none past
+## PANIC_FAR. Each shot is a fresh chance, so a running firefight clears the street round it. Who
+## panics scatters their own way (`scatter`, _scatter_way): most run for a way off the map, some
+## duck into the nearest public room and cower there, a few freeze where they stand. Deterministic
+## (a hash of the unit, the spot and the round), so the gig's own dice never shift.
+const PANIC_NEAR := 8.0
+const PANIC_FAR := 24.0
+const SCATTER_FLEE := 55   ## of 100 outdoors: run for a way out (a street edge, a building's door)
+const SCATTER_HIDE := 30   ## of 100 outdoors: into the nearest public room, then cower (the rest cower where they are)
+const HIDE_REACH := 20     ## a room further than this (squares of walking) is no shelter: run instead
+
+
+static func panic_chance(d: float) -> float:
+	if d <= PANIC_NEAR:
+		return 1.0
+	return clampf((PANIC_FAR - d) / (PANIC_FAR - PANIC_NEAR), 0.0, 1.0)
+
+
+static func _roll100(key: Array) -> int:
+	return posmod(hash(key), 100)
+
+
 func _panic_near(at: Vector3i) -> void:
 	var fresh := []
+	var rnd := init.round_num if init != null else 0
 	for u in units:
-		if u.get("civ", false) and not u.panic and not u.c.dead and Vector2(at.x - u.pos.x, at.y - u.pos.y).length() <= GUNFIRE_RANGE:
-			u.panic = true
-			fresh.append(u.id)
+		if not u.get("civ", false) or u.panic or u.c.dead or absi(at.z - u.pos.z) > 1:
+			continue
+		var p := panic_chance(Vector2(at.x - u.pos.x, at.y - u.pos.y).length())
+		if p <= 0.0 or (p < 1.0 and _roll100([int(u.id), at, rnd]) >= roundi(p * 100.0)):
+			continue
+		u.panic = true
+		u["scatter"] = _scatter_way(u)
+		fresh.append(u.id)
 	if not fresh.is_empty():
 		events.append({"type": "panic", "unit": fresh[0], "units": fresh})
 
 
-## Panicked bystanders run (up to 10 squares a round) for the nearest map exit and are gone there.
+## How a bystander scatters: "flee" (off the map), "hide" (into the nearest public room, then
+## "hidden": cowering there) or "cower" (down where they stand). Indoors, half cower, half run.
+func _scatter_way(u: Dictionary) -> String:
+	var r := _roll100([int(u.id), "scatter", m.seed_value])
+	if not StreetLife.outdoors(m, u.pos):
+		return "cower" if r < 50 else "flee"
+	if r < SCATTER_FLEE:
+		return "flee"
+	return "hide" if r < SCATTER_FLEE + SCATTER_HIDE else "cower"
+
+
+## Is `u` a bystander down and out of it: cowering where they stood, or hidden indoors.
+static func cowering(u: Dictionary) -> bool:
+	return u.get("civ", false) and u.get("panic", false) and String(u.get("scatter", "")) in ["cower", "hidden"]
+
+
+## Walking distance to the nearest square a bystander can shelter in: a public room at street
+## level (not a corridor, nor the rooms the objective is about), off the 1-wide ways and doorways.
+func _shelter_field() -> Dictionary:
+	if not has_meta("shelter_seeds"):
+		set_meta("shelter_seeds", _shelter_seeds())
+	var seeds: Array = get_meta("shelter_seeds")
+	return nav.distance_field(seeds, {}, 400) if not seeds.is_empty() else {}
+
+
+func _shelter_seeds() -> Array:
+	var seeds: Array = []
+	for y in m.h:
+		for x in m.w:
+			var l := m.label(m.street, x, y)
+			if l < 0:
+				continue
+			var r: Dictionary = m.rooms[l]
+			if bool(r.get("outdoor", false)) or int(r.get("zone", -1)) != TacMap.Zone.PUBLIC or String(r.get("kind", "")) in ["roof", "corridor"]:
+				continue
+			var v := Vector3i(x, y, m.street)
+			if not StreetLife.blocked_spot(self, v):
+				seeds.append(v)
+	return seeds
+
+
+## Panicked bystanders scatter each round (up to 10 squares): runners for the nearest way off the
+## map (gone there), hiders for the nearest shelter (cowering once in); never stopping in a 1-wide
+## way or a doorway when anywhere else gets them closer. Cowering ones stay put.
 func _civilians_tick() -> void:
+	if not units.any(func(u): return u.get("civ", false) and u.get("panic", false) and not u.c.dead and String(u.get("scatter", "flee")) in ["flee", "hide"]):
+		StreetLife.tick(self)   # nobody running: only everyday life moves
+		return
 	var exits: Array = []
 	for en in m.entrances:
 		if m.walkable(int(en.get("floor", 0)), en.pos):
 			exits.append(Vector3i(en.pos.x, en.pos.y, int(en.get("floor", 0))))
-	if exits.is_empty():
-		return
-	var field: Dictionary = nav.distance_field(exits, {}, 4000)
+	var field: Dictionary = nav.distance_field(exits, {}, 4000) if not exits.is_empty() else {}
+	var shelter: Variant = null
 	for u in units:
 		if not u.get("civ", false) or not u.panic or u.c.dead or not u.c.can_act():
 			continue
-		var reach: Dictionary = nav.reachable(u.pos, 10, occupied(u))
+		var way := String(u.get("scatter", "flee"))
+		if way in ["cower", "hidden"]:
+			continue
+		var goal := field
+		if way == "hide":
+			if shelter == null:
+				shelter = _shelter_field()
+			goal = shelter
+			if int(goal.get(u.pos, 9999)) > HIDE_REACH:
+				way = "flee"   # nowhere to duck into near enough: run
+				u.scatter = way
+				goal = field
+		if goal.is_empty():
+			continue
+		var occ := occupied(u)
+		var reach: Dictionary = nav.reachable(u.pos, 10, occ)
 		var best: Vector3i = u.pos
+		var stuck: Vector3i = u.pos   # the closest stop counting 1-wide ways and doorways, if nothing else gets closer
 		for cell in reach:
-			if int(field.get(cell, 9999)) < int(field.get(best, 9999)) and not occupied(u).has(cell):
+			if occ.has(cell):
+				continue
+			var d := int(goal.get(cell, 9999))
+			if d < int(goal.get(stuck, 9999)):
+				stuck = cell
+			if d < int(goal.get(best, 9999)) and (d == 0 or not (StreetLife.is_choke(m, cell) or StreetLife.by_door(m, cell))):
 				best = cell
+		if best == u.pos:
+			best = stuck
 		if best != u.pos:
-			var path: Array[Vector3i] = nav.path(u.pos, best, occupied(u))
+			var path: Array[Vector3i] = nav.path(u.pos, best, occ)
 			var full: Array = [u.pos]
 			full.append_array(path)
 			u.pos = best
 			events.append({"type": "move", "unit": u.id, "path": full, "run": true})
-		if int(field.get(u.pos, 9999)) == 0:
-			u.c.dead = true   # gone off the map, unharmed
-			u["fled"] = true
-			events.append({"type": "civ_gone", "unit": u.id})
+		if int(goal.get(u.pos, 9999)) == 0:
+			if way == "hide":
+				u.scatter = "hidden"   # in, and down out of sight of the street
+			else:
+				u.c.dead = true   # gone off the map, unharmed
+				u["fled"] = true
+				events.append({"type": "civ_gone", "unit": u.id})
 	StreetLife.tick(self)
 
 
@@ -1638,7 +1758,7 @@ func _detonate(center: Vector3i, half: int, n_dice: int, by: int, total := 17) -
 	for o in caught:
 		before[o.id] = [o.c.hp, o.c.wound_state()]
 	var results := Attack.explosion_rolled(dice, total, faces, caught.map(func(o): return o.c))
-	_keep_peace(units[by] if by >= 0 and by < units.size() else {}, [center])
+	_keep_peace(units[by] if by >= 0 and by < units.size() else {}, [center] + caught.map(func(o): return o.pos))
 	_rouse(caught.filter(func(o): return is_guard(o)))
 	_noise(center)
 	var hits: Array = []
@@ -3065,7 +3185,7 @@ func throw_grenade(cell: Vector3i, slot := 0) -> Dictionary:
 			results.append(res)
 	else:
 		results = Attack.explosion_rolled(dice, check.total, faces, caught.map(func(o): return o.c), fx)
-	_keep_peace(cur, [center])
+	_keep_peace(cur, [center] + caught.map(func(o): return o.pos))   # everyone caught: a stray blast provokes a gang too
 	_rouse(caught.filter(func(o): return not allied(int(o.team), int(cur.team))))
 	_noise(center)
 	var hits: Array = []

@@ -29,7 +29,7 @@ const OBJECTIVES := {"data_theft": "data", "gang_hit": "eliminate", "corp_extrac
 ## Recover: natural healing, BODY HP a day (p223). (The book has no rule for earning IP or eb in
 ## downtime: IP come from the GM after a session, p410.)
 const DOWNTIME := {
-	"recover": {"name": "Recover", "desc": "Heal BODY HP a day (p223)."},
+	"recover": {"name": "Recover", "desc": "Heal BODY HP a day."},   # CPR core p.223
 }
 
 ## Where a new crew holds up: Little China, a mid-band district (Security Code 4-5, NC2045 p.18) in
@@ -790,6 +790,8 @@ static func scene_opts(gig: Dictionary) -> Dictionary:
 			o["sky"] = String(gig.sky)
 		if String(gig.get("mood", "")) != "":   # its weather (tower_mood): the sky, fog and smog (greybox _scene_look, TowerDress)
 			o["mood"] = String(gig.mood)
+	if gig.has("hour"):   # the hour the crew arrives (_start_gig): the map's light by it (Daylight, greybox scene_look)
+		o["hour"] = int(gig.hour)
 	for k in ["variant", "deploy", "basement_storeys"]:   # a dev gig's overrides (CustomGig)
 		if gig.has(k):
 			o[k] = gig[k]
@@ -843,8 +845,10 @@ func _start_gig(gig: Dictionary) -> Dictionary:
 	if drive > 0:
 		active_gig["travel_minutes"] = drive
 		advance_minutes(drive)
+	if not active_gig.has("hour"):   # the hour the crew gets there: the map is lit by it (Daylight), as the street is rolled for it
+		active_gig["hour"] = minutes / 60
 	if not active_gig.has("scene_event"):   # the street round the gig, at the hour the crew gets there (SceneEvent, SPM p.77-84)
-		active_gig["scene_event"] = SceneEvent.roll(active_gig, minutes, String(active_gig.get("street", "")))
+		active_gig["scene_event"] = SceneEvent.roll(active_gig, int(active_gig.hour) * 60 + minutes % 60, String(active_gig.get("street", "")))
 	var before := {}   # for the debrief: what each crew member already had going in
 	for c in crew:
 		before[c.display_name] = {"injuries": c.injuries.size(), "humanity": c.humanity}

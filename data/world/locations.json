@@ -1049,7 +1049,8 @@
 					]
 				},
 				{
-					"text": "Violet refuses to play ball with the Chamber and is said to be close to cyberpsychosis (p.88).",
+					"text": "Violet refuses to play ball with the Chamber and is said to be close to cyberpsychosis.",
+					"cite": "NC2045 p.88",
 					"gigs": [
 						"assassination"
 					]
@@ -1086,7 +1087,8 @@
 					]
 				},
 				{
-					"text": "Rumour: the Triad hijacked one of Mister Kernaghan's shipments from Asia, sparking a waterfront shootout with Whitewater (p.81).",
+					"text": "Rumour: the Triad hijacked one of Mister Kernaghan's shipments from Asia, sparking a waterfront shootout with Whitewater.",
+					"cite": "NC2045 p.81",
 					"gigs": [
 						"gang_hit"
 					]
@@ -1316,7 +1318,8 @@
 					]
 				},
 				{
-					"text": "Rumour: Skiv lieutenant Corwen Recknagel funds the Undertow to sabotage sites not run by HF&S Construction (p.88).",
+					"text": "Rumour: Skiv lieutenant Corwen Recknagel funds the Undertow to sabotage sites not run by HF&S Construction.",
+					"cite": "NC2045 p.88",
 					"gigs": [
 						"gang_hit",
 						"sabotage"
@@ -14152,7 +14155,8 @@
 			],
 			"hooks": [
 				{
-					"text": "Lola Lola's upcoming show here is rumoured to be worth over fifty million in total (p.67).",
+					"text": "Lola Lola's upcoming show here is rumoured to be worth over fifty million in total.",
+					"cite": "NC2045 p.67",
 					"gigs": [
 						"data_theft"
 					]
@@ -14414,7 +14418,8 @@
 			],
 			"hooks": [
 				{
-					"text": "Rumour: the Nuke just poached a star murderball player from Vancouver (p.67).",
+					"text": "Rumour: the Nuke just poached a star murderball player from Vancouver.",
+					"cite": "NC2045 p.67",
 					"gigs": [
 						"corp_extraction"
 					]
@@ -14458,7 +14463,8 @@
 					]
 				},
 				{
-					"text": "Swinger, an AllNations equipment driver, takes bribes to lend out heavy machines for a quick job (p.78).",
+					"text": "Swinger, an AllNations equipment driver, takes bribes to lend out heavy machines for a quick job.",
+					"cite": "NC2045 p.78",
 					"gigs": [
 						"sabotage"
 					]
@@ -14600,7 +14606,8 @@
 			],
 			"hooks": [
 				{
-					"text": "Masseuse Pixie Stix will talk about her regulars in useful detail for a mint rare Goosetopia figure (p.78).",
+					"text": "Masseuse Pixie Stix will talk about her regulars in useful detail for a mint rare Goosetopia figure.",
+					"cite": "NC2045 p.78",
 					"gigs": [
 						"data_theft"
 					]

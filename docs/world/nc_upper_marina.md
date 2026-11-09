@@ -377,7 +377,7 @@ A gallery for up-and-coming artists; free ground-floor exhibitions and a tickete
 	"utility_code": null,
 	"npcs": ["Helga Wise (Rockerboy 4/Tech 2)", "Lola Lola (Rockerboy 4/Fixer 4)"],
 	"hooks": [
-		{"text": "Lola Lola's upcoming show here is rumoured to be worth over fifty million in total (p.67).", "gigs": ["data_theft"]}
+		{"text": "Lola Lola's upcoming show here is rumoured to be worth over fifty million in total.", "cite": "NC2045 p.67", "gigs": ["data_theft"]}
 	],
 	"gigs": [],
 	"interior": "Two floors of white space: free ground-floor hall, ticketed upper floor for special shows and artists in residence; exit through the gift shop.",
@@ -606,7 +606,7 @@ A 75,000-seat stadium that served as refugee shelter and morgue after the war an
 	"utility_code": null,
 	"npcs": ["Hyun-Jae Jong (Solo 5)", "Shivani Carson (Solo 6)", "Sara Dominguez (Exec 5)", "Louis \"Kappa\" Ochs (Solo 7)", "Kaku \"Anansi\" Obeng (Solo 6)", "The Kidd (Rockerboy 6)", "Iron Chic (Rockerboy 5)", "Masked Athena (Rockerboy 5)"],
 	"hooks": [
-		{"text": "Rumour: the Nuke just poached a star murderball player from Vancouver (p.67).", "gigs": ["corp_extraction"]},
+		{"text": "Rumour: the Nuke just poached a star murderball player from Vancouver.", "cite": "NC2045 p.67", "gigs": ["corp_extraction"]},
 		{"text": "The Heat are one strong star away from contention.", "gigs": ["corp_extraction"]}
 	],
 	"gigs": ["assassination", "corp_extraction"],
@@ -632,7 +632,7 @@ A megabuilding the Council hired AllNations Construction to build, pushed by Nig
 	"npcs": ["Swinger (Netrunner 2)"],
 	"hooks": [
 		{"text": "Chung publicly calls it affordable housing but would love to see it burn.", "gigs": ["sabotage"]},
-		{"text": "Swinger, an AllNations equipment driver, takes bribes to lend out heavy machines for a quick job (p.78).", "gigs": ["sabotage"]},
+		{"text": "Swinger, an AllNations equipment driver, takes bribes to lend out heavy machines for a quick job.", "cite": "NC2045 p.78", "gigs": ["sabotage"]},
 		{"text": "Morro Strand Yacht Club members file nuisance suits against anyone tied to the project.", "gigs": ["sabotage"]}
 	],
 	"gigs": ["sabotage"],
@@ -750,7 +750,7 @@ A spa offering baths, massage and sauna with attentive "therapists", many also h
 	"utility_code": null,
 	"npcs": ["Pixie Stix (Fixer 3)"],
 	"hooks": [
-		{"text": "Masseuse Pixie Stix will talk about her regulars in useful detail for a mint rare Goosetopia figure (p.78).", "gigs": ["data_theft"]}
+		{"text": "Masseuse Pixie Stix will talk about her regulars in useful detail for a mint rare Goosetopia figure.", "cite": "NC2045 p.78", "gigs": ["data_theft"]}
 	],
 	"gigs": ["data_theft", "assassination"],
 	"interior": "Door security by off-duty NCPD; bodyguards wait in the Associates' Lounge.",

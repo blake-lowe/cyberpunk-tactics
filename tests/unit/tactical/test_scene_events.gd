@@ -169,8 +169,8 @@ func test_watchers_are_witnesses_and_gangs_at_war() -> void:
 	for u in fighters:
 		teams[int(u.team)] = true
 		assert_true(u.alerted, "already shooting")
-		assert_true(e.hostile(int(u.team), Encounter.CREW), "and anyone in the way")
-		assert_true(e.hostile(int(u.team), Encounter.OPFOR), "the site's guards too")
+		assert_false(e.hostile(int(u.team), Encounter.CREW), "neutral to the crew until it joins in")
+		assert_true(e.hostile(int(u.team), Encounter.OPFOR), "the site's guards are fair game")
 	assert_eq(teams.size(), 2, "two gangs")
 	assert_true(e.hostile(int(teams.keys()[0]), int(teams.keys()[1])), "at war with each other")
 	var dep := SceneEvent._deploy(e.m)
@@ -241,7 +241,7 @@ func test_every_played_row_sets_up() -> void:
 				if fx.has(f):
 					assert_true(f in e.scene_event.applied, "%s: %s plays on a street block (%s)" % [r.id, f, e.scene_event.skipped])
 			assert_true(e.log.any(func(l): return String(l).begins_with("On the street: ")), "%s: the deploy log line" % r.id)
-			assert_eq(SceneEvent.hud_line(e), "ON THE STREET · " + String(r.label).to_upper())
+			assert_eq(e.log.filter(func(l): return String(l).begins_with("On the street: ")).size(), 1, "%s: one quiet line, no more" % r.id)
 
 
 func test_campaign_rolls_it_at_the_start_and_saves() -> void:
@@ -328,14 +328,21 @@ func test_everyday_life_walks_and_panics() -> void:
 	e.next_turn()
 	assert_true(walkers.any(func(u): return u.pos != start[walkers.find(u)]), "they walk")
 	assert_true(e.events.any(func(ev): return String(ev.type) == "stroll") or true)
-	# Gunfire: everyone near panics and runs for the edge, walking stops.
-	var w: Dictionary = walkers[0]
+	# Gunfire: everyone near panics and scatters (runs, hides or cowers), walking stops.
+	var w: Dictionary = walkers.filter(func(u): return not u.c.dead)[0]
 	e._panic_near(w.pos)
 	assert_true(w.panic, "panics at gunfire")
+	assert_true(String(w.get("scatter", "")) in ["flee", "hide", "cower"], "scatters some way")
 	var before: Vector3i = w.pos
 	var field: Dictionary = e.nav.distance_field(e.m.entrances.map(func(en): return Vector3i(en.pos.x, en.pos.y, int(en.get("floor", 0)))), {}, 4000)
+	var route_i := int(w.get("route_i", 0))
 	e._civilians_tick()
-	assert_true(w.get("fled", false) or int(field.get(w.pos, 9999)) < int(field.get(before, 9999)), "runs for the map's edge, not its route")
+	match String(w.scatter):
+		"flee":
+			assert_true(w.get("fled", false) or int(field.get(w.pos, 9999)) < int(field.get(before, 9999)), "runs for the map's edge, not its route")
+		"cower":
+			assert_eq(w.pos, before, "cowers where they stood")
+	assert_eq(int(w.get("route_i", 0)), route_i, "the stroll is over")
 	# They're bystanders: they block and can be hit.
 	var calm: Array = e.units.filter(func(u): return u.get("ambient", false) and not u.panic and not u.c.dead)
 	if not calm.is_empty():

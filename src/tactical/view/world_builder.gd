@@ -158,8 +158,12 @@ func mat(name: String, f: int, cut := true, over := {}) -> ShaderMaterial:
 	else:
 		mt.shader = SHADER
 	var col: Color = extra.get("color", d[0])
+	var col2: Color = extra.get("color2", d[1])
+	if day_mats.has(name):   # by day (greybox LOOKS day_mats): the night-dark surfaces lifted toward a sunlit grey
+		col = day_tint(col, day_mats[name])
+		col2 = day_tint(col2, day_mats[name])
 	mt.set_shader_parameter("albedo", Color(col, extra.get("alpha", 1.0)))
-	mt.set_shader_parameter("albedo2", extra.get("color2", d[1]))
+	mt.set_shader_parameter("albedo2", col2)
 	mt.set_shader_parameter("pattern", extra.get("pattern", d[2]))
 	mt.set_shader_parameter("pattern_scale", extra.get("scale", d[3]))
 	mt.set_shader_parameter("roughness", d[4])
@@ -187,6 +191,18 @@ func mat(name: String, f: int, cut := true, over := {}) -> ShaderMaterial:
 	mt.set_shader_parameter("floors", float(m.floors))
 	_mats[key] = mt
 	return mt
+
+
+## A colour lifted for daylight: [lift, grey, cap] multiplies it by `lift`, moves it `grey` of the
+## way to the neutral grey of the same lightness (the night palette's navy asphalt reads grey by day)
+## and, with a cap, darkens it to that lightness at most (pale plaza stone mustn't burn out in sun).
+static func day_tint(c: Color, k: Array) -> Color:
+	var l := c * float(k[0])
+	var g := l.get_luminance()
+	l = l.lerp(Color(g, g, g), float(k[1]))
+	if k.size() > 2 and g > float(k[2]):
+		l *= float(k[2]) / g
+	return Color(l, c.a)
 
 
 static var _alpha: Shader
@@ -1879,6 +1895,7 @@ func _surround() -> String:
 
 var smog := Color("2a2238")   ## a tower band's smog colour (greybox LOOKS smog), set before build
 var daylight := false         ## a tower band by day: fewer lit windows below, no street-light carpet glow
+var day_mats := {}            ## by day on the ground (greybox LOOKS day_mats): material name → [lift, grey] (day_tint); {} at night
 var _td: TowerDress = null    ## a tower band's exterior (its outer walls, facade, crown, city), else null
 
 

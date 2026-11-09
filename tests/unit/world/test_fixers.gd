@@ -11,11 +11,8 @@ func test_fixers_resolve() -> void:
 		assert_true(String(f.get("name", "")) != "", "%s: a name" % id)
 		assert_between(float(f.get("rank", 0)), 1.0, 10.0, "%s: a Fixer rank" % id)
 		assert_true(String(f.roles).contains("Fixer %d" % int(f.rank)), "%s: rank matches the printed roles" % id)
-		var spm := String(f.get("cite", "")).begins_with("SPM p.")   # Single Player Mode canon fixers: no district
-		if spm and String(f.district) == "":
-			assert_eq(String(f.get("location", "")), "", "%s: no district, no place" % id)
-		else:
-			assert_true(World.districts().has(String(f.district)), "%s: district %s exists" % [id, f.district])
+		var spm := String(f.get("cite", "")).begins_with("SPM p.")   # Single Player Mode canon fixers: a district of ours
+		assert_true(World.districts().has(String(f.district)), "%s: district %s exists (every fixer is placed)" % [id, f.district])
 		if f.has("faction"):
 			assert_false(World.faction(String(f.faction)).is_empty(), "%s: faction %s exists" % [id, f.faction])
 		for d in f.get("also", []):
@@ -45,6 +42,12 @@ func test_spm_canon_fixers_are_all_present() -> void:
 	for id in ["grease", "lowball", "molly_anderson", "rex_royale"]:
 		assert_true(String(World.fixer(id).get("cite", "")).begins_with("SPM p.57"), "%s cites SPM" % id)
 	assert_true(String(World.fixers().molly_anderson.faction) == "andersons" and String(World.faction("andersons").get("leader", "")) == "Molly Anderson")
+	# Placed (owner verdict 2026-11-09; ours, docs/world/fixers.md): each works a district that suits the note.
+	var placed := {"grease": "little_china", "lowball": "downtown", "molly_anderson": "rancho_coronado", "rex_royale": "pacifica_playground"}
+	for id in placed:
+		assert_eq(String(World.fixer(id).district), String(placed[id]), "%s works %s" % [id, placed[id]])
+		assert_true(World.fixers_in(String(placed[id])).has(id), "%s gets that district's jobs" % id)
+	assert_eq(String(World.fixer("molly_anderson").location), "rancho_coronado_11", "Molly at Minimallism's Night Markets")
 
 
 func test_every_district_but_new_westbrook_has_a_fixer() -> void:

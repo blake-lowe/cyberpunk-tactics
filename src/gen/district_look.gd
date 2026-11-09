@@ -2,8 +2,8 @@ class_name DistrictLook
 extends RefCounted
 ## A Night City district's look (data/gen/district_looks.json), from its look tags and the book's
 ## description: what its streets wear (SceneTheme keys: palette, neon, lamps, light, facades,
-## sign density, grime) and how its neighbourhood is built (DistrictGen keys: ruin, height,
-## greenery, street furniture, cars, extra lot uses). A gig carries its district in
+## sign density, grime; by day its `day` block: Daylight) and how its neighbourhood is built
+## (DistrictGen keys: ruin, height, greenery, street furniture, cars, extra lot uses). A gig carries its district in
 ## params.district; scenes with a theme of their own (undercity, arcology, warzone) ignore it.
 
 ## Numeric keys every look has, with their allowed range.

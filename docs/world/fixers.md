@@ -22,8 +22,9 @@ At `fixers.fixers.<id>` (id: snake_case of the name, nickname dropped, e.g. `bar
   supplies, vehicles, veterans, weapons. `data/gen/gigs.json` `fixer_tags` says which tags suit which gig kind.
 - `cite`: `"NC2045 p.N"`; a district chapter range where the Fixers list gives no page. Fixers from the
   Single Player Mode book (below) cite `"SPM p.N"` (printed page).
-- `district` is `""` for a Fixer no source places in a district (the SPM canon fixers below): they work
-  the whole city and only get jobs where no district Fixer is at hand (`Campaign._pick_fixer`'s fallback).
+- `district` is `""` for a Fixer no source places in a district: they work the whole city and only get
+  jobs where no district Fixer is at hand (`Campaign._pick_fixer`'s fallback). None is left so: the SPM
+  canon fixers below, whom no source places, have a district of ours (HOUSE-RULE, each says why).
 - `faction` (optional): the `factions.factions` id of a gang or outfit the Fixer leads.
 
 Left out on purpose (no Fixer rank, or no name): New Westbrook's brokers (Diana, Sizzle Jams, Tom Dolby:
@@ -163,32 +164,38 @@ Districts without a Fixer of their own (New Westbrook) get jobs from Fixers in n
 The Single Player Mode book's NPCs by Role list ten canon Fixers (SPM p.57). Six are already above from
 NC2045: 3-Piece, Mister Kernaghan, Ms. Mynah, Woodchipper, Flasher (Mal "Flasher" Devincher) and Willy Maze
 (William "Mr. AMAAAZE!" Maze, Port of Night City). The other four follow. SPM gives each a one-line note but
-no Fixer rank and no district, so each has `district` `""` and a rank picked from the note.
-HOUSE-RULE: the ranks (SPM prints none).
+no Fixer rank and no district, so each has a rank picked from the note and a district of ours picked from
+it and NC2045 (owner verdict 2026-11-09: place them), named in that district's doc too.
+HOUSE-RULE: the ranks and the districts (SPM prints neither).
 
 **Grease.** A street-level Fixer who is still making his name; a natural first contact for a crew nobody
-knows. Rank 2 (HOUSE-RULE). *(SPM p.57.)*
+knows. Rank 2 (HOUSE-RULE). Ours: Little China, the district a new crew's safehouse starts in
+(`Campaign.DEFAULT_SAFEHOUSE`), a poor, crowded quarter of night markets where a small fixer can work.
+*(SPM p.57.)*
 
 ```world fixers.fixers.grease
-{"name": "Grease", "rank": 2, "roles": "Fixer 2", "district": "", "location": "", "deals_in": ["gigs", "combat"], "cite": "SPM p.57"}
+{"name": "Grease", "rank": 2, "roles": "Fixer 2", "district": "little_china", "location": "", "deals_in": ["gigs", "combat"], "cite": "SPM p.57"}
 ```
 
-**Lowball.** A Fixer whose clients are corporations. Rank 5 (HOUSE-RULE). *(SPM p.57.)*
+**Lowball.** A Fixer whose clients are corporations. Rank 5 (HOUSE-RULE). Ours: Downtown, the corporate
+heart of the city, where the corps keep their offices (NC2045 Downtown chapter). *(SPM p.57.)*
 
 ```world fixers.fixers.lowball
-{"name": "Lowball", "rank": 5, "roles": "Fixer 5", "district": "", "location": "", "deals_in": ["gigs", "information"], "cite": "SPM p.57"}
+{"name": "Lowball", "rank": 5, "roles": "Fixer 5", "district": "downtown", "location": "", "deals_in": ["gigs", "information"], "cite": "SPM p.57"}
 ```
 
 **Molly Anderson.** Leads the Andersons, an ageing family yogang (`factions.andersons`, whose scavvers and
 thieves feed her Night Market supply chain, NC2045 p.33; the gang has no fixed territory). Rank 4
-(HOUSE-RULE). *(SPM p.57; NC2045 p.33.)*
+(HOUSE-RULE). Ours: Rancho Coronado, at Minimallism (`rancho_coronado_11`), the dead mall where half a dozen
+fixers run weekly Night Markets: where her family's haul ends up. *(SPM p.57; NC2045 p.33.)*
 
 ```world fixers.fixers.molly_anderson
-{"name": "Molly Anderson", "rank": 4, "roles": "Fixer 4", "district": "", "location": "", "deals_in": ["salvage", "crime", "supplies"], "faction": "andersons", "cite": "SPM p.57; NC2045 p.33"}
+{"name": "Molly Anderson", "rank": 4, "roles": "Fixer 4", "district": "rancho_coronado", "location": "rancho_coronado_11", "deals_in": ["salvage", "crime", "supplies"], "faction": "andersons", "cite": "SPM p.57; NC2045 p.33"}
 ```
 
-**Rex Royale.** A casino-themed Fixer who sells weapons and combat gear. Rank 5 (HOUSE-RULE). *(SPM p.57.)*
+**Rex Royale.** A casino-themed Fixer who sells weapons and combat gear. Rank 5 (HOUSE-RULE). Ours: Pacifica
+Playground, Southside's pleasure district of casinos (NC2045 Pacifica Playground chapter). *(SPM p.57.)*
 
 ```world fixers.fixers.rex_royale
-{"name": "Rex Royale", "rank": 5, "roles": "Fixer 5", "district": "", "location": "", "deals_in": ["weapons", "armor", "betting"], "cite": "SPM p.57"}
+{"name": "Rex Royale", "rank": 5, "roles": "Fixer 5", "district": "pacifica_playground", "location": "", "deals_in": ["weapons", "armor", "betting"], "cite": "SPM p.57"}
 ```

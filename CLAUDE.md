@@ -36,6 +36,7 @@ Design source of truth: `docs/design-spec.md`. Milestones and status: `docs/road
 - All randomness through a seeded `Dice` instance passed in — never global `randi()` in rules code.
 - Rules values: cite the source next to the value (`# CPR core p.XXX` or `# Demiplane: <page>`).
   Anything not yet checked against the rulebook is tagged `# RULES-UNVERIFIED`; grep for it before milestone sign-off.
+- Never cite source-book pages in player-facing text (hover cards, HUD, screens, log lines, toasts): cites live in code comments and data cite/_doc fields only (owner).
 - Deliberate departures from rules-as-written are tagged `# HOUSE-RULE:` with a one-line reason.
 - Rules reference: Demiplane Nexus (free official) or the user's own PDF on request. Don't paste rulebook text into the repo; store numbers and short paraphrases only.
 

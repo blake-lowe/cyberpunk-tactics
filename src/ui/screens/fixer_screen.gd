@@ -131,14 +131,11 @@ func _gig_card(i: int, ready: bool) -> PanelContainer:
 	if drive != "":
 		where.append(drive)
 	left.add_child(UiKit.label(" · ".join(where), 12, Hud.DIM))   # place · district · drive; the hook is the blurb
-	left.add_child(UiKit.body(String(g.blurb), 15))
+	left.add_child(UiKit.rich(blurb_bbcode(g), 15))   # the focus item (SPM p.73) picked out in gold where the blurb names it
 	var mid := UiKit.vbox(6)
 	mid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(mid)
 	mid.add_child(UiKit.body("★ " + String(OBJECTIVE_TEXT.get(Campaign.objective_for(g), "")), 15, Hud.TEXT))
-	var fc: Dictionary = g.get("focus", {}) if g.get("focus") is Dictionary else {}
-	if not fc.is_empty():   # the focus (SPM p.73): what the job is about
-		mid.add_child(UiKit.body("Focus: " + String(fc.get("label", "")), 14, Hud.GOLD))
 	if g.has("intel"):   # paid for in information: the Oracle asked ahead (Campaign.foresee)
 		var trouble := String(g.intel) == "trouble"
 		mid.add_child(UiKit.body("Intel: expect a complication" if trouble else "Intel: it should run clean", 14, Hud.RED if trouble else Hud.GREEN))
@@ -160,6 +157,48 @@ func _gig_card(i: int, ready: bool) -> PanelContainer:
 	var b := UiKit.button("TAKE THE GIG", UiKit.PRIMARY, func(): take_gig.emit(i), ready)
 	right.add_child(b)
 	return p
+
+
+## An offer's blurb as BBCode with its focus item (SPM p.73: what the job is about) in gold, inline
+## (owner verdict 2026-11-09: no "Focus:" line of its own). The pitch names the item by its label
+## ("a tech prototype"), as "the tech prototype" or just "prototype" (MissionBuilder.item_slots):
+## the first of those found, as a whole phrase, is coloured. A blurb that doesn't name it gets a
+## short sentence that does.
+static func blurb_bbcode(g: Dictionary) -> String:
+	var text := String(g.get("blurb", ""))
+	var fc: Dictionary = g.get("focus", {}) if g.get("focus") is Dictionary else {}
+	if fc.is_empty() or String(fc.get("label", "")) == "":
+		return UiKit.bb_escape(text)
+	var gold := "[color=#%s]" % Hud.GOLD.to_html(false)
+	var slots := MissionBuilder.item_slots(fc)
+	for k in ["item", "the_item", "item_short"]:
+		var at := phrase_at(text, String(slots[k]))
+		if at >= 0:
+			var n := String(slots[k]).length()
+			return UiKit.bb_escape(text.left(at)) + gold + UiKit.bb_escape(text.substr(at, n)) + "[/color]" + UiKit.bb_escape(text.substr(at + n))
+	var label := String(fc.label)
+	return UiKit.bb_escape(text) + " It's about " + gold + UiKit.bb_escape(label) + "[/color]."
+
+
+## Where phrase `w` first stands in `text` as whole words, any case (-1 none).
+static func phrase_at(text: String, w: String) -> int:
+	if w == "":
+		return -1
+	var from := 0
+	while true:
+		var at := text.findn(w, from)
+		if at < 0:
+			return -1
+		var before := text.substr(at - 1, 1) if at > 0 else " "
+		var after := text.substr(at + w.length(), 1) if at + w.length() < text.length() else " "
+		if not _word_char(before) and not _word_char(after):
+			return at
+		from = at + 1
+	return -1
+
+
+static func _word_char(c: String) -> bool:
+	return c != "" and (c.unicode_at(0) == 95 or c.is_valid_identifier() or c.is_valid_int())
 
 
 ## A gig's Security Code in two lines, tinted by the code: "SECURITY 4" over

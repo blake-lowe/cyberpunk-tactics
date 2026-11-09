@@ -43,6 +43,7 @@ global uniform vec4 focus_view;     // focus in screen UV (xy), its view depth (
 // building's footprint packed as x0 + 1024 * x1 and y0 + 1024 * y1, so the camera-side walls drop
 // around the focus clamped into that building.
 global uniform sampler2D cut_map : filter_nearest, repeat_disable;
+global uniform float day_factor;     // daylight (Daylight, greybox LOOKS day_factor): 0 at night .. 1 at noon; sunlight drowns glow
 uniform bool flat_shade = false;    // faceted lighting (rocks)
 uniform bool offmap = false;        // ground beyond the map: fades out with distance
 uniform bool near_fade = false;
@@ -90,6 +91,10 @@ void fragment() {
 	}
 	bool cut_open = cm.r > -0.5;   // this building is cut (crew inside, or focused)
 	float bay = bayer4(FRAGCOORD.xy);
+	// by day the sun's shadows still see what the view cuts away: roofs, upper storeys and the walls
+	// toward the camera shade the rooms they cover, so a room is lit by its windows and lamps, not by
+	// a sun pouring in through a missing roof (at night: no change, the moon key's shadows as before)
+	bool sun_casts = IN_SHADOW_PASS && day_factor > 0.0;
 	// --- see-through hole: tall things between the camera and the focus (skyline, buildings that
 	// haven't been opened) dissolve in a dithered disc around the focus (BG3/Divinity style)
 	// camera-side skyline dissolves entirely above street level
@@ -97,7 +102,7 @@ void fragment() {
 		float far = smoothstep(4.0, 9.0, -dot(wpos.xz - cut_center.xz, cut_dir));
 		if (far > (emission_energy > 0.9 ? 0.35 : bay + 0.5)) discard;   // glowing strips go cleanly (dithered they left dotted lines)
 	}
-	if ((mode == 2 || (shell && !cut_open)) && focus_view.w > 0.0 && wpos.y > cut_center.y * 1.6 + 0.9 && -VERTEX.z < focus_view.z - 1.5) {
+	if (!sun_casts && (mode == 2 || (shell && !cut_open)) && focus_view.w > 0.0 && wpos.y > cut_center.y * 1.6 + 0.9 && -VERTEX.z < focus_view.z - 1.5) {
 		float r = length((SCREEN_UV - focus_view.xy) * vec2(VIEWPORT_SIZE.x / VIEWPORT_SIZE.y, 1.0)) / focus_view.w;
 		if (smoothstep(0.7, 1.0, r) < bay + 0.5) discard;
 	}
@@ -105,7 +110,7 @@ void fragment() {
 	// and on the cut storey the walls on the camera side of the focus (clamped into that building,
 	// so a second cut building opens toward the camera too) drop to waist height with a dithered
 	// edge. Far walls stay up for context. Cut faces show as section caps.
-	if (cut_radius > 0.0 && cut_open) {
+	if (cut_radius > 0.0 && cut_open && !sun_casts) {
 		float cutf = cm.r;
 		if (floor_idx > cutf + 0.5) discard;
 		if (cuttable && floor_idx > cutf - 0.5 && wpos.y - floor_idx * 1.6 > 0.72) {
@@ -200,6 +205,7 @@ void fragment() {
 		base = mix(base, albedo2.rgb, g);
 	}
 	if (tex_mix > 0.0) base = mix(base, texture(tex, UV).rgb * albedo.rgb, tex_mix);
+	emit *= 1.0 - 0.55 * day_factor;   // by day lit windows, signs and trims are panels, not glows (0 at night: unchanged)
 	// --- grounding: contact darkening at wall/prop bases, a light edge on top faces
 	if (mode != 2) {
 		if (!up) base *= mix(0.6, 1.0, smoothstep(0.0, 0.6, local_h));

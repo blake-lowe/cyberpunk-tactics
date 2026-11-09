@@ -11,7 +11,7 @@
   "backdoor": {
    "name": "Backdoor",
    "cost": "1 NET Action",
-   "text": "Break a Password: here, the firewall that bars the way deeper. A broken Password stays open until you jack out; knowing the password gets you through without a roll. Access that outlasts the run needs a Virus left at the lowest floor (p.200), not in the game yet.",
+   "text": "Break a Password: here, the firewall that bars the way deeper. A broken Password stays open until you jack out; knowing the password gets you through without a roll. Access that outlasts the run needs a Virus left at the lowest floor, not in the game yet.",
    "key": "Interface + 1d10 vs the Password's DV",
    "page": "p.199"
   },
