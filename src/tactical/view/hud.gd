@@ -163,7 +163,7 @@ func _ready() -> void:
 	add_child(_init_strip)
 	_build_bar()
 	_round_tab = PanelContainer.new()
-	_round_tab.add_theme_stylebox_override("panel", CutBox.make(INK, Color(CYAN, 0.5), 8, 0b1000, Color(0, 0, 0, 0), 8))
+	_round_tab.add_theme_stylebox_override("panel", CutBox.make(INK, Color(CYAN, 0.5), 8, 0b1000, Color(0, 0, 0, 0), 6))
 	_round_box = VBoxContainer.new()
 	_round_box.add_theme_constant_override("separation", 0)
 	_round_tab.add_child(_round_box)
@@ -1011,7 +1011,7 @@ static func countdown_text(label: String, n: int) -> String:
 	return "ALARM · NOBODY ANSWERS"
 
 
-## The round box's alarm line: the site's response counting down, then the street's.
+## The alarm in one line: the site's response counting down, then the street's (the round tab splits it: alert_lines).
 static func alarm_text(enc: Encounter) -> String:
 	if enc.backup_in >= 0:
 		return countdown_text(enc.backup_label, enc.backup_in)
@@ -1047,45 +1047,7 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 				action.emit("portrait_click", uid))
 		slot.modulate = Portraits.tint(c.wound_state())
 		_init_strip.add_child(slot)
-	if _clock_rail.get_parent() == _round_box:   # the dice rows animate across refreshes: keep them
-		_round_box.remove_child(_clock_rail)
-	_clear(_round_box)   # round and stealth state: top right corner
-	_round_box.add_child(_text("ROUND %02d" % maxi(1, enc.init.round_num), F_TERM, Hud.ts(20), CYAN))
-	var state := "UNDETECTED"
-	if enc.alarm >= 2:
-		state = alarm_text(enc)
-	elif enc.engaged():
-		state = "ENGAGED"
-	_round_box.add_child(_text(state, F_DISPLAY, 20, RED if state != "UNDETECTED" else CYAN))
-	sync_clocks(enc)
-	_round_box.add_child(_clock_rail)
-	_clock_rail.visible = _clock_rail.get_child_count() > 0
-	# The objective: a small OBJECTIVE label, the order in gold, then dim context lines.
-	_round_box.add_child(_text("OBJECTIVE", F_TERM, Hud.ts(14), Color(DIM, 0.9)))
-	var olines := objective_text(enc).split("\n", false)
-	for i in olines.size():
-		_round_box.add_child(_text(olines[i], F_TERM, Hud.ts(18 if i == 0 else 15), GOLD if i == 0 else Color(DIM, 0.95)))
-	if not enc.outages.is_empty():   # Utility Codes (NC2045 p.8)
-		_round_box.add_child(_text(" · ".join(enc.outages.map(func(o): return String(o).to_upper() + " OUT")), F_TERM, Hud.ts(18), RED))
-	if enc.neutral != null:   # a house where nobody fights (NeutralGround: Totentanz's club floor)
-		_round_box.add_child(_text(enc.neutral.hud_text(), F_TERM, Hud.ts(18), GOLD if enc.neutral.holds else RED))
-	if not enc.complication.is_empty():   # the book's complication (Complication), shown once it springs
-		var cx := _text("COMPLICATION · " + String(enc.complication.get("hud", enc.complication.text)).to_upper(), F_TERM, Hud.ts(18), RED)
-		cx.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		cx.custom_minimum_size.x = 260
-		_round_box.add_child(cx)
-	var sl := SceneEvent.hud_line(enc)
-	if sl != "":   # the street round the gig (SceneEvent): quieter than a twist
-		var sx := _text(sl, F_TERM, Hud.ts(15), Color(CYAN, 0.8))
-		sx.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		sx.custom_minimum_size.x = 260
-		_round_box.add_child(sx)
-	var tl := Twist.hud_line(enc)
-	if tl != "":   # the plot twist (Twist), once it has sprung
-		var tx := _text(tl, F_TERM, Hud.ts(18), MAGENTA)
-		tx.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		tx.custom_minimum_size.x = 260
-		_round_box.add_child(tx)
+	round_tab(enc)
 	_clear(_card)
 	_clear(_econ)
 	var crew_turn: bool = enc.state == "playing" and not enc.cur.is_empty() and enc.cur.team == 0
@@ -1180,9 +1142,59 @@ static func attacks_per_action(w: Weapon, atk_mode: String) -> int:
 	return mini(2, maxi(1, w.rof()))
 
 
-## The gig's goal in a few words, for the round tab.
-static func objective_text(enc: Encounter) -> String:
-	return enc.obj.hud_text()
+const ROUND_TAB_W := 216.0   ## the round tab's widest line (logical px): longer ones wrap
+
+
+## The round tab, top right (owner: one compact panel): the objective's order in gold, the one step
+## that applies now, the alert state with the response's timer, then the clocks' bare dice rows. No
+## round counter, no OBJECTIVE or DETECTION labels, no n/m counts. Rule states that change how the
+## gig plays (outages, a neutral house, a sprung complication) follow, when there are any; the
+## plot twist and the street have their own callouts and stay off it.
+func round_tab(enc: Encounter) -> void:
+	if _clock_rail.get_parent() == _round_box:   # the dice rows animate across refreshes: keep them
+		_round_box.remove_child(_clock_rail)
+	_clear(_round_box)
+	_round_line(enc.obj.order(), F_TERM, Hud.ts(18), GOLD)
+	var step := enc.obj.current_step()
+	if step != "":
+		_round_line(step, F_TERM, Hud.ts(15), Color(TEXT, 0.85))
+	var al := alert_lines(enc)
+	_round_line(al[0], F_DISPLAY, 20, RED if al[0] != "UNDETECTED" else CYAN)
+	for i in range(1, al.size()):
+		_round_line(al[i], F_TERM, Hud.ts(15), Color(RED, 0.9))
+	sync_clocks(enc)
+	_round_box.add_child(_clock_rail)
+	_clock_rail.visible = _clock_rail.get_child_count() > 0
+	if not enc.outages.is_empty():   # Utility Codes (NC2045 p.8)
+		_round_line(" · ".join(enc.outages.map(func(o): return String(o).to_upper() + " OUT")), F_TERM, Hud.ts(15), RED)
+	if enc.neutral != null:   # a house where nobody fights (NeutralGround: Totentanz's club floor)
+		_round_line(enc.neutral.hud_text(), F_TERM, Hud.ts(15), GOLD if enc.neutral.holds else RED)
+	if not enc.complication.is_empty():   # the book's complication (Complication), shown once it springs
+		_round_line("COMPLICATION · " + String(enc.complication.get("hud", enc.complication.text)).to_upper(), F_TERM, Hud.ts(15), RED)
+
+
+## One line of the round tab; wraps at ROUND_TAB_W when it's longer (the tab never grows wider).
+func _round_line(t: String, font: Font, fs: int, col: Color) -> Label:
+	var l := _text(t, font, fs, col)
+	var f: Font = l.get_theme_font("font")
+	if f.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, l.get_theme_font_size("font_size")).x > ROUND_TAB_W:
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.custom_minimum_size.x = ROUND_TAB_W
+	_round_box.add_child(l)
+	return l
+
+
+## The round tab's alert lines: the state (UNDETECTED, ENGAGED, ALARM), then one timer when a
+## response is on its way: the site's ("BACKUP IN 2 ROUNDS"), else the street's (NCPD).
+static func alert_lines(enc: Encounter) -> Array[String]:
+	var out: Array[String] = ["ALARM" if enc.alarm >= 2 else ("ENGAGED" if enc.engaged() else "UNDETECTED")]
+	# one timer: the site's response, then the street's (a twist's police sting can send NCPD before any alarm)
+	var t: Array = [enc.backup_label, enc.backup_in] if enc.backup_in >= 0 else [enc.ncpd_label, enc.ncpd_in]
+	if int(t[1]) > 0:
+		out.append("%s IN %s" % [String(t[0]), Objective.count_text(int(t[1]), "ROUND")])
+	elif int(t[1]) == 0:
+		out.append("%s ARRIVING" % String(t[0]))
+	return out
 
 
 ## The interact action that applies where the active unit stands (B): [signal, title, glyph], or [].
@@ -1894,7 +1906,7 @@ func clock_widget(id: String, enc: Encounter = null) -> ClockWidget:
 	var c := Clocks.get_clock(enc if enc != null else interact_enc, id) if (enc != null or interact_enc != null) else null
 	if c == null:
 		return null
-	w = ClockWidget.make(id, c.label, clock_col(id), c.size, c.pool if c.running() else c.size, c.last)
+	w = ClockWidget.make(id, c.label, clock_col(id), c.size, c.pool if c.running() else c.size, c.last, true)   # bare dice: the hover card names it
 	w.reduced = reduced_motion
 	w.name = "Clock_" + id
 	w.hovered.connect(func(on: bool): _clock_hover(id, on))

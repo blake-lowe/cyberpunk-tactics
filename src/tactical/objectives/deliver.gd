@@ -76,6 +76,16 @@ func hud_text() -> String:
 	return "RECOVER THE %s\nTHEN GET IT TO THE DROP POINT" % what
 
 
+func order() -> String:
+	return "DELIVER THE %s" % item_marker("PACKAGE")
+
+
+func current_step() -> String:
+	if o.get("delivered", false):
+		return "REACH EXTRACTION"
+	return "LEAVE IT AT THE DROP POINT" if int(o.get("carrier", -1)) >= 0 else "PICK IT UP"
+
+
 func marks(_fog: bool) -> Array:
 	if o.get("delivered", false):
 		return [_extract_mark()]

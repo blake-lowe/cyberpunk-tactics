@@ -107,6 +107,22 @@ func hud_text() -> String:
 	return "KILL %s%s%s" % [String(o.name).to_upper(), ("\n" + who) if who != "" else "", run]
 
 
+func order() -> String:
+	return "KILL %s" % String(o.name).to_upper()
+
+
+func current_step() -> String:
+	var vip: Dictionary = e.units[int(o.target)]
+	var tt_inbound: bool = not e.tt.is_empty() and String(e.tt.state) in ["called", "landed"] and int(e.tt.patient) == int(vip.id) and not vip.c.dead
+	if done():
+		return "FINISH THEM OFF" if tt_inbound else "REACH EXTRACTION"
+	if tt_inbound:
+		return "TRAUMA TEAM IS ON THE WAY"
+	if vip.alerted or e.alarm >= 1:
+		return "STOP THEM BEFORE THEY ESCAPE"
+	return "TRACK THEM DOWN"
+
+
 func before_check() -> void:   # every sighting updates the crew's fix on the mark
 	_sighted(e.units[int(o.target)])
 

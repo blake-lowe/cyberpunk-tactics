@@ -42,6 +42,7 @@ var dice: Array = []            ## one per die still in the pool: {face, x (slot
 var shards: Array = []          ## {p, v, life, max, col, s}
 var glints: Array = []          ## {p, v, life, max}
 var reduced := false
+var bare := false               ## just the dice: no name or n/m count above them (the round tab; the hover card says what it is)
 var gone := false               ## emptied or stopped: the row fades out
 var _t := 0.0                   ## seconds since the widget started (pulses)
 var _busy_until := 0.0          ## an animation is playing until then (sync waits)
@@ -53,15 +54,16 @@ var _shake := 0.0
 var _rng := RandomNumberGenerator.new()
 
 
-static func make(p_id: String, p_label: String, p_col: Color, n_size: int, n_pool: int, faces: Array = []) -> ClockWidget:
+static func make(p_id: String, p_label: String, p_col: Color, n_size: int, n_pool: int, faces: Array = [], p_bare := false) -> ClockWidget:
 	var w := ClockWidget.new()
 	w.clock_id = p_id
 	w.label = p_label
+	w.bare = p_bare
 	w.col = p_col
 	w.sockets = n_size
 	for i in n_pool:
 		w.dice.append(w._die(int(faces[i]) if i < faces.size() else 6 - i % 3, i))   # a fresh pool shows high faces
-	w.custom_minimum_size = Vector2(maxf(150.0, n_size * (DIE + GAP) - GAP + 6), LABEL_H + DIE + 10)
+	w.custom_minimum_size = Vector2(n_size * (DIE + GAP) - GAP + 6 if p_bare else maxf(150.0, n_size * (DIE + GAP) - GAP + 6), w._lh() + DIE + 10)
 	w.mouse_filter = Control.MOUSE_FILTER_STOP
 	w.mouse_default_cursor_shape = Control.CURSOR_HELP
 	w.z_index = 5   # shards and the burst fly over the round tab's other lines
@@ -77,6 +79,11 @@ func _ready() -> void:
 func _die(face: int, slot: int) -> Dictionary:
 	return {"face": face, "x": _slot_x(slot), "to_x": _slot_x(slot), "y": 0.0, "rot": 0.0, "sc": Vector2.ONE, "state": "idle", "t": 0.0,
 		"flash": 0.0, "crack": 0.0, "final": face, "doom": false, "spin": 0.0, "delay": 0.0, "glint": -1.0}
+
+
+## The label row's height over the dice (none when bare).
+func _lh() -> float:
+	return 0.0 if bare else float(LABEL_H)
 
 
 func _slot_x(i: int) -> float:
@@ -177,6 +184,8 @@ func _process(dt: float) -> void:
 	_shake = maxf(0.0, _shake - dt * 3.0)
 	if gone and _boom_t < 0.0:
 		_fade = maxf(0.0, _fade - dt * 2.2)
+		if bare and _fade <= 0.01 and shards.is_empty():
+			visible = false   # played out: give the round tab its line back before the next refresh drops the row
 	var cracked := false
 	for d in dice:
 		match String(d.state):
@@ -221,7 +230,7 @@ func _process(dt: float) -> void:
 				if d.t >= CRACK or reduced:
 					d.state = "dead"
 					if not reduced:
-						_burst(Vector2(d.x + DIE / 2.0, LABEL_H + 4 + DIE / 2.0 + d.y), 14, RED)
+						_burst(Vector2(d.x + DIE / 2.0, _lh() + 4 + DIE / 2.0 + d.y), 14, RED)
 						_shake = maxf(_shake, 0.6)
 			"drop":
 				d.t += dt
@@ -235,7 +244,7 @@ func _process(dt: float) -> void:
 					d.state = "settle"
 					d.t = 0.0
 					d["cy"] = 1.0
-					_sparkle(Vector2(d.x + DIE / 2.0, LABEL_H + 4 + DIE / 2.0))
+					_sparkle(Vector2(d.x + DIE / 2.0, _lh() + 4 + DIE / 2.0))
 					_plus = {"x": float(d.x) + DIE / 2.0, "life": 0.0}
 		if float(d.get("cy", 0.0)) > 0.0:
 			d.cy = maxf(0.0, float(d.cy) - dt * 2.2)
@@ -292,8 +301,8 @@ func explode() -> void:
 		_boom_t = BOOM - 0.15
 		return
 	for i in sockets:
-		_burst(Vector2(_slot_x(i) + DIE / 2.0, LABEL_H + 4 + DIE / 2.0), 10, RED if i % 2 == 0 else col, 1.6)
-	_burst(Vector2(size.x / 2.0, LABEL_H + 4 + DIE / 2.0), 28, WHITE, 2.2)
+		_burst(Vector2(_slot_x(i) + DIE / 2.0, _lh() + 4 + DIE / 2.0), 10, RED if i % 2 == 0 else col, 1.6)
+	_burst(Vector2(size.x / 2.0, _lh() + 4 + DIE / 2.0), 28, WHITE, 2.2)
 	_shake = 1.5
 
 
@@ -334,15 +343,16 @@ func _draw() -> void:
 	var tone := _tone(dz)
 	if gone:
 		tone = Color(0.55, 0.6, 0.66)
-	draw_string(Hud.F_DISPLAY, Vector2(0, LABEL_H - 3) + shake, label, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(tone, a))
-	var tag := "%d/%d" % [pool(), sockets]
-	var tw := Hud.F_TERM.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x
-	draw_string(Hud.F_TERM, Vector2(size.x - tw - 2, LABEL_H - 3) + shake, tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(tone, a * 0.85))
-	var row := Rect2(Vector2(-2, LABEL_H + 1), Vector2(sockets * (DIE + GAP) - GAP + 8, DIE + 6))
+	if not bare:
+		draw_string(Hud.F_DISPLAY, Vector2(0, LABEL_H - 3) + shake, label, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(tone, a))
+		var tag := "%d/%d" % [pool(), sockets]
+		var tw := Hud.F_TERM.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x
+		draw_string(Hud.F_TERM, Vector2(size.x - tw - 2, LABEL_H - 3) + shake, tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(tone, a * 0.85))
+	var row := Rect2(Vector2(-2, _lh() + 1), Vector2(sockets * (DIE + GAP) - GAP + 8, DIE + 6))
 	if not gone:
 		draw_rect(row, Color(tone, (0.05 + amp * 0.35 * pulse) * a))
 		_frame(Rect2(row.position + shake, row.size), Color(tone, (0.25 + amp * pulse) * a), 2)
-	var y0 := LABEL_H + 4
+	var y0 := _lh() + 4
 	for i in sockets:   # an empty socket for each die gone: four dim corners
 		if i >= dice.size():
 			_corners(Rect2(Vector2(_slot_x(i), y0) + shake, Vector2(DIE, DIE)), Color(tone, 0.32 * a))
@@ -367,7 +377,7 @@ func _draw() -> void:
 		draw_rect(Rect2((g.p as Vector2).round() - Vector2(1, 1), Vector2(gs, gs)), Color(CYAN.lightened(0.4), k2))
 	if not _plus.is_empty():   # "+1" floats up out of the socket the die fell into
 		var pk := float(_plus.life) / 0.9
-		var py := LABEL_H + 2 - roundf(14.0 * pk)
+		var py := _lh() + 2 - roundf(14.0 * pk)
 		var pa := clampf(2.0 - pk * 2.0, 0.0, 1.0)
 		draw_string(Hud.F_DISPLAY, Vector2(roundf(float(_plus.x) - 9), py), "+1", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(CYAN.lightened(0.35), pa))
 	if _boom_t >= 0.0 and not reduced:   # the burst: the dice flash white-hot, then shock rings spread from the row

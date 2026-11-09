@@ -76,6 +76,14 @@ func hud_text() -> String:
 	return "FIND AND FREE %s" % cap.c.display_name.to_upper() + ("\n" + who if who != "" else "")
 
 
+func order() -> String:
+	return "RESCUE %s" % String(e.units[int(o.captive)].c.display_name).to_upper()
+
+
+func current_step() -> String:
+	return "GET THEM TO EXTRACTION" if o.get("freed", false) else "FIND AND FREE THEM"
+
+
 func marks(_fog: bool) -> Array:
 	if o.get("freed", false):
 		return [_extract_mark()]

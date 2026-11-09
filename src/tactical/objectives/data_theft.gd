@@ -26,13 +26,25 @@ func check_end() -> String:
 
 ## A crew Netrunner is in the target building's NET (the download is the job's last step).
 func near_done() -> bool:
-	if done():
-		return true
+	return done() or jacked_in()
+
+
+## Someone on the crew is in the target building's NET.
+func jacked_in() -> bool:
 	var a: Variant = e.m.architectures.get(int(o.get("structure", -1)))
+	if a == null:
+		return false
 	for uid in e.runs:
 		if int(e.units[uid].team) == Encounter.CREW and (e.runs[uid] as NetRun).arch == a:
 			return true
 	return false
+
+
+## The target File's NET level, or -1 with no NET target.
+func target_level() -> int:
+	if int(o.get("node", -1)) < 0 or not e.m.architectures.has(int(o.get("structure", -1))):
+		return -1
+	return int((e.m.architectures[int(o.structure)] as NetArchitecture).nodes[int(o.node)].zone)
 
 
 func hud_text() -> String:
@@ -40,6 +52,17 @@ func hud_text() -> String:
 		var fn: Dictionary = (e.m.architectures[int(o.structure)] as NetArchitecture).nodes[int(o.node)]
 		return "STEAL THE %s\nJACK IN AT THE ACCESS POINT\nREACH NET LEVEL %d\nOR ELIMINATE ALL HOSTILES" % [item_marker("DATA"), int(fn.zone)]
 	return "ELIMINATE ALL HOSTILES"
+
+
+func order() -> String:
+	return "STEAL THE %s" % item_marker("DATA") if target_level() >= 0 else "ELIMINATE ALL HOSTILES"
+
+
+## Jack in, then reach the File's level (clearing the site also wins, but that's the fallback, not a step).
+func current_step() -> String:
+	if target_level() < 0:
+		return super()
+	return "REACH NET LEVEL %d" % target_level() if jacked_in() else "JACK IN AT THE ACCESS POINT"
 
 
 ## The nearest Access Point (CPR core p.197) into the target NET while nobody on the crew is jacked in.

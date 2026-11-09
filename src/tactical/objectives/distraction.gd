@@ -126,6 +126,22 @@ func hud_text() -> String:
 	return "RAISE THE ALARM\nTHEN HOLD OUT %d ROUNDS" % int(o.need)
 
 
+func order() -> String:
+	return "CAUSE A DISTRACTION"
+
+
+func current_step() -> String:
+	if done():
+		return "REACH EXTRACTION"
+	if not alarm_up():
+		return "RAISE THE ALARM"
+	if rounds_left() > 0:
+		return "KEEP THEM BUSY %s" % count_text(rounds_left(), "MORE ROUND")
+	if response_pending():
+		return "HOLD TILL %s ARRIVES" % e.backup_label
+	return "KEEP THEM BUSY"
+
+
 func marks(_fog: bool) -> Array:
 	if done():
 		return [_extract_mark()]
