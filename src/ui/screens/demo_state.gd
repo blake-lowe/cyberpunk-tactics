@@ -82,8 +82,10 @@ static func make() -> Campaign:
 	return c
 
 
-## A sample debrief report (Campaign.resolve's shape) for the demo crew.
-static func report(c: Campaign) -> Dictionary:
+## A sample debrief report (Campaign.resolve's shape) for the demo crew. `objective` (review shots:
+## base --screen=debrief --objective=<id>): the sample gig plays that objective instead, its first
+## Mission Types row and a focus item fitting it, so its debrief line shows.
+static func report(c: Campaign, objective := "") -> Dictionary:
 	var a: Combatant = c.crew[0]
 	var b: Combatant = c.crew[1]
 	var members: Array[Dictionary] = []
@@ -104,6 +106,13 @@ static func report(c: Campaign) -> Dictionary:
 		"mission": {"roll": 99, "id": "wetwork", "label": "Wetwork", "objective": "assassinate"},
 		"focus": {"category": "corporate", "roll": 1, "id": "key_exec", "label": "a key exec", "short": "key exec", "marker": "KEY EXEC", "as": ["captive", "mark"]},
 		"payment": {"type": "favour", "base": 2000, "eb": 1500, "kind": "treatment"}, "twist": null}
+	var rows := MissionBuilder.rows_for(objective) if objective != "" else []
+	if not rows.is_empty():
+		var mt: Dictionary = rows[0]
+		gig.kind = MissionBuilder.kind_of(mt)
+		gig.mission = {"roll": int(mt.roll[0]), "id": String(mt.id), "label": String(mt.label), "objective": objective}
+		gig.focus = MissionBuilder.roll_focus(Dice.new(3), "corporate", objective)
+		gig.title = "%s: Biotechnica Plaza" % String(mt.label)
 	var loot: Array = [
 		{"label": "loaded credstick", "text": "loaded credstick · 500eb", "kind": "eb", "by": a.display_name, "from": "Guard 2", "keys": []},
 		{"label": "stripped-down VH pistol", "text": "stripped-down VH pistol: Very Heavy Pistol", "kind": "item", "by": b.display_name, "from": "Lieutenant 1", "keys": ["weapon/very_heavy_pistol"]},

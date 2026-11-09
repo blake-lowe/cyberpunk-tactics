@@ -13,7 +13,10 @@ const OBJECTIVE_TEXT := {"data": "Download the target file, or eliminate all hos
 	"rescue": "Free the captive and walk them to the extraction zone",
 	"sabotage": "Plant a charge on the target machine, get clear, get out",
 	"escort": "Walk the client to the rendezvous alive",
-	"defend": "Hold the room through every wave"}
+	"defend": "Hold the room through every wave",
+	"deliver": "Leave the package at the drop point, then get out",
+	"plant": "Plant it by hand at the device, or in the NET",
+	"distraction": "Raise the alarm, hold out, then get out"}
 
 ## A Security Code → tint, read from the crew's side: cool blue (low: a response rarely comes,
 ## NC2045 p.7) through teal to orange and hot red (high: it almost always does). No yellow or green:

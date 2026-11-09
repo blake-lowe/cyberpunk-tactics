@@ -24,7 +24,7 @@ const ECON := {
 const IP_GROUP := {"failed": 10, "barely": 20, "together": 30}
 ## Gig kind → encounter objective (Encounter.setup).
 const OBJECTIVES := {"data_theft": "data", "gang_hit": "eliminate", "corp_extraction": "snatch", "assassination": "assassinate", "rescue": "rescue", "sabotage": "sabotage",
-	"escort": "escort", "defense": "defend"}
+	"escort": "escort", "defense": "defend", "delivery": "deliver", "plant": "plant", "distraction": "distraction"}
 ## Downtime assignments (spec: "assign downtime actions"): only what the book has a rule for.
 ## Recover: natural healing, BODY HP a day (p223). (The book has no rule for earning IP or eb in
 ## downtime: IP come from the GM after a session, p410.)

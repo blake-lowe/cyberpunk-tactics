@@ -367,7 +367,7 @@ func _goal(e: Encounter, u: Dictionary) -> Array:
 ## A data job this crew member can do in the NET: a Netrunner, the File not yet theirs.
 func _runs_for_data(e: Encounter, u: Dictionary) -> bool:
 	var o := e.objective
-	return String(o.kind) == "data" and not e.obj.done() and int(o.get("node", -1)) >= 0 \
+	return String(o.kind) in ["data", "plant"] and not e.obj.done() and int(o.get("node", -1)) >= 0 \
 		and e.m.architectures.has(int(o.get("structure", -1))) and NetRun.interface_rank(u.c) > 0
 
 

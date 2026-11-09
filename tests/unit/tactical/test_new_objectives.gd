@@ -33,6 +33,16 @@ func _marks_ok(e: Encounter, what: String) -> void:
 				and String(mk.tone) in ["gold", "red", "cyan"]), "%s: a well-formed marker %s" % [what, mk])
 
 
+## A square beside `cell` (same floor) one can stand on and nobody stands on.
+func _beside(e: Encounter, cell: Vector3i) -> Vector3i:
+	var occ := e.occupied()
+	for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 1), Vector2i(-1, -1), Vector2i(1, -1), Vector2i(-1, 1)]:
+		var v := cell + Vector3i(d.x, d.y, 0)
+		if e.m.inb(v.x, v.y) and e.m.walkable(v.z, Vector2i(v.x, v.y)) and not e.m.has_cover_at(v.z, Vector2i(v.x, v.y)) and not occ.has(v):
+			return v
+	return cell
+
+
 ## A guard of the opposition whose id is (or isn't) a multiple of `every`.
 func _guard(e: Encounter, every: int, hunter: bool) -> Dictionary:
 	for u in e.units:
@@ -324,3 +334,229 @@ func test_defend_rows_are_enabled() -> void:
 
 func test_defend_offers_save_and_load() -> void:
 	_offer_saves("defense", "defend")
+
+
+# --- Deliver -----------------------------------------------------------------------------------
+
+func test_deliver_the_crew_walks_in_carrying_the_package() -> void:
+	var e := _job("deliver")
+	var o := e.objective
+	assert_eq(int(o.carrier), 0, "the first of the crew carries it in")
+	assert_false(bool(o.delivered))
+	var l := e.m.label(o.drop.z, o.drop.x, o.drop.y)
+	assert_true(l >= 0 and e.m.rooms[l].structure == e.m.structures.filter(func(st): return st.target)[0].id, "the drop point is inside the target building")
+	_hud_ok(e, "deliver")
+	assert_eq(e.obj.hud_text().split("\n")[0], "DELIVER THE PACKAGE")
+	_marks_ok(e, "deliver")
+	assert_eq(String(e.obj.marks(true)[0].label), "★ DROP POINT")
+	assert_eq(e.obj.marks(true)[0].cell, o.drop)
+	assert_true(e.obj_actions().is_empty(), "nothing to do at the deploy zone")
+	assert_false(e.obj.withdraw_wins(), "leaving now is just leaving")
+
+
+func test_deliver_drop_it_then_get_out() -> void:
+	var e := _job("deliver")
+	var o := e.objective
+	var u: Dictionary = e.units[int(o.carrier)]
+	e.cur = u
+	u.pos = _beside(e, o.drop)
+	assert_eq(e.obj_actions(), ["drop"] as Array[String], "beside the drop point: leave it")
+	assert_eq(Hud.interact_here(e)[1], "LEAVE PACKAGE")
+	assert_true(e.obj_act("drop").ok)
+	assert_true(bool(o.delivered))
+	assert_eq(int(o.carrier), -1)
+	assert_eq(o.cell, o.drop, "the package stays at the drop")
+	assert_true(e.obj.hud_text().begins_with("REACH EXTRACTION"), e.obj.hud_text())
+	assert_true(bool(e.obj.marks(true)[0].get("extract", false)), "the way out is marked")
+	assert_eq(e.state, "playing", "not done until the crew is out")
+	assert_true(e.obj.withdraw_wins(), "leaving now finishes it")
+	for c in e.units:
+		if int(c.team) == Encounter.CREW:
+			c.pos = e.extract_cells.keys()[int(c.id) % e.extract_cells.size()]
+	e._check_end()
+	assert_eq(e.state, "won", "out with the package delivered")
+
+
+func test_deliver_a_downed_carrier_drops_it_and_it_can_be_picked_up() -> void:
+	var e := _job("deliver")
+	var o := e.objective
+	var u: Dictionary = e.units[int(o.carrier)]
+	u.c.dead = true   # down
+	e._check_end()
+	assert_eq(int(o.carrier), -1, "dropped")
+	assert_eq(o.cell, u.pos, "where they fell")
+	assert_true(e.obj.hud_text().begins_with("RECOVER THE PACKAGE"), e.obj.hud_text())
+	assert_true(String(e.obj.marks(true)[0].label).begins_with("★ PACKAGE"))
+	var other: Dictionary = e.units[1]
+	e.cur = other
+	other.pos = _beside(e, o.cell)
+	assert_eq(e.obj_actions(), ["grab"] as Array[String])
+	assert_true(e.obj_act("grab").ok)
+	assert_eq(int(o.carrier), int(other.id), "picked up again")
+	e.state = "playing"
+	var e2 := _job("deliver")   # the job fails the usual ways: the crew leaves without delivering it
+	e2.cur = e2.units[0]
+	assert_true(e2.withdraw())
+	assert_eq(e2.state, "fled")
+
+
+func test_deliver_guards_go_for_the_carrier() -> void:
+	var e := _job("deliver", "gang_hideout")
+	var carrier: Dictionary = e.units[int(e.objective.carrier)]
+	assert_true(e.obj.ai_target_mult(carrier) > 1.0, "the carrier draws fire")
+	assert_eq(e.obj.ai_target_mult(e.units[1]), 1.0)
+	var g := _guard(e, 1, true)
+	var cp: Vector3i = carrier.pos
+	assert_true(e.obj.ai_pull(g, cp + Vector3i(1, 0, 0)) > e.obj.ai_pull(g, cp + Vector3i(9, 0, 0)), "and close on them")
+	e.objective.delivered = true
+	assert_eq(e.obj.ai_target_mult(carrier), 1.0, "once it's delivered, nobody knows")
+
+
+func test_deliver_rows_are_enabled() -> void:
+	_rows_ok("deliver", ["deliver_goods", "relay_message", "smuggle_goods"])
+
+
+func test_deliver_offers_save_and_load() -> void:
+	_offer_saves("delivery", "deliver")
+
+
+# --- Plant -------------------------------------------------------------------------------------
+
+func test_plant_by_hand_takes_two_actions_at_the_device() -> void:
+	var e := _job("plant")
+	var o := e.objective
+	assert_true(int(e.los.cover_hp.get(o.cell, 0)) > 0, "the device stands in the building")
+	_hud_ok(e, "plant")
+	assert_eq(e.obj.hud_text().split("\n")[0], "PLANT THE BUG")
+	_marks_ok(e, "plant")
+	assert_true(String(e.obj.marks(true)[0].label).begins_with("★ PLANT · "), "the device is marked")
+	var u: Dictionary = e.cur
+	u.pos = _beside(e, o.cell)
+	assert_eq(e.obj_actions(), ["plant"] as Array[String])
+	assert_eq(Hud.interact_here(e)[1], "PLANT BUG")
+	assert_true(e.obj_act("plant").ok)
+	assert_eq(int(o.progress), 1)
+	assert_eq(e.state, "playing", "one more Action to go")
+	assert_true(e.obj.hud_text().contains("1 MORE ACTION"), e.obj.hud_text())
+	assert_false(e.obj_act("plant").ok, "one Action a turn")
+	e.turn = TurnState.begin(e.dice, u.c)   # the next turn
+	assert_true(e.obj_act("plant").ok)
+	assert_eq(e.state, "won", "the plant is in")
+
+
+func test_plant_through_the_net_and_never_by_clearing_the_site() -> void:
+	var e := _job("plant")
+	var o := e.objective
+	assert_true(int(o.node) >= 0, "a corp office has a NET to go in by")
+	assert_true(e.obj.hud_text().contains("OR JACK IN: NET LEVEL"), e.obj.hud_text())
+	assert_true(e.obj.marks(false).any(func(mk): return String(mk.label) == "★ ACCESS POINT"), "the way in is marked too")
+	assert_eq(e.obj.net_line(), ": the false data, planted")
+	for g in e.opfor():
+		g.c.dead = true
+	e._check_end()
+	assert_eq(e.state, "playing", "clearing the site plants nothing")
+	o.done = true   # the Eye-Dee on the target File (NetRun sets it, as in a data theft)
+	e._check_end()
+	assert_eq(e.state, "won")
+	var e2 := _job("plant")   # no NET and the device wrecked: nothing left to plant in
+	e2.objective.node = -1
+	e2.los.cover_hp[e2.objective.cell] = 0
+	e2._check_end()
+	assert_eq(e2.state, "lost")
+
+
+func test_plant_orders_follow_the_mission_type() -> void:
+	var e := _job("plant")
+	e.objective["mission"] = "plant_false_data"
+	assert_eq(e.obj.hud_text().split("\n")[0], "PLANT THE FALSE DATA")
+	e.objective["mission"] = "test_device"
+	assert_eq(e.obj.hud_text().split("\n")[0], "INSTALL THE TEST RIG")
+	_hud_ok(e, "plant test rig")
+
+
+func test_plant_rows_are_enabled() -> void:
+	_rows_ok("plant", ["plant_bug", "plant_false_data", "test_device"])
+
+
+func test_plant_offers_save_and_load() -> void:
+	_offer_saves("plant", "plant")
+
+
+# --- Distraction ---------------------------------------------------------------------------------
+
+func test_distraction_trip_the_alarm_hold_out_and_leave() -> void:
+	var e := _job("distraction")
+	var o := e.objective
+	_hud_ok(e, "distraction")
+	assert_true(e.obj.hud_text().begins_with("RAISE THE ALARM"), e.obj.hud_text())
+	_marks_ok(e, "distraction")
+	assert_eq(String(e.obj.marks(true)[0].label), "★ ALARM PANEL")
+	var l := e.m.label(o.panel.z, o.panel.x, o.panel.y)
+	assert_true(l >= 0 and e.m.rooms[l].structure == e.m.structures.filter(func(st): return st.target)[0].id, "inside the target building")
+	assert_eq(int(o.need), 4, "security 2: four rounds (HOUSE-RULE)")
+	e.cur.pos = _beside(e, o.panel)
+	assert_eq(e.obj_actions(), ["alarm"] as Array[String])
+	assert_eq(Hud.interact_here(e)[1], "TRIP ALARM")
+	assert_true(e.obj_act("alarm").ok)
+	assert_eq(e.alarm, 2, "the alarm is up")
+	assert_true(e.obj.alarm_up())
+	assert_true(e.opfor().any(func(g): return g.alerted), "the bell brings the guards")
+	assert_true(e.obj.hud_text().begins_with("KEEP THEM BUSY"), e.obj.hud_text())
+	assert_true(e.obj.marks(true).is_empty(), "nothing to point at while they hold out")
+	assert_false(e.obj.withdraw_wins(), "leaving early blows it")
+	var r0 := e.init.round_num
+	e.backup_in = int(o.need) + 2   # the response is still on its way when the rounds are up
+	while e.init.round_num < r0 + int(o.need):
+		e.init.round_num += 1
+		e.obj.tick()
+	assert_false(e.obj.done(), "the rounds are up but the response isn't here yet")
+	assert_true(e.obj.hud_text().contains("UNTIL"), e.obj.hud_text())
+	e.backup_in = -1   # it arrived (Encounter._tick_backup)
+	e.init.round_num += 1
+	e.obj.tick()
+	assert_true(e.obj.done(), "held long enough, and they came")
+	assert_true(e.obj.hud_text().begins_with("REACH EXTRACTION"))
+	assert_true(e.obj.withdraw_wins())
+	e.cur = e.units[0]
+	for c in e.units:
+		if int(c.team) == Encounter.CREW:
+			c.pos = e.extract_cells.keys()[int(c.id) % e.extract_cells.size()]
+	assert_true(e.withdraw())
+	assert_eq(e.state, "won")
+
+
+func test_distraction_a_guard_calling_it_in_counts_and_leaving_early_fails() -> void:
+	var e := _job("distraction")
+	var g: Dictionary = e.opfor()[0]
+	e.call_it_in(g)
+	e._check_end()
+	assert_true(e.obj.alarm_up(), "the alarm counts however it went up")
+	assert_true(e.obj_actions().is_empty(), "no panel to trip any more")
+	assert_eq(e.obj.rounds_left(), int(e.objective.need))
+	e.cur = e.units[0]
+	for c in e.units:
+		if int(c.team) == Encounter.CREW:
+			c.pos = e.extract_cells.keys()[int(c.id) % e.extract_cells.size()]
+	assert_true(e.withdraw())
+	assert_eq(e.state, "fled", "gone before the response was drawn")
+
+
+func test_distraction_rows_are_enabled() -> void:
+	_rows_ok("distraction", ["cause_distraction", "sect_trouble"])
+
+
+func test_distraction_offers_save_and_load() -> void:
+	_offer_saves("distraction", "distraction")
+
+
+# --- All of them ---------------------------------------------------------------------------------
+
+func test_the_mission_types_table_after_the_new_objectives() -> void:
+	var off := MissionBuilder.mission_rows().filter(func(r): return not MissionBuilder.enabled(r))
+	var needs: Array = off.map(func(r): return String(r.needs))
+	assert_eq(off.size(), 13, "only the rows for systems we don't have stay off")
+	assert_true(needs.all(func(n): return n in ["social", "vehicles", "cyberpsycho"]), "what's left: %s" % [needs])
+	for ob in ["escort", "defend", "deliver", "plant", "distraction"]:
+		assert_true(Objective.kinds().has(ob), ob)
+		assert_true(Campaign.OBJECTIVES.values().has(ob), "%s has a gig kind" % ob)
+		assert_true(FixerScreen.OBJECTIVE_TEXT.has(ob), "%s: the board says what the job is" % ob)

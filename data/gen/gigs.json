@@ -32,12 +32,27 @@
 		{
 			"kind": "defense",
 			"label": "Defence"
+		},
+		{
+			"kind": "delivery",
+			"label": "Delivery"
+		},
+		{
+			"kind": "plant",
+			"label": "Plant"
+		},
+		{
+			"kind": "distraction",
+			"label": "Distraction"
 		}
 	],
-	"_hosts": "HOUSE-RULE: the canon world data (docs/world: places' gigs and hooks, factions' gigs) names the first six kinds only. A newer kind is offered wherever one of the kinds it borrows from is (Campaign.host_kinds, kinds_at), against a faction that can be the target of one of them (Campaign.targetable), and weighs as a place's plain `gigs` entry (1), never as a hook naming it (3). escort: the client is walked past people who want them dead, so anywhere a rescue or a hit plays. defense: the crew holds a room of a building the target wants to wreck or raid, so where sabotage and gang hits play.",
+	"_hosts": "HOUSE-RULE: the canon world data (docs/world: places' gigs and hooks, factions' gigs) names the first six kinds only. A newer kind is offered wherever one of the kinds it borrows from is (Campaign.host_kinds, kinds_at), against a faction that can be the target of one of them (Campaign.targetable), and weighs as a place's plain `gigs` entry (1), never as a hook naming it (3). escort: the client is walked past people who want them dead, so anywhere a rescue or a hit plays. defense: the crew holds a room of a building the target wants to wreck or raid, so where sabotage and gang hits play. delivery: the reverse of a snatch, into a guarded building, so where snatches and sabotage play. plant: the reverse of a data theft, into the same NETs, so where data thefts play (and only at a site with a NET). distraction: a loud job at a guarded place, so where gang hits, sabotage and hits play.",
 	"hosts": {
 		"escort": ["rescue", "assassination"],
-		"defense": ["sabotage", "gang_hit"]
+		"defense": ["sabotage", "gang_hit"],
+		"delivery": ["corp_extraction", "sabotage"],
+		"plant": ["data_theft"],
+		"distraction": ["gang_hit", "sabotage", "assassination"]
 	},
 	"_pay": "The job's rate by security level, before the payment step (MissionBuilder) splits it: CPR core p.381 pays an Easy job 500eb, a Typical 1,000eb and a Dangerous 2,000eb per person; levels 1-3 are those, for the two-person crew a campaign starts with. HOUSE-RULE: flat per gig, not per head, so a bigger crew splits the same pay (the book's per-person rate would make every hire pay for itself).",
 	"pay": {
@@ -94,7 +109,10 @@
 			"gigs"
 		],
 		"escort": ["exfiltration", "veterans", "mediation", "nomads", "gigs"],
-		"defense": ["combat", "weapons", "veterans", "property", "fights"]
+		"defense": ["combat", "weapons", "veterans", "property", "fights"],
+		"delivery": ["smuggling", "deliveries", "ids", "crime", "gigs"],
+		"plant": ["information", "netrunning", "programs", "media", "investments"],
+		"distraction": ["combat", "fights", "gigs", "crime", "veterans"]
 	},
 	"unique_templates": [
 		{

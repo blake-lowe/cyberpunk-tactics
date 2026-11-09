@@ -144,7 +144,11 @@ func _ready() -> void:
 		camp.remove_meta("report")
 		open_screen("debrief", 0, rep)
 	elif open == "debrief":
-		open_screen("debrief", 0, DemoState.report(camp) if camp.has_meta("demo") else {"members": camp.debrief})
+		var ob := ""   # review shots: --objective=<id> plays the sample gig as that objective
+		for a3 in OS.get_cmdline_user_args():
+			if a3.begins_with("--objective="):
+				ob = a3.get_slice("=", 1)
+		open_screen("debrief", 0, DemoState.report(camp, ob) if camp.has_meta("demo") else {"members": camp.debrief})
 	elif open != "":
 		open_screen(open, crew_i)
 

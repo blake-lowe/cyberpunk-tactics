@@ -156,7 +156,7 @@ func test_mission_types_cover_the_d100_and_every_enabled_row_plays() -> void:
 			assert_true(r.objective == null, "%s: disabled rows say so" % r.id)
 			assert_true(String(r.get("needs", "")) != "", "%s: names what it needs" % r.id)
 	assert_eq(covered.size(), 100, "1-100 covered")
-	assert_eq(on, 29, "29 rows play today, 21 wait for modules")
+	assert_eq(on, 37, "37 rows play today, 13 wait for social, driving and psycho-hunt systems")
 	for ob in Campaign.OBJECTIVES.values():
 		assert_true(int(by.get(String(ob), 0)) > 0, "%s has a mission type" % ob)
 
@@ -169,7 +169,7 @@ func test_rolling_a_mission_skips_rows_we_cant_play() -> void:
 		assert_true(MissionBuilder.enabled(MissionBuilder.mission_def(String(m.id))))
 		assert_eq(MissionBuilder.mission_def(String(m.id)).roll[0] <= int(m.roll) and int(m.roll) <= MissionBuilder.mission_def(String(m.id)).roll[1], true, "the roll that came up")
 		ids[m.id] = true
-	assert_eq(ids.size(), 29, "every playable row comes up")
+	assert_eq(ids.size(), 37, "every playable row comes up")
 	for ob in Campaign.OBJECTIVES.values():
 		for i in 30:
 			assert_eq(String(MissionBuilder.roll_mission(d, String(ob)).objective), String(ob))
