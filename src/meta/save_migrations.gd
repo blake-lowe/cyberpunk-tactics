@@ -71,7 +71,13 @@ extends RefCounted
 ##     dropped to null rather than sprung half-understood. The dev builder's last form gains its
 ##     `twist` field at "auto" (the form's defaults fill it on use).
 
-const CURRENT := 17
+## v18: scene events (SPM p.77-84, SceneEvent). A gig rolls the street round it when it starts
+##     (Campaign._start_gig) and keeps it as `scene_event` (null: none) on the active gig, which the
+##     save never holds; nothing saved changes but the dev builder's last form, which gains its
+##     `street` field at "auto" (as v17 added `twist`). A board offer that somehow carries a
+##     `scene_event` in a shape the game no longer plays has it dropped, so it's rolled afresh.
+
+const CURRENT := 18
 
 
 ## Upgrade `d` (a parsed save) to CURRENT. Returns {} for a save from a newer build, which this
@@ -99,6 +105,7 @@ static func migrate(d: Dictionary) -> Dictionary:
 			14: _v14_to_v15(d)
 			15: _v15_to_v16(d)
 			16: _v16_to_v17(d)
+			17: _v17_to_v18(d)
 		v += 1
 		d["version"] = v
 	return d
@@ -322,3 +329,12 @@ static func _v16_to_v17(d: Dictionary) -> void:
 	var lc: Variant = d.get("last_custom")
 	if lc is Dictionary and not (lc as Dictionary).is_empty() and not (lc as Dictionary).has("twist"):
 		lc["twist"] = "auto"
+
+
+static func _v17_to_v18(d: Dictionary) -> void:
+	for g in d.get("board", []):
+		if g is Dictionary and (g as Dictionary).has("scene_event") and not SceneEvent.valid(g.scene_event):
+			(g as Dictionary).erase("scene_event")
+	var lc: Variant = d.get("last_custom")
+	if lc is Dictionary and not (lc as Dictionary).is_empty() and not (lc as Dictionary).has("street"):
+		lc["street"] = "auto"

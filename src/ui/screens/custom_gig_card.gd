@@ -182,9 +182,10 @@ const ZONE_SHORT := {"corporate": "Corp", "moderate": "Moderate", "street": "Str
 
 
 ## The sheet's rows in its order: who's hiring, payment, the mission, the focus, the twist
-## (MissionBuilder; Plot Twists, Twist). Auto rolls each for the place, as the board does.
+## (MissionBuilder; Plot Twists, Twist), the street round the gig (SceneEvent). Auto rolls each
+## for the place, as the board does.
 func _mission_builder(v: VBoxContainer) -> void:
-	var head := UiKit.label("MISSION BUILDER · SPM p.102 · PLOT TWISTS p.75-76", 12, Hud.MAGENTA)
+	var head := UiKit.label("MISSION BUILDER · SPM p.102 · PLOT TWISTS p.75-76 · ON THE STREET p.77-84", 12, Hud.MAGENTA)
 	head.name = "MissionBuilderHead"
 	v.add_child(head)
 	var mb := GridContainer.new()
@@ -230,6 +231,13 @@ func _mission_builder(v: VBoxContainer) -> void:
 		to.set_item_disabled(i, id not in ["auto", "none"] and not Twist.enabled(Twist.row(id)))
 	to.tooltip_text = "Plot Twists (SPM p.75-76): hidden on the board, sprung at its trigger in play. A set row keeps its own trigger; the --twist flag can add @start, @alarm, @objective_done or @round<n>."
 	_field(mb, "Twist", to)
+	var streets: Array = [["auto", AUTO + " (about half: the place's band, the hour)"], ["none", "None"]]
+	for k in SceneEvent.tables():
+		for row in SceneEvent.enabled_rows(String(k)):
+			streets.append([String(row.id), "%s · %d-%d %s" % [String(k).replace("_", " ").capitalize(), int(row.roll[0]), int(row.roll[1]), String(row.label)]])
+	var so := _opt("street", streets)
+	so.tooltip_text = "Scene events (SPM p.77-84 Random Encounters): the street round the gig, rolled when it starts. A set row plays whatever the hour."
+	_field(mb, "On the street", so)
 
 
 # --- Fields -----------------------------------------------------------------------------------

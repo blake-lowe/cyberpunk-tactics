@@ -143,6 +143,11 @@ static func plan(m: TacMap, seed_value: int) -> Array:
 		if hz != "":
 			out.append({"kind": "hazard", "cell": Vector3i(c.pos.x, c.pos.y, c.floor), "out": Vector2i.ZERO,
 				"color": Color("6fb8ff") if hz == "electrified" else Color("ff7a2a"), "energy": 0.8, "range": 3.0})
+	# A scene event's set dressing (SceneEvent.dress): a burning wreck, a barrel fire, a sparking drone.
+	for l in m.params.get("event_lights", []):
+		var el: Dictionary = (l as Dictionary).duplicate()
+		el["color"] = fire_col if String(el.get("color", "")) == "" else Color(String(el.color))
+		out.append(el)
 	return out
 
 

@@ -1074,6 +1074,12 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 		cx.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		cx.custom_minimum_size.x = 260
 		_round_box.add_child(cx)
+	var sl := SceneEvent.hud_line(enc)
+	if sl != "":   # the street round the gig (SceneEvent): quieter than a twist
+		var sx := _text(sl, F_TERM, Hud.ts(15), Color(CYAN, 0.8))
+		sx.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		sx.custom_minimum_size.x = 260
+		_round_box.add_child(sx)
 	var tl := Twist.hud_line(enc)
 	if tl != "":   # the plot twist (Twist), once it has sprung
 		var tx := _text(tl, F_TERM, Hud.ts(18), MAGENTA)
@@ -2011,6 +2017,51 @@ func twist_callout(title: String, note: String, text: String, secs := 2.2) -> vo
 		tw.tween_property(_twist_card, "position:x", _twist_card.position.x, 0.03)
 	tw.tween_interval(secs)
 	tw.tween_property(_twist_card, "modulate:a", 0.0, 0.35)
+
+
+# --- The street round the gig (SceneEvent, SPM p.77-84) ----------------------------------------
+
+var _street_card: PanelContainer
+var _street_tw: Tween
+
+
+## ON THE STREET at deploy: the twist card's family, quieter: a thin cyan frame, no flash, no
+## glitch, a smaller title, it fades in, holds and goes.
+func street_callout(title: String, note: String, text := "", secs := 3.2) -> void:
+	if _street_card == null:
+		_street_card = PanelContainer.new()
+		_street_card.add_theme_stylebox_override("panel", CutBox.make(Color(INK, 0.9), Color(CYAN, 0.55), 10, 0b0101, CYAN, 12))
+		_street_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var v := VBoxContainer.new()
+		v.add_theme_constant_override("separation", 1)
+		v.alignment = BoxContainer.ALIGNMENT_CENTER
+		_street_card.add_child(v)
+		for spec in [["Kicker", F_TERM, ts(15), Color(CYAN, 0.9)], ["Title", F_DISPLAY, 30, TEXT], ["Note", F_TERM, ts(17), Color(DIM, 1.0)], ["Text", F_TERM, ts(15), Color(DIM, 0.9)]]:
+			var l := _text("", spec[1], spec[2], spec[3])
+			l.name = spec[0]
+			l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			l.custom_minimum_size.x = 440
+			v.add_child(l)
+		add_child(_street_card)
+	var vb := _street_card.get_child(0)
+	(vb.get_node("Kicker") as Label).text = "ON THE STREET:"
+	(vb.get_node("Title") as Label).text = title.to_upper()
+	(vb.get_node("Note") as Label).text = note.left(1).to_upper() + note.substr(1) + ("." if note != "" and not note.ends_with(".") else "")
+	(vb.get_node("Text") as Label).text = text
+	(vb.get_node("Text") as Label).visible = text != ""
+	_street_card.reset_size()
+	var sz := _street_card.get_combined_minimum_size()
+	_street_card.size = sz
+	_street_card.position = Vector2(size.x / 2.0 - sz.x / 2.0, 150)
+	if _street_tw and _street_tw.is_valid():
+		_street_tw.kill()
+	_street_card.modulate.a = 0.0
+	var tw := create_tween()
+	_street_tw = tw
+	tw.tween_property(_street_card, "modulate:a", 1.0, 0.35)
+	tw.tween_interval(secs)
+	tw.tween_property(_street_card, "modulate:a", 0.0, 0.6)
 
 
 ## A one-frame-ish full-screen flash (crits, alerts).

@@ -51,6 +51,7 @@ var obj: Objective                  ## the gig's goal as a module (src/tactical/
 var complication := {}              ## the book's complication rolled at gig start: {tier, roll, text, applied, skipped} (Complication)
 var complication_waves: Array = []  ## its extra units still to come: {round, n, tier, unit, crit}
 var clocks: Array = []              ## Solo Play Clocks running this gig (Clock; Clocks, SPM p.25-26): the detection clock, a Time Limit
+var scene_event := {}               ## the street around the gig (SceneEvent, SPM p.77-84): {table, id, label, note, applied, units, ...}
 var twist := {}                     ## the gig's plot twist (Twist, SPM p.75-76): {row, id, label, trigger, sprung, round, text, applied}
 var _clock_hits := {}               ## clock trigger rate limits (Clocks._limit_key) and reclaims this turn
 var _room_rounds := {}              ## crew unit id → [room label, rounds there]: a minute in a secured room (Clocks.round_start)
@@ -118,7 +119,8 @@ var login_codes := 0                ## NET login codes found on bodies: each ope
 ## the crowd and the people the objectives need (Recruit.civilian_blocks); owner: the location's
 ## owner faction, whose people a venue code's staff are (SecurityCode.respondent); neutral_ground /
 ## free_for_all: a set piece's rules for any map (NeutralGround, FreeForAll; by default the map's
-## set piece's own)}.
+## set piece's own); scene_event: the street round the gig (SceneEvent: {table, id, ...}, rolled
+## when the gig started); street_life: false leaves everyday life out (StreetLife; default on)}.
 static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "data", opts: Dictionary = {}) -> Encounter:
 	var e := Encounter.new()
 	opts = SetPieces.encounter_opts(p_map, opts)   # a set piece's per-seed variant (an estate's owner) brings its own code
@@ -130,6 +132,7 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 	e._init_sides()
 	e.m = p_map
 	e.dice = p_dice
+	SceneEvent.dress(p_map, opts.get("scene_event"))   # its set dressing is cover: on the map before anything reads it
 	e.nav = Nav.new(p_map)
 	e.los = Los.new(p_map)
 	e.init = Initiative.new(p_dice)
@@ -221,6 +224,7 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 		e.outages.assign((opts.outages as Array).filter(func(u): return String(u) in SecurityCode.UTILITIES).map(func(u): return String(u)))
 	elif not bool(opts.get("utilities", false)) or SecurityCode.utilities_happen(p_dice):
 		e.outages = SecurityCode.roll_utilities(p_dice, e.utility_code)
+	SceneEvent.pre(e, opts.get("scene_event"))   # a block gone dark
 	e._apply_outages()
 	e._compute_light()
 	if e.obj.manned():
@@ -233,6 +237,9 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 		e._hand_out_keycards()
 	e._trauma_cards()
 	e._place_civilians(cells[0])
+	SceneEvent.apply(e, opts.get("scene_event"))   # the street around the gig: its crowd, gangs, patrols, callers
+	if bool(opts.get("street_life", true)):   # (off: performance comparisons, greybox --life=0)
+		StreetLife.place(e, cells[0])   # everyday life: vendors, queues, walkers, patrons
 	Twist.arm(e, opts.get("twist"))   # a start twist (Trap Location) places its devices before the turrets mount
 	e._mount_turrets()
 	for line in SetPieces.briefs(String(p_map.params.get("setpiece", ""))):   # the place's house rules, for the briefing
@@ -421,6 +428,7 @@ func next_turn() -> void:
 		if init.round_num != _civ_round:
 			_civ_round = init.round_num
 			_civilians_tick()
+			SceneEvent.poll(self)
 			_tick_trauma()
 		if state != "playing":
 			return
@@ -1283,7 +1291,7 @@ func _crowd_cells(deploy: Vector2i) -> Array:
 				ok = int(r.zone) == TacMap.Zone.PUBLIC and String(r.kind) not in ["roof", "corridor"]
 			else:
 				ok = m.t(m.street, x, y) == TacMap.T.OUTSIDE and m.ground[y * m.w + x] == TacMap.G.SIDEWALK
-			if ok:
+			if ok and not StreetLife.blocked_spot(self, v):   # never in a 1-wide way through or the objective's rooms
 				cand.append(v)
 	return cand
 
@@ -1338,12 +1346,17 @@ func _civilians_tick() -> void:
 			u.c.dead = true   # gone off the map, unharmed
 			u["fled"] = true
 			events.append({"type": "civ_gone", "unit": u.id})
+	StreetLife.tick(self)
 
 
 func _count_civ_harm() -> void:
 	for u in units:
 		if u.get("civ", false) and not u.get("fled", false) and not _counted.has(u.id) and (u.c.dead or not u.c.can_act()):
 			_counted[u.id] = true
+			# HOUSE-RULE: with a scene event on the street (SceneEvent: a gang war, a psycho, a Trauma
+			# Team client already down), only the bystanders the crew hurt are the crew's to answer for.
+			if not scene_event.is_empty() and not u.get("crew_hit", false):
+				continue
 			civ_casualties += 1
 			say("A bystander is down. That will cost you.")
 
@@ -2243,8 +2256,13 @@ func _noise(at: Vector3i) -> void:
 	_panic_near(at)
 	if not cur.is_empty() and int(cur.team) == CREW:   # the crew's gunfire or blast: the detection clock rolls (Clocks)
 		Clocks.trigger(self, "noise", int(cur.id), "%s makes noise" % cur.c.display_name)
+	# HOUSE-RULE: a scene event's fighters (SceneEvent: a gang war, a psycho) shooting on the street
+	# don't put the site on alert: a firefight a block off is the neighbourhood's, not the crew's.
+	var street: bool = not cur.is_empty() and bool(cur.get("street_event", false))
 	var fresh := []
 	for g in units:
+		if street and bool(sides[int(g.team)].opfor):
+			continue
 		if not g.alerted and not g.c.dead and Vector2(at.x - g.pos.x, at.y - g.pos.y).length() <= GUNFIRE_RANGE \
 				and absi(at.z - g.pos.z) <= 1:
 			fresh.append(g)
@@ -2269,7 +2287,15 @@ func _rouse(fresh: Array) -> void:
 
 
 func engaged() -> bool:
-	return units.any(func(u): return is_guard(u) and hostile(int(u.team), CREW) and u.alerted and not u.c.dead)
+	return units.any(func(u): return is_guard(u) and hostile(int(u.team), CREW) and u.alerted and not u.c.dead and _near_crew(u))
+
+
+## A scene event's fighters (SceneEvent: gangs at war, a cyberpsycho) count as engaging the crew
+## only once they're within spotting range of one of them; a gang war three blocks off isn't.
+func _near_crew(u: Dictionary) -> bool:
+	if not u.get("street_event", false):
+		return true
+	return units.any(func(c): return int(c.team) == CREW and c.c.can_act() and c.pos.z == u.pos.z and Vector2(c.pos.x - u.pos.x, c.pos.y - u.pos.y).length() <= SPOT_RANGE)
 
 
 # --- Movement ----------------------------------------------------------------------

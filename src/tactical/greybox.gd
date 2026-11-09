@@ -338,6 +338,14 @@ var _dev_peace := false                ## --peace=broken (review renders): the c
 var _jack_turret := false              ## --jack=turret (review renders): the runner also holds a turret's Control Node
 var _jack_mode := ""                   ## --jack=<mode> (review renders): turret | camera | lock | eyedee | held (_demo_net_work)
 var _dev_ambient := 1.0                ## --ambient=s (review renders): scale the scene's ambient energy (dev only)
+var _life_demo := false               ## --life_demo (review renders): walkers stroll every 2 s (StreetLife.tick) for GIFs
+var _life_on := true                  ## --life=0 (review renders): everyday life off, for performance before/after
+var _perf := false                    ## --perf (review renders): print the frame's draw calls, objects and nodes at the shot
+var _street_card_on := true            ## --street_callout=0 (review renders): no ON THE STREET card
+var _life_ms := 0
+var _dev_hour := -1                    ## --hour=h (review renders): the clock a --street=auto roll reads (SceneEvent.time_of)
+var _cue_at := 0                       ## msec: the next far-off street sound (_street_cues)
+var _cue_rng := RandomNumberGenerator.new()   ## view-only: which street sound, and when
 var _dev_exposure := 1.0               ## --exposure=s (review renders): scale the tonemap exposure, the whole lit scene (dev only)
 var _dev_gamma := 1.0                  ## --gamma=s (review renders): scale the grade's power curve (dev only)
 var _sky := ""                         ## --sky=day (review renders): a tower band's daylight look (LOOKS tower_day); night by default
@@ -407,6 +415,12 @@ func _ready() -> void:
 			"exposure": _dev_exposure = float(kv[1])   # review renders: tonemap exposure x s (darkens world and units alike)
 			"gamma": _dev_gamma = float(kv[1])   # review renders: grade power curve x s
 			"ambient": _dev_ambient = float(kv[1])   # review renders: ambient energy x s (lamps: --lights, baked spill: --spill)
+			"street": gig["street"] = kv[1]   # review renders: the scene event (SceneEvent): a row id, <band>.<time>:<id or roll>, or auto
+			"hour": _dev_hour = int(kv[1])   # review renders: with --street=auto, the hour the street is rolled for
+			"life_demo": _life_demo = kv[1] != "0"   # review renders: everyday life walks every 2 s without turns passing (GIFs)
+			"life": _life_on = kv[1] != "0"   # review renders: 0 = no everyday life (no ambient bystanders or street FX), for before/after
+			"perf": _perf = true   # review renders: print draw calls, objects and nodes when the shot is taken
+			"street_callout": _street_card_on = kv[1] != "0"   # review renders: 0 leaves the ON THE STREET card out (see the street itself)
 			"security":
 				gig.security = int(kv[1])
 				_security_flag = true
@@ -474,6 +488,13 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if _promo:
 		_hide_overlays()
+	_street_cues()
+	if _life_demo and enc and Time.get_ticks_msec() - _life_ms > 2000:   # review GIFs: the street walks on its own
+		_life_ms = Time.get_ticks_msec()
+		StreetLife.tick(enc)
+		for ev in enc.events.filter(func(x): return String(x.type) == "stroll"):
+			_ev_stroll(ev)
+		enc.events.assign(enc.events.filter(func(x): return String(x.type) != "stroll"))
 	if _charge_node and is_instance_valid(_charge_node) and enc:   # blink faster as the fuse runs down
 		var rate := 2.0 + 3.0 * float(int(enc.obj.cfg.get("fuse_rounds", 3)) - maxi(enc.fuse_left(), 0))
 		var on := fmod(Time.get_ticks_msec() / 1000.0 * rate, 1.0) < 0.5
@@ -645,6 +666,11 @@ func _process(delta: float) -> void:
 			_after_action()
 		var shoot_now: bool = _frames >= 12 if not (_attack_demo or _jack_demo or _av_demo != "" or _dev_peace or _dev_end != "" or _dev_callouts or _dev_grapple != "" or _dev_morale != "" or _dev_clock != "") else (_demo_ms > 0 and Time.get_ticks_msec() - _demo_ms >= int(_shot_delay * 1000.0 / Engine.time_scale))
 		if shoot_now and _shot_ms == 0:
+			if _perf:
+				print("PERF cam=%s draw_calls=%d objects=%d primitives=%d nodes=%d units=%d civs=%d" % [cam_target, 
+					Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME), Performance.get_monitor(Performance.RENDER_TOTAL_OBJECTS_IN_FRAME),
+					Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME), Performance.get_monitor(Performance.OBJECT_NODE_COUNT),
+					enc.units.size(), enc.units.filter(func(u): return u.get("civ", false)).size()])
 			get_viewport().get_texture().get_image().save_png(_shot_path)
 			_shot_ms = Time.get_ticks_msec()
 			if _shot2 == "" and _shot_seq <= 0:
@@ -878,6 +904,15 @@ func new_gig() -> void:
 		var tr := Twist.row(String(gig.twist).get_slice("@", 0))
 		if not tr.is_empty():
 			eo["twist"] = Twist.make(Dice.new(int(gig.seed) + 5), tr, -1, String(gig.twist).get_slice("@", 1) if String(gig.twist).contains("@") else "")
+	if not _life_on:
+		eo["street_life"] = false
+	if gig.has("street") and not campaign_gig:   # review renders: --street (SceneEvent), rolled as a campaign gig's would be
+		var sg := {"seed": int(gig.seed), "scene": String(gig.scene), "district": did, "sky": _sky}
+		if did != "":
+			sg["district_code"] = World.district(did).get("security_code")
+		var ev: Variant = SceneEvent.roll(sg, (_dev_hour if _dev_hour >= 0 else 23) * 60, String(gig.street))
+		if ev is Dictionary:
+			eo["scene_event"] = ev
 	if _dev_clock != "":   # review renders: the detection clock runs whatever the gig
 		eo["clocks"] = true
 	elif not campaign_gig:   # a dev map plays as a campaign gig would: the clock on a stealth gig
@@ -958,6 +993,11 @@ func new_gig() -> void:
 		enc.update_alerts()
 	if _walk > 0:
 		_frame_unit(enc.cur)
+	if not enc.scene_event.is_empty() and not _promo and _street_card_on:   # ON THE STREET: what's going on round the gig, once, at deploy
+		var se := enc.scene_event
+		get_tree().create_timer(0.05 if _shot_path != "" else 0.9).timeout.connect(func():
+			if hud and is_instance_valid(hud):
+				hud.street_callout(String(se.label), String(se.get("note", "")), String(se.get("text", ""))))
 	if not _dev_inside.is_empty() or _dev_focus_b != "":
 		_demo_inside()
 	if _focus != "":
@@ -982,6 +1022,29 @@ func new_gig() -> void:
 						best = d
 						fc = Vector2(u.pos.x, u.pos.y)
 						view_floor = u.pos.z
+		elif _focus == "street":   # review renders: the scene event's people (SceneEvent), else the dressing
+			var ids: Array = enc.scene_event.get("units", [])
+			var acc := Vector2.ZERO
+			for id in ids:
+				acc += Vector2(enc.units[int(id)].pos.x, enc.units[int(id)].pos.y)
+			if not ids.is_empty():
+				fc = acc / ids.size()
+			else:
+				for l in m.params.get("event_lights", []):
+					fc = Vector2(l.cell.x, l.cell.y)
+				for k in m.params.get("event_spots", {}):
+					var sv: Vector2i = m.params.event_spots[k][0]
+					fc = Vector2(sv)
+		elif _focus == "life":   # review renders: the busiest stretch of everyday life (most calm bystanders within 8)
+			var best := -1
+			for u in enc.units:
+				var ul := m.label(u.pos.z, u.pos.x, u.pos.y)
+				if not u.get("civ", false) or not StreetLife.outdoors(m, u.pos):
+					continue
+				var nn := enc.units.filter(func(o): return o.get("civ", false) and Vector2(o.pos.x - u.pos.x, o.pos.y - u.pos.y).length() <= 8.0).size()
+				if nn > best:
+					best = nn
+					fc = Vector2(u.pos.x, u.pos.y)
 		elif _focus == "center":
 			for st in m.structures:
 				if st.target and st.has("rect"):
@@ -992,6 +1055,7 @@ func new_gig() -> void:
 		cam_target = Vector3(fc.x, 0, fc.y)
 		_place_camera()
 		_last_cur = enc.cur.id
+		_view_turn = enc.turn   # the turn is already framed here: the first event playback keeps this view
 	if _shot_floor >= 0:   # review renders: a storey of the building (with --cut=all, the floors above cut away)
 		view_floor = mini(_shot_floor, m.floors - 1)
 		if not _bld.has(_focused()):   # from the street: the building nearest the view takes the stack
@@ -1070,6 +1134,8 @@ func _build_world() -> void:
 	ambient = AmbientFx.new()
 	world.add_child(ambient)
 	ambient.build(m, SceneTheme.of(m).get("ambient", []), m.seed_value)
+	if _life_on:
+		ambient.street(m, m.seed_value, String(enc.scene_event.get("sky", "")))   # everyday life: steam, litter, ads, hazards, sky traffic
 	_build_lights()
 	door_nodes = Node3D.new()
 	world.add_child(door_nodes)
@@ -1124,6 +1190,7 @@ func _unit_node(u: Dictionary) -> CharModel:
 	world.add_child(n)
 	n.position = Vector3(u.pos.x + 0.5, _gy(u.pos), u.pos.y + 0.5)
 	n.scale = Vector3.ONE * 1.3
+	n.set_meta("civ", bool(u.get("civ", false)))   # a bystander walks hands-free (CharModel civ_walk)
 	unit_nodes[u.id] = n
 	return n
 
@@ -1162,6 +1229,7 @@ func _decal(col: Color, size: float, ring_mode: bool, pulse: float, shadow := fa
 
 func _build_lights() -> void:
 	fires.clear()
+	var failing: Array = []   # [light, glow mesh]: the odd sign or lamp on its way out (AmbientFx.flicker)
 	for e in LightPlan.plan(m, m.seed_value) + LightPlan.fill(m, m.seed_value):
 		var cell: Vector3i = e.cell
 		var fn: Node3D = floor_nodes[cell.z]
@@ -1196,6 +1264,8 @@ func _build_lights() -> void:
 				sign.mesh = bm
 				sign.position = base + out * 0.55 + Vector3(0, 1.3, 0)
 				fn.add_child(sign)
+				if posmod(hash(Vector3i(cell.x, cell.y, m.seed_value)), 7) == 0:
+					failing.append([l, sign])
 			"lamp" when e.out != Vector2i.ZERO:   # bulkhead: a caged work lamp on the wall
 				var outv := Vector3(e.out.x, 0, e.out.y)
 				var wallp := base - outv * 0.5
@@ -1240,6 +1310,8 @@ func _build_lights() -> void:
 				head.position = base + Vector3(0.22, 1.485, 0.3)
 				fn.add_child(head)
 				l.position = head.position - Vector3(0, 0.05, 0)
+				if posmod(hash(Vector3i(cell.y, cell.x, m.seed_value)), 11) == 0:
+					failing.append([l, head])
 			"fire":
 				l.position = base + Vector3(0, 0.45, 0)
 				var pit := MeshInstance3D.new()
@@ -1268,9 +1340,15 @@ func _build_lights() -> void:
 				fires.append(l)
 			"hazard":
 				l.position = base + Vector3(0, 0.6, 0)
+			"sparks":   # a scene event's sparking drone or tech shop (SceneEvent dressing)
+				l.position = base + Vector3(0, 0.5, 0)
+				ambient.sparks(base, bool(e.get("drone", false)))
+				failing.append([l, null])
 		fn.add_child(l)
 		lights.append([l, cell, e.kind])
 	_apply_look()
+	for fl in failing:
+		ambient.flicker(fl[0], fl[1], posmod(hash(fl[0].position), 9973))
 
 
 # --- Refresh: fog, cutaway, units, grid, HUD -------------------------------------
@@ -1312,11 +1390,14 @@ func _refresh() -> void:
 				n.position = Vector3(u.pos.x + 0.5, _gy(u.pos), u.pos.y + 0.5)
 				(n as CharModel).die(Vector3.BACK.rotated(Vector3.UP, n.rotation.y), false, true)
 			continue
-		n.position = Vector3(u.pos.x + 0.5, _gy(u.pos), u.pos.y + 0.5)
+		if not n.get_meta("strolling", false):   # a walker mid-stroll (_ev_stroll) finishes its own tween
+			n.position = Vector3(u.pos.x + 0.5, _gy(u.pos), u.pos.y + 0.5)
 		n.scale = Vector3.ONE * 1.3   # a touch larger than life, still in scale with 1.15-high doors
 		dc.position = n.position + Vector3(0, 0.03, 0)
 		n.set_meta("slump_goal", 1.0 if u.c.wound_state() == Combatant.Wound.MORTAL else 0.0)
-		n.set_meta("crouch_goal", 1.0 if _beside_cover(u.pos) or u.team == Encounter.CAPTIVE else 0.0)   # crouching reads as "in cover"; captives kneel
+		var life := String(u.get("life", "")) if u.get("civ", false) and not u.get("panic", false) else ""
+		n.set_meta("life", life)   # everyday life (StreetLife, SceneEvent crowds): what they're doing
+		n.set_meta("crouch_goal", 1.0 if (_beside_cover(u.pos) and life == "") or u.team == Encounter.CAPTIVE else 0.0)   # crouching reads as "in cover"; captives kneel
 		if true:
 			n.rotation.x = 0
 			var foes := enc.foes(u).filter(func(o): return o.alerted or enc.is_guard(u))
@@ -1325,6 +1406,11 @@ func _refresh() -> void:
 				var fc: Vector2 = u.get("facing", Vector2.ZERO)   # watching their sector
 				if fc != Vector2.ZERO:
 					n.rotation.y = atan2(fc.x, fc.y)
+			if life != "":   # calm bystanders face what they're doing (the stall, the crowd's middle, a friend)
+				foes = []
+				var lf: Vector2 = u.get("facing", Vector2.ZERO)
+				if lf != Vector2.ZERO and not n.get_meta("strolling", false):
+					n.rotation.y = atan2(lf.x, lf.y)
 			if not foes.is_empty():
 				foes.sort_custom(func(a, b): return Vector3(a.pos - u.pos).length() < Vector3(b.pos - u.pos).length())
 				var d: Vector3i = foes[0].pos - u.pos
@@ -4320,7 +4406,7 @@ func _grapple_pose(u: Dictionary, n: Node3D) -> void:
 				n.rotation.y = atan2(float(d.x), float(d.y))
 			grip = "holder" if g.holder == u.c else "held"
 	n.set_meta("grip", grip)
-	n.set_meta("prone", u.c.prone and not u.c.dead)
+	n.set_meta("prone", (u.c.prone or String(u.get("life", "")) == "down") and not u.c.dead)   # a street client waiting for Trauma Team lies down
 	if u.c.prone:
 		n.set_meta("crouch_goal", 0.0)
 
@@ -4910,7 +4996,7 @@ func _body_pos(u: Dictionary) -> Vector3:
 
 ## Events that don't count as "hostile activity" for the enemy-phase banner (bookkeeping, third
 ## parties, things the crew caused).
-const QUIET_EVENTS := ["alert", "death", "camera", "tt_call", "av_land", "av_leave", "tt_pickup", "panic", "civ_gone", "morale", "fled", "search",
+const QUIET_EVENTS := ["alert", "death", "camera", "tt_call", "av_land", "av_leave", "tt_pickup", "panic", "civ_gone", "morale", "fled", "search", "stroll",
 	"clock", "clock_add", "clock_new", "clock_stop", "clock_escalate", "twist", "spoof"]
 
 var _handlers: Dictionary = {}
@@ -4969,6 +5055,7 @@ func _event_handlers() -> Dictionary:
 			"clock_escalate": _ev_clock_escalate,
 			"twist": _ev_twist,
 			"spoof": _ev_spoof,
+			"stroll": _ev_stroll,
 		}
 	return _handlers
 
@@ -5355,6 +5442,32 @@ func _ev_panic(e: Dictionary) -> void:
 			shown += 1
 	if shown > 0:
 		hud.toast("BYSTANDERS SCATTER")
+
+
+## Everyday life (StreetLife.tick): a calm walker strolls a few squares. Played without waiting,
+## so every walker on the street moves at once and the turn never waits on them.
+func _ev_stroll(e: Dictionary) -> void:
+	var u: Dictionary = enc.units[e.unit]
+	var n: Node3D = unit_nodes.get(u.id)
+	if n == null or not is_instance_valid(n):
+		return
+	var path: Array = e.path
+	n.set_meta("strolling", true)
+	n.set_meta("stroll", true)
+	n.set_meta("walk", true)
+	n.set_meta("run", false)
+	var tw := create_tween()
+	for i in range(1, path.size()):
+		var a: Vector3i = path[i - 1]
+		var b: Vector3i = path[i]
+		var d := Vector2(b.x - a.x, b.y - a.y)
+		var yaw := atan2(d.x, d.y)
+		tw.tween_callback(func(): if is_instance_valid(n): _turn_to(n, yaw, 0.15))
+		tw.tween_property(n, "position", Vector3(b.x + 0.5, _gy(b), b.y + 0.5), 0.75 * (1.0 if d.length() < 1.2 else 1.4))
+	tw.tween_callback(func():
+		if is_instance_valid(n):
+			n.set_meta("strolling", false)
+			n.set_meta("walk", false))
 
 
 func _ev_civ_gone(e: Dictionary) -> void:
@@ -6380,11 +6493,75 @@ func _update_audio() -> void:
 	var ad := AudioDirector.I
 	if ad == null or not is_instance_valid(ad) or enc == null:
 		return
-	var a: Array = AMBIENCE.get(String(m.params.get("scene", "")), ["amb_city", 0.45, 0.12])
+	var st := _street_key()
+	var a: Array = AMBIENCE.get(String(m.params.get("scene", "")), [String(STREET_BEDS.get(st[0], "amb_city")), 0.45, 0.12])
 	ad.ambience(String(a[0]))
 	ad.set_space(float(a[1]), float(a[2]))
 	var fighting: bool = enc.alarm >= 1 or enc.engaged()
 	ad.music("" if enc.state != "playing" else ("combat" if fighting else "explore"))
+	ad.layer(_street_layer(st, fighting))
+
+
+## The district's bed for a street band (SceneEvent.band_of): a corporate block hums, the Combat
+## Zone has its wind, dogs and far-off shots; a moderate street keeps the city's traffic.
+const STREET_BEDS := {"corporate": "amb_corp", "moderate": "amb_city", "combat_zone": "amb_zone", "outskirts": "amb_badlands"}
+
+
+## [band, time] of the street round this gig: the scene event's, else the campaign gig's (its codes
+## and the clock), else the dev map's district by night.
+func _street_key() -> Array:
+	if not enc.scene_event.is_empty():
+		return [String(enc.scene_event.band), String(enc.scene_event.time)]
+	if _campaign_gig and Campaign.current:
+		var g: Dictionary = Campaign.current.active_gig
+		return [SceneEvent.band_for(g), SceneEvent.time_of(Campaign.current.minutes, String(g.get("sky", "")))]
+	var did := String(gig.get("district", ""))
+	var dc := SecurityCode.normalise(World.district(did).get("security_code")) if did != "" else {}
+	return [SceneEvent.band_of(-1, int(dc.get("n", -1)), String(World.district(did).get("profile", "")) if did != "" else "", String(m.params.get("scene", "")), did), "night"]
+
+
+## The layer over the bed: a club's beat through the wall (a club, a bar or a rave by night, or the
+## scene event's music), a crowd's murmur where people are about; nothing once the shooting starts.
+func _street_layer(st: Array, fighting: bool) -> String:
+	if fighting or enc.state != "playing" or String(m.params.get("scene", "")) in ["undercity", "badlands"]:
+		return ""
+	var snd := String(enc.scene_event.get("sound", ""))
+	if snd in ["club", "music"]:
+		return "amb_club"
+	if String(st[1]) != "day" and m.rooms.any(func(r): return int(r.floor) == m.street and String(r.kind) in ["dance_floor", "bar"]):
+		return "amb_club"
+	var calm := enc.units.filter(func(u): return u.get("civ", false) and not u.get("panic", false) and not u.c.dead).size()
+	return "amb_crowd" if calm >= 8 or snd in ["crowd"] else ""
+
+
+## Now and then a far-off street sound (view only, its own RNG): a siren a few blocks away, an AV
+## going over, and the scene event's own (gunfire, breaking glass, an explosion at the start).
+func _street_cues() -> void:
+	var ad := AudioDirector.I
+	if ad == null or not is_instance_valid(ad) or enc == null or enc.state != "playing" or String(m.params.get("scene", "")) in ["undercity", "arcology"]:
+		return
+	var now := Time.get_ticks_msec()
+	if _cue_at == 0:
+		_cue_rng.seed = int(gig.seed) * 3 + 1
+		_cue_at = now + 1500
+		if String(enc.scene_event.get("sound", "")) == "explosion":
+			ad.cue("sfx_explosion", -14.0)
+			_cue_at = now + 9000
+		return
+	if now < _cue_at:
+		return
+	var band := String(_street_key()[0])
+	var snd := String(enc.scene_event.get("sound", ""))
+	var pick := ["sfx_siren_far", "sfx_av_pass"]
+	if band == "combat_zone" or snd == "gunfire":
+		pick.append("sfx_shot_smg")
+	if snd == "sirens" or band == "combat_zone":
+		pick.append("sfx_siren_far")
+	if snd == "glass":
+		pick.append("sfx_glass_break")
+	var name := String(pick[_cue_rng.randi() % pick.size()])
+	ad.cue(name, {"sfx_shot_smg": -24.0, "sfx_glass_break": -20.0}.get(name, -10.0))
+	_cue_at = now + _cue_rng.randi_range(14000, 32000) if band != "corporate" else now + _cue_rng.randi_range(25000, 45000)
 
 
 func _on_hover_changed() -> void:

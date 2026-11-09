@@ -32,13 +32,15 @@ extends RefCounted
 ## favour:treatment, favour:market, goods); "" rolls each. twist: auto (the Oracle, as a board
 ## offer: most jobs have none), none, or a Plot Twists row (its id or d100 roll, SPM p.75-76) with
 ## an optional @trigger (start, alarm, objective_done, round<n>): Twist.roll; flag --twist.
+## street: the scene event round the gig (SceneEvent, SPM p.77-84): auto (rolled as a board gig's is,
+## about half), none, or a row id ("gang_war") or "<band>.<time>:<id or roll>"; flag --street.
 const FIELDS := {"district": "", "location": "", "setpiece": "", "variant": "", "scene": "", "profile": "",
 	"site": "", "objective": "", "faction": "", "security": 0, "code": "", "utility": "auto",
 	"complication": "auto", "pay": 0, "seed": 0, "deploy": "", "basements": "", "tower": "", "band": "", "mood": "", "crew": [],
-	"client": "", "mission": "", "item": "", "payment": "", "twist": "auto"}
+	"client": "", "mission": "", "item": "", "payment": "", "twist": "auto", "street": "auto"}
 const NONE := "none"
 const STRING_FLAGS := ["district", "location", "setpiece", "variant", "scene", "profile", "site", "objective",
-	"faction", "code", "utility", "complication", "deploy", "basements", "tower", "band", "mood", "client", "mission", "item", "payment", "twist"]
+	"faction", "code", "utility", "complication", "deploy", "basements", "tower", "band", "mood", "client", "mission", "item", "payment", "twist", "street"]
 const INT_FLAGS := ["security", "pay", "seed"]
 const UTILITY_MODES := ["auto", "none", "roll"]
 ## Scenes where an empty profile takes the district's own streets (as greybox --district does).
@@ -237,6 +239,8 @@ static func build(form: Dictionary, camp: Campaign = null) -> Dictionary:
 		gig["complication"] = NONE
 	elif cx != "auto" and cx != "":
 		gig["complication"] = parse_complication(cx)
+	if String(f.get("street", "auto")) not in ["auto", ""]:
+		gig["street"] = String(f.street)   # Campaign._start_gig rolls (or forces) the scene event from it
 	if String(f.deploy) in ["near", "far"]:
 		gig["deploy"] = String(f.deploy)
 	if String(f.basements) in ["on", "off"]:
@@ -348,6 +352,8 @@ static func _dials(f: Dictionary, gig: Dictionary) -> void:
 		gig["complication"] = NONE
 	elif cx != "auto" and cx != "":
 		gig["complication"] = parse_complication(cx)
+	if String(f.get("street", "auto")) not in ["auto", ""]:
+		gig["street"] = String(f.street)   # Campaign._start_gig rolls (or forces) the scene event from it
 	if String(f.deploy) in ["near", "far"]:
 		gig["deploy"] = String(f.deploy)
 	if not (f.crew as Array).is_empty():

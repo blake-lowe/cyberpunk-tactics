@@ -283,11 +283,14 @@ func test_defend_is_lost_when_they_hold_the_room_or_wreck_the_asset() -> void:
 func test_defend_attackers_press_in_and_shoot_the_asset() -> void:
 	var e := _job("defend")
 	var o := e.objective
-	_to_round(e, 2)
 	var a: Dictionary = {}
-	for u in e.opfor():
-		if int(u.id) % int(e.obj.cfg.wreck_every) == 0:
-			a = u
+	for r in range(2, 9):   # the waves come until one holds a wrecker (every wreck_every-th unit id: ids shift with the bystanders)
+		_to_round(e, r)
+		for u in e.opfor():
+			if int(u.id) % int(e.obj.cfg.wreck_every) == 0:
+				a = u
+		if not a.is_empty():
+			break
 	assert_false(a.is_empty(), "a wrecker in the wave")
 	if a.is_empty():
 		return
