@@ -410,5 +410,5 @@ func test_custom_gig_builder_fields() -> void:
 	Hud._fonts()
 	var card := CustomGigCard.new().setup(Campaign.new_game(3), true, CustomGig.defaults())
 	var mb := card.find_child("MissionBuilder", true, false) as GridContainer
-	assert_true(mb != null and mb.get_child_count() == 5, "who's hiring, payment, mission type, focus, twist")
+	assert_true(mb != null and mb.get_child_count() == 6, "who's hiring, payment, mission type, focus, twist, on the street")
 	card.free()

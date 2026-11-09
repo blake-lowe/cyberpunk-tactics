@@ -33,7 +33,7 @@ var stats := {"gigs": 0, "won": 0, "fled": 0, "lost": 0, "rounds": 0, "turret_un
 	"complications": 0, "utilities": 0, "neutral": 0, "peace_broken": 0, "setpieces": {}, "towers": {}, "sides": {}, "kinds": {}, "offers": {}, "looks": {},
 	"surrendered": 0, "fled_units": 0, "searched": 0, "finds": {}, "leads": 0,
 	"offers_seen": 0, "offers_twisted": 0, "twists_armed": 0, "twists_sprung": {}, "clock_gigs": 0, "clock_empty": 0, "clock_rolls": 0,
-	"clock_reclaimed": 0, "clock_escalated": 0, "alarm_gigs": 0}
+	"clock_reclaimed": 0, "clock_escalated": 0, "alarm_gigs": 0, "street_gigs": 0, "streets": {}, "civs": 0}
 var _offers_seen := {}    ## offer ids counted for the twist rate
 
 var _ctx := ""            ## "seed 3 gig 2 (title)": prefixed to failures
@@ -266,6 +266,15 @@ func _play(camp: Campaign) -> Encounter:
 		_fail("the offer's twist didn't reach the encounter", "twist-armed")
 	if not e.twist.is_empty():
 		stats.twists_armed += 1
+	var se: Variant = camp.active_gig.get("scene_event")   # the street round it (SceneEvent): rolled at the start, played as rolled
+	if not SceneEvent.valid(se):
+		_fail("the gig's scene event isn't one the game plays", "street-shape")
+	if (se is Dictionary) != not e.scene_event.is_empty():
+		_fail("the gig's scene event didn't reach the encounter", "street-armed")
+	if se is Dictionary:
+		stats.street_gigs += 1
+		_count("streets", String(se.id))
+	stats.civs += e.units.filter(func(u): return u.get("civ", false)).size()
 	if Clocks.get_clock(e, "detection") != null:
 		stats.clock_gigs += 1
 		if String(e.objective.get("kind", "")) in (Clocks.db().detection.skip_objectives as Array):

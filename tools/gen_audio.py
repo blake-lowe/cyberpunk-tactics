@@ -1102,6 +1102,123 @@ def amb_safehouse():
     return loop_self(reverb(x + lp(fridge, 600), 0.4, 0.3), L)
 
 
+# Street beds by district band and time (scene events and everyday life, SceneEvent / StreetLife).
+# Each keeps its own seeded rng, so adding them leaves every older file as it was.
+
+def _siren(sec, r):
+    st = t(sec)
+    f = 760 + 260 * np.sin(2 * np.pi * st / r.uniform(1.1, 1.6))
+    return np.sin(2 * np.pi * np.cumsum(f) / SR) * np.sin(np.pi * st / sec) ** 2
+
+
+def _murmur(L, r, n=14, gain=0.25):
+    """Many voices too far off to make out: formant-filtered noise with syllable envelopes."""
+    x = np.zeros(int(L * SR))
+    for k in range(n):
+        lo = r.uniform(250, 500)
+        v = bp(noise(L), lo, lo * 2.6)
+        syl = np.clip(np.sin(2 * np.pi * t(L) * r.uniform(2.5, 4.5) + r.uniform(0, 6)), 0, 1) ** 2
+        phrase = np.clip(np.sin(2 * np.pi * t(L) / r.uniform(3, 7) + r.uniform(0, 6)), 0, 1)
+        x += v * syl * phrase * gain * r.uniform(0.5, 1.0)
+    return x
+
+
+@amb
+def amb_corp():
+    """A corporate block: a clean, low hum, smooth traffic, a fountain's hiss, footsteps on stone."""
+    r = np.random.default_rng(3101)
+    L = 24.0
+    x = lp_fast(noise(L), 140) * 1.8 + tone(L, 50) * 0.04 + tone(L, 100) * 0.02
+    x += bp(noise(L), 1800, 5000) * 0.05                   # a plaza fountain
+    for k in range(5):
+        d = r.uniform(3.0, 5.0)
+        car = bp(noise(d), 150, 600) * np.sin(np.pi * t(d) / d) ** 2 * r.uniform(0.2, 0.4)
+        x += at(car, r.uniform(0, L - d), L)
+    step = hp(noise(0.03), 900) * env(0.03, 0.001, 0.008)
+    for k in range(18):                                    # heels across a plaza
+        st = r.uniform(0, L - 6)
+        for b in range(6):
+            x += at(step * r.uniform(0.05, 0.1), st + b * 0.52, L)
+    x += _murmur(L, r, 6, 0.08)
+    return loop_self(reverb(x, 0.7, 0.3), L)
+
+
+@amb
+def amb_zone():
+    """The Combat Zone: wind through broken windows, a dog, far-off shouting, a burst of gunfire, sirens that never come."""
+    r = np.random.default_rng(3102)
+    L = 26.0
+    w = noise(L)
+    gust = 0.35 + 0.65 * np.sin(2 * np.pi * t(L) / 8.0) ** 2
+    x = bp(w, 300, 1100) * gust * 0.8 + lp_fast(noise(L), 110) * 1.6
+    shot = lp(sfx_shot_smg(), 800)
+    st = r.uniform(4, L - 4)
+    for b in range(r.integers(3, 7)):
+        x += at(shot * 0.12, st + b * 0.09, L)
+    x += at(lp(_siren(6.0, r), 1200) * 0.03, r.uniform(8, 18), L)
+    bark = bp(noise(0.18), 500, 1600) * env(0.18, 0.004, 0.05)
+    for k in range(r.integers(2, 4)):                      # a dog somewhere
+        bt = r.uniform(0, L - 2)
+        for b in range(r.integers(2, 4)):
+            x += at(bark * 0.12, bt + b * 0.32, L)
+    x += _murmur(L, r, 4, 0.1)
+    return loop_self(reverb(x, 0.8, 0.35), L)
+
+
+@amb
+def amb_crowd():
+    """Crowd murmur: a busy pavement, a queue, a market (a layer over the district bed)."""
+    r = np.random.default_rng(3103)
+    L = 18.0
+    x = _murmur(L, r, 22, 0.22) + lp_fast(noise(L), 300) * 0.3
+    for k in range(4):                                     # a laugh, a call across the street
+        d = 0.5
+        f = r.uniform(300, 520)
+        x += at(np.sin(2 * np.pi * f * t(d) * (1 + 0.1 * np.sin(2 * np.pi * 9 * t(d)))) * env(d, 0.02, 0.15) * 0.05, r.uniform(0, L - 1), L)
+    return loop_self(reverb(x, 0.6, 0.3), L)
+
+
+@amb
+def amb_club():
+    """A club's beat through a wall: the kick and bass only, muffled, with the crowd inside."""
+    r = np.random.default_rng(3104)
+    bpm = 126.0
+    beat = 60.0 / bpm
+    bars = 8
+    L = bars * 4 * beat
+    out = np.zeros(int((L + 2) * SR))
+    for b in range(bars):
+        for k in range(4):
+            st = (b * 4 + k) * beat
+            out += at(kick() * 0.9, st, L + 2)
+            out += at(synth_note(midi(33 + (b // 2) % 2 * 3), beat * 0.45, "saw", 300, 0.1) * 0.25, st + beat / 2, L + 2)
+    out = lp(out, 260)                                     # the wall eats everything but the low end
+    out[:int(L * SR)] += _murmur(L, r, 8, 0.05)
+    return loop_wrap(reverb(out, 0.5, 0.2), L)
+
+
+@sfx
+def sfx_siren_far():
+    """A police siren passing a few blocks off: rises, holds, fades, a touch of doppler."""
+    r = np.random.default_rng(3105)
+    sec = 7.0
+    x = _siren(sec, r)
+    x = lp(x, 1400) * np.sin(np.pi * t(sec) / sec) ** 1.5 * 0.5
+    return reverb(x, 0.8, 0.35)
+
+
+@sfx
+def sfx_av_pass():
+    """An AV's thrum crossing overhead: a low pulsing turbine that swells and goes."""
+    sec = 6.0
+    st = t(sec)
+    body = lp_fast(noise(sec), 220) * 2.0 + tone(sec, 72, "saw") * 0.15
+    pulse = 0.7 + 0.3 * np.sin(2 * np.pi * st * 18.0)
+    whine = sweep(sec, 1250, 980) * 0.03
+    x = (lp(body, 500) * pulse + whine) * np.sin(np.pi * st / sec) ** 2
+    return reverb(x, 0.6, 0.25)
+
+
 # --- music ------------------------------------------------------------------------------------------
 
 MUS = {}

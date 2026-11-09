@@ -564,8 +564,13 @@ func _pick(now: bool) -> void:
 		clip = _perform
 	elif Time.get_ticks_msec() < _duck_until:   # dodge: a snap down into the crouch, rifle still up
 		clip = w + "_crouch"
+	elif get_meta("walk", false) and get_meta("civ", false) and get_meta("stroll", false) and not serious:
+		clip = "civ_walk"   # a bystander out walking (StreetLife): hands free, no gun stance
 	elif get_meta("walk", false):
 		clip = "injured_walk" if serious else (w + "_walk" if get_meta("stroll", false) else w + ("_sprint" if get_meta("run", false) else "_run"))
+	elif String(get_meta("life", "")) != "" and LIFE_CLIPS.has(String(get_meta("life", ""))):
+		var opts: Array = LIFE_CLIPS[String(get_meta("life", ""))]
+		clip = String(opts[index % opts.size()])
 	elif get_meta("jack", false):
 		clip = "jack"
 	elif float(get_meta("aim", 0.0)) > 0.3:   # always standing: a crouched muzzle would fire into the cover (owner)
@@ -585,6 +590,16 @@ func _pick(now: bool) -> void:
 	var native: float = CharAnims.speed.get(clip, 0.0)
 	var top := INJURED_RATE if clip == "injured_walk" else 2.5
 	anim.speed_scale = clampf(ground_speed() / native, 0.4, top) if native > 0.0 and get_meta("walk", false) else 1.0
+
+
+## What a calm bystander's `life` (StreetLife, SceneEvent crowds) looks like: clips picked per body
+## (index), so a queue or an audience doesn't move in step.
+const LIFE_CLIPS := {"phone": ["idle_phone", "phone_ual"], "talk": ["idle_talk", "talk_ual"], "loiter": ["idle_look", "idle_shift"],
+	"smoke": ["consume", "fold"], "fold": ["fold"], "sit": ["sit", "sit_talk"], "drink": ["consume", "talk_ual"], "dance": ["dance"],
+	"browse": ["idle_look"], "work": ["work", "idle_look"], "vendor": ["talk_ual", "fold"], "queue": ["idle_shift", "fold", "idle_phone"],
+	"vendor_customer": ["idle_shift", "phone_ual", "fold"], "protest": ["argue", "talk_ual"], "argue": ["argue", "talk_ual"],
+	"gawk": ["idle_look", "fold", "idle_shift"], "audience": ["fold", "idle_look", "idle_shift"], "party": ["dance", "talk_ual", "consume"],
+	"market": ["idle_look", "talk_ual", "idle_shift"], "play": ["dance", "idle_shift"], "warm": ["fold", "consume"], "walk": ["idle_look"]}
 
 
 ## Grapple and Prone poses (Greybox._grapple_pose): the library has no grapple, prone or get-up

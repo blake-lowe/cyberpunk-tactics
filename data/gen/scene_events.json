@@ -1,0 +1,3813 @@
+{
+ "_doc": "Scene events: the street around a gig (R. Talsorian, Cyberpunk RED: Single Player Mode, Random Encounters, SPM p.77-84: twelve tables by an area's general security rating and the time of day; the city tables are d100 with 20 rows of 5 points, the Outskirts ones d10 with 10 rows). Read by SceneEvent (src/tactical/scene_event.gd). The roll positions are the book's; every label and note is our own short paraphrase. A gig rolls once when it starts (Campaign._start_gig), from its seed, and keeps the row on the gig (gig.scene_event), so a reload is the same. A row plays when it has no `unmodelled` and only fx keys SceneEvent implements (tests/unit/tactical/test_scene_events.gd): its note is the deploy log line and the ON THE STREET callout; spawning fx put people on the map with the existing systems; `dress` adds set dressing, `sound` and `sky` are view cues only. A scene event is the street around the gig, never a turn of the job itself (that is Twist).",
+ "chance": {
+  "_why": "HOUSE-RULE (owner: not every gig, about half): a gig has a scene event on a d10 of 1-5. The book rolls when a Beat wants one (SPM p.77).",
+  "in_10": 5
+ },
+ "bands": {
+  "_why": "HOUSE-RULE mapping (the book keys by an area's general security rating, SPM p.77; NC2045 Security Codes run 0-11): the street's band is the LOWER of the location's own code and its district's code (a corporate site in the Combat Zone stands on a Combat Zone street); 0-3 Combat Zone, 4-7 Moderate, 8-11 Corporate/Executive. A district drawn as Combat Zone (its profile) is never better than Moderate. Badlands scenes and the Outskirts district use the Outskirts tables; the undercity tunnels have no street and roll none.",
+  "combat_zone": [
+   0,
+   3
+  ],
+  "moderate": [
+   4,
+   7
+  ],
+  "corporate": [
+   8,
+   11
+  ],
+  "cz_profiles": [
+   "combat_zone",
+   "hot_zone"
+  ],
+  "outskirts_scenes": [
+   "badlands"
+  ],
+  "outskirts_districts": [
+   "outskirts"
+  ],
+  "none_scenes": [
+   "undercity"
+  ]
+ },
+ "times": {
+  "_why": "HOUSE-RULE: the book's Day / Night / After Midnight read on the campaign clock (Campaign.minutes, NC2045 p.18 travel already moves it): day 06:00-17:59, night 18:00-23:59, after midnight 00:00-05:59. A tower gig's sky wins: a day sky is day, a night sky is night unless the clock is past midnight.",
+  "day": [
+   360,
+   1079
+  ],
+  "night": [
+   1080,
+   1439
+  ],
+  "after_midnight": [
+   0,
+   359
+  ]
+ },
+ "who": {
+  "_why": "Who a `watch` or `gangs` fx puts on the street (factions.json ids). street: the district code's responder (NC2045 p.8; NCPD without one); police: NCPD; gang: one of the district's gangs other than the gig's target (scavvers without one); locals: armed locals; security: generic private security; scavvers, nomads; road_gang: Toecutters (a road gang, NC2045); marshals: the NorCal Marshal Service.",
+  "police": "ncpd",
+  "locals": "locals",
+  "security": "corporate_security",
+  "scavvers": "scavvers",
+  "nomads": "nomads",
+  "road_gang": "toecutters",
+  "marshals": "norcal_marshal_service",
+  "gang_fallback": "scavvers",
+  "street_fallback": "ncpd"
+ },
+ "fx": {
+  "_why": "text: the log line only. crowd {n, pose, at: street | door | building | vendor}: a cluster of bystanders (Encounter civilians: they panic, block and can be hit). watch {who, n, roam?, at: building | road | door?, near: crowd?}: people on a witness side (neutral until they see a crime: Encounter.witness_side), walking a beat (roam) or holding a spot. gangs {sides: 1 | 2, n, hot, factions?}: a side (or two, at war with each other) at war with everyone who fights (FreeForAll's rule); hot: already shooting (in the initiative order). patrol {n}: more of the site's own people walking the street. trauma {}: a cardholder down on the street and Trauma Team landing for them (Encounter.tt). psycho {maxtac?: [lo, hi] rounds}: a cyberpsycho (the Cyberpsycho block, CPR core p.416) at war with everyone, MaxTac dropping on them after that many rounds. outage: a utility out (Utility Codes, NC2045 p.8). alarm: the alarm starts at that level (1: the site is on edge). dress: set dressing placed as cover (Furnish pieces). sound, sky: view cues.",
+  "psycho_block": "cyberpsycho"
+ },
+ "tables": {
+  "corporate.day": {
+   "source": "SPM p.77",
+   "die": 100,
+   "rows": [
+    {
+     "roll": [
+      1,
+      5
+     ],
+     "id": "cleaning_drone",
+     "label": "Sidewalk Cleaning Drone",
+     "note": "a cleaning drone works its way along the pavement",
+     "fx": {
+      "text": true
+     }
+    },
+    {
+     "roll": [
+      6,
+      10
+     ],
+     "id": "dropped_papers",
+     "label": "Secretary Drops Something",
+     "note": "a hurrying corporate assistant drops something mid-plaza",
+     "fx": {
+      "text": true
+     }
+    },
+    {
+     "roll": [
+      11,
+      15
+     ],
+     "id": "courier_rush",
+     "label": "Courier Weaving Through",
+     "note": "a courier on a fast bike cuts through the foot traffic",
+     "fx": {
+      "text": true
+     }
+    },
+    {
+     "roll": [
+      16,
+      20
+     ],
+     "id": "package_drop",
+     "label": "Drone Drops a Package",
+     "note": "a delivery drone leaves a parcel on the kerb and flies on",
+     "fx": {
+      "text": true,
+      "sky": "drone"
+     }
+    },
+    {
+     "roll": [
+      21,
+      25
+     ],
+     "id": "exec_fixer_deal",
+     "label": "Exec Meets a Fixer",
+     "note": "an exec and a fixer trade something by a cafe, not quite discreetly",
+     "fx": {
+      "crowd": {
+       "n": [
+        2,
+        2
+       ],
+       "pose": "talk",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      26,
+      30
+     ],
+     "id": "protest_own_muscle",
+     "label": "Protest With Its Own Muscle",
+     "note": "protesters picket a building, minded by their own security",
+     "fx": {
+      "crowd": {
+       "n": [
+        5,
+        8
+       ],
+       "pose": "protest",
+       "at": "building"
+      },
+      "watch": {
+       "who": "locals",
+       "n": [
+        2,
+        2
+       ],
+       "near": "crowd"
+      },
+      "sound": "crowd"
+     }
+    },
+    {
+     "roll": [
+      31,
+      35
+     ],
+     "id": "exec_haggles",
+     "label": "Exec Haggles With a Vendor",
+     "note": "a sharp-suited exec quietly bargains at a street stall",
+     "fx": {
+      "crowd": {
+       "n": [
+        2,
+        2
+       ],
+       "pose": "talk",
+       "at": "street"
+      },
+      "dress": [
+       "stall"
+      ]
+     }
+    },
+    {
+     "roll": [
+      36,
+      40
+     ],
+     "id": "holo_ad_glitch",
+     "label": "Glitching Holo-Ad Crowd",
+     "note": "a broken holo-ad strobes wildly and draws a crowd",
+     "fx": {
+      "crowd": {
+       "n": [
+        3,
+        5
+       ],
+       "pose": "gawk",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      41,
+      45
+     ],
+     "id": "id_check",
+     "label": "Stopped for ID",
+     "note": "a lawman stops the crew and asks for identification",
+     "fx": {
+      "text": true
+     },
+     "unmodelled": "the crew themselves are stopped: needs a talk scene before deploy"
+    },
+    {
+     "roll": [
+      46,
+      50
+     ],
+     "id": "limo_cry",
+     "label": "Cry From a Limo",
+     "note": "someone shouts for help from a limo before being dragged back in",
+     "fx": {
+      "text": true,
+      "sound": "scream"
+     }
+    },
+    {
+     "roll": [
+      51,
+      55
+     ],
+     "id": "celebrity_lands",
+     "label": "Celebrity Touches Down",
+     "note": "a luxury AV sets down and lets out someone famous",
+     "fx": {
+      "crowd": {
+       "n": [
+        4,
+        6
+       ],
+       "pose": "gawk",
+       "at": "street"
+      },
+      "sky": "av"
+     }
+    },
+    {
+     "roll": [
+      56,
+      60
+     ],
+     "id": "media_drone",
+     "label": "Media Shooting Footage",
+     "note": "a media works the street with a camera drone",
+     "fx": {
+      "crowd": {
+       "n": [
+        1,
+        1
+       ],
+       "pose": "talk",
+       "at": "street"
+      },
+      "sky": "drone"
+     }
+    },
+    {
+     "roll": [
+      61,
+      65
+     ],
+     "id": "runner_on_wall",
+     "label": "Runner Against the Wall",
+     "note": "a netrunner leans on a wall, quietly into some nearby NET",
+     "fx": {
+      "text": true
+     }
+    },
+    {
+     "roll": [
+      66,
+      70
+     ],
+     "id": "execs_arguing",
+     "label": "Execs Arguing a Deal",
+     "note": "two execs argue over a big deal",
+     "fx": {
+      "crowd": {
+       "n": [
+        2,
+        2
+       ],
+       "pose": "argue",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      71,
+      75
+     ],
+     "id": "escorted_exec",
+     "label": "Exec With an Escort",
+     "note": "a private security detail walks an exec through, eyeing everyone",
+     "fx": {
+      "watch": {
+       "who": "street",
+       "n": [
+        2,
+        3
+       ],
+       "roam": true
+      }
+     }
+    },
+    {
+     "roll": [
+      76,
+      80
+     ],
+     "id": "vendit_row",
+     "label": "Row of Fancy Vendits",
+     "note": "a line of high-end vendits sells coffee and noodles",
+     "fx": {
+      "dress": [
+       "vendit",
+       "vendit"
+      ]
+     }
+    },
+    {
+     "roll": [
+      81,
+      85
+     ],
+     "id": "lawmen_squad",
+     "label": "Lawmen Pile Out",
+     "note": "a squad of lawmen jumps out of an armoured car",
+     "fx": {
+      "watch": {
+       "who": "street",
+       "n": [
+        3,
+        4
+       ]
+      },
+      "dress": [
+       "car"
+      ]
+     }
+    },
+    {
+     "roll": [
+      86,
+      90
+     ],
+     "id": "virtual_graffiti",
+     "label": "Virtual Graffiti Artist",
+     "note": "a street artist paints graffiti only virtuality can see",
+     "fx": {
+      "crowd": {
+       "n": [
+        1,
+        2
+       ],
+       "pose": "work",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      91,
+      95
+     ],
+     "id": "tail",
+     "label": "Someone Tailing Someone",
+     "note": "a suit is shadowing someone, and sees the crew notice",
+     "fx": {
+      "text": true
+     }
+    },
+    {
+     "roll": [
+      96,
+      100
+     ],
+     "id": "near_miss",
+     "label": "Car Nearly Runs Someone Down",
+     "note": "a pricey car speeds off from a corporate block and nearly hits someone",
+     "fx": {
+      "text": true,
+      "sound": "engine"
+     }
+    }
+   ]
+  },
+  "corporate.night": {
+   "source": "SPM p.78",
+   "die": 100,
+   "rows": [
+    {
+     "roll": [
+      1,
+      5
+     ],
+     "id": "bloodstain",
+     "label": "Janitor Scrubbing Blood",
+     "note": "a corporate janitor scrubs a bloodstain off the pavement",
+     "fx": {
+      "text": true
+     }
+    },
+    {
+     "roll": [
+      6,
+      10
+     ],
+     "id": "scanning_drone",
+     "label": "Drone Sweeping the Block",
+     "note": "a drone hangs over the block, scanning for something",
+     "fx": {
+      "text": true,
+      "sky": "drone"
+     }
+    },
+    {
+     "roll": [
+      11,
+      15
+     ],
+     "id": "street_argument",
+     "label": "Execs Arguing in the Street",
+     "note": "two execs have it out in the road and draw a small crowd",
+     "fx": {
+      "crowd": {
+       "n": [
+        4,
+        6
+       ],
+       "pose": "gawk",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      16,
+      20
+     ],
+     "id": "sponsored_busker",
+     "label": "Sponsored Busker",
+     "note": "a busker plays the corner under a sign naming their corporate sponsor",
+     "fx": {
+      "crowd": {
+       "n": [
+        3,
+        5
+       ],
+       "pose": "audience",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      21,
+      25
+     ],
+     "id": "armed_operative",
+     "label": "Armed Operative on Patrol",
+     "note": "a heavily armed operative walks the street, scanning everyone",
+     "fx": {
+      "patrol": {
+       "n": [
+        1,
+        2
+       ]
+      }
+     }
+    },
+    {
+     "roll": [
+      26,
+      30
+     ],
+     "id": "loud_holo_ad",
+     "label": "Loud Holo-Ad",
+     "note": "a bright, loud holovid ad fills the street",
+     "fx": {
+      "text": true
+     }
+    },
+    {
+     "roll": [
+      31,
+      35
+     ],
+     "id": "alley_limo",
+     "label": "Limo in a Dark Alley",
+     "note": "a limousine waits in an unlit alley",
+     "fx": {
+      "dress": [
+       "car"
+      ]
+     }
+    },
+    {
+     "roll": [
+      36,
+      40
+     ],
+     "id": "masked_pickup",
+     "label": "Masked Pickup by AV",
+     "note": "a luxury AV swoops down for a figure in a holo-mask",
+     "fx": {
+      "text": true,
+      "sky": "av"
+     }
+    },
+    {
+     "roll": [
+      41,
+      45
+     ],
+     "id": "drone_crash",
+     "label": "Drone Hits a Parked Car",
+     "note": "a malfunctioning drone smashes into a parked car",
+     "fx": {
+      "crowd": {
+       "n": [
+        2,
+        4
+       ],
+       "pose": "gawk",
+       "at": "street"
+      },
+      "dress": [
+       "drone_wreck"
+      ]
+     }
+    },
+    {
+     "roll": [
+      46,
+      50
+     ],
+     "id": "media_tails_cop",
+     "label": "Media Tailing a Cop",
+     "note": "a media dogs a cop's steps for a story",
+     "fx": {
+      "watch": {
+       "who": "street",
+       "n": [
+        1,
+        1
+       ],
+       "roam": true
+      }
+     }
+    },
+    {
+     "roll": [
+      51,
+      55
+     ],
+     "id": "block_dark",
+     "label": "Block Goes Dark",
+     "note": "a building nearby goes dark, its power cut",
+     "fx": {
+      "outage": "power"
+     }
+    },
+    {
+     "roll": [
+      56,
+      60
+     ],
+     "id": "queue_argues",
+     "label": "Queue Arguing at the Door",
+     "note": "a well-dressed club queue argues about who gets in",
+     "fx": {
+      "crowd": {
+       "n": [
+        5,
+        8
+       ],
+       "pose": "queue",
+       "at": "door"
+      }
+     }
+    },
+    {
+     "roll": [
+      61,
+      65
+     ],
+     "id": "demo_dispersing",
+     "label": "Demo Breaking Up",
+     "note": "a political demo breaks up as security moves in; a few stand firm",
+     "fx": {
+      "crowd": {
+       "n": [
+        4,
+        6
+       ],
+       "pose": "protest",
+       "at": "street"
+      },
+      "watch": {
+       "who": "street",
+       "n": [
+        2,
+        3
+       ],
+       "near": "crowd"
+      }
+     }
+    },
+    {
+     "roll": [
+      66,
+      70
+     ],
+     "id": "interns_party",
+     "label": "Interns Off to a Party",
+     "note": "a knot of corporate interns heads off to a party",
+     "fx": {
+      "crowd": {
+       "n": [
+        3,
+        4
+       ],
+       "pose": "talk",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      71,
+      75
+     ],
+     "id": "exclusive_queue",
+     "label": "Queue for an Exclusive Night",
+     "note": "dressed-up patrons queue for an exclusive club night",
+     "fx": {
+      "crowd": {
+       "n": [
+        5,
+        8
+       ],
+       "pose": "queue",
+       "at": "door"
+      },
+      "sound": "club"
+     }
+    },
+    {
+     "roll": [
+      76,
+      80
+     ],
+     "id": "ncpd_standoff",
+     "label": "NCPD Standoff",
+     "note": "NCPD has a building surrounded and a negotiator on a bullhorn",
+     "fx": {
+      "watch": {
+       "who": "police",
+       "n": [
+        3,
+        4
+       ],
+       "at": "building"
+      },
+      "sound": "bullhorn"
+     }
+    },
+    {
+     "roll": [
+      81,
+      85
+     ],
+     "id": "unmarked_car",
+     "label": "Prisoner to an Unmarked Car",
+     "note": "private security puts someone in cuffs into an unmarked car",
+     "fx": {
+      "watch": {
+       "who": "street",
+       "n": [
+        2,
+        2
+       ]
+      },
+      "dress": [
+       "car"
+      ]
+     }
+    },
+    {
+     "roll": [
+      86,
+      90
+     ],
+     "id": "courier_pinned",
+     "label": "Courier Pinned at the Door",
+     "note": "tower security has a courier on the ground at the door",
+     "fx": {
+      "watch": {
+       "who": "street",
+       "n": [
+        2,
+        2
+       ],
+       "at": "building"
+      }
+     }
+    },
+    {
+     "roll": [
+      91,
+      95
+     ],
+     "id": "tt_club",
+     "label": "Trauma Team at a Club",
+     "note": "Trauma Team is carrying someone out of a nightclub",
+     "fx": {
+      "trauma": {}
+     }
+    },
+    {
+     "roll": [
+      96,
+      100
+     ],
+     "id": "av_collision",
+     "label": "AVs Collide Overhead",
+     "note": "two AVs clip each other high above the street",
+     "fx": {
+      "text": true,
+      "sky": "av_crash",
+      "sound": "explosion"
+     }
+    }
+   ]
+  },
+  "corporate.after_midnight": {
+   "source": "SPM p.78-79",
+   "die": 100,
+   "rows": [
+    {
+     "roll": [
+      1,
+      5
+     ],
+     "id": "celeb_entourage",
+     "label": "Celebrity and Entourage",
+     "note": "a celebrity laughs with their entourage while a guard shoves a fan away",
+     "fx": {
+      "crowd": {
+       "n": [
+        3,
+        5
+       ],
+       "pose": "talk",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      6,
+      10
+     ],
+     "id": "alley_disinfect",
+     "label": "Drone Hosing an Alley",
+     "note": "a cleaning drone sprays a bloody alley as two guards look on",
+     "fx": {
+      "watch": {
+       "who": "street",
+       "n": [
+        2,
+        2
+       ]
+      }
+     }
+    },
+    {
+     "roll": [
+      11,
+      15
+     ],
+     "id": "beat_cop",
+     "label": "Cop Walking the Beat",
+     "note": "a cop walks the beat, humming",
+     "fx": {
+      "watch": {
+       "who": "police",
+       "n": [
+        1,
+        1
+       ],
+       "roam": true
+      }
+     }
+    },
+    {
+     "roll": [
+      16,
+      20
+     ],
+     "id": "model_denied",
+     "label": "Model Turned Away",
+     "note": "a famous model argues with the door after being refused",
+     "fx": {
+      "crowd": {
+       "n": [
+        2,
+        3
+       ],
+       "pose": "argue",
+       "at": "door"
+      }
+     }
+    },
+    {
+     "roll": [
+      21,
+      25
+     ],
+     "id": "cart_setup",
+     "label": "Food Cart Opening Early",
+     "note": "a food cart owner sets up for the morning",
+     "fx": {
+      "crowd": {
+       "n": [
+        1,
+        1
+       ],
+       "pose": "vendor",
+       "at": "street"
+      },
+      "dress": [
+       "cart"
+      ]
+     }
+    },
+    {
+     "roll": [
+      26,
+      30
+     ],
+     "id": "club_spat",
+     "label": "Spat Outside a Club",
+     "note": "two well-off people row outside a nightclub",
+     "fx": {
+      "crowd": {
+       "n": [
+        2,
+        3
+       ],
+       "pose": "argue",
+       "at": "door"
+      }
+     }
+    },
+    {
+     "roll": [
+      31,
+      35
+     ],
+     "id": "dumpster_dive",
+     "label": "Dumpster Diver",
+     "note": "someone homeless goes through a fine restaurant's bins",
+     "fx": {
+      "crowd": {
+       "n": [
+        1,
+        1
+       ],
+       "pose": "work",
+       "at": "street"
+      },
+      "dress": [
+       "dumpster"
+      ]
+     }
+    },
+    {
+     "roll": [
+      36,
+      40
+     ],
+     "id": "rooftop_figure",
+     "label": "Figure on a Rooftop Edge",
+     "note": "a lone figure stands on a roof edge, looking down",
+     "fx": {
+      "text": true
+     }
+    },
+    {
+     "roll": [
+      41,
+      45
+     ],
+     "id": "red_lit_av",
+     "label": "Open AV, Red Glow",
+     "note": "a parked luxury AV sits open, lit an ominous red inside",
+     "fx": {
+      "text": true
+     }
+    },
+    {
+     "roll": [
+      46,
+      50
+     ],
+     "id": "speeding_car",
+     "label": "Car Racing Past",
+     "note": "a luxury car tears through the empty streets",
+     "fx": {
+      "text": true,
+      "sound": "engine"
+     }
+    },
+    {
+     "roll": [
+      51,
+      55
+     ],
+     "id": "police_spotlight",
+     "label": "Police AV Spotlight",
+     "note": "a police AV holds a spotlight on a high-rise window",
+     "fx": {
+      "text": true,
+      "sky": "spotlight"
+     }
+    },
+    {
+     "roll": [
+      56,
+      60
+     ],
+     "id": "rave_shakes",
+     "label": "Building Shaking With a Rave",
+     "note": "a rave so loud the building hums with it",
+     "fx": {
+      "crowd": {
+       "n": [
+        3,
+        5
+       ],
+       "pose": "party",
+       "at": "door"
+      },
+      "sound": "club"
+     }
+    },
+    {
+     "roll": [
+      61,
+      65
+     ],
+     "id": "sleeping_guard",
+     "label": "Guard Asleep at Post",
+     "note": "a building's guard has nodded off at the desk",
+     "fx": {
+      "text": true
+     }
+    },
+    {
+     "roll": [
+      66,
+      70
+     ],
+     "id": "car_bomb",
+     "label": "Device Planted on a Car",
+     "note": "a shadow plants something on a luxury car and is gone",
+     "fx": {
+      "text": true,
+      "dress": [
+       "car"
+      ]
+     }
+    },
+    {
+     "roll": [
+      71,
+      75
+     ],
+     "id": "exec_ejected",
+     "label": "Exec Thrown Out",
+     "note": "a small club throws out a rowdy exec, still shouting",
+     "fx": {
+      "crowd": {
+       "n": [
+        1,
+        2
+       ],
+       "pose": "argue",
+       "at": "door"
+      }
+     }
+    },
+    {
+     "roll": [
+      76,
+      80
+     ],
+     "id": "lockdown_blast",
+     "label": "Blast Triggers Lockdowns",
+     "note": "an explosion nearby sets off alarms and lockdowns",
+     "fx": {
+      "alarm": 1,
+      "sound": "explosion"
+     }
+    },
+    {
+     "roll": [
+      81,
+      85
+     ],
+     "id": "data_term",
+     "label": "Someone at a Data Term",
+     "note": "a shifty type is working a corner Data Term",
+     "fx": {
+      "text": true
+     }
+    },
+    {
+     "roll": [
+      86,
+      90
+     ],
+     "id": "runners_fleeing",
+     "label": "Runners Fleeing a Tower",
+     "note": "a team of edgerunners runs from a tower, security on their heels",
+     "fx": {
+      "watch": {
+       "who": "street",
+       "n": [
+        2,
+        3
+       ],
+       "roam": true
+      },
+      "sound": "gunfire"
+     }
+    },
+    {
+     "roll": [
+      91,
+      95
+     ],
+     "id": "sirens_closing",
+     "label": "Sirens Getting Closer",
+     "note": "sirens far off, coming closer",
+     "fx": {
+      "text": true,
+      "sound": "sirens"
+     }
+    },
+    {
+     "roll": [
+      96,
+      100
+     ],
+     "id": "junction_repair",
+     "label": "Techs at a Junction Box",
+     "note": "two Ziggurat techs fix a CitiNet junction box",
+     "fx": {
+      "crowd": {
+       "n": [
+        2,
+        2
+       ],
+       "pose": "work",
+       "at": "street"
+      }
+     }
+    }
+   ]
+  },
+  "moderate.day": {
+   "source": "SPM p.79",
+   "die": 100,
+   "rows": [
+    {
+     "roll": [
+      1,
+      5
+     ],
+     "id": "noodle_vendor",
+     "label": "Bodega Selling Noodles",
+     "note": "a bodega owner calls out fresh SCOP noodles",
+     "fx": {
+      "crowd": {
+       "n": [
+        1,
+        2
+       ],
+       "pose": "vendor",
+       "at": "street"
+      },
+      "dress": [
+       "stall"
+      ]
+     }
+    },
+    {
+     "roll": [
+      6,
+      10
+     ],
+     "id": "fake_eddies",
+     "label": "Counterfeit Cash Argument",
+     "note": "a bodega owner and a customer argue over fake eddies",
+     "fx": {
+      "crowd": {
+       "n": [
+        2,
+        2
+       ],
+       "pose": "argue",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      11,
+      15
+     ],
+     "id": "broken_car",
+     "label": "Breakdown Blocking Traffic",
+     "note": "a broken-down car blocks the road",
+     "fx": {
+      "dress": [
+       "car"
+      ]
+     }
+    },
+    {
+     "roll": [
+      16,
+      20
+     ],
+     "id": "food_courier",
+     "label": "Food Courier",
+     "note": "a courier runs food up to a conapt",
+     "fx": {
+      "text": true
+     }
+    },
+    {
+     "roll": [
+      21,
+      25
+     ],
+     "id": "ncart_crowd",
+     "label": "Crowd Heading for NCART",
+     "note": "a stream of people heads down into an NCART station",
+     "fx": {
+      "crowd": {
+       "n": [
+        5,
+        8
+       ],
+       "pose": "walk",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      26,
+      30
+     ],
+     "id": "car_accident",
+     "label": "Rubbernecking a Crash",
+     "note": "a crowd gawks at a car accident",
+     "fx": {
+      "crowd": {
+       "n": [
+        4,
+        6
+       ],
+       "pose": "gawk",
+       "at": "street"
+      },
+      "dress": [
+       "wreck"
+      ]
+     }
+    },
+    {
+     "roll": [
+      31,
+      35
+     ],
+     "id": "corner_dealer",
+     "label": "Corner Dealer",
+     "note": "a gang member deals on the corner",
+     "fx": {
+      "watch": {
+       "who": "gang",
+       "n": [
+        1,
+        1
+       ]
+      }
+     }
+    },
+    {
+     "roll": [
+      36,
+      40
+     ],
+     "id": "street_kids",
+     "label": "Kids Running the Street",
+     "note": "a gang of kids runs through the street",
+     "fx": {
+      "crowd": {
+       "n": [
+        3,
+        4
+       ],
+       "pose": "walk",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      41,
+      45
+     ],
+     "id": "mural",
+     "label": "Mural and Young Fans",
+     "note": "a graffiti artist paints a mural while kids watch",
+     "fx": {
+      "crowd": {
+       "n": [
+        2,
+        4
+       ],
+       "pose": "audience",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      46,
+      50
+     ],
+     "id": "vendor_arrest",
+     "label": "Vendor Being Arrested",
+     "note": "a lawman arrests a street vendor",
+     "fx": {
+      "watch": {
+       "who": "street",
+       "n": [
+        1,
+        2
+       ]
+      },
+      "crowd": {
+       "n": [
+        1,
+        1
+       ],
+       "pose": "argue",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      51,
+      55
+     ],
+     "id": "guardians",
+     "label": "Neighbourhood Watch",
+     "note": "a neighbourhood watch walks the block, eyeing strangers",
+     "fx": {
+      "watch": {
+       "who": "locals",
+       "n": [
+        2,
+        3
+       ],
+       "roam": true
+      }
+     }
+    },
+    {
+     "roll": [
+      56,
+      60
+     ],
+     "id": "crying_child",
+     "label": "Parent and Crying Kid",
+     "note": "a parent tries to cheer up a crying child",
+     "fx": {
+      "crowd": {
+       "n": [
+        2,
+        2
+       ],
+       "pose": "talk",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      61,
+      65
+     ],
+     "id": "pickpocket_caught",
+     "label": "Pickpocket Caught",
+     "note": "a salaryman catches a pickpocket and a loud row starts",
+     "fx": {
+      "crowd": {
+       "n": [
+        3,
+        4
+       ],
+       "pose": "argue",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      66,
+      70
+     ],
+     "id": "led_juggler",
+     "label": "LED Juggler",
+     "note": "a street performer juggles lit balls for onlookers",
+     "fx": {
+      "crowd": {
+       "n": [
+        4,
+        6
+       ],
+       "pose": "audience",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      71,
+      75
+     ],
+     "id": "vendit_spew",
+     "label": "Vendit Spewing Snacks",
+     "note": "a broken vendit spits out cans and snacks to a growing crowd",
+     "fx": {
+      "crowd": {
+       "n": [
+        4,
+        6
+       ],
+       "pose": "gawk",
+       "at": "street"
+      },
+      "dress": [
+       "vendit"
+      ]
+     }
+    },
+    {
+     "roll": [
+      76,
+      80
+     ],
+     "id": "odd_kibble",
+     "label": "Strange Kibble Stall",
+     "note": "a vendor sells bags of oddly flavoured Kibble",
+     "fx": {
+      "crowd": {
+       "n": [
+        1,
+        2
+       ],
+       "pose": "vendor",
+       "at": "street"
+      },
+      "dress": [
+       "stall"
+      ]
+     }
+    },
+    {
+     "roll": [
+      81,
+      85
+     ],
+     "id": "truck_electronics",
+     "label": "Electronics off a Truck",
+     "note": "someone sells electronics from the back of a truck",
+     "fx": {
+      "crowd": {
+       "n": [
+        2,
+        3
+       ],
+       "pose": "vendor",
+       "at": "street"
+      },
+      "dress": [
+       "car"
+      ]
+     }
+    },
+    {
+     "roll": [
+      86,
+      90
+     ],
+     "id": "streetlight_repair",
+     "label": "Streetlight Repair",
+     "note": "a worker fixes a streetlight while people grumble",
+     "fx": {
+      "crowd": {
+       "n": [
+        2,
+        3
+       ],
+       "pose": "work",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      91,
+      95
+     ],
+     "id": "cracked_ad",
+     "label": "Ad on a Cracked Screen",
+     "note": "an ad plays on a big, cracked screen",
+     "fx": {
+      "text": true
+     }
+    },
+    {
+     "roll": [
+      96,
+      100
+     ],
+     "id": "exec_on_bench",
+     "label": "Exec Losing a Deal",
+     "note": "an exec on a bench argues into a phone about a deal gone bad",
+     "fx": {
+      "crowd": {
+       "n": [
+        1,
+        1
+       ],
+       "pose": "phone",
+       "at": "street"
+      }
+     }
+    }
+   ]
+  },
+  "moderate.night": {
+   "source": "SPM p.80",
+   "die": 100,
+   "rows": [
+    {
+     "roll": [
+      1,
+      5
+     ],
+     "id": "container_courier",
+     "label": "Courier to the Containers",
+     "note": "a courier carries a package to a container community",
+     "fx": {
+      "text": true
+     }
+    },
+    {
+     "roll": [
+      6,
+      10
+     ],
+     "id": "cookie_cart",
+     "label": "Late-Night Cookie Cart",
+     "note": "late-shift workers queue at a Kibble-cookie cart",
+     "fx": {
+      "crowd": {
+       "n": [
+        3,
+        5
+       ],
+       "pose": "queue",
+       "at": "vendor"
+      },
+      "dress": [
+       "cart"
+      ]
+     }
+    },
+    {
+     "roll": [
+      11,
+      15
+     ],
+     "id": "drone_kids",
+     "label": "Kids Fixing a Drone",
+     "note": "street kids try to get a dumped drone flying",
+     "fx": {
+      "crowd": {
+       "n": [
+        2,
+        3
+       ],
+       "pose": "work",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      16,
+      20
+     ],
+     "id": "karaoke",
+     "label": "Karaoke Spilling Out",
+     "note": "a karaoke bar spills music and laughter into the street",
+     "fx": {
+      "crowd": {
+       "n": [
+        2,
+        4
+       ],
+       "pose": "party",
+       "at": "door"
+      },
+      "sound": "club"
+     }
+    },
+    {
+     "roll": [
+      21,
+      25
+     ],
+     "id": "block_party",
+     "label": "Block Party",
+     "note": "a block party has started up out of nowhere",
+     "fx": {
+      "crowd": {
+       "n": [
+        6,
+        10
+       ],
+       "pose": "party",
+       "at": "street"
+      },
+      "sound": "club"
+     }
+    },
+    {
+     "roll": [
+      26,
+      30
+     ],
+     "id": "parked_cruiser",
+     "label": "Cruiser Parked Up",
+     "note": "a lawman's car sits parked on the street",
+     "fx": {
+      "watch": {
+       "who": "street",
+       "n": [
+        1,
+        2
+       ]
+      },
+      "dress": [
+       "car"
+      ]
+     }
+    },
+    {
+     "roll": [
+      31,
+      35
+     ],
+     "id": "celeb_vendor",
+     "label": "Celebrity vs Vendor",
+     "note": "a minor celebrity rows with a vendor about being recognised",
+     "fx": {
+      "crowd": {
+       "n": [
+        2,
+        3
+       ],
+       "pose": "argue",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      36,
+      40
+     ],
+     "id": "night_market",
+     "label": "Night Market in a Lot",
+     "note": "a night market fills a parking lot",
+     "fx": {
+      "crowd": {
+       "n": [
+        6,
+        9
+       ],
+       "pose": "market",
+       "at": "street"
+      },
+      "dress": [
+       "stall",
+       "stall"
+      ]
+     }
+    },
+    {
+     "roll": [
+      41,
+      45
+     ],
+     "id": "pickpocket",
+     "label": "Pickpocket at Work",
+     "note": "a pickpocket works through the crowd",
+     "fx": {
+      "crowd": {
+       "n": [
+        3,
+        5
+       ],
+       "pose": "walk",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      46,
+      50
+     ],
+     "id": "bar_singers",
+     "label": "Off-Key Bar Crowd",
+     "note": "a rough crowd outside a bar sings, badly",
+     "fx": {
+      "crowd": {
+       "n": [
+        3,
+        5
+       ],
+       "pose": "party",
+       "at": "door"
+      }
+     }
+    },
+    {
+     "roll": [
+      51,
+      55
+     ],
+     "id": "alley_bang",
+     "label": "Bang in an Alley",
+     "note": "something blows in an alley; people shrug and walk on",
+     "fx": {
+      "text": true,
+      "sound": "explosion"
+     }
+    },
+    {
+     "roll": [
+      56,
+      60
+     ],
+     "id": "corner_busker",
+     "label": "Busker on the Corner",
+     "note": "a busker covers a popular song on the corner",
+     "fx": {
+      "crowd": {
+       "n": [
+        3,
+        5
+       ],
+       "pose": "audience",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      61,
+      65
+     ],
+     "id": "face_scanner",
+     "label": "Someone Scanning Faces",
+     "note": "someone shady is scanning the crowd, looking for someone",
+     "fx": {
+      "text": true
+     }
+    },
+    {
+     "roll": [
+      66,
+      70
+     ],
+     "id": "corner_trio",
+     "label": "Workers on the Corner",
+     "note": "a few sex workers keep the corner",
+     "fx": {
+      "crowd": {
+       "n": [
+        2,
+        3
+       ],
+       "pose": "loiter",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      71,
+      75
+     ],
+     "id": "vendit_rage",
+     "label": "Vendit Ate Their Money",
+     "note": "an edgerunner pounds on a vendit that kept their money",
+     "fx": {
+      "crowd": {
+       "n": [
+        1,
+        1
+       ],
+       "pose": "argue",
+       "at": "street"
+      },
+      "dress": [
+       "vendit"
+      ]
+     }
+    },
+    {
+     "roll": [
+      76,
+      80
+     ],
+     "id": "drunk_exec",
+     "label": "Drunk Exec Heading Home",
+     "note": "a drunk exec weaves home",
+     "fx": {
+      "crowd": {
+       "n": [
+        1,
+        1
+       ],
+       "pose": "walk",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      81,
+      85
+     ],
+     "id": "bodega_squeeze",
+     "label": "Gangers Leaning on a Bodega",
+     "note": "gangers loiter outside a bodega, scaring off customers",
+     "fx": {
+      "watch": {
+       "who": "gang",
+       "n": [
+        2,
+        3
+       ],
+       "at": "door"
+      }
+     }
+    },
+    {
+     "roll": [
+      86,
+      90
+     ],
+     "id": "turf_argument",
+     "label": "Rival Gangs Squaring Off",
+     "note": "members of two gangs argue over the turf",
+     "fx": {
+      "gangs": {
+       "sides": 2,
+       "n": [
+        2,
+        3
+       ],
+       "hot": false
+      }
+     }
+    },
+    {
+     "roll": [
+      91,
+      95
+     ],
+     "id": "band_posters",
+     "label": "Band Posters",
+     "note": "posters for a local band cover a wall",
+     "fx": {
+      "text": true
+     }
+    },
+    {
+     "roll": [
+      96,
+      100
+     ],
+     "id": "vendor_brawl",
+     "label": "Vendors Brawling",
+     "note": "two street vendors brawl in the road",
+     "fx": {
+      "crowd": {
+       "n": [
+        3,
+        5
+       ],
+       "pose": "gawk",
+       "at": "street"
+      }
+     }
+    }
+   ]
+  },
+  "moderate.after_midnight": {
+   "source": "SPM p.80-81",
+   "die": 100,
+   "rows": [
+    {
+     "roll": [
+      1,
+      5
+     ],
+     "id": "building_burning",
+     "label": "Building on Fire",
+     "note": "a building is burning",
+     "fx": {
+      "dress": [
+       "blaze"
+      ],
+      "sound": "sirens"
+     }
+    },
+    {
+     "roll": [
+      6,
+      10
+     ],
+     "id": "carjack",
+     "label": "Car Being Jacked",
+     "note": "desperate thieves jack a car",
+     "fx": {
+      "crowd": {
+       "n": [
+        2,
+        2
+       ],
+       "pose": "work",
+       "at": "street"
+      },
+      "dress": [
+       "car"
+      ]
+     }
+    },
+    {
+     "roll": [
+      11,
+      15
+     ],
+     "id": "deal_gone_wrong",
+     "label": "Drug Deal Going Bad",
+     "note": "a drug deal goes wrong",
+     "fx": {
+      "gangs": {
+       "sides": 2,
+       "n": [
+        1,
+        2
+       ],
+       "hot": true
+      }
+     }
+    },
+    {
+     "roll": [
+      16,
+      20
+     ],
+     "id": "bikers",
+     "label": "Bikers Roaring Past",
+     "note": "a biker gang roars down the street",
+     "fx": {
+      "text": true,
+      "sound": "engine"
+     }
+    },
+    {
+     "roll": [
+      21,
+      25
+     ],
+     "id": "gang_tagging",
+     "label": "Gang Tagging a Wall",
+     "note": "a gang tags a wall, a lookout on watch",
+     "fx": {
+      "watch": {
+       "who": "gang",
+       "n": [
+        2,
+        3
+       ]
+      }
+     }
+    },
+    {
+     "roll": [
+      26,
+      30
+     ],
+     "id": "van_loading",
+     "label": "Loading a Stolen Haul",
+     "note": "shadowy figures load stolen goods into a van",
+     "fx": {
+      "watch": {
+       "who": "gang",
+       "n": [
+        2,
+        3
+       ]
+      },
+      "dress": [
+       "car"
+      ]
+     }
+    },
+    {
+     "roll": [
+      31,
+      35
+     ],
+     "id": "teen_breakin",
+     "label": "Teens Breaking In",
+     "note": "some teens try to break into a building",
+     "fx": {
+      "crowd": {
+       "n": [
+        2,
+        3
+       ],
+       "pose": "work",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      36,
+      40
+     ],
+     "id": "warehouse_gunfight",
+     "label": "Gunfight by a Warehouse",
+     "note": "a gunfight breaks out near a warehouse",
+     "fx": {
+      "gangs": {
+       "sides": 2,
+       "n": [
+        2,
+        3
+       ],
+       "hot": true
+      }
+     }
+    },
+    {
+     "roll": [
+      41,
+      45
+     ],
+     "id": "doorway_sleeper",
+     "label": "Sleeper in a Doorway",
+     "note": "someone homeless tries to sleep in a doorway",
+     "fx": {
+      "crowd": {
+       "n": [
+        1,
+        1
+       ],
+       "pose": "sit",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      46,
+      50
+     ],
+     "id": "police_drone",
+     "label": "Police Drone Searching",
+     "note": "a police drone sweeps the alleys with a searchlight",
+     "fx": {
+      "text": true,
+      "sky": "spotlight"
+     }
+    },
+    {
+     "roll": [
+      51,
+      55
+     ],
+     "id": "argument_fight",
+     "label": "Argument Turns to Blows",
+     "note": "a loud argument turns into a fight",
+     "fx": {
+      "crowd": {
+       "n": [
+        3,
+        5
+       ],
+       "pose": "gawk",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      56,
+      60
+     ],
+     "id": "manhole",
+     "label": "Cyberarm Prying a Manhole",
+     "note": "someone with a cyberarm prises up a manhole cover",
+     "fx": {
+      "crowd": {
+       "n": [
+        1,
+        1
+       ],
+       "pose": "work",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      61,
+      65
+     ],
+     "id": "cruiser_past",
+     "label": "Cruiser Screaming Past",
+     "note": "a police car flies past, sirens on",
+     "fx": {
+      "text": true,
+      "sound": "sirens"
+     }
+    },
+    {
+     "roll": [
+      66,
+      70
+     ],
+     "id": "doom_preacher",
+     "label": "Doom Preacher",
+     "note": "a street preacher announces the end",
+     "fx": {
+      "crowd": {
+       "n": [
+        2,
+        4
+       ],
+       "pose": "audience",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      71,
+      75
+     ],
+     "id": "flicker_figure",
+     "label": "Figure Under a Flickering Light",
+     "note": "someone loiters under a flickering streetlight",
+     "fx": {
+      "crowd": {
+       "n": [
+        1,
+        1
+       ],
+       "pose": "loiter",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      76,
+      80
+     ],
+     "id": "vendit_flamer",
+     "label": "Vendit Torches a Thief",
+     "note": "a vendit's flamethrower roasts a would-be thief",
+     "fx": {
+      "dress": [
+       "vendit"
+      ],
+      "sound": "scream"
+     }
+    },
+    {
+     "roll": [
+      81,
+      85
+     ],
+     "id": "overturned_cart",
+     "label": "Overturned Food Cart",
+     "note": "an abandoned food cart lies on its side",
+     "fx": {
+      "dress": [
+       "cart"
+      ]
+     }
+    },
+    {
+     "roll": [
+      86,
+      90
+     ],
+     "id": "armoured_wanderer",
+     "label": "Armoured Wanderer",
+     "note": "someone in armour mutters to themselves down an alley",
+     "fx": {
+      "crowd": {
+       "n": [
+        1,
+        1
+       ],
+       "pose": "walk",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      91,
+      95
+     ],
+     "id": "smashing_cars",
+     "label": "Drunk Gangers Smashing Cars",
+     "note": "drunk gangers smash car windows as they go",
+     "fx": {
+      "watch": {
+       "who": "gang",
+       "n": [
+        2,
+        3
+       ],
+       "roam": true
+      },
+      "sound": "glass"
+     }
+    },
+    {
+     "roll": [
+      96,
+      100
+     ],
+     "id": "shop_window",
+     "label": "Brick Through a Shop Window",
+     "note": "drunk gangers throw something through a shop window",
+     "fx": {
+      "watch": {
+       "who": "gang",
+       "n": [
+        2,
+        3
+       ]
+      },
+      "sound": "glass"
+     }
+    }
+   ]
+  },
+  "combat_zone.day": {
+   "source": "SPM p.81",
+   "die": 100,
+   "rows": [
+    {
+     "roll": [
+      1,
+      5
+     ],
+     "id": "boarded_store",
+     "label": "Boarded Store, Hopeful Signs",
+     "note": "a boarded-up shop shows signs of reopening",
+     "fx": {
+      "text": true
+     }
+    },
+    {
+     "roll": [
+      6,
+      10
+     ],
+     "id": "enforcer_beat",
+     "label": "Gang Enforcer on the Beat",
+     "note": "a gang enforcer walks the street, nodding to locals",
+     "fx": {
+      "watch": {
+       "who": "gang",
+       "n": [
+        1,
+        1
+       ],
+       "roam": true
+      }
+     }
+    },
+    {
+     "roll": [
+      11,
+      15
+     ],
+     "id": "defiant_tag",
+     "label": "Tagger and Lookout",
+     "note": "a graffiti artist tags a wall while a friend keeps watch",
+     "fx": {
+      "crowd": {
+       "n": [
+        2,
+        2
+       ],
+       "pose": "work",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      16,
+      20
+     ],
+     "id": "dead_vendit",
+     "label": "Crowd Round a Dead Vendit",
+     "note": "locals debate fixing or robbing a broken vendit",
+     "fx": {
+      "crowd": {
+       "n": [
+        3,
+        5
+       ],
+       "pose": "gawk",
+       "at": "street"
+      },
+      "dress": [
+       "vendit"
+      ]
+     }
+    },
+    {
+     "roll": [
+      21,
+      25
+     ],
+     "id": "corpse_strippers",
+     "label": "Scavvers Stripping a Corpse",
+     "note": "scavvers rip the chrome out of a body",
+     "fx": {
+      "watch": {
+       "who": "scavvers",
+       "n": [
+        2,
+        3
+       ]
+      }
+     }
+    },
+    {
+     "roll": [
+      26,
+      30
+     ],
+     "id": "young_gangers",
+     "label": "Young Gangers Arguing",
+     "note": "young gangers argue over turf",
+     "fx": {
+      "watch": {
+       "who": "gang",
+       "n": [
+        2,
+        3
+       ]
+      }
+     }
+    },
+    {
+     "roll": [
+      31,
+      35
+     ],
+     "id": "speaker_punks",
+     "label": "Punks Round a Speaker",
+     "note": "punks blast music and show off their gear",
+     "fx": {
+      "crowd": {
+       "n": [
+        3,
+        5
+       ],
+       "pose": "party",
+       "at": "street"
+      },
+      "sound": "music"
+     }
+    },
+    {
+     "roll": [
+      36,
+      40
+     ],
+     "id": "protection_fees",
+     "label": "Collecting Protection",
+     "note": "a gang boss chats with a vendor, collecting protection",
+     "fx": {
+      "watch": {
+       "who": "gang",
+       "n": [
+        1,
+        2
+       ]
+      },
+      "crowd": {
+       "n": [
+        1,
+        1
+       ],
+       "pose": "vendor",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      41,
+      45
+     ],
+     "id": "pavement_repairs",
+     "label": "Pavement Repair Stall",
+     "note": "a sidewalk stall fixes electronics for a few eddies",
+     "fx": {
+      "crowd": {
+       "n": [
+        1,
+        2
+       ],
+       "pose": "vendor",
+       "at": "street"
+      },
+      "dress": [
+       "stall"
+      ]
+     }
+    },
+    {
+     "roll": [
+      46,
+      50
+     ],
+     "id": "barrel_fire",
+     "label": "Drinks Round a Barrel Fire",
+     "note": "two homeless share a drink at a barrel fire",
+     "fx": {
+      "crowd": {
+       "n": [
+        2,
+        2
+       ],
+       "pose": "warm",
+       "at": "street"
+      },
+      "dress": [
+       "barrel_fire"
+      ]
+     }
+    },
+    {
+     "roll": [
+      51,
+      55
+     ],
+     "id": "indifferent_drone",
+     "label": "Police Drone Passes Over",
+     "note": "a police drone flies over and doesn't stop",
+     "fx": {
+      "text": true,
+      "sky": "drone"
+     }
+    },
+    {
+     "roll": [
+      56,
+      60
+     ],
+     "id": "stall_gossip",
+     "label": "Gossip at a Stall",
+     "note": "a sex worker and a vendor trade stories of last night",
+     "fx": {
+      "crowd": {
+       "n": [
+        2,
+        2
+       ],
+       "pose": "talk",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      61,
+      65
+     ],
+     "id": "shoplifter_chase",
+     "label": "Shoplifter Chase",
+     "note": "a stall owner chases a shoplifter down the street",
+     "fx": {
+      "crowd": {
+       "n": [
+        2,
+        2
+       ],
+       "pose": "walk",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      66,
+      70
+     ],
+     "id": "wreck_playground",
+     "label": "Kids on a Burnt-Out Car",
+     "note": "kids use a burnt-out car as a playground",
+     "fx": {
+      "crowd": {
+       "n": [
+        2,
+        4
+       ],
+       "pose": "play",
+       "at": "street"
+      },
+      "dress": [
+       "wreck"
+      ]
+     }
+    },
+    {
+     "roll": [
+      71,
+      75
+     ],
+     "id": "stickball",
+     "label": "Stickball Game",
+     "note": "a stickball game takes up the street",
+     "fx": {
+      "crowd": {
+       "n": [
+        5,
+        8
+       ],
+       "pose": "play",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      76,
+      80
+     ],
+     "id": "knife_juggler",
+     "label": "Knife Juggler",
+     "note": "a performer juggles knives for bored passers-by",
+     "fx": {
+      "crowd": {
+       "n": [
+        3,
+        5
+       ],
+       "pose": "audience",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      81,
+      85
+     ],
+     "id": "blanket_vendor",
+     "label": "Goods on a Blanket",
+     "note": "a vendor lays scavenged goods out on a blanket",
+     "fx": {
+      "crowd": {
+       "n": [
+        1,
+        2
+       ],
+       "pose": "vendor",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      86,
+      90
+     ],
+     "id": "airhypo",
+     "label": "Streetrat Shooting Up",
+     "note": "a streetrat doses from an airhypo",
+     "fx": {
+      "crowd": {
+       "n": [
+        1,
+        1
+       ],
+       "pose": "sit",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      91,
+      95
+     ],
+     "id": "outsider_mugged",
+     "label": "Outsider Getting Mugged",
+     "note": "someone from outside the Zone is beaten and robbed",
+     "fx": {
+      "watch": {
+       "who": "gang",
+       "n": [
+        2,
+        3
+       ]
+      }
+     }
+    },
+    {
+     "roll": [
+      96,
+      100
+     ],
+     "id": "pitch_dispute",
+     "label": "Vendors Fighting Over a Pitch",
+     "note": "two vendors argue loudly over stall space",
+     "fx": {
+      "crowd": {
+       "n": [
+        2,
+        3
+       ],
+       "pose": "argue",
+       "at": "street"
+      }
+     }
+    }
+   ]
+  },
+  "combat_zone.night": {
+   "source": "SPM p.82",
+   "die": 100,
+   "rows": [
+    {
+     "roll": [
+      1,
+      5
+     ],
+     "id": "burnt_car_bodies",
+     "label": "Burnt-Out Car, Still Occupied",
+     "note": "a burnt-out car reeks of CHOOH2, the dead still inside",
+     "fx": {
+      "dress": [
+       "wreck_burning"
+      ]
+     }
+    },
+    {
+     "roll": [
+      6,
+      10
+     ],
+     "id": "fixer_bodyguard",
+     "label": "Fixer and Bodyguard",
+     "note": "a fixer and their bodyguard walk into a building nearby",
+     "fx": {
+      "text": true
+     }
+    },
+    {
+     "roll": [
+      11,
+      15
+     ],
+     "id": "gang_checkpoint",
+     "label": "Gang Checkpoint",
+     "note": "a gang checkpoint demands a toll or colours",
+     "fx": {
+      "watch": {
+       "who": "gang",
+       "n": [
+        3,
+        4
+       ],
+       "at": "road"
+      },
+      "dress": [
+       "barricade"
+      ]
+     }
+    },
+    {
+     "roll": [
+      16,
+      20
+     ],
+     "id": "rally_speech",
+     "label": "Lieutenant Rallying the Crew",
+     "note": "a gang lieutenant fires up the crew for a night's work",
+     "fx": {
+      "watch": {
+       "who": "gang",
+       "n": [
+        4,
+        6
+       ]
+      }
+     }
+    },
+    {
+     "roll": [
+      21,
+      25
+     ],
+     "id": "kerb_calls",
+     "label": "Calls From the Kerb",
+     "note": "sex workers call to anyone in earshot",
+     "fx": {
+      "crowd": {
+       "n": [
+        2,
+        3
+       ],
+       "pose": "loiter",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      26,
+      30
+     ],
+     "id": "news_drone",
+     "label": "News Drone Overhead",
+     "note": "a news drone films the chaos from high up",
+     "fx": {
+      "text": true,
+      "sky": "drone"
+     }
+    },
+    {
+     "roll": [
+      31,
+      35
+     ],
+     "id": "prying_car",
+     "label": "Prying Open a Car",
+     "note": "two locals work at a parked car with makeshift tools",
+     "fx": {
+      "crowd": {
+       "n": [
+        2,
+        2
+       ],
+       "pose": "work",
+       "at": "street"
+      },
+      "dress": [
+       "car"
+      ]
+     }
+    },
+    {
+     "roll": [
+      36,
+      40
+     ],
+     "id": "scavver_stall",
+     "label": "Nervous Scavver Stall",
+     "note": "a scavver sells salvage from a rickety stall, eyeing the crowd",
+     "fx": {
+      "crowd": {
+       "n": [
+        1,
+        2
+       ],
+       "pose": "vendor",
+       "at": "street"
+      },
+      "dress": [
+       "stall"
+      ]
+     }
+    },
+    {
+     "roll": [
+      41,
+      45
+     ],
+     "id": "shutters_down",
+     "label": "Shutters Coming Down",
+     "note": "a shop owner hauls down the heavy shutters",
+     "fx": {
+      "text": true
+     }
+    },
+    {
+     "roll": [
+      46,
+      50
+     ],
+     "id": "crate_stage",
+     "label": "Performer on a Crate Stage",
+     "note": "a performer on a makeshift stage keeps the crowd calm",
+     "fx": {
+      "crowd": {
+       "n": [
+        4,
+        6
+       ],
+       "pose": "audience",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      51,
+      55
+     ],
+     "id": "gutter_stove",
+     "label": "SCOP on a Gutter Stove",
+     "note": "a vendor cooks SCOP on a gutter stove, drawing the hungry",
+     "fx": {
+      "crowd": {
+       "n": [
+        3,
+        5
+       ],
+       "pose": "queue",
+       "at": "vendor"
+      },
+      "dress": [
+       "barrel_fire"
+      ]
+     }
+    },
+    {
+     "roll": [
+      56,
+      60
+     ],
+     "id": "shadow_figures",
+     "label": "Shapes Past a Dying Light",
+     "note": "a streetlight flickers while figures move in the dark",
+     "fx": {
+      "text": true
+     }
+    },
+    {
+     "roll": [
+      61,
+      65
+     ],
+     "id": "gunfire_scatter",
+     "label": "Gunfire, Gangers Scatter",
+     "note": "a burst of gunfire nearby, then gangers vanish into alleys",
+     "fx": {
+      "text": true,
+      "sound": "gunfire"
+     }
+    },
+    {
+     "roll": [
+      66,
+      70
+     ],
+     "id": "deal_goes_bad",
+     "label": "Gang Deal Goes Bad",
+     "note": "a trade between two gangs goes bad",
+     "fx": {
+      "gangs": {
+       "sides": 2,
+       "n": [
+        2,
+        3
+       ],
+       "hot": true
+      }
+     }
+    },
+    {
+     "roll": [
+      71,
+      75
+     ],
+     "id": "couple_argue",
+     "label": "Couple Arguing Loudly",
+     "note": "a young couple's row catches some gangers' attention",
+     "fx": {
+      "crowd": {
+       "n": [
+        2,
+        2
+       ],
+       "pose": "argue",
+       "at": "street"
+      },
+      "watch": {
+       "who": "gang",
+       "n": [
+        1,
+        2
+       ],
+       "near": "crowd"
+      }
+     }
+    },
+    {
+     "roll": [
+      76,
+      80
+     ],
+     "id": "punk_beaten",
+     "label": "Punk Getting a Beating",
+     "note": "older gangers beat a young punk for disrespect",
+     "fx": {
+      "watch": {
+       "who": "gang",
+       "n": [
+        2,
+        3
+       ]
+      }
+     }
+    },
+    {
+     "roll": [
+      81,
+      85
+     ],
+     "id": "knife_circle",
+     "label": "Forced Knife Fight",
+     "note": "gangers ring two captives and make them fight with knives",
+     "fx": {
+      "watch": {
+       "who": "gang",
+       "n": [
+        3,
+        5
+       ]
+      }
+     }
+    },
+    {
+     "roll": [
+      86,
+      90
+     ],
+     "id": "tagging_colours",
+     "label": "Gangers Tagging Colours",
+     "note": "gangers paint their colours, scouts out for rivals",
+     "fx": {
+      "watch": {
+       "who": "gang",
+       "n": [
+        2,
+        3
+       ]
+      }
+     }
+    },
+    {
+     "roll": [
+      91,
+      95
+     ],
+     "id": "tech_sparks",
+     "label": "Sparks From a Tech Shop",
+     "note": "sparks fly from a makeshift tech workshop",
+     "fx": {
+      "text": true,
+      "dress": [
+       "sparks"
+      ]
+     }
+    },
+    {
+     "roll": [
+      96,
+      100
+     ],
+     "id": "yogangers_chased",
+     "label": "Yogangers on the Run",
+     "note": "older gangers chase a pack of yogangers",
+     "fx": {
+      "watch": {
+       "who": "gang",
+       "n": [
+        2,
+        3
+       ],
+       "roam": true
+      }
+     }
+    }
+   ]
+  },
+  "combat_zone.after_midnight": {
+   "source": "SPM p.82-83",
+   "die": 100,
+   "rows": [
+    {
+     "roll": [
+      1,
+      5
+     ],
+     "id": "building_blows",
+     "label": "Building Blows Up",
+     "note": "a building goes up in an explosion",
+     "fx": {
+      "dress": [
+       "blaze"
+      ],
+      "sound": "explosion"
+     }
+    },
+    {
+     "roll": [
+      6,
+      10
+     ],
+     "id": "family_running",
+     "label": "Family Hurrying Home",
+     "note": "a family hurries through the streets for home",
+     "fx": {
+      "crowd": {
+       "n": [
+        3,
+        4
+       ],
+       "pose": "walk",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      11,
+      15
+     ],
+     "id": "raiders_home",
+     "label": "Raiders Hit a Home",
+     "note": "raiders attack a family's home; gunfire and screams",
+     "fx": {
+      "gangs": {
+       "sides": 1,
+       "n": [
+        3,
+        4
+       ],
+       "hot": true
+      },
+      "sound": "gunfire"
+     }
+    },
+    {
+     "roll": [
+      16,
+      20
+     ],
+     "id": "checkpoint_truck",
+     "label": "Checkpoint Stops a Truck",
+     "note": "a gang checkpoint has stopped a nomad truck",
+     "fx": {
+      "watch": {
+       "who": "gang",
+       "n": [
+        3,
+        4
+       ],
+       "at": "road"
+      },
+      "dress": [
+       "barricade",
+       "car"
+      ]
+     }
+    },
+    {
+     "roll": [
+      21,
+      25
+     ],
+     "id": "interrogation",
+     "label": "Lieutenant Interrogating a Rival",
+     "note": "a gang lieutenant questions a captured rival, the crew watching",
+     "fx": {
+      "watch": {
+       "who": "gang",
+       "n": [
+        3,
+        5
+       ]
+      }
+     }
+    },
+    {
+     "roll": [
+      26,
+      30
+     ],
+     "id": "scrap_argument",
+     "label": "Scavvers Fighting Over Scrap",
+     "note": "scavvers argue over a haul of scrap",
+     "fx": {
+      "watch": {
+       "who": "scavvers",
+       "n": [
+        2,
+        4
+       ]
+      }
+     }
+    },
+    {
+     "roll": [
+      31,
+      35
+     ],
+     "id": "armed_patrol",
+     "label": "Heavily Armed Gang Patrol",
+     "note": "a heavily armed gang patrols its turf, eyeing everyone",
+     "fx": {
+      "watch": {
+       "who": "gang",
+       "n": [
+        3,
+        4
+       ],
+       "roam": true
+      }
+     }
+    },
+    {
+     "roll": [
+      36,
+      40
+     ],
+     "id": "cyberpsycho",
+     "label": "Cyberpsycho on the Loose",
+     "note": "a heavily chromed someone is in the middle of a cyberpsychotic episode",
+     "fx": {
+      "psycho": {
+       "maxtac": [
+        3,
+        5
+       ]
+      },
+      "sound": "sirens"
+     }
+    },
+    {
+     "roll": [
+      41,
+      45
+     ],
+     "id": "shooting_spree",
+     "label": "Gang on a Shooting Spree",
+     "note": "a local gang runs the streets shooting anything that moves",
+     "fx": {
+      "gangs": {
+       "sides": 1,
+       "n": [
+        3,
+        5
+       ],
+       "hot": true
+      }
+     }
+    },
+    {
+     "roll": [
+      46,
+      50
+     ],
+     "id": "sneaking_figure",
+     "label": "Someone Sneaking Through",
+     "note": "a lone figure tries to slip through the Zone",
+     "fx": {
+      "text": true
+     }
+    },
+    {
+     "roll": [
+      51,
+      55
+     ],
+     "id": "armed_barricade",
+     "label": "Barricade and Armed Locals",
+     "note": "a makeshift barricade across the street, heavily armed locals behind it",
+     "fx": {
+      "watch": {
+       "who": "locals",
+       "n": [
+        3,
+        4
+       ],
+       "at": "road"
+      },
+      "dress": [
+       "barricade"
+      ]
+     }
+    },
+    {
+     "roll": [
+      56,
+      60
+     ],
+     "id": "murder_scene",
+     "label": "Murder Scene",
+     "note": "a murder scene; nobody seems to care",
+     "fx": {
+      "text": true
+     }
+    },
+    {
+     "roll": [
+      61,
+      65
+     ],
+     "id": "art_installation",
+     "label": "Mystery Art Installation",
+     "note": "a strange art installation sits in an alley; nobody knows where it came from",
+     "fx": {
+      "text": true
+     }
+    },
+    {
+     "roll": [
+      66,
+      70
+     ],
+     "id": "sparking_drone",
+     "label": "Sparking Drone Wreck",
+     "note": "a downed drone lies sparking on the ground",
+     "fx": {
+      "dress": [
+       "drone_wreck"
+      ]
+     }
+    },
+    {
+     "roll": [
+      71,
+      75
+     ],
+     "id": "peacemaker",
+     "label": "Edgerunner Keeping the Peace",
+     "note": "an edgerunner, hand on gun, talks a dispute down",
+     "fx": {
+      "text": true
+     }
+    },
+    {
+     "roll": [
+      76,
+      80
+     ],
+     "id": "snatch_squad",
+     "label": "Snatch Squad From a Van",
+     "note": "an unmarked strike force jumps from a van to grab people",
+     "fx": {
+      "watch": {
+       "who": "security",
+       "n": [
+        3,
+        4
+       ],
+       "roam": true
+      }
+     }
+    },
+    {
+     "roll": [
+      81,
+      85
+     ],
+     "id": "screams",
+     "label": "Nothing but Screams",
+     "note": "screams, and nothing else",
+     "fx": {
+      "text": true,
+      "sound": "scream"
+     }
+    },
+    {
+     "roll": [
+      86,
+      90
+     ],
+     "id": "tt_under_fire",
+     "label": "Trauma Team Under Fire",
+     "note": "Trauma Team drops in, laying down fire to cover their client",
+     "fx": {
+      "trauma": {},
+      "sound": "gunfire"
+     }
+    },
+    {
+     "roll": [
+      91,
+      95
+     ],
+     "id": "gang_summit",
+     "label": "Gang Summit in the Road",
+     "note": "two gang leaders meet in the middle of the road, guards all round",
+     "fx": {
+      "watch": {
+       "who": "gang",
+       "n": [
+        4,
+        6
+       ]
+      }
+     }
+    },
+    {
+     "roll": [
+      96,
+      100
+     ],
+     "id": "gang_war",
+     "label": "Open Gang War",
+     "note": "two rival gangs are at open war, gunfire lighting the night",
+     "fx": {
+      "gangs": {
+       "sides": 2,
+       "n": [
+        3,
+        4
+       ],
+       "hot": true
+      },
+      "sound": "gunfire"
+     }
+    }
+   ]
+  },
+  "outskirts.day": {
+   "source": "SPM p.83",
+   "die": 10,
+   "rows": [
+    {
+     "roll": [
+      1,
+      1
+     ],
+     "id": "roadside_attraction",
+     "label": "Sparking Roadside Attraction",
+     "note": "a crumbling roadside attraction sparks in the sun",
+     "fx": {
+      "text": true
+     }
+    },
+    {
+     "roll": [
+      2,
+      2
+     ],
+     "id": "dead_town",
+     "label": "Dead Town",
+     "note": "a dead town, nothing but wind and creaking",
+     "fx": {
+      "text": true
+     }
+    },
+    {
+     "roll": [
+      3,
+      3
+     ],
+     "id": "stranded_family",
+     "label": "Stranded Family",
+     "note": "a family stuck by the road with a broken-down car",
+     "fx": {
+      "crowd": {
+       "n": [
+        3,
+        4
+       ],
+       "pose": "talk",
+       "at": "street"
+      },
+      "dress": [
+       "car"
+      ]
+     }
+    },
+    {
+     "roll": [
+      4,
+      4
+     ],
+     "id": "av_wreck_scavvers",
+     "label": "Scavvers on an AV Wreck",
+     "note": "scavvers pick over a crashed AV",
+     "fx": {
+      "watch": {
+       "who": "scavvers",
+       "n": [
+        2,
+        4
+       ]
+      },
+      "dress": [
+       "wreck"
+      ]
+     }
+    },
+    {
+     "roll": [
+      5,
+      5
+     ],
+     "id": "caravan",
+     "label": "Nomad Caravan Rolls By",
+     "note": "a nomad caravan drives carefully along the highway",
+     "fx": {
+      "text": true,
+      "sound": "engine"
+     }
+    },
+    {
+     "roll": [
+      6,
+      6
+     ],
+     "id": "nomad_trader",
+     "label": "Nomad Trader's Truck",
+     "note": "a nomad sells salvage from the back of a modified truck",
+     "fx": {
+      "crowd": {
+       "n": [
+        1,
+        2
+       ],
+       "pose": "vendor",
+       "at": "street"
+      },
+      "dress": [
+       "car"
+      ]
+     }
+    },
+    {
+     "roll": [
+      7,
+      7
+     ],
+     "id": "road_toll",
+     "label": "Road Gang Toll",
+     "note": "a road gang blocks the highway for tolls",
+     "fx": {
+      "watch": {
+       "who": "road_gang",
+       "n": [
+        3,
+        4
+       ],
+       "at": "road"
+      },
+      "dress": [
+       "barricade"
+      ]
+     }
+    },
+    {
+     "roll": [
+      8,
+      8
+     ],
+     "id": "fortified_diner",
+     "label": "Fortified Diner",
+     "note": "an armoured roadside diner, a haven for travellers",
+     "fx": {
+      "text": true
+     }
+    },
+    {
+     "roll": [
+      9,
+      9
+     ],
+     "id": "boom_town",
+     "label": "Temporary Town",
+     "note": "a temporary town, busy repairing and trading",
+     "fx": {
+      "crowd": {
+       "n": [
+        4,
+        6
+       ],
+       "pose": "market",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      10,
+      10
+     ],
+     "id": "highway_marshals",
+     "label": "Highway Marshals",
+     "note": "highway patrol marshals ride by looking for trouble",
+     "fx": {
+      "watch": {
+       "who": "marshals",
+       "n": [
+        2,
+        3
+       ],
+       "roam": true
+      }
+     }
+    }
+   ]
+  },
+  "outskirts.night": {
+   "source": "SPM p.84",
+   "die": 10,
+   "rows": [
+    {
+     "roll": [
+      1,
+      1
+     ],
+     "id": "sky_light",
+     "label": "Strange Light in the Sky",
+     "note": "a strange light flickers in the sky, then is gone",
+     "fx": {
+      "text": true,
+      "sky": "light"
+     }
+    },
+    {
+     "roll": [
+      2,
+      2
+     ],
+     "id": "camp_flare",
+     "label": "Flare From a Camp",
+     "note": "a camp sends up a flare as raiders close in",
+     "fx": {
+      "text": true,
+      "sky": "flare"
+     }
+    },
+    {
+     "roll": [
+      3,
+      3
+     ],
+     "id": "delta_overhead",
+     "label": "Delta on Approach",
+     "note": "a delta flies low toward the airfield outside the city",
+     "fx": {
+      "text": true,
+      "sky": "av",
+      "sound": "av"
+     }
+    },
+    {
+     "roll": [
+      4,
+      4
+     ],
+     "id": "sanctuary_diner",
+     "label": "Pay-for-Safety Diner",
+     "note": "a fortified diner sells sanctuary to whoever pays",
+     "fx": {
+      "text": true
+     }
+    },
+    {
+     "roll": [
+      5,
+      5
+     ],
+     "id": "glowing_wanderer",
+     "label": "Glowing Wanderer",
+     "note": "a lone wanderer walks the road, cyberware glowing",
+     "fx": {
+      "crowd": {
+       "n": [
+        1,
+        1
+       ],
+       "pose": "walk",
+       "at": "street"
+      }
+     }
+    },
+    {
+     "roll": [
+      6,
+      6
+     ],
+     "id": "toll_barricade",
+     "label": "Road Gang Barricade",
+     "note": "a road gang barricade, toll to pass",
+     "fx": {
+      "watch": {
+       "who": "road_gang",
+       "n": [
+        3,
+        4
+       ],
+       "at": "road"
+      },
+      "dress": [
+       "barricade"
+      ]
+     }
+    },
+    {
+     "roll": [
+      7,
+      7
+     ],
+     "id": "armed_convoy",
+     "label": "Convoy Dug In",
+     "note": "a heavily armed nomad convoy parked defensively by the road",
+     "fx": {
+      "watch": {
+       "who": "nomads",
+       "n": [
+        3,
+        4
+       ]
+      },
+      "dress": [
+       "car"
+      ]
+     }
+    },
+    {
+     "roll": [
+      8,
+      8
+     ],
+     "id": "road_battle",
+     "label": "Nomads vs Raiders",
+     "note": "a road battle between nomads and a raider pack",
+     "fx": {
+      "gangs": {
+       "sides": 2,
+       "n": [
+        3,
+        4
+       ],
+       "hot": true,
+       "factions": [
+        "nomads",
+        "road_gang"
+       ]
+      }
+     }
+    },
+    {
+     "roll": [
+      9,
+      9
+     ],
+     "id": "strange_animal",
+     "label": "Something Crosses the Road",
+     "note": "a strange animal dashes across the road and is gone",
+     "fx": {
+      "text": true
+     }
+    },
+    {
+     "roll": [
+      10,
+      10
+     ],
+     "id": "burning_vehicle",
+     "label": "Family Watches Their Car Burn",
+     "note": "a family watches their car, and everything in it, burn",
+     "fx": {
+      "crowd": {
+       "n": [
+        2,
+        4
+       ],
+       "pose": "gawk",
+       "at": "street"
+      },
+      "dress": [
+       "wreck_burning"
+      ]
+     }
+    }
+   ]
+  },
+  "outskirts.after_midnight": {
+   "source": "SPM p.84",
+   "die": 10,
+   "rows": [
+    {
+     "roll": [
+      1,
+      1
+     ],
+     "id": "psycho_exotic",
+     "label": "Psycho Exotic Clawing a Car",
+     "note": "a cyberpsychotic exotic claws at a vehicle, then bolts",
+     "fx": {
+      "psycho": {}
+     }
+    },
+    {
+     "roll": [
+      2,
+      2
+     ],
+     "id": "distant_fireball",
+     "label": "Fireball on the Horizon",
+     "note": "a fireball goes up from the ground far off",
+     "fx": {
+      "text": true,
+      "sky": "fireball",
+      "sound": "explosion"
+     }
+    },
+    {
+     "roll": [
+      3,
+      3
+     ],
+     "id": "lit_ruins",
+     "label": "Lights Over the Ruins",
+     "note": "a ghost town's ruins lit by strange shifting lights above",
+     "fx": {
+      "text": true,
+      "sky": "light"
+     }
+    },
+    {
+     "roll": [
+      4,
+      4
+     ],
+     "id": "nomad_flares",
+     "label": "Nomad Firing Flares",
+     "note": "a lone nomad fires flares, signalling for help",
+     "fx": {
+      "text": true,
+      "sky": "flare"
+     }
+    },
+    {
+     "roll": [
+      5,
+      5
+     ],
+     "id": "truck_chase",
+     "label": "Truck Chased by Bikers",
+     "note": "a big modified truck speeds past, armed bikers after it",
+     "fx": {
+      "text": true,
+      "sound": "engine"
+     }
+    },
+    {
+     "roll": [
+      6,
+      6
+     ],
+     "id": "roadblock_clash",
+     "label": "Convoy Rams a Roadblock",
+     "note": "a convoy tries to break through a roadblock",
+     "fx": {
+      "gangs": {
+       "sides": 2,
+       "n": [
+        2,
+        3
+       ],
+       "hot": true,
+       "factions": [
+        "nomads",
+        "road_gang"
+       ]
+      },
+      "dress": [
+       "barricade"
+      ]
+     }
+    },
+    {
+     "roll": [
+      7,
+      7
+     ],
+     "id": "spike_strip",
+     "label": "Spikes and a Hold-Up",
+     "note": "road spikes stop a vehicle and a gang demands everything",
+     "fx": {
+      "text": true
+     },
+     "unmodelled": "it happens to the crew's own vehicle on the drive"
+    },
+    {
+     "roll": [
+      8,
+      8
+     ],
+     "id": "sky_fall",
+     "label": "Something Falls From the Sky",
+     "note": "something falls out of the sky beyond the horizon",
+     "fx": {
+      "text": true,
+      "sky": "fireball"
+     }
+    },
+    {
+     "roll": [
+      9,
+      9
+     ],
+     "id": "shadow_toll",
+     "label": "Toll by Shadowy Figures",
+     "note": "shadowy figures with makeshift weapons surround the vehicle for a toll",
+     "fx": {
+      "text": true
+     },
+     "unmodelled": "it happens to the crew's own vehicle on the drive"
+    },
+    {
+     "roll": [
+      10,
+      10
+     ],
+     "id": "dust_storm",
+     "label": "Dust Storm Rolling In",
+     "note": "the weather turns as a dust storm rolls in",
+     "fx": {
+      "text": true,
+      "mood": "dust"
+     },
+     "unmodelled": "weather is a later pass (gig.mood): kept off until the weather system plays dust"
+    }
+   ]
+  }
+ }
+}

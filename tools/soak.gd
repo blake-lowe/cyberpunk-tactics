@@ -55,6 +55,8 @@ func _initialize() -> void:
 	print("morale: %d surrendered, %d fled; bodies searched %d, finds %s, leads %d" % [d.stats.surrendered, d.stats.fled_units, d.stats.searched, JSON.stringify(d.stats.finds), d.stats.leads])
 	print("twists: %d of %d offers (%.0f%%); armed on %d gigs, sprung %s" % [d.stats.offers_twisted, d.stats.offers_seen,
 		100.0 * d.stats.offers_twisted / maxf(1.0, d.stats.offers_seen), d.stats.twists_armed, JSON.stringify(d.stats.twists_sprung)])
+	print("scene events: %d of %d gigs (%.0f%%) %s; %.1f bystanders a gig" % [d.stats.street_gigs, d.stats.gigs, 100.0 * d.stats.street_gigs / maxf(1.0, d.stats.gigs),
+		JSON.stringify(d.stats.streets), d.stats.civs / maxf(1.0, d.stats.gigs)])
 	print("detection clocks: %d gigs, %d ran out (%d escalated), %d rolls, %d dice won back; alarm raised on %d gigs" % [d.stats.clock_gigs,
 		d.stats.clock_empty, d.stats.clock_escalated, d.stats.clock_rolls, d.stats.clock_reclaimed, d.stats.alarm_gigs])
 	for f in d.failures:

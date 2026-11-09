@@ -288,7 +288,7 @@ func test_saves_keep_the_twist_and_old_saves_load() -> void:
 	var c := Campaign.new_game(31)
 	c.board[0]["twist"] = Twist.make(c.dice, Twist.row("hired_muscle"), 41)
 	var d: Dictionary = JSON.parse_string(JSON.stringify(c.to_dict()))
-	assert_eq(int(d.version), 17)
+	assert_eq(int(d.version), SaveMigrations.CURRENT)
 	var back := Campaign.from_dict(d)
 	assert_eq(back.board[0].twist, c.board[0].twist, "the hidden twist survives a save")
 	var old: Dictionary = JSON.parse_string(JSON.stringify(c.to_dict()))

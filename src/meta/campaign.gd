@@ -522,6 +522,8 @@ static func encounter_opts(gig: Dictionary) -> Dictionary:
 	var o := {"complications": true, "utilities": true, "clocks": "auto"}
 	if gig.get("twist") is Dictionary:
 		o["twist"] = (gig.twist as Dictionary).duplicate(true)
+	if gig.get("scene_event") is Dictionary:   # the street round it (SceneEvent), rolled when the gig started
+		o["scene_event"] = (gig.scene_event as Dictionary).duplicate(true)
 	if String(gig.get("faction", "")) != "":
 		o["faction"] = String(gig.faction)
 	for k in ["security_code", "district_code", "utility_code", "district"]:
@@ -841,6 +843,8 @@ func _start_gig(gig: Dictionary) -> Dictionary:
 	if drive > 0:
 		active_gig["travel_minutes"] = drive
 		advance_minutes(drive)
+	if not active_gig.has("scene_event"):   # the street round the gig, at the hour the crew gets there (SceneEvent, SPM p.77-84)
+		active_gig["scene_event"] = SceneEvent.roll(active_gig, minutes, String(active_gig.get("street", "")))
 	var before := {}   # for the debrief: what each crew member already had going in
 	for c in crew:
 		before[c.display_name] = {"injuries": c.injuries.size(), "humanity": c.humanity}
@@ -914,6 +918,7 @@ func resolve(e: Encounter) -> Dictionary:
 	report["focus_line"] = MissionBuilder.debrief_line(gig, won)
 	report["client"] = MissionBuilder.client_text(gig)
 	report["twist"] = twist_report(e)
+	report["street"] = {} if e.scene_event.is_empty() else {"id": String(e.scene_event.id), "label": String(e.scene_event.label), "note": String(e.scene_event.get("note", ""))}
 	report["clocks"] = e.clocks.map(func(c): return (c as Clock).to_dict())
 	_take_loot(e, gig, report)
 	report.episodes = _downtime_episodes()

@@ -22,6 +22,10 @@ var _music := {}                       ## "explore"/"combat" → AudioStreamPlay
 var _music_state := ""
 var _amb: AudioStreamPlayer
 var _amb_name := ""
+var _layer: AudioStreamPlayer          ## a second ambience loop over the bed (a club's beat, crowd murmur)
+var _layer_name := ""
+var _layer_db := 0.0
+var _cue: AudioStreamPlayer            ## far-off one-shots on the Ambience bus (a siren, an AV passing)
 var _muted := false
 var _last := {}                        ## sound → msec last started (caps machine-gun stacking)
 var _pending := {}                     ## music/ambience asked for before the director joined the tree
@@ -60,6 +64,12 @@ func _init() -> void:
 	_amb = AudioStreamPlayer.new()
 	_amb.bus = "Ambience"
 	add_child(_amb)
+	_layer = AudioStreamPlayer.new()
+	_layer.bus = "Ambience"
+	add_child(_layer)
+	_cue = AudioStreamPlayer.new()
+	_cue.bus = "Ambience"
+	add_child(_cue)
 	_load_cfg()
 
 
@@ -70,6 +80,8 @@ func _ready() -> void:
 		music(_pending.music)
 	if _pending.has("ambience"):
 		ambience(_pending.ambience)
+	if _pending.has("layer"):
+		layer(_pending.layer[0], _pending.layer[1])
 	if _pending.has("space"):
 		set_space(_pending.space[0], _pending.space[1])
 	_pending.clear()
@@ -154,6 +166,41 @@ func ambience(name: String) -> void:
 	_amb.volume_db = -30.0
 	_amb.play()
 	create_tween().tween_property(_amb, "volume_db", 0.0, 2.0)
+
+
+## A second ambience loop over the bed at `db` ("" fades it out): the street's own sound (a club's
+## beat through a wall, a crowd's murmur) over the district's bed.
+func layer(name: String, db := -6.0) -> void:
+	if not is_inside_tree():
+		_pending["layer"] = [name, db]
+		return
+	if name == _layer_name and is_equal_approx(db, _layer_db):
+		return
+	_layer_db = db
+	if name == "":
+		_layer_name = ""
+		var tw := create_tween()
+		tw.tween_property(_layer, "volume_db", -60.0, 1.5)
+		tw.tween_callback(func(): if _layer_name == "": _layer.stop())
+		return
+	if name != _layer_name:
+		_layer_name = name
+		_layer.stream = _looped(name)
+		_layer.volume_db = -40.0
+		_layer.play()
+	create_tween().tween_property(_layer, "volume_db", db, 2.0)
+
+
+## A far-off one-shot on the Ambience bus (not positional): a siren a few blocks away, an AV
+## passing over. One at a time.
+func cue(name: String, db := -8.0) -> void:
+	var s := _stream(name)
+	if s == null or not is_inside_tree() or _cue.playing:
+		return
+	_cue.stream = s
+	_cue.volume_db = db
+	_cue.pitch_scale = 1.0 + randf_range(-0.05, 0.05)
+	_cue.play()
 
 
 ## Room reverb on the SFX bus for this scene: tunnels ring, the badlands are dry.
