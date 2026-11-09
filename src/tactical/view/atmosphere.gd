@@ -9,9 +9,9 @@ extends RefCounted
 ## use it now; nothing in it is tower-only, so ordinary maps can take it up later. Pure data plus
 ## lookups (headless-testable).
 
-## The scene-light keys a mood may set (greybox LOOKS): the air and the palette the frame is drawn
-## in, never the light on the play area.
-const LIGHT_KEYS := ["fog", "fog_d", "fog_h", "fog_hd", "sky", "smog", "palette"]
+## The scene-light keys a mood may set (greybox LOOKS): the air outside, never the frame's palette
+## (owner: the weather mustn't tint indoors) and never the light on the play area.
+const LIGHT_KEYS := ["fog", "fog_d", "fog_h", "fog_hd", "sky", "smog"]   # no palette: owner, the weather mustn't tint indoors
 
 
 static func data() -> Dictionary:
