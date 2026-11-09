@@ -313,6 +313,7 @@ var _dev_stairs := ""                  ## --stairs=on|up (review renders): the a
 var _dev_near := 0                     ## --near=n (review renders): bring the nearest foe n squares from the crew
 var _dev_morale := ""                  ## --morale=surrender | flee | search (review renders): stage Morale or Search Body
 var _dev_grapple := ""                 ## --grapple=hold|shield|throw|held (review renders, with --near=1): a sure Grab on the nearest foe first
+var _dev_clock := ""                   ## --clock=roll|empty|add|run (review renders): stage the detection clock (ClockWidget)
 var _alt_on := false                   ## Alt is held: enemy outlines, last-known marks, stair and exit signs
 var _portrait_uid := -1                ## the turn-order portrait under the mouse (-1 none)
 var _aim := {}                         ## the hovered attack's preview: shape, from, to, col, ...
@@ -410,6 +411,8 @@ func _ready() -> void:
 				_security_flag = true
 			"objective": gig["objective"] = kv[1]
 			"complication": gig["complication"] = kv[1]   # force one: mook:2, lieutenant:1, mini_boss:4
+			"twist": gig["twist"] = kv[1]   # a plot twist (Twist): its id or d100 roll, @start | @alarm | @objective_done | @round<n>
+			"clock": _dev_clock = kv[1]   # review renders: roll | empty | add | run (the detection clock on, then staged)
 			"fog": fog_on = kv[1] != "0"
 			"netview": net_view = kv[1] != "0"   # review renders: 0 shows the plain world while jacked in (the N key)
 			"ap_icons": ap_icons = kv[1] != "0"   # access-point way-finding: Alt port icons
@@ -625,6 +628,8 @@ func _process(delta: float) -> void:
 			_demo_grapple()
 		if _frames == 10 and _dev_morale != "":
 			_demo_morale()
+		if _frames == 10 and _dev_clock != "":
+			_demo_clock()
 		if _frames == 10 and _dev_callouts:
 			_demo_ms = Time.get_ticks_msec()
 			var cu: Dictionary = enc.units.filter(func(o): return o.team == 0)[0]
@@ -635,7 +640,7 @@ func _process(delta: float) -> void:
 			_demo_ms = Time.get_ticks_msec()
 			enc.state = _dev_end
 			_after_action()
-		var shoot_now: bool = _frames >= 12 if not (_attack_demo or _jack_demo or _av_demo != "" or _dev_peace or _dev_end != "" or _dev_callouts or _dev_grapple != "" or _dev_morale != "") else (_demo_ms > 0 and Time.get_ticks_msec() - _demo_ms >= int(_shot_delay * 1000.0 / Engine.time_scale))
+		var shoot_now: bool = _frames >= 12 if not (_attack_demo or _jack_demo or _av_demo != "" or _dev_peace or _dev_end != "" or _dev_callouts or _dev_grapple != "" or _dev_morale != "" or _dev_clock != "") else (_demo_ms > 0 and Time.get_ticks_msec() - _demo_ms >= int(_shot_delay * 1000.0 / Engine.time_scale))
 		if shoot_now and _shot_ms == 0:
 			get_viewport().get_texture().get_image().save_png(_shot_path)
 			_shot_ms = Time.get_ticks_msec()
@@ -866,6 +871,14 @@ func new_gig() -> void:
 	if gig.has("complication"):   # review renders: --complication=<tier>:<roll> (or just the roll)
 		var parts := String(gig.complication).split(":")
 		eo["complication"] = {"tier": parts[0], "roll": int(parts[1])} if parts.size() > 1 else {"roll": int(parts[0])}
+	if gig.has("twist"):   # review renders: --twist=<id or roll>[@trigger] (Twist)
+		var tr := Twist.row(String(gig.twist).get_slice("@", 0))
+		if not tr.is_empty():
+			eo["twist"] = Twist.make(Dice.new(int(gig.seed) + 5), tr, -1, String(gig.twist).get_slice("@", 1) if String(gig.twist).contains("@") else "")
+	if _dev_clock != "":   # review renders: the detection clock runs whatever the gig
+		eo["clocks"] = true
+	elif not campaign_gig:   # a dev map plays as a campaign gig would: the clock on a stealth gig
+		eo["clocks"] = "auto"
 	if campaign_gig:   # a gig taken from the fixer board, built as every campaign gig is (GigSetup, shared with the soak)
 		gig.scene = String(camp.active_gig.scene)
 		gig.seed = int(camp.active_gig.seed)
@@ -980,6 +993,10 @@ func new_gig() -> void:
 			_focus_pin = _nearest_building()
 		_last_cur = enc.cur.id if not enc.cur.is_empty() else -1   # the first turn keeps this storey (it would frame the crew's)
 		_place_camera()
+	if _shot_path == "" or _dev_clock == "intro":   # the gig's clocks drop onto the round tab as it starts (review renders: still)
+		for c0 in enc.clocks:
+			if (c0 as Clock).running():
+				enc.events.push_front({"type": "clock_new", "unit": 0, "clock": (c0 as Clock).id, "size": (c0 as Clock).size})
 	_after_action()
 
 
@@ -3293,6 +3310,12 @@ func _on_hud(name: String, arg: Variant) -> void:
 				if not rt.get("ok", false):
 					hud.toast(String(rt.get("reason", "can't")))
 				_after_action()
+		"spoof":   # Reclaiming Their Time (SPM p.26): win the detection clock a die back
+			if _crew_turn():
+				var rsp := Clocks.spoof(enc)
+				if not rsp.get("ok", false):
+					hud.toast(String(rsp.get("reason", "can't")).to_upper())
+				_after_action()
 		"withdraw":
 			if not _crew_turn() or not enc.can_withdraw():
 				hud.toast("Everyone still standing must be in the deploy zone")
@@ -4825,7 +4848,8 @@ func _body_pos(u: Dictionary) -> Vector3:
 
 ## Events that don't count as "hostile activity" for the enemy-phase banner (bookkeeping, third
 ## parties, things the crew caused).
-const QUIET_EVENTS := ["alert", "death", "camera", "tt_call", "av_land", "av_leave", "tt_pickup", "panic", "civ_gone", "morale", "fled", "search"]
+const QUIET_EVENTS := ["alert", "death", "camera", "tt_call", "av_land", "av_leave", "tt_pickup", "panic", "civ_gone", "morale", "fled", "search",
+	"clock", "clock_add", "clock_new", "clock_stop", "clock_escalate", "twist", "spoof"]
 
 var _handlers: Dictionary = {}
 
@@ -4876,6 +4900,13 @@ func _event_handlers() -> Dictionary:
 			"peace_broken": _ev_peace_broken,
 			"grapple": _anim_grapple,
 			"get_up": _anim_get_up,
+			"clock": _ev_clock,
+			"clock_add": _ev_clock_add,
+			"clock_new": _ev_clock_new,
+			"clock_stop": _ev_clock_stop,
+			"clock_escalate": _ev_clock_escalate,
+			"twist": _ev_twist,
+			"spoof": _ev_spoof,
 		}
 	return _handlers
 
@@ -4992,6 +5023,112 @@ func _ev_tamper(e: Dictionary) -> void:
 	await get_tree().create_timer(0.6).timeout
 	_float(u, "CAMERA DOWN" if e.ok else "TAMPER FAILED", Hud.CYAN if e.ok else Hud.RED)
 	await get_tree().create_timer(0.4).timeout
+
+
+# --- Solo Play Clocks and Plot Twists (Clocks, Twist; the HUD's ClockWidget) -------------------
+
+## A clock rolled: the dice tumble on the round tab; the 1s crack and shatter. When the last die
+## goes: the row blows apart, a red flash and the klaxon, a kick of the camera, then the banner.
+func _ev_clock(e: Dictionary) -> void:
+	var dur := hud.clock_roll(e, enc)   # no HUD refresh first: the stealth line flips with the alarm event that follows
+	if dur <= 0.0:
+		return
+	if not bool(e.emptied):
+		await get_tree().create_timer(dur * 0.8).timeout
+		return
+	var w := hud.clock_widget(String(e.clock), enc)   # it bursts by itself as the last die shatters
+	await get_tree().create_timer(w.boom_delay() if w != null else 0.5).timeout
+	_ui_snd("sfx_klaxon", -2.0)
+	hud.flash_screen(Color(1.0, 0.12, 0.18, 0.42))
+	hud.edge_pulse(Hud.RED, 1.0, 0.25)
+	if not hud.reduced_motion:
+		_kick(Vector2(1, -0.4).normalized(), 7.0)
+	await get_tree().create_timer(0.3).timeout
+	var time_up := String(e.clock) == "time_limit"
+	hud.end_banner("TIME'S UP" if time_up else "DETECTED  ·  ALARM RAISED", Hud.RED)
+	await get_tree().create_timer(1.1).timeout
+	if enc.state == "playing":   # the banner gives way to the next turn's
+		hud.turn_banner("TIME'S UP" if time_up else "DETECTED  ·  ALARM RAISED", Hud.RED)
+
+
+## A die won back (SPOOF, a loop from the NET): it drops into its socket with a cyan glint.
+func _ev_clock_add(e: Dictionary) -> void:
+	var u: Dictionary = enc.units[e.unit]
+	if int(u.team) == Encounter.CREW and _seen(u.pos):
+		_float(u, "+1 DIE · TIME WON BACK", Hud.CYAN)
+	await get_tree().create_timer(hud.clock_add(e, enc)).timeout
+
+
+func _ev_clock_new(e: Dictionary) -> void:
+	_hud_refresh()
+	_ui_snd("sfx_dice_rattle", -8.0)
+	await get_tree().create_timer(hud.clock_new(e, enc)).timeout
+
+
+func _ev_clock_stop(e: Dictionary) -> void:
+	var w := hud.clock_widget(String(e.clock), enc)
+	if w != null:
+		w.play_stop()
+
+
+func _ev_clock_escalate(_e: Dictionary) -> void:
+	hud.toast("DEGREES OF CONSEQUENCE  ·  A HEAVIER RESPONSE IS COMING", 2.6)
+	hud.flash_screen(Color(1.0, 0.2, 0.1, 0.2))
+
+
+## The plot twist springs: the callout, a stinger, and the view catches up with what changed
+## (a moved extraction zone, the turret a rigged site hides).
+func _ev_twist(e: Dictionary) -> void:
+	_ui_snd("sfx_twist", -3.0)
+	hud.twist_callout(String(e.label), String(e.get("note", "")), String(e.get("text", "")))
+	if not (e.get("cells", []) as Array).is_empty() and obj_node != null and is_instance_valid(obj_node):
+		obj_node.queue_free()   # the extraction zone moved (No Way Back): rebuilt where it is now
+		obj_node = null
+		_update_objective()
+		var cs: Array = e.cells
+		var c0: Vector3i = cs[0]
+		await _pan_to(Vector3(c0.x + 0.5, c0.z * FH, c0.y + 0.5), 0.5)
+	_hud_refresh()
+	await get_tree().create_timer(2.3).timeout
+
+
+func _ev_spoof(e: Dictionary) -> void:
+	var u: Dictionary = enc.units[e.unit]
+	_focus_unit = u.id
+	(unit_nodes[u.id] as CharModel).perform("idle_shift", 0.8)
+	await get_tree().create_timer(0.5).timeout
+	_float(u, "FEED SPOOFED" if e.ok else "SPOOF FAILED", Hud.CYAN if e.ok else Hud.RED)
+	await get_tree().create_timer(0.3).timeout
+
+
+## Review renders (--clock=...): the detection clock staged. roll: a roll that loses two; empty: a
+## two-die pool emptied by two 1s (the Degrees of Consequence burst); add: a die back after a loss;
+## run: a whole clock, roll by roll, to empty.
+func _demo_clock() -> void:
+	_demo_ms = Time.get_ticks_msec()
+	var c := Clocks.get_clock(enc, "detection")
+	if c == null:
+		return
+	var w := hud.clock_widget("detection", enc)
+	match _dev_clock:   # failed_tech: a trigger kind with no rate limit, so a sequence can play in one turn
+		"roll":
+			Clocks.trigger(enc, "failed_tech", int(enc.cur.id), "demo", [4, 1, 6, 1, 3, 5])
+		"empty":
+			c.pool = 2
+			w.sync(2, c.size, [5, 3])
+			Clocks.trigger(enc, "failed_tech", int(enc.cur.id), "demo", [1, 1])
+		"add":   # the row at 4/6 a moment, then a die won back
+			c.pool = c.size - 2
+			w.sync(c.pool, c.size, [3, 5, 2, 6])
+			await get_tree().create_timer(0.7).timeout
+			Clocks.reclaim(enc, c, "demo")
+		"run":   # one roll at a time, each played out before the next, as triggers come in play
+			for f in [[4, 1, 6, 2, 1, 5], [2, 5, 1, 6], [6, 4, 2], [3, 1, 5], [1, 1]]:
+				Clocks.trigger(enc, "failed_tech", int(enc.cur.id), "demo", f)
+				await _after_action()
+				await get_tree().create_timer(0.35).timeout
+			return
+	_after_action()
 
 
 func _ev_camera(e: Dictionary) -> void:
@@ -5652,7 +5789,7 @@ func _anim_backup(e: Dictionary) -> void:
 		n.visible = _seen(bu.pos)
 		if first.is_empty():
 			first = bu
-	hud.toast("%s HAS ARRIVED" % String(e.get("label", "BACKUP")))
+	hud.toast("%s %s ARRIVED" % [String(e.get("label", "BACKUP")), "HAVE" if String(e.get("label", "BACKUP")).ends_with("S") else "HAS"])
 	if not first.is_empty() and _seen(first.pos):
 		await _pan_to(_body_pos(first), 0.4)
 		await get_tree().create_timer(0.6).timeout

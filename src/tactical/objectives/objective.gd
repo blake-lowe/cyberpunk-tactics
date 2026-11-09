@@ -57,6 +57,12 @@ func tick() -> void:
 	pass
 
 
+## The main part is done and only getting out is left: the book's "near completion" (SPM p.28),
+## where a plot twist springs (Twist) and a detection clock rolls once (Clocks). Default: done().
+func near_done() -> bool:
+	return done()
+
+
 ## Crew actions the objective offers the active unit right now: "grab", "free", "plant".
 func actions() -> Array[String]:
 	return []

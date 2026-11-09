@@ -1,0 +1,38 @@
+{
+	"_doc": "Solo Play Clocks in the tactical layer (R. Talsorian, Cyberpunk RED: Single Player Mode, SPM p.25-26; Clock, src/core/clock.gd). Each entry is a clock an encounter can run (Encounter.clocks): its dice pool, the faces that drop a die, Degrees of Consequence (escalate), the trigger kinds it rolls on (Encounter.clock_trigger) and what happens when it empties. The book's examples are canon (the Corporate Heist clock: 5d6, rolled on each failed Stealth or Electronics/Security Tech check and for each minute spent in one room; the security squad arrives when it empties); the pool sizes by security level and the triggers past the book's are HOUSE-RULE, each with its reason.",
+	"detection": {
+		"label": "DETECTION",
+		"name": "Detection clock",
+		"_pool": "HOUSE-RULE: by the gig's 1-3 security level. Medium is the book's Corporate Heist (5d6, SPM p.25, 'Beat-length suspense'); a lightly guarded place gives a die more slack; a fortress plays the harder variant, a die gone on a 1 or a 6 (SPM p.26, 'Scale up the Difficulty': about half as many rolls). Exact means: 6d6 13.9 rolls, 5d6 13.0, 5d6 on 1-or-6 6.1 (Clock.expected_rolls).",
+		"pool": {"1": 6, "2": 5, "3": 5},
+		"drop_on": {"1": [1], "2": [1], "3": [1, 6]},
+		"escalate": true,
+		"_escalate": "Degrees of Consequence (SPM p.26): the pool emptying on a roll that takes two or more dice upgrades the response one intensity step (Light, Medium, Heavy on NC2045 p.7; a Heavy response comes Hardened).",
+		"_objectives": "HOUSE-RULE: a stealth gig is one that starts quiet and isn't a straight elimination (a gang hit is loud by design); set pieces whose guards start alerted never run one.",
+		"skip_objectives": ["eliminate"],
+		"triggers": ["failed_stealth", "failed_tech", "room_time", "body_seen", "noise", "objective"],
+		"_triggers": "failed_stealth: a guard or camera wins a Perception vs Stealth contest against a crew member (canon; HOUSE-RULE once per crew member a round, as the contests are). failed_tech: a failed Electronics/Security Tech check, a lock bypass, a camera tamper or a spoof (canon). room_time: a crew member who has spent a minute (ROUNDS_PER_MINUTE rounds, the HOUSE-RULE pace) in one secured room, rolled once a round at the round's start (canon, at our pace). body_seen: an unalerted guard with a body the crew made in sight, once a round (HOUSE-RULE: the book's 'body left in a patrolled area' pattern, SPM survey). noise: the crew's gunfire or a blast, once a turn (HOUSE-RULE: the book's 'too much noise' trigger). objective: the crew takes the objective (grabs the package, frees the captive, plants the charge, jacks into the target NET), once (HOUSE-RULE: a sensor trips).",
+		"event": "alarm",
+		"room_zone": 3,
+		"room_rounds": 2,
+		"tip": "A hidden timer on the site noticing something's wrong. Every trigger rolls the dice: each one that comes up {drop} is gone. When the last die goes, the alarm is raised: backup is called, whoever's watching. Triggers: failed Stealth against a guard or camera, a failed Electronics/Security Tech check, a minute in a secured room, a body in a guard's sight, the crew's gunfire, taking the objective. A Tech or Netrunner can win a die back (SPOOF a camera or alarm panel, or loop the cameras from the NET)."
+	},
+	"time_limit": {
+		"label": "TIME LIMIT",
+		"name": "Time Limit",
+		"_pool": "HOUSE-RULE (the Time Limit plot twist, SPM p.75-76, 'barely enough time'): 4d6, the harder variant (a die gone on a 1 or a 6), rolled at the top of every round (SPM p.25 suggests a top-of-round trigger): about 5.6 rounds.",
+		"pool": 4,
+		"drop_on": [1, 6],
+		"escalate": false,
+		"triggers": ["round"],
+		"event": "time_up",
+		"tip": "The window is closing. The dice roll at the top of every round; each one that comes up {drop} is gone. When the last die goes, time's up: with the job not done it's blown; with it done, the site's response is on the crew at once."
+	},
+	"reclaim": {
+		"_why": "Reclaiming Their Time (SPM p.26): a difficult, risky skill success adds a die back. SPOOF (a meat Action at a live camera or an alarm panel within `range` squares on the floor, no wall between): TECH + Electronics/Security Tech (+ a Tech's Field Expertise) vs DV `dv` (DV15, Difficult, CPR core p.129). Success loops the camera by hand (the site's feed shows a recording) or spoofs the panel, and adds a die back; failure is a failed Electronics/Security Tech check, so the clock rolls (the risk). From the NET: looping a camera bank or cutting the alarm line (a NET Action, NetDevices) adds a die back (HOUSE-RULE: the NET's own risks, ICE and reaching the Node, are the check). Either way at most once per clock per turn, and each device only once per clock.",
+		"dv": 15,
+		"range": 3,
+		"devices": ["camera", "alarm_panel"],
+		"net_ops": ["loop", "cut_alarm"]
+	}
+}

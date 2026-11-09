@@ -459,9 +459,12 @@ static func code_label(gig: Dictionary) -> String:
 ## Encounter.setup options for a gig: its target faction and its codes, the location's owner, who
 ## holds the posts under the site code (SecurityCode.guarded_by, with that owner), and rolls at the start for
 ## one of the book's complications (Complication; never known on the board) and for whether the
-## Utility Code comes into play (SecurityCode.utilities_happen).
+## Utility Code comes into play (SecurityCode.utilities_happen); the detection clock on a stealth
+## gig (Clocks, SPM p.25) and the offer's hidden plot twist (Twist, SPM p.75-76), if it has one.
 static func encounter_opts(gig: Dictionary) -> Dictionary:
-	var o := {"complications": true, "utilities": true}
+	var o := {"complications": true, "utilities": true, "clocks": "auto"}
+	if gig.get("twist") is Dictionary:
+		o["twist"] = (gig.twist as Dictionary).duplicate(true)
 	if String(gig.get("faction", "")) != "":
 		o["faction"] = String(gig.faction)
 	for k in ["security_code", "district_code", "utility_code", "district"]:
@@ -853,6 +856,8 @@ func resolve(e: Encounter) -> Dictionary:
 	report["paid_extra"] = _collect_payment(gig) if won else ""
 	report["focus_line"] = MissionBuilder.debrief_line(gig, won)
 	report["client"] = MissionBuilder.client_text(gig)
+	report["twist"] = twist_report(e)
+	report["clocks"] = e.clocks.map(func(c): return (c as Clock).to_dict())
 	_take_loot(e, gig, report)
 	report.episodes = _downtime_episodes()
 	report["addicted"] = _addiction_checks()
@@ -878,6 +883,15 @@ func resolve(e: Encounter) -> Dictionary:
 	refresh_board()
 	update_market()
 	return report
+
+
+## The plot twist that sprang on the gig, for the debrief: {id, row, label, note, text, round}, or
+## {} when none did (an offer's twist that never came into play stays the fixer's secret).
+static func twist_report(e: Encounter) -> Dictionary:
+	if e.twist.is_empty() or not bool(e.twist.get("sprung", false)):
+		return {}
+	return {"id": String(e.twist.id), "row": int(e.twist.get("row", 0)), "label": String(e.twist.label), "note": String(e.twist.get("note", "")),
+		"text": String(e.twist.get("text", "")), "round": int(e.twist.get("round", 0))}
 
 
 ## The part of a won gig's payment that isn't eb (MissionBuilder payment): an intel token, a favour

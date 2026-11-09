@@ -8,6 +8,13 @@ func check_end() -> String:
 	return _cleared()
 
 
+## Half the opposition fielded so far is down (HOUSE-RULE: a gang hit has no package; this is where
+## it turns).
+func near_done() -> bool:
+	var fielded := e.units.filter(func(u): return bool(e.sides[int(u.team)].opfor)).size()
+	return done() or (fielded > 0 and e.opfor().size() * 2 <= fielded)
+
+
 func hud_text() -> String:
 	return "ELIMINATE %s\n%d HOSTILES LEFT" % [target_name(String(World.faction(e.opfor_faction).get("name", ""))), e.opfor().size()]
 

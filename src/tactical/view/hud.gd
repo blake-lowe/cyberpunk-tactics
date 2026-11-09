@@ -102,6 +102,11 @@ var log_hold := false     ## the view holds the log while an action plays, so li
 var _log_tw: Tween
 var end_toast := ""        ## the view's headline once the gig is over ("" = the plain GIG COMPLETE / ABANDONED / FAILED)
 var _round_box: VBoxContainer              ## unit id → party card (hit shake)
+var _clock_rail: VBoxContainer             ## the Solo Play Clocks' dice rows (ClockWidget), kept across refreshes under the stealth line
+var clock_widgets := {}                    ## clock id → ClockWidget
+var reduced_motion := false                ## GameSettings.reduced_motion: calmer clock and callout animations
+var _twist_card: PanelContainer            ## the plot twist's callout (twist_callout)
+var _twist_tw: Tween
 
 
 ## An imported font as its own FontFile copy (so per-face settings stay local). load() works in the
@@ -163,6 +168,10 @@ func _ready() -> void:
 	_round_box.add_theme_constant_override("separation", 0)
 	_round_tab.add_child(_round_box)
 	add_child(_round_tab)
+	reduced_motion = GameSettings.reduced_motion()
+	_clock_rail = VBoxContainer.new()
+	_clock_rail.add_theme_constant_override("separation", 4)
+	_clock_rail.name = "ClockRail"
 	_build_log()
 	_net_panel = _panel(VIOLET, 0b0101)
 	_net_box = VBoxContainer.new()
@@ -776,6 +785,11 @@ class ActBtn extends Button:
 				draw_line(o + Vector2(-r * 1.1, r * 0.2), o + Vector2(r * 0.2, r * 0.2), c, 1.5)
 				draw_arc(o + Vector2(r * 0.45, -r * 0.45), r * 0.55, 0, TAU, 14, c, 2.0)
 				draw_line(o + Vector2(r * 0.85, -r * 0.05), o + Vector2(r * 1.35, r * 0.5), c, 3.0)
+			"spoof":   # a camera with a loop arrow
+				draw_rect(Rect2(o + Vector2(-r * 1.0, -r * 0.5), Vector2(r * 1.4, r * 1.0)), c, false, 2.0)
+				draw_colored_polygon(PackedVector2Array([o + Vector2(r * 0.4, -r * 0.3), o + Vector2(r * 1.1, -r * 0.6), o + Vector2(r * 1.1, r * 0.6), o + Vector2(r * 0.4, r * 0.3)]), c)
+				draw_arc(o + Vector2(-r * 0.3, 0), r * 0.32, 0.3, TAU - 0.3, 10, Color(Hud.CYAN, c.a), 2.0)
+				draw_colored_polygon(PackedVector2Array([o + Vector2(-r * 0.02, -r * 0.18), o + Vector2(r * 0.12, r * 0.12), o + Vector2(-r * 0.2, r * 0.05)]), Color(Hud.CYAN, c.a))
 			"tamper":   # a camera with a slash
 				draw_rect(Rect2(o + Vector2(-r * 1.0, -r * 0.5), Vector2(r * 1.4, r * 1.0)), c, false, 2.0)
 				draw_colored_polygon(PackedVector2Array([o + Vector2(r * 0.4, -r * 0.3), o + Vector2(r * 1.1, -r * 0.6), o + Vector2(r * 1.1, r * 0.6), o + Vector2(r * 0.4, r * 0.3)]), c)
@@ -1033,6 +1047,8 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 				action.emit("portrait_click", uid))
 		slot.modulate = Portraits.tint(c.wound_state())
 		_init_strip.add_child(slot)
+	if _clock_rail.get_parent() == _round_box:   # the dice rows animate across refreshes: keep them
+		_round_box.remove_child(_clock_rail)
 	_clear(_round_box)   # round and stealth state: top right corner
 	_round_box.add_child(_text("ROUND %02d" % maxi(1, enc.init.round_num), F_TERM, Hud.ts(20), CYAN))
 	var state := "UNDETECTED"
@@ -1041,6 +1057,9 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 	elif enc.engaged():
 		state = "ENGAGED"
 	_round_box.add_child(_text(state, F_DISPLAY, 20, RED if state != "UNDETECTED" else CYAN))
+	sync_clocks(enc)
+	_round_box.add_child(_clock_rail)
+	_clock_rail.visible = _clock_rail.get_child_count() > 0
 	# The objective: a small OBJECTIVE label, the order in gold, then dim context lines.
 	_round_box.add_child(_text("OBJECTIVE", F_TERM, Hud.ts(14), Color(DIM, 0.9)))
 	var olines := objective_text(enc).split("\n", false)
@@ -1055,6 +1074,12 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 		cx.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		cx.custom_minimum_size.x = 260
 		_round_box.add_child(cx)
+	var tl := Twist.hud_line(enc)
+	if tl != "":   # the plot twist (Twist), once it has sprung
+		var tx := _text(tl, F_TERM, Hud.ts(18), MAGENTA)
+		tx.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		tx.custom_minimum_size.x = 260
+		_round_box.add_child(tx)
 	_clear(_card)
 	_clear(_econ)
 	var crew_turn: bool = enc.state == "playing" and not enc.cur.is_empty() and enc.cur.team == 0
@@ -1165,6 +1190,8 @@ static func interact_here(enc: Encounter) -> Array:
 		return ["search", "SEARCH BODY", "search"]
 	if enc.lock_in_reach(enc.cur).x >= 0:
 		return ["bypass", "BYPASS", "bypass"]
+	if Clocks.can_spoof(enc):   # win the detection clock a die back (SPM p.26)
+		return ["spoof", "SPOOF", "spoof"]
 	if not enc.camera_in_reach(enc.cur).is_empty():
 		return ["tamper", "CAMERA", "tamper"]
 	return []
@@ -1513,6 +1540,12 @@ func _interact_tip(b: Control) -> void:
 	if interact_enc == null or interact_enc.cur.is_empty():
 		return
 	var here := interact_here(interact_enc)
+	if not here.is_empty() and String(here[0]) == "spoof":   # Reclaiming Their Time (SPM p.26), with the odds now
+		var c: Combatant = interact_enc.cur.c
+		var dv := int(Clocks.db().reclaim.get("dv", 15))
+		var pct := roundi(Check.chance_vs_dv(Clocks.spoof_base(c), dv) * 100.0)
+		tip(action_help("spoof", "%d%% to win a die back" % pct),b.get_global_rect().position - global_position + Vector2(-28, -40), "// RECLAIM TIME", CYAN)
+		return
 	if here.is_empty() or String(here[0]) != "search":
 		return
 	tip(search_help(interact_enc), b.get_global_rect().position - global_position + Vector2(-28, -40), "// SEARCH BODY", GOLD)
@@ -1837,6 +1870,147 @@ func show_roster(on: bool) -> void:
 	roster_on = on
 	var tw := create_tween().set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
 	tw.tween_property(_party, "position:x", 14.0 if on else -_party.size.x - 30, 0.16)
+
+
+# --- Solo Play Clocks on the round tab (ClockWidget; Clocks, SPM p.25-26) ---------------------
+
+## The clocks' colours: detection cyan (the stealth state's), anything else gold.
+static func clock_col(id: String) -> Color:
+	return CYAN if id == "detection" else GOLD
+
+
+## The dice row for clock `id`, made from the encounter's clock if there isn't one yet (null if the
+## encounter has no such clock).
+func clock_widget(id: String, enc: Encounter = null) -> ClockWidget:
+	var w: ClockWidget = clock_widgets.get(id)
+	if w != null and is_instance_valid(w):
+		return w
+	var c := Clocks.get_clock(enc if enc != null else interact_enc, id) if (enc != null or interact_enc != null) else null
+	if c == null:
+		return null
+	w = ClockWidget.make(id, c.label, clock_col(id), c.size, c.pool if c.running() else c.size, c.last)
+	w.reduced = reduced_motion
+	w.name = "Clock_" + id
+	w.hovered.connect(func(on: bool): _clock_hover(id, on))
+	_clock_rail.add_child(w)
+	clock_widgets[id] = w
+	_clock_rail.visible = true
+	return w
+
+
+## Keep the rows in step with the encounter: a row for each running clock; a row whose clock is
+## done goes once its last animation (the burst on empty, the fade on a stop: the `clock` and
+## `clock_stop` events, which the view plays in order) has played out.
+func sync_clocks(enc: Encounter) -> void:
+	for c0 in enc.clocks:
+		var c: Clock = c0
+		if c.running() and not clock_widgets.has(c.id):
+			clock_widget(c.id, enc)
+	for id in clock_widgets.keys():
+		var w: ClockWidget = clock_widgets[id]
+		if not is_instance_valid(w):
+			clock_widgets.erase(id)
+			continue
+		if w.gone and w._fade <= 0.01 and w.shards.is_empty():
+			clock_widgets.erase(id)
+			w.queue_free()
+
+
+func _clock_hover(id: String, on: bool) -> void:
+	if not on or interact_enc == null:
+		tip("", Vector2.ZERO)
+		return
+	var c := Clocks.get_clock(interact_enc, id)
+	if c == null:
+		return
+	tip(Clocks.tip(c), get_global_mouse_position(), String(Clocks.db().get(id, {}).get("name", c.label)).to_upper(), clock_col(id))
+
+
+## A trigger rolled clock `e.clock` (the encounter's `clock` event): the dice roll. Returns the
+## seconds it plays for.
+func clock_roll(e: Dictionary, enc: Encounter) -> float:
+	var w := clock_widget(String(e.clock), enc)
+	if w == null:
+		return 0.0
+	return w.play_roll(e.faces, e.removed, bool(e.emptied))
+
+
+func clock_add(e: Dictionary, enc: Encounter) -> float:
+	var w := clock_widget(String(e.clock), enc)
+	return w.play_add() if w != null else 0.0
+
+
+## A clock starts mid-gig (Time Limit): its dice drop in one after another.
+func clock_new(e: Dictionary, enc: Encounter) -> float:
+	var w := clock_widget(String(e.clock), enc)
+	if w == null:
+		return 0.0
+	w.dice.clear()
+	for i in int(e.get("size", w.sockets)):
+		get_tree().create_timer(0.12 * i).timeout.connect(func(): if is_instance_valid(w): w.play_add(false))
+	return 0.12 * int(e.get("size", w.sockets)) + 0.45
+
+
+# --- The plot twist (Twist, SPM p.75-76) ------------------------------------------------------
+
+## The twist springs: a card slams in under the turn banner (PLOT TWIST, its name, what happened)
+## with a magenta flash, holds, and fades. Reduced motion: it fades in instead.
+func twist_callout(title: String, note: String, text: String, secs := 2.2) -> void:
+	if _twist_card == null:
+		_twist_card = PanelContainer.new()
+		_twist_card.add_theme_stylebox_override("panel", CutBox.make(Color(INK, 0.96), Color(MAGENTA, 0.9), 14, 0b0101, MAGENTA, 16))
+		_twist_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var v := VBoxContainer.new()
+		v.add_theme_constant_override("separation", 2)
+		v.alignment = BoxContainer.ALIGNMENT_CENTER
+		_twist_card.add_child(v)
+		for spec in [["Kicker", F_DISPLAY, 20, MAGENTA], ["Title", F_DISPLAY, 46, GOLD], ["Note", F_TERM, ts(20), TEXT], ["Text", F_TERM, ts(17), Color(DIM, 1.0)]]:
+			var l := _text("", spec[1], spec[2], spec[3])
+			l.name = spec[0]
+			l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			l.custom_minimum_size.x = 520
+			if spec[0] == "Title":
+				l.add_theme_color_override("font_shadow_color", Color(MAGENTA, 0.85))
+				l.add_theme_constant_override("shadow_offset_x", 3)
+				l.add_theme_constant_override("shadow_offset_y", 0)
+			v.add_child(l)
+		add_child(_twist_card)
+	var vb := _twist_card.get_child(0)
+	(vb.get_node("Kicker") as Label).text = "PLOT TWIST"
+	(vb.get_node("Title") as Label).text = title.to_upper()
+	(vb.get_node("Note") as Label).text = note.left(1).to_upper() + note.substr(1) + ("." if note != "" and not note.ends_with(".") else "")
+	(vb.get_node("Text") as Label).text = text
+	(vb.get_node("Text") as Label).visible = text != ""
+	_twist_card.reset_size()
+	var sz := _twist_card.get_combined_minimum_size()
+	_twist_card.size = sz
+	_twist_card.position = Vector2(size.x / 2.0 - sz.x / 2.0, 176)
+	_twist_card.pivot_offset = sz / 2.0
+	if _twist_tw and _twist_tw.is_valid():
+		_twist_tw.kill()
+	var tw := create_tween()
+	_twist_tw = tw
+	var title_l := vb.get_node("Title") as Label
+	if reduced_motion:
+		_twist_card.scale = Vector2.ONE
+		_twist_card.modulate.a = 0.0
+		tw.tween_property(_twist_card, "modulate:a", 1.0, 0.3)
+	else:
+		_twist_card.scale = Vector2(1.7, 1.7)
+		_twist_card.modulate.a = 0.0
+		title_l.add_theme_constant_override("shadow_offset_x", 16)
+		tw.tween_property(_twist_card, "scale", Vector2.ONE, 0.2).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_IN)
+		tw.parallel().tween_property(_twist_card, "modulate:a", 1.0, 0.12)
+		tw.tween_callback(func():
+			flash_screen(Color(MAGENTA, 0.22))
+			edge_pulse(MAGENTA, 0.7, 0.0))
+		tw.tween_method(func(v: int): title_l.add_theme_constant_override("shadow_offset_x", v), 16, 3, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		for k in 3:   # a glitch: the card jumps sideways and back
+			tw.tween_property(_twist_card, "position:x", _twist_card.position.x + (6 if k % 2 == 0 else -4), 0.03)
+		tw.tween_property(_twist_card, "position:x", _twist_card.position.x, 0.03)
+	tw.tween_interval(secs)
+	tw.tween_property(_twist_card, "modulate:a", 0.0, 0.35)
 
 
 ## A one-frame-ish full-screen flash (crits, alerts).

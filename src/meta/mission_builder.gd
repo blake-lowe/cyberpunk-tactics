@@ -7,14 +7,16 @@ extends RefCounted
 ##   mission — what's the mission: Mission Types (SPM p.72), each row an objective or disabled;
 ##   focus   — what it's about: Mission Items/MacGuffins (SPM p.73) by zone, fitting the objective;
 ##   payment — eb by the job's danger (CPR core p.381), sometimes information, a favour or goods;
-##   twist   — a hook only: every gig gets twist = null until a twist module fills twist().
+##   twist   — Plot Twists (SPM p.75-76): not on every job (the Oracle, HOUSE-RULE by security
+##             level), hidden from the board, sprung in play (Twist).
 ## Tables and HOUSE-RULE rates are data/gen/mission_builder.json. Campaign places the job (its
 ## location, target, fixer, level and base pay: the place has to be known before its zone can
 ## pick a client), then hands the gig here. Rules only: no Nodes, all rolls on the Dice passed in.
 ##
 ## The gig gains: client {zone, roll, id, label}; mission {roll, id, label, objective};
 ## focus {category, roll, id, label, short, marker, as}; payment {type, base, eb, + per type};
-## twist (null). gig.pay becomes the eb part of the payment.
+## twist (null, or {row, roll, id, label, trigger, oracle?}: Twist.roll). gig.pay becomes the eb
+## part of the payment.
 
 const STEPS := ["client", "mission", "focus", "payment", "twist"]
 const ZONES := ["corporate", "moderate", "street", "outskirts"]
@@ -28,7 +30,8 @@ static func data() -> Dictionary:
 
 ## Run the builder's steps on `gig` (in place; also returned). `opts` overrides steps (the dev
 ## builder's form, CustomGig): client "<zone>/<id>", mission <id>, focus "<category>/<id>",
-## payment <type> or "favour:<kind>", prefer [focus ids] (a unique template's), and goods: a
+## payment <type> or "favour:<kind>", twist ("none", "auto", "<id or d100 roll>[@<trigger>]"),
+## prefer [focus ids] (a unique template's), and goods: a
 ## Callable(value: int) -> Array of storage keys the goods payment may draw from.
 static func run(dice: Dice, gig: Dictionary, opts: Dictionary = {}) -> Dictionary:
 	for step in STEPS:
@@ -37,7 +40,7 @@ static func run(dice: Dice, gig: Dictionary, opts: Dictionary = {}) -> Dictionar
 			"mission": mission_step(dice, gig, String(opts.get("mission", "")))
 			"focus": focus_step(dice, gig, String(opts.get("focus", "")), opts.get("prefer", []))
 			"payment": payment_step(dice, gig, String(opts.get("payment", "")), opts.get("goods", Callable()))
-			"twist": gig["twist"] = twist(dice, gig)
+			"twist": gig["twist"] = twist(dice, gig, String(opts.get("twist", "")))
 	return gig
 
 
@@ -347,10 +350,10 @@ static func payment_text(p: Dictionary, pay := -1) -> String:
 
 # --- Step 5: the twist --------------------------------------------------------------------------
 
-## The twist step (SPM p.28 step 5; Plot Twists, SPM p.75-76): not built yet, so no gig has one.
-## A twist module replaces this (it may roll on `dice` and read `gig`); the gig keeps its answer.
-static func twist(_dice: Dice, _gig: Dictionary) -> Variant:
-	return null
+## The twist step (SPM p.28 step 5; Plot Twists, SPM p.75-76): Twist.roll on the Oracle, null on
+## most jobs; the gig keeps its answer, hidden until it springs. `force`: as Twist.roll's.
+static func twist(dice: Dice, gig: Dictionary, force := "") -> Variant:
+	return Twist.roll(dice, gig, force)
 
 
 # --- Text ---------------------------------------------------------------------------------------

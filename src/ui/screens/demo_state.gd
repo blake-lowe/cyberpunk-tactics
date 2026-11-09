@@ -103,7 +103,8 @@ static func report(c: Campaign) -> Dictionary:
 		"client": {"zone": "corporate", "roll": 9, "id": "corp_spy", "label": "a corporate spy"},
 		"mission": {"roll": 99, "id": "wetwork", "label": "Wetwork", "objective": "assassinate"},
 		"focus": {"category": "corporate", "roll": 1, "id": "key_exec", "label": "a key exec", "short": "key exec", "marker": "KEY EXEC", "as": ["captive", "mark"]},
-		"payment": {"type": "favour", "base": 2000, "eb": 1500, "kind": "treatment"}, "twist": null}
+		"payment": {"type": "favour", "base": 2000, "eb": 1500, "kind": "treatment"},
+		"twist": {"row": 77, "roll": 78, "id": "target_fights_back", "label": "Mark Hits Back", "trigger": {"on": "alarm", "or_round": 6}}}
 	var loot: Array = [
 		{"label": "loaded credstick", "text": "loaded credstick · 500eb", "kind": "eb", "by": a.display_name, "from": "Guard 2", "keys": []},
 		{"label": "stripped-down VH pistol", "text": "stripped-down VH pistol: Very Heavy Pistol", "kind": "item", "by": b.display_name, "from": "Lieutenant 1", "keys": ["weapon/very_heavy_pistol"]},
@@ -112,6 +113,8 @@ static func report(c: Campaign) -> Dictionary:
 		{"label": "Night Market invite", "text": "Night Market invite", "kind": "lead", "by": a.display_name, "from": "Guard 1", "keys": []}]
 	return {"won": true, "gig": gig, "pay": 1500, "ip": 30, "payment": gig.payment, "paid_extra": MissionBuilder.payment_extra(gig.payment),
 		"focus_line": MissionBuilder.debrief_line(gig, true), "client": MissionBuilder.client_text(gig),
+		"twist": {"id": "target_fights_back", "row": 77, "label": "Mark Hits Back", "note": "the target is far tougher than briefed",
+			"text": "Mara Voss fights like a Lieutenant.", "round": 4},
 		"reputation": {a.display_name: 3}, "dead": ["Wraith"], "hurt": [], "episodes": [], "kit_used": ["Flashbang"], "addicted": [], "members": members,
 		"loot": loot, "loot_eb": 500, "loot_lost": 1, "surrendered": 2, "fled": 1,
 		"leads": loot.filter(func(f): return f.kind == "lead").map(func(f): return {"label": f.label, "hook": "heist" if String(f.label).contains("heist") else "night_market", "day": 9, "gig": String(gig.title)})}

@@ -30,7 +30,10 @@ var failures: Array[String] = []
 var trace: Array[String] = []
 var stats := {"gigs": 0, "won": 0, "fled": 0, "lost": 0, "rounds": 0, "turret_units": 0, "turret_shots": 0, "device_ops": 0,
 	"complications": 0, "utilities": 0, "neutral": 0, "peace_broken": 0, "setpieces": {}, "towers": {}, "sides": {}, "kinds": {}, "offers": {}, "looks": {},
-	"surrendered": 0, "fled_units": 0, "searched": 0, "finds": {}, "leads": 0}
+	"surrendered": 0, "fled_units": 0, "searched": 0, "finds": {}, "leads": 0,
+	"offers_seen": 0, "offers_twisted": 0, "twists_armed": 0, "twists_sprung": {}, "clock_gigs": 0, "clock_empty": 0, "clock_rolls": 0,
+	"clock_reclaimed": 0, "clock_escalated": 0, "alarm_gigs": 0}
+var _offers_seen := {}    ## offer ids counted for the twist rate
 
 var _ctx := ""            ## "seed 3 gig 2 (title)": prefixed to failures
 var _seen_fail := {}      ## one report per kind of breach per gig
@@ -200,8 +203,11 @@ func _play_gig(camp: Campaign, idx: int) -> void:
 	if e == null:
 		camp.active_gig = {}
 		return
-	var line := "%s %s/%s %s sec %d: %s r%d" % [_ctx, String(gig.scene), String(gig.get("setpiece", "")),
-		Campaign.objective_for(gig), int(gig.security), e.state, e.init.round_num]
+	var dc := Clocks.get_clock(e, "detection")
+	var line := "%s %s/%s %s sec %d: %s r%d clock %s twist %s" % [_ctx, String(gig.scene), String(gig.get("setpiece", "")),
+		Campaign.objective_for(gig), int(gig.security), e.state, e.init.round_num,
+		("%d/%d %s" % [dc.pool, dc.size, dc.state]) if dc != null else "-",
+		("%s%s" % [String(e.twist.id), "!" if bool(e.twist.get("sprung", false)) else ""]) if not e.twist.is_empty() else "-"]
 	var crew_before := camp.crew.duplicate()
 	var rep := camp.resolve(e)
 	if rep.is_empty():
@@ -209,6 +215,7 @@ func _play_gig(camp: Campaign, idx: int) -> void:
 		return
 	stats[e.state] = int(stats.get(e.state, 0)) + 1
 	_check_loot(camp, e, rep)
+	_check_twist_report(e, rep)
 	trace.append(line + " · pay %d ip %d dead %d eb %d day %d" % [int(rep.pay), int(rep.ip), (rep.dead as Array).size(), camp.eb, camp.day])
 	if int(rep.pay) < 0 or int(rep.ip) < 0:
 		_fail("negative pay %d or IP %d" % [int(rep.pay), int(rep.ip)])
@@ -246,12 +253,23 @@ func _play(camp: Campaign) -> Encounter:
 		stats.neutral += 1
 	_check_units(e, "at setup")
 	_check_start(e)
+	if gs.enc.twist.is_empty() != not (camp.active_gig.get("twist") is Dictionary):
+		_fail("the offer's twist didn't reach the encounter", "twist-armed")
+	if not e.twist.is_empty():
+		stats.twists_armed += 1
+	if Clocks.get_clock(e, "detection") != null:
+		stats.clock_gigs += 1
+		if String(e.objective.get("kind", "")) in (Clocks.db().detection.skip_objectives as Array):
+			_fail("a detection clock on a %s gig" % String(e.objective.kind), "clock-stealth")
+	elif Clocks.stealth_gig(e):
+		_fail("a stealth gig with no detection clock", "clock-missing")
 	e.next_turn()
 	var turns := 0
 	var last_round := e.init.round_num
 	var same_round := 0
 	while e.state == "playing":
 		_check_units(e, "round %d" % e.init.round_num)
+		_check_clocks(e, "round %d" % e.init.round_num)
 		if e.init.round_num > max_rounds:
 			e.state = "fled"   # time's up: the crew pulls out
 			break
@@ -276,6 +294,19 @@ func _play(camp: Campaign) -> Encounter:
 			last_round = e.init.round_num
 			same_round = 0
 	_check_units(e, "at the end (%s)" % e.state)
+	_check_clocks(e, "at the end (%s)" % e.state)
+	for c0 in e.clocks:
+		var c: Clock = c0
+		stats.clock_rolls += c.rolls
+		stats.clock_reclaimed += c.reclaimed
+		if c.id == "detection" and c.is_empty():
+			stats.clock_empty += 1
+			if c.escalated:
+				stats.clock_escalated += 1
+	if e.alarm >= 2:
+		stats.alarm_gigs += 1
+	if bool(e.twist.get("sprung", false)):
+		_count("twists_sprung", String(e.twist.id))
 	if e.neutral != null and not e.neutral.holds:
 		stats.peace_broken += 1
 	stats.rounds += e.init.round_num
@@ -594,6 +625,38 @@ func _check_tower(camp: Campaign, e: Encounter) -> void:
 		_fail("the band has no lift or fire-stair arrival point", "tower-arrival")
 
 
+## Solo Play Clocks (Clocks): every pool within 0..its size; a detection clock that ran out raised
+## the alarm; one still running while the alarm is up is a clock that should have stopped. A
+## sprung twist sprang once and did something (or said what it skipped).
+func _check_clocks(e: Encounter, when: String) -> void:
+	for c0 in e.clocks:
+		var c: Clock = c0
+		if c.pool < 0 or c.pool > c.size:
+			_fail("clock %s holds %d of %d dice %s" % [c.id, c.pool, c.size, when], "clock-pool")
+		if c.id == "detection" and c.is_empty() and e.alarm < 2:
+			_fail("the detection clock ran out but the alarm is %d %s" % [e.alarm, when], "clock-alarm")
+		if c.id == "detection" and c.running() and e.alarm >= 2:
+			_fail("the detection clock still runs with the alarm up %s" % when, "clock-moot")
+		if c.reclaimed > 0 and c.pool + 0 > c.size:
+			_fail("clock %s reclaimed past its start" % c.id, "clock-reclaim")
+	if bool(e.twist.get("sprung", false)):
+		if int(e.twist.get("round", -1)) > e.init.round_num:
+			_fail("the twist sprang in a later round %d than %d" % [int(e.twist.round), e.init.round_num], "twist-round")
+		if (e.twist.get("applied", []) as Array).is_empty() and (e.twist.get("skipped", []) as Array).is_empty():
+			_fail("twist %s sprang and did nothing" % String(e.twist.id), "twist-empty")
+		if e.events.filter(func(ev): return String(ev.get("type", "")) == "twist").size() > 1:
+			_fail("twist %s sprang twice" % String(e.twist.id), "twist-twice")
+	elif not e.twist.is_empty() and e.state == "playing" and Twist.due(e) and not e._twist_busy:
+		_fail("twist %s is due (%s) but hasn't sprung %s" % [String(e.twist.id), JSON.stringify(e.twist.trigger), when], "twist-late")
+
+
+## The debrief names the twist that sprang, and only that.
+func _check_twist_report(e: Encounter, rep: Dictionary) -> void:
+	var t: Dictionary = rep.get("twist", {}) if rep.get("twist") is Dictionary else {}
+	if bool(e.twist.get("sprung", false)) != not t.is_empty() or (not t.is_empty() and String(t.get("id", "")) != String(e.twist.id)):
+		_fail("the debrief's twist doesn't match the gig's", "twist-report")
+
+
 func _check_campaign(camp: Campaign, when: String) -> void:
 	if camp.eb < 0:
 		_fail("eb %d %s" % [camp.eb, when], "eb")
@@ -614,8 +677,16 @@ func _check_campaign(camp: Campaign, when: String) -> void:
 		var f: Dictionary = g.get("focus", {}) if g.get("focus") is Dictionary else {}
 		if f.is_empty() or not MissionBuilder.fits(MissionBuilder.focus_def("%s/%s" % [f.get("category", ""), f.get("id", "")]), Campaign.objective_for(g)):
 			_fail("offer %s: focus %s doesn't fit the objective" % [g.get("title", "?"), f.get("id", "none")], "offer-focus")
-		if not g.get("payment") is Dictionary or int(g.payment.get("eb", -1)) != int(g.get("pay", 0)) or g.get("twist") != null:
+		if not g.get("payment") is Dictionary or int(g.payment.get("eb", -1)) != int(g.get("pay", 0)) or not Twist.valid(g.get("twist")):
 			_fail("offer %s: payment or twist out of shape" % g.get("title", "?"), "offer-payment")
+		if g.get("twist") is Dictionary and not Twist.fits(Twist.row(String(g.twist.id)), Campaign.objective_for(g)):
+			_fail("offer %s: twist %s doesn't fit the objective" % [g.get("title", "?"), String(g.twist.id)], "offer-twist-fit")
+		var oid := "%s|%s" % [String(g.get("id", "")), String(g.get("title", ""))]
+		if not _offers_seen.has(oid) and not g.get("dev", false):
+			_offers_seen[oid] = true
+			stats.offers_seen += 1
+			if g.get("twist") is Dictionary:
+				stats.offers_twisted += 1
 	if camp.intel < 0 or camp.favours.any(func(x): return not String(x.get("kind", "")) in MissionBuilder.FAVOURS):
 		_fail("intel %d or a favour out of shape %s" % [camp.intel, when], "tokens")
 

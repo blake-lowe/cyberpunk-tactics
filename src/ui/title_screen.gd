@@ -229,6 +229,13 @@ func _options() -> Control:
 		_set_opt("fullscreen", not bool(_opts.fullscreen))
 		fs.text = UiKit.caps("Display: " + ("Fullscreen" if _opts.fullscreen else "Windowed")))
 	_box.add_child(fs)
+	var rm := _button("Reduced motion: " + ("On" if bool(_opts.get("reduced_motion", false)) else "Off"), UiKit.NAV, Callable())
+	rm.name = "ReducedMotion"
+	rm.tooltip_text = "Tones down the HUD's animations: the clock dice don't tumble or shatter, callouts fade in."
+	rm.pressed.connect(func() -> void:
+		_set_opt("reduced_motion", not bool(_opts.get("reduced_motion", false)))
+		rm.text = UiKit.caps("Reduced motion: " + ("On" if bool(_opts.reduced_motion) else "Off")))
+	_box.add_child(rm)
 	# Hidden: developer mode (the custom gig builder on JOBS). Shown once it is on, or after
 	# DEV_CLICKS clicks on the heading, so a release build can turn it on too.
 	var dev := _button(_dev_text(), UiKit.NAV, Callable())

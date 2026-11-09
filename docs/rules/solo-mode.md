@@ -1,4 +1,4 @@
-# Single Player Mode: morale and corpse loot
+# Single Player Mode: morale, corpse loot, clocks and plot twists
 
 Distilled from R. Talsorian's *Cyberpunk RED: Single Player Mode* (cited `SPM p.<printed page>`).
 Numbers and short paraphrases only. Where the game departs from the book the line says HOUSE-RULE.
@@ -82,3 +82,39 @@ Edgerunner.
 got out carry; nothing when the whole crew went down; nothing a fallen finder carried.
 
 Code: `src/tactical/corpse_loot.gd`, `Encounter.search_body`, `Campaign._take_loot`, `Campaign.leads`.
+
+## 3. Solo Play Clocks (SPM p.25-26)
+- **Mechanic:** a pool of d6s; on each trigger roll the whole pool and remove every die showing a 1;
+  the event happens when the pool is empty. 3-4 dice for a short fuse, 5-8 for long suspense.
+  Book means: 3d6 ~10.5 rolls, 5d6 ~13, 8d6 ~15 (exact: `Clock.expected_rolls`).
+- **Variants (p.26):** dice go on a 1 or a 6 (about twice as fast); a hard, risky skill success
+  adds a die back (Reclaiming Their Time); the pool emptying on a roll that takes two or more dice
+  makes the outcome worse (Degrees of Consequence). Spending a die for LUCK is not modelled.
+- **Detection clock (the book's Corporate Heist pattern, 5d6):** on a stealth gig (starts quiet,
+  not a straight elimination). HOUSE-RULE pools by security level: 6d6 / 5d6 / 5d6 on 1-or-6.
+  Triggers: a failed Stealth contest against a guard or camera (once per crew member a round), a
+  failed Electronics/Security Tech check, a minute (2 rounds, our pace) in one secured room, a body
+  in an unalerted guard's sight (once a round), the crew's gunfire or a blast (once a turn), taking
+  the objective (once). Empty: a guard calls it in (alarm 2; the NC2045 response time as before);
+  Degrees of Consequence upgrades the response one intensity step. Being seen still raises the
+  alarm as before, and stops the clock.
+- **Reclaiming time:** SPOOF (an Action at a camera or alarm panel within 3 squares: TECH +
+  Electronics/Security Tech vs DV15; failure rolls the clock) or looping cameras / cutting the
+  alarm line from the NET adds a die back; once per clock a turn, each device once, never above
+  the starting pool (HOUSE-RULE).
+
+Code: `src/core/clock.gd`, `src/tactical/clocks.gd`, `data/gen/clocks.json`; HUD `ClockWidget`.
+
+## 4. Plot Twists (SPM p.75-76; Mission Builder step 5, p.28)
+- d100, 50 rows of 2 points. Ours: `data/gen/twists.json`, the book's positions with our own
+  labels; rows the game doesn't play yet are `unmodelled`.
+- **Chance (HOUSE-RULE):** not every job. The Oracle is asked when the offer is made, at Unlikely
+  (security 1-2) or 50/50 (security 3); only a plain yes gives a twist: 25% / 25% / 40%.
+- **Hidden:** never on the board card; it springs at its trigger (objective near done, a round,
+  the alarm, or the start), with a callout and a log line; the debrief names it.
+- **Played rows:** Heavies Called In (41-42), Exit Cut Off (49-50), Cop Trap (53-54), Mark Bolts
+  (71-72), Mark Hits Back (77-78), Clock Running Out (79-80: a 4d6 Time Limit clock on 1-or-6),
+  Everyone Comes Running (81-82), Rigged Site (83-84), Stranger Lends a Hand (87-88), Rival Crew
+  (93-94).
+
+Code: `src/tactical/twist.gd`, `MissionBuilder.twist`, `Campaign.twist_report`.

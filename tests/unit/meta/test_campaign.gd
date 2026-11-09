@@ -343,7 +343,10 @@ func test_no_invented_twists_or_setups_on_the_board() -> void:
 	for k in 5:
 		c.refresh_board()
 		for g in c.board:
-			assert_false(g.get("twist") != null or g.has("setup"), "the book's complications replaced our twists (M9); the Mission Builder's twist step is a null hook")
+			assert_false(g.has("setup"), "the book's complications replaced our fixer setups (M9)")
+			assert_true(Twist.valid(g.get("twist")), "a twist is the book's (Plot Twists, SPM p.75-76) or none")
+			if g.get("twist") is Dictionary:
+				assert_false(String(g.blurb).contains(String(g.twist.label)) or String(g.title).contains(String(g.twist.label)), "hidden from the board")
 	assert_false(RulesDB.gen("gigs.json").has("twists"))
 	assert_true(Campaign.encounter_opts(c.board[0]).get("complications", false), "complications are rolled in the gig, not shown on the board")
 

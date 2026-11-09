@@ -112,7 +112,7 @@ static func _isolated(e: Encounter, f: Dictionary) -> bool:
 
 
 static func _fight(e: Encounter, u: Dictionary) -> void:
-	if u.get("vip", false):
+	if u.get("vip", false) and not u.get("fights", false):   # a mark who turned out tough stands and fights (Twist)
 		_vip(e, u)
 		return
 	if e.watching(u) and _enemies(e, u).is_empty():

@@ -24,6 +24,17 @@ func check_end() -> String:
 	return ""
 
 
+## A crew Netrunner is in the target building's NET (the download is the job's last step).
+func near_done() -> bool:
+	if done():
+		return true
+	var a: Variant = e.m.architectures.get(int(o.get("structure", -1)))
+	for uid in e.runs:
+		if int(e.units[uid].team) == Encounter.CREW and (e.runs[uid] as NetRun).arch == a:
+			return true
+	return false
+
+
 func hud_text() -> String:
 	if int(o.get("node", -1)) >= 0 and e.m.architectures.has(int(o.structure)):
 		var fn: Dictionary = (e.m.architectures[int(o.structure)] as NetArchitecture).nodes[int(o.node)]

@@ -53,6 +53,10 @@ func _initialize() -> void:
 	print("neutral ground %d (peace broken %d)" % [d.stats.neutral, d.stats.peace_broken])
 	print("complications %d, utility outages %d, turrets %d, held-turret shots %d, NET device ops %d" % [d.stats.complications, d.stats.utilities, d.stats.turret_units, d.stats.turret_shots, d.stats.device_ops])
 	print("morale: %d surrendered, %d fled; bodies searched %d, finds %s, leads %d" % [d.stats.surrendered, d.stats.fled_units, d.stats.searched, JSON.stringify(d.stats.finds), d.stats.leads])
+	print("twists: %d of %d offers (%.0f%%); armed on %d gigs, sprung %s" % [d.stats.offers_twisted, d.stats.offers_seen,
+		100.0 * d.stats.offers_twisted / maxf(1.0, d.stats.offers_seen), d.stats.twists_armed, JSON.stringify(d.stats.twists_sprung)])
+	print("detection clocks: %d gigs, %d ran out (%d escalated), %d rolls, %d dice won back; alarm raised on %d gigs" % [d.stats.clock_gigs,
+		d.stats.clock_empty, d.stats.clock_escalated, d.stats.clock_rolls, d.stats.clock_reclaimed, d.stats.alarm_gigs])
 	for f in d.failures:
 		print("FAIL " + f)
 	print("%d failures" % d.failures.size())
