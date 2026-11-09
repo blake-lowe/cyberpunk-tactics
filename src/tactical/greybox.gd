@@ -182,7 +182,7 @@ const BAND_LOOKS := {
 }
 const DECAL := """
 shader_type spatial;
-render_mode unshaded, blend_add, depth_draw_never, cull_disabled, shadows_disabled;
+render_mode unshaded, blend_add, depth_draw_never, cull_disabled, shadows_disabled, fog_disabled;
 uniform vec4 col : source_color = vec4(0.0, 0.85, 0.9, 1.0);
 uniform float pulse = 0.0;
 uniform float ring = 0.0;
@@ -412,6 +412,7 @@ var _dev_ambient := 1.0                ## --ambient=s (review renders): scale th
 var _life_demo := false               ## --life_demo (review renders): walkers stroll every 2 s (StreetLife.tick) for GIFs
 var _life_on := true                  ## --life=0 (review renders): everyday life off, for performance before/after
 var _perf := false                    ## --perf (review renders): print the frame's draw calls, objects and nodes at the shot
+var _car_lineup := false               ## --cars=lineup (review renders): one of every make parked by the crew (CarProp)
 var _dev_gunfire := -1                 ## --gunfire=k (review renders): shots into the busiest street, then k rounds of bystanders scattering
 var _gunfire_at := Vector3i(-1, -1, -1)   ## where --gunfire's shots land (--focus=gunfire looks there)
 var _life_ms := 0
@@ -487,6 +488,7 @@ func _ready() -> void:
 			"exposure": _dev_exposure = float(kv[1])   # review renders: tonemap exposure x s (darkens world and units alike)
 			"gamma": _dev_gamma = float(kv[1])   # review renders: grade power curve x s
 			"ambient": _dev_ambient = float(kv[1])   # review renders: ambient energy x s (lamps: --lights, baked spill: --spill)
+			"cars": _car_lineup = kv[1] == "lineup"   # review renders: every car make in a row by the crew
 			"street": gig["street"] = kv[1]   # review renders: the scene event (SceneEvent): a row id, <band>.<time>:<id or roll>, or auto
 			"hour": _dev_hour = int(kv[1])   # review renders: the hour the map is lit by (Daylight) and --street=auto rolls for; none: night
 			"life_demo": _life_demo = kv[1] != "0"   # review renders: everyday life walks every 2 s without turns passing (GIFs)
@@ -1050,6 +1052,10 @@ func new_gig() -> void:
 	_gunfire_demo()
 	_blueprint = FloorNav.blueprint_floors(m.floors, enc.alive(0).map(func(u): return u.pos))
 	_bp_shown.clear()
+	if _car_lineup:
+		var lc := CarProp.lineup(m, Vector2i(enc.units[0].pos.x, enc.units[0].pos.y))
+		if lc.x >= 0 and _focus == "cars":   # --focus=cars: the middle of the row
+			_focus = "%f,%f" % [lc.x, lc.y]
 	_build_world()
 	_last_cur = -1
 	_frame_unit(enc.units[0] if not played else enc.cur)
@@ -1123,6 +1129,15 @@ func new_gig() -> void:
 				if nn > best:
 					best = nn
 					fc = Vector2(u.pos.x, u.pos.y)
+		elif _focus.begins_with("sign") and builder and not builder.sign_batch.placed.is_empty():   # review renders: the n-th library sign (SignLib) on the facades
+			var sp: Array = builder.sign_batch.placed
+			var srec: Dictionary = sp[mini(int(_focus.substr(4)) if _focus.length() > 4 else 0, sp.size() - 1)]
+			fc = Vector2(srec.at.x, srec.at.z)
+		elif _focus in ["car", "wreck"]:   # review renders: the first parked car (or wreck) on the street
+			for cv in m.cover:
+				if String(cv.kind) == _focus and int(cv.floor) == m.street:
+					fc = Vector2(cv.pos.x + 0.5, cv.pos.y + 0.5)
+					break
 		elif _focus == "gunfire" and _gunfire_at.x >= 0:   # review renders: where --gunfire's shots landed
 			fc = Vector2(_gunfire_at.x, _gunfire_at.y)
 		elif _focus == "center":
@@ -1300,7 +1315,10 @@ func _decal(col: Color, size: float, ring_mode: bool, pulse: float, shadow := fa
 	var q := PlaneMesh.new()
 	q.size = Vector2(size, size)
 	var sh := Shader.new()
-	sh.code = DECAL if not shadow else DECAL.replace("blend_add", "blend_mul").replace("ALBEDO = col.rgb * a * 1.6;", "ALBEDO = mix(vec3(1.0), vec3(0.35), clamp(a * 2.2, 0.0, 1.0));")
+	# The contact shadow is an alpha-blended black disc. It used blend_mul (white outside the disc),
+	# which drew the whole quad as a hard black square under every unit (owner: "black square
+	# unrealistic shadows"): a multiply pass doesn't leave the frame alone where it writes white.
+	sh.code = DECAL if not shadow else DECAL.replace("blend_add", "blend_mix").replace("ALBEDO = col.rgb * a * 1.6;", "ALBEDO = vec3(0.0);\n\tALPHA = clamp(a * 2.2, 0.0, 1.0) * 0.62;")
 	var mt := ShaderMaterial.new()
 	mt.shader = sh
 	mt.set_shader_parameter("col", col)

@@ -75,7 +75,6 @@ const LIB := {
 	"bedrock": [Color("16181a"), Color("0d0e10"), 5, 0.6, 0.95, 0.0, {"shell": true}],   # undercity: the solid ground between tunnels
 	"atrium": [Color("e8e8e4"), Color("d0d0cc"), 0, 1.0, 0.3, 0.0, {"mode": 2}],          # arcology: the walls around the concourse
 }
-const PAINT := [Color("8a1c2a"), Color("1c3a5a"), Color("9a9a92"), Color("2a2a2e"), Color("b07a1a"), Color("3a5a2a")]
 const NEON := LightPlan.NEON
 
 var m: TacMap
@@ -98,6 +97,12 @@ var grime := 1.0        ## street litter and cables (SceneTheme.grime)
 var street := 0            ## the street-level floor (TacMap.street: 0 unless the map has basements)
 var gy := 0.0           ## its height (street * FH): street dressing stands on it, the skyline too
 var y_off := 0.0        ## added to every put() while set: street dressing written from y 0 lifted to gy
+var sign_batch: SignBatch   ## library signs on the map's facades and roofs (SignLib; place 0: cut with their walls)
+var sky_signs: SignBatch    ## library signs out on the skyline (place 1)
+var _sign_at: Array = []     ## where the facade's library signs went (spacing: a few a street, not wallpaper)
+var _sign_used := {}         ## library sign id → times hung on this map
+const SIGN_GAP := 5.0        ## squares between library signs on the facades
+const SIGN_AREA := 260       ## at most one library sign per this many map squares
 
 
 func _init(p_map: TacMap, p_vision: Vision, p_fog: Texture2D) -> void:
@@ -295,6 +300,12 @@ func hide_cover(cell: Vector3i) -> void:
 			(b.mm as MultiMesh).set_instance_transform(int(e[1]), Transform3D(Basis.from_scale(Vector3.ZERO), Vector3.ZERO))
 
 
+## Registers a generated mesh (one surface) under a shape name for put() (CarProp's bodies).
+func add_shape(name: String, mesh: Mesh) -> void:
+	if not _shapes.has(name):
+		_shapes[name] = mesh
+
+
 func box(mt: Material, center: Vector3, size: Vector3, yaw := 0.0) -> void:
 	put("box", mt, Transform3D(Basis(Vector3.UP, yaw).scaled_local(size) if yaw != 0.0 else Basis.from_scale(size), center))
 
@@ -310,8 +321,13 @@ func flush(parent: Node3D) -> void:
 				am.surface_set_material(s, b.surf[s])
 			mm.mesh = am
 		else:
-			var mesh: PrimitiveMesh = _shapes[b.shape].duplicate()
-			mesh.material = b.mat
+			var mesh: Mesh = _shapes[b.shape]
+			if mesh is PrimitiveMesh:
+				mesh = mesh.duplicate()
+				(mesh as PrimitiveMesh).material = b.mat
+			else:   # a generated mesh (CarProp bodies): shared, its material per batch
+				mesh = mesh.duplicate()
+				mesh.surface_set_material(0, b.mat)
 			mm.mesh = mesh
 		mm.instance_count = b.xf.size()
 		b["mm"] = mm
@@ -342,6 +358,10 @@ func build(root: Node3D) -> Array[Node3D]:
 	street = m.street
 	gy = street * FH
 	var out: Array[Node3D] = []
+	sign_batch = SignBatch.new(0)
+	sky_signs = SignBatch.new(1)
+	_sign_at.clear()
+	_sign_used.clear()
 	for f in m.floors:
 		var fn := Node3D.new()
 		fn.name = "floor%d" % f
@@ -368,6 +388,10 @@ func build(root: Node3D) -> Array[Node3D]:
 		if _td != null:
 			_td.band_floor(f)
 		flush(fn)
+	var sn := Node3D.new()
+	sn.name = "signs"
+	root.add_child(sn)
+	sign_batch.flush(sn, Vector2(m.w, m.h))
 	var sky := Node3D.new()
 	sky.name = "skyline"
 	sky.position.y = gy   # the city round the map stands on the street, whatever lies below it
@@ -387,6 +411,7 @@ func build(root: Node3D) -> Array[Node3D]:
 		_:
 			_skyline()
 	flush(sky)
+	sky_signs.flush(sky, Vector2(m.w, m.h))
 	_td = null   # the tower's dressing is built (it holds this builder: no cycle left behind)
 	return out
 
@@ -1157,7 +1182,10 @@ func _cover(f: int) -> void:
 		for c in cells:
 			r = r.expand(Vector2(c.pos.x, c.pos.y)).expand(Vector2(c.pos.x + 1, c.pos.y + 1))
 		var h0 := hash(k)
-		_multi(String(cells[0].kind), r, f, h0)
+		if String(cells[0].kind) in ["car", "wreck"]:   # at real-world scale, by make (CarProp: owner verdicts)
+			CarProp.draw(self, String(cells[0].kind), r, f, h0, String(cells[0].get("make", "")), String(cells[0].get("band", "")))
+		else:
+			_multi(String(cells[0].kind), r, f, h0)
 		tag = null
 	var stanchions := {}
 	for d in m.decor:
@@ -1419,7 +1447,7 @@ func _piece(kind: String, p: Vector3, yaw: float, f: int, h0: int, aligned := fa
 			box(mat("concrete_prop", f, false), p + Vector3(0, 0.25, 0), Vector3(0.7, 0.5, 0.7), yaw)
 
 
-## Multi-square props (cars, wrecks, containers, freight cars, dumpsters) drawn once over their bounds.
+## Multi-square props (containers, freight cars, dumpsters) drawn once over their bounds.
 func _multi(kind: String, r: Rect2, f: int, h0: int) -> void:
 	var y0 := f * FH
 	var c := Vector3(r.get_center().x, y0, r.get_center().y)
@@ -1430,19 +1458,6 @@ func _multi(kind: String, r: Rect2, f: int, h0: int) -> void:
 	rng.seed = h0
 	yaw += rng.randf_range(-0.06, 0.06)
 	match kind:
-		"car", "wreck":
-			var paint: Color = PAINT[h0 % PAINT.size()] if kind == "car" else Color("3a2a22")
-			var body := mat("steel", f, false, {"color": paint})
-			var len2 := L * 0.86
-			box(body, c + Vector3(0, 0.22, 0), Vector3(len2, 0.26, Wd * 0.78), yaw)
-			box(mat("glass", f, false, {"color": Color("0e1820"), "alpha": 0.85}), c + Vector3(0, 0.44, 0) + Vector3(-0.05 * L, 0, 0).rotated(Vector3.UP, yaw), Vector3(len2 * 0.5, 0.2, Wd * 0.68), yaw)
-			for s in [-1, 1]:
-				for e in [-1, 1]:
-					put("cyl", mat("dark", f, false), Transform3D(Basis(Vector3.UP, yaw) * Basis(Vector3.RIGHT, PI / 2) * Basis.from_scale(Vector3(0.28, 0.12, 0.28)), c + Vector3(e * len2 * 0.33, 0.12, s * Wd * 0.38).rotated(Vector3.UP, yaw)))
-			if kind == "car":
-				for s in [-1, 1]:
-					box(mat("dark", f, false, {"glow": 3.0, "emit": Color("ff2030")}), c + Vector3(-len2 / 2, 0.27, s * Wd * 0.28).rotated(Vector3.UP, yaw), Vector3(0.02, 0.05, 0.1), yaw)
-					box(mat("dark", f, false, {"glow": 2.0, "emit": Color("fff0d0")}), c + Vector3(len2 / 2, 0.25, s * Wd * 0.28).rotated(Vector3.UP, yaw), Vector3(0.02, 0.05, 0.1), yaw)
 		"scaffold":   # construction scaffolding: tubes, two plank decks, braces and green netting
 			var tube := mat("steel", f, false, {"color": Color("8a7a5a")})
 			var along := Vector3(cos(yaw), 0, -sin(yaw))
@@ -1629,13 +1644,18 @@ func _billboards(f: int) -> void:
 				done[sid] = true
 				continue
 			done[sid] = true
-			var col: Color = neon[rng.randi() % neon.size()]
 			var c := Vector3(x + 0.5, f * FH, y + 0.5) - Vector3(face.x, 0, face.y) * 0.1
 			var along := Vector3(0.9, 0, 0) if face.x == 0 else Vector3(0, 0, 0.9)
 			for sgn in [-1, 1]:
 				box(mat("post", f), c + along * 0.45 * sgn + Vector3(0, 0.45, 0), Vector3(0.05, 0.9, 0.05))
-			box(mat("dark", f, true, {"glow": 1.5, "emit": col}), c + Vector3(0, 0.95, 0), Vector3(1.6, 0.6, 0.06) if face.x == 0 else Vector3(0.06, 0.6, 1.6))
-			emitters.append({"cell": Vector3i(x, y, f), "color": col, "energy": 1.4, "range": 4.0, "out": Vector2i.ZERO})
+			# a holo-ad from the library (SignLib), on a dark frame, facing the open air
+			var outv := Vector3(face.x, 0, face.y)
+			box(mat("dark", f), c + Vector3(0, 0.98, 0), Vector3(1.72, 0.72, 0.05) if face.x == 0 else Vector3(0.05, 0.72, 1.72))
+			var e := SignLib.pick(rng, "holo", ["street", "generic"])
+			var sd := rng.randi()
+			for sg in [1.0, -1.0]:   # a screen each side of the frame, each reading the right way round
+				sign_batch.screen(e, c + Vector3(0, 0.98, 0) + outv * (0.035 * sg), outv * sg, Vector2(1.6, 0.62), sd)
+			emitters.append({"cell": Vector3i(x, y, f), "color": SignBatch._col(e, 0), "energy": 1.4, "range": 4.0, "out": Vector2i.ZERO})
 
 
 func _structure_at(f: int, x: int, y: int) -> int:
@@ -1753,7 +1773,34 @@ func _plan_escapes() -> void:
 		_escapes[sid] = [best[sid][1], Vector3(-d.y, 0, d.x), Vector3(d.x, 0, d.y), int(m.structures[sid].floors)]
 
 
-## Facades: AC units and pipes on exterior walls, posters, and tall vertical neon boards.
+## Room for another library sign at `p` (street level and the storey above only: the floors
+## higher up keep their plain lit boards): far enough from the others, and under the map's cap.
+func _sign_room(p: Vector3, f: int) -> bool:
+	if f > street + 1 or _sign_at.size() >= maxi(4, m.w * m.h / SIGN_AREA):
+		return false
+	if p.x < 2.0 or p.z < 2.0 or p.x > m.w - 2.0 or p.z > m.h - 2.0:   # facing off the map's edge: nobody reads it
+		return false
+	for q: Vector3 in _sign_at:
+		if Vector2(q.x - p.x, q.z - p.z).length() < SIGN_GAP:
+			return false
+	_sign_at.append(p)
+	return true
+
+
+## A library sign for a facade, favouring ones the map hasn't hung yet (a street of GUNS GUNS GUNS
+## reads as a bug): up to three picks, the least used wins.
+func _lib_sign(kind: String, tags: Array, forms: Array) -> Dictionary:
+	var best := {}
+	for i in 3:
+		var e := SignLib.pick(rng, kind, tags, forms)
+		if best.is_empty() or int(_sign_used.get(e.id, 0)) < int(_sign_used.get(best.id, 0)):
+			best = e
+	_sign_used[best.id] = int(_sign_used.get(best.id, 0)) + 1
+	return best
+
+
+## Facades: AC units and pipes on exterior walls, posters, neon signs and holo ads from the sign
+## library (SignLib) at street level, plain lit boards higher up.
 func _facade_dressing(f: int) -> void:
 	_balconies(f)
 	_fire_escape(f)
@@ -1779,17 +1826,37 @@ func _facade_dressing(f: int) -> void:
 				var face := Vector3(x + 0.5, y0, y + 0.5) + out * (EXT_T / 2 + 0.01) + side
 				if roll < 0.06 and f > street or (roll < 0.03):
 					box(mat("steel", f, true, {"shell": true}), face + out * 0.14 + Vector3(0, rng.randf_range(0.8, 1.3), 0), Vector3(0.36, 0.26, 0.26))
-				elif roll < 0.1:
+				elif roll < 0.1 and not _sign_room(face, f):   # a plain lit board (the floors above, or no room for a sign)
 					var col: Color = neon[rng.randi() % neon.size()]
 					box(mat("dark", f, true, {"glow": 0.9, "emit": col.darkened(0.3), "color": col.darkened(0.6), "shell": true}), face + out * 0.005 + Vector3(0, rng.randf_range(0.4, 0.8), 0), Vector3(0.36 if d.x == 0 else 0.01, 0.46, 0.01 if d.x == 0 else 0.36))
-					if f == street:   # a faint neon spill on the pavement in front (baked)
-						emitters.append({"cell": Vector3i(n.x, n.y, street), "color": col, "energy": 0.6, "range": 3.0, "out": Vector2i.ZERO})
-				elif roll < 0.15:
-					# blade sign sticking out of the facade, with light spill
+				elif roll < 0.1:   # a sign from the library (SignLib): the shop's own, or an ad on the storey above
+					var tags := SignLib.site_tags(_site_of(_structure_at(f, x, y)))
+					var lk := "neon" if f == street or rng.randf() < 0.6 else "holo"
+					var e := _lib_sign(lk, tags, (["word", "cjk", "arrow"] if f == street else ["word", "icon", "cjk", "arrow"]) if lk == "neon" else [])
+					var hi := f == street
+					# a shopfront fascia (about 3 m by 0.7 m) over the windows and awnings, standing a little
+					# proud of the wall (clear of the window glass and the cornice), or an ad on the storey above
+					var sz := Vector2(1.5, 0.34) if hi else Vector2(1.3, 0.7)
+					if String(e.kind) == "holo":
+						sz = Vector2(1.2, 0.7) if not hi else Vector2(0.9, 0.34)
+					elif String(e.form) in ["icon", "arrow"]:
+						sz = Vector2(1.0, 0.34 if hi else 0.62)
+					var at := face + out * 0.32 - side + Vector3(0, (1.24 if hi else rng.randf_range(0.5, 0.8)) + sz.y / 2.0, 0)
+					sign_batch.wall(e, at, out, sz.x, sz.y, rng.randi())
+					if f == street:   # its neon spills on the pavement in front (baked)
+						emitters.append({"cell": Vector3i(n.x, n.y, street), "color": SignBatch._col(e, 0), "energy": 0.7, "range": 3.0, "out": Vector2i.ZERO})
+				elif roll < 0.15 and not _sign_room(face, f):
+					# a plain lit blade standing out of the facade, with light spill
 					var col2: Color = neon[rng.randi() % neon.size()]
 					var bl := Vector3(0.42, FH * 0.75, 0.06) if d.x != 0 else Vector3(0.06, FH * 0.75, 0.42)
 					box(mat("dark", f, true, {"glow": 5.0, "emit": col2, "shell": true}), face + out * 0.3 + Vector3(0, FH * 0.55 + 0.2, 0), bl)
 					emitters.append({"cell": Vector3i(n.x, n.y, street), "color": col2, "energy": 1.4, "range": 5.0, "out": Vector2i.ZERO})
+				elif roll < 0.15:
+					# a blade sign standing out from the facade (SignLib), with light spill
+					var tags2 := SignLib.site_tags(_site_of(_structure_at(f, x, y)))
+					var e2 := _lib_sign("neon", tags2, ["blade"])
+					sign_batch.blade(e2, face - side + Vector3(0, FH * 0.62 + 0.25, 0), out, 0.42, FH * 0.95, rng.randi())
+					emitters.append({"cell": Vector3i(n.x, n.y, street), "color": SignBatch._col(e2, 0), "energy": 1.4, "range": 5.0, "out": Vector2i.ZERO})
 				elif roll < 0.2 and f == street:
 					# awning over a lit shop window
 					var col3: Color = [Color("ffb070"), Color("ff6b9a"), Color("70e0ff")][rng.randi() % 3]
@@ -1798,6 +1865,9 @@ func _facade_dressing(f: int) -> void:
 					box(mat("dark", f, true, {"glow": 4.0, "emit": col3, "shell": true}), face + out * 0.48 + Vector3(0, 1.2, 0), Vector3(0.95, 0.02, 0.02) if d.x == 0 else Vector3(0.02, 0.02, 0.95))
 					box(mat("dark", f, true, {"glow": 1.6, "emit": col3, "shell": true}), face + out * 0.01 + Vector3(0, 0.62, 0), Vector3(0.7, 0.6, 0.01) if d.x == 0 else Vector3(0.01, 0.6, 0.7))
 					emitters.append({"cell": Vector3i(n.x, n.y, street), "color": col3, "energy": 1.1, "range": 4.0, "out": Vector2i.ZERO})
+					if rng.randf() < 0.5 and _sign_room(face, f):   # the shop's name in neon over its awning (SignLib)
+						var e3 := _lib_sign("neon", SignLib.site_tags(_site_of(_structure_at(f, x, y))), ["word", "cjk"])
+						sign_batch.wall(e3, face - side + out * 0.32 + Vector3(0, 1.42, 0), out, 1.0, 0.28, rng.randi())
 				elif roll < 0.16:
 					box(mat("post", f, true, {"shell": true}), face + out * 0.05 + Vector3(0, FH / 2, 0), Vector3(0.05, FH, 0.05))
 
@@ -1988,13 +2058,18 @@ func _skyline(ruins := false) -> void:
 			box(mat("dark", 0, false, {"glow": 1.4, "emit": sc, "mode": 2}), Vector3(p.x + w / 2, h / 2, p.y + d / 2), Vector3(0.12, h, 0.12))
 		if rng.randf() < 0.35:
 			box(mat("dark", 0, false, {"glow": 1.2, "emit": Color("ff2020"), "mode": 2}), Vector3(p.x, h + 0.1, p.y), Vector3(0.08, 0.08, 0.08))
-		if rng.randf() < 0.3 * signs:   # a billboard: a big emissive panel on the face toward the map
-			var col: Color = neon[rng.randi() % neon.size()]
-			var toward := Vector2(m.w / 2.0, m.h / 2.0) - p
-			var face := Vector3(signf(toward.x) * (w / 2 + 0.05), 0, 0) if absf(toward.x) > absf(toward.y) else Vector3(0, 0, signf(toward.y) * (d / 2 + 0.05))
+		var toward := Vector2(m.w / 2.0, m.h / 2.0) - p
+		var face := Vector3(signf(toward.x) * (w / 2 + 0.05), 0, 0) if absf(toward.x) > absf(toward.y) else Vector3(0, 0, signf(toward.y) * (d / 2 + 0.05))
+		if rng.randf() < 0.3 * signs:   # a billboard: a holo-ad from the library (SignLib) on the face toward the map
 			var bw := minf(w, d) * 0.6
-			box(mat("dark", 0, false, {"glow": 1.8, "emit": col, "mode": 2}), Vector3(p.x, h * rng.randf_range(0.45, 0.8), p.y) + face,
-				Vector3(0.05, bw * 0.5, bw) if face.x != 0 else Vector3(bw, bw * 0.5, 0.05))
+			var e := SignLib.pick(rng, "holo", ["sky"])
+			var at := Vector3(p.x, h * rng.randf_range(0.45, 0.8), p.y) + face * 1.02
+			box(mat("dark", 0, false, {"mode": 2, "color": Color("0b0d12")}), at - face.normalized() * 0.05, Vector3(0.05, bw * 0.55, bw * 1.04) if face.x != 0 else Vector3(bw * 1.04, bw * 0.55, 0.05))
+			sky_signs.screen(e, at, face.normalized(), Vector2(bw, bw * 0.5), rng.randi(), 1.2)
+		elif rng.randf() < 0.18 * signs and h > 6.0:   # a tall neon blade down the tower's corner (SignLib)
+			var e2 := SignLib.pick(rng, "neon", ["hotel", "bar", "club", "restaurant"], ["blade"])
+			var corner := Vector3(p.x, 0, p.y) + face + (Vector3(0, 0, d / 2 - 0.4) if face.x != 0 else Vector3(w / 2 - 0.4, 0, 0))
+			sky_signs.blade(e2, corner + Vector3(0, h * rng.randf_range(0.5, 0.7), 0), face.normalized(), 1.0, minf(h * 0.4, 7.0), rng.randi())
 
 
 # --- Open country (badlands) ----------------------------------------------------------------

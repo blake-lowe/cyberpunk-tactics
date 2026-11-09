@@ -8,8 +8,6 @@ var _flames: Array = []   ## [MeshInstance3D, base scale, phase]
 var _blinks: Array = []   ## [Node3D, period s, duty 0..1, phase]: AV and drone beacons, hazard lights
 var _movers: Array = []   ## [Node3D, from, to, speed (units/s), phase 0..1]: AVs and drones crossing the sky
 var _flicker: Array = []  ## [OmniLight3D, base energy, MeshInstance3D or null, seed]: a failing neon or streetlight
-var _holo: MultiMesh = null   ## street holo-ads (holo.gdshader): their kind cycles every few seconds
-var _holo_t := 0.0
 var _sweep: Array = []    ## [SpotLight3D, centre, radius, phase]: a police AV's searchlight
 
 
@@ -178,13 +176,6 @@ func _process(_d: float) -> void:
 		l.light_energy = float(fl[1]) * (0.12 if off else 1.0)
 		if fl[2] != null:
 			(fl[2] as Node3D).visible = not off
-	if _holo != null and t - _holo_t > 4.0:   # the street's holo-ads cycle to their next spot
-		_holo_t = t
-		for i in _holo.instance_count:
-			var cd := _holo.get_instance_custom_data(i)
-			cd.g = float(posmod(int(cd.g) + 1, 4))
-			cd.r += 1.0
-			_holo.set_instance_custom_data(i, cd)
 	for sw in _sweep:
 		var sl: SpotLight3D = sw[0]
 		var c: Vector3 = sw[1]
@@ -311,8 +302,8 @@ func _hazards(m: TacMap, rng: RandomNumberGenerator, gy: float) -> void:
 	for c in m.cover:
 		if String(c.kind) == "car" and int(c.floor) == m.street:
 			var k := int(c.get("prop", -1))
-			var r: Rect2 = cars.get(k, Rect2(Vector2(c.pos), Vector2.ZERO))
-			cars[k] = r.expand(Vector2(c.pos)).expand(Vector2(c.pos) + Vector2.ONE)
+			var r: Rect2 = cars.get(k, [Rect2(Vector2(c.pos), Vector2.ZERO)])[0]
+			cars[k] = [r.expand(Vector2(c.pos)).expand(Vector2(c.pos) + Vector2.ONE), String(c.get("make", ""))]
 	var amber := StandardMaterial3D.new()
 	amber.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	amber.albedo_color = Color(1.0, 0.62, 0.12)
@@ -321,26 +312,23 @@ func _hazards(m: TacMap, rng: RandomNumberGenerator, gy: float) -> void:
 		if n >= 4 or rng.randf() > 0.3:
 			continue
 		n += 1
-		var r: Rect2 = cars[k]
-		var c := r.get_center()
-		var along := Vector2(r.size.x * 0.43, 0) if r.size.x >= r.size.y else Vector2(0, r.size.y * 0.43)
-		var side := Vector2(0, r.size.y * 0.3) if r.size.x >= r.size.y else Vector2(r.size.x * 0.3, 0)
+		var r: Rect2 = cars[k][0]
 		var ph := rng.randf()
-		for e in [-1, 1]:
-			for s in [-1, 1]:
-				var mi := MeshInstance3D.new()
-				var bm := BoxMesh.new()
-				bm.size = Vector3(0.06, 0.04, 0.06)
-				bm.material = amber
-				mi.mesh = bm
-				mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-				var q: Vector2 = c + along * e + side * s
-				mi.position = Vector3(q.x, gy + 0.27, q.y)
-				add_child(mi)
-				_blinks.append([mi, 0.9, 0.5, ph])
+		# the car's own corners (CarProp: the frame WorldBuilder drew it in, same hash)
+		for q: Vector3 in CarProp.corners(CarProp.frame_on(m, "car", r, hash(k * 10 + m.street), String(cars[k][1])), gy):
+			var mi := MeshInstance3D.new()
+			var bm := BoxMesh.new()
+			bm.size = Vector3(0.05, 0.035, 0.05)
+			bm.material = amber
+			mi.mesh = bm
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			mi.position = q
+			add_child(mi)
+			_blinks.append([mi, 0.9, 0.5, ph])
 
 
-## Holo-ads on a few street walls (holo.gdshader, one MultiMesh): their picture cycles.
+## Holo-ads from the sign library on a few street walls (SignBatch: one MultiMesh): logos cycling,
+## tickers running, dancers, products turning.
 func _ads(m: TacMap, rng: RandomNumberGenerator, gy: float) -> void:
 	var sl := m.street
 	var spots: Array = []   # [wall-side square, outward]
@@ -363,35 +351,15 @@ func _ads(m: TacMap, rng: RandomNumberGenerator, gy: float) -> void:
 		if chosen.any(func(q): return (q[0] as Vector2i).distance_to(s[0]) < 9):
 			continue
 		chosen.append(s)
-	var neon := [Color("ff2a6d"), Color("05d9e8"), Color("f9c80e"), Color("b537f2"), Color("39f0a0")]
-	var mm := MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.use_colors = true
-	mm.use_custom_data = true
-	var q := QuadMesh.new()
-	q.size = Vector2.ONE
-	mm.mesh = q
-	mm.instance_count = chosen.size()
+	var b := SignBatch.new(0)   # the sign library's holo ads (SignLib): street-side ones, in one batch
 	for i in chosen.size():
 		var v: Vector2i = chosen[i][0]
 		var d: Vector2i = chosen[i][1]
 		var w := rng.randf_range(0.9, 1.4)
 		var h := w * rng.randf_range(0.45, 0.65)
-		var yaw := atan2(float(d.x), float(d.y))
-		var pos := Vector3(v.x + 0.5 - d.x * 0.47, gy + 1.22, v.y + 0.5 - d.y * 0.47)
-		mm.set_instance_transform(i, Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3(w, h, 1.0)), pos))
-		mm.set_instance_color(i, neon[rng.randi() % neon.size()])
-		mm.set_instance_custom_data(i, Color(float(rng.randi() % 50), float(rng.randi() % 4), 0.9, 0.0))
-	var mi := MultiMeshInstance3D.new()
-	mi.multimesh = mm
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	var mt := ShaderMaterial.new()
-	mt.shader = TowerDress.HOLO_SHADER
-	mt.set_shader_parameter("col2", Color("05d9e8"))
-	mt.set_shader_parameter("map_size", Vector2(m.w, m.h))
-	mi.material_override = mt
-	add_child(mi)
-	_holo = mm
+		var e := SignLib.pick(rng, "holo", ["street"])
+		b.wall(e, Vector3(v.x + 0.5 - d.x * 0.47, gy + 1.22, v.y + 0.5 - d.y * 0.47), Vector3(d.x, 0, d.y), w, h, rng.randi())
+	b.flush(self, Vector2(m.w, m.h))
 
 
 ## Traffic overhead: AVs' running lights crossing high up, drones lower down, blinking. A scene
