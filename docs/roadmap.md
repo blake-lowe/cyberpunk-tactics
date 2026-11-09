@@ -22,7 +22,7 @@ Check-ins (🔶) are where work pauses for a user decision or review.
 
 ## Decisions log
 - Night Market shop revamp (owner verdicts, 2026-11-09):
-  - **Direction:** the dark web portal look with a GRID / LIST toggle (list = the ledger's dense rows with quantity steppers), and a cart that is always open, with total, wallet-after and one checkout.
+  - **Direction:** the dark web portal frame (address bar, category rail, filters, search and sort) around a list view only: the ledger's dense rows with quantity steppers, no cards or grid toggle (owner, revised). The cart is always open, with total, wallet-after and one checkout.
   - **Quality:** one entry per quality, as today.
   - **Item art:** none.
   - **One shop:** market and fixer stock together, market items badged, with a Market only filter.
