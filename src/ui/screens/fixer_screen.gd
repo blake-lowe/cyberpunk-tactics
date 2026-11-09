@@ -1,10 +1,10 @@
 class_name FixerScreen
 extends SafehouseScreen
-## The Fixer Network room: JOBS (the fixers' gig offers), HIRE (recruits) and the NIGHT MARKET
-## that's up (CPR core p.337-339: a column per category of goods, its items listed directly) beside
-## everything up to Premium, which needs no Night Market (p.385). Each item shows its Price
-## Category (p.385). Every purchase, cyberware included, goes to safehouse storage; nothing is
-## bought for a crew member and owning one never blocks buying another.
+## The Fixer Network room: JOBS (the fixers' gig offers), HIRE (recruits) and the NIGHT MARKET:
+## a web shop (MarketTab) selling the Night Market that's up (CPR core p.337-339) and the fixer's
+## own stock (everything up to Premium, which needs no Night Market, p.385) in one list with a cart. Each item
+## shows its Price Category (p.385). Every purchase, cyberware included, goes to safehouse storage;
+## nothing is bought for a crew member and owning one never blocks buying another.
 
 const OBJECTIVE_TEXT := {"data": "Download the target file, or eliminate all hostiles",
 	"eliminate": "Eliminate all hostiles, including reinforcements",
@@ -30,6 +30,7 @@ var focus_gig := -1   ## a job opened from the CITY map: JOBS scrolls to it and 
 ## (greybox's --setpiece, --objective, ...: CustomGig.from_flags) prefill it.
 var custom_form := CustomGig.from_flags(OS.get_cmdline_user_args())
 var focus_custom := "--focus=custom" in OS.get_cmdline_user_args()   ## review shots: JOBS opens scrolled to the custom card
+var shop := {}   ## NIGHT MARKET: the shop's cart, filters and view while the screen is open (MarketTab.new_state)
 
 
 func room_name() -> String:
@@ -239,105 +240,13 @@ static func stat_grid(c: Combatant) -> GridContainer:
 
 # --- Night Market ---------------------------------------------------------------------------
 
+## NIGHT MARKET: the shop (MarketTab; owner's verdict: the dark web portal with a list view and a
+## cart). Its state, cart included, lives while the screen is open; a checkout saves and rebuilds.
 func _market(body: VBoxContainer) -> void:
-	var cats: Array = camp.market.get("categories", [])
-	var info := UiKit.hbox(10)
-	body.add_child(info)
-	if cats.is_empty():
-		info.add_child(UiKit.body("No Night Market is up.", 15, Hud.DIM, false))
-	else:
-		info.add_child(UiKit.label("NIGHT MARKET UP UNTIL DAY %d" % int(camp.market.get("closes", camp.day)), 15, Hud.CYAN))
-	info.add_child(UiKit.spacer())
-	info.add_child(UiKit.label("Everything bought goes to storage (Armory)", 13, Hud.DIM))
-	var cols := UiKit.hbox(10)
-	cols.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	body.add_child(cols)
-	var stock := {}
-	for it in camp.market_stock():
-		stock[String(it.key)] = it
-	for cid in cats:   # p338: two categories of goods; their items listed directly, no sub-headings
-		var keys: Array[String] = []
-		for l in camp.market.get("listings", []):
-			if String(l.get("category", "")) == String(cid):
-				for k in l.get("keys", []):
-					if stock.has(String(k)) and not String(k) in keys:
-						keys.append(String(k))
-		cols.add_child(_column(String(NightMarket.category(String(cid)).get("name", cid)), keys, stock))
-	var cap := int(NightMarket.data().staples.get("max_cost", 100))
-	var tier := Items.price_tier(cap)
-	cols.add_child(_column("Up to " + tier, NightMarket.staples(), stock,
-		"%s and cheaper (up to %s eb) needs no Night Market (p.385)." % [tier, UiKit.money(cap)]))
-
-
-func _column(heading: String, keys: Array, stock: Dictionary, note := "") -> PanelContainer:
-	var p := UiKit.panel(Hud.CYAN, 10)
-	p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	p.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	var v := UiKit.vbox(6)
-	p.add_child(v)
-	v.add_child(UiKit.head(heading, 28, Hud.TEXT))
-	if note != "":
-		v.add_child(UiKit.body(note, 13, Hud.DIM))
-	var list := UiKit.vbox(6)
-	v.add_child(UiKit.scroller(list))
-	for k in keys:
-		if stock.has(String(k)):
-			list.add_child(_item_row(stock[String(k)]))
-	if list.get_child_count() == 0:
-		list.add_child(none("Nothing here the crew can use."))
-	return p
-
-
-## One item at its set quality: its name beside BUY · price, then its Price Category (p.385) and a
-## description with room to wrap (owner: entries twice as tall, nothing cut off), and how many
-## storage holds. Cyberware is bought the same way and installed
-## later at the Med Bay.
-func _item_row(it: Dictionary) -> Control:
-	var p := PanelContainer.new()
-	var box := StyleBoxFlat.new()
-	box.bg_color = Color(1, 1, 1, 0.025)
-	box.border_color = Color(Hud.CYAN, 0.12)
-	box.border_width_bottom = 1
-	box.content_margin_left = 8
-	box.content_margin_right = 4
-	box.content_margin_top = 4
-	box.content_margin_bottom = 6
-	p.add_theme_stylebox_override("panel", box)
-	p.custom_minimum_size.y = 72
-	var v := UiKit.vbox(2)
-	p.add_child(v)
-	var top := UiKit.hbox(8)
-	v.add_child(top)
-	var chrome: bool = it.kind == "cyberware"
-	var nm := QualityText.apply(UiKit.label(String(it.name), 15, Hud.VIOLET.lightened(0.3) if chrome else Hud.TEXT), String(it.key))
-	nm.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	nm.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	nm.custom_minimum_size.x = 60
-	top.add_child(nm)
-	var key: String = it.key
-	var b := UiKit.button(UiKit.price_text("BUY", int(it.cost)), UiKit.NEUTRAL, Callable(), camp.eb >= int(it.cost))
-	b.custom_minimum_size.x = 132
-	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	var nm2 := String(it.name)
-	b.pressed.connect(func(): act(b, func(): camp.buy(key), "Bought " + nm2))
-	top.add_child(b)
-	var desc := String(it.info)
-	if chrome:
-		var id := Items.base_id(key)
-		var need := String(Campaign.RIPPERDOC.get(id, [""])[0])
-		desc += (" " if desc != "" else "") + "Humanity Loss %s." % String(RulesDB.cyberware(id).get("hl_dice", ""))
-		if need != "":
-			desc += " Needs %s." % String(RulesDB.cyberware(need).name)
-		desc += " Installed at the Med Bay."
-	if int(it.owned) > 0:
-		desc += ("  ·  " if desc != "" else "") + "%d in storage" % int(it.owned)
-	var line := UiKit.hbox(8)
-	v.add_child(line)
-	var tier := UiKit.label(Items.price_tier(int(it.cost)), 12, Hud.CYAN)
-	tier.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	tier.custom_minimum_size.y = 20
-	tier.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	line.add_child(tier)
-	line.add_child(UiKit.body(desc, 13, Hud.DIM))
-	return p
+	if shop.is_empty():
+		shop = MarketTab.new_state()
+	var w := get_viewport_rect().size.x if is_inside_tree() else 1280.0
+	var t := MarketTab.new().setup(camp, shop, w)
+	t.name = "Market"
+	t.bought.connect(refresh)
+	body.add_child(t)

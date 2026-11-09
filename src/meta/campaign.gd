@@ -1084,6 +1084,65 @@ func buy(key: String) -> bool:
 	return true
 
 
+## Buy a whole cart (the Night Market tab's cart) into safehouse storage at list price, all or
+## nothing: `lines` is storage key → how many (lines of 0 or fewer are skipped). Nothing is bought
+## unless every line is on sale now and the eb covers the lot. Returns {ok, reason: "" | "empty" |
+## "off_sale" | "short", key (the line that is off sale), bought: {key: n}, count, total}.
+func buy_cart(lines: Dictionary) -> Dictionary:
+	var out := {"ok": false, "reason": "", "key": "", "bought": {}, "count": cart_count(lines), "total": 0}
+	for k in lines:
+		if int(lines[k]) > 0 and (not Items.is_stored(String(k)) or not on_sale(String(k))):
+			out.reason = "off_sale"
+			out.key = String(k)
+			return out
+	out.total = cart_total(lines)
+	if int(out.count) == 0:
+		out.reason = "empty"
+		return out
+	if int(out.total) > eb:
+		out.reason = "short"
+		return out
+	eb -= int(out.total)
+	var bought := {}
+	for k in lines:
+		if int(lines[k]) > 0:
+			_put(String(k), int(lines[k]))
+			bought[String(k)] = int(lines[k])
+	out.bought = bought
+	out.ok = true
+	if bought.size() == 1 and int(out.count) == 1:
+		say("Bought %s for %s eb" % [Items.display_name(String(bought.keys()[0])), eb_text(int(out.total))])
+	else:
+		say("Bought %d items for %s eb" % [int(out.count), eb_text(int(out.total))])
+	return out
+
+
+## What a cart costs at list price (`lines`: storage key → how many).
+static func cart_total(lines: Dictionary) -> int:
+	var t := 0
+	for k in lines:
+		t += Items.price(String(k)) * maxi(0, int(lines[k]))
+	return t
+
+
+## How many items a cart holds.
+static func cart_count(lines: Dictionary) -> int:
+	var n := 0
+	for k in lines:
+		n += maxi(0, int(lines[k]))
+	return n
+
+
+## "4,250": eb with thousands separators, for log lines.
+static func eb_text(v: int) -> String:
+	var s := str(absi(v))
+	var out := ""
+	while s.length() > 3:
+		out = "," + s.substr(s.length() - 3) + out
+		s = s.substr(0, s.length() - 3)
+	return ("-" if v < 0 else "") + s + out
+
+
 ## How many of `key` storage holds (kit counts include equipped consumables and utilities;
 ## equipped weapons and armour are on the crew member, not in storage; installed cyberware is part
 ## of them).

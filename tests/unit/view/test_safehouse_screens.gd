@@ -1,6 +1,6 @@
 extends TestCase
 ## The between-gigs screens build on the dev demo campaign and their buttons drive the model:
-## a market BUY puts one in storage, CARRY moves a weapon from storage to the selected loadout,
+## a market checkout puts the cart in storage, CARRY moves a weapon from storage to the selected loadout,
 ## Recover heals. (Layout is checked by screenshots; this checks the wiring.)
 
 
@@ -48,43 +48,101 @@ func test_every_screen_builds() -> void:
 	assert_true(camp.has_meta("demo"), "the demo campaign is marked so screens never save it")
 
 
-func test_market_buy_goes_to_storage() -> void:
+## The live NIGHT MARKET tab (a checkout rebuilds the screen: the old one is queued for deletion).
+func _market(s: SafehouseScreen) -> MarketTab:
+	for n in s.find_children("Market", "MarketTab", true, false):
+		if not _stale(n):
+			return n
+	return null
+
+
+func _labels(n: Node) -> Array:
+	return n.find_children("*", "Label", true, false).filter(func(l): return not _stale(l)).map(func(l): return (l as Label).text)
+
+
+func test_market_cart_checkout_goes_to_storage() -> void:
 	var camp := DemoState.make()
 	var s := _open(FixerScreen.new(), camp, "market")
-	var buys := _buttons(s, "BUY · ")
-	assert_false(buys.is_empty())
+	var plus := _buttons(s, "+")
+	assert_false(plus.is_empty(), "a + on every row")
+	assert_true(_buttons(s, "BUY · ").is_empty(), "no one-click BUY: everything goes through the cart")
+	assert_true(_buttons(s, "WIRE").is_empty(), "WIRE is off with an empty cart")
 	var eb := camp.eb
 	var total := 0
 	for k in camp.stash:
 		total += int(camp.stash[k])
-	buys[0].pressed.emit()
+	plus[0].pressed.emit()
+	_buttons(s, "+")[0].pressed.emit()   # rebuilt: press the first row's + again
+	assert_eq(Campaign.cart_count((s as FixerScreen).shop.cart), 2, "two in the cart")
+	assert_eq(camp.eb, eb, "nothing paid until checkout")
+	var wire := _buttons(s, "WIRE · ")
+	assert_eq(wire.size(), 1)
+	wire[0].pressed.emit()
 	var after := 0
 	for k in camp.stash:
 		after += int(camp.stash[k])
-	assert_eq(after, total + 1, "one more item in storage")
-	assert_true(camp.eb < eb, "paid for it")
-	assert_true(camp.log[-1].begins_with("Bought "))
+	assert_eq(after, total + 2, "both in storage")
+	assert_true(camp.eb < eb, "paid for them")
+	assert_true(camp.log[-1].begins_with("Bought 2 items for "), camp.log[-1])
+	assert_true((s as FixerScreen).shop.cart.is_empty(), "the cart empties")
+	assert_true(_labels(s).any(func(t): return String(t).begins_with("BOUGHT 2 ITEMS FOR ")), "the toast")
 	s.free()
 
 
-func test_market_cyberware_has_a_buy_button_and_goes_to_storage() -> void:
+func test_market_cyberware_goes_through_the_cart_to_storage() -> void:
 	var camp := DemoState.make()
 	var s := _open(FixerScreen.new(), camp, "market")
 	var chrome: Array = camp.market_stock().filter(func(x): return x.kind == "cyberware" and not x.staple)
 	assert_false(chrome.is_empty(), "the demo market has cyberware")
-	var price := UiKit.price_text("BUY", int(chrome[0].cost))
 	assert_true(_buttons(s, "RIPPERDOC").is_empty(), "no separate ripperdoc button: bought like other gear")
+	var key := String(chrome[0].key)
+	var row := s.find_child("Row_" + key.replace("/", "_"), true, false)
+	assert_true(row != null, "a row for the chrome")
+	assert_true(_labels(row).any(func(t): return String(t).contains("Installed at the Med Bay")), "its full description says where it's installed")
 	var before := camp.cyberware_options().size()
-	var n0 := camp.stored(String(chrome[0].key))
-	for b in _buttons(s, price):
-		var row := b.get_parent().get_parent()
-		if row.find_children("*", "Label", true, false).any(func(l): return (l as Label).text == UiKit.caps(String(chrome[0].name))):
-			b.pressed.emit()
-			break
-	assert_eq(camp.stored(String(chrome[0].key)), n0 + 1, "the piece goes into storage")
+	var n0 := camp.stored(key)
+	_market(s).add(key)
+	_buttons(s, "WIRE · ")[0].pressed.emit()
+	assert_eq(camp.stored(key), n0 + 1, "the piece goes into storage")
 	assert_true(camp.cyberware_options().size() >= before)
-	for l in s.find_children("*", "Label", true, false):
-		assert_false((l as Label).text.contains("OF EXACTLY") or (l as Label).text.contains("OR LESS"), "no listing sub-headings: %s" % (l as Label).text)
+	for l in _labels(s):
+		assert_false(String(l).contains("OF EXACTLY") or String(l).contains("OR LESS"), "no listing sub-headings: %s" % l)
+	s.free()
+
+
+func test_market_list_view_filters_and_short_cart() -> void:
+	var camp := DemoState.make()
+	var s := _open(FixerScreen.new(), camp, "market")
+	var t := _market(s)
+	assert_true(t != null)
+	assert_true(s.find_child("ListHeader", true, false) != null, "the list's column headers")
+	assert_true(s.find_child("Group_Firearms", true, false) != null, "category headers when sorted by type")
+	var rows := s.find_children("Row_*", "", true, false).filter(func(n): return not _stale(n))
+	assert_eq(rows.size(), t.visible_entries().size(), "one row per entry")
+	assert_eq(rows.size(), Shop.entries(camp).size(), "everything on sale, fixer's and market's")
+	assert_true(_labels(s).has("%d ITEMS" % rows.size()), "the result count")
+	t.set_sort("low")
+	assert_true(s.find_child("Group_Firearms", true, false) == null or _stale(s.find_child("Group_Firearms", true, false)), "no headers when sorted by price")
+	t.toggle("market_only")
+	var mk := t.visible_entries()
+	assert_false(mk.is_empty())
+	assert_true(mk.all(func(e): return bool(e.market)), "market only")
+	var badge := Shop.badge(Shop.days_left(camp))
+	assert_true(_labels(s).count(badge) >= mk.size(), "each market row carries %s" % badge)
+	assert_true(_labels(s).any(func(x): return String(x).begins_with("NIGHT MARKET HERE UNTIL DAY")), "the plain-words header")
+	t.toggle("market_only")
+	t.set_cat("Cyberware")
+	assert_true(t.visible_entries().all(func(e): return String(e.cat) == "Cyberware"))
+	t.set_cat(Shop.ALL)
+	var dear: Dictionary = Shop.entries(camp).filter(func(e): return int(e.cost) <= camp.eb).reduce(func(a, b): return a if int(a.cost) >= int(b.cost) else b)
+	t.add(String(dear.key), camp.eb / int(dear.cost) + 1)
+	var off := s.find_children("Wire", "Button", true, false).filter(func(n): return not _stale(n))
+	assert_eq(off.size(), 1)
+	assert_true((off[0] as Button).disabled, "disabled when short")
+	assert_eq((off[0] as Button).text, "NOT ENOUGH eb")
+	var eb := camp.eb
+	assert_false(bool(t.checkout().ok), "all or nothing")
+	assert_eq(camp.eb, eb)
 	s.free()
 
 
