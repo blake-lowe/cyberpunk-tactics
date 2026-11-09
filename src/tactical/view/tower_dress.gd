@@ -866,8 +866,18 @@ func holo_mat(billboard: bool, col2: Color) -> ShaderMaterial:
 		_common(mt)
 		mt.set_shader_parameter("billboard", billboard)
 		mt.set_shader_parameter("col2", col2)
+		mt.set_shader_parameter("atlas", SignLib.atlas())   # the sign library's holo ads (lib_holo)
+		mt.set_shader_parameter("pal", SignLib.palette())
 		_mats[key] = mt
 	return _mats[key]
+
+
+## A holo ad from the sign library (SignLib) for a screen: INSTANCE_CUSTOM for holo.gdshader,
+## picked by the screen's own seed (the plan's dice untouched).
+func lib_holo(seed_value: int, bright := 1.0) -> Color:
+	var c := SignLib.choices("holo", ["sky"])
+	var e: Dictionary = c[posmod(seed_value, c.size())]
+	return Color(SignLib.holo_seed(e, seed_value), float(SignLib.holo_kind(e)), bright, SignLib.holo_text(e))
 
 
 ## A plain dark material (metal, frames) in the world's own shader, never fogged or cut.
@@ -959,23 +969,8 @@ func _fin(it: Dictionary) -> void:
 	_light(it.at + Vector3(0, s.y / 2 + 0.04, 0), Vector3(0.1, 0.08, 0.1), it.color, 1.5)
 
 
-## 5x7 pixel letters for crown logos and blade signs (rows top down, bit 4 the left column).
-const FONT := {
-	"A": [14, 17, 17, 31, 17, 17, 17], "B": [30, 17, 17, 30, 17, 17, 30], "C": [14, 17, 16, 16, 16, 17, 14],
-	"D": [28, 18, 17, 17, 17, 18, 28], "E": [31, 16, 16, 30, 16, 16, 31], "F": [31, 16, 16, 30, 16, 16, 16],
-	"G": [14, 17, 16, 23, 17, 17, 15], "H": [17, 17, 17, 31, 17, 17, 17], "I": [14, 4, 4, 4, 4, 4, 14],
-	"J": [7, 2, 2, 2, 2, 18, 12], "K": [17, 18, 20, 24, 20, 18, 17], "L": [16, 16, 16, 16, 16, 16, 31],
-	"M": [17, 27, 21, 21, 17, 17, 17], "N": [17, 17, 25, 21, 19, 17, 17], "O": [14, 17, 17, 17, 17, 17, 14],
-	"P": [30, 17, 17, 30, 16, 16, 16], "Q": [14, 17, 17, 17, 21, 18, 13], "R": [30, 17, 17, 30, 20, 18, 17],
-	"S": [15, 16, 16, 14, 1, 1, 30], "T": [31, 4, 4, 4, 4, 4, 4], "U": [17, 17, 17, 17, 17, 17, 14],
-	"V": [17, 17, 17, 17, 17, 10, 4], "W": [17, 17, 17, 21, 21, 21, 10], "X": [17, 17, 10, 4, 10, 17, 17],
-	"Y": [17, 17, 17, 10, 4, 4, 4], "Z": [31, 1, 2, 4, 8, 16, 31],
-	"0": [14, 17, 19, 21, 25, 17, 14], "1": [4, 12, 4, 4, 4, 4, 14], "2": [14, 17, 1, 2, 4, 8, 31],
-	"3": [31, 2, 4, 2, 1, 17, 14], "4": [2, 6, 10, 18, 31, 2, 2], "5": [31, 16, 30, 1, 1, 17, 14],
-	"6": [6, 8, 16, 30, 17, 17, 14], "7": [31, 1, 2, 4, 8, 8, 8], "8": [14, 17, 17, 14, 17, 17, 14],
-	"9": [14, 17, 17, 15, 1, 2, 12], "&": [12, 18, 20, 8, 21, 18, 13], "-": [0, 0, 0, 31, 0, 0, 0],
-	".": [0, 0, 0, 0, 0, 12, 12], " ": [0, 0, 0, 0, 0, 0, 0],
-}
+## 5x7 pixel letters for crown logos and blade signs: the sign library's (SignLib.FONT).
+const FONT := SignLib.FONT
 
 
 ## A letter's lit runs: [[column, row, run length]] (merged along each row).
@@ -1121,7 +1116,8 @@ func _screen(it: Dictionary) -> void:
 	var bs := Basis(Vector3.UP, PI / 2) if fx else Basis.IDENTITY
 	var at: Vector3 = it.at + (Vector3(0.12, 0, 0) if fx else Vector3(0, 0, 0.12))
 	var col: Color = it.color
-	put("quad", holo_mat(false, col.lightened(0.5) if int(it.holo) != 2 else Color("ff2a6d")), Transform3D(bs.scaled_local(Vector3(w, s.y, 1)), at), col, Color(float(it.seed), float(it.holo), 1.0, 0))
+	var cus := Color(float(it.seed), float(it.holo), 1.0, 0) if int(it.holo) == 2 else lib_holo(int(it.seed))   # N54 keeps its media screens
+	put("quad", holo_mat(false, col.lightened(0.5) if int(it.holo) != 2 else Color("ff2a6d")), Transform3D(bs.scaled_local(Vector3(w, s.y, 1)), at), col, cus)
 
 
 func _blade(it: Dictionary) -> void:
@@ -1240,7 +1236,7 @@ func _far(it: Dictionary) -> void:
 			var w := minf(s.x, s.z) * 0.9
 			var c := p + Vector3(0, 0.6 + w * 0.3, 0)
 			box(cap, p + Vector3(0, 0.3, 0), Vector3(w * 0.6, 0.6, 0.2), Color.WHITE, Color(0, 0, 0, 0), yaw)
-			put("quad", holo_mat(false, Color("fff4e0")), Transform3D(Basis(Vector3.UP, yaw).scaled_local(Vector3(w, w * 0.55, 1)), c), acc, Color(float(it.seed), 3.0, 0.9, 0))
+			put("quad", holo_mat(false, Color("fff4e0")), Transform3D(Basis(Vector3.UP, yaw).scaled_local(Vector3(w, w * 0.55, 1)), c), acc, lib_holo(int(it.seed), 0.9))
 		"hvac":
 			for k in 3:
 				var o := Vector3(randf_det(it.seed + k) - 0.5, 0, randf_det(it.seed * 3 + k) - 0.5) * Vector3(s.x * 0.6, 0, s.z * 0.6)
@@ -1260,13 +1256,14 @@ func _far(it: Dictionary) -> void:
 		var c2 := Vector3(at.x + (signf(toward2.x) * (s.x / 2 + 0.1) if fx else 0.0), top - 2.5 - h2 / 2, at.z + (0.0 if fx else signf(toward2.y) * (s.z / 2 + 0.1)))
 		var n := Vector3(signf(toward2.x), 0, 0) if fx else Vector3(0, 0, signf(toward2.y))
 		var bs := Basis(Vector3.UP, atan2(n.x, n.z))   # the quad's front (+z) out of the face: it reads from outside
-		put("quad", holo_mat(false, Color("fff4e0")), Transform3D(bs.scaled_local(Vector3(w2, h2, 1)), c2), acc, Color(float(it.seed), 0.0 if h2 > w2 else 3.0, 1.0, 0))
+		put("quad", holo_mat(false, Color("fff4e0")), Transform3D(bs.scaled_local(Vector3(w2, h2, 1)), c2), acc, Color(float(it.seed), 0.0, 1.0, 0) if h2 > w2 else lib_holo(int(it.seed) * 3 + 1))
 
 
 func _holo_big(it: Dictionary) -> void:
 	var s: Vector3 = it.size
 	var col2: Color = it.color2
-	put("quad", holo_mat(true, col2), Transform3D(Basis.from_scale(Vector3(s.x, s.y, 1)), it.at), it.color, Color(float(it.seed), float(it.holo), 1.25, 0))
+	var cus := Color(float(it.seed), float(it.holo), 1.25, 0) if int(it.holo) == 0 else lib_holo(int(it.seed) * 5 + 2, 1.25)   # tall glyph columns stay; the rest from the library
+	put("quad", holo_mat(true, col2), Transform3D(Basis.from_scale(Vector3(s.x, s.y, 1)), it.at), it.color, cus)
 	box(dark(Color("141a26")), Vector3(it.at.x, it.at.y - s.y / 2 - 0.4, it.at.z), Vector3(3.0, 0.8, 3.0))   # the projector
 
 

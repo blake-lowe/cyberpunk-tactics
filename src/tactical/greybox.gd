@@ -134,7 +134,7 @@ const LOOKS := {
 }
 const DECAL := """
 shader_type spatial;
-render_mode unshaded, blend_add, depth_draw_never, cull_disabled, shadows_disabled;
+render_mode unshaded, blend_add, depth_draw_never, cull_disabled, shadows_disabled, fog_disabled;
 uniform vec4 col : source_color = vec4(0.0, 0.85, 0.9, 1.0);
 uniform float pulse = 0.0;
 uniform float ring = 0.0;
@@ -342,6 +342,7 @@ var _life_demo := false               ## --life_demo (review renders): walkers s
 var _life_on := true                  ## --life=0 (review renders): everyday life off, for performance before/after
 var _perf := false                    ## --perf (review renders): print the frame's draw calls, objects and nodes at the shot
 var _street_card_on := true            ## --street_callout=0 (review renders): no ON THE STREET card
+var _car_lineup := false               ## --cars=lineup (review renders): one of every make parked by the crew (CarProp)
 var _life_ms := 0
 var _dev_hour := -1                    ## --hour=h (review renders): the clock a --street=auto roll reads (SceneEvent.time_of)
 var _cue_at := 0                       ## msec: the next far-off street sound (_street_cues)
@@ -415,6 +416,7 @@ func _ready() -> void:
 			"exposure": _dev_exposure = float(kv[1])   # review renders: tonemap exposure x s (darkens world and units alike)
 			"gamma": _dev_gamma = float(kv[1])   # review renders: grade power curve x s
 			"ambient": _dev_ambient = float(kv[1])   # review renders: ambient energy x s (lamps: --lights, baked spill: --spill)
+			"cars": _car_lineup = kv[1] == "lineup"   # review renders: every car make in a row by the crew
 			"street": gig["street"] = kv[1]   # review renders: the scene event (SceneEvent): a row id, <band>.<time>:<id or roll>, or auto
 			"hour": _dev_hour = int(kv[1])   # review renders: with --street=auto, the hour the street is rolled for
 			"life_demo": _life_demo = kv[1] != "0"   # review renders: everyday life walks every 2 s without turns passing (GIFs)
@@ -967,6 +969,10 @@ func new_gig() -> void:
 	var played := _autoplay_rounds()
 	_blueprint = FloorNav.blueprint_floors(m.floors, enc.alive(0).map(func(u): return u.pos))
 	_bp_shown.clear()
+	if _car_lineup:
+		var lc := CarProp.lineup(m, Vector2i(enc.units[0].pos.x, enc.units[0].pos.y))
+		if lc.x >= 0 and _focus == "cars":   # --focus=cars: the middle of the row
+			_focus = "%f,%f" % [lc.x, lc.y]
 	_build_world()
 	_last_cur = -1
 	_frame_unit(enc.units[0] if not played else enc.cur)
@@ -1045,6 +1051,15 @@ func new_gig() -> void:
 				if nn > best:
 					best = nn
 					fc = Vector2(u.pos.x, u.pos.y)
+		elif _focus.begins_with("sign") and builder and not builder.sign_batch.placed.is_empty():   # review renders: the n-th library sign (SignLib) on the facades
+			var sp: Array = builder.sign_batch.placed
+			var srec: Dictionary = sp[mini(int(_focus.substr(4)) if _focus.length() > 4 else 0, sp.size() - 1)]
+			fc = Vector2(srec.at.x, srec.at.z)
+		elif _focus in ["car", "wreck"]:   # review renders: the first parked car (or wreck) on the street
+			for cv in m.cover:
+				if String(cv.kind) == _focus and int(cv.floor) == m.street:
+					fc = Vector2(cv.pos.x + 0.5, cv.pos.y + 0.5)
+					break
 		elif _focus == "center":
 			for st in m.structures:
 				if st.target and st.has("rect"):
@@ -1214,7 +1229,10 @@ func _decal(col: Color, size: float, ring_mode: bool, pulse: float, shadow := fa
 	var q := PlaneMesh.new()
 	q.size = Vector2(size, size)
 	var sh := Shader.new()
-	sh.code = DECAL if not shadow else DECAL.replace("blend_add", "blend_mul").replace("ALBEDO = col.rgb * a * 1.6;", "ALBEDO = mix(vec3(1.0), vec3(0.35), clamp(a * 2.2, 0.0, 1.0));")
+	# The contact shadow is an alpha-blended black disc. It used blend_mul (white outside the disc),
+	# which drew the whole quad as a hard black square under every unit (owner: "black square
+	# unrealistic shadows"): a multiply pass doesn't leave the frame alone where it writes white.
+	sh.code = DECAL if not shadow else DECAL.replace("blend_add", "blend_mix").replace("ALBEDO = col.rgb * a * 1.6;", "ALBEDO = vec3(0.0);\n\tALPHA = clamp(a * 2.2, 0.0, 1.0) * 0.62;")
 	var mt := ShaderMaterial.new()
 	mt.shader = sh
 	mt.set_shader_parameter("col", col)

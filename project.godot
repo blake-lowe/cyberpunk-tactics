@@ -47,3 +47,7 @@ lf_dims={
 "type": "vec3",
 "value": Vector3(0, 0, 0)
 }
+day_factor={
+"type": "float",
+"value": 0.0
+}
