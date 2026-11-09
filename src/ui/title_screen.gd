@@ -208,8 +208,8 @@ func _options() -> Control:
 	head.mouse_filter = Control.MOUSE_FILTER_STOP
 	_box.add_child(head)
 	var first: Control = null
-	for k in ["master", "music", "sfx"]:
-		var names := {"master": "Master volume", "music": "Music", "sfx": "Sound effects"}
+	for k in ["master", "music", "sfx", "shake"]:
+		var names := {"master": "Master volume", "music": "Music", "sfx": "Sound effects", "shake": "Screen shake"}
 		var row := UiKit.hbox(16)
 		var l := UiKit.label(names[k], 16, Hud.TEXT)
 		l.custom_minimum_size.x = 200
@@ -219,6 +219,9 @@ func _options() -> Control:
 		s.value_changed.connect(func(x: float) -> void:
 			val.text = "%d%%" % roundi(x * 100)
 			_set_opt(k, x))
+		if k == "shake":
+			s.name = "ScreenShake"
+			s.tooltip_text = "How hard the view shakes on shots, blasts and hits. Reduced motion turns it off."
 		row.add_child(s)
 		row.add_child(val)
 		_box.add_child(row)
@@ -231,7 +234,7 @@ func _options() -> Control:
 	_box.add_child(fs)
 	var rm := _button("Reduced motion: " + ("On" if bool(_opts.get("reduced_motion", false)) else "Off"), UiKit.NAV, Callable())
 	rm.name = "ReducedMotion"
-	rm.tooltip_text = "Tones down the HUD's animations: the clock dice don't tumble or shatter, callouts fade in."
+	rm.tooltip_text = "Tones down the animations: the clock dice don't tumble or shatter, callouts fade in, no screen shake or hit-stop."
 	rm.pressed.connect(func() -> void:
 		_set_opt("reduced_motion", not bool(_opts.get("reduced_motion", false)))
 		rm.text = UiKit.caps("Reduced motion: " + ("On" if bool(_opts.reduced_motion) else "Off")))

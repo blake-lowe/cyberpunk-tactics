@@ -29,6 +29,18 @@ static var F_PIXEL: FontVariation
 static var F_TERM: FontFile
 static var F_BOLD: FontFile
 static var F_MONO: FontFile
+static var calm := false   ## reduced motion, for the inner classes (the action buttons' press)
+static var _game_t := 0.0  ## seconds of game time (the tweens' clock: hit-stops and slow motion included)
+
+
+## Game-time msec for HUD juice timed across rebuilds (the HP ghost, the kill slash): tweens run on
+## game time, so these keep in step with them (wall-clock would not, e.g. under the movie writer).
+static func now_ms() -> int:
+	return int(_game_t * 1000.0)
+
+
+func _process(delta: float) -> void:
+	_game_t += delta
 
 
 ## Body-text size for a size written for the old terminal face (VT323 ran ~15% smaller), never
@@ -90,6 +102,10 @@ var _turn_strip: ColorRect   ## the dark strip behind the turn banner, so it rea
 var hint: PanelContainer
 var hint_tab: PanelContainer
 var _hp_seen := {}            ## unit id → last HP fraction shown (for ghost drain)
+var _ghosts := {}             ## unit id → [HP fraction before the hit, msec]: the red chunk, for any bar built while it drains
+var _strip_live := {}         ## unit id → shown alive in the turn strip at the last refresh
+var _held_dead := {}          ## unit id → killed during this playback: its slot stays up for the slash (kill_slot)
+var _kill_ms := {}            ## unit id → msec its portrait was slashed
 var _banner_tw: Tween
 var _flash: ColorRect
 var _vignette: ColorRect
@@ -169,6 +185,7 @@ func _ready() -> void:
 	_round_tab.add_child(_round_box)
 	add_child(_round_tab)
 	reduced_motion = GameSettings.reduced_motion()
+	calm = reduced_motion
 	_clock_rail = VBoxContainer.new()
 	_clock_rail.add_theme_constant_override("separation", 4)
 	_clock_rail.name = "ClockRail"
@@ -494,17 +511,20 @@ class Painter extends Control:
 ## Segmented, slanted meter (HP, MOVE).
 class Meter extends Control:
 	var frac := 1.0
-	var ghost := -1.0   ## previous value: a pale chunk that holds, then drains (juice)
+	var ghost := -1.0   ## previous value: a red chunk that holds, then drains (juice)
+	var ghost_hold := Hud.GHOST_HOLD
+	var ghost_drain := Hud.GHOST_DRAIN
 	var segs := 10
 	var col := Color.WHITE
 	var label := ""
 	func _ready() -> void:
-		if ghost > frac:
+		if ghost > frac:   # the lost chunk holds in red, then catches up (GHOST_HOLD, GHOST_DRAIN)
 			var tw := create_tween()
-			tw.tween_interval(0.25)
+			if ghost_hold > 0.0:
+				tw.tween_interval(ghost_hold)
 			tw.tween_method(func(v: float):
 				ghost = v
-				queue_redraw(), ghost, frac, 0.4).set_ease(Tween.EASE_OUT)
+				queue_redraw(), ghost, frac, maxf(0.05, ghost_drain)).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 	func _init(p_frac: float, p_segs: int, p_col: Color, w: float, h: float, p_label := "") -> void:
 		frac = p_frac
 		segs = maxi(1, p_segs)
@@ -532,10 +552,16 @@ class Meter extends Control:
 			var a := clampf(lit - i, 0.0, 1.0)
 			draw_colored_polygon(poly, Color(col, 0.16))
 			if ghost > frac and clampf(glit - i, 0.0, 1.0) > 0 and a < 1.0:
-				draw_colored_polygon(poly, Color(1, 0.85, 0.85, 0.85))
+				draw_colored_polygon(poly, Hud.GHOST_COL)
 			if a > 0:
 				draw_colored_polygon(poly, Color(col, 0.35 + 0.65 * a))
 		pass
+
+
+## The HP ghost (juice): the chunk a hit took stays up in red for GHOST_HOLD s, then drains.
+const GHOST_COL := Color(1.0, 0.22, 0.28, 0.95)
+const GHOST_HOLD := 0.3
+const GHOST_DRAIN := 0.45
 
 
 ## Segment geometry for a Meter `w` px wide: small gaps (1 px once there are many segments) and
@@ -596,7 +622,20 @@ class Slot extends Control:
 	var foe := false   ## hostile: a solid red outline, and the bust fills with blood as they're hurt
 	var blood := 0.0
 	var blood_from := 0.0   ## the level last shown: the blood rises from it (juice)
+	var hp_ghost := -1.0    ## the HP last shown: a red chunk that catches up (Hud.GHOST_*)
+	var ghost_hold := Hud.GHOST_HOLD
+	var ghost_drain := Hud.GHOST_DRAIN
+	var kill_ms := -1       ## msec the portrait was slashed (Hud.kill_slot), -1 alive
 	func _ready() -> void:
+		if hp_ghost > hp:
+			var gt := create_tween()
+			if ghost_hold > 0.0:
+				gt.tween_interval(ghost_hold)
+			gt.tween_method(func(v: float):
+				hp_ghost = v
+				queue_redraw(), hp_ghost, hp, maxf(0.05, ghost_drain)).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+		if kill_ms >= 0:
+			add_slash()
 		if not foe:
 			return
 		var ov := Hud.Painter.new()   # the outline on its own canvas item: the palette shader would wash the red out
@@ -615,6 +654,33 @@ class Slot extends Control:
 		if what in [NOTIFICATION_MOUSE_ENTER, NOTIFICATION_MOUSE_EXIT]:
 			hot = what == NOTIFICATION_MOUSE_ENTER
 			queue_redraw()
+	## The slash is drawn on its own canvas item (a Painter), like the foe frame: the portrait's
+	## palette shader would turn plain fills into blood.
+	func add_slash() -> void:
+		if has_node("Slash"):
+			return
+		var pt := Hud.Painter.new()
+		pt.name = "Slash"
+		pt.fn = func(c: Control): _draw_slash(c, size.x, size.y - 12, 12.0)
+		add_child(pt)
+	## The kill: a white pop, a red slash wiping across the bust, two cracks off it, then greyed.
+	func _draw_slash(c: Control, w: float, h: float, sk: float) -> void:
+		var age := float(Hud.now_ms() - kill_ms)
+		var k := 1.0 if Hud.calm else clampf(age / Hud.SLASH_MS, 0.0, 1.0)
+		var poly := PackedVector2Array([Vector2(sk, 0), Vector2(w, 0), Vector2(w - sk, h), Vector2(0, h)])
+		c.draw_colored_polygon(poly, Color(0.05, 0.05, 0.06, 0.55 * k))   # greyed out
+		if not Hud.calm and age < 160.0:
+			c.draw_colored_polygon(poly, Color(1, 1, 1, 0.55 * (1.0 - age / 160.0)))
+		var a := Vector2(w - 4, 4)
+		var b := Vector2(4, h - 4)
+		var e := a.lerp(b, k)
+		c.draw_line(a, e, Hud.RED, 4.0)
+		c.draw_line(a, e, Color(1, 0.85, 0.85), 1.0)
+		if k >= 1.0:   # cracks off the cut
+			var mid := a.lerp(b, 0.45)
+			c.draw_polyline(PackedVector2Array([mid, mid + Vector2(-7, -4), mid + Vector2(-12, -2), mid + Vector2(-17, -7)]), Color(Hud.RED, 0.8), 1.0)
+			var m2 := a.lerp(b, 0.7)
+			c.draw_polyline(PackedVector2Array([m2, m2 + Vector2(6, 3), m2 + Vector2(9, 9), m2 + Vector2(15, 11)]), Color(Hud.RED, 0.8), 1.0)
 	func _init(p_tex: Texture2D, p_col: Color, p_active: bool, p_hp: float, p_tag: String, p_dead: bool) -> void:
 		tex = p_tex
 		team_col = p_col
@@ -646,13 +712,19 @@ class Slot extends Control:
 				draw_polyline(PackedVector2Array([cn[0] + cn[1] * 10, cn[0], cn[0] + cn[2] * 10]), Hud.RED, 3.0)
 		var bw := (w - sk) * clampf(hp, 0, 1)
 		draw_rect(Rect2(0, h + 3, w - sk, 4), Color(team_col, 0.18))
+		if hp_ghost > hp:
+			draw_rect(Rect2(0, h + 3, (w - sk) * clampf(hp_ghost, 0, 1), 4), Hud.GHOST_COL)
 		draw_rect(Rect2(0, h + 3, bw, 4), Hud.GREEN if hp > 0.6 else (Hud.GOLD if hp > 0.3 else Hud.RED))
-		pass
+
 	func _draw_foe_frame(c: Control) -> void:
 		var w := size.x
 		var h := size.y - 12
 		var sk := 12.0
 		c.draw_polyline(PackedVector2Array([Vector2(sk, 0), Vector2(w, 0), Vector2(w - sk, h), Vector2(0, h), Vector2(sk, 0)]), Hud.GOLD if active or hot else Hud.RED, 2.0)
+
+
+const PRESS_SCALE := 0.9   ## an action button held down (ActBtn._press)
+const SLASH_MS := 130.0    ## the kill slash's wipe across a turn-strip portrait (Slot._draw_slash)
 
 
 ## Hotbar action: chamfered square with a drawn glyph, a pixel-font name and its key.
@@ -694,6 +766,17 @@ class ActBtn extends Button:
 				best = i
 		var two := [tt.substr(0, best), tt.substr(best + 1)]
 		return [two, tf, mini(fit.call(two, 8), base - 2)]
+	## The press (juice): the tile squashes down while held and springs back on release (the click
+	## is AudioDirector's, on every button). None under reduced motion.
+	func _press(down: bool) -> void:
+		if Hud.calm or disabled:
+			return
+		pivot_offset = size / 2.0
+		var tw := create_tween()
+		if down:
+			tw.tween_property(self, "scale", Vector2.ONE * Hud.PRESS_SCALE, 0.05).set_ease(Tween.EASE_OUT)
+		else:
+			tw.tween_property(self, "scale", Vector2.ONE, 0.16).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	func _init(p_glyph: String, p_title: String, p_key: String, p_tint: Color, w := 66.0, h := 66.0) -> void:
 		glyph = p_glyph
 		title = p_title
@@ -701,6 +784,8 @@ class ActBtn extends Button:
 		tint = p_tint
 		custom_minimum_size = Vector2(w, h)
 		focus_mode = Control.FOCUS_NONE
+		button_down.connect(_press.bind(true))
+		button_up.connect(_press.bind(false))
 		add_theme_stylebox_override("normal", CutBox.make(Color(0.03, 0.045, 0.06, 0.95), Color(tint, 0.45), 9, 0b0101))
 		add_theme_stylebox_override("hover", CutBox.make(Color(tint.r * 0.15, tint.g * 0.15, tint.b * 0.15, 0.97), tint, 9, 0b0101))
 		add_theme_stylebox_override("pressed", CutBox.make(Color(0.14, 0.11, 0.02, 0.97), Hud.GOLD, 9, 0b0101, Hud.GOLD))
@@ -1022,17 +1107,37 @@ static func alarm_text(enc: Encounter) -> String:
 
 func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) -> void:
 	interact_enc = enc
+	var now := now_ms()
+	for u0 in enc.units:   # a hit since the last refresh: its ghost drains on every bar of that unit built meanwhile
+		var f0: float = float(maxi(u0.c.hp, 0)) / u0.c.max_hp()
+		var seen: float = _hp_seen.get(u0.id, f0)
+		if seen > f0 + 0.001:
+			var g0: Array = _ghosts.get(u0.id, [])
+			_ghosts[u0.id] = [maxf(seen, ghost_value(g0, f0, now)), now]
 	_clear(_party)
 	for u in enc.units:
 		if u.team == 0:
 			_party.add_child(_party_card(u, u == enc.cur))
 	_clear(_init_strip)
+	var live := {}
 	for c in enc.init.order():
-		if c.dead:
-			continue
 		var u := enc.unit_of(c)
-		var slot := Slot.new(portraits.tex(u), _team_col(u, enc), u == enc.cur, float(maxi(c.hp, 0)) / c.max_hp(), c.display_name.to_upper(), c.dead)
+		if c.dead:   # gone from the strip, unless killed in the playback now running: slashed first (kill_slot)
+			if _strip_live.has(int(u.id)):
+				_held_dead[int(u.id)] = true
+			if not _held_dead.has(int(u.id)):
+				continue
+		else:
+			live[int(u.id)] = true
+		var slashed: bool = c.dead and _kill_ms.has(int(u.id))
+		var slot := Slot.new(portraits.tex(u), _team_col(u, enc), u == enc.cur, float(maxi(c.hp, 0)) / c.max_hp(), c.display_name.to_upper(), slashed)
 		slot.uid = int(u.id)
+		var sg := ghost_state(int(u.id), slot.hp)
+		slot.hp_ghost = float(sg[0])
+		slot.ghost_hold = float(sg[1])
+		slot.ghost_drain = float(sg[2])
+		if slashed:
+			slot.kill_ms = int(_kill_ms[int(u.id)])
 		slot.material = portraits.material()
 		if u.team != 0 and enc.hostile(Encounter.CREW, int(u.team)) and slot.material:   # foes: their own material for the blood level
 			slot.foe = true
@@ -1045,8 +1150,9 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 		slot.gui_input.connect(func(ev: InputEvent):
 			if ev is InputEventMouseButton and ev.pressed and ev.button_index in [MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT]:
 				action.emit("portrait_click", uid))
-		slot.modulate = Portraits.tint(c.wound_state())
+		slot.modulate = Portraits.tint(c.wound_state()) if not slashed else Color.WHITE   # the slash greys it itself, at full strength
 		_init_strip.add_child(slot)
+	_strip_live = live
 	round_tab(enc)
 	_clear(_card)
 	_clear(_econ)
@@ -1417,10 +1523,36 @@ func _place_withdraw() -> void:
 func _hp_meter(uid: int, c: Combatant, w: float, h: float) -> Meter:
 	var f := float(maxi(c.hp, 0)) / c.max_hp()
 	var mt := Meter.new(f, c.max_hp() / 5, _hp_col(c), w, h)
-	var prev: float = _hp_seen.get(uid, f)
-	if prev > f + 0.001:
-		mt.ghost = prev
+	var g := ghost_state(uid, f)
+	mt.ghost = float(g[0])
+	mt.ghost_hold = float(g[1])
+	mt.ghost_drain = float(g[2])
 	return mt
+
+
+## The HP ghost for a bar built now: [value (-1 none), hold s left, drain s left] (a bar rebuilt
+## mid-drain picks it up where it was).
+func ghost_state(uid: int, f: float) -> Array:
+	var g: Array = _ghosts.get(uid, [])
+	if g.is_empty():
+		return [-1.0, 0.0, 0.0]
+	var age := (now_ms() - int(g[1])) / 1000.0
+	var v := ghost_value(g, f, now_ms())
+	if v <= f + 0.001:
+		return [-1.0, 0.0, 0.0]
+	if age < GHOST_HOLD:
+		return [v, GHOST_HOLD - age, GHOST_DRAIN]
+	return [v, 0.0, GHOST_DRAIN - (age - GHOST_HOLD)]
+
+
+## Where a ghost [from, msec] stands at `now` on its way down to `f`.
+static func ghost_value(g: Array, f: float, now: int) -> float:
+	if g.is_empty():
+		return -1.0
+	var age := (now - int(g[1])) / 1000.0
+	if age < GHOST_HOLD:
+		return float(g[0])
+	return lerpf(float(g[0]), f, clampf((age - GHOST_HOLD) / GHOST_DRAIN, 0.0, 1.0))
 
 
 func _hp_col(c: Combatant) -> Color:
@@ -2027,8 +2159,36 @@ func enemy_phase(on: bool) -> void:
 	create_tween().tween_property(_vignette.material, "shader_parameter/amount", 0.55 if on else 0.0, 0.25)
 
 
-## A unit was hurt: its party card shakes and flashes red.
+## A unit was killed on screen: its turn-strip portrait is slashed and greyed (Slot._draw_slash).
+## A slot killed during the running playback stays up until release_dead.
+func kill_slot(uid: int) -> void:
+	_kill_ms[uid] = now_ms()
+	for s in _init_strip.get_children():
+		if s is Slot and (s as Slot).uid == uid:
+			var sl := s as Slot
+			sl.kill_ms = int(_kill_ms[uid])
+			sl.dead = true
+			sl.modulate = Color.WHITE
+			sl.add_slash()
+			sl.queue_redraw()
+
+
+## The playback is over: the dead leave the strip at the next refresh.
+func release_dead() -> void:
+	_held_dead.clear()
+
+
+## Where the objective/round panel is on screen (read-only: the objective-done flourish draws
+## round it from its own overlay, HudJuice).
+func objective_rect() -> Rect2:
+	return _round_tab.get_global_rect() if _round_tab else Rect2()
+
+
+## A unit was hurt: its party card shakes and flashes red. The HP ghost's clock starts now, at the
+## impact (the rules resolved the hit earlier, and a refresh before the round landed may have seen it).
 func hit_unit(uid: int) -> void:
+	if _ghosts.has(uid) and now_ms() - int(_ghosts[uid][1]) < 4000:   # this hit's, not an old one's
+		_ghosts[uid][1] = now_ms()
 	var card: Control = _cards.get(uid)
 	if card == null or not is_instance_valid(card):
 		return

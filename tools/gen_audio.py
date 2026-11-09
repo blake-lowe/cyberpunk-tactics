@@ -1014,6 +1014,67 @@ def sfx_twist():
     return fade(reverb(drive(x, 1.8), 0.4, 0.3))
 
 
+# --- juice pass stingers (Greybox._down_juice, _state_juice) ---------------------------------------
+# Own seeded generators (own_rng: seeded by name), so adding these changes no existing WAV.
+
+@sfx
+@own_rng
+def sfx_kill_sting():
+    """A foe flatlined: a short low synth hit with a downward glitch zip, under the body sounds."""
+    total = 0.7
+    x = np.zeros(int(total * SR))
+    thump = sweep(0.3, 120, 48, curve=0.4) * env(0.3, 0.001, 0.08)
+    stab = lp(sweep(0.32, 330, 250, "saw") + sweep(0.32, 333, 252, "saw"), 1400) * env(0.32, 0.002, 0.09) * 0.35
+    zip_ = bp(rng.standard_normal(int(0.09 * SR)), 1500, 6000) * env(0.09, 0.0005, 0.02) * 0.25
+    x += at(thump, 0.0, total)
+    x += at(stab, 0.0, total)
+    x += at(zip_, 0.03, total)
+    return fade(reverb(drive(x, 1.8), 0.25, 0.2))
+
+
+@sfx
+@own_rng
+def sfx_crew_down():
+    """One of the crew goes down: a heavy low impact, a muffled ringing tone dropping away."""
+    total = 1.6
+    x = np.zeros(int(total * SR))
+    hit = drive(mix(sweep(0.7, 85, 32, curve=0.4) * env(0.7, 0.001, 0.22), lp(rng.standard_normal(int(0.4 * SR)), 260) * env(0.4, 0.001, 0.09) * 0.8), 2.2)
+    ring = (tone(1.4, 1180) * 0.5 + tone(1.4, 1187) * 0.5) * env(1.4, 0.03, 0.55) * 0.12
+    ring = ring * np.linspace(1.0, 0.0, len(ring)) ** 0.5
+    x += at(hit, 0.0, total)
+    x += at(lp(ring, 2400), 0.05, total)
+    return fade(reverb(x, 0.45, 0.3, 0.5), 0.0005, 0.25)
+
+
+@sfx
+@own_rng
+def sfx_siren_swell():
+    """The alarm going up: a siren wailing up out of nothing, two sweeps, swelling then gone."""
+    total = 1.8
+    sec = 1.6
+    tt = t(sec)
+    f = 520 + 260 * (0.5 - 0.5 * np.cos(2 * np.pi * tt / 0.8))   # up and down twice
+    ph = 2 * np.pi * np.cumsum(f) / SR
+    s = np.sin(ph) * 0.6 + np.sign(np.sin(ph)) * 0.15 + np.sin(ph * 2.0) * 0.12
+    swell = np.clip(tt / 0.7, 0, 1) ** 1.5 * np.clip((sec - tt) / 0.5, 0, 1)
+    x = at(lp(s * swell, 2200), 0.0, total)
+    return fade(reverb(x, 0.6, 0.35, 0.5), 0.01, 0.1)
+
+
+@sfx
+@own_rng
+def sfx_objective_done():
+    """Objective complete: a bright two-note rise with a glassy shimmer, short and clean."""
+    total = 1.1
+    x = np.zeros(int(total * SR))
+    for k, n in enumerate([76, 83]):   # E then B, a fifth up
+        x += at(synth_note(midi(n), 0.5, "square", 3000, 0.16, 0.004, 0.004) * 0.22, k * 0.09, total)
+        x += at(tone(0.5, midi(n) * 2.0) * env(0.5, 0.002, 0.08) * 0.06, k * 0.09, total)
+    for k in range(6):   # the shimmer
+        x += at(tone(0.12, rng.uniform(2600, 4200)) * env(0.12, 0.002, 0.03) * 0.05, 0.12 + k * 0.05, total)
+    return fade(reverb(x, 0.4, 0.3, 0.45))
+
+
 # --- ambience loops -------------------------------------------------------------------------------
 
 AMB = {}

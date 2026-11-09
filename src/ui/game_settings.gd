@@ -8,9 +8,11 @@ extends RefCounted
 ## heading five times) so a release build has it too; `--dev` on the command line turns it on for
 ## one run. Reduced motion (reduced_motion, off by default) tones down the HUD's animations: the
 ## clock dice don't tumble, shatter or beat, callouts fade instead of slamming (ClockWidget, Hud).
-## `--reduced_motion=1` turns it on for one run.
+## `--reduced_motion=1` turns it on for one run, and it also turns off screen shake and hit-stop.
+## Screen shake (shake, 0-1, default 0.6): the tactical view's trauma shake and kicks (ScreenShake);
+## `--shake=x` overrides it for one run (review renders).
 
-const DEFAULTS := {"master": 1.0, "music": 1.0, "sfx": 1.0, "fullscreen": false, "dev_mode": false, "reduced_motion": false}
+const DEFAULTS := {"master": 1.0, "music": 1.0, "sfx": 1.0, "fullscreen": false, "dev_mode": false, "reduced_motion": false, "shake": 0.6}
 const SFX_BUSES := ["SFX", "UI", "Ambience"]
 const DEV_FLAG := "--dev"
 
@@ -33,6 +35,14 @@ static func reduced_motion() -> bool:
 	if "--reduced_motion=1" in OS.get_cmdline_user_args():
 		return true
 	return bool(load_values().get("reduced_motion", false))
+
+
+## Screen shake strength 0..1: `--shake=x` on the command line, or the Options slider.
+static func shake() -> float:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--shake="):
+			return clampf(float(a.substr(8)), 0.0, 1.0)
+	return float(load_values().get("shake", DEFAULTS.shake))
 
 
 static func load_values() -> Dictionary:

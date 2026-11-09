@@ -555,6 +555,90 @@ func explosion(at: Vector3, floor_y: float, light: OmniLight3D = null) -> void:
 	scorch.rotation.y = rng.randf() * TAU
 
 
+## A blast's ground juice (juice pass): a hot ring racing out along the ground, a slower dust ring
+## behind it, a skirt of dust pushed outward and a few chunks of the floor thrown up. A world effect
+## at the blast's centre only, never a ring under a unit (owner rule). `big` scales it.
+const SHOCK_SHADER := """
+shader_type spatial;
+render_mode unshaded, depth_draw_never, cull_disabled, shadows_disabled;
+uniform vec4 col : source_color = vec4(1.0, 0.8, 0.5, 1.0);
+uniform float r = 0.1;
+uniform float w = 0.08;
+uniform float a = 1.0;
+void fragment() {
+	float d = length(UV - 0.5) * 2.0;
+	float ring = smoothstep(w, 0.0, abs(d - r)) * step(d, 1.0);
+	ALBEDO = col.rgb;
+	ALPHA = ring * a * col.a;
+}
+"""
+const SHOCK_REACH := 3.2     ## m: the hot ring's radius at its end
+const SHOCK_SECS := 0.3
+const DUST_REACH := 3.8
+const DUST_SECS := 0.75
+
+
+func shockwave(at: Vector3, floor_y: float, big := 1.0) -> void:
+	var g := Vector3(at.x, floor_y + 0.035, at.z)
+	_ground_ring(g, Color(1.0, 0.82, 0.5, 0.9), SHOCK_REACH * big, SHOCK_SECS, 0.09, true)
+	_ground_ring(g + Vector3(0, 0.005, 0), Color(0.42, 0.38, 0.33, 0.55), DUST_REACH * big, DUST_SECS, 0.22, false)
+	for k in int(12 * big):   # the dust skirt, shoved out along the ground
+		var ang := TAU * k / (12.0 * big) + rng.randf_range(-0.2, 0.2)
+		var out := Vector3(cos(ang), 0, sin(ang))
+		var puff := _ball(Color(0.46, 0.42, 0.38), 1.0, rng.randf_range(0.18, 0.3), 0.5, false)
+		var pm: StandardMaterial3D = puff.mesh.material
+		pm.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL
+		pm.roughness = 1.0
+		puff.global_position = g + out * 0.4 + Vector3(0, 0.1, 0)
+		var life := rng.randf_range(0.7, 1.1)
+		var tp := create_tween().set_parallel(true)
+		tp.tween_property(puff, "global_position", g + out * rng.randf_range(1.8, 2.8) * big + Vector3(0, rng.randf_range(0.15, 0.4), 0), life).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+		tp.tween_property(puff, "scale", Vector3(1.6, 0.8, 1.6) * puff.scale.x * 2.0, life)
+		tp.tween_property(pm, "albedo_color:a", 0.0, life).set_ease(Tween.EASE_IN)
+		tp.chain().tween_callback(puff.queue_free)
+	var mt := StandardMaterial3D.new()   # chunks of the floor: they settle and stay
+	mt.albedo_color = Color("3a3632")
+	mt.roughness = 0.9
+	for k in int(8 * big):
+		var c := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		var sz := rng.randf_range(0.05, 0.13)
+		bm.size = Vector3(sz, sz * 0.6, sz * rng.randf_range(0.7, 1.3))
+		bm.material = mt
+		c.mesh = bm
+		add_child(c)
+		c.global_position = g + Vector3(rng.randf_range(-0.3, 0.3), 0.1, rng.randf_range(-0.3, 0.3))
+		c.rotation = Vector3(rng.randf() * TAU, rng.randf() * TAU, rng.randf() * TAU)
+		var ang2 := rng.randf() * TAU
+		var v := Vector3(cos(ang2), 0, sin(ang2)) * rng.randf_range(1.5, 3.5) + Vector3(0, rng.randf_range(2.5, 4.5), 0)
+		_bits.append([c, v, Vector3(rng.randf_range(-14, 14), rng.randf_range(-14, 14), rng.randf_range(-14, 14)), floor_y + bm.size.y * 0.5])
+
+
+## A flat ring on the ground growing to `reach` m over `secs` and thinning as it goes.
+func _ground_ring(at: Vector3, col: Color, reach: float, secs: float, width: float, additive: bool) -> void:
+	var mi := MeshInstance3D.new()
+	var pm := PlaneMesh.new()
+	pm.size = Vector2(reach * 2.0, reach * 2.0)
+	var sm := ShaderMaterial.new()
+	var sh := Shader.new()
+	sh.code = SHOCK_SHADER.replace("render_mode unshaded,", "render_mode unshaded, blend_add," if additive else "render_mode unshaded,")
+	sm.shader = sh
+	sm.set_shader_parameter("col", col)
+	sm.set_shader_parameter("r", 0.05)
+	sm.set_shader_parameter("w", width)
+	sm.set_shader_parameter("a", 1.0)
+	pm.material = sm
+	mi.mesh = pm
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+	mi.global_position = at
+	var tw := create_tween().set_parallel(true)
+	tw.tween_method(func(v: float): sm.set_shader_parameter("r", v), 0.05, 0.97, secs).set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
+	tw.tween_method(func(v: float): sm.set_shader_parameter("w", v), width, width * 0.35, secs)
+	tw.tween_method(func(v: float): sm.set_shader_parameter("a", v), 1.0, 0.0, secs).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.chain().tween_callback(mi.queue_free)
+
+
 func _settle_bits(delta: float) -> void:
 	for i in range(_bits.size() - 1, -1, -1):
 		var b: Array = _bits[i]
