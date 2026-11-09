@@ -67,7 +67,8 @@ func hud_text() -> String:
 	var cap: Dictionary = e.units[int(o.captive)]
 	if o.get("freed", false):
 		return "GET %s TO EXTRACTION" % cap.c.display_name.to_upper()
-	return "FIND AND FREE %s" % cap.c.display_name.to_upper()
+	var who := item_marker("")   # the focus: who they are (a kidnapped student)
+	return "FIND AND FREE %s" % cap.c.display_name.to_upper() + ("\n" + who if who != "" else "")
 
 
 func marks(_fog: bool) -> Array:

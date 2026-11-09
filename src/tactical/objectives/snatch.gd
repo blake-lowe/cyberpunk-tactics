@@ -14,14 +14,14 @@ func before_check() -> void:   # a carrier who can't act drops the package on th
 	o.cell = e.units[carrier].pos
 	o.carrier = -1
 	e.events.append({"type": "drop", "unit": carrier, "cell": o.cell})
-	e.say("%s drops the package." % e.units[carrier].c.display_name)
+	e.say("%s drops the %s." % [e.units[carrier].c.display_name, item_short("package")])
 
 
 func check_end() -> String:
 	var carrier: int = o.carrier
 	if carrier >= 0 and e.extract_cells.has(e.units[carrier].pos):
 		o.done = true
-		e.say("%s gets the package out." % e.units[carrier].c.display_name)
+		e.say("%s gets the %s out." % [e.units[carrier].c.display_name, item_short("package")])
 		return "won"
 	return ""
 
@@ -43,18 +43,18 @@ func act(action: String) -> Dictionary:
 		return r
 	o.carrier = e.cur.id
 	e.events.append({"type": "grab", "unit": e.cur.id, "cell": o.cell})
-	e.say("%s has the package. Carry it to the extraction zone." % e.cur.c.display_name)
+	e.say("%s has the %s. Carry it to the extraction zone." % [e.cur.c.display_name, item_short("package")])
 	e._check_end()
 	return {"ok": true}
 
 
 func hud_text() -> String:
-	return "GET THE PACKAGE TO EXTRACTION" if int(o.get("carrier", -1)) >= 0 else "RECOVER THE PACKAGE"
+	return "GET THE %s TO EXTRACTION" % item_marker("PACKAGE") if int(o.get("carrier", -1)) >= 0 else "RECOVER THE %s" % item_marker("PACKAGE")
 
 
 func marks(_fog: bool) -> Array:
 	if int(o.get("carrier", -1)) < 0:
-		return [{"cell": o.cell, "h": 0.4, "label": "★ PACKAGE", "tone": "gold"}]
+		return [{"cell": o.cell, "h": 0.4, "label": "★ " + item_marker("PACKAGE"), "tone": "gold"}]
 	return [_extract_mark()]
 
 

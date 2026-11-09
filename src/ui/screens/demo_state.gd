@@ -66,6 +66,17 @@ static func make() -> Campaign:
 	for line in ["Rested 2 days.", "Bought %s" % Items.display_name(cons[0]) if not cons.is_empty() else "Bought gear", "Bought %s" % Items.display_name(cons[0]) if not cons.is_empty() else "Bought gear"]:
 		c.say(line)
 	c.debrief.assign(report(c).members)
+	# The board as a crew with a name gets it, showing each kind of payment (MissionBuilder) and
+	# a fixer's intel on every offer (Campaign.foresee).
+	c.refresh_board()
+	var ordinary := c.board.filter(func(g): return not g.get("unique", false))
+	var kinds := ["goods", "favour:treatment", "information"]
+	for i in mini(kinds.size(), ordinary.size()):
+		var g: Dictionary = ordinary[i]
+		g["pay"] = int((g.get("payment", {}) as Dictionary).get("base", g.get("pay", 0)))
+		MissionBuilder.payment_step(dice, g, String(kinds[i]), func(v: int) -> Array: return c.goods_pool(v))
+	c.intel = 1
+	c.foresee()
 	return c
 
 
@@ -85,5 +96,12 @@ static func report(c: Campaign) -> Dictionary:
 	members.append({"name": "Wraith", "role": "solo", "look_seed": 9, "dead": true, "ip": 0, "reputation": 0, "injuries": [], "wound": "Dead",
 		"hp": 0, "max_hp": 40, "kit": ["Smoke Grenade"], "lost": ["Assault Rifle", "Heavy Pistol", "Light Armorjack", "Wolvers", "Smoke Grenade"],
 		"addicted": [], "episode": false, "humanity_lost": 0})
-	return {"won": true, "gig": {"title": "Retire a Biotechnica manager", "fixer": "Mr. Blue", "security": 2}, "pay": 1500, "ip": 30,
+	# A Mission Builder gig paid partly in a favour (SPM p.28 step 4).
+	var gig := {"title": "Wetwork: Biotechnica Plaza", "fixer": "Mr. Blue", "security": 2, "kind": "assassination",
+		"client": {"zone": "corporate", "roll": 9, "id": "corp_spy", "label": "a corporate spy"},
+		"mission": {"roll": 99, "id": "wetwork", "label": "Wetwork", "objective": "assassinate"},
+		"focus": {"category": "corporate", "roll": 1, "id": "key_exec", "label": "a key exec", "short": "key exec", "marker": "KEY EXEC", "as": ["captive", "mark"]},
+		"payment": {"type": "favour", "base": 2000, "eb": 1500, "kind": "treatment"}, "twist": null}
+	return {"won": true, "gig": gig, "pay": 1500, "ip": 30, "payment": gig.payment, "paid_extra": MissionBuilder.payment_extra(gig.payment),
+		"focus_line": MissionBuilder.debrief_line(gig, true), "client": MissionBuilder.client_text(gig),
 		"reputation": {a.display_name: 3}, "dead": ["Wraith"], "hurt": [], "episodes": [], "kit_used": ["Flashbang"], "addicted": [], "members": members}

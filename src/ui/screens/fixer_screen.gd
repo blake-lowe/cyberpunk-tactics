@@ -118,16 +118,25 @@ func _gig_card(i: int, ready: bool) -> PanelContainer:
 	t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	t.custom_minimum_size.x = 100
 	left.add_child(t)
-	var where := [String(g.fixer), Campaign.place_name(g), Campaign.district_name(g)].filter(func(s): return s != "")
-	left.add_child(UiKit.label(" · ".join(where), 14, Hud.CYAN))   # fixer · place · district; the hook is the blurb
+	# Who's hiring (Mission Builder step 1, SPM p.28): the client behind the fixer; older offers name the fixer.
+	var client := MissionBuilder.client_text(g)
+	left.add_child(UiKit.label("Client: " + client if client != "" else "Fixer: " + String(g.fixer), 14, Hud.CYAN))
+	var where := [Campaign.place_name(g), Campaign.district_name(g)].filter(func(s): return s != "")
 	var drive := Travel.label(camp.travel_minutes(g))   # NC2045 p.18: from the safehouse district
 	if drive != "":
-		left.add_child(UiKit.label(drive, 12, Hud.DIM))
+		where.append(drive)
+	left.add_child(UiKit.label(" · ".join(where), 12, Hud.DIM))   # place · district · drive; the hook is the blurb
 	left.add_child(UiKit.body(String(g.blurb), 15))
 	var mid := UiKit.vbox(6)
 	mid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(mid)
 	mid.add_child(UiKit.body("★ " + String(OBJECTIVE_TEXT.get(Campaign.objective_for(g), "")), 15, Hud.TEXT))
+	var fc: Dictionary = g.get("focus", {}) if g.get("focus") is Dictionary else {}
+	if not fc.is_empty():   # the focus (SPM p.73): what the job is about
+		mid.add_child(UiKit.body("Focus: " + String(fc.get("label", "")), 14, Hud.GOLD))
+	if g.has("intel"):   # paid for in information: the Oracle asked ahead (Campaign.foresee)
+		var trouble := String(g.intel) == "trouble"
+		mid.add_child(UiKit.body("Intel: expect a complication" if trouble else "Intel: it should run clean", 14, Hud.RED if trouble else Hud.GREEN))
 	if g.get("unique", false):
 		mid.add_child(UiKit.body("Personal job: %s has heard of the crew. Double pay." % String(g.fixer), 14, Hud.CYAN))
 	for line in SetPieces.briefs(String(g.get("setpiece", ""))):   # the place's house rules (Totentanz: no fighting on the floor)
@@ -138,6 +147,11 @@ func _gig_card(i: int, ready: bool) -> PanelContainer:
 	right.add_child(code_block(g, 17, 13))   # NC2045 p.7 Security Code
 	right.add_child(UiKit.label("PAY", 12, Hud.DIM))
 	right.add_child(UiKit.label("%s eb" % UiKit.money(int(g.pay)), 22, Hud.TEXT))
+	var extra := MissionBuilder.payment_extra(g.get("payment", {}) if g.get("payment") is Dictionary else {})
+	if extra != "":   # paid partly in information, a favour or goods (SPM p.28 step 4)
+		var x := UiKit.body("+ " + extra, 14, Hud.GOLD)
+		x.custom_minimum_size.x = 220
+		right.add_child(x)
 	var b := UiKit.button("TAKE THE GIG", UiKit.PRIMARY, func(): take_gig.emit(i), ready)
 	right.add_child(b)
 	return p

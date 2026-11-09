@@ -4,7 +4,8 @@ extends PanelContainer
 ## mode (GameSettings.dev_mode; FixerScreen). A form over every parameter a gig has (CustomGig.FIELDS):
 ## where (district, a canon location searched by name, or a set piece, scene, profile or site
 ## directly), the objective, the target, the security level and Security Code, the utilities, the
-## complication, the pay, the seed, the deploy zone, basements and who goes. Every field starts
+## complication, the pay, the seed, the deploy zone, basements and who goes, and on top the Mission
+## Builder sheet's rows (SPM p.102: who's hiring, payment, mission type, focus). Every field starts
 ## auto. The line under the form is the same gig as greybox flags. TAKE starts it
 ## (Campaign.accept_custom), REPEAT the last one taken (Campaign.last_custom, its seed fixed).
 
@@ -49,6 +50,7 @@ func _build() -> void:
 	var note := UiKit.body("Developer mode. Every field set here, the rest auto (drawn from the seed). Runs as a board gig: travel, pay, IP, injuries; marked DEV in the save and the debrief.", 13, Hud.DIM)
 	note.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	top.add_child(note)
+	_mission_builder(v)
 	var grid := GridContainer.new()
 	grid.columns = 4
 	grid.add_theme_constant_override("h_separation", 10)
@@ -114,7 +116,7 @@ func _build() -> void:
 	var mood_opt := _opt("mood", moods)
 	mood_opt.tooltip_text = "A tower gig's weather (Atmosphere): auto draws it from the seed, weighted by the district."
 	_field(grid, "Weather", mood_opt)
-	_field(grid, "Pay (eb)", _spin("pay", 0, 200000, 500))
+	_field(grid, "Pay (eb part)", _spin("pay", 0, 200000, 500))
 	_field(grid, "Seed", _spin("seed", 0, 99999, 1))
 	_field(grid, "Complication", _complication())
 	# Security Code: from the location, or set.
@@ -172,6 +174,50 @@ func _build() -> void:
 	go.name = "TakeCustom"
 	bottom.add_child(go)
 	_changed()
+
+
+# --- The Mission Builder sheet (SPM p.102) ---------------------------------------------------
+
+const ZONE_SHORT := {"corporate": "Corp", "moderate": "Moderate", "street": "Street", "outskirts": "Outskirts"}
+
+
+## The sheet's rows in its order: who's hiring, payment, the mission, the focus (MissionBuilder);
+## the twist has no row until twists are built. Auto rolls each for the place, as the board does.
+func _mission_builder(v: VBoxContainer) -> void:
+	var head := UiKit.label("MISSION BUILDER · SPM p.102 · THE TWIST: NOT BUILT YET", 12, Hud.MAGENTA)
+	head.name = "MissionBuilderHead"
+	v.add_child(head)
+	var mb := GridContainer.new()
+	mb.name = "MissionBuilder"
+	mb.columns = 4
+	mb.add_theme_constant_override("h_separation", 10)
+	mb.add_theme_constant_override("v_separation", 6)
+	v.add_child(mb)
+	var clients: Array = [["", AUTO + " (the place's zone)"]]
+	for z in MissionBuilder.ZONES:
+		for row in MissionBuilder.client_rows(z):
+			clients.append(["%s/%s" % [z, String(row.id)], "%s · %s" % [ZONE_SHORT[z], String(row.label)]])
+	_field(mb, "Who's hiring", _opt("client", clients))
+	_field(mb, "Payment", _opt("payment", [["", AUTO + " (mostly eb)"], ["eb", "eb only"], ["information", "Information (intel)"],
+		["favour:treatment", "Favour: a Treatment"], ["favour:market", "Favour: a market item"], ["goods", "Goods"]]))
+	var missions: Array = [["", AUTO + " (rolled)"]]
+	for row in MissionBuilder.mission_rows():
+		var on := MissionBuilder.enabled(row)
+		missions.append([String(row.id), "%d-%d %s · %s" % [int(row.roll[0]), int(row.roll[1]), String(row.label),
+			String(row.objective).capitalize() if on else "needs " + String(row.get("needs", "a module"))]])
+	var mo := _opt("mission", missions)
+	for i in mo.item_count:   # rows with no objective module yet can't be picked
+		var id := String(mo.get_item_metadata(i))
+		mo.set_item_disabled(i, id != "" and not MissionBuilder.enabled(MissionBuilder.mission_def(id)))
+	mo.tooltip_text = "Mission Types (SPM p.72). Its objective is used when Objective is Auto; a set Objective wins."
+	_field(mb, "Mission type", mo)
+	var focus: Array = [["", AUTO + " (the place's zone)"]]
+	for z in MissionBuilder.ZONES:
+		for row in MissionBuilder.focus_rows(z):
+			focus.append(["%s/%s" % [z, String(row.id)], "%s · %s (%s)" % [ZONE_SHORT[z], String(row.label), ", ".join(PackedStringArray(row.get("as", [])))]])
+	var fo := _opt("item", focus)
+	fo.tooltip_text = "Mission Items (SPM p.73). (data) a data theft's file, (object) a snatch's package, (captive) a rescue, (mark) a hit, (wreck) a sabotage or gang hit."
+	_field(mb, "Focus", fo)
 
 
 # --- Fields -----------------------------------------------------------------------------------
@@ -293,7 +339,7 @@ func _complication() -> Control:
 	var o := OptionButton.new()
 	_style_field(o)
 	o.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var items := [["auto", "Auto (1 in 3)"], ["none", "None"], ["random", "Random"]]
+	var items := [["auto", "Auto (Oracle)"], ["none", "None"], ["random", "Random"]]
 	for t in Complication.TIERS:
 		items.append([String(t), String(Complication.TIER_NAMES[t])])
 	_set_items(o, items, tier)

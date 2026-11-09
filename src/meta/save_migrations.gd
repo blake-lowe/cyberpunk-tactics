@@ -57,8 +57,13 @@ extends RefCounted
 ##     (the migration can't: it reads no city data and rolls no dice).
 ## v15: save slots. The campaign counts the gigs it has played to the end, `gigs_done`, for the
 ##     slot listing; an older save doesn't know how many it played and starts at 0.
+## v16: the Mission Builder (SPM p.28). Board offers carry `client`, `mission`, `focus`, `payment`
+##     ({type, base, eb, ...}: eb, information, a favour or goods) and `twist` (null until twists are
+##     built). An older offer has none of the first three and keeps its title and blurb (the board
+##     shows what it has); it gains an eb `payment` of its `pay` and twist null. The campaign gains
+##     `intel` (information tokens, 0) and `favours` (favour tokens, none).
 
-const CURRENT := 15
+const CURRENT := 16
 
 
 ## Upgrade `d` (a parsed save) to CURRENT. Returns {} for a save from a newer build, which this
@@ -84,6 +89,7 @@ static func migrate(d: Dictionary) -> Dictionary:
 			12: _v12_to_v13(d)
 			13: _v13_to_v14(d)
 			14: _v14_to_v15(d)
+			15: _v15_to_v16(d)
 		v += 1
 		d["version"] = v
 	return d
@@ -279,3 +285,18 @@ static func _v13_to_v14(d: Dictionary) -> void:
 static func _v14_to_v15(d: Dictionary) -> void:
 	if not d.has("gigs_done"):
 		d["gigs_done"] = 0
+
+
+static func _v15_to_v16(d: Dictionary) -> void:
+	for g in d.get("board", []):
+		if not g is Dictionary:
+			continue
+		if not (g as Dictionary).has("payment"):
+			var pay := int(g.get("pay", 0))
+			g["payment"] = {"type": "eb", "base": pay, "eb": pay}
+		if not (g as Dictionary).has("twist"):
+			g["twist"] = null
+	if not d.has("intel"):
+		d["intel"] = 0
+	if not d.has("favours"):
+		d["favours"] = []

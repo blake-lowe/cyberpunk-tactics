@@ -19,11 +19,13 @@ func _opfor(e: Encounter, tier := "") -> Array:
 	return e.units.filter(func(u): return int(u.team) == Encounter.OPFOR and (tier == "" or String(u.c.role) == tier))
 
 
-func test_one_gig_in_three_rolls_one() -> void:
-	var hits := 0
-	for s in 3000:
-		hits += int(Complication.happens(Dice.new(s + 1)))
-	assert_between(hits / 3000.0, 0.29, 0.38, "HOUSE-RULE pacing: 1 in 3")
+func test_the_oracle_decides_by_security_level() -> void:
+	var want := {1: 0.10, 2: 0.35, 3: 0.60}   # HOUSE-RULE likelihoods: Impossible, Unlikely, 50/50 (SPM p.13)
+	for lv in want:
+		var hits := 0
+		for s in 3000:
+			hits += int(Complication.happens(Dice.new(s + 1), lv))
+		assert_near(hits / 3000.0, float(want[lv]), 0.03, "security %d" % lv)
 
 
 func test_none_unless_asked_and_never_on_the_board() -> void:

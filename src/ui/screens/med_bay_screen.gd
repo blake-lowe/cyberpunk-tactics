@@ -249,7 +249,11 @@ func _therapy(body: VBoxContainer) -> void:
 # --- Critical Injuries ------------------------------------------------------------------------
 
 func _injuries(body: VBoxContainer) -> void:
-	body.add_child(UiKit.body("Rest doesn't heal a Critical Injury: Treatment removes it for good. A street clinic does it for %s eb each." % UiKit.money(camp.treat_cost()), 15, Hud.DIM))
+	var fi := camp.favour_index("treatment")
+	if fi >= 0:   # a fixer's favour (payment, MissionBuilder): the next Treatment is on them
+		body.add_child(UiKit.body("Rest doesn't heal a Critical Injury: Treatment removes it for good. %s owes the crew a favour: the next one is free." % String(camp.favours[fi].get("from", "A fixer")), 15, Hud.GOLD))
+	else:
+		body.add_child(UiKit.body("Rest doesn't heal a Critical Injury: Treatment removes it for good. A street clinic does it for %s eb each." % UiKit.money(camp.treat_cost()), 15, Hud.DIM))
 	var list := UiKit.vbox(8)
 	body.add_child(UiKit.scroller(list))
 	var any := false

@@ -1,45 +1,32 @@
 {
-	"_doc": "Gig templates for the fixer board (M6, M9 P3). Each offer picks a template (its kind), a security level weighted by the crew's best Reputation (CPR p193, per character; rep_for_security), then a canon Night City location of that level (data/world/locations.json: hooks naming the kind first, else places whose gigs include it) and a Fixer working its district (data/world/fixers.json; fixer_tags: which deals_in tags suit each kind, weighted up). The title is the template's label and the location; the blurb is '<Fixer> has work at <Location> (<District>): <hook>', or the template's pitch when the place has no hook for the kind. Every offer is at a canon location (owner ruling 2026-11-04: no generic offers): when no place fits the template's kind at the rolled level or below, the other kinds are tried. Pay and rewards are HOUSE-RULE economy numbers until checked against the book's job rates. Unique offers (spec: 'occasional unique offers' from fixers who trust you) appear once the crew's best Reputation reaches unique_rep, at one of the target's own places (else a canon place for the job); their titles/blurb fill {fixer}, {corp}, {gang}, {data} and {place} (the location's name). Target factions come from data/world/factions.json (each faction lists the gig kinds it can be the target of); {corp}/{gang} slots are filled with the target's name, and titles naming the other kind of slot are skipped. Complications are no longer here: the book's Hardened complication tables (data/rules/npcs.json) are rolled at gig start (Complication).",
-	"data": [
-		"payroll ledger",
-		"prototype schematics",
-		"blackmail archive",
-		"clinical trial data",
-		"shipping manifests",
-		"black book"
-	],
+	"_doc": "Gig kinds and board tuning for the fixer board (M6, M9 P3; the Mission Builder, SPM p.28, data/gen/mission_builder.json). Each offer rolls a Mission Type (its objective gives the kind: templates list the kinds and a plain label for each), a security level weighted by the crew's best Reputation (CPR p193, per character; rep_for_security), then a canon Night City location of that level (data/world/locations.json: hooks naming the kind first, else places whose gigs include it) and a Fixer working its district (data/world/fixers.json; fixer_tags: which deals_in tags suit each kind, weighted up). The Mission Builder then adds the client, the focus item, the payment and the twist hook (MissionBuilder). The title is the mission type's label and the location; the blurb is '<Fixer> has work at <Location> (<District>): <mission framing> <hook>'. Every offer is at a canon location (owner ruling 2026-11-04: no generic offers): when no place fits the mission's kind at the rolled level or below, the other kinds are tried. Unique offers (spec: 'occasional unique offers' from fixers who trust you) appear once the crew's best Reputation reaches unique_rep, at one of the target's own places (else a canon place for the job); their titles/blurb fill {fixer}, {corp}, {gang}, {item_short} (the focus item) and {place} (the location's name); focus: the focus item the job is about (category/id), else one is rolled for the place. Target factions come from data/world/factions.json (each faction lists the gig kinds it can be the target of); {corp}/{gang} slots are filled with the target's name, and titles naming the other kind of slot are skipped. Complications are no longer here: the book's Hardened complication tables (data/rules/npcs.json) are rolled at gig start (Complication).",
 	"templates": [
 		{
 			"kind": "data_theft",
-			"label": "Data theft",
-			"pitch": "a buyer wants {target}'s {data} out of there."
+			"label": "Data theft"
 		},
 		{
 			"kind": "gang_hit",
-			"label": "Gang hit",
-			"pitch": "the {target} have to go, along with anyone they call."
+			"label": "Gang hit"
 		},
 		{
 			"kind": "corp_extraction",
-			"label": "Package job",
-			"pitch": "an inside contact leaves a door open; bring the package out."
+			"label": "Package job"
 		},
 		{
 			"kind": "assassination",
-			"label": "Wetwork",
-			"pitch": "someone in {target} has a contract on them."
+			"label": "Wetwork"
 		},
 		{
 			"kind": "rescue",
-			"label": "Extraction",
-			"pitch": "someone is being held inside; walk them out alive."
+			"label": "Extraction"
 		},
 		{
 			"kind": "sabotage",
-			"label": "Sabotage",
-			"pitch": "{target}'s gear has to be wrecked before morning."
+			"label": "Sabotage"
 		}
 	],
+	"_pay": "The job's rate by security level, before the payment step (MissionBuilder) splits it: CPR core p.381 pays an Easy job 500eb, a Typical 1,000eb and a Dangerous 2,000eb per person; levels 1-3 are those, for the two-person crew a campaign starts with. HOUSE-RULE: flat per gig, not per head, so a bigger crew splits the same pay (the book's per-person rate would make every hire pay for itself).",
 	"pay": {
 		"1": 1000,
 		"2": 2000,
@@ -101,6 +88,7 @@
 				"Personal job: {corp} prototype"
 			],
 			"blurb": "{fixer} trusts you with this one. A {corp} prototype is in storage tonight; bring it back. Double pay.",
+			"focus": "corporate/prototype",
 			"security": 3,
 			"pay_mult": 2.0
 		},
@@ -116,9 +104,9 @@
 		{
 			"kind": "data_theft",
 			"titles": [
-				"Personal job: {corp}'s {data}"
+				"Personal job: {corp}'s {item_short}"
 			],
-			"blurb": "{fixer}'s client wants {corp}'s {data}. Expect a deep NET and heavy Black ICE. Double pay.",
+			"blurb": "{fixer}'s client wants {corp}'s {item_short}. Expect a deep NET and heavy Black ICE. Double pay.",
 			"security": 3,
 			"pay_mult": 2.0
 		}

@@ -119,6 +119,19 @@ func done() -> bool:
 	return bool(o.get("done", false))
 
 
+## What the job is about, upper case for markers and the HUD ("PROTOTYPE"), or `fallback`: the
+## gig's focus item (MissionBuilder; GigSetup.name_focus sets o.item), when it has one.
+func item_marker(fallback: String) -> String:
+	var it: Variant = o.get("item")
+	return String(it.get("marker", "")) if it is Dictionary and String(it.get("marker", "")) != "" else fallback
+
+
+## The focus item in a log line ("tech prototype"), or `fallback`.
+func item_short(fallback: String) -> String:
+	var it: Variant = o.get("item")
+	return String(it.get("short", "")) if it is Dictionary and String(it.get("short", "")) != "" else fallback
+
+
 ## Every guard down wins (the default for data and elimination jobs).
 func _cleared() -> String:
 	if e.opfor().is_empty():

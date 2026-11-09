@@ -294,8 +294,8 @@ static func short_intensity(code: Dictionary) -> String:
 
 
 ## Does this gig roll its Utility Code? NC2045 p.8 offers utilities as an extra complication to
-## raise a job's challenge, not a standing rule. HOUSE-RULE pacing: one gig in UTILITY_CHANCE_IN,
-## as for the book's complications (Complication.CHANCE_IN).
+## raise a job's challenge, not a standing rule. HOUSE-RULE pacing: one gig in UTILITY_CHANCE_IN
+## (the book's complications were paced the same until the Oracle took them over: Complication.likelihood).
 static func utilities_happen(dice: Dice) -> bool:
 	return dice.d(UTILITY_CHANCE_IN) == 1
 

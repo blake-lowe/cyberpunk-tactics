@@ -27,7 +27,7 @@ func check_end() -> String:
 func hud_text() -> String:
 	if int(o.get("node", -1)) >= 0 and e.m.architectures.has(int(o.structure)):
 		var fn: Dictionary = (e.m.architectures[int(o.structure)] as NetArchitecture).nodes[int(o.node)]
-		return "STEAL THE DATA\nJACK IN AT THE ACCESS POINT\nREACH NET LEVEL %d\nOR ELIMINATE ALL HOSTILES" % int(fn.zone)
+		return "STEAL THE %s\nJACK IN AT THE ACCESS POINT\nREACH NET LEVEL %d\nOR ELIMINATE ALL HOSTILES" % [item_marker("DATA"), int(fn.zone)]
 	return "ELIMINATE ALL HOSTILES"
 
 

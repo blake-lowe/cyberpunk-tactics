@@ -37,9 +37,15 @@ func build_body(body: VBoxContainer) -> void:
 	var sums := UiKit.hbox(28)
 	tv.add_child(sums)
 	_sum(sums, "PAY", "%s eb" % UiKit.money(int(report.get("pay", 0))), Hud.TEXT)
+	if String(report.get("paid_extra", "")) != "":   # the payment beyond eb (SPM p.28 step 4)
+		_sum(sums, "ALSO PAID", String(report.paid_extra), Hud.GOLD)
 	_sum(sums, "IMPROVEMENT POINTS", "%d each" % int(report.get("ip", 0)), Hud.CYAN)
-	if String(gig.get("fixer", "")) != "":
+	if String(report.get("client", "")) != "":
+		_sum(sums, "CLIENT", String(report.client), Hud.TEXT)
+	elif String(gig.get("fixer", "")) != "":
 		_sum(sums, "FIXER", String(gig.fixer), Hud.TEXT)
+	if String(report.get("focus_line", "")) != "":   # what became of the focus (SPM p.73)
+		tv.add_child(UiKit.body(String(report.focus_line), 16, Hud.TEXT if report.get("won", false) else Hud.DIM))
 	var members: Array = report.get("members", [])
 	var grid := GridContainer.new()
 	grid.columns = clampi(members.size(), 1, 4)
