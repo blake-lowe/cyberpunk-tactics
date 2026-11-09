@@ -64,14 +64,6 @@
    "key": "Mild 2, Strong 4, Deadly 6 a Turn",
    "page": "p.180"
   },
-  "search_body": {
-   "name": "Search Body",
-   "cost": "Action",
-   "text": "Go through the pockets of someone down or surrendered beside you, once per body. Most carry nothing worth taking; a find is cash, gear, a keycard, a NET login code or a lead a fixer might follow up. It goes home with whoever found it.",
-   "key": "1d6 for anything (Mook 1-2, Lieutenant 1-3, Mini Boss 1-4), then 1d100 on the body's table",
-   "page": "p.65-70",
-   "book": "SPM"
-  },
   "spoof": {
    "name": "Spoof",
    "cost": "Action",

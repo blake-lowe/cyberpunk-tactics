@@ -61,7 +61,11 @@ func test_net_panel_rows_have_cited_hover_cards() -> void:
 	for id in ids:
 		var card := Hud.net_help(id)
 		assert_true(card.begins_with("[b]"), "%s has a card" % id)
-		assert_true(card.contains("CPR core p.") or card.contains("game rule"), "%s cites its page: %s" % [id, card])
+		assert_false(TextCites.has_cite(card), "%s: no page cite in player text: %s" % [id, card])
+		var db: Dictionary = RulesDB.load_json("net_help.json")
+		var e: Dictionary = (db.actions as Dictionary).get(id, (db.programs as Dictionary).get(id, {}))
+		var page := String(db.get("ice_page", "")) if id.begins_with("ice:") else String(e.get("page", ""))
+		assert_true(page.begins_with("p.") or page.begins_with("game rule"), "%s: its cite lives in the data's page field (%s)" % [id, page])
 	assert_true(Hud.net_help("backdoor").contains("1 NET Action"), "the cost")
 	assert_true(Hud.net_help("zap").contains("1d6"), "the key numbers")
 	assert_true(Hud.net_help("sword").contains("3d6") and Hud.net_help("sword").contains("ATK 1"), "a Program's stats")

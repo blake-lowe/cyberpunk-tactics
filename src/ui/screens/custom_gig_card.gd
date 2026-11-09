@@ -185,7 +185,7 @@ const ZONE_SHORT := {"corporate": "Corp", "moderate": "Moderate", "street": "Str
 ## (MissionBuilder; Plot Twists, Twist), the street round the gig (SceneEvent). Auto rolls each
 ## for the place, as the board does.
 func _mission_builder(v: VBoxContainer) -> void:
-	var head := UiKit.label("MISSION BUILDER · SPM p.102 · PLOT TWISTS p.75-76 · ON THE STREET p.77-84", 12, Hud.MAGENTA)
+	var head := UiKit.label("MISSION BUILDER · PLOT TWISTS · ON THE STREET", 12, Hud.MAGENTA)
 	head.name = "MissionBuilderHead"
 	v.add_child(head)
 	var mb := GridContainer.new()
@@ -210,14 +210,14 @@ func _mission_builder(v: VBoxContainer) -> void:
 	for i in mo.item_count:   # rows with no objective module yet can't be picked
 		var id := String(mo.get_item_metadata(i))
 		mo.set_item_disabled(i, id != "" and not MissionBuilder.enabled(MissionBuilder.mission_def(id)))
-	mo.tooltip_text = "Mission Types (SPM p.72). Its objective is used when Objective is Auto; a set Objective wins."
+	mo.tooltip_text = "Mission Types. Its objective is used when Objective is Auto; a set Objective wins."
 	_field(mb, "Mission type", mo)
 	var focus: Array = [["", AUTO + " (the place's zone)"]]
 	for z in MissionBuilder.ZONES:
 		for row in MissionBuilder.focus_rows(z):
 			focus.append(["%s/%s" % [z, String(row.id)], "%s · %s (%s)" % [ZONE_SHORT[z], String(row.label), ", ".join(PackedStringArray(row.get("as", [])))]])
 	var fo := _opt("item", focus)
-	fo.tooltip_text = "Mission Items (SPM p.73). (data) a data theft's file, (object) a snatch's package, (captive) a rescue, (mark) a hit, (wreck) a sabotage or gang hit."
+	fo.tooltip_text = "Mission Items. (data) a data theft's file, (object) a snatch's package, (captive) a rescue, (mark) a hit, (wreck) a sabotage or gang hit."
 	_field(mb, "Focus", fo)
 	var twists: Array = [["auto", AUTO + " (Oracle: most jobs none)"], ["none", "None"]]
 	for row in Twist.rows():
@@ -229,14 +229,14 @@ func _mission_builder(v: VBoxContainer) -> void:
 	for i in to.item_count:   # rows the game doesn't play yet can't be picked
 		var id := String(to.get_item_metadata(i))
 		to.set_item_disabled(i, id not in ["auto", "none"] and not Twist.enabled(Twist.row(id)))
-	to.tooltip_text = "Plot Twists (SPM p.75-76): hidden on the board, sprung at its trigger in play. A set row keeps its own trigger; the --twist flag can add @start, @alarm, @objective_done or @round<n>."
+	to.tooltip_text = "Plot Twists: hidden on the board, sprung at its trigger in play. A set row keeps its own trigger; the --twist flag can add @start, @alarm, @objective_done or @round<n>."
 	_field(mb, "Twist", to)
 	var streets: Array = [["auto", AUTO + " (about half: the place's band, the hour)"], ["none", "None"]]
 	for k in SceneEvent.tables():
 		for row in SceneEvent.enabled_rows(String(k)):
 			streets.append([String(row.id), "%s · %d-%d %s" % [String(k).replace("_", " ").capitalize(), int(row.roll[0]), int(row.roll[1]), String(row.label)]])
 	var so := _opt("street", streets)
-	so.tooltip_text = "Scene events (SPM p.77-84 Random Encounters): the street round the gig, rolled when it starts. A set row plays whatever the hour."
+	so.tooltip_text = "Scene events: the street round the gig, rolled when it starts. A set row plays whatever the hour."
 	_field(mb, "On the street", so)
 
 

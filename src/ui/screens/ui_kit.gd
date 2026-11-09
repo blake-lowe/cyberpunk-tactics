@@ -51,6 +51,28 @@ static func body(s: String, size := 16, col := Color(Hud.TEXT, 0.85), wrap := tr
 	return l
 
 
+## Wrapped body text in BBCode (a word or two coloured: [color=#...]), set like body().
+static func rich(bbcode: String, size := 16, col := Color(Hud.TEXT, 0.85)) -> RichTextLabel:
+	var l := RichTextLabel.new()
+	l.bbcode_enabled = true
+	l.fit_content = true
+	l.scroll_active = false
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	l.custom_minimum_size.x = 60
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	l.add_theme_font_override("normal_font", Hud.F_BODY)
+	l.add_theme_font_size_override("normal_font_size", size)
+	l.add_theme_color_override("default_color", col)
+	l.text = bbcode
+	return l
+
+
+## `s` safe to put inside BBCode as plain text.
+static func bb_escape(s: String) -> String:
+	return s.replace("[", "[lb]")
+
+
 ## Caps for labels and buttons, keeping the book's lower-case "eb" (eurobucks).
 static func caps(s: String) -> String:
 	return RegEx.create_from_string("(\\bEB|(?<=\\d)EB)\\b").sub(s.to_upper(), "eb", true)

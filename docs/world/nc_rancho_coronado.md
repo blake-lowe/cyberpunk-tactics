@@ -489,6 +489,7 @@ A dead pre-war mall now infested with fixers running Night Markets, cheap enough
 - Granny Bliss (Fixer 5) — Eagle Rock Stadium (#7): organises gigs for the edgerunners who hang out there.
 - Ms. Mynah (Fixer 6) — Minimallism (#11), office off the central plaza: apparel Night Market on the 5th of each month.
 - Ximena Rose (Fixer 4/Nomad 1) — XOOX in Minimallism (#11): coordinates the Steel Vaqueros' business in the district.
+- Molly Anderson (Fixer 4): ours, not NC2045's: the Andersons' leader (SPM p.57; NC2045 p.33), placed at Minimallism (#11), where her family's scavenged haul goes to the Night Markets (docs/world/fixers.md).
 
 ## Personalities
 

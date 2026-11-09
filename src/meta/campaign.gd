@@ -29,7 +29,7 @@ const OBJECTIVES := {"data_theft": "data", "gang_hit": "eliminate", "corp_extrac
 ## Recover: natural healing, BODY HP a day (p223). (The book has no rule for earning IP or eb in
 ## downtime: IP come from the GM after a session, p410.)
 const DOWNTIME := {
-	"recover": {"name": "Recover", "desc": "Heal BODY HP a day (p223)."},
+	"recover": {"name": "Recover", "desc": "Heal BODY HP a day."},   # CPR core p.223
 }
 
 ## Where a new crew holds up: Little China, a mid-band district (Security Code 4-5, NC2045 p.18) in

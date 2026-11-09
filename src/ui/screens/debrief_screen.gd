@@ -129,7 +129,7 @@ static func loot_panel(rep: Dictionary) -> PanelContainer:
 			row.add_child(UiKit.body("· " + String(f.by), 13, Hud.DIM, false))
 		flow.add_child(row)
 	if lost > 0:
-		v.add_child(UiKit.body("%d find%s left behind with those who didn't get out." % [lost, "" if lost == 1 else "s"], 13, Hud.RED, false))
+		v.add_child(UiKit.body("%d find%s left behind." % [lost, "" if lost == 1 else "s"], 13, Hud.RED, false))
 	return p
 
 

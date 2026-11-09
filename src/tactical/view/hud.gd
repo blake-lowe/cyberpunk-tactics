@@ -908,7 +908,7 @@ func _build_bar() -> void:
 		var arg: Variant = spec[4]
 		var act: String = spec[3]
 		b3.pressed.connect(func(): action.emit(act, arg))
-		if spec[0] == "interact":   # what B does here, when it has a card (Search Body)
+		if spec[0] == "interact":   # what B does here, when it has a card (Spoof)
 			b3.mouse_entered.connect(func(): _interact_tip(b3))
 			b3.mouse_exited.connect(func(): _tip.visible = false)
 		_tool_buttons[spec[0]] = b3
@@ -1074,12 +1074,6 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 		cx.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		cx.custom_minimum_size.x = 260
 		_round_box.add_child(cx)
-	var sl := SceneEvent.hud_line(enc)
-	if sl != "":   # the street round the gig (SceneEvent): quieter than a twist
-		var sx := _text(sl, F_TERM, Hud.ts(15), Color(CYAN, 0.8))
-		sx.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		sx.custom_minimum_size.x = 260
-		_round_box.add_child(sx)
 	var tl := Twist.hud_line(enc)
 	if tl != "":   # the plot twist (Twist), once it has sprung
 		var tx := _text(tl, F_TERM, Hud.ts(18), MAGENTA)
@@ -1522,7 +1516,7 @@ static func _is_grapple(id: String) -> bool:
 
 
 ## A close-quarters action's hover card from data/rules/action_help.json (the NET panel's style,
-## net_help): name, cost, what it does, its roll, the page. `live` adds a NOW line. "" if unknown.
+## net_help): name, cost, what it does, its roll. `live` adds a NOW line. "" if unknown.
 static func action_help(id: String, live := "") -> String:
 	const K := "[color=#7d8a96]%s[/color]"
 	var e: Dictionary = (RulesDB.load_json("action_help.json").actions as Dictionary).get(id, {})
@@ -1533,12 +1527,11 @@ static func action_help(id: String, live := "") -> String:
 		out.append((K % "ROLL") + " [code]%s[/code]" % String(e.key))
 	if live != "":
 		out.append((K % "NOW") + " " + live)
-	out.append(K % ("%s %s" % [String(e.get("book", "CPR core")), String(e.get("page", ""))]))
-	return "\n".join(out)
+	return "\n".join(out)   # book and page stay in the data (`book`, `page`): never in player text
 
 
-## The interact button's hover card, for the interacts that have one (Search Body: whose body,
-## and that it's searched once).
+## The interact button's hover card, for the interacts that need one (Spoof: its odds now). Search
+## Body has none (owner verdict 2026-11-09: self-explanatory; the button says it, with its key).
 var interact_enc: Encounter = null   ## set by the view each refresh (the bar has no Encounter of its own)
 
 
@@ -1551,20 +1544,6 @@ func _interact_tip(b: Control) -> void:
 		var dv := int(Clocks.db().reclaim.get("dv", 15))
 		var pct := roundi(Check.chance_vs_dv(Clocks.spoof_base(c), dv) * 100.0)
 		tip(action_help("spoof", "%d%% to win a die back" % pct),b.get_global_rect().position - global_position + Vector2(-28, -40), "// RECLAIM TIME", CYAN)
-		return
-	if here.is_empty() or String(here[0]) != "search":
-		return
-	tip(search_help(interact_enc), b.get_global_rect().position - global_position + Vector2(-28, -40), "// SEARCH BODY", GOLD)
-
-
-## Search Body's card (action_help.json search_body) with the body in reach and its odds now.
-static func search_help(enc: Encounter) -> String:
-	var g := enc.body_in_reach(enc.cur)
-	var live := ""
-	if not g.is_empty():
-		var state := "surrendered" if String(g.get("broke", "")) == "surrender" else ("flatlined" if g.c.dead else "down")
-		live = "%s (%s): something on them on 1-%d of 1d6" % [g.c.display_name, state, CorpseLoot.has_loot_target(g)]
-	return action_help("search_body", live)
 
 
 ## The hover card above a bar button.
@@ -2019,51 +1998,6 @@ func twist_callout(title: String, note: String, text: String, secs := 2.2) -> vo
 	tw.tween_property(_twist_card, "modulate:a", 0.0, 0.35)
 
 
-# --- The street round the gig (SceneEvent, SPM p.77-84) ----------------------------------------
-
-var _street_card: PanelContainer
-var _street_tw: Tween
-
-
-## ON THE STREET at deploy: the twist card's family, quieter: a thin cyan frame, no flash, no
-## glitch, a smaller title, it fades in, holds and goes.
-func street_callout(title: String, note: String, text := "", secs := 3.2) -> void:
-	if _street_card == null:
-		_street_card = PanelContainer.new()
-		_street_card.add_theme_stylebox_override("panel", CutBox.make(Color(INK, 0.9), Color(CYAN, 0.55), 10, 0b0101, CYAN, 12))
-		_street_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var v := VBoxContainer.new()
-		v.add_theme_constant_override("separation", 1)
-		v.alignment = BoxContainer.ALIGNMENT_CENTER
-		_street_card.add_child(v)
-		for spec in [["Kicker", F_TERM, ts(15), Color(CYAN, 0.9)], ["Title", F_DISPLAY, 30, TEXT], ["Note", F_TERM, ts(17), Color(DIM, 1.0)], ["Text", F_TERM, ts(15), Color(DIM, 0.9)]]:
-			var l := _text("", spec[1], spec[2], spec[3])
-			l.name = spec[0]
-			l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			l.custom_minimum_size.x = 440
-			v.add_child(l)
-		add_child(_street_card)
-	var vb := _street_card.get_child(0)
-	(vb.get_node("Kicker") as Label).text = "ON THE STREET:"
-	(vb.get_node("Title") as Label).text = title.to_upper()
-	(vb.get_node("Note") as Label).text = note.left(1).to_upper() + note.substr(1) + ("." if note != "" and not note.ends_with(".") else "")
-	(vb.get_node("Text") as Label).text = text
-	(vb.get_node("Text") as Label).visible = text != ""
-	_street_card.reset_size()
-	var sz := _street_card.get_combined_minimum_size()
-	_street_card.size = sz
-	_street_card.position = Vector2(size.x / 2.0 - sz.x / 2.0, 150)
-	if _street_tw and _street_tw.is_valid():
-		_street_tw.kill()
-	_street_card.modulate.a = 0.0
-	var tw := create_tween()
-	_street_tw = tw
-	tw.tween_property(_street_card, "modulate:a", 1.0, 0.35)
-	tw.tween_interval(secs)
-	tw.tween_property(_street_card, "modulate:a", 0.0, 0.6)
-
-
 ## A one-frame-ish full-screen flash (crits, alerts).
 func flash_screen(col: Color) -> void:
 	_flash.color = col
@@ -2338,8 +2272,7 @@ static func net_help(id: String, live := "") -> String:
 		out.append((K % "ATTACKS") + " its ATK + 1d10 vs your Interface + 1d10, once a turn; it chases you through the NET")
 		if live != "":
 			out.append((K % "NOW") + " " + live)
-		out.append(K % ("CPR core " + String(db.get("ice_page", "p.204-207"))))
-		return "\n".join(out)
+		return "\n".join(out)   # the cite stays in the data (net_help.json ice_page): never in player text
 	var e: Dictionary = (db.actions as Dictionary).get(id, (db.programs as Dictionary).get(id, {}))
 	if e.is_empty():
 		return ""
@@ -2350,9 +2283,7 @@ static func net_help(id: String, live := "") -> String:
 		out.append((K % what) + " [code]%s[/code]" % String(e.key))
 	if live != "":
 		out.append((K % "NOW") + " " + live)
-	var page := String(e.get("page", ""))
-	out.append(K % (("CPR core " + page) if page.begins_with("p.") else page))
-	return "\n".join(out)
+	return "\n".join(out)   # its page stays in the data (`page`): never in player text
 
 
 ## Hovering `c` shows its NET card (net_help) beside the NET panel, in the cursor tooltip's style.

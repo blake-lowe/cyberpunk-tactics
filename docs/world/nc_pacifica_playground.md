@@ -803,6 +803,7 @@ Dive bar that serves only juice, owned by punk band Breakfist, with Pacifica's b
 - Cyrus Finch (Fixer 3/Media 3) — works the Ascension casino floor (#1); trades in gossip overheard at the tables.
 - Ojo (Fixer 6) — Nomad's Market, container three, Jodes Camp (#6): sources Diego Motors vehicles, repairs and upgrades.
 - Dalton "Dizzy" Knee (Fixer 5) — Smile Another Day (#16): Playland memorabilia and goods 'liberated' from the park; yearly Night Market.
+- Rex Royale (Fixer 5): ours, not NC2045's: a casino-themed Fixer selling weapons and combat gear (SPM p.57), placed among the casinos (docs/world/fixers.md).
 
 ## Personalities
 

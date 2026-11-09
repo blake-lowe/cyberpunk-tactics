@@ -388,6 +388,7 @@ groundskeeper looks after a surviving statue and warns visitors away from the ed
 
 - David Ling Po (Fixer 8): City Manager. The narrator says he heads the Weng Fang Tong. He takes a cut of nearly every deal in the district (p.97).
 - Old Yau (Fixer 4): runs the Yuenyang Tea Shop in the Hong Kong Market and stays on good terms with the Gold Dragons by feeding them for free (p.100-101).
+- Grease (Fixer 2): ours, not NC2045's: a street-level Fixer still making his name (SPM p.57), placed here as a new crew's first contact (docs/world/fixers.md).
 - Ginkgo (Tech 4): the district's finder, not a Fixer by Role. He takes jobs at his table in the Yuenyang Tea Shop and finds missing people and lost things (p.103).
 
 ## Personalities

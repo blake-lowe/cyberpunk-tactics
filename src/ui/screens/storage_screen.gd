@@ -502,28 +502,22 @@ func _detail(c: Combatant, now: String, wide: bool) -> PanelContainer:
 	return p
 
 
-## "Handgun · Premium 100 eb · CPR core p.94".
+## "Handgun · 1-handed · Premium 100 eb" (the data's cite stays out of player text).
 func _subtitle(key: String) -> String:
 	var parts: Array[String] = []
-	var cite := ""
 	if Items.is_weapon(key):
 		var w := Items.make_weapon(key)
 		parts.append(String(RulesDB.skill(w.skill()).get("name", w.skill())) if w.skill() != "autofire" else "Autofire")
 		parts.append("%d-handed" % int(w.def.get("hands", 1)))
 		if w.quality != "standard":   # the name shows quality as typography only
 			parts.insert(0, QualityText.quality_note(key))
-		cite = String(w.def.get("cite", ""))
 	elif Items.is_armor(key):
 		parts.append("Armor · head or body")
-		cite = String(RulesDB.armor(Items.base_id(key)).get("cite", ""))
 	elif Items.is_item(key):
 		parts.append("%s · %s" % [Items.kind(key).capitalize(), Items.use(key)])
-		cite = String(Items.def(key).get("cite", ""))
 	var eb := Items.price(key)
 	if eb > 0:
 		parts.append("%s %s eb" % [Items.price_tier(eb), UiKit.money(eb)])
-	if cite != "":
-		parts.append(cite.get_slice(" (", 0).get_slice(",", 0))
 	return " · ".join(parts)
 
 
@@ -603,7 +597,7 @@ func _workshop_strip(c: Combatant) -> Control:
 		var days := Campaign.maker_days(a.price())
 		var loc := slot
 		var b := UiKit.button("UPGRADE +1 SP · %s eb · %d day%s" % [UiKit.money(a.price()), days, "s" if days > 1 else ""], UiKit.PRIMARY, Callable(), camp.eb >= a.price(), 12, true)
-		b.tooltip_text = "%s's Upgrade Expertise (CPR core p148): materials cost the piece's price; the crew rests meanwhile" % t.display_name
+		b.tooltip_text = "%s's Upgrade Expertise: materials cost the piece's price; the crew rests meanwhile" % t.display_name
 		b.pressed.connect(func():
 			var r := {}
 			act(b, func(): r.merge(camp.upgrade_armor(c, loc)), "")
