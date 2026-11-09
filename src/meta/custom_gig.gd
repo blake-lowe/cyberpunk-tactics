@@ -266,6 +266,7 @@ static func _tower_build(f: Dictionary, d: Dice, g: Dictionary, kind: String, tw
 	tmp.dice = d
 	var gig := tmp.tower_gig(g, lid, kind, bid)
 	gig.merge({"id": "dev", "dev": true, "seed": int(f.seed), "fixer": "DEV BUILDER", "fixer_id": "", "hook": ""}, true)
+	gig["sky"] = Campaign.tower_sky(int(f.seed))   # the form's seed decides day or night, as a board gig's does
 	if String(f.faction) != "":
 		gig["faction"] = String(f.faction)
 	var sec := int(f.security)

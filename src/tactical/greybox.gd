@@ -229,7 +229,8 @@ func _scene_look() -> Dictionary:
 	if m == null:
 		return LOOKS["default"]
 	var lk: Dictionary = LOOKS.get(String(m.params.get("scene", "")), LOOKS["default"])
-	var day := m.is_tower() and _sky == "day"
+	# a tower gig plays by day when its gig says so (Campaign.tower_sky, in the map's params); --sky overrides
+	var day := m.is_tower() and (_sky == "day" or (_sky == "" and String(m.params.get("sky", "")) == "day"))
 	var dl: Dictionary = SceneTheme.of(m).get("light", {}) if not day else {}   # by day the tower's own sky, not the district's night
 	if day:
 		lk = LOOKS["tower_day"]
@@ -733,10 +734,6 @@ func _build_view() -> void:
 	markers.fn = _draw_markers
 	hud.add_child(markers)
 	hud.move_child(markers, 0)
-	var tdash := Hud.Painter.new()   # a tower band's cut-away storeys, dashed (_update_tower_dash)
-	tdash.fn = _draw_tower_dash
-	hud.add_child(tdash)
-	hud.move_child(tdash, 0)
 	var shields := Hud.Painter.new()
 	shields.fn = _draw_cover_shields
 	hud.add_child(shields)
@@ -986,7 +983,6 @@ func _build_world() -> void:
 	if world:
 		world.queue_free()
 	world = Node3D.new()
-	_tower_dash_key = ""   # the dashed storeys above a tower's cut went with the old world
 	svp.add_child(world)
 	fog_img = Image.create(m.w, m.h * m.floors, false, Image.FORMAT_RG8)
 	fog_tex = ImageTexture.create_from_image(fog_img)
@@ -1945,63 +1941,6 @@ func _update_fog() -> void:
 	fog_tex.update(fog_img)
 	_update_blueprint()
 	_update_xray()
-	_update_tower_dash()
-
-
-var _tower_dash: Array = []      ## a tower band cut below its roof: the storeys above, [[a, b]] world edges drawn dashed
-var _tower_dash_key := ""
-
-
-## A tower band cut at a storey under its roof (docs/plans/towers.md V1: the cut at 49 with 50 dashed
-## above): the cut-away storeys stand as a dashed cyan outline of the plate, a ring at each storey
-## line and the corners up to the roof, so the band keeps its height in the frame. Drawn on the HUD
-## layer (_draw_tower_dash: crisp, the same width at any zoom); the edges change only with the cut.
-func _update_tower_dash() -> void:
-	var key := ""
-	var sid := -1
-	if m != null and m.is_tower():
-		for s in _cuts:
-			if _bld.has(s) and int(_cuts[s]) < int(_bld[s].roof):
-				sid = int(s)
-		if sid >= 0:
-			key = "%d:%d" % [sid, int(_cuts[sid])]
-	if key == _tower_dash_key:
-		return
-	_tower_dash_key = key
-	_tower_dash.clear()
-	if key == "":
-		return
-	var r: Rect2i = (_bld[sid].rect as Rect2i)
-	var lo := Vector2(r.position.x + 0.15, r.position.y + 0.15)
-	var hi := Vector2(r.end.x - 0.15, r.end.y - 0.15)
-	var y0 := (int(_cuts[sid]) + 1) * FH
-	var y1 := int(_bld[sid].roof) * FH + 0.25
-	var ys: Array[float] = []
-	var y := y0
-	while y < y1 - 0.3:
-		ys.append(y)
-		y += FH
-	ys.append(y1)
-	for yy in ys:   # a ring at each storey line and the roof's edge
-		var c := [Vector3(lo.x, yy, lo.y), Vector3(hi.x, yy, lo.y), Vector3(hi.x, yy, hi.y), Vector3(lo.x, yy, hi.y)]
-		for i in 4:
-			_tower_dash.append([c[i], c[(i + 1) % 4]])
-	for cx in [lo.x, hi.x]:   # the corners
-		for cz in [lo.y, hi.y]:
-			_tower_dash.append([Vector3(cx, y0, cz), Vector3(cx, y1, cz)])
-
-
-func _draw_tower_dash(c: Control) -> void:
-	if _tower_dash.is_empty() or cam == null:
-		return
-	var col := Color(0.42, 0.86, 1.0, 0.7)
-	for e in _tower_dash:
-		var a: Vector3 = e[0]
-		var b: Vector3 = e[1]
-		if cam.is_position_behind(a) or cam.is_position_behind(b):
-			continue
-		c.draw_dashed_line(_to_screen(a), _to_screen(b), col, 1.5, 6.0)
-
 
 
 ## Blueprint storeys (FloorNav.blueprint_floors): their materials draw the unknown layout as a dim

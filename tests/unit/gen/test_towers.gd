@@ -328,3 +328,35 @@ func test_a_short_soak_of_tower_gigs() -> void:
 	d.run_campaign(2, 2, ["tower:raven", "tower"])
 	assert_eq(d.failures, [] as Array[String], "the gig loop holds in a tower")
 	assert_eq(int(d.stats.offers.get("tower", 0)), 2)
+
+
+# --- Day and night ---------------------------------------------------------------------------
+
+func test_a_share_of_tower_gigs_play_by_day() -> void:
+	var n := int(RulesDB.gen("gigs.json").tower.day_in)
+	assert_true(n >= 2, "most tower gigs stay at night (one in %d by day)" % n)
+	var days := 0
+	for s in range(1, 601):
+		var sky := Campaign.tower_sky(s)
+		assert_true(sky in ["day", "night"])
+		assert_eq(Campaign.tower_sky(s), sky, "the same seed, the same sky")
+		days += int(sky == "day")
+	assert_between(float(days) / 600.0, 1.0 / n - 0.08, 1.0 / n + 0.08, "about one in %d by day (%d of 600)" % [n, days])
+	# a board offer keeps its sky; the map it builds carries it; a save reloads the same
+	var camp := Campaign.new_game(5)
+	var found := {}
+	for i in 40:
+		var offer := camp.tower_gig(RulesDB.gen("gigs.json"), "the_glen_24", "data_theft")
+		assert_eq(String(offer.sky), Campaign.tower_sky(int(offer.seed)), "the offer's sky is its seed's")
+		found[String(offer.sky)] = offer
+	assert_true(found.has("day") and found.has("night"), "both skies on offer")
+	var day: Dictionary = found["day"]
+	assert_eq(String(Campaign.scene_opts(day).get("sky", "")), "day", "the gig hands its sky to the map")
+	var m := SceneGen.generate(int(day.seed), String(day.scene), Campaign.scene_opts(day))
+	assert_eq(String(m.params.get("sky", "")), "day", "and the map keeps it (greybox _scene_look)")
+	day["id"] = "test-day"
+	camp.board.append(day)
+	var back := Campaign.from_dict(JSON.parse_string(JSON.stringify(camp.to_dict())))
+	assert_eq(String(back.board[-1].get("sky", "")), "day", "a saved board keeps its tower gig's sky")
+	var dev := CustomGig.build({"tower": "raven", "seed": int(day.seed)})
+	assert_eq(String(dev.sky), "day", "a dev tower gig's seed decides its sky the same way")
