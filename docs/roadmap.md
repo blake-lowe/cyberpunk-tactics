@@ -21,6 +21,17 @@ Check-ins (🔶) are where work pauses for a user decision or review.
 | M8+ | Fabrication/Invention, story gigs and fixer betrayals, downtime assignments, civilians/hazards/weather, vehicles, equipment models (owner: keep painted clothes for now), economy tuning, story gigs | — | per feature |
 
 ## Decisions log
+- Night Market shop revamp (owner verdicts, 2026-11-09):
+  - **Direction:** the dark web portal look with a GRID / LIST toggle (list = the ledger's dense rows with quantity steppers), and a cart that is always open, with total, wallet-after and one checkout.
+  - **Quality:** one entry per quality, as today.
+  - **Item art:** none.
+  - **One shop:** market and fixer stock together, market items badged, with a Market only filter.
+  - **Flavour:** light, with plain wording: "available for N days" / "LAST DAY", not "node goes dark".
+  - **Poor quality:** never italic.
+- Towers V1 (owner verdicts, 2026-11-09):
+  - **Approved:** the night look, strip, lift, the fog and drop, the target's lift-only exit, the public sky lobby, the gate and pay, and the heights.
+  - **Changes:** remove the cyan dashed storey outlines; make the band's exterior continuous with the facade below (the owner worried about an unrealistic transition); play some tower gigs by day.
+  - **Next:** a skyscraper visual pass (per-tower colour identity, greebles, a richer skyline).
 - Access-point way-finding (owner verdicts, 2026-11-08): all three on by default. Alt-held port icons are violet and the objective's triangle steps aside for them while Alt is held. A pulsing port LED on each access point, which comes in four models (desk terminal, wall access unit, wall jack box on a conduit, server pillar). An idle Netrunner's data lines run from every access point they sense, with packets flowing in to the runner. HOUSE-RULE: a Netrunner senses access points within Interface × 4 m in a straight line, through walls and seen or not (owner: a role-ability stat and straight-line distance instead of MOVE + run reach).
 - Floor controls (owner-approved hybrid H1 + H3, built 2026-11-08): every building is cut on its own (FloorNav.slices: the selected unit's building at its floor, other crewed buildings at their crew's floor, the focused one at the floor stack's; the rest keep their roofs; outdoors never cut). One floor stack on the right (crew squares, seen-foe diamonds; ▲ SHIFT / ▼ CTRL key hints; where each crew member stands is on the Alt roster's cards, "BD PARLOR · 2") drives the focused building; a left-click on a building with nothing under the cursor focuses it (corner brackets + name tag), Home / Esc / the next crew turn hand it back. Shift / Ctrl view a floor up / down (alone; held, they repeat); PgUp/PgDn and [ ] stay. Shift+left-click no longer shoots cover (the attack stage's COVER does). Pointing into a building no longer opens it (crewless buildings keep their roofs unless focused). Shift+Wheel dropped (owner).
 - Floor navigation (owner, 2026-11-08, after research of 25 games): no auto-floor-on-hover. Keep: lit stair step edges; Alt-held fire-escape/exit icons over stairs and external doors; one global floor-stack selector. Per-building slicing is needed but without per-building floor tabs (control scheme being explored). Explore seriously: highrise verticality via elevators with only some floors playable and a cross-section strip as navigator.
