@@ -1018,6 +1018,8 @@ func new_gig() -> void:
 		enc = Encounter.setup(m, dice, crew, gig.get("objective", "data") as String, eo)
 	view_floor = m.street   # the crew goes in at street level
 	_log_seen = 0
+	_alarm_seen = enc.alarm   # a gig that starts loud (a raid) has no alarm moment
+	_obj_done_seen = bool(enc.objective.get("done", false))
 	var lk := _scene_look()
 	env.ambient_light_color = Color(lk.ambient)
 	env.ambient_light_energy = lk.amb_e * _dev_ambient
@@ -2367,7 +2369,7 @@ func _place_camera() -> void:
 		cam.position += bx * (sx - lx) + by * (sy - ly)
 		shift = Vector2(-(lx - sx), (ly - sy)) / texel * px
 	_screen_base = Vector2(-px, -px) + shift
-	screen.position = _screen_base + _shake_px.round() * px
+	screen.position = _screen_base + (_shake_px + _shake.offset()).round() * px
 	var sd: Array = _scene_look().get("sun", [])
 	sun.rotation_degrees = Vector3(sd[0], sd[1], 0) if not sd.is_empty() else Vector3(-55, cam_yaw + 35, 0)   # a real sun stays put
 	if enc and not unit_nodes.is_empty():
@@ -4173,7 +4175,7 @@ func _demo_net_work(runner: Dictionary, run: NetRun) -> void:
 ## each reel shows the effect it is named for.
 func _run_reel() -> void:
 	var g := _nearest_guard()
-	if _reel not in ["move", "jack", "cover", "stabilize", "reload", "dose", "rig", "grab", "backup", "watch"]:
+	if _reel not in ["move", "jack", "cover", "stabilize", "reload", "dose", "rig", "grab", "backup", "watch", "objective"]:
 		_reel_setup_shot(g)
 	if _reel in ["stabilize", "reload", "dose", "rig", "grab", "backup"]:
 		_reel_frame(enc.cur)
@@ -4222,6 +4224,10 @@ func _run_reel() -> void:
 			if _reel in ["kill", "headshot", "armor"]:   # make the beat happen on the first shot
 				for sk in enc.cur.c.skills:
 					enc.cur.c.skills[sk] = int(enc.cur.c.skills[sk]) + 12
+			if _reel == "kill" and not g.alerted:   # in the turn strip first, so its portrait can be slashed
+				enc._rouse([g])
+				await _act()
+				await get_tree().create_timer(0.8).timeout
 			if _reel in ["kill", "headshot"]:
 				g.c.hp = 1
 				for loc in ["head", "body"]:
@@ -4255,6 +4261,65 @@ func _run_reel() -> void:
 					await get_tree().create_timer(0.2).timeout
 					while busy:
 						await get_tree().process_frame
+		"crit":   # juice review: a crit (the dice are re-rolled off screen until one comes up)
+			for sk in enc.cur.c.skills:
+				enc.cur.c.skills[sk] = int(enc.cur.c.skills[sk]) + 12
+			var w: Weapon = enc.cur.c.weapons[0]
+			for k in 400:
+				var st := dice.rng.state
+				var snap := [g.c.hp, w.ammo, enc.log.size(), g.c.sp("body"), g.c.sp("head")]
+				enc.turn.action_available = true
+				enc.turn.attacks_left = 0
+				enc.attack(g, w, Attack.Mode.SINGLE)
+				var ev: Array = enc.events.filter(func(x): return String(x.type) == "attack")
+				if not ev.is_empty() and bool(ev[-1].crit):
+					print("reel crit after %d tries" % k)
+					break
+				g.c.hp = int(snap[0])
+				w.ammo = int(snap[1])
+				enc.log.resize(int(snap[2]))
+				for li in [["body", 3], ["head", 4]]:
+					if g.c.armor[li[0]]:
+						g.c.armor[li[0]].sp = int(snap[li[1]])
+				enc.events.clear()
+				dice.rng.state = st
+				dice.rng.randi()
+			await _act()
+			tail = 2.0
+		"crewhit", "crewdown":   # juice review: the nearest guard shoots a crew member (crewdown: on 1 HP)
+			var victim: Dictionary = enc.cur
+			if _reel == "crewdown":
+				victim.c.hp = 1
+				_refresh()
+			for sk in g.c.skills:
+				g.c.skills[sk] = int(g.c.skills[sk]) + 14
+			for k in 8:
+				enc.cur = g
+				enc.turn = TurnState.begin(dice, g.c)
+				var gw: Weapon = g.c.weapons[0]
+				gw.reload()
+				var r := enc.attack(victim, gw, Attack.Mode.SINGLE)
+				print("reel %s try %d: %s" % [_reel, k, {"ok": r.get("ok"), "reason": r.get("reason"), "hp": victim.c.hp}])
+				await _act()
+				enc.cur = victim
+				if r.get("hit", false) and int(victim.c.hp) < int(victim.c.max_hp()):
+					break
+				await get_tree().create_timer(0.3).timeout
+			tail = 2.2
+		"alarm":   # juice review: a guard spots the crew (the alarm goes up), then calls it in
+			await get_tree().create_timer(0.3).timeout
+			enc._rouse([g])
+			await _act()
+			await get_tree().create_timer(1.0).timeout
+			enc.call_it_in(g)
+			await _act()
+			tail = 1.8
+		"objective":   # juice review: the objective counts as done (staged: no action, so the gig plays on)
+			_reel_frame(enc.cur)
+			await get_tree().create_timer(0.8).timeout
+			enc.objective.done = true
+			_state_juice()
+			tail = 2.2
 		"cover":
 			if cell.x >= 0:
 				for k in 8:
@@ -5085,6 +5150,10 @@ var _focus_unit := -1                 ## unit the see-through hole and cutaway f
 var _shake_px := Vector2.ZERO         ## screen-space shake offset (buffer pixels) and its velocity
 var _shake_vel := Vector2.ZERO
 var _screen_base := Vector2.ZERO
+var _shake := ScreenShake.new(GameSettings.shake(), GameSettings.reduced_motion())   ## trauma shake (Options slider, reduced motion)
+var _stop_left := 0.0                 ## seconds of hit-stop still to hold (one freeze at a time; a second one extends it)
+var _alarm_seen := 0                  ## enc.alarm the view last made a moment of (the alarm-going-up juice)
+var _obj_done_seen := false           ## the objective's done flag the view last flourished
 var _callouts := CalloutQueue.new()   ## where floating callouts go: stacked per unit, never overlapping
 var _flash_lights := {}               ## unit id → pooled muzzle OmniLight3D
 
@@ -5194,8 +5263,31 @@ func _play_events() -> void:
 			_anim_move(enc.events.pop_front())   # the one held is dragged along at the same time (p.177)
 		if h != null:
 			await (h as Callable).call(e)
+		_state_juice()
 	hud.enemy_phase(false)
+	hud.release_dead()   # the slashed portraits leave the strip at the next refresh
 	_focus_unit = -1
+
+
+## Moments the encounter's state makes, checked as each event finishes playing: the alarm going up
+## (a red siren throb at the screen's edge and a swell; the clock running out has its own bigger
+## beat, _ev_clock) and the objective done (a gold flourish round the objective panel).
+func _state_juice() -> void:
+	if enc == null or hud == null:
+		return
+	if enc.alarm > _alarm_seen:
+		var first := _alarm_seen == 0
+		_alarm_seen = enc.alarm
+		if first:   # detected: the siren throbs; backup called later is a softer single pulse (sfx_alarm is its own)
+			HudJuice.alarm_pulse(hud, hud.reduced_motion)
+			_ui_snd("sfx_siren_swell", -6.0)
+		else:
+			HudJuice.edge_flash(hud, Hud.RED, 0.45, 0.7, hud.reduced_motion)
+	var done := bool(enc.objective.get("done", false))
+	if done and not _obj_done_seen and enc.state == "playing":
+		HudJuice.objective_flourish(hud, hud.objective_rect(), hud.reduced_motion)
+		_ui_snd("sfx_objective_done", -5.0)
+	_obj_done_seen = done
 
 
 # --- Event handlers (registered in _event_handlers) ---------------------------------------
@@ -5302,6 +5394,7 @@ func _ev_clock(e: Dictionary) -> void:
 	var w := hud.clock_widget(String(e.clock), enc)   # it bursts by itself as the last die shatters
 	await get_tree().create_timer(w.boom_delay() if w != null else 0.5).timeout
 	_ui_snd("sfx_klaxon", -2.0)
+	_alarm_seen = maxi(_alarm_seen, maxi(enc.alarm, 1))   # this is the alarm's moment: no siren throb on top
 	hud.flash_screen(Color(1.0, 0.12, 0.18, 0.42))
 	hud.edge_pulse(Hud.RED, 1.0, 0.25)
 	if not hud.reduced_motion:
@@ -5950,6 +6043,7 @@ func _anim_attack(e: Dictionary) -> void:
 				fx.burst(dest, Color("8a8478"), 3, 0.6, 0.12, 0.6, 0.0, 0.4))
 		_recoil(sn, rounds > 1)
 		_kick(_screen_dir(m0, aim) * -1.0, 1.0 if rounds > 1 else 1.5)
+		_trauma(ScreenShake.shot_trauma(wid, rounds > 1))   # by weapon: a pistol ticks, a shotgun shoves
 		await get_tree().create_timer(gap + fx.rng.randf_range(0.0015, 0.003) if rounds > 1 else 0.05).timeout
 	# wait for the last round to land, then hold the framing a moment
 	var t0 := Time.get_ticks_msec()
@@ -5989,6 +6083,7 @@ func _anim_melee(e: Dictionary, su: Dictionary, tu: Dictionary, sn: Node3D, tn: 
 		fx.melee_contact(at, dir, wid)   # slice, thud, punch or stun crackle
 		_outcome(e, su, tu, tn, at, dir)
 		_kick(_screen_dir(at - dir, at), 3.0)
+		_trauma(ScreenShake.MELEE)
 	else:
 		_float(tu, "BLOCKED" if not e.dodged else "DODGE", Hud.CYAN)
 	await get_tree().create_timer(0.35).timeout
@@ -6061,6 +6156,7 @@ func _anim_suppress(e: Dictionary) -> void:
 		fx.bullet(m0, dest, wid, func(): fx.burst(dest, Color("ffd27a"), 4, 2.0, 0.035, 0.2, 1.6))
 		_recoil(sn, true)
 		_kick(_screen_dir(m0, aim) * -1.0, 1.0)
+		_trauma(ScreenShake.shot_trauma(wid, true))
 		await get_tree().create_timer(FIRE_GAP.get(wid, 0.085)).timeout
 	await get_tree().create_timer(0.3).timeout
 	for t in targets:
@@ -6094,6 +6190,7 @@ func _anim_harm(e: Dictionary) -> void:
 	hud.hit_unit(u.id)
 	_hud_refresh()
 	_wound_word(u, CalloutQueue.wound_key(int(e.wound_before), int(e.wound_after), int(e.wound_after) == Combatant.Wound.DEAD))
+	_down_juice(u, int(e.wound_before), int(e.wound_after), int(e.wound_after) == Combatant.Wound.DEAD, false)
 	if int(e.wound_before) < Combatant.Wound.MORTAL and int(e.wound_after) >= Combatant.Wound.MORTAL:
 		_die(u, unit_nodes[u.id], Vector3.FORWARD, enc.units[e.unit].c.dead)
 
@@ -6132,6 +6229,7 @@ func _anim_shell(e: Dictionary) -> void:
 			fx.bullet(m0, dest, "medium_pistol")
 	_recoil(sn, false)
 	_kick(_screen_dir(m0, m0 + dir) * -1.0, 3.0)
+	_trauma(ScreenShake.shot_trauma(wid if flame else "shotgun"))
 	await get_tree().create_timer(0.12 if not flame else 0.45).timeout
 	if e.hit:
 		for h in e.hits:
@@ -6163,8 +6261,10 @@ func _anim_blast(e: Dictionary) -> void:
 		fx.explosion(at, _gy(center))
 		fx.explosion(at + Vector3(0.6, 0.3, -0.4), _gy(center))
 		fx.explosion(at + Vector3(-0.5, 0.2, 0.5), _gy(center))
+		fx.shockwave(at, _gy(center), 1.3)   # the blast's ring along the ground (a world effect, not under a unit)
 		hud.flash_screen(Color(1.0, 0.7, 0.35, 0.45))
 		_kick(Vector2(1, -1).normalized(), 16.0)
+		_trauma(ScreenShake.CHARGE)
 		_hit_stop(140)
 		for v in e.destroyed:
 			builder.hide_cover(v)
@@ -6194,15 +6294,18 @@ func _anim_blast(e: Dictionary) -> void:
 	if not e.hit:
 		_float_at(at + Vector3(0, 0.6, 0), "OFF TARGET", Hud.GOLD)
 	await get_tree().create_timer(0.25).timeout   # it rattles for a moment
+	var gas: bool = String(e.get("payload", "")) != "" and Items.fx(String(e.payload)).get("no_damage", false)
 	fx.explosion(at, _gy(center))
+	if not gas:   # a frag's shockwave and thrown dirt; gas and flash just pop
+		fx.shockwave(at, _gy(center), 1.0)
 	hud.flash_screen(Color(1.0, 0.75, 0.4, 0.25))
 	_kick(Vector2(1, -1).normalized(), 8.0)
+	_trauma(ScreenShake.EXPLOSION if not gas else ScreenShake.EXPLOSION * 0.5)
 	_hit_stop(90)
 	for v in e.destroyed:
 		builder.hide_cover(v)
 		var cv: Array = m.cover.filter(func(c): return c.floor == v.z and c.pos == Vector2i(v.x, v.y))
 		fx.shatter(Vector3(v.x + 0.5, v.z * FH + 0.3, v.y + 0.5), String(cv[0].material) if not cv.is_empty() else "wood", Vector3(v.x - center.x, 0, v.y - center.y), v.z * FH, true)
-	var gas: bool = String(e.get("payload", "")) != "" and Items.fx(String(e.payload)).get("no_damage", false)
 	if not gas:
 		_float_at(at + Vector3(0, 1.0, 0), "%d" % int(e.damage), Hud.GOLD)
 	else:
@@ -6246,20 +6349,23 @@ func _outcome(e: Dictionary, su: Dictionary, tu: Dictionary, tn: Node3D, at: Vec
 	if dmg <= 0:   # armour stopped it: sparks and a ricochet, cyan ARMOR and the SP ablation
 		fx.burst(at, Color("fff0b0"), 14, 4.5, 0.04, 0.3, 2.0)
 		fx.bullet(at, at + (Vector3.UP * 0.8 + dir.cross(Vector3.UP) * fx.rng.randf_range(-1.0, 1.0) - dir * 0.3).normalized() * 3.0, "medium_pistol")
-		_float(tu, "ARMOR", Hud.CYAN)
+		_float(tu, "ARMOR", Hud.CYAN, CalloutQueue.LIFE_MS, "ping")
 		_snd("sfx_hit_armor", _body_pos(tu), -4.0, 0.1, 60)
-		_float(tu, "SP %d→%d" % [int(e.sp_before), int(e.sp_after)], Hud.CYAN)
+		if int(e.sp_after) < int(e.sp_before):
+			_float(tu, "SP %d→%d" % [int(e.sp_before), int(e.sp_after)], Hud.CYAN, CalloutQueue.LIFE_MS, "ping")
+			_trauma(ScreenShake.ARMOR_BREAK)
 		_react(tn, dir, 0.4)
 		_kick(_screen_dir(at - dir, at), 1.5)
 		return
 	fx.blood(at, dir, 1.6 if (e.crit or e.killed) else 1.0, _gy(tu.pos))
 	_hit_flash(tn)
 	_react(tn, dir, 1.0 if not e.crit else 1.5)
-	_float(tu, "-%d" % dmg, Hud.RED)
+	_float(tu, "-%d" % dmg, CRIT_NUMBER if e.crit else Hud.RED, CalloutQueue.LIFE_MS, "crit" if e.crit else "dmg")
 	if String(e.get("location", "body")) == "head":
 		_float(tu, "HEADSHOT", Hud.GOLD)
 	if int(e.sp_after) < int(e.sp_before):
-		_float(tu, "SP %d→%d" % [int(e.sp_before), int(e.sp_after)], Hud.CYAN)
+		_float(tu, "SP %d→%d" % [int(e.sp_before), int(e.sp_after)], Hud.CYAN, CalloutQueue.LIFE_MS, "ping")
+		_trauma(ScreenShake.ARMOR_BREAK)
 	_kick(_screen_dir(at - dir, at), 2.0)
 	hud.hit_unit(tu.id)
 	_hud_refresh()   # HP drains at the moment of impact
@@ -6268,11 +6374,36 @@ func _outcome(e: Dictionary, su: Dictionary, tu: Dictionary, tn: Node3D, at: Vec
 		_float(tu, "CRITICAL · %s" % (String(names[0]).to_upper() if not names.is_empty() else ""), Hud.GOLD)
 		hud.flash_screen(Color(1, 0.2, 0.2, 0.22))
 		_kick(_screen_dir(at - dir, at), 4.0)
-		_hit_stop(90)
+		_trauma(ScreenShake.CRIT)
+		_hit_stop(ScreenShake.STOP_CRIT_MS)
+	_down_juice(tu, int(e.wound_before), int(e.wound_after), bool(e.get("dead", false)) and bool(e.killed), bool(e.get("stunned", false)))
 	# a stun hit drops them at 1 HP, unconscious (p349): UNCONSCIOUS rather than the wound it left
 	_wound_word(tu, CalloutQueue.wound_key(int(e.wound_before), int(e.wound_after), bool(e.get("dead", false)), bool(e.get("stunned", false))))
 	if e.killed:
 		_die(tu, tn, dir, bool(e.get("dead", true)), String(e.get("location", "body")) == "head")
+
+
+const CRIT_NUMBER := Color("ff7a2a")   ## a crit's damage number: hot orange, bigger (the plain hit's is red)
+
+
+## A hit takes someone out. A foe: a short hit-stop, a little shake, the kill sting, and (dead) its
+## portrait slashed in the turn strip. One of the crew going down (Mortally Wounded, knocked out or
+## killed): a bigger shake, a longer hold, a red edge and the crew-down sting. View-only.
+func _down_juice(u: Dictionary, before: int, after: int, dead: bool, knocked_out: bool) -> void:
+	var down := dead or knocked_out or (before < Combatant.Wound.MORTAL and after >= Combatant.Wound.MORTAL)
+	if not down or not _seen(u.pos):
+		return
+	if dead:
+		hud.kill_slot(int(u.id))
+	if int(u.team) == Encounter.CREW:
+		_trauma(ScreenShake.CREW_DOWN)
+		_hit_stop(ScreenShake.STOP_CREW_DOWN_MS)
+		HudJuice.edge_flash(hud, Hud.RED, 0.7, 0.9, hud.reduced_motion)
+		_ui_snd("sfx_crew_down", -4.0)
+	else:
+		_trauma(ScreenShake.KILL)
+		_hit_stop(ScreenShake.STOP_KILL_MS)
+		_ui_snd("sfx_kill_sting", -9.0)
 
 
 func _hud_refresh() -> void:
@@ -6448,6 +6579,7 @@ func _anim_cover(e: Dictionary) -> void:
 			else:
 				_rebuild = true            # a wall gave way: rebuild after playback
 		_kick(_screen_dir(m0, at), 4.0 if gone else 1.5)
+		_trauma(ScreenShake.COVER_GONE if gone else ScreenShake.shot_trauma(wid) * 0.5)
 		_float_at(at + Vector3(0, 0.5, 0), "-%d · %s" % [int(e.damage), "DESTROYED" if gone else "%d HP" % left], Hud.GOLD if gone else Hud.TEXT))
 	await get_tree().create_timer(0.45).timeout
 	create_tween().tween_method(func(v: float): sn.set_meta("aim", v), 1.0, 0.0, 0.25)
@@ -6465,6 +6597,7 @@ func _anim_death(e: Dictionary) -> void:
 	await _pan_to(_body_pos(u), 0.3)
 	_float(u, "DEATH SAVE FAILED", Hud.RED)
 	_wound_word(u, "flatlined")
+	_down_juice(u, Combatant.Wound.MORTAL, Combatant.Wound.DEAD, true, false)
 	await _die(u, n, -n.global_transform.basis.z, true)
 	await get_tree().create_timer(1.2).timeout
 
@@ -6485,20 +6618,49 @@ func _screen_dir(a: Vector3, b: Vector3) -> Vector2:
 	return v.normalized() if v.length() > 0.01 else Vector2.RIGHT
 
 
+## A directional jolt (recoil, impacts): a spring in screen space, scaled by the Options slider
+## (none under reduced motion: ScreenShake.kick_scale).
 func _kick(dir: Vector2, px: float) -> void:
-	_shake_vel += dir * px * 60.0
+	_shake_vel += dir * px * 60.0 * _shake.kick_scale()
 
 
+## Trauma for the noise shake (ScreenShake): shots by weapon, blasts, crits, a crew member going down.
+func _trauma(amount: float) -> void:
+	_shake.add(amount)
+
+
+## Hit-stop: a few frames' freeze of the tweens, the effects and the units (the callouts keep rising,
+## input is never held: playback timers keep running). One freeze at a time: another one asked for
+## while frozen only extends it. None under reduced motion (ScreenShake.hit_stop_ms).
 func _hit_stop(ms: int) -> void:
+	ms = ScreenShake.hit_stop_ms(ms, _shake.reduced)
+	if ms <= 0:
+		return
+	if _stop_left > 0.0:
+		_stop_left = maxf(_stop_left, ms / 1000.0)
+		return
+	_stop_left = ms / 1000.0
 	var tws := get_tree().get_processed_tweens().filter(func(t: Tween): return not t.has_meta("callout"))
 	for t in tws:
 		t.pause()
 	fx.process_mode = Node.PROCESS_MODE_DISABLED
-	await get_tree().create_timer(ms / 1000.0, true, false, true).timeout
+	var frozen: Array = []
+	for n in unit_nodes.values():   # the bodies hold their pose too (their clips stop for the beat)
+		if is_instance_valid(n) and (n as Node).process_mode != Node.PROCESS_MODE_DISABLED:
+			(n as Node).process_mode = Node.PROCESS_MODE_DISABLED
+			frozen.append(n)
+	while _stop_left > 0.0:
+		await get_tree().process_frame
+		_stop_left -= get_process_delta_time()
+	_stop_left = 0.0
 	for t in tws:
 		if t.is_valid():
 			t.play()
-	fx.process_mode = Node.PROCESS_MODE_INHERIT
+	if is_instance_valid(fx):
+		fx.process_mode = Node.PROCESS_MODE_INHERIT
+	for n in frozen:
+		if is_instance_valid(n):
+			(n as Node).process_mode = Node.PROCESS_MODE_INHERIT
 
 
 func _update_shake(delta: float) -> void:
@@ -6513,7 +6675,8 @@ func _update_shake(delta: float) -> void:
 	if _shake_px.length() < 0.05 and _shake_vel.length() < 0.5:
 		_shake_px = Vector2.ZERO
 		_shake_vel = Vector2.ZERO
-	screen.position = _screen_base + _shake_px.round() * _px()
+	_shake.step(delta)
+	screen.position = _screen_base + (_shake_px + _shake.offset()).round() * _px()   # whole buffer pixels: no shimmer
 
 
 func _toast_new_log() -> void:
@@ -6526,18 +6689,20 @@ func _toast_new_log() -> void:
 ## Floating callout over a unit, on the HUD layer so it stays crisp above the pixel filter.
 ## Callouts on the same unit stack upward and never overlap as they rise (CalloutQueue); the
 ## anchor stays inside the safe rect.
-func _float(u: Dictionary, text: String, col: Color, life_ms := CalloutQueue.LIFE_MS) -> void:
+func _float(u: Dictionary, text: String, col: Color, life_ms := CalloutQueue.LIFE_MS, style := "") -> void:
 	var n: Node3D = unit_nodes.get(u.id)
 	var base := n.global_position if n else _body_pos(u)
-	_float_at(base + Vector3(0, 1.4, 0), text, col, u.id, life_ms)
+	_float_at(base + Vector3(0, 1.4, 0), text, col, u.id, life_ms, style)
 
 
 ## A callout at a world point. `lane`: the unit it stacks with (null: a lane of its own at that spot).
-func _float_at(wp: Vector3, text: String, col: Color, lane: Variant = null, life_ms := CalloutQueue.LIFE_MS) -> void:
+## `style` (CalloutPop): "" the plain slam; "dmg" a damage number popping with overshoot and an arc;
+## "crit" bigger, hotter and with more overshoot; "ping" a small armour tick that hops aside.
+func _float_at(wp: Vector3, text: String, col: Color, lane: Variant = null, life_ms := CalloutQueue.LIFE_MS, style := "") -> void:
 	var l := Label.new()
 	l.text = text
 	l.add_theme_font_override("font", Hud.F_DISPLAY)
-	l.add_theme_font_size_override("font_size", 30 if text.length() > 3 else 40)
+	l.add_theme_font_size_override("font_size", CalloutPop.font_size(style, text))
 	l.add_theme_color_override("font_color", col)
 	l.add_theme_color_override("font_outline_color", Color.BLACK)
 	l.add_theme_constant_override("outline_size", 6)
@@ -6549,13 +6714,33 @@ func _float_at(wp: Vector3, text: String, col: Color, lane: Variant = null, life
 	var now := Time.get_ticks_msec()
 	var y0 := p.y + _callouts.place(lane if lane != null else "%d,%d" % [roundi(p.x), roundi(p.y)], now, life_ms)
 	l.position = Vector2(p.x, y0)
-	l.scale = Vector2(1.25, 1.25)
 	hud.add_child(l)
+	var pop := CalloutPop.plan(style, hud.reduced_motion, fx.rng.randf() < 0.5)
+	if style == "crit":
+		l.add_theme_color_override("font_shadow_color", Color(Hud.RED, 0.85))
+		l.add_theme_constant_override("shadow_offset_x", 3)
+	l.pivot_offset = l.get_minimum_size() * Vector2(0.25, 0.5)   # pops from its left-of-centre, not its corner
+	l.scale = Vector2.ONE * float(pop.from)
+	if bool(pop.fade_in):
+		l.modulate.a = 0.0
+	var x0 := p.x
+	var drift := float(pop.drift)
+	var tilt := float(pop.tilt)
 	var tw := create_tween()
 	tw.set_meta("callout", true)   # keeps rising through a hit-stop, so the lane's layout stays true
-	tw.tween_property(l, "scale", Vector2.ONE, 0.12).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	tw.parallel().tween_method(func(ms: float): l.position.y = y0 - CalloutQueue.rise(ms), 0.0, float(life_ms), life_ms / 1000.0)
+	tw.tween_method(func(ms: float):
+		l.position.y = y0 - CalloutQueue.rise(ms)
+		var k := CalloutPop.arc(ms, float(pop.arc_ms))
+		l.position.x = x0 + drift * k
+		l.rotation = tilt * (1.0 - k), 0.0, float(life_ms), life_ms / 1000.0)
 	tw.parallel().tween_property(l, "modulate:a", 0.0, 0.5).set_delay(life_ms / 1000.0 - 0.5)
+	var ts := create_tween()   # the pop: overshoot, then settle (its own tween so the rise starts at once)
+	ts.set_meta("callout", true)
+	if float(pop.peak) != float(pop.from):
+		ts.tween_property(l, "scale", Vector2.ONE * float(pop.peak), float(pop.up)).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	ts.tween_property(l, "scale", Vector2.ONE * float(pop.rest), float(pop.settle)).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	if bool(pop.fade_in):
+		ts.parallel().tween_property(l, "modulate:a", 1.0, 0.15)
 	tw.tween_callback(l.queue_free)
 
 
