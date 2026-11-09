@@ -7,7 +7,7 @@ extends RefCounted
 ##
 ## The form speaks the greybox's dev flags (--district --location --setpiece --variant --scene
 ## --profile --site --objective --faction --security --complication --seed), plus flags of its own
-## for the rest (--code --utility --pay --deploy --basements --tower --band, and --gig-crew=<names>: the base
+## for the rest (--code --utility --pay --deploy --basements --tower --band --mood, and --gig-crew=<names>: the base
 ## view's --crew picks a crew card): from_flags / to_flags convert, so a gig built on the card and
 ## one launched from the command line are the same gig (a dev launch's flags prefill the card).
 ##
@@ -24,13 +24,14 @@ extends RefCounted
 ## tall building: docs/world/towers.md): a tower's short id or location id ("raven", "the_glen_24"),
 ## or "any" (one drawn); "" plays a tower's location as its street-level building, as the board's
 ## ordinary offers do. band: the tower's band ("" its sky band, the only one stage 1a builds).
-## crew: names; [] everyone fit to go.
+## mood: a tower gig's weather (Atmosphere: clear, acid_rain, dust, smog, drizzle; "" drawn from the
+## seed and district as a board gig's is). crew: names; [] everyone fit to go.
 const FIELDS := {"district": "", "location": "", "setpiece": "", "variant": "", "scene": "", "profile": "",
 	"site": "", "objective": "", "faction": "", "security": 0, "code": "", "utility": "auto",
-	"complication": "auto", "pay": 0, "seed": 0, "deploy": "", "basements": "", "tower": "", "band": "", "crew": []}
+	"complication": "auto", "pay": 0, "seed": 0, "deploy": "", "basements": "", "tower": "", "band": "", "mood": "", "crew": []}
 const NONE := "none"
 const STRING_FLAGS := ["district", "location", "setpiece", "variant", "scene", "profile", "site", "objective",
-	"faction", "code", "utility", "complication", "deploy", "basements", "tower", "band"]
+	"faction", "code", "utility", "complication", "deploy", "basements", "tower", "band", "mood"]
 const INT_FLAGS := ["security", "pay", "seed"]
 const UTILITY_MODES := ["auto", "none", "roll"]
 ## Scenes where an empty profile takes the district's own streets (as greybox --district does).
@@ -267,6 +268,7 @@ static func _tower_build(f: Dictionary, d: Dice, g: Dictionary, kind: String, tw
 	var gig := tmp.tower_gig(g, lid, kind, bid)
 	gig.merge({"id": "dev", "dev": true, "seed": int(f.seed), "fixer": "DEV BUILDER", "fixer_id": "", "hook": ""}, true)
 	gig["sky"] = Campaign.tower_sky(int(f.seed))   # the form's seed decides day or night, as a board gig's does
+	gig["mood"] = String(f.mood) if Atmosphere.has(String(f.mood)) else Campaign.tower_mood(int(f.seed), String(gig.get("district", "")))   # and its weather
 	if String(f.faction) != "":
 		gig["faction"] = String(f.faction)
 	var sec := int(f.security)

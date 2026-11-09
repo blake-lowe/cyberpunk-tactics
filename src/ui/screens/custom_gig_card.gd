@@ -108,6 +108,12 @@ func _build() -> void:
 	var tower_opt := _opt("tower", towers)
 	tower_opt.tooltip_text = "A tower gig: the sky band of a tall building (TowerGen; the crew rides up in the lift). Off plays a tower's location as its street-level building."
 	_field(grid, "Tower", tower_opt)
+	var moods: Array = [["", AUTO]]
+	for id in Atmosphere.ids():
+		moods.append([String(id), String(Atmosphere.data().moods[id].get("name", id))])
+	var mood_opt := _opt("mood", moods)
+	mood_opt.tooltip_text = "A tower gig's weather (Atmosphere): auto draws it from the seed, weighted by the district."
+	_field(grid, "Weather", mood_opt)
 	_field(grid, "Pay (eb)", _spin("pay", 0, 200000, 500))
 	_field(grid, "Seed", _spin("seed", 0, 99999, 1))
 	_field(grid, "Complication", _complication())

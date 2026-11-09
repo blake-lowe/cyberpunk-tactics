@@ -200,11 +200,20 @@ The roadmap principle holds: we keep the book's node types, DVs, abilities, ICE 
   `data/gen/tower_looks.json`, by the tower's short id, else its recipe): the band's outer walls get the facade's
   skin outside (inside they are as they were), and the impostor facade under the plate repeats the band's lowest
   storey square by square (tower.gdshader mask), rooms lit or dark storey by storey, so there is no seam (owner, V1).
-  Setbacks, plant storeys with catwalks, light seams, floodlighting; the crown (fins, logo sign, gold tiers, lit
-  ring) off the back edges with a mast, dishes and aviation lights, drawn only while the roof is; greebles below
+  Setbacks, plant storeys with catwalks, light seams, floodlighting; the crown (fins, gold tiers, lit ring) off
+  the back edges with a mast, dishes and aviation lights, drawn only while the roof is; a logo crown is the name on
+  every face under the roof's edge, facing out (owner, round 2: read from the street, not across the roof), kept on
+  the camera side like the wall it is on and gone with the roof; greebles below
   (cradle, pipes, holo-ad screens, Highcourt's blade sign and AV pad, MA&F's twin and walkways, sky-bridge stubs);
   a far city of varied towers with crowns and rooftop ads, huge holograms in the smog, drone traffic, the street
   grid far below and the smog lit from beneath. Height fog hangs under the band (LOOKS `tower_top`, `tower_day`).
+- **Weather** (owner idea, round 2). A mood per tower gig (Atmosphere, `data/gen/atmospheres.json`): clear
+  neon-noir (the default, unchanged), acid rain, dust storm, heavy smog, cold drizzle; drawn from the gig's seed
+  weighted by its district (region, profile, look tags in city.json) and kept on the gig as `mood` beside `sky`.
+  It sets the air only (fog, height fog, sky, smog, the post palette), never the ambient, key or lamp light, and
+  tints the far city, the street grid and the smog layers, with rain streaks or blown dust round the tower, never
+  over the plate. Dev: the Weather field, `--mood=<id|auto>`. The table is not tower-only: ordinary maps can take
+  it up later (the roadmap's weather item).
   Lift car with seven-segment floor indicator; Alt lift plate; the tower strip (programme names, car, gold
   objective notch, `2-47 · 46 floors` hairline, `1 lobby · off map`).
 - **Deferred to stage 2+** (V1 items not built): call mode, the moving car and ride cut, padlocked rows, amber

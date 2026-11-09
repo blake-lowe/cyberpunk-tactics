@@ -12,6 +12,8 @@ uniform vec3 roof_col : source_color = vec3(0.05, 0.055, 0.07);
 uniform float block = 9.0;
 uniform float seed = 0.0;
 uniform bool day = false;
+uniform float lamps = 1.0;   // the grid's brightness through the weather (Atmosphere grid)
+uniform vec3 tint : source_color = vec3(1.0);   // and its colour (the weather's cast)
 
 varying vec3 wpos;
 
@@ -72,5 +74,5 @@ void fragment() {
 	}
 	ALBEDO = base;
 	ROUGHNESS = 0.9;
-	EMISSION = emit;
+	EMISSION = emit * lamps * tint;
 }

@@ -11,9 +11,9 @@
 	},
 	"recipes": {
 		"tower_hotel": {
-			"flood": 0.15,
-			"_why": "A hotel tower: stone and punched windows, warm rooms, most of them lit.",
-			"spandrel": "554b42", "slab": "8e8476", "pier": "3d3630", "glass": "141a26", "band_glass": "70665a", "mullion": "1a1714",
+			"flood": 0.06,
+			"_why": "A hotel tower: dark stone and punched windows, warm rooms, most of them lit (owner, towers art round 2: the stone read as a big tan wall on Forward+, darkened).",
+			"spandrel": "2e2925", "slab": "625a50", "pier": "201c19", "glass": "141a26", "band_glass": "4a423a", "mullion": "1a1714",
 			"lit": 0.5, "dark_floors": 0.08, "warm_share": 0.85, "warm": ["ffc890", "ffb070", "ffc8a0"], "cool": ["fff4e0", "dfe6ea"],
 			"crown": "ring", "crown_color": "ffb070"
 		}

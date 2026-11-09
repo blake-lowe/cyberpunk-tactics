@@ -27,6 +27,7 @@ extends Node
 ## Screenshot mode:  -- --shot=path.png [--scene=x] [--profile=y] [--district=z] [--seed=n] [--pixel=3]
 ##   [--levels=0] [--dither=0.5] [--outline=0.4] [--bloom=0.8] [--contrast=1.1] [--ortho=1]
 ##   [--fog=0] [--zoom=24] [--yaw=45] [--lights=1] [--hover=x,y] [--promo=1] [--cut=auto|all|off]
+##   [--tower=raven [--sky=day] [--mood=clear|acid_rain|dust|smog|drizzle|auto]]
 ##   [--stage=attack] [--arm=brawl|grenade|grab|<attack mode>] [--grapple=hold|shield|throw|held (with --near=1)] [--portrait=1] [--alt=1] [--near=n] [--help=1] [--stairs=on|up]
 ##   [--exposure=1 --gamma=1 --ambient=1 --lights=1 --spill=1 (lighting review: grade exposure and power curve, ambient, lamp and baked-spill scales)]
 ##   [--hurt=0.6 (the nearest foes roused and hurt)] [--logt=0..1 (the log slide held there)]
@@ -234,10 +235,14 @@ func _scene_look() -> Dictionary:
 	var dl: Dictionary = SceneTheme.of(m).get("light", {}) if not day else {}   # by day the tower's own sky, not the district's night
 	if day:
 		lk = LOOKS["tower_day"]
-	if dl.is_empty():
+	# a tower gig's weather (Atmosphere, the gig's mood) over both: the sky, fog and smog, never the
+	# ambient, key or lamp light the play area is lit by
+	var air := Atmosphere.light(Atmosphere.of(m), day) if m.is_tower() else {}
+	if dl.is_empty() and air.is_empty():
 		return lk
 	lk = lk.duplicate()
 	lk.merge(dl, true)
+	lk.merge(air, true)
 	return lk
 var open_cells := {}             ## Vector2i square → the cut building (structure id) over it (its rooms + walls)
 var struct_rooms := {}           ## structure id → {room label: true}, indoor rooms only
@@ -376,6 +381,7 @@ func _ready() -> void:
 				gig.scene = "tower_top"
 			"band": gig["band"] = kv[1]   # with --tower: which band (stage 1a: sky)
 			"sky": _sky = kv[1]   # review renders: a tower band's light, night (default) or day
+			"mood": gig["mood"] = kv[1]   # with --tower: its weather (Atmosphere: clear (default), acid_rain, dust, smog, drizzle; auto: the seed's)
 			"floor": _shot_floor = int(kv[1])   # review renders: look at this storey
 			"inside": _dev_inside = Array(kv[1].split(","))   # review renders: crew inside buildings (FloorNav.slices): storey, or building:storey
 			"focusb": _dev_focus_b = kv[1]   # review renders: focus a building (H3), "k" or "k:storey"
@@ -835,6 +841,11 @@ func new_gig() -> void:
 	if String(gig.get("tower", "")) != "":   # review renders: --tower (TowerGen)
 		o["tower"] = String(gig.tower)
 		o["band"] = String(gig.get("band", TowerGen.DEFAULT_BAND))
+		var mood := String(gig.get("mood", ""))
+		if mood == "auto":   # as a board gig's: the seed's, weighted by the tower's district
+			mood = Atmosphere.pick(int(gig.seed), String(World.location(World.tower_location(String(gig.tower))).get("district", "")))
+		if mood != "":
+			o["mood"] = mood
 	if String(gig.get("setpiece", "")) != "":
 		o["setpiece"] = gig.setpiece
 		o["location"] = String(gig.get("location", ""))

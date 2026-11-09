@@ -1,0 +1,84 @@
+{
+	"_doc": "Atmosphere moods (Atmosphere, src/tactical/view/atmosphere.gd): the weather over a gig, picked per gig from its seed and weighted by its district (data/world/city.json), kept on the gig as `mood` like its day/night `sky`, so a save reloads the same. Visual only, so ours throughout. Each mood has a night and a day block: fog / fog_d / fog_h / fog_hd / sky / smog override the scene's light (greybox LOOKS: the fog colour and density, the height fog under a tower band, the sky gradient, the smog the facade falls into, and the post palette the frame is drawn in (themes.json palettes: acid, smog, inferno; none keeps the scene's)); ambient, key, rim and lamp light are never touched (the play area's and the units' light stay as the owner set them). The rest is the tower dressing's (TowerDress): cast + cast_k: a colour cast on the far city and down the shaft; glow: the street grid's haze colour, grid: its lamps' brightness; lit: the smog's under-light [a, b]; thick: the smog layers' density. Per mood: wet (a sheen on the far facades), rain / rain_col (rain streaks round the tower), dust / dust_col (blown dust). The first mood (clear) is the default and changes nothing. weights: base, then + region, + profile and + each look tag of the gig's district (city.json), + district (by id) for one-offs; a weight of 0 never comes up.",
+	"default": "clear",
+	"moods": {
+		"clear": {
+			"name": "Clear neon-noir",
+			"_why": "The night city as the towers pass shipped: violet smog lit pink and orange from below. Changes nothing.",
+			"night": {}, "day": {}
+		},
+		"acid_rain": {
+			"name": "Acid rain",
+			"_why": "Chemical rain off the bay: sickly green haze, wet glass, the far city sunk in green.",
+			"wet": 0.6, "rain": 1.0, "rain_col": "c8ffa8",
+			"night": {"fog": "0e2416", "fog_d": 0.0018, "fog_h": -3.0, "fog_hd": 0.013, "sky": ["020805", "08200f", "2a7a36"], "smog": "1a3a20", "palette": "acid",
+				"cast": "8cff7a", "cast_k": 0.55, "glow": "2a6a26", "grid": 0.85, "lit": ["1e7a34", "8aa020"], "thick": 1.3},
+			"day": {"fog": "6e7a62", "fog_d": 0.0026, "fog_h": -1.5, "fog_hd": 0.035, "sky": ["44523e", "7a8a68", "a8b47e"], "smog": "7a8a62", "palette": "acid",
+				"cast": "c8e890", "cast_k": 0.4, "glow": "2a6a26", "grid": 1.0, "lit": ["1e7a34", "8aa020"], "thick": 1.2}
+		},
+		"dust": {
+			"name": "Dust storm",
+			"_why": "Badlands dust blown in over the city: brown-orange haze, low visibility, a warm cast on everything far.",
+			"dust": 1.0, "dust_col": "e8a868",
+			"night": {"fog": "2a1a10", "fog_d": 0.0026, "fog_h": -2.5, "fog_hd": 0.02, "sky": ["0c0604", "3a1c0c", "b05a20"], "smog": "5e3418", "palette": "inferno",
+				"cast": "ff9a4a", "cast_k": 0.6, "glow": "8a4010", "grid": 0.55, "lit": ["b0521a", "d08a30"], "thick": 1.8},
+			"day": {"fog": "9a7858", "fog_d": 0.0028, "fog_h": -1.5, "fog_hd": 0.04, "sky": ["7a6a5a", "b08e70", "d09a70"], "smog": "a8865e", "palette": "inferno",
+				"cast": "ffb070", "cast_k": 0.55, "glow": "6a3810", "grid": 1.0, "lit": ["7a3e16", "9a6020"], "thick": 1.5}
+		},
+		"smog": {
+			"name": "Heavy smog",
+			"_why": "An inversion over the factories: thick grey-yellow smog, the street grid a dull glow through it.",
+			"night": {"fog": "26241a", "fog_d": 0.0028, "fog_h": -2.5, "fog_hd": 0.02, "sky": ["080806", "22200f", "6a6228"], "smog": "4a4424", "palette": "smog",
+				"cast": "e0d488", "cast_k": 0.45, "glow": "6a5a18", "grid": 0.65, "lit": ["8a7a2a", "a8902a"], "thick": 1.9},
+			"day": {"fog": "9a9478", "fog_d": 0.003, "fog_h": -1.5, "fog_hd": 0.065, "sky": ["7a7866", "a8a486", "c8c094"], "smog": "a8a078", "palette": "smog",
+				"cast": "e8dca0", "cast_k": 0.45, "glow": "6a5a18", "grid": 1.0, "lit": ["8a7a2a", "a8902a"], "thick": 2.2}
+		},
+		"drizzle": {
+			"name": "Cold drizzle",
+			"_why": "A cold front off the Pacific: blue haze, fine rain, glass running wet.",
+			"wet": 0.45, "rain": 0.55, "rain_col": "b0d8ff",
+			"night": {"fog": "101a2a", "fog_d": 0.0018, "fog_h": -3.0, "fog_hd": 0.012, "sky": ["03060e", "0a1830", "245478"], "smog": "1e2c42",
+				"cast": "80b8ff", "cast_k": 0.4, "glow": "1a3058", "grid": 0.95, "lit": ["1e3a6e", "3a5a8e"], "thick": 1.1},
+			"day": {"fog": "7a8898", "fog_d": 0.0026, "fog_h": -1.5, "fog_hd": 0.035, "sky": ["4a5a70", "8898aa", "a8b6c4"], "smog": "8a96a6",
+				"cast": "b0c8e8", "cast_k": 0.35, "glow": "1a3058", "grid": 1.0, "lit": ["1e3a6e", "3a5a8e"], "thick": 1.1}
+		}
+	},
+	"weights": {
+		"base": {"clear": 6, "acid_rain": 2, "drizzle": 2, "smog": 1, "dust": 0},
+		"region": {
+			"island": {"acid_rain": 1, "drizzle": 1},
+			"mainland": {"smog": 1, "dust": 2},
+			"northside": {"drizzle": 1},
+			"southside": {"acid_rain": 2},
+			"playland": {"acid_rain": 1},
+			"outskirts": {"dust": 8}
+		},
+		"profile": {
+			"industrial": {"smog": 4, "acid_rain": 2},
+			"combat_zone": {"smog": 2, "dust": 2},
+			"hot_zone": {"dust": 5},
+			"corporate_center": {"clear": 3},
+			"executive_zone": {"clear": 4},
+			"market_streets": {"drizzle": 2},
+			"pacifica": {"acid_rain": 3}
+		},
+		"look": {
+			"yellow smog": {"smog": 6},
+			"smog": {"smog": 4},
+			"factories": {"smog": 2},
+			"rusting factories": {"smog": 1},
+			"dust storms": {"dust": 8},
+			"dust": {"dust": 3},
+			"fallout dust": {"dust": 3, "acid_rain": 1},
+			"cancer dust": {"dust": 4},
+			"badlands": {"dust": 4},
+			"marina": {"acid_rain": 2, "drizzle": 1},
+			"seaside": {"acid_rain": 2},
+			"harbour": {"acid_rain": 3},
+			"canal water": {"acid_rain": 2},
+			"glass towers": {"clear": 1},
+			"neon": {"clear": 1}
+		},
+		"district": {}
+	}
+}

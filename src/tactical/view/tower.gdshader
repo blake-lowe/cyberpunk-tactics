@@ -48,6 +48,9 @@ uniform vec3 flood_col : source_color = vec3(0.0);
 uniform bool day = false;
 uniform vec3 sky_col : source_color = vec3(0.6, 0.66, 0.72);
 uniform float haze = 0.0;           // far towers: their colour sinks into the smog with depth
+uniform vec3 cast_col : source_color = vec3(1.0);   // the weather's cast (Atmosphere cast): the far city and the shaft deep in the smog
+uniform float cast_k = 0.0;
+uniform float wet = 0.0;            // rain on the glass (Atmosphere wet): a sheen and runnels down the panes
 uniform vec2 map_size = vec2(1.0);
 global uniform vec3 cut_center;
 global uniform vec2 cut_dir;
@@ -184,6 +187,11 @@ void fragment() {
 				float spk = step(0.93, hash(vec2(floor(along * 3.0) + sd, floor(wpos.y * 4.0))));
 				emit += mix(vec3(1.0, 0.45, 0.6), vec3(0.4, 0.8, 1.0), hash(vec2(floor(along), storey))) * spk * 0.25 * bounce;
 			}
+			if (wet > 0.0) {   // rain on the glass: glossier, runnels catching the light below
+				rough = mix(rough, 0.04, wet);
+				float rn = step(0.86, hash(vec2(floor(along * 5.0) + sd, floor(wpos.y * 0.7 - TIME * 1.3 + hash(vec2(floor(along * 5.0), sd)) * 9.0))));
+				emit += (day ? sky_col * 0.18 : mix(smog_col, cast_col, 0.5) * 0.22) * rn * wet;
+			}
 			if (lit) {
 				float wsel = h3(vec3(storey, room, sd + 4.0));
 				float pick = h3(vec3(storey, room, sd + 5.0));
@@ -231,6 +239,13 @@ void fragment() {
 		float k = haze * smoothstep(-10.0, -70.0, wpos.y);
 		base = mix(base, smog_col * (day ? 0.9 : 0.45), k);
 		emit *= 1.0 - k * 0.5;
+	}
+	if (cast_k > 0.0) {   // the weather's cast: the far city (by distance and depth), the shaft deep down
+		vec2 mid = (plate.xy + plate.zw) * 0.5;
+		float far = per_instance ? max(smoothstep(18.0, 110.0, length(wpos.xz - mid)), smoothstep(-4.0, -40.0, wpos.y)) : smoothstep(-8.0, -56.0, wpos.y);
+		float kc = cast_k * far;
+		base = mix(base, base * cast_col * 1.3 + cast_col * (day ? 0.12 : 0.025), kc);
+		emit = mix(emit, emit * cast_col * 1.25 + cast_col * length(emit) * 0.15, kc * 0.75);
 	}
 	ALBEDO = base;
 	ROUGHNESS = rough;
