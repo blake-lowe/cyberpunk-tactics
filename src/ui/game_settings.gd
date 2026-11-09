@@ -6,9 +6,11 @@ extends RefCounted
 ## (dev_mode, off by default), which shows the dev-only tools such as the custom gig builder on the
 ## Fixer Network's JOBS (CustomGig). Its toggle is hidden on the Options page (click the Options
 ## heading five times) so a release build has it too; `--dev` on the command line turns it on for
-## one run.
+## one run. Reduced motion (reduced_motion, off by default) tones down the HUD's animations: the
+## clock dice don't tumble, shatter or beat, callouts fade instead of slamming (ClockWidget, Hud).
+## `--reduced_motion=1` turns it on for one run.
 
-const DEFAULTS := {"master": 1.0, "music": 1.0, "sfx": 1.0, "fullscreen": false, "dev_mode": false}
+const DEFAULTS := {"master": 1.0, "music": 1.0, "sfx": 1.0, "fullscreen": false, "dev_mode": false, "reduced_motion": false}
 const SFX_BUSES := ["SFX", "UI", "Ambience"]
 const DEV_FLAG := "--dev"
 
@@ -24,6 +26,13 @@ static func dev_mode() -> bool:
 	if dev_override >= 0:
 		return dev_override == 1
 	return DEV_FLAG in OS.get_cmdline_user_args() or bool(load_values().dev_mode)
+
+
+## Reduced motion: `--reduced_motion=1` on the command line, or the Options toggle saved on.
+static func reduced_motion() -> bool:
+	if "--reduced_motion=1" in OS.get_cmdline_user_args():
+		return true
+	return bool(load_values().get("reduced_motion", false))
 
 
 static func load_values() -> Dictionary:

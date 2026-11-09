@@ -65,8 +65,13 @@ extends RefCounted
 ##     Corpse loot (Single Player Mode, CorpseLoot): the campaign keeps `leads`, the plot hooks
 ##     found on bodies ({label, hook, day, gig, faction, district, location, from}); an older save
 ##     found none and starts with an empty list. Loot itself lands in the stash, which is unchanged.
+## v17: Plot Twists (SPM p.75-76, Twist). A board offer's `twist` is null (no twist: most jobs) or
+##     a hidden {row, roll, id, label, trigger, oracle?}. Every v16 offer has twist null and loads as
+##     a job with no twist; a twist in any other shape (junk, or a row the game no longer plays) is
+##     dropped to null rather than sprung half-understood. The dev builder's last form gains its
+##     `twist` field at "auto" (the form's defaults fill it on use).
 
-const CURRENT := 16
+const CURRENT := 17
 
 
 ## Upgrade `d` (a parsed save) to CURRENT. Returns {} for a save from a newer build, which this
@@ -93,6 +98,7 @@ static func migrate(d: Dictionary) -> Dictionary:
 			13: _v13_to_v14(d)
 			14: _v14_to_v15(d)
 			15: _v15_to_v16(d)
+			16: _v16_to_v17(d)
 		v += 1
 		d["version"] = v
 	return d
@@ -305,3 +311,14 @@ static func _v15_to_v16(d: Dictionary) -> void:
 		d["favours"] = []
 	if not (d.get("leads") is Array):
 		d["leads"] = []
+
+
+static func _v16_to_v17(d: Dictionary) -> void:
+	for g in d.get("board", []):
+		if g is Dictionary and not Twist.valid((g as Dictionary).get("twist")):
+			g["twist"] = null
+		elif g is Dictionary and not (g as Dictionary).has("twist"):
+			g["twist"] = null
+	var lc: Variant = d.get("last_custom")
+	if lc is Dictionary and not (lc as Dictionary).is_empty() and not (lc as Dictionary).has("twist"):
+		lc["twist"] = "auto"

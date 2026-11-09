@@ -26,6 +26,10 @@ func check_end() -> String:
 	return ""
 
 
+func near_done() -> bool:
+	return done() or int(o.get("carrier", -1)) >= 0
+
+
 func actions() -> Array[String]:
 	var out: Array[String] = []   # typed: a bare [] from a ternary comes back untyped
 	if int(o.carrier) < 0 and _crew_beside(o.cell):

@@ -29,14 +29,16 @@ extends RefCounted
 ## "<zone>/<id>" (People of Night City), mission (a Mission Types id; its objective is used when
 ## objective is auto), item "<category>/<id>" (the focus: Mission Items; not "focus", which the
 ## base view's --focus flag already means), payment (eb, information, favour,
-## favour:treatment, favour:market, goods); "" rolls each. The twist has no field yet (null).
+## favour:treatment, favour:market, goods); "" rolls each. twist: auto (the Oracle, as a board
+## offer: most jobs have none), none, or a Plot Twists row (its id or d100 roll, SPM p.75-76) with
+## an optional @trigger (start, alarm, objective_done, round<n>): Twist.roll; flag --twist.
 const FIELDS := {"district": "", "location": "", "setpiece": "", "variant": "", "scene": "", "profile": "",
 	"site": "", "objective": "", "faction": "", "security": 0, "code": "", "utility": "auto",
 	"complication": "auto", "pay": 0, "seed": 0, "deploy": "", "basements": "", "tower": "", "band": "", "mood": "", "crew": [],
-	"client": "", "mission": "", "item": "", "payment": ""}
+	"client": "", "mission": "", "item": "", "payment": "", "twist": "auto"}
 const NONE := "none"
 const STRING_FLAGS := ["district", "location", "setpiece", "variant", "scene", "profile", "site", "objective",
-	"faction", "code", "utility", "complication", "deploy", "basements", "tower", "band", "mood", "client", "mission", "item", "payment"]
+	"faction", "code", "utility", "complication", "deploy", "basements", "tower", "band", "mood", "client", "mission", "item", "payment", "twist"]
 const INT_FLAGS := ["security", "pay", "seed"]
 const UTILITY_MODES := ["auto", "none", "roll"]
 ## Scenes where an empty profile takes the district's own streets (as greybox --district does).
@@ -261,7 +263,7 @@ static func _mission_steps(f: Dictionary, d: Dice, gig: Dictionary) -> void:
 	for k in MissionBuilder.STEPS:
 		gig.erase(k)
 	MissionBuilder.run(d, gig, {"client": String(f.client), "mission": String(f.mission), "focus": String(f.item),
-		"payment": String(f.payment), "goods": func(v: int) -> Array: return goods(v)})
+		"payment": String(f.payment), "twist": String(f.get("twist", "auto")), "goods": func(v: int) -> Array: return goods(v)})
 	if int(f.pay) > 0:
 		gig["pay"] = int(f.pay)
 		gig.payment["eb"] = int(f.pay)

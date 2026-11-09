@@ -50,6 +50,14 @@ var objective := {}                 ## the objective's state: {kind, done, + per
 var obj: Objective                  ## the gig's goal as a module (src/tactical/objectives/)
 var complication := {}              ## the book's complication rolled at gig start: {tier, roll, text, applied, skipped} (Complication)
 var complication_waves: Array = []  ## its extra units still to come: {round, n, tier, unit, crit}
+var clocks: Array = []              ## Solo Play Clocks running this gig (Clock; Clocks, SPM p.25-26): the detection clock, a Time Limit
+var twist := {}                     ## the gig's plot twist (Twist, SPM p.75-76): {row, id, label, trigger, sprung, round, text, applied}
+var _clock_hits := {}               ## clock trigger rate limits (Clocks._limit_key) and reclaims this turn
+var _room_rounds := {}              ## crew unit id → [room label, rounds there]: a minute in a secured room (Clocks.round_start)
+var _clock_round := -1
+var _clock_obj_seen := false        ## the objective trigger has rolled (once a gig)
+var _spoofed := {}                  ## device id → true: already fooled for the detection clock (Clocks.spoof, NET loops)
+var _twist_busy := false
 var focus_id := -1                  ## Lieutenant tactic focus_fire: the crew unit the opposition shoots first
 var extract_cells := {}             ## Vector3i → true: the deploy zone, where a snatch is carried out
 var vision: Vision                  ## what the crew can see (drives fog and hidden guards)
@@ -103,7 +111,10 @@ var login_codes := 0                ## NET login codes found on bodies: each ope
 ## every time unless utilities: true, which rolls it only on one gig in SecurityCode.UTILITY_CHANCE_IN;
 ## outages: the utilities out, forced (nothing rolled; the dev gig builder);
 ## complications: true to roll for one of the book's complications (Complication.CHANCE_IN);
-## complication: {tier?, roll?} to force one; district: the gig's district, whose civilians make up
+## complication: {tier?, roll?} to force one; twist: the gig's plot twist (Twist: {id, row,
+## trigger, ...}, sprung at its trigger); clocks: "auto" runs the detection clock on a stealth gig
+## (Clocks.stealth_gig: campaign gigs), true / false always or never (default false: tests and
+## tools run none); district: the gig's district, whose civilians make up
 ## the crowd and the people the objectives need (Recruit.civilian_blocks); owner: the location's
 ## owner faction, whose people a venue code's staff are (SecurityCode.respondent); neutral_ground /
 ## free_for_all: a set piece's rules for any map (NeutralGround, FreeForAll; by default the map's
@@ -218,9 +229,11 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 		e._hand_out_keycards()
 	e._trauma_cards()
 	e._place_civilians(cells[0])
+	Twist.arm(e, opts.get("twist"))   # a start twist (Trap Location) places its devices before the turrets mount
 	e._mount_turrets()
 	for line in SetPieces.briefs(String(p_map.params.get("setpiece", ""))):   # the place's house rules, for the briefing
 		e.say(line)
+	Clocks.start(e, opts.get("clocks", false))   # the detection clock on a stealth gig (SPM p.25): campaign gigs ask "auto"
 	e.refresh_vision()
 	e.update_alerts()
 	return e
@@ -397,6 +410,10 @@ func next_turn() -> void:
 			Complication.tick(self)
 		_tick_backup()
 		obj.tick()
+		if init.round_num != _clock_round and state == "playing":   # Solo Play Clocks' top-of-round triggers, then the twist's moment
+			_clock_round = init.round_num
+			Clocks.round_start(self)
+		Twist.poll(self)
 		if init.round_num != _civ_round:
 			_civ_round = init.round_num
 			_civilians_tick()
@@ -503,6 +520,9 @@ func _check_end() -> void:
 	var r := obj.check_end()
 	if r != "":
 		state = r
+	if state == "playing":   # the objective taken: the detection clock rolls, a twist may spring
+		Clocks.check_objective(self)
+		Twist.poll(self)
 
 
 # --- Neutral ground (NeutralGround: Totentanz's club floor) ------------------------------------
@@ -884,6 +904,8 @@ func bypass_lock() -> Dictionary:
 		_noise(cur.pos)
 	events.append({"type": "bypass", "unit": cur.id, "cell": cell, "ok": check.success, "loud": loud})
 	say("%s %s the lock%s." % [cur.c.display_name, "bypasses" if check.success else "fails to bypass", " and sets off a buzzer" if loud else ""])
+	if not check.success:   # a failed Electronics/Security Tech check (SPM p.25 Corporate Heist)
+		Clocks.trigger(self, "failed_tech", int(cur.id), "%s fails a bypass" % cur.c.display_name)
 	return {"ok": true, "success": check.success, "loud": loud}
 
 
@@ -1688,6 +1710,8 @@ func tamper_camera() -> Dictionary:
 		disabled_devices[d.id] = true
 	events.append({"type": "tamper", "unit": cur.id, "device": d.id, "ok": check.success})
 	say("%s %s a camera." % [cur.c.display_name, "kills" if check.success else "fumbles with"])
+	if not check.success:   # a failed Electronics/Security Tech check (SPM p.25 Corporate Heist)
+		Clocks.trigger(self, "failed_tech", int(cur.id), "%s fumbles a camera" % cur.c.display_name)
 	return {"ok": true, "success": check.success}
 
 
@@ -1753,6 +1777,8 @@ func _camera_spots() -> Dictionary:
 			if not _spot_rolls.has(key):
 				var base := CAMERA_PERCEPTION - (0 if lit.has(u.pos) else DARK_PENALTY)
 				_spot_rolls[key] = Check.opposed(dice, base, u.c.skill_base("stealth") - u.c.action_penalty()).success
+				if _spot_rolls[key]:   # a failed Stealth check (SPM p.25 Corporate Heist)
+					Clocks.trigger(self, "failed_stealth", int(u.id), "a camera catches %s" % u.c.display_name)
 			if _spot_rolls[key]:
 				var best: Dictionary = {}
 				for g in units:
@@ -1798,6 +1824,8 @@ func _spots(g: Dictionary, u: Dictionary) -> bool:
 	var key := [g.id, u.id, init.round_num if init else 0]   # HOUSE-RULE: one contest per guard, sneaker and round
 	if not _spot_rolls.has(key):
 		_spot_rolls[key] = Check.opposed(dice, base, sneak).success
+		if _spot_rolls[key] and int(u.team) == CREW and bool(sides[int(g.team)].opfor) and hostile(int(g.team), CREW):   # a failed Stealth check (SPM p.25)
+			Clocks.trigger(self, "failed_stealth", int(u.id), "%s fails to slip past %s" % [u.c.display_name, g.c.display_name])
 	return _spot_rolls[key]
 
 
@@ -2015,6 +2043,7 @@ func call_it_in(g: Dictionary) -> void:
 		msg += " The street noticed: %s in %d." % [SecurityCode.faction_name(String(street_code.faction)), ncpd_in]
 	say(msg)
 	events.append({"type": "alarm", "unit": g.id, "rounds": backup_in})
+	Clocks.on_alarm(self)   # the detection clock is moot now (an alarm twist springs at the next turn: Twist.poll)
 
 
 ## Who a code sends: the site's own people (the target's, or the contractor holding the posts) come
@@ -2070,6 +2099,8 @@ func _arrive(r: Dictionary) -> void:
 	var team := OPFOR if bool(r.own) else witness_side(String(r.fid))
 	var civ: Array[String] = Recruit.civilian_blocks(district) if bool(r.get("civilians", false)) else ([] as Array[String])
 	_spawn_wave(roster, String(r.label), team, String(r.fid), String(r.rank), bool(r.code.get("hardened", false)), civ)
+	if bool(r.get("sting", false)) and team != OPFOR:   # a police sting (Twist): they came for the crew
+		_witness(team, "A police sting")
 
 
 # --- Utility Codes (NC2045 p.8) ------------------------------------------------------------
@@ -2193,6 +2224,8 @@ func arrival_cell() -> Vector3i:
 ## Gunfire at `at` alerts guards within GUNFIRE_RANGE on any floor.
 func _noise(at: Vector3i) -> void:
 	_panic_near(at)
+	if not cur.is_empty() and int(cur.team) == CREW:   # the crew's gunfire or blast: the detection clock rolls (Clocks)
+		Clocks.trigger(self, "noise", int(cur.id), "%s makes noise" % cur.c.display_name)
 	var fresh := []
 	for g in units:
 		if not g.alerted and not g.c.dead and Vector2(at.x - g.pos.x, at.y - g.pos.y).length() <= GUNFIRE_RANGE \
@@ -3502,6 +3535,7 @@ func net_device(nid: int, did: int) -> Dictionary:
 	var r := NetDevices.operate(self, int(cur.id), nid, did)
 	say(String(r.text))
 	events.append({"type": "net_device", "unit": cur.id, "node": nid, "device": did, "kind": String(d.type), "op": r.op, "on": r.on, "devices": r.devices, "cells": r.cells})
+	Clocks.on_net_device(self, did, String(r.op), bool(r.on))   # looping cameras or cutting the alarm wins time back (SPM p.26)
 	refresh_vision()
 	return r
 

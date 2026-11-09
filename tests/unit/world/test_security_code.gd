@@ -370,8 +370,9 @@ func test_board_gigs_save_their_codes() -> void:
 		assert_eq(SecurityCode.normalise(back.board[i].security_code), SecurityCode.normalise(camp.board[i].security_code), "offer %d's code survives a save" % i)
 		assert_eq(Campaign.code_label(back.board[i]), Campaign.code_label(camp.board[i]))
 		var owned := String(World.location(String(back.board[i].location)).get("owner", "")) != ""
-		assert_eq(Campaign.encounter_opts(back.board[i]).keys().size(), 8 + int(owned),
-			"faction, three codes, the district, who guards, the owner if any, and the complication and utility rolls reach the encounter")
+		var twisted := back.board[i].get("twist") is Dictionary
+		assert_eq(Campaign.encounter_opts(back.board[i]).keys().size(), 9 + int(owned) + int(twisted),
+			"faction, three codes, the district, who guards, the owner if any, the complication and utility rolls, the clocks and the twist if any reach the encounter")
 
 
 func test_a_v7_board_gets_codes_on_load() -> void:

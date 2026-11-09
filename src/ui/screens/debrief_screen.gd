@@ -51,6 +51,17 @@ func build_body(body: VBoxContainer) -> void:
 		_sum(sums, "SURRENDERED · FLED", "%d · %d" % [int(report.get("surrendered", 0)), int(report.get("fled", 0))], Hud.TEXT)
 	if String(report.get("focus_line", "")) != "":   # what became of the focus (SPM p.73)
 		tv.add_child(UiKit.body(String(report.focus_line), 16, Hud.TEXT if report.get("won", false) else Hud.DIM))
+	var twist := twist_line(report)
+	if twist != "":   # the plot twist that sprang (Twist, SPM p.75-76)
+		var tr := UiKit.hbox(10)
+		tr.name = "Twist"
+		tv.add_child(tr)
+		var chip := UiKit.chip("PLOT TWIST", Hud.MAGENTA)
+		chip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		tr.add_child(chip)
+		var tl := UiKit.body(twist, 16, Hud.TEXT)
+		tl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		tr.add_child(tl)
 	var members: Array = report.get("members", [])
 	var grid := GridContainer.new()
 	grid.columns = clampi(members.size(), 1, 4)
@@ -71,6 +82,21 @@ func build_body(body: VBoxContainer) -> void:
 	var b := UiKit.button("CONTINUE  ›", UiKit.PRIMARY, func(): closed.emit(), true, 17)
 	b.custom_minimum_size = Vector2(220, 44)
 	bottom.add_child(b)
+
+
+## The debrief's line for the twist that sprang ("" for none): "Heavies Called In, round 6: armed
+## reinforcements arrive to guard the target. 3 hired guns for Arasaka arrive."
+static func twist_line(rep: Dictionary) -> String:
+	var t: Variant = rep.get("twist")
+	if not t is Dictionary or (t as Dictionary).is_empty():
+		return ""
+	var note := String(t.get("note", ""))
+	var s := "%s, round %d" % [String(t.get("label", "")), int(t.get("round", 0))]
+	if note != "":
+		s += ": " + note + "."
+	if String(t.get("text", "")) != "":
+		s += " " + String(t.text)
+	return s
 
 
 ## What the crew found on bodies and brought home (Campaign._take_loot): one line per find, a

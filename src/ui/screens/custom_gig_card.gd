@@ -181,10 +181,10 @@ func _build() -> void:
 const ZONE_SHORT := {"corporate": "Corp", "moderate": "Moderate", "street": "Street", "outskirts": "Outskirts"}
 
 
-## The sheet's rows in its order: who's hiring, payment, the mission, the focus (MissionBuilder);
-## the twist has no row until twists are built. Auto rolls each for the place, as the board does.
+## The sheet's rows in its order: who's hiring, payment, the mission, the focus, the twist
+## (MissionBuilder; Plot Twists, Twist). Auto rolls each for the place, as the board does.
 func _mission_builder(v: VBoxContainer) -> void:
-	var head := UiKit.label("MISSION BUILDER · SPM p.102 · THE TWIST: NOT BUILT YET", 12, Hud.MAGENTA)
+	var head := UiKit.label("MISSION BUILDER · SPM p.102 · PLOT TWISTS p.75-76", 12, Hud.MAGENTA)
 	head.name = "MissionBuilderHead"
 	v.add_child(head)
 	var mb := GridContainer.new()
@@ -218,6 +218,18 @@ func _mission_builder(v: VBoxContainer) -> void:
 	var fo := _opt("item", focus)
 	fo.tooltip_text = "Mission Items (SPM p.73). (data) a data theft's file, (object) a snatch's package, (captive) a rescue, (mark) a hit, (wreck) a sabotage or gang hit."
 	_field(mb, "Focus", fo)
+	var twists: Array = [["auto", AUTO + " (Oracle: most jobs none)"], ["none", "None"]]
+	for row in Twist.rows():
+		var on := Twist.enabled(row)
+		var ob: Array = row.get("objectives", [])
+		twists.append([String(row.id), "%d-%d %s%s" % [int(row.roll[0]), int(row.roll[1]), String(row.label),
+			(" (%s)" % ", ".join(PackedStringArray(ob)) if not ob.is_empty() else "") if on else " · not played yet"]])
+	var to := _opt("twist", twists)
+	for i in to.item_count:   # rows the game doesn't play yet can't be picked
+		var id := String(to.get_item_metadata(i))
+		to.set_item_disabled(i, id not in ["auto", "none"] and not Twist.enabled(Twist.row(id)))
+	to.tooltip_text = "Plot Twists (SPM p.75-76): hidden on the board, sprung at its trigger in play. A set row keeps its own trigger; the --twist flag can add @start, @alarm, @objective_done or @round<n>."
+	_field(mb, "Twist", to)
 
 
 # --- Fields -----------------------------------------------------------------------------------

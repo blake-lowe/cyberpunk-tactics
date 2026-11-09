@@ -71,6 +71,14 @@
    "key": "1d6 for anything (Mook 1-2, Lieutenant 1-3, Mini Boss 1-4), then 1d100 on the body's table",
    "page": "p.65-70",
    "book": "SPM"
+  },
+  "spoof": {
+   "name": "Spoof",
+   "cost": "Action",
+   "text": "Fool a camera or an alarm panel within 3 squares to win back time on the detection clock: a looped feed, a panel showing all clear. Success adds a die back (never above the clock's start) and the camera stops reporting. Failure is a failed Electronics/Security Tech check: the clock rolls. Once per clock a turn, each device once.",
+   "key": "TECH + Electronics/Security Tech (+ Field Expertise) vs DV15",
+   "page": "p.26",
+   "book": "SPM"
   }
  }
 }

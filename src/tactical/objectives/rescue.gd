@@ -37,6 +37,10 @@ func check_end() -> String:
 	return ""
 
 
+func near_done() -> bool:
+	return done() or bool(o.get("freed", false))
+
+
 func actions() -> Array[String]:
 	var out: Array[String] = []   # typed: a bare [] from a ternary comes back untyped
 	if not o.freed and _crew_beside(e.units[int(o.captive)].pos):

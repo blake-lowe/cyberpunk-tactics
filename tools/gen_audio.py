@@ -929,6 +929,91 @@ def sfx_net_eyedee():
     return fade(reverb(_crush(x), 0.2, 0.2))
 
 
+# --- Solo Play Clocks and Plot Twists (Clocks, Twist; ClockWidget, Greybox._ev_clock / _ev_twist) ----
+
+def _clack(hz, sec=0.03, tau=0.006, body=0.5):
+    """One hard plastic knock: a bright band of noise and a short resonant ping."""
+    knock = bp(rng.standard_normal(int(sec * SR)), hz * 0.55, hz * 1.7) * env(sec, 0.0002, tau)
+    ping = tone(sec, hz * 1.9) * env(sec, 0.0002, tau * 1.6) * body
+    return knock + ping * 0.35
+
+
+@sfx
+@own_rng
+def sfx_dice_rattle():
+    """A handful of dice tumbling across a hard tabletop: a burst of clacks thinning out, each die's
+    last bounce, then a settle."""
+    total = 0.7
+    x = np.zeros(int(total * SR))
+    for k in range(26):   # dense first, then sparser and softer as they come to rest
+        u = rng.uniform(0, 1) ** 1.7
+        when = u * 0.52
+        amp = (1.0 - u * 0.7) * rng.uniform(0.35, 1.0)
+        x += at(_clack(rng.uniform(1700, 3400), 0.028, rng.uniform(0.003, 0.007)) * amp, when, total)
+    for k in range(4):   # the last little hops
+        x += at(_clack(rng.uniform(2200, 3000), 0.02, 0.004) * 0.3, 0.5 + k * 0.04 + rng.uniform(0, 0.015), total)
+    x += at(lp(rng.standard_normal(int(0.4 * SR)), 900) * env(0.4, 0.01, 0.12) * 0.18, 0.0, total)   # the tumble's rumble
+    return fade(reverb(x, 0.12, 0.12))
+
+
+@sfx
+@own_rng
+def sfx_die_break():
+    """A die cracking apart: a sharp snap, a brittle shatter of small pieces skittering off."""
+    total = 0.55
+    snap = hp(rng.standard_normal(int(0.03 * SR)), 2500) * env(0.03, 0.0002, 0.005)
+    thud = sweep(0.08, 420, 160, curve=0.5) * env(0.08, 0.0005, 0.02) * 0.6
+    x = mix(at(snap * 1.1, 0.0, total), at(thud, 0.0, total))
+    for k in range(14):
+        x += at(_clack(rng.uniform(3000, 6000), 0.015, 0.002, 0.2) * rng.uniform(0.15, 0.5), 0.02 + rng.uniform(0, 0.3) ** 1.5, total)
+    return fade(reverb(drive(x, 1.6), 0.15, 0.15))
+
+
+@sfx
+@own_rng
+def sfx_die_add():
+    """A die won back: a quick rising chime with a glassy shimmer, and the die landing."""
+    total = 0.6
+    x = np.zeros(int(total * SR))
+    for k, f in enumerate([880, 1175, 1568]):
+        x += at(tone(0.22, f) * env(0.22, 0.003, 0.09) * 0.28 + tone(0.22, f * 2.01) * env(0.22, 0.003, 0.05) * 0.08, k * 0.055, total)
+    x += at(_clack(2600, 0.03, 0.006) * 0.5, 0.34, total)
+    x += at(_clack(2900, 0.02, 0.004) * 0.25, 0.42, total)
+    return fade(reverb(x, 0.25, 0.25))
+
+
+@sfx
+@own_rng
+def sfx_klaxon():
+    """The clock runs out: a harsh two-tone klaxon blast over a low impact."""
+    total = 1.4
+    x = np.zeros(int(total * SR))
+    for k in range(3):   # bwaa-bwaa-bwaa, the last held
+        sec = 0.26 if k < 2 else 0.62
+        f0 = 330.0
+        s = tone(sec, f0, "square") * 0.5 + tone(sec, f0 * 1.5, "saw") * 0.35 + tone(sec, f0 * 0.5, "square") * 0.25
+        a = np.clip(t(sec) / 0.01, 0, 1) * np.clip((sec - t(sec)) / 0.04, 0, 1)
+        x += at(lp(s * a, 2600), 0.02 + k * 0.32, total)
+    hit = mix(sweep(0.5, 90, 38, curve=0.6) * env(0.5, 0.001, 0.18) * 0.9, lp(rng.standard_normal(int(0.3 * SR)), 500) * env(0.3, 0.001, 0.08) * 0.5)
+    x += at(hit, 0.0, total)
+    return fade(reverb(drive(x, 2.2), 0.35, 0.22))
+
+
+@sfx
+@own_rng
+def sfx_twist():
+    """A plot twist springs: a detuned synth stab sliding down a semitone, with a glitch stutter."""
+    total = 1.2
+    sec = 0.9
+    x = np.zeros(int(total * SR))
+    for f, a in [(220.0, 0.35), (261.6, 0.3), (311.1, 0.28), (110.0, 0.35)]:   # A minor-ish stab
+        s = sweep(sec, f, f * 0.94, "saw", 2.0) * a + sweep(sec, f * 1.006, f * 0.946, "saw", 2.0) * a * 0.8
+        x += at(lp(s, 1800) * env(sec, 0.004, 0.32), 0.0, total)
+    for k in range(5):   # stutter
+        x += at(bp(rng.standard_normal(int(0.025 * SR)), 800, 5000) * env(0.025, 0.0003, 0.006) * 0.4, 0.05 + k * 0.045, total)
+    return fade(reverb(drive(x, 1.8), 0.4, 0.3))
+
+
 # --- ambience loops -------------------------------------------------------------------------------
 
 AMB = {}

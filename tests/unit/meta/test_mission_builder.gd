@@ -20,14 +20,15 @@ func _words(s: String) -> int:
 
 # --- The pipeline -----------------------------------------------------------------------------
 
-func test_the_steps_run_in_the_books_order_with_a_twist_hook() -> void:
+func test_the_steps_run_in_the_books_order_with_a_twist_step() -> void:
 	assert_eq(MissionBuilder.STEPS, ["client", "mission", "focus", "payment", "twist"], "SPM p.28 steps 1-5")
 	var c := Campaign.new_game(12)
 	for g in c.board:
 		for k in MissionBuilder.STEPS:
 			assert_true(g.has(k), "%s: has %s" % [g.title, k])
-		assert_true(g.twist == null, "no twist until twists are built")
-		assert_eq(MissionBuilder.twist(c.dice, g), null)
+		assert_true(Twist.valid(g.twist), "null or a hidden twist (Twist.roll)")
+	assert_eq(MissionBuilder.twist(c.dice, c.board[0], "none"), null)
+	assert_eq(String(MissionBuilder.twist(c.dice, c.board[0], "hired_muscle").id), "hired_muscle")
 
 
 func test_board_offers_are_new_style() -> void:
@@ -396,7 +397,7 @@ func test_custom_gig_builder_fields() -> void:
 	assert_eq(int(g.pay), 3000, "Pay (eb) sets the eb part")
 	assert_eq(int(g.payment.eb), 3000)
 	assert_true(String(g.title).begins_with("DEV · Hostage rescue: "), g.title)
-	assert_true(g.twist == null)
+	assert_true(Twist.valid(g.twist), "auto: the Oracle's twist or none, in the saved shape")
 	# A set objective wins over a mission type of another objective; a disabled row is never used.
 	var g2 := CustomGig.build({"objective": "data", "mission": "rescue_hostages", "seed": 5}, Campaign.new_game(1))
 	assert_eq(Campaign.objective_for(g2), "data")
@@ -407,5 +408,5 @@ func test_custom_gig_builder_fields() -> void:
 	Hud._fonts()
 	var card := CustomGigCard.new().setup(Campaign.new_game(3), true, CustomGig.defaults())
 	var mb := card.find_child("MissionBuilder", true, false) as GridContainer
-	assert_true(mb != null and mb.get_child_count() == 4, "who's hiring, payment, mission type, focus")
+	assert_true(mb != null and mb.get_child_count() == 5, "who's hiring, payment, mission type, focus, twist")
 	card.free()
