@@ -33,7 +33,11 @@ const GROUND_SHADER := preload("res://src/tactical/view/city_ground.gdshader")
 const SMOG_SHADER := preload("res://src/tactical/view/smog.gdshader")
 ## What stands above the roof: drawn only while the roof is (sky_fx crown_floor): with the band
 ## cut at a lower storey it would hang over nothing (owner, V1: no outlines of the cut storeys).
-const CROWN := ["fin", "logo", "step", "mast", "dish", "beacon"]
+const CROWN := ["fin", "step", "mast", "dish", "beacon"]
+## The outward normal of each face of the plate (face_of: 0 -z, 1 +z, 2 -x, 3 +x).
+const OUTWARD := [Vector3(0, 0, -1), Vector3(0, 0, 1), Vector3(-1, 0, 0), Vector3(1, 0, 0)]
+const LOGO_PX := 0.48           ## a crown logo's pixel (its letters 7 of them tall), at most
+const SIGN_T := 0.2             ## a facade sign's depth off the face
 const RED := Color("ff3b4f")
 const AMBER := Color("ffb070")
 
@@ -50,6 +54,7 @@ var seed_v: int
 var punched := false            ## a hotel's punched windows
 var daylight := false
 var smog := Color("2a2238")
+var atmo := {}                  ## the weather's look (Atmosphere.look of the map's mood, by day or night)
 var _plan: Array = []
 var _bt := {}                   ## batches: key → {shape, mat, xf, col, cus}
 var _mats := {}
@@ -75,6 +80,7 @@ func _init(p_m: TacMap, p_wb: WorldBuilder = null) -> void:
 	if wb != null:
 		daylight = wb.daylight
 		smog = wb.smog
+	atmo = Atmosphere.look(Atmosphere.of(m), daylight)
 
 
 func _seed() -> float:
@@ -422,18 +428,22 @@ func _plan_crown(rng: RandomNumberGenerator) -> void:
 					var y0 := ry - FH
 					var at := Vector3(p, (y0 + y1) / 2, bz) if along_x else Vector3(bx, (y0 + y1) / 2, p)
 					_add("fin", at, Vector3(0.16, y1 - y0, 0.7) if along_x else Vector3(0.7, y1 - y0, 0.16), {"color": col, "along_x": along_x})
-		"logo":
+		"logo":   # the name on every face, under the roof's edge, facing out (owner: read from outside)
 			var text := String(lk.get("logo", "")).to_upper()
-			for along_x in [true, false]:
-				var span := (face.size.x if along_x else face.size.y) - 2.0
-				var cols := text.length() * 6 - 1
-				var px := minf(0.42, span / maxf(cols, 1))
-				var w := cols * px
-				var hgt := 7 * px
-				var c := face.get_center()
-				var at := Vector3(c.x, top + 0.5 + hgt / 2, bz - 0.1) if along_x else Vector3(bx - 0.1, top + 0.5 + hgt / 2, c.y)
-				_add("logo", at, Vector3(w + 0.6, hgt + 0.6, 0.2) if along_x else Vector3(0.2, hgt + 0.6, w + 0.6),
-					{"text": text, "px": px, "color": TowerLook.col(lk, "logo_color", Color.WHITE), "along_x": along_x})
+			if rf >= 0 and text != "":
+				for fc in 4:
+					var along_x := fc < 2
+					var n: Vector3 = OUTWARD[fc]
+					var span := (face.size.x if along_x else face.size.y) - 2.4   # clear of the corner piers
+					var cols := text.length() * 6 - 1
+					var px := minf(LOGO_PX, span / maxf(cols, 1))
+					var w := cols * px
+					var hgt := 7 * px
+					var c := face.get_center()
+					var half := face.size.y / 2 if along_x else face.size.x / 2
+					var at := Vector3(c.x, ry - 0.2 - (hgt + 0.4) / 2, c.y) + n * (half + SIGN_T / 2)
+					_add("logo", at, Vector3(w + 0.4, hgt + 0.4, SIGN_T) if along_x else Vector3(SIGN_T, hgt + 0.4, w + 0.4),
+						{"text": text, "px": px, "color": TowerLook.col(lk, "logo_color", Color.WHITE), "faces": [sign_face(n)]})
 		"tiers":
 			for along_x in [true, false]:
 				var span := (face.size.x if along_x else face.size.y)
@@ -465,6 +475,12 @@ func _plan_crown(rng: RandomNumberGenerator) -> void:
 	for cx in [rect.position.x - 0.2, rect.end.x + 0.2]:
 		for cz in [rect.position.y - 0.2, rect.end.y + 0.2]:
 			_add("beacon", Vector3(cx, top + 0.15, cz), Vector3(0.18, 0.18, 0.18), {"phase": rng.randf()})
+
+
+## A sign's face: [its outward normal, the way its text runs]. Read from outside (a viewer on the
+## normal's side looking back along it), the text runs to the viewer's right: UP x normal.
+static func sign_face(n: Vector3) -> Array:
+	return [n, Vector3.UP.cross(n)]
 
 
 func _plan_greebles(rng: RandomNumberGenerator) -> void:
@@ -519,7 +535,8 @@ func _plan_greebles(rng: RandomNumberGenerator) -> void:
 		var px := 0.27
 		var hgt := blade.length() * 8 * px + 1.2
 		var at := Vector3(t0.position.x + 1.6, -1.4 - hgt / 2, t0.end.y + 1.3)
-		_add("blade", at, Vector3(0.3, hgt, 2.4), {"text": blade, "px": px, "color": TowerLook.col(lk, "blade_color", Color("ff2a6d")), "edge": TowerLook.col(lk, "blade_edge", AMBER)})
+		_add("blade", at, Vector3(0.3, hgt, 2.4), {"text": blade, "px": px, "color": TowerLook.col(lk, "blade_color", Color("ff2a6d")), "edge": TowerLook.col(lk, "blade_edge", AMBER),
+			"faces": [sign_face(Vector3(1, 0, 0)), sign_face(Vector3(-1, 0, 0))]})
 	# an AV landing pad off the right-hand face, a couple of storeys down
 	if bool(lk.get("pad", false)):
 		var y := -2.0 * FH - 0.2
@@ -636,10 +653,12 @@ func build(sky: Node3D) -> void:
 	_crown = false
 	_ground()
 	_smog()
+	_weather()
 	flush(sky)
 
 
 var _crown := false   ## drawing a crown piece (above the roof): its own materials (fx_mat(true))
+var _sign := false    ## drawing a facade sign (a crown logo): sign_mat()
 
 
 ## A plain, unlit-by-itself box in a per-instance colour (frames, fins, mast steel): in the crown,
@@ -705,7 +724,7 @@ func flush(parent: Node3D) -> void:
 			mm.set_instance_transform(i, b.xf[i])
 			mm.set_instance_color(i, b.col[i])
 			mm.set_instance_custom_data(i, b.cus[i])
-		if b.mat == _mats.get("drones"):
+		if b.mat in [_mats.get("drones"), _mats.get("rain"), _mats.get("dust")]:   # moved in the shader: never culled
 			mm.custom_aabb = AABB(Vector3(-400, -120, -400), Vector3(800, 160, 800))
 		var mi := MultiMeshInstance3D.new()
 		mi.multimesh = mm
@@ -771,6 +790,9 @@ func tower_mat(style: int, over := {}) -> ShaderMaterial:
 	mt.set_shader_parameter("sky_col", Color("7a96b8"))   # the day sky in the glass (bluer than the haze)
 	mt.set_shader_parameter("haze", float(over.get("haze", 0.0)))
 	mt.set_shader_parameter("per_instance", bool(over.get("per_instance", false)))
+	mt.set_shader_parameter("cast_col", Atmosphere.col(atmo, "cast", Color.WHITE))   # the weather (Atmosphere)
+	mt.set_shader_parameter("cast_k", float(atmo.get("cast_k", 0.0)))
+	mt.set_shader_parameter("wet", float(atmo.get("wet", 0.0)))
 	if style == 0:
 		mt.set_shader_parameter("mask", _facade_mask())
 	_mats[key] = mt
@@ -823,6 +845,19 @@ func fx_mat(crown := false) -> ShaderMaterial:
 	return _mats[key]
 
 
+## A sign on the band's own outer wall (the crown logos): goes with the roof as the crown does, but
+## is not dissolved on the camera side (sky_fx on_wall): it is no taller than the wall it is on.
+func sign_mat() -> ShaderMaterial:
+	if not _mats.has("fx_sign"):
+		var mt := ShaderMaterial.new()
+		mt.shader = FX_SHADER
+		_common(mt)
+		mt.set_shader_parameter("crown_floor", float(rf))
+		mt.set_shader_parameter("on_wall", true)
+		_mats["fx_sign"] = mt
+	return _mats["fx_sign"]
+
+
 func holo_mat(billboard: bool, col2: Color) -> ShaderMaterial:
 	var key := "holo%s%s" % [billboard, col2.to_html()]
 	if not _mats.has(key):
@@ -842,7 +877,7 @@ func dark(col: Color) -> ShaderMaterial:
 
 ## A lamp, strip or letter: emissive, steady, or blinking (rate per second, duty).
 func _light(at: Vector3, size: Vector3, col: Color, glow := 1.2, phase := 0.0, rate := 0.0, duty := 1.0) -> void:
-	box(fx_mat(_crown), at, size, col, Color(phase, rate, duty, glow))
+	box(sign_mat() if _sign else fx_mat(_crown), at, size, col, Color(phase, rate, duty, glow))
 
 
 # --- The facade and its setbacks --------------------------------------------------------------
@@ -973,21 +1008,21 @@ func _text(text: String, origin: Vector3, right: Vector3, down: Vector3, out: Ve
 			_light(c, size, col, glow)
 
 
+## A crown logo on a face, under the roof's edge: lit pixel letters on a dark raceway, read from
+## outside the plate (owner: the signs read from the street, not across the roof). It goes with the
+## roof like the crown (sky_fx crown_floor) but stays on the camera side: it is on the band's wall.
 func _logo(it: Dictionary) -> void:
 	var s: Vector3 = it.size
-	var along_x: bool = it.along_x
 	var px: float = it.px
-	_dk(it.at, s, Color("05060a"))
-	var right := Vector3(1, 0, 0) if along_x else Vector3(0, 0, -1)   # read from the camera side
-	var out := Vector3(0, 0, 1) if along_x else Vector3(1, 0, 0)
+	var n: Vector3 = it.faces[0][0]
+	var right: Vector3 = it.faces[0][1]
+	_sign = true
+	var back := Vector3(s.x, s.y, s.z) - n.abs() * (SIGN_T - 0.06)
+	box(sign_mat(), it.at - n * (SIGN_T / 2 - 0.05), back, Color("05060a"), Color(0, 0, 0, 0))
 	var w: float = String(it.text).length() * 6 * px - px
-	var origin: Vector3 = it.at + out * (0.1) - right * w / 2 + Vector3(0, 3.5 * px, 0)
-	_text(String(it.text), origin, right, Vector3.DOWN, out, px, it.color, 1.5)
-	for sg in [-1, 1]:   # legs down to the roof's edge
-		var leg: Vector3 = it.at + right * (s.x if along_x else s.z) * 0.4 * sg
-		var bottom: float = it.at.y - s.y / 2
-		var base := rf * FH + 0.2
-		_dk(Vector3(leg.x, (bottom + base) / 2, leg.z), Vector3(0.14, bottom - base, 0.14), Color("141a26"))
+	var origin: Vector3 = it.at - n * (SIGN_T / 2 - 0.08) - right * w / 2 + Vector3(0, 3.5 * px, 0)
+	_text(String(it.text), origin, right, Vector3.DOWN, n, px, it.color, 1.5)
+	_sign = false
 
 
 func _step(it: Dictionary) -> void:
@@ -1099,10 +1134,12 @@ func _blade(it: Dictionary) -> void:
 		_light(at + Vector3(s.x / 2 * sg, -s.y / 2 + 0.05, 0), Vector3(0.03, 0.06, s.z), edge, 1.4)
 		_light(at + Vector3(s.x / 2 * sg, 0, s.z / 2 - 0.05), Vector3(0.03, s.y, 0.06), edge, 1.4)
 		_light(at + Vector3(s.x / 2 * sg, 0, -s.z / 2 + 0.05), Vector3(0.03, s.y, 0.06), edge, 1.4)
+	for fc in it.faces:   # the name stacked down both faces, each read from its own side
 		var px: float = it.px
-		var right := Vector3(0, 0, -1) if sg > 0 else Vector3(0, 0, 1)
-		var origin := at + Vector3(s.x / 2 * sg, s.y / 2 - 0.6, 0) - right * 2.5 * px
-		_text(String(it.text), origin, right, Vector3.DOWN, Vector3(sg, 0, 0), px, it.color, 1.5, true)
+		var n: Vector3 = fc[0]
+		var right: Vector3 = fc[1]
+		var origin := at + n * s.x / 2 + Vector3(0, s.y / 2 - 0.6, 0) - right * 2.5 * px
+		_text(String(it.text), origin, right, Vector3.DOWN, n, px, it.color, 1.5, true)
 	for y in [s.y / 2 - 0.3, -s.y / 2 + 0.3]:   # brackets back to the wall
 		box(dark(Color("2a3448")), at + Vector3(0, y, -s.z / 2 - 0.1), Vector3(0.1, 0.1, 0.25))
 
@@ -1221,7 +1258,8 @@ func _far(it: Dictionary) -> void:
 		var w2 := minf(s.x, s.z) * 0.6
 		var h2 := w2 * (1.6 if int(it.seed) % 2 == 0 else 0.6)
 		var c2 := Vector3(at.x + (signf(toward2.x) * (s.x / 2 + 0.1) if fx else 0.0), top - 2.5 - h2 / 2, at.z + (0.0 if fx else signf(toward2.y) * (s.z / 2 + 0.1)))
-		var bs := Basis(Vector3.UP, PI / 2) if fx else Basis.IDENTITY
+		var n := Vector3(signf(toward2.x), 0, 0) if fx else Vector3(0, 0, signf(toward2.y))
+		var bs := Basis(Vector3.UP, atan2(n.x, n.z))   # the quad's front (+z) out of the face: it reads from outside
 		put("quad", holo_mat(false, Color("fff4e0")), Transform3D(bs.scaled_local(Vector3(w2, h2, 1)), c2), acc, Color(float(it.seed), 0.0 if h2 > w2 else 3.0, 1.0, 0))
 
 
@@ -1249,7 +1287,9 @@ func _ground() -> void:
 	pm.size = Vector2(900, 900)
 	var mt := ShaderMaterial.new()
 	mt.shader = GROUND_SHADER
-	mt.set_shader_parameter("glow_col", smog)
+	mt.set_shader_parameter("glow_col", Atmosphere.col(atmo, "glow", smog))
+	mt.set_shader_parameter("lamps", float(atmo.get("grid", 1.0)))
+	mt.set_shader_parameter("tint", Color.WHITE.lerp(Atmosphere.col(atmo, "cast", Color.WHITE), float(atmo.get("cast_k", 0.0))))
 	mt.set_shader_parameter("day", daylight)
 	mt.set_shader_parameter("seed", _seed())
 	pm.material = mt
@@ -1277,7 +1317,11 @@ func _smog() -> void:
 		var mt := ShaderMaterial.new()
 		mt.shader = SMOG_SHADER
 		mt.set_shader_parameter("smog", smog)
-		mt.set_shader_parameter("alpha", 0.1 + 0.05 * k)
+		mt.set_shader_parameter("alpha", (0.1 + 0.05 * k) * float(atmo.get("thick", 1.0)))
+		var lit: Array = atmo.get("lit", [])
+		if lit.size() >= 2:   # the weather's under-light (Atmosphere lit), else the shader's pink and orange
+			mt.set_shader_parameter("lit_a", Color(String(lit[0])))
+			mt.set_shader_parameter("lit_b", Color(String(lit[1])))
 		mt.set_shader_parameter("glow", 0.0 if daylight else 0.3 + 0.08 * k)
 		mt.set_shader_parameter("seed", float(k) * 3.7 + _seed() * 0.01)
 		mt.render_priority = k
@@ -1288,3 +1332,53 @@ func _smog() -> void:
 		mi.position = Vector3(c.x, y, c.y)
 		mi.name = "smog%d" % k
 		_pending.append(mi)
+
+
+## The weather round the tower (Atmosphere rain / dust): rain streaks or blown dust in the air
+## round the band and down into the smog, never over the plate (the play area stays clear). One
+## MultiMesh each; placed from its own RandomNumberGenerator so the dressing's plan is unchanged.
+func _weather() -> void:
+	var rain := float(atmo.get("rain", 0.0))
+	var dust := float(atmo.get("dust", 0.0))
+	if rain <= 0.0 and dust <= 0.0:
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(Vector3i(seed_v, String(atmo.get("id", "")).hash(), 13))
+	var mid := face.get_center()
+	var clear := face.grow(1.2)
+	if rain > 0.0:
+		var mt := ShaderMaterial.new()
+		mt.shader = FX_SHADER
+		_common(mt)
+		mt.set_shader_parameter("kind", 2)
+		mt.set_shader_parameter("glow_k", 0.55 if daylight else 1.1)
+		_mats["rain"] = mt
+		var col := Atmosphere.col(atmo, "rain_col", Color("b0d8ff"))
+		var slant := rng.randf_range(0.05, 0.16)
+		for i in int(2400 * rain):
+			var p := mid + Vector2(rng.randf_range(-70.0, 70.0), rng.randf_range(-70.0, 70.0))
+			if clear.has_point(p):
+				continue
+			var top := rng.randf_range(6.0, 16.0)
+			var fall := top + rng.randf_range(14.0, 40.0)
+			var c := col * rng.randf_range(0.55, 1.0)
+			box(mt, Vector3(p.x, top, p.y), Vector3(0.07, rng.randf_range(0.9, 1.6), 0.07), c, Color(fall, rng.randf_range(16.0, 24.0), rng.randf(), slant))
+	if dust > 0.0:
+		var mt := ShaderMaterial.new()
+		mt.shader = FX_SHADER
+		_common(mt)
+		mt.set_shader_parameter("kind", 3)
+		mt.set_shader_parameter("lane", 140.0)
+		mt.set_shader_parameter("glow_k", 0.35 if daylight else 0.8)
+		_mats["dust"] = mt
+		var col := Atmosphere.col(atmo, "dust_col", Color("e8a868"))
+		var ang := rng.randf() * TAU
+		var dir := Vector2(cos(ang), sin(ang))
+		for i in int(1600 * dust):
+			var p := mid + Vector2(rng.randf_range(-70.0, 70.0), rng.randf_range(-70.0, 70.0))
+			if clear.has_point(p):
+				continue
+			var y := rng.randf_range(-36.0, 6.0)
+			var d := dir.rotated(rng.randf_range(-0.25, 0.25))
+			var sz := rng.randf_range(0.08, 0.2)
+			box(mt, Vector3(p.x, y, p.y), Vector3(sz, sz, sz), col * rng.randf_range(0.5, 1.0), Color(d.x, d.y, rng.randf_range(4.0, 10.0), rng.randf()))

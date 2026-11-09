@@ -126,3 +126,33 @@ func test_the_band_wears_the_look_outside_and_the_city_is_batched() -> void:
 	assert_true(sky.get_child_count() < 80, "the city round the band in a few batches (%d)" % sky.get_child_count())
 	assert_eq(wb._td, null, "the builder lets its tower dressing go")
 	root.free()
+
+
+func test_crown_signs_read_from_outside_the_footprint() -> void:
+	# owner: the crown text read flipped (it faced in across the roof): every sign face now faces
+	# out of the plate, its text running to the right of a viewer outside looking back at it
+	for spec in [["continental", 4], ["maf", 4], ["segotari", 4], ["n54", 4], ["highcourt", 2]]:
+		var m := _band(String(spec[0]), int(spec[1]))
+		var td := TowerDress.new(m)
+		var c := td.face.get_center()
+		var centre := Vector3(c.x, 0, c.y)
+		var signs := td.plan().filter(func(it): return it.kind in ["logo", "blade"])
+		assert_true(not signs.is_empty(), "%s: has its sign" % spec[0])
+		var normals := {}
+		for it in signs:
+			var at: Vector3 = it.at
+			var sz: Vector3 = it.size
+			var foot := Rect2(Vector2(at.x - sz.x / 2, at.z - sz.z / 2), Vector2(sz.x, sz.z))
+			assert_false(foot.intersects(td.face.grow(-0.005)), "%s: the %s stands outside the footprint" % [spec[0], it.kind])
+			for f in it.faces:
+				var n: Vector3 = f[0]
+				var right: Vector3 = f[1]
+				assert_true(right.is_equal_approx(Vector3.UP.cross(n)), "%s: %s text runs left to right seen from its %s side" % [spec[0], it.kind, n])
+				assert_near(right.dot(n), 0.0, 0.001, "and along the face")
+				if it.kind == "logo":
+					assert_true((at - centre).dot(n) > 0.0, "%s: the logo on face %s faces away from the plate's centre" % [spec[0], n])
+					normals[n] = true
+		if String(td.lk.crown) == "logo":
+			assert_eq(normals.size(), 4, "%s: the name on every face" % spec[0])
+			for it in signs:
+				assert_true(it.at.y < td.rf * TowerDress.FH and it.at.y + it.size.y / 2 <= td.rf * TowerDress.FH, "%s: under the roof's edge, never over the play area" % spec[0])

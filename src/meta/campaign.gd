@@ -541,6 +541,7 @@ func tower_gig(g: Dictionary, lid: String, kind := "", bid := "sky") -> Dictiona
 		"seed": dice.rng.randi_range(1, 99999)}
 	gig.merge(tower_place(lid, bid))
 	gig["sky"] = tower_sky(int(gig.seed))
+	gig["mood"] = tower_mood(int(gig.seed), did)
 	gig.merge(codes_for(gig, did), true)
 	return gig
 
@@ -551,6 +552,12 @@ func tower_gig(g: Dictionary, lid: String, kind := "", bid := "sky") -> Dictiona
 static func tower_sky(seed_value: int) -> String:
 	var n := int(RulesDB.gen("gigs.json").get("tower", {}).get("day_in", 3))
 	return "day" if n > 0 and posmod(hash(seed_value * 7 + 3), n) == 0 else "night"
+
+
+## The weather over a tower gig with this seed in district `did` (Atmosphere.pick: clear, acid
+## rain, dust, smog, drizzle, weighted by the district). Kept on the gig (mood) as its sky is.
+static func tower_mood(seed_value: int, did: String) -> String:
+	return Atmosphere.pick(seed_value, did)
 
 
 ## Where a tower gig at `lid` is played: its band of the tower (scene tower_top; TowerGen).
@@ -663,6 +670,8 @@ static func scene_opts(gig: Dictionary) -> Dictionary:
 		o["band"] = String(gig.get("band", TowerGen.DEFAULT_BAND))
 		if String(gig.get("sky", "")) != "":   # by day or at night (tower_sky): the view's light (greybox _scene_look)
 			o["sky"] = String(gig.sky)
+		if String(gig.get("mood", "")) != "":   # its weather (tower_mood): the sky, fog and smog (greybox _scene_look, TowerDress)
+			o["mood"] = String(gig.mood)
 	for k in ["variant", "deploy", "basement_storeys"]:   # a dev gig's overrides (CustomGig)
 		if gig.has(k):
 			o[k] = gig[k]
