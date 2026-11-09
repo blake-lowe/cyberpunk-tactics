@@ -77,7 +77,9 @@ func test_location_gating_still_decides_the_kind() -> void:
 			var kinds: Array = (l.get("gigs", []) as Array).duplicate()
 			for h in l.get("hooks", []):
 				kinds.append_array(h.gigs)
-			assert_true(String(gig.kind) in kinds, "%s plays at %s" % [gig.kind, l.name])
+			# a newer kind plays where the kinds it borrows from do (gigs.json hosts)
+			assert_true(Campaign.host_kinds(String(gig.kind)).any(func(k): return k in kinds), "%s plays at %s" % [gig.kind, l.name])
+			assert_true(Campaign.kinds_at(l).has(String(gig.kind)))
 
 
 # --- Step 1: who's hiring ---------------------------------------------------------------------
@@ -154,7 +156,7 @@ func test_mission_types_cover_the_d100_and_every_enabled_row_plays() -> void:
 			assert_true(r.objective == null, "%s: disabled rows say so" % r.id)
 			assert_true(String(r.get("needs", "")) != "", "%s: names what it needs" % r.id)
 	assert_eq(covered.size(), 100, "1-100 covered")
-	assert_eq(on, 21, "21 rows play today, 29 wait for modules")
+	assert_eq(on, 29, "29 rows play today, 21 wait for modules")
 	for ob in Campaign.OBJECTIVES.values():
 		assert_true(int(by.get(String(ob), 0)) > 0, "%s has a mission type" % ob)
 
@@ -167,7 +169,7 @@ func test_rolling_a_mission_skips_rows_we_cant_play() -> void:
 		assert_true(MissionBuilder.enabled(MissionBuilder.mission_def(String(m.id))))
 		assert_eq(MissionBuilder.mission_def(String(m.id)).roll[0] <= int(m.roll) and int(m.roll) <= MissionBuilder.mission_def(String(m.id)).roll[1], true, "the roll that came up")
 		ids[m.id] = true
-	assert_eq(ids.size(), 21, "every playable row comes up")
+	assert_eq(ids.size(), 29, "every playable row comes up")
 	for ob in Campaign.OBJECTIVES.values():
 		for i in 30:
 			assert_eq(String(MissionBuilder.roll_mission(d, String(ob)).objective), String(ob))

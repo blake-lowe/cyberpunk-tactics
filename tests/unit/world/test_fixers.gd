@@ -67,7 +67,7 @@ func test_offers_come_from_district_fixers_at_canon_locations() -> void:
 			var kinds: Array = []
 			for h in l.hooks:
 				kinds.append_array(h.gigs)
-			assert_true(String(g.kind) in kinds or String(g.kind) in (l.gigs as Array), "%s fits %s" % [g.kind, l.name])
+			assert_true(Campaign.kinds_at(l).has(String(g.kind)), "%s fits %s" % [g.kind, l.name])   # a newer kind: where its hosts play (gigs.json)
 			var f := World.fixer(String(g.fixer_id))
 			var near: Array = [String(g.district)] + World.neighbours(String(g.district))
 			assert_true(String(f.district) in near or (f.get("also", []) as Array).any(func(d): return d in near), "%s works near %s" % [f.name, g.district])
@@ -82,7 +82,7 @@ func test_offers_come_from_district_fixers_at_canon_locations() -> void:
 			assert_between(float(g.security), float(rng[0]), float(rng[1]), "the place's own level")
 			assert_eq(int(g.payment.base), int(RulesDB.gen("gigs.json").pay[str(int(g.security))]), "the job's rate (CPR p.381)")
 			assert_eq(int(g.pay), int(g.payment.eb), "the eb part of the payment (MissionBuilder)")
-			assert_true(World.has_faction(String(g.faction)) and String(g.kind) in World.targets_for_any(String(g.faction)), "a target that takes the job")
+			assert_true(World.has_faction(String(g.faction)) and Campaign.targetable(String(g.faction), String(g.kind)), "a target that takes the job")
 			assert_eq(SecurityCode.normalise(g.security_code), SecurityCode.normalise(l.security_code), "the location's code")
 	assert_true(city >= 20, "most offers are canon (%d)" % city)
 	assert_true(hooked > city / 2, "hooks preferred (%d of %d)" % [hooked, city])

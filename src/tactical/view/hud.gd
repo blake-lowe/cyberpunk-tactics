@@ -971,7 +971,7 @@ func _team_col(u: Dictionary, enc: Encounter = null) -> Color:
 ## The line under a crew member's name: their role, or HOSTAGE for a rescue's freed captive (on
 ## the crew's side and the player's to move, but not one of the crew).
 static func crew_tag(u: Dictionary) -> String:
-	return "HOSTAGE" if bool(u.get("captive", false)) else String(u.c.role).to_upper()
+	return String(u.get("ward", "HOSTAGE")) if bool(u.get("captive", false)) else String(u.c.role).to_upper()   # escort's client: CLIENT
 
 
 ## Where side `team` stands with the crew: one query (Encounter.hostile/allied) for every label,
@@ -1157,8 +1157,8 @@ static func objective_text(enc: Encounter) -> String:
 ## The interact action that applies where the active unit stands (B): [signal, title, glyph], or [].
 static func interact_here(enc: Encounter) -> Array:
 	var objs := enc.obj_actions()
-	if not objs.is_empty():
-		return [String(objs[0]), String(objs[0]).to_upper(), String(objs[0])]
+	if not objs.is_empty():   # the module names its slot (deliver's DROP, plant's PLANT BUG)
+		return [String(objs[0]), enc.obj.action_title(String(objs[0])), enc.obj.action_glyph(String(objs[0]))]
 	if enc.keycard_in_reach(enc.cur).size() > 0:
 		return ["keycard", "KEYCARD", "keycard"]
 	if not enc.body_in_reach(enc.cur).is_empty():

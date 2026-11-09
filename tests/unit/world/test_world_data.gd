@@ -91,7 +91,7 @@ func test_every_profile_objective_and_faction_family_sets_up() -> void:
 		var dice := Dice.new(i)
 		var e := Encounter.setup(m, dice, _crew(dice), kind, {"faction": fid})
 		assert_eq(String(e.objective.kind), kind, "%s/%s/%s: objective" % [prof, kind, fid])
-		assert_true(e.units.any(func(u): return u.team == Encounter.OPFOR), "%s/%s/%s: guards" % [prof, kind, fid])
+		assert_true(e.units.any(func(u): return u.team == Encounter.OPFOR) or not e.obj.manned(), "%s/%s/%s: guards" % [prof, kind, fid])   # defend: the attack comes in waves
 		assert_false(e.obj.hud_text().is_empty())
 		e.next_turn()
 		assert_eq(e.state, "playing", "%s/%s/%s: playable" % [prof, kind, fid])

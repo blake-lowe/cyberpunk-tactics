@@ -3210,6 +3210,11 @@ func _on_hud(name: String, arg: Variant) -> void:
 				var here := Hud.interact_here(enc)
 				if here.is_empty():
 					hud.toast("NOTHING TO INTERACT WITH HERE")
+				elif String(here[0]) in enc.obj_actions():   # the objective's action (grab, free, plant, drop, ...)
+					var ro: Dictionary = enc.obj_act(String(here[0]))
+					if not ro.get("ok", false):
+						hud.toast(String(ro.get("reason", "can't")).to_upper())
+					_after_action()
 				else:
 					_on_hud(String(here[0]), null)
 		"role":
@@ -4598,7 +4603,7 @@ func _update_keycards() -> void:
 ## Snatch gigs: the package sits on a gold beacon until someone carries it (then a gold diamond
 ## floats over the carrier), and the deploy squares glow as the extraction point.
 func _update_objective() -> void:
-	var snatch: bool = enc.objective.get("kind", "") == "snatch"
+	var snatch: bool = enc.objective.get("kind", "") in ["snatch", "deliver"]   # a package someone carries
 	if obj_node == null or not is_instance_valid(obj_node) or obj_node.get_parent() != world:
 		obj_node = Node3D.new()
 		world.add_child(obj_node)
@@ -4646,6 +4651,7 @@ func _update_objective() -> void:
 			q.position = Vector3(cell.x + 0.5, _gy(cell) + 0.025, cell.y + 0.5)
 			zone.add_child(q)
 	obj_node.visible = not _net_cleaned
+	_update_obj_zones()
 	var carrier: int = enc.objective.get("carrier", -1)
 	var case_n := obj_node.get_node("case") as Node3D
 	if not snatch:   # the deploy zone still marks the way out (withdrawal)
@@ -4660,7 +4666,7 @@ func _update_objective() -> void:
 		case_n.position = p + Vector3(0, 0.08, 0)
 		beacon_n.position = p + Vector3(0, 2.25, 0)
 		case_n.visible = not _cut_hides(cell)
-		beacon_n.visible = case_n.visible
+		beacon_n.visible = case_n.visible and not enc.objective.get("delivered", false)   # a delivered package just sits there
 		tag_n.visible = false
 	else:
 		case_n.visible = false
@@ -4668,6 +4674,36 @@ func _update_objective() -> void:
 		var cn: Node3D = unit_nodes[carrier]
 		tag_n.visible = cn.visible
 		tag_n.position = cn.position + Vector3(0, 2.75, 0)
+
+
+var _zone_key := ""   ## the objective zones (Objective.zones) the floor tint was last built for
+
+
+## The objective's own ground (defend's zone, escort's rendezvous: Objective.zones): faint tinted
+## squares on the floor, like the extraction squares. Rebuilt only when the zones change.
+func _update_obj_zones() -> void:
+	var zs: Array = enc.obj.zones()
+	var key := str(zs)
+	if key == _zone_key and obj_node.has_node("objzone"):
+		return
+	_zone_key = key
+	if obj_node.has_node("objzone"):
+		var was := obj_node.get_node("objzone")
+		obj_node.remove_child(was)
+		was.queue_free()
+	var zn := Node3D.new()
+	zn.name = "objzone"
+	obj_node.add_child(zn)
+	var tones := {"gold": Hud.GOLD, "red": Hud.RED, "cyan": Hud.CYAN}
+	for z in zs:
+		for cell in z.cells:
+			var q := MeshInstance3D.new()
+			var qm := PlaneMesh.new()
+			qm.size = Vector2(0.86, 0.86)
+			q.mesh = qm
+			q.material_override = _unlit(tones.get(String(z.get("tone", "gold")), Hud.GOLD), 0.18, 1.0)
+			q.position = Vector3(cell.x + 0.5, _gy(cell) + 0.025, cell.y + 0.5)
+			zn.add_child(q)
 
 
 var _settling := false     ## _finish_gig is under way: once per gig

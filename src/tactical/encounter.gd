@@ -162,6 +162,12 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 	# location's level, SecurityCode.level, only when the code guards the place); the intensity
 	# table's crew-size shift (budget_crew_size, NC2045 p.7) sizes the responses alone.
 	var roster := Security.roster(e.doctrine, crew.size(), sec)
+	# Objective: a module per kind (data/gen/objectives.json); made here so it can say whether the
+	# posts are manned at all (defend: the crew holds the place), set up once the guards are posted.
+	e.obj = Objective.make(kind, e)
+	e.objective = e.obj.o
+	if not e.obj.manned():
+		roster.clear()
 	var want := roster.size()
 	if posts.size() < want:
 		# Not enough posts (small sites with no guard rooms or security doors): spread the rest over
@@ -194,10 +200,7 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 		if posts[i].has("facing"):   # a nest: stays put, watching out over the parapet
 			e.units[-1]["hold"] = Vector2(posts[i].facing)
 	e._neutral_ground(opts.get("neutral_ground", SetPieces.rule(p_map, "neutral_ground", {})))
-	# Objective: a module per kind (data/gen/objectives.json) places what the job needs.
-	e.obj = Objective.make(kind, e)
-	e.objective = e.obj.o
-	e.obj.setup(target_sid, cells[0], sec)
+	e.obj.setup(target_sid, cells[0], sec)   # the module places what the job needs
 	# M3 playtest verdict: guards only join the initiative order once they're alerted.
 	for u in e.units:
 		if u.alerted:
@@ -209,7 +212,8 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 		e.outages = SecurityCode.roll_utilities(p_dice, e.utility_code)
 	e._apply_outages()
 	e._compute_light()
-	e._outer_patrols(cells[0])
+	if e.obj.manned():
+		e._outer_patrols(cells[0])
 	FreeForAll.place(e, opts.get("free_for_all", SetPieces.rule(p_map, "free_for_all", {})), cells[0])
 	e._post_guards()
 	if opts.has("complication") or bool(opts.get("complications", false)):
@@ -1615,9 +1619,20 @@ func _detonate(center: Vector3i, half: int, n_dice: int, by: int, total := 17) -
 
 ## The objective's square (the package, the mark, the captive, the machine): indoors in the target
 ## building's most secure zone, as far from the deploy zone as walking gets (upper floors count
-## through the distance field), off guard posts and cover.
-func secure_cell(target_sid: int, origin: Vector2i, role := "") -> Vector3i:
+## through the distance field), off guard posts and cover. `min_room`: only in a room (not a
+## corridor) with at least that many squares one can stand on (defend: a room to hold), when the
+## building has one.
+func secure_cell(target_sid: int, origin: Vector2i, role := "", min_room := 0) -> Vector3i:
 	var field: Dictionary = nav.distance_field([Vector3i(origin.x, origin.y, m.street)], {})
+	var size := {}   # room label → standable squares (min_room only)
+	if min_room > 0:
+		for cell in field:
+			var l0 := m.label(cell.z, cell.x, cell.y)
+			if l0 >= 0 and m.rooms[l0].get("kind", "") != "corridor" and not m.has_cover_at(cell.z, Vector2i(cell.x, cell.y)):
+				size[l0] = int(size.get(l0, 0)) + 1   # a corridor is a way through, not a room
+		if not size.keys().any(func(k): return int(size[k]) >= min_room and m.rooms[k].structure == target_sid):
+			size = {}
+			min_room = 0
 	var best := Vector3i(origin.x, origin.y, m.street)
 	var best_d := -1.0
 	var occ := occupied()
@@ -1629,7 +1644,7 @@ func secure_cell(target_sid: int, origin: Vector2i, role := "") -> Vector3i:
 	for cell in field:
 		var l := m.label(cell.z, cell.x, cell.y)
 		if l < 0 or m.rooms[l].structure != target_sid or m.rooms[l].get("kind", "") == "roof" or m.rooms[l].get("outdoor", false) or occ.has(cell) \
-				or m.has_cover_at(cell.z, Vector2i(cell.x, cell.y)):
+				or m.has_cover_at(cell.z, Vector2i(cell.x, cell.y)) or (min_room > 0 and int(size.get(l, 0)) < min_room):
 			continue
 		var score := float(field[cell]) + 20.0 * int(m.rooms[l].get("zone", 0)) \
 			+ float(anchors.get(String(m.rooms[l].get("kind", "")), 0.0))   # the most secure rooms first
@@ -2122,13 +2137,15 @@ func _responders(fid: String, team: int, cells: Array, cap: int) -> Array:
 
 ## Reinforcements for side `team` (faction `fid`), named "<rank> <n>".
 ## `civ`: civilian blocks (Recruit.civilian_blocks) the wave's Mooks are drawn from instead.
-func _spawn_wave(roster: Array[String], label: String, team: int, fid: String, rank := "", hardened := false, civ: Array[String] = []) -> void:
-	var spawn := arrival_cell()
+## `at`: where they step onto the map (defend's waves pick their entry), else arrival_cell().
+func _spawn_wave(roster: Array[String], label: String, team: int, fid: String, rank := "", hardened := false, civ: Array[String] = [], at := Vector3i(-1, -1, -1)) -> void:
+	var spawn := at if at.x >= 0 else arrival_cell()
 	if spawn.x < 0:
 		return
 	var arrived := []
 	var reach: Dictionary = _keys(func(): return nav.reachable(spawn, 6, occupied()))
-	var cells: Array = reach.keys().filter(func(v): return v.z == spawn.z)
+	var occ := occupied()   # never onto someone already there (the entry itself can be taken)
+	var cells: Array = reach.keys().filter(func(v): return v.z == spawn.z and not occ.has(v))
 	cells.sort_custom(func(a, b): return int(reach[a]) < int(reach[b]))
 	for i in mini(roster.size(), cells.size()):
 		var g: Combatant
@@ -3388,7 +3405,7 @@ func net_action(kind: String, arg: int = -1) -> Dictionary:
 			var info := NetDevices.file_info(self, n)
 			events.append({"type": "eye_dee", "unit": cur.id, "node": int(n.id), "ok": c3.success, "what": info.what, "value": info.value, "tier": info.tier, "target": target, "roll": c3.total, "dv": int(n.dv)})
 			if c3.success:
-				say("Eye-Dee: %s, value %d/5 (%s)%s." % [info.what, int(info.value), info.tier, ": the target data, downloaded" if target else ""])
+				say("Eye-Dee: %s, value %d/5 (%s)%s." % [info.what, int(info.value), info.tier, obj.net_line() if target else ""])
 				if target:
 					objective.done = true
 			else:

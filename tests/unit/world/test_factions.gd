@@ -149,7 +149,7 @@ func test_the_city_names_only_real_factions() -> void:
 
 func test_every_gig_kind_has_a_target_faction() -> void:
 	for t in RulesDB.gen("gigs.json")["templates"]:
-		assert_false(World.targets_for(String(t.kind)).is_empty(), "someone to aim a %s at" % t.kind)
+		assert_false(Campaign.targets_for(String(t.kind)).is_empty(), "someone to aim a %s at" % t.kind)   # a newer kind: through its hosts (gigs.json)
 
 
 # --- relations --------------------------------------------------------------------------
@@ -238,7 +238,7 @@ func test_board_gigs_name_a_target_that_fits_the_job() -> void:
 		for g in camp.board:
 			var fid := String(g.get("faction", ""))
 			assert_true(World.has_faction(fid), "gig has a target faction (%s)" % fid)
-			assert_true(String(g.kind) in World.targets_for_any(fid), "%s can be the target of %s" % [fid, g.kind])
+			assert_true(Campaign.targetable(fid, String(g.kind)), "%s can be the target of %s" % [fid, g.kind])
 			var name := World.display_name(fid)
 			if World.kind(fid) == "gang":
 				assert_false(String(g.title).contains("{"), "title filled")

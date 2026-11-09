@@ -1,7 +1,7 @@
 class_name Objective
 extends RefCounted
 ## A gig's goal as a plug-in: one module per kind (data_theft, eliminate, snatch, assassinate,
-## rescue, sabotage) in this folder, registered with its tuning in data/gen/objectives.json.
+## rescue, sabotage, escort, defend, deliver, plant, distraction) in this folder, registered with its tuning in data/gen/objectives.json.
 ## Encounter, the AI, the HUD and the view talk only to this interface, so a new kind of job is a
 ## new module and a data entry.
 ##
@@ -101,6 +101,51 @@ func ai_pull(_u: Dictionary, _cell: Vector3i) -> float:
 ## AI: how much more a guard wants to shoot `t` (snatch: the carrier).
 func ai_target_mult(_t: Dictionary) -> float:
 	return 1.0
+
+
+## AI: the objective's own move for guard `u` on its turn, before it fights (defend: an attacker
+## beside the asset with nobody worth shooting wrecks it). True if it spent the turn.
+func ai_act(_u: Dictionary) -> bool:
+	return false
+
+
+## Whether the site's posts are manned at setup (Encounter.setup): false for a job where the crew
+## is the one holding the place (defend: the opposition comes in waves instead).
+func manned() -> bool:
+	return true
+
+
+## Where a ward (a freed captive, the escorted client: Encounter.is_hostage) is headed, for
+## AI.follow: [] for the extraction zone.
+func ward_goal() -> Array:
+	return []
+
+
+## Squares the view tints on the floor as the objective's ground (defend's zone, escort's
+## rendezvous), like the extraction squares: [{cells: Array of Vector3i, tone}], or [].
+func zones() -> Array:
+	return []
+
+
+## Auto-play (the soak's stand-in for the player): where crew member `u` heads, as an Array of
+## squares ([] to just fight), or null for the driver's own reading of the objective's state.
+func crew_goal(_u: Dictionary) -> Variant:
+	return null
+
+
+## The interact slot's title and glyph for one of actions() (Hud.interact_here).
+func action_title(action: String) -> String:
+	return action.to_upper()
+
+
+func action_glyph(action: String) -> String:
+	return action
+
+
+## The end of the Eye-Dee log line when the target File is reached in the NET (the node `node`
+## and `structure` fields name it): a data theft downloads it.
+func net_line() -> String:
+	return ": the target data, downloaded"
 
 
 ## The unit the objective is about (the mark, the captive), or -1. For cameras and review shots.

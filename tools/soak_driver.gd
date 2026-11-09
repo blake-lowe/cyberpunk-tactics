@@ -18,7 +18,8 @@ extends RefCounted
 ## - after `max_rounds` rounds the crew pulls out (state "fled").
 
 const SAVE_DIR := "user://soak"
-const OFFER_KINDS := ["data_theft", "gang_hit", "corp_extraction", "assassination", "rescue", "sabotage"]
+## Every gig kind the board can offer (Campaign.OBJECTIVES), in that order.
+static var OFFER_KINDS: Array = Campaign.OBJECTIVES.keys()
 ## The skills the crew trains with its IP between gigs, as a player would.
 const TRAIN := ["handgun", "shoulder_arms", "autofire", "evasion", "stealth", "perception"]
 const BAD_TILES := [TacMap.T.VOID, TacMap.T.WALL, TacMap.T.WATER]
@@ -49,25 +50,18 @@ static func setpiece_locations() -> Array:
 	return out
 
 
-## The gig kinds a location's hooks or `gigs` name (what the board would offer there).
+## The gig kinds a location offers (what the board would offer there: Campaign.kinds_at, its hooks
+## and `gigs`, then the kinds that borrow its places).
 static func kinds_at(lid: String) -> Array:
-	var l := World.location(lid)
-	var out := []
-	for h in l.get("hooks", []):
-		for k in h.get("gigs", []):
-			if not k in out and k in OFFER_KINDS:
-				out.append(k)
-	for k in l.get("gigs", []):
-		if not k in out and k in OFFER_KINDS:
-			out.append(k)
-	return out
+	return Campaign.kinds_at(World.location(lid)).filter(func(k): return k in OFFER_KINDS)
 
 
 ## Plays `gigs` gigs of a campaign started with `seed_value`. `plan` picks each gig: an Array of
 ## "board", "setpiece" (the next set-piece location in turn), "setpiece:<location>[:<kind>]", "tower"
-## (the next tower in turn: its sky band, TowerGen) or "tower:<tower id or location>[:<kind>]",
-## cycled through; empty for the default rotation (board, board, setpiece). Returns the campaign
-## as it ends.
+## (the next tower in turn: its sky band, TowerGen), "tower:<tower id or location>[:<kind>]" or
+## "kind:<gig kind>" (a board offer of that kind, made by the board's own code, put on the board
+## mid-day: forced plans for each objective), cycled through; empty for the default rotation
+## (board, board, setpiece). Returns the campaign as it ends.
 func run_campaign(seed_value: int, gigs: int, plan: Array = []) -> Campaign:
 	var camp := Campaign.new_game(seed_value)
 	var sps := setpiece_locations()
@@ -148,6 +142,21 @@ func _offer(camp: Campaign, pick: String, k: int) -> int:
 		camp.board.append(tgig)
 		_count("towers", String(World.tower(tid).get("id", tid)))
 		_count("offers", "tower")
+		return camp.board.size() - 1
+	if pick.begins_with("kind:"):
+		var kind := pick.get_slice(":", 1)
+		var g := RulesDB.gen("gigs.json")
+		var known := camp.best_reputation()
+		var used := {}
+		for b in camp.board:
+			used[String(b.get("location", ""))] = true
+		var kg := camp._city_offer(g, kind, camp._roll_security(g, known), known, used)
+		if kg.is_empty():
+			_fail("no %s offer" % kind)
+			return -1
+		kg["id"] = "%d-%s-soak" % [camp.day, kind]
+		camp.board.append(kg)
+		_count("offers", "kind")
 		return camp.board.size() - 1
 	_fail("unknown plan entry %s" % pick)
 	return -1
@@ -327,6 +336,9 @@ func _crew_turn(e: Encounter) -> void:
 ## Where this crew member is headed: the extraction zone once the job is done (or they carry the
 ## package, or the captive is free), else the objective's square or person; [] to just fight.
 func _goal(e: Encounter, u: Dictionary) -> Array:
+	var own: Variant = e.obj.crew_goal(u)   # a module that says where its crew goes (escort, defend, ...)
+	if own is Array:
+		return own
 	var o := e.objective
 	if _runs_for_data(e, u):   # the Netrunner heads for a jack point into the target's NET
 		var a: NetArchitecture = e.m.architectures[int(o.structure)]
