@@ -13,9 +13,7 @@ static func make() -> Campaign:
 	c.day = 12
 	var dice := Dice.new(5)
 	for role in ["medtech", "tech"]:
-		var r := Recruit.generate(dice, role, "edgerunner")
-		r.look_seed = c.crew.size()
-		c.crew.append(r)
+		c.crew.append(Recruit.generate(dice, role, "edgerunner", "", c.names_taken(), c.crew.size()))
 	var a: Combatant = c.crew[0]
 	var b: Combatant = c.crew[1]
 	a.ip = 140

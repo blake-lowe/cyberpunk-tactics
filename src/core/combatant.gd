@@ -9,7 +9,8 @@ const WOUND_ACTION_PENALTY := {Wound.SERIOUS: 2, Wound.MORTAL: 4}  # p220
 const MORTAL_MOVE_PENALTY := 6  # p220, MOVE min 1
 
 var id: String
-var display_name: String
+var display_name: String       ## the handle the crew and the HUD use
+var real_name := ""              ## the person behind the handle (Names.person); "" for NPCs and older saves
 var team: int = 0
 var faction := "crew"        ## World faction id (data/world/factions.json); the crew is "crew"
 var stats: Dictionary = {}    ## "INT","REF","DEX","TECH","COOL","WILL","LUCK","MOVE","BODY","EMP" → int
@@ -716,7 +717,7 @@ func to_dict() -> Dictionary:
 	var sub := {}
 	for loc in subdermal:
 		sub[loc] = _armor_dict(subdermal[loc])
-	return {"id": id, "name": display_name, "team": team, "faction": faction, "stats": stats, "skills": skills, "hp": hp, "armor": arm,
+	return {"id": id, "name": display_name, "real_name": real_name, "team": team, "faction": faction, "stats": stats, "skills": skills, "hp": hp, "armor": arm,
 		"subdermal": sub, "injuries": injuries, "base_dsp": base_dsp, "dsp": dsp, "dead": dead, "unconscious": unconscious,
 		"weapons": weapons.map(func(w): return {"id": w.id(), "ammo": w.ammo, "builtin": w.builtin, "quality": w.quality}), "role": role,
 		"role_rank": role_rank, "awareness": awareness, "tracks_humanity": tracks_humanity, "humanity": humanity,
@@ -733,6 +734,7 @@ static func from_dict(d: Dictionary) -> Combatant:
 		sk[k] = int(d.skills[k])
 	var c := Combatant.new(String(d.name), st, sk)
 	c.id = String(d.id)
+	c.real_name = String(d.get("real_name", ""))
 	c.team = int(d.team)
 	c.faction = String(d.get("faction", "crew"))
 	c.hp = int(d.hp)

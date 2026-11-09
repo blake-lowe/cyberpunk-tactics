@@ -10,8 +10,7 @@ extends Objective
 ## the mark runs once the alarm goes up.
 func setup(target_sid: int, origin: Vector2i, sec: int) -> void:
 	var cell := e.secure_cell(target_sid, origin, "vip")
-	var names: Array = cfg.names
-	var name: String = names[e.dice.d(names.size()) - 1]
+	var name := mark_name(e.dice, cfg)
 	var block := vip_block(e.opfor_faction, cfg, e.dice)
 	var vip: Combatant
 	if block != "":
@@ -41,6 +40,12 @@ func setup(target_sid: int, origin: Vector2i, sec: int) -> void:
 			exits.append(Vector3i(en.pos.x, en.pos.y, int(en.get("floor", 0))))
 	# intel: the fixer names the room the mark is holed up in (the crew's marker starts there)
 	o.merge({"target": vu.id, "name": name, "exits": exits, "escaped": false, "intel": cell})
+
+
+## The mark's name: a Night City person (Names.full_name over data/gen/names.json, `cfg.name_gen`)
+## from one draw of `dice` (Names.sub_dice), as the old fixed list took one die.
+static func mark_name(dice: Dice, _cfg: Dictionary) -> String:
+	return Names.full_name(Names.sub_dice(dice))
 
 
 ## The civilian block the mark is for target faction `fid` (cfg vip_blocks, by the faction's kind:

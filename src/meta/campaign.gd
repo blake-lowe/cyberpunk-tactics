@@ -87,10 +87,8 @@ static func new_game(p_seed: int) -> Campaign:
 	c.seed_value = p_seed
 	c.dice = Dice.new(p_seed)
 	c.eb = int(ECON.start_eb)
-	c.crew.append(Recruit.generate(c.dice, "solo", "edgerunner"))
-	c.crew.append(Recruit.generate(c.dice, "netrunner", "edgerunner"))
-	for i in c.crew.size():
-		c.crew[i].look_seed = i
+	c.crew.append(Recruit.generate(c.dice, "solo", "edgerunner", "", [], 0))
+	c.crew.append(Recruit.generate(c.dice, "netrunner", "edgerunner", "", c.names_taken(), 1))
 	c.refresh_board()
 	c.refresh_recruits()
 	c.update_market()
@@ -1004,9 +1002,16 @@ func treat(c: Combatant, injury_index: int) -> bool:
 func refresh_recruits() -> void:
 	recruits.clear()
 	for role in ["solo", "netrunner", "medtech", "tech"]:
-		var r := Recruit.generate(dice, role, "edgerunner")
-		r.look_seed = 10 + recruits.size() + day * 3
-		recruits.append(r)
+		recruits.append(Recruit.generate(dice, role, "edgerunner", "", names_taken(), 10 + recruits.size() + day * 3))
+
+
+## The handles and real names of the crew and the recruits, so a new recruit repeats none.
+func names_taken() -> Array:
+	var out: Array = []
+	for c in crew + recruits:
+		out.append(c.display_name)
+		out.append(c.real_name)
+	return out
 
 
 func hire(index: int) -> bool:
