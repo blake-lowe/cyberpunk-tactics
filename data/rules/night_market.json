@@ -560,7 +560,7 @@
 					"keys": [
 						"weapon/very_heavy_melee"
 					],
-					"note": "p339 prints 100eb (Premium) here; the appendix (p340) and weapons.json price it at 500eb, which is what it costs."
+					"_note": "p339 prints 100eb (Premium) here; the appendix (p340) and weapons.json price it at 500eb, which is what it costs."
 				},
 				{
 					"d100": [

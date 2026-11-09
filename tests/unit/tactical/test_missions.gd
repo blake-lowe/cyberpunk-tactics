@@ -167,7 +167,7 @@ func test_civilians_scatter_on_gunfire_and_count_as_collateral() -> void:
 	assert_true(c0.panic, "gunfire panics them")
 	var p0: Vector3i = c0.pos
 	e._civilians_tick()
-	assert_true(c0.pos != p0 or c0.get("fled", false), "and they run")
+	assert_true(c0.pos != p0 or c0.get("fled", false) or Encounter.cowering(c0), "and they run, hide or cower")
 	assert_false(e.init.entries.any(func(x): return x.c == c0.c), "bystanders never join the initiative")
 	var c1: Dictionary = civs[1]
 	c1.c.hp = -5

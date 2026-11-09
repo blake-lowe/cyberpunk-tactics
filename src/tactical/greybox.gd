@@ -341,7 +341,8 @@ var _dev_ambient := 1.0                ## --ambient=s (review renders): scale th
 var _life_demo := false               ## --life_demo (review renders): walkers stroll every 2 s (StreetLife.tick) for GIFs
 var _life_on := true                  ## --life=0 (review renders): everyday life off, for performance before/after
 var _perf := false                    ## --perf (review renders): print the frame's draw calls, objects and nodes at the shot
-var _street_card_on := true            ## --street_callout=0 (review renders): no ON THE STREET card
+var _dev_gunfire := -1                 ## --gunfire=k (review renders): shots into the busiest street, then k rounds of bystanders scattering
+var _gunfire_at := Vector3i(-1, -1, -1)   ## where --gunfire's shots land (--focus=gunfire looks there)
 var _life_ms := 0
 var _dev_hour := -1                    ## --hour=h (review renders): the clock a --street=auto roll reads (SceneEvent.time_of)
 var _cue_at := 0                       ## msec: the next far-off street sound (_street_cues)
@@ -408,7 +409,7 @@ func _ready() -> void:
 			"grapple": _dev_grapple = kv[1]   # review renders: hold | shield | throw | held (the foe grabs the crew)
 			"stairs": _dev_stairs = kv[1]   # review renders: on the target's stairs (GO UP on the bar); =up takes them
 			"near": _dev_near = int(kv[1])   # review renders: the nearest foe stands this many squares off, in the line of fire
-			"morale": _dev_morale = kv[1]   # review renders: surrender | flee (the nearest foe breaks) | search (a body beside the crew, the card up)
+			"morale": _dev_morale = kv[1]   # review renders: surrender | flee (the nearest foe breaks) | search (a body beside the crew, the B button hovered)
 			"callouts": _dev_callouts = true   # review renders: -14, CRITICAL · BROKEN RIBS and MORTALLY WOUNDED stacked
 			"end": _dev_end = kv[1]   # review renders: the gig ends this way (won | lost | fled), the end panel shows
 			"peace": _dev_peace = true   # review renders: --peace=broken: the crew breaks a neutral house's peace (Totentanz)
@@ -420,7 +421,7 @@ func _ready() -> void:
 			"life_demo": _life_demo = kv[1] != "0"   # review renders: everyday life walks every 2 s without turns passing (GIFs)
 			"life": _life_on = kv[1] != "0"   # review renders: 0 = no everyday life (no ambient bystanders or street FX), for before/after
 			"perf": _perf = true   # review renders: print draw calls, objects and nodes when the shot is taken
-			"street_callout": _street_card_on = kv[1] != "0"   # review renders: 0 leaves the ON THE STREET card out (see the street itself)
+			"gunfire": _dev_gunfire = int(kv[1])   # review renders: shots fired in the busiest street, then k rounds of scattering (0: the calm street, same view)
 			"security":
 				gig.security = int(kv[1])
 				_security_flag = true
@@ -965,6 +966,7 @@ func new_gig() -> void:
 	sun.directional_shadow_max_distance = 140.0
 	_apply_look()
 	var played := _autoplay_rounds()
+	_gunfire_demo()
 	_blueprint = FloorNav.blueprint_floors(m.floors, enc.alive(0).map(func(u): return u.pos))
 	_bp_shown.clear()
 	_build_world()
@@ -993,11 +995,6 @@ func new_gig() -> void:
 		enc.update_alerts()
 	if _walk > 0:
 		_frame_unit(enc.cur)
-	if not enc.scene_event.is_empty() and not _promo and _street_card_on:   # ON THE STREET: what's going on round the gig, once, at deploy
-		var se := enc.scene_event
-		get_tree().create_timer(0.05 if _shot_path != "" else 0.9).timeout.connect(func():
-			if hud and is_instance_valid(hud):
-				hud.street_callout(String(se.label), String(se.get("note", "")), String(se.get("text", ""))))
 	if not _dev_inside.is_empty() or _dev_focus_b != "":
 		_demo_inside()
 	if _focus != "":
@@ -1045,6 +1042,8 @@ func new_gig() -> void:
 				if nn > best:
 					best = nn
 					fc = Vector2(u.pos.x, u.pos.y)
+		elif _focus == "gunfire" and _gunfire_at.x >= 0:   # review renders: where --gunfire's shots landed
+			fc = Vector2(_gunfire_at.x, _gunfire_at.y)
 		elif _focus == "center":
 			for st in m.structures:
 				if st.target and st.has("rect"):
@@ -1397,7 +1396,7 @@ func _refresh() -> void:
 		n.set_meta("slump_goal", 1.0 if u.c.wound_state() == Combatant.Wound.MORTAL else 0.0)
 		var life := String(u.get("life", "")) if u.get("civ", false) and not u.get("panic", false) else ""
 		n.set_meta("life", life)   # everyday life (StreetLife, SceneEvent crowds): what they're doing
-		n.set_meta("crouch_goal", 1.0 if (_beside_cover(u.pos) and life == "") or u.team == Encounter.CAPTIVE else 0.0)   # crouching reads as "in cover"; captives kneel
+		n.set_meta("crouch_goal", 1.0 if (_beside_cover(u.pos) and life == "") or u.team == Encounter.CAPTIVE or Encounter.cowering(u) else 0.0)   # crouching reads as "in cover"; captives kneel; a scared bystander cowers
 		if true:
 			n.rotation.x = 0
 			var foes := enc.foes(u).filter(func(o): return o.alerted or enc.is_guard(u))
@@ -3588,8 +3587,8 @@ func _demo_hurt() -> void:
 
 ## --morale (review renders). surrender: the nearest foe, brought 3 squares from the active unit
 ## and hurt, gives up (the card over them hovered); flee: one 7 squares off breaks and runs a few
-## squares toward the edge; search: a flatlined foe beside the active unit and Search Body's card
-## up over the bar.
+## squares toward the edge; search: a flatlined foe beside the active unit and Search Body's button
+## hovered (no card: the button says it).
 func _demo_morale() -> void:
 	_demo_ms = Time.get_ticks_msec()
 	_dev_near = 7 if _dev_morale == "flee" else (1 if _dev_morale == "search" else 3)
@@ -4839,6 +4838,33 @@ func _autoplay_rounds() -> bool:
 	enc.events.clear()   # what happened is history: the shot shows where it stands
 	enc.refresh_vision()
 	return true
+
+
+## Review renders (--gunfire=k): a burst of gunfire in the busiest stretch of street (the most
+## bystanders out of doors within 8 squares), one burst a round for k rounds, the bystanders
+## scattering after each (Encounter._panic_near, _civilians_tick). k = 0 marks the spot and fires
+## nothing: the calm street from the same camera, for a before/after pair.
+func _gunfire_demo() -> void:
+	if _dev_gunfire < 0:
+		return
+	var best := -1
+	for u in enc.units:
+		if not u.get("civ", false) or u.c.dead or not StreetLife.outdoors(m, u.pos):
+			continue
+		var nn := enc.units.filter(func(o): return o.get("civ", false) and not o.c.dead and Vector2(o.pos.x - u.pos.x, o.pos.y - u.pos.y).length() <= 8.0).size()
+		if nn > best:
+			best = nn
+			_gunfire_at = u.pos
+	if _gunfire_at.x < 0:
+		return
+	var r0: int = enc.init.round_num
+	for k in _dev_gunfire:
+		enc.init.round_num = r0 + k   # each burst a round of its own (a fresh chance to spook the further ones)
+		enc._panic_near(_gunfire_at)   # the bystanders hear it (the guards are left be: the shot is about the street)
+		enc._civilians_tick()
+	enc.init.round_num = r0
+	enc._civ_round = r0 + 1   # the first round's scatter has been played here: the view doesn't chase it
+	enc.events.clear()   # the shot shows where it stands
 
 
 var _settling := false     ## _finish_gig is under way: once per gig
@@ -6622,7 +6648,7 @@ func _update_hover() -> void:
 		if p.blocker.x >= 0 and p.from != enc.cur.pos:
 			lines.append("[color=#05d9e8]Leaning out of cover[/color]")
 		if p.get("surrendered", false):   # Morale: the crew's call, not a mistake
-			lines.append("[color=#f9c80e]Surrendered: unarmed and out of the fight. Shooting them is your call.[/color]")
+			lines.append("[color=#f9c80e]Surrendered: unarmed and out of the fight.[/color]")
 		elif p.get("fleeing", false):
 			lines.append("[color=#ff8a24]Running for the edge: no threat now. Let them go, or not.[/color]")
 		if p.has("shield"):   # p.184: the shot goes into whoever they hold up

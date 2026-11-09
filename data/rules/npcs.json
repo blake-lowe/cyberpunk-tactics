@@ -57,7 +57,7 @@
 			"blocks": [
 				"cyberpsycho"
 			],
-			"note": "No count in the book (p.416): a boss fight is placed by a gig, never by the budget.",
+			"_note": "No count in the book (p.416): a boss fight is placed by a gig, never by the budget.",
 			"hardened_blocks": []
 		}
 	},
@@ -11343,7 +11343,7 @@
 		"lieutenant": [
 			{
 				"roll": 1,
-				"text": "The Lieutenant and allies ambush the crew (CPR p.399).",
+				"text": "The Lieutenant and allies ambush the crew.", "cite": "CPR core p.399",
 				"fx": {
 					"tactic": "ambush"
 				},
@@ -11351,7 +11351,7 @@
 			},
 			{
 				"roll": 2,
-				"text": "The Lieutenant holds a grappled human shield (CPR p.184).",
+				"text": "The Lieutenant holds a grappled human shield.", "cite": "CPR core p.184",
 				"fx": {
 					"tactic": "human_shield",
 					"kit": "shields/human_shield"
@@ -11415,7 +11415,7 @@
 			},
 			{
 				"roll": 9,
-				"text": "The Lieutenant has COOL 6 and Reputation 2 and tries a Facedown at the start (CPR p.194).",
+				"text": "The Lieutenant has COOL 6 and Reputation 2 and tries a Facedown at the start.", "cite": "CPR core p.194",
 				"fx": {
 					"stat_set": {
 						"COOL": 6
@@ -11460,7 +11460,7 @@
 			},
 			{
 				"roll": 3,
-				"text": "Teamwork 3 (CPR p.153) and a Team Member of the GM's choice.",
+				"text": "Teamwork 3 and a Team Member of the GM's choice.", "cite": "CPR core p.153",
 				"fx": {
 					"role_ability": {
 						"role": "exec",

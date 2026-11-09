@@ -1124,7 +1124,7 @@
 			"name": "Grease",
 			"rank": 2,
 			"roles": "Fixer 2",
-			"district": "",
+			"district": "little_china",
 			"location": "",
 			"deals_in": [
 				"gigs",
@@ -1136,7 +1136,7 @@
 			"name": "Lowball",
 			"rank": 5,
 			"roles": "Fixer 5",
-			"district": "",
+			"district": "downtown",
 			"location": "",
 			"deals_in": [
 				"gigs",
@@ -1148,8 +1148,8 @@
 			"name": "Molly Anderson",
 			"rank": 4,
 			"roles": "Fixer 4",
-			"district": "",
-			"location": "",
+			"district": "rancho_coronado",
+			"location": "rancho_coronado_11",
 			"deals_in": [
 				"salvage",
 				"crime",
@@ -1162,7 +1162,7 @@
 			"name": "Rex Royale",
 			"rank": 5,
 			"roles": "Fixer 5",
-			"district": "",
+			"district": "pacifica_playground",
 			"location": "",
 			"deals_in": [
 				"weapons",

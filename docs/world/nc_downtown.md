@@ -355,7 +355,7 @@ A pre-war gun store turned gun shop, strip club and brothel whose sculpted, cybe
 	"npcs": ["Valian Violet (Medtech 5)"],
 	"hooks": [
 		{"text": "Violet switched protection from the Weng Fang Tong to the Eastern Tigers Triad; the Gold Dragons jumped one of her joytoys last week and more trouble is coming.", "gigs": ["gang_hit"]},
-		{"text": "Violet refuses to play ball with the Chamber and is said to be close to cyberpsychosis (p.88).", "gigs": ["assassination"]}
+		{"text": "Violet refuses to play ball with the Chamber and is said to be close to cyberpsychosis.", "cite": "NC2045 p.88", "gigs": ["assassination"]}
 	],
 	"gigs": ["gang_hit", "assassination"],
 	"interior": "Gun store, strip club and brothel under one roof.",
@@ -380,7 +380,7 @@ A luxury spa for corporate elites and tourists that fronts for the Eastern Tiger
 	"npcs": [],
 	"hooks": [
 		{"text": "The back rooms hold boxes of counterfeits from Rancho Coronado sweatshops awaiting shipment to stores and Fixers.", "gigs": ["sabotage", "data_theft"]},
-		{"text": "Rumour: the Triad hijacked one of Mister Kernaghan's shipments from Asia, sparking a waterfront shootout with Whitewater (p.81).", "gigs": ["gang_hit"]}
+		{"text": "Rumour: the Triad hijacked one of Mister Kernaghan's shipments from Asia, sparking a waterfront shootout with Whitewater.", "cite": "NC2045 p.81", "gigs": ["gang_hit"]}
 	],
 	"gigs": ["gang_hit", "sabotage"],
 	"interior": "Public front of herbal baths, massage and meditation rooms; Triad stronghold and counterfeit stockroom in the back.",
@@ -543,7 +543,7 @@ A church abandoned in the war, now the Undertow's clubhouse where they plot thei
 	"npcs": [],
 	"hooks": [
 		{"text": "The Undertow build pipe bombs and Molotovs here for attacks on construction sites and corp cars.", "gigs": ["gang_hit", "sabotage"]},
-		{"text": "Rumour: Skiv lieutenant Corwen Recknagel funds the Undertow to sabotage sites not run by HF&S Construction (p.88).", "gigs": ["gang_hit", "sabotage"]}
+		{"text": "Rumour: Skiv lieutenant Corwen Recknagel funds the Undertow to sabotage sites not run by HF&S Construction.", "cite": "NC2045 p.88", "gigs": ["gang_hit", "sabotage"]}
 	],
 	"gigs": ["gang_hit"],
 	"interior": "Derelict church used as clubhouse and bomb workshop.",
@@ -588,6 +588,8 @@ A surviving sliver of the old park: a circle of dying trees around a dry, cracke
 - Monsieur Jacques (Fixer 4) — Café Bouchon (#3); info broker, trades in secrets.
 
 - Leo Stone (Fixer 1) — street-side chrome-shine stand; 5eb shine, more for information on his clients.
+
+- Lowball (Fixer 5): ours, not NC2045's: a Fixer for corporate clients (SPM p.57), placed in the corporate heart (docs/world/fixers.md).
 
 - Unnamed non-Chamber Fixers — Bella Vista Night Market (#2); braindance, cyberware, weapons.
 

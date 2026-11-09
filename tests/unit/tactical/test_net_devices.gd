@@ -409,9 +409,10 @@ func test_every_device_op_has_a_cited_card() -> void:
 		var id := "fire_turret" if op == "fire" else "dev_" + op
 		var card := Hud.net_help(id)
 		assert_true(card.begins_with("[b]"), "%s (%s) has a card" % [id, kind])
-		assert_true(card.contains("CPR core p."), "%s cites its page" % id)
+		assert_false(TextCites.has_cite(card), "%s: no page cite in player text" % id)
+		assert_true(String(RulesDB.load_json("net_help.json").actions[id].get("page", "")).begins_with("p."), "%s: its cite lives in the data's page field" % id)
 		assert_true(card.contains("NET Action"), "%s says what it costs" % id)
 		assert_true(db.ops.has(op) or op == "fire", "%s has its row labels" % op)
-	assert_true(Hud.net_help("held").contains("p.199"))
+	assert_eq(String(RulesDB.load_json("net_help.json").actions.held.page), "p.199", "the held node's cite, in the data")
 	assert_true(Hud.net_help("backdoor").contains("Password") and Hud.net_help("backdoor").contains("Virus"), "Backdoor: breaks a Password; lasting access is a Virus")
 	assert_true(Hud.net_help("eye_dee").contains("worth"), "Eye-Dee: what it is worth")

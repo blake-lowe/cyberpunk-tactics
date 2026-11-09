@@ -17,7 +17,8 @@ extends RefCounted
 ## pieces, and lights LightPlan picks up from m.params.event_lights); pre() takes an outage in with
 ## the Utility Codes; apply() puts its people on the map with the existing systems (bystander
 ## crowds, witness sides, at-war sides, the site's patrols, Trauma Team's call, MaxTac) and logs
-## the note; poll() runs MaxTac's countdown each round. The view shows ON THE STREET at deploy.
+## one quiet line; poll() runs MaxTac's countdown each round. Show, don't tell (owner verdict
+## 2026-11-09): no HUD line and no deploy card; the people on the street tell it.
 ##
 ## FX: text, crowd, watch, gangs, patrol, trauma, psycho, outage, alarm, dress, sound, sky (see
 ## scene_events.json `fx._why`). `mood` (the weather seam) is read by nothing yet: the dust storm
@@ -339,13 +340,13 @@ static func pre(e: Encounter, spec: Variant) -> void:
 
 
 ## Put the row's people on the map (Encounter.setup, after the bystanders) and log it. Records on
-## e.scene_event: {.. the gig's spec, applied, skipped, units, lines}.
+## e.scene_event: {.. the gig's spec, applied, skipped, units, sound, sky}.
 static func apply(e: Encounter, spec: Variant) -> void:
 	var fx := fx_of(spec)
 	if fx.is_empty():
 		return
 	e.scene_event = (spec as Dictionary).duplicate(true)
-	var out := {"applied": [], "skipped": [], "units": [], "lines": [], "crowd": Vector2i(-1, -1)}
+	var out := {"applied": [], "skipped": [], "units": [], "crowd": Vector2i(-1, -1)}
 	for k in ["crowd", "gangs", "watch", "patrol", "trauma", "psycho"]:   # crowds first: watchers can stand by them
 		if not fx.has(k):
 			continue
@@ -361,7 +362,6 @@ static func apply(e: Encounter, spec: Variant) -> void:
 	if fx.has("alarm"):
 		e.alarm = maxi(e.alarm, int(fx.alarm))
 		out.applied.append("alarm")
-		out.lines.append("The block's locked down: the site's on edge.")
 	if fx.has("dress"):
 		(out.applied if not (e.m.params.get("event_spots", {}) as Dictionary).is_empty() or not (e.m.params.get("event_lights", []) as Array).is_empty() else out.skipped).append("dress")
 	for k in ["text", "sound", "sky"]:
@@ -371,10 +371,9 @@ static func apply(e: Encounter, spec: Variant) -> void:
 	e.scene_event["applied"] = out.applied
 	e.scene_event["skipped"] = out.skipped
 	e.scene_event["units"] = out.units
-	e.scene_event["text"] = " ".join(out.lines)
 	e.scene_event["sound"] = String(fx.get("sound", ""))
 	e.scene_event["sky"] = String(fx.get("sky", ""))
-	e.say("On the street: %s.%s" % [note.left(1).to_upper() + note.substr(1), (" " + " ".join(out.lines)) if not out.lines.is_empty() else ""])
+	e.say("On the street: %s." % note)   # one quiet line in the log: the street itself tells the rest
 
 
 ## Once a round (Encounter.next_turn): MaxTac's countdown to a cyberpsycho; a street client's
@@ -582,9 +581,11 @@ static func _beat(e: Encounter, u: Dictionary) -> void:
 		u.patrol_i = 1
 
 
-## One or two sides at war with everyone who fights (FreeForAll's rule), and with each other: two
+## One or two sides at war with the site's people (FreeForAll's rule) and with each other: two
 ## gangs squaring off (cold: they face each other until someone shoots) or already shooting (hot:
 ## alerted, in the initiative order). Placed far from the deploy zone and the target building.
+## Neutral to the crew (owner verdict 2026-11-09, `spares_crew`): a gang leaves the crew alone and
+## isn't the gig's opposition until the crew attacks it or hits one of its own (Encounter._provoke).
 static func _gangs(e: Encounter, spec: Dictionary, out: Dictionary) -> void:
 	var sides := clampi(int(spec.get("sides", 2)), 1, 2)
 	var hot := bool(spec.get("hot", false))
@@ -616,7 +617,7 @@ static func _gangs(e: Encounter, spec: Dictionary, out: Dictionary) -> void:
 		halves = [ring]
 	var ids := []
 	for s in sides:
-		var team := e.add_side(String(fids[s]), "guard", false, {"at_war": true, "street": true})
+		var team := e.add_side(String(fids[s]), "guard", false, {"at_war": true, "street": true, "spares_crew": true})
 		var n := _n(e, spec.get("n", [2, 3]))
 		var mine: Array = halves[s]
 		for i in mini(n, mine.size()):
@@ -638,9 +639,6 @@ static func _gangs(e: Encounter, spec: Dictionary, out: Dictionary) -> void:
 		return
 	out.applied.append("gangs")
 	out.units.append_array(ids)
-	var names := fids.slice(0, sides).map(func(f): return World.display_name(String(f)))
-	out.lines.append(("%s and %s are at it, and they'll shoot anyone in the way." % [names[0], names[1]]) if sides == 2 \
-		else "%s are out, and they'll shoot anyone in the way." % names[0])
 
 
 ## More of the site's own people walking the street (Encounter._outer_patrols' Mooks).
@@ -686,7 +684,6 @@ static func _trauma(e: Encounter, out: Dictionary) -> void:
 	e.tt = {"patient": u.id, "round": TT_ROUND, "state": "called", "scene": true}
 	out.applied.append("trauma")
 	out.units.append(u.id)
-	out.lines.append("Their Trauma Team AV is inbound.")
 
 
 ## A cyberpsycho (the Cyberpsycho block, CPR core p.416) at war with everyone, bystanders too,
@@ -716,7 +713,6 @@ static func _psycho(e: Encounter, spec: Dictionary, out: Dictionary) -> void:
 	if spec.has("maxtac"):
 		var rounds := _n(e, spec.maxtac)
 		e.scene_event["maxtac_round"] = rounds + 1
-		out.lines.append("MaxTac is on the way: %d rounds." % rounds)
 
 
 ## MaxTac drops near the psycho (Encounter._maxtac_drop's landing), on a witness side: they're
@@ -739,9 +735,3 @@ static func _maxtac_for(e: Encounter, psy: Dictionary) -> void:
 		e._spawn_wave(tiers, "MAXTAC", team, "maxtac", String(r.get("rank", "")))
 	e.say("MaxTac drops in for the cyberpsycho.")
 
-
-## The round tab's line: "ON THE STREET · OPEN GANG WAR" ("" none).
-static func hud_line(e: Encounter) -> String:
-	if e.scene_event.is_empty():
-		return ""
-	return "ON THE STREET · " + String(e.scene_event.get("label", "")).to_upper()
