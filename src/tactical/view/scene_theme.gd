@@ -11,6 +11,8 @@ extends RefCounted
 ## arcology walls and columns), "ruins" (dark, burning skyline)
 ## ambient: effects layered over the scene: "embers", "steam", "drips", "motes"
 ## blaze: share of wrecks/cars (and fewer rubble heaps) set on fire; lamp_keep: share of lamps lit
+## day: by day (Daylight), {palette, light} in place of the night `light` (district looks; greybox
+## scene_look), so a district keeps its identity in the sun: Heywood's yellow smog, the Glen's clean sky
 
 ## The data: data/gen/themes.json (themes by scene id, palettes by name).
 static func themes() -> Dictionary:

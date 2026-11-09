@@ -1,5 +1,5 @@
 {
-	"_doc": "Each Night City district's look (DistrictLook), from its look tags in data/world/city.json and the book's description (docs/world/nc_<id>.md; page in `why`). Applies to gigs in that district on scenes without a theme of their own (neighbourhood/street scenes, lone buildings). Theme keys (SceneTheme.of: same meaning as themes.json): palette, neon (sign hues), lamp (street-lamp colours: light warmth), lamp_keep, blaze, fire, ambient, surround, mats, plus light (greybox LOOKS overrides: ambient/amb_e/key/key_e/fog/fog_d/sky/rim/lights/fog_*), walls (per-building facade colour pool by wall material: {colors, pattern, scale}), signs (0-2: neon sign density, 0 = none), grime (0-2: street litter and overhead cables). Generator keys (DistrictGen): ruin (0-1: building decay, replaces the profile's; rubble on the streets), height (-1..2 floors on the profile's buildings; the scene grows taller to fit), green (0-1: street trees and more parks), props (0-2: street furniture density) with street (its pieces), cars (0-2: parked-car density) with optional wrecks (0-1 share), mix (lot uses added to the profile's mix weights). Real-world principles only (European old towns, Chinatown night markets, gated estates, ruined cities, seaside resorts, smog-belt industry).",
+	"_doc": "Each Night City district's look (DistrictLook), from its look tags in data/world/city.json and the book's description (docs/world/nc_<id>.md; page in `why`). Applies to gigs in that district on scenes without a theme of their own (neighbourhood/street scenes, lone buildings). Theme keys (SceneTheme.of: same meaning as themes.json): palette, neon (sign hues), lamp (street-lamp colours: light warmth), lamp_keep, blaze, fire, ambient, surround, mats, plus light (greybox LOOKS overrides: ambient/amb_e/key/key_e/fog/fog_d/sky/rim/lights/fog_*), day (by day, Daylight: {why, palette, light} over the city's day look in place of the night light; greybox scene_look; dawn and dusk keep the city's), walls (per-building facade colour pool by wall material: {colors, pattern, scale}), signs (0-2: neon sign density, 0 = none), grime (0-2: street litter and overhead cables). Generator keys (DistrictGen): ruin (0-1: building decay, replaces the profile's; rubble on the streets), height (-1..2 floors on the profile's buildings; the scene grows taller to fit), green (0-1: street trees and more parks), props (0-2: street furniture density) with street (its pieces), cars (0-2: parked-car density) with optional wrecks (0-1 share), mix (lot uses added to the profile's mix weights). Real-world principles only (European old towns, Chinatown night markets, gated estates, ruined cities, seaside resorts, smog-belt industry).",
 	"looks": {
 		"little_europe": {
 			"why": "NC2045 p.54-55: crumbling brick blocks beside new towers, small blue-collar businesses and pubs; old-town principle: brick and stone, deco trims, warm lamps, cobbles",
@@ -52,7 +52,8 @@
 				"grass": {"color": "5a8c2c", "color2": "6c9a34"},
 				"roof": {"color": "6c727a", "color2": "565c64", "pattern": 1, "scale": 0.4},
 				"cornice": {"color": "e8e8e4", "color2": "e8e8e4"}},
-			"light": {"ambient": "34405a", "amb_e": 0.8, "key": "c0d0f0", "fog": "121a26", "fog_d": 0.002, "sky": ["040814", "0c1a30", "2a4a6a"]}
+			"light": {"ambient": "34405a", "amb_e": 0.8, "key": "c0d0f0", "fog": "121a26", "fog_d": 0.002, "sky": ["040814", "0c1a30", "2a4a6a"]},
+			"day": {"why": "white walls and lawns under a clean blue sky", "palette": "clinical", "light": {"ambient": "8098c8", "key_e": 1.35, "sky": ["3a6ab0", "86a8d0", "d8dce0"]}}
 		},
 		"charter_hill": {
 			"why": "NC2045 p.224-225: a suburb of identical houses and fake lawns patrolled by Militech; postwar-suburb principle: one beige house after another, lawns, quiet lamps, few signs",
@@ -62,7 +63,8 @@
 			"props": 0.6, "street": ["planter", "tree", "bench"], "cars": 0.9, "wrecks": 0.0,
 			"mix": {"park": 2},
 			"walls": {"wall_plaster": {"colors": ["b8ac98", "b0a490", "c0b4a0"]}},
-			"mats": {"grass": {"color": "2e5a2c", "color2": "3e6a34"}}
+			"mats": {"grass": {"color": "2e5a2c", "color2": "3e6a34"}},
+			"day": {"why": "the suburb's clean blue sky", "palette": "clinical", "light": {"ambient": "8098c8", "key_e": 1.35, "sky": ["3a6ab0", "86a8d0", "d8dce0"]}}
 		},
 		"downtown": {
 			"why": "NC2045 p.80-81: working-class district fighting gentrification: old businesses, goth clubs and day markets under new towers; old-downtown principle: mixed brick and glass, club signs, busy pavements",
@@ -86,7 +88,8 @@
 			"mats": {"asphalt": {"color": "2a2826", "color2": "1a1918"}, "sidewalk": {"color": "4a4640", "color2": "2e2b28"},
 				"concrete": {"color": "46423c", "color2": "2c2926"}, "dirt": {"color": "5e4e3a", "color2": "3e3428"}},
 			"light": {"ambient": "3a3036", "amb_e": 0.6, "key": "ff9a60", "key_e": 0.45, "fog": "3a2a20", "fog_d": 0.0055,
-				"sky": ["100a0a", "3a1a12", "a04a1a"], "rim": ["ff6a2a", 0.3], "fog_cool": 0.0}
+				"sky": ["100a0a", "3a1a12", "a04a1a"], "rim": ["ff6a2a", 0.3], "fog_cool": 0.0},
+			"day": {"why": "the sun through cancer dust and smoke", "palette": "inferno", "light": {"ambient": "8a7a70", "amb_e": 0.85, "key": "ffd8a8", "key_e": 1.4, "fog": "6a5444", "fog_d": 0.004, "sky": ["4a4440", "7a6252", "b08a62"]}}
 		},
 		"pacifica_playground": {
 			"why": "NC2045 p.276-285: Southside pleasure district of casinos, brothels and parties, pulled back from blight; seaside-resort principle: faded pastel stucco, boardwalk planks, palms, casino neon over sea mist",
@@ -99,7 +102,8 @@
 			"mats": {"sidewalk": {"color": "5a4632", "color2": "3a2c1e", "pattern": 2, "scale": 1.4},
 				"roof": {"color": "7a7262", "color2": "5a5448", "pattern": 1, "scale": 0.8},
 				"cornice": {"color": "e0d8c8", "color2": "e0d8c8"}},
-			"light": {"ambient": "2a2e4a", "fog": "181830", "fog_d": 0.004, "sky": ["05060e", "141628", "7a2a5a"], "rim": ["ff6ab0", 0.15]}
+			"light": {"ambient": "2a2e4a", "fog": "181830", "fog_d": 0.004, "sky": ["05060e", "141628", "7a2a5a"], "rim": ["ff6ab0", 0.15]},
+			"day": {"why": "a seaside resort's bright blue sky and sea mist", "light": {"ambient": "7c94c8", "key": "fff0d0", "fog": "b0c0c8", "fog_d": 0.0026, "sky": ["3a74c0", "88b4d8", "e0dccc"]}}
 		},
 		"playland": {
 			"why": "NC2045 p.302-313: a 24/7 theme-park resort with drones, rides, a boardwalk and a fake forest; amusement-park principle: candy colours, every surface lit, trees and kiosks, swept paths",
@@ -110,7 +114,8 @@
 			"mix": {"park": 2, "club": 2, "market": 2},
 			"walls": {"wall_plaster": {"colors": ["c87a8a", "6ab0b0", "d8c070", "9a80c8", "e09a6a"]}},
 			"mats": {"sidewalk": {"color": "6a5038", "color2": "463422", "pattern": 2, "scale": 1.4}},
-			"light": {"fog": "26102e", "sky": ["0a0618", "3a1048", "c02a7a"], "rim": ["ff60c0", 0.35]}
+			"light": {"fog": "26102e", "sky": ["0a0618", "3a1048", "c02a7a"], "rim": ["ff60c0", 0.35]},
+			"day": {"why": "a theme park's bright blue sky", "light": {"ambient": "7c94c8", "key": "fff0d0", "fog": "b0c0c8", "fog_d": 0.0026, "sky": ["3a74c0", "88b4d8", "e0dccc"]}}
 		},
 		"heywood_industrial_zone": {
 			"why": "NC2045 p.256-257: factories, warehouses and depots under the worst smog in the city; smog-belt principle: yellow haze, sodium lamps, oily grey-ochre concrete, barrels and pallets, few signs",
@@ -124,7 +129,8 @@
 			"mats": {"concrete": {"color": "4a4636", "color2": "2e2c22"}, "sidewalk": {"color": "4e4a3a", "color2": "302e24"},
 				"asphalt": {"color": "24221c", "color2": "141310"}},
 			"light": {"ambient": "3a3426", "amb_e": 0.18, "key": "d8c080", "key_e": 0.2, "fog": "241e10", "fog_d": 0.005, "spill": 0.15, "lights": 0.35,
-				"sky": ["14120a", "3e3416", "9a8030"], "rim": ["d0b050", 0.25], "fog_cool": 0.0, "fog_sat": 0.6}
+				"sky": ["14120a", "3e3416", "9a8030"], "rim": ["d0b050", 0.25], "fog_cool": 0.0, "fog_sat": 0.6},
+			"day": {"why": "the yellow smog by day: a dull ochre sun through it, the haze thick on the street", "palette": "smog", "light": {"ambient": "9a9478", "amb_e": 1.0, "key": "fff0c8", "key_e": 1.25, "fog": "b0a060", "fog_d": 0.004, "fog_hd": 0.08, "sky": ["8a8868", "b4a878", "d8c488"]}}
 		},
 		"heywood_docks": {
 			"why": "NC2045 p.240-241: a mob-run port for small cargo ships: cranes, containers and rail behind guarded fences; harbour principle: cold sea fog, sodium floodlights, crates and pallets",
@@ -133,7 +139,8 @@
 			"grime": 1.2, "ruin": 0.2, "height": 0, "green": 0.0,
 			"props": 1.2, "street": ["crate", "barrel", "pallet", "crate"], "cars": 0.8,
 			"walls": {"wall_concrete": {"colors": ["4c535a", "56606a", "5a5f66"]}},
-			"light": {"fog": "142028", "fog_d": 0.0055, "sky": ["03060a", "0a1620", "1e3a48"]}
+			"light": {"fog": "142028", "fog_d": 0.0055, "sky": ["03060a", "0a1620", "1e3a48"]},
+			"day": {"why": "sea haze off the harbour", "light": {"ambient": "7894c0", "fog": "a8b4bc", "fog_d": 0.003, "fog_hd": 0.07, "sky": ["4a78b0", "90aec8", "d0d4d0"]}}
 		},
 		"port_of_night_city": {
 			"why": "NC2045 p.150-151: the city's main sea gate, run by sea nomads: harbour, cranes, container stacks, rail yard; harbour principle: sea fog, floodlights, cargo everywhere",
@@ -142,7 +149,8 @@
 			"grime": 1.0, "ruin": 0.15, "height": 0, "green": 0.0,
 			"props": 1.4, "street": ["crate", "pallet", "barrel", "crate"], "cars": 0.8,
 			"walls": {"wall_concrete": {"colors": ["4c5a62", "5e6670", "6a5a4a"]}},
-			"light": {"fog": "16222a", "fog_d": 0.006, "sky": ["03060a", "0c1a24", "28485a"]}
+			"light": {"fog": "16222a", "fog_d": 0.006, "sky": ["03060a", "0c1a24", "28485a"]},
+			"day": {"why": "sea haze off the harbour", "light": {"ambient": "7894c0", "fog": "a8b4bc", "fog_d": 0.003, "fog_hd": 0.07, "sky": ["4a78b0", "90aec8", "d0d4d0"]}}
 		},
 		"new_westbrook": {
 			"why": "NC2045 p.212-213: an old suburb turned refugee camp: split conapts, cube-hotel strip malls, flickering ad screens; refugee-camp principle: low cramped blocks, tarps and stalls, litter, cold screen light",
@@ -150,7 +158,8 @@
 			"lamp": ["ffb070", "a8c4ff"],
 			"grime": 1.6, "ruin": 0.45, "height": -1, "green": 0.2,
 			"props": 1.6, "street": ["barrel", "crate", "pallet", "stall"], "cars": 0.8,
-			"walls": {"wall_plaster": {"colors": ["7a7060", "6a6a5e", "807464", "5e5a52"]}}
+			"walls": {"wall_plaster": {"colors": ["7a7060", "6a6a5e", "807464", "5e5a52"]}},
+			"day": {"why": "dust over the camp", "light": {"ambient": "8a8ca8", "key": "ffe0b0", "fog": "9a8a6a", "fog_d": 0.0032, "fog_hd": 0.07, "sky": ["6a7a92", "a8a090", "cbb08a"]}}
 		},
 		"norcal_military_base": {
 			"why": "NC2045 p.178-181: a sovereign military enclave of barracks, hangars and checkpoints under Military Police; base principle: brutalist olive-grey concrete, white floodlights, barriers and sandbags, parade lawns, no signs",
@@ -161,7 +170,8 @@
 			"walls": {"wall_concrete": {"colors": ["5a5e52", "6a6c62", "4e5248"], "pattern": 7},
 				"wall_plaster": {"colors": ["6a6c5e", "5e6254"]}},
 			"mats": {"grass": {"color": "2e4a28", "color2": "3a5430"}},
-			"light": {"fog": "0e1410", "sky": ["030604", "0a140e", "1e3024"]}
+			"light": {"fog": "0e1410", "sky": ["030604", "0a140e", "1e3024"]},
+			"day": {"why": "a hard clear sky over the concrete", "palette": "clinical", "light": {"ambient": "8098c8", "key_e": 1.35, "sky": ["3a6ab0", "86a8d0", "d8dce0"]}}
 		},
 		"north_heywood": {
 			"why": "NC2045 p.246-247: working-class sprawl of cube hotels and empty factories beside shiny corporate campuses; strip principle: a neon strip over tired blocks",
@@ -178,7 +188,8 @@
 			"grime": 1.6, "ruin": 0.55, "height": 0, "green": 0.0,
 			"props": 1.4, "street": ["sandbags", "barrel", "crate", "rubble"], "cars": 1.0,
 			"walls": {"wall_plaster": {"colors": ["5e564a", "6a5e4e", "52504a"]}},
-			"light": {"fog": "22180e", "fog_d": 0.0045, "sky": ["080605", "1e120c", "5a2a14"]}
+			"light": {"fog": "22180e", "fog_d": 0.0045, "sky": ["080605", "1e120c", "5a2a14"]},
+			"day": {"why": "dust haze over the ruins", "light": {"ambient": "8a8ca8", "key": "ffe0b0", "fog": "9a8a6a", "fog_d": 0.0032, "fog_hd": 0.07, "sky": ["6a7a92", "a8a090", "cbb08a"]}}
 		},
 		"old_japantown": {
 			"why": "NC2045 p.128-129: liquefied ground and fallout drove the rich out; faded Japanese signs, pastel corporate blocks, gang-war graffiti; abandoned-district principle: faded pastels, dim and broken signs, dust",
@@ -187,7 +198,8 @@
 			"grime": 1.5, "ruin": 0.5, "height": 0, "green": 0.0,
 			"props": 1.2, "street": ["rubble", "barrel", "vending", "crate"], "cars": 0.8,
 			"walls": {"wall_plaster": {"colors": ["8a7a80", "7a8a88", "8a8470", "7a7088"]}},
-			"light": {"fog": "22221a", "fog_d": 0.005, "sky": ["060606", "16160e", "3e3a22"], "fog_cool": 0.0}
+			"light": {"fog": "22221a", "fog_d": 0.005, "sky": ["060606", "16160e", "3e3a22"], "fog_cool": 0.0},
+			"day": {"why": "fallout dust in the air", "light": {"ambient": "8a8ca8", "key": "ffe0b0", "fog": "9a8a6a", "fog_d": 0.0032, "fog_hd": 0.07, "sky": ["6a7a92", "a8a090", "cbb08a"]}}
 		},
 		"outskirts": {
 			"why": "NC2045 p.294-301: badlands, cracked roads, wind turbines and dust storms around the city; desert-edge principle: sunset dust, sand-coloured ground, few lamps, no neon to speak of",
@@ -200,7 +212,8 @@
 				"concrete": {"color": "7a6a58", "color2": "54483a"}, "asphalt": {"color": "3a3430", "color2": "24201c"}},
 			"light": {"ambient": "4c4c90", "amb_e": 0.75, "key": "ffc898", "key_e": 1.1, "fog": "a86a58", "fog_d": 0.0025,
 				"sun": [-17.0, 235.0], "sky": ["1c2050", "9a4466", "ff8c3c"], "rim": ["6a5aa0", 0.35], "lights": 0.55,
-				"fog_dim": 0.78, "fog_sat": 0.9, "fog_cool": 0.0}
+				"fog_dim": 0.78, "fog_sat": 0.9, "fog_cool": 0.0},
+			"day": {"why": "the badlands' white noon sun on sand", "palette": "sunset", "light": {"ambient": "8a90b0", "key": "fff0d0", "key_e": 1.5, "fog": "c0a880", "fog_d": 0.0022, "sky": ["5a82b8", "a0b8cc", "e8d4b0"]}}
 		},
 		"rancho_coronado": {
 			"why": "NC2045 p.286-293: a corporate beaverville gutted in the war: ruined suburb, tent cities, dead malls, dust; ruined-suburb principle: low broken houses, dead lawns, dust haze, dark streets",
@@ -210,7 +223,8 @@
 			"props": 1.3, "street": ["barrel", "stall", "crate", "rubble"], "cars": 1.0,
 			"walls": {"wall_plaster": {"colors": ["8a7a62", "7a6e5a", "6e6454"]}},
 			"mats": {"grass": {"color": "4a4a2a", "color2": "5a5434"}},
-			"light": {"fog": "2a2016", "fog_d": 0.005, "sky": ["0a0806", "221810", "5a3a1e"], "fog_cool": 0.0}
+			"light": {"fog": "2a2016", "fog_d": 0.005, "sky": ["0a0806", "221810", "5a3a1e"], "fog_cool": 0.0},
+			"day": {"why": "dust haze over the ruined suburb", "light": {"ambient": "8a8ca8", "key": "ffe0b0", "fog": "9a8a6a", "fog_d": 0.0032, "fog_hd": 0.07, "sky": ["6a7a92", "a8a090", "cbb08a"]}}
 		},
 		"reclamation_zone": {
 			"why": "NC2045 p.158-159: rail nomads' young district: rail yards, converted train cars, junk heaps, busy workshops; rail-yard principle: work lights, junk piles, crates, chop shops",
@@ -228,7 +242,8 @@
 			"props": 1.4, "street": ["stall", "barrel", "crate", "pallet"], "cars": 1.2,
 			"mix": {"market": 2},
 			"walls": {"wall_plaster": {"colors": ["8a6a4a", "6a5e4e", "7a4a3a", "5a6a5a"]}},
-			"light": {"fog": "2a1e14", "fog_d": 0.0045, "sky": ["0a0705", "241810", "6a3e1e"], "fog_cool": 0.0}
+			"light": {"fog": "2a1e14", "fog_d": 0.0045, "sky": ["0a0705", "241810", "6a3e1e"], "fog_cool": 0.0},
+			"day": {"why": "nomad dust in the air", "light": {"ambient": "8a8ca8", "key": "ffe0b0", "fog": "9a8a6a", "fog_d": 0.0032, "fog_hd": 0.07, "sky": ["6a7a92", "a8a090", "cbb08a"]}}
 		},
 		"south_night_city": {
 			"why": "NC2045 p.138-139: the Island's oldest combat zone of abandoned warehouses, shanty towns and container housing under smog; slum principle: dark streets, trash heaps, dead lamps, scattered signs",
@@ -236,7 +251,8 @@
 			"lamp": ["ff9a3c"], "lamp_keep": 0.55,
 			"grime": 1.8, "ruin": 0.6, "height": 0, "green": 0.0,
 			"props": 1.3, "street": ["barrel", "crate", "rubble", "pallet"], "cars": 1.0,
-			"light": {"fog": "1e1a12", "fog_d": 0.0055, "sky": ["070605", "1a140c", "4a3418"], "fog_cool": 0.0}
+			"light": {"fog": "1e1a12", "fog_d": 0.0055, "sky": ["070605", "1a140c", "4a3418"], "fog_cool": 0.0},
+			"day": {"why": "smog and dust over the slum", "light": {"ambient": "8a8ca8", "key": "ffe0b0", "fog": "9a8a6a", "fog_d": 0.0032, "fog_hd": 0.07, "sky": ["6a7a92", "a8a090", "cbb08a"]}}
 		},
 		"the_glen": {
 			"why": "NC2045 p.114-117: the new seat of government: civic monuments, glass towers, constant construction, heavy policing; civic-centre principle: pale stone and glass, plazas and lawns, cool white light, barriers",
@@ -248,7 +264,8 @@
 			"mix": {"construction": 2, "plaza": 2, "park": 1},
 			"walls": {"wall_plaster": {"colors": ["c8c4b8", "b0b4b8", "d0ccc0"]}, "wall_concrete": {"colors": ["b8bcc0", "a4a8ac", "c4c4c0"]}},
 			"mats": {"sidewalk": {"color": "a8a8a2", "color2": "7a7a76", "pattern": 4, "scale": 1.0}},
-			"light": {"ambient": "303c54", "amb_e": 0.75, "fog": "121a26", "sky": ["040814", "0e1a2e", "2e4a68"]}
+			"light": {"ambient": "303c54", "amb_e": 0.75, "fog": "121a26", "sky": ["040814", "0e1a2e", "2e4a68"]},
+			"day": {"why": "pale stone and glass under a clean blue sky, cool and bright", "palette": "clinical", "light": {"ambient": "8098c8", "key_e": 1.35, "sky": ["3a6ab0", "86a8d0", "d8dce0"]}}
 		},
 		"university_district": {
 			"why": "NC2045 p.104-105: a walled, armed campus of brown brick and geodesic domes with student bars around it; campus principle: brown brick, quads and trees, warm lamps",
@@ -267,7 +284,8 @@
 			"props": 1.0, "street": ["bench", "planter", "kiosk", "vending"], "cars": 0.8,
 			"mix": {"shop": 1, "construction": 1},
 			"walls": {"wall_plaster": {"colors": ["c8ccd0", "a8b8c0", "d0c8b8", "b0a8b8"]}},
-			"light": {"fog": "0e1a24", "fog_d": 0.0045, "sky": ["03060c", "0a1a2a", "2a4a68"]}
+			"light": {"fog": "0e1a24", "fog_d": 0.0045, "sky": ["03060c", "0a1a2a", "2a4a68"]},
+			"day": {"why": "sea air on the waterfront", "light": {"ambient": "7894c0", "fog": "a8b4bc", "fog_d": 0.003, "fog_hd": 0.07, "sky": ["4a78b0", "90aec8", "d0d4d0"]}}
 		},
 		"watson_development": {
 			"why": "NC2045 p.186-187: the boomtown: new megabuildings, factories and crowded conapts built with Japanese co-prosperity money; boomtown principle: tall new blocks, construction, dense Japanese-style signage",

@@ -131,6 +131,54 @@ const LOOKS := {
 	"warzone": {"ambient": "3a3038", "amb_e": 0.62, "key": "ff8a50", "key_e": 0.5, "fog": "3a2420", "fog_d": 0.0045,
 		"sun": [-12.0, 250.0], "sky": ["120a0c", "4a1a14", "c8501a"], "rim": ["ff6a2a", 0.3], "lights": 0.85,
 		"fog_dim": 0.7, "fog_sat": 0.75, "fog_cool": 0.0},
+	# --- By the hour (Daylight; owner verdict 2026-11-09 "light by the hour"). The night entries
+	# above are untouched: a map at night or after midnight renders exactly as it always has.
+	# Day keys beyond the night ones: "day_factor" (the global shader parameter: lit windows, signs
+	# and glowing trims dim), "neon" (sign and lamp-head glow scale), "out_spill" (baked lamp and
+	# sign spill outdoors: sunlight drowns it), "room_light" (room lamps, scaled: under the roof's
+	# shadow they must read over the sky light), "window_light" [colour, energy]
+	# (daylight through outside doors and glass into rooms), "bloom_th" (bloom threshold: sunlit
+	# walls must not bloom), "unit_key" (the units-only key, scaled: the sun lights them now).
+	# The sun is put where the hour has it (Daylight.sun) unless the look fixes it.
+	# Day: a hazy Night City afternoon, warm sun, cool blue-grey sky light, smog on the horizon.
+	"day": {"ambient": "7890c0", "amb_e": 0.9, "key": "ffe0b8", "key_e": 1.6, "fog": "a8a49a", "fog_d": 0.0022,
+		"fog_h": 1.2, "fog_hd": 0.04, "sky": ["4a72a8", "8aa6c4", "cfc8b4"], "palette": "daylight", "rim": ["c8d0e0", 0.25],
+		"lights": 0.15, "neon": 0.55, "out_spill": 0.2, "room_light": 2.2, "window_light": ["d8e4f0", 1.5], "bloom_th": 1.6, "unit_key": 0.45,
+		"fog_dim": 0.78, "fog_sat": 0.7, "fog_cool": 0.0, "day_factor": 1.0, "grade_sat": 1.15, "day_mats": DAY_MATS},
+	# Dawn: the first hour, a low cold-gold sun under a pale sky; the lamps not yet off.
+	"dawn": {"ambient": "8a90c0", "amb_e": 1.3, "key": "ffd4a8", "key_e": 1.7, "fog": "8a7a8a", "fog_d": 0.003,
+		"fog_h": 1.2, "fog_hd": 0.06, "sky": ["2a3a6a", "8a7ea0", "f0b890"], "palette": "daylight", "rim": ["a0a0d0", 0.28],
+		"lights": 0.45, "neon": 0.8, "out_spill": 0.45, "room_light": 1.6, "window_light": ["c0c8e8", 1.0], "bloom_th": 1.2, "unit_key": 0.65,
+		"fog_dim": 0.75, "fog_sat": 0.65, "fog_cool": 0.0, "day_factor": 0.6, "grade_sat": 1.1, "day_mats": DAY_MATS},
+	# Dusk: the first hour of the night, a low amber sun, the neon coming on.
+	"dusk": {"ambient": "6a5a88", "amb_e": 0.72, "key": "ffb070", "key_e": 1.5, "fog": "8a5a5a", "fog_d": 0.003,
+		"fog_h": 1.2, "fog_hd": 0.06, "sky": ["241c48", "8a4a6a", "ff9a50"], "palette": "sunset", "rim": ["8a6ab0", 0.32],
+		"lights": 0.55, "neon": 0.9, "out_spill": 0.55, "room_light": 1.6, "window_light": ["d0b8a0", 0.9], "bloom_th": 1.1, "unit_key": 0.7,
+		"fog_dim": 0.75, "fog_sat": 0.7, "fog_cool": 0.0, "day_factor": 0.6, "grade_sat": 1.1, "day_mats": DAY_MATS},
+	# The badlands at noon: white sun high over sand, a pale washed-out sky, heat haze.
+	"badlands_day": {"ambient": "8a94b8", "amb_e": 0.7, "key": "fff0d8", "key_e": 1.45, "fog": "c8b090", "fog_d": 0.0018,
+		"sky": ["5a82b8", "a0b8cc", "e8d4b0"], "palette": "sunset", "rim": ["d0c8c0", 0.25], "lights": 0.15, "neon": 0.55,
+		"out_spill": 0.2, "room_light": 2.2, "window_light": ["e0dccc", 1.5], "bloom_th": 1.6, "unit_key": 0.45,
+		"fog_dim": 0.8, "fog_sat": 0.9, "fog_cool": 0.0, "day_factor": 1.0, "grade_sat": 1.1},
+	# The warzone by day: the sun through brown smoke, the fires still burning.
+	"warzone_day": {"ambient": "8a7a70", "amb_e": 0.75, "key": "ffd0a0", "key_e": 1.6, "fog": "6a5040", "fog_d": 0.004,
+		"sky": ["4a3a34", "7a5a44", "b8865a"], "rim": ["ff8a4a", 0.25], "lights": 0.4, "neon": 0.7, "out_spill": 0.35, "room_light": 1.8,
+		"window_light": ["d0b090", 1.0], "bloom_th": 1.3, "unit_key": 0.55, "fog_dim": 0.75, "fog_sat": 0.75, "fog_cool": 0.0, "day_factor": 0.8},
+}
+## By day the night's dark materials are lifted toward a sunlit grey (WorldBuilder.day_tint: [lift,
+## grey, cap]): the navy asphalt and blue-black roofs were made for moonlight, and pale paving is
+## held under burning out in the sun; facades keep their colours.
+const DAY_MATS := {"asphalt": [1.8, 0.85, 0.32], "sidewalk": [1.0, 0.3, 0.42], "concrete": [1.15, 0.3, 0.45], "roof": [1.0, 0.45, 0.42],
+	"cornice": [0.9, 0.6], "far_ground": [3.0, 0.5], "tower": [2.6, 0.35], "tower_top": [2.6, 0.4], "gravel": [1.25, 0.2]}
+## Which LOOKS entry a scene takes in each lit band (Daylight). A band a scene doesn't list keeps
+## its night look: the undercity has no sky, the arcology's atrium is lit the same at any hour.
+## The badlands' approved sunset is its dawn and dusk, and the warzone's fire-lit dusk too.
+const BAND_LOOKS := {
+	"default": {"dawn": "dawn", "day": "day", "dusk": "dusk"},
+	"badlands": {"dawn": "badlands", "day": "badlands_day", "dusk": "badlands"},
+	"warzone": {"dawn": "warzone", "day": "warzone_day", "dusk": "warzone"},
+	"undercity": {},
+	"arcology": {},
 }
 const DECAL := """
 shader_type spatial;
@@ -227,17 +275,40 @@ var sky_mat: ShaderMaterial
 ## This scene's light and palette (LOOKS), defaulting to the night city; a district's look
 ## (SceneTheme light: smog, sea mist, dust) goes over it.
 func _scene_look() -> Dictionary:
-	if m == null:
+	return scene_look(m, _sky)
+
+
+## The look a map is lit by (static, so tests can check it headless). Night and after midnight
+## (Daylight.band_of: a map without an hour too): the scene's LOOKS entry with its district's night
+## light over it, exactly as before the day pass. A tower band: its sky's (tower_top / tower_day).
+## Dawn, day and dusk on any other map: the scene's band look (BAND_LOOKS: the city's day, dawn and
+## dusk; the badlands' noon, its approved sunset at dawn and dusk), the district's own block for the
+## band (district_looks.json day / dawn / dusk: palette and light) over it, the sun put where the
+## hour has it. A mood's air (Atmosphere: sky, fog, smog only) goes over whichever look it is.
+static func scene_look(mp: TacMap, sky_flag := "") -> Dictionary:
+	if mp == null:
 		return LOOKS["default"]
-	var lk: Dictionary = LOOKS.get(String(m.params.get("scene", "")), LOOKS["default"])
+	var scene := String(mp.params.get("scene", ""))
+	var lk: Dictionary = LOOKS.get(scene, LOOKS["default"])
 	# a tower gig plays by day when its gig says so (Campaign.tower_sky, in the map's params); --sky overrides
-	var day := m.is_tower() and (_sky == "day" or (_sky == "" and String(m.params.get("sky", "")) == "day"))
-	var dl: Dictionary = SceneTheme.of(m).get("light", {}) if not day else {}   # by day the tower's own sky, not the district's night
+	var day := mp.is_tower() and (sky_flag == "day" or (sky_flag == "" and String(mp.params.get("sky", "")) == "day"))
+	var band := Daylight.of_map(mp) if not mp.is_tower() else (Daylight.NIGHT if not day else "day")
+	var bl: Dictionary = BAND_LOOKS.get(scene, BAND_LOOKS["default"])
+	var lit := not mp.is_tower() and Daylight.is_lit(band) and bl.has(band)
+	var dl: Dictionary = SceneTheme.of(mp).get("light", {}) if not day and not lit else {}   # by day the tower's own sky, not the district's night
 	if day:
 		lk = LOOKS["tower_day"]
-	# a tower gig's weather (Atmosphere, the gig's mood) over both: the sky, fog and smog, never the
+	elif lit:   # the scene by the light of its hour, the district's block for the band over it
+		lk = LOOKS[String(bl[band])].duplicate()
+		var db: Dictionary = SceneTheme.of(mp).get(band, {})
+		lk.merge(db.get("light", {}), true)
+		if db.has("palette"):
+			lk["palette"] = String(db.palette)
+		if lk.get("sun", []).is_empty():   # a real sun, where the hour puts it
+			lk["sun"] = Daylight.sun(int(mp.params.get("hour", 12)))
+	# a gig's weather (Atmosphere, the gig's mood) over the look: the sky, fog and smog, never the
 	# ambient, key or lamp light the play area is lit by
-	var air := Atmosphere.light(Atmosphere.of(m), day) if m.is_tower() else {}
+	var air := Atmosphere.light(Atmosphere.of(mp), day or lit) if mp.is_tower() or mp.params.has("mood") else {}
 	if dl.is_empty() and air.is_empty():
 		return lk
 	lk = lk.duplicate()
@@ -417,7 +488,7 @@ func _ready() -> void:
 			"gamma": _dev_gamma = float(kv[1])   # review renders: grade power curve x s
 			"ambient": _dev_ambient = float(kv[1])   # review renders: ambient energy x s (lamps: --lights, baked spill: --spill)
 			"street": gig["street"] = kv[1]   # review renders: the scene event (SceneEvent): a row id, <band>.<time>:<id or roll>, or auto
-			"hour": _dev_hour = int(kv[1])   # review renders: with --street=auto, the hour the street is rolled for
+			"hour": _dev_hour = int(kv[1])   # review renders: the hour the map is lit by (Daylight) and --street=auto rolls for; none: night
 			"life_demo": _life_demo = kv[1] != "0"   # review renders: everyday life walks every 2 s without turns passing (GIFs)
 			"life": _life_on = kv[1] != "0"   # review renders: 0 = no everyday life (no ambient bystanders or street FX), for before/after
 			"perf": _perf = true   # review renders: print draw calls, objects and nodes when the shot is taken
@@ -850,14 +921,15 @@ func _apply_look() -> void:
 	post.set_shader_parameter("levels", look.levels)
 	post.set_shader_parameter("dither", look.dither)
 	post.set_shader_parameter("contrast", look.contrast)
-	post.set_shader_parameter("saturation", look.saturation)
+	post.set_shader_parameter("saturation", look.saturation * float(_scene_look().get("grade_sat", 1.0)))   # by day (Daylight) a little more colour
 	post.set_shader_parameter("grade_gamma", GRADE_GAMMA * _dev_gamma)
 	post.set_shader_parameter("outline", look.outline)
 	env.glow_intensity = look.bloom
 	env.glow_strength = 1.0
 	cam.projection = Camera3D.PROJECTION_ORTHOGONAL if look.ortho > 0.5 else Camera3D.PROJECTION_PERSPECTIVE
+	var lamp_k := float(_scene_look().get("lights", 1.0))
 	for l in lights:
-		l[0].light_energy = l[0].get_meta("base", 1.0) * look.lights * float(_scene_look().get("lights", 1.0))
+		l[0].light_energy = l[0].get_meta("base", 1.0) * look.lights * lamp_k
 	_apply_world_look()
 	_place_camera()
 
@@ -885,6 +957,10 @@ func new_gig() -> void:
 			mood = Atmosphere.pick(int(gig.seed), String(World.location(World.tower_location(String(gig.tower))).get("district", "")))
 		if mood != "":
 			o["mood"] = mood
+	elif String(gig.get("mood", "")) != "":   # review renders: a mood's air over any map (Atmosphere), by night or day
+		o["mood"] = Atmosphere.pick(int(gig.seed), did) if String(gig.mood) == "auto" else String(gig.mood)
+	if _dev_hour >= 0:   # review renders: light the map by this hour (Daylight), as --street rolls its scene event for it
+		o["hour"] = _dev_hour
 	if String(gig.get("setpiece", "")) != "":
 		o["setpiece"] = gig.setpiece
 		o["location"] = String(gig.get("location", ""))
@@ -963,6 +1039,11 @@ func new_gig() -> void:
 	var rimc: Array = lk.get("rim", ["5a6aa0", 0.25])
 	rim.light_color = Color(rimc[0])
 	rim.light_energy = rimc[1]
+	# by the hour (Daylight): how much the sun drowns emissive glow (world.gdshader; the sign library
+	# can read it too), a bloom threshold sunlit walls stay under, the units' own key eased off
+	RenderingServer.global_shader_parameter_set("day_factor", float(lk.get("day_factor", 0.0)))
+	env.glow_hdr_threshold = float(lk.get("bloom_th", 0.9))
+	unit_key.light_energy = UNIT_KEY * float(lk.get("unit_key", 1.0))
 	sun.directional_shadow_max_distance = 140.0
 	_apply_look()
 	var played := _autoplay_rounds()
@@ -1116,10 +1197,16 @@ func _build_world() -> void:
 	if slk.has("smog"):   # a tower band: the haze the facade falls into, by night or day
 		builder.smog = Color(String(slk.smog))
 		builder.daylight = bool(slk.get("day", false))
+	builder.day_mats = slk.get("day_mats", {})   # by the hour (Daylight): night-dark streets and roofs lifted for the sun
 	floor_nodes = builder.build(world)
 	for s in builder.surfaces():
 		floor_nodes[int(s.get_meta("floor", 0))].add_child(s)
-	builder.lightfield = LightField.bake(m, enc.los, LightPlan.plan(m, m.seed_value) + LightPlan.fill(m, m.seed_value) + builder.emitters)
+	var baked: Array = LightPlan.plan(m, m.seed_value) + LightPlan.fill(m, m.seed_value) + builder.emitters
+	var wl: Array = slk.get("window_light", [])   # by day (Daylight): lamps and signs outdoors drowned, the sky in through the windows
+	baked = Daylight.bake_lights(m, baked, float(slk.get("out_spill", 1.0)), float(slk.get("room_light", 1.0)))
+	if not wl.is_empty():
+		baked += Daylight.window_light(m, Color(String(wl[0])), float(wl[1]))
+	builder.lightfield = LightField.bake(m, enc.los, baked)
 	devices = DeviceView.new()
 	world.add_child(devices)
 	devices.ap_led = ap_led
@@ -1229,6 +1316,7 @@ func _decal(col: Color, size: float, ring_mode: bool, pulse: float, shadow := fa
 func _build_lights() -> void:
 	fires.clear()
 	var failing: Array = []   # [light, glow mesh]: the odd sign or lamp on its way out (AmbientFx.flicker)
+	var neon_k := float(_scene_look().get("neon", 1.0))   # by day (Daylight) signs and lamp heads are lit panels, not glowing
 	for e in LightPlan.plan(m, m.seed_value) + LightPlan.fill(m, m.seed_value):
 		var cell: Vector3i = e.cell
 		var fn: Node3D = floor_nodes[cell.z]
@@ -1239,7 +1327,7 @@ func _build_lights() -> void:
 				var lampm := MeshInstance3D.new()
 				var pb := BoxMesh.new()
 				pb.size = Vector3(0.22, 0.05, 0.12) if e.out.y != 0 else Vector3(0.12, 0.05, 0.22)
-				pb.material = _unlit(e.color, 1.0, 1.4)
+				pb.material = _unlit(e.color, 1.0, 1.4 * neon_k)
 				lampm.mesh = pb
 				lampm.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 				lampm.position = base + pout * 0.62 + Vector3(0, 1.42, 0)
@@ -1259,7 +1347,7 @@ func _build_lights() -> void:
 				var sign := MeshInstance3D.new()
 				var bm := BoxMesh.new()
 				bm.size = Vector3(0.75, 0.16, 0.06) if e.out.y != 0 else Vector3(0.06, 0.16, 0.75)
-				bm.material = _unlit(e.color, 1.0, 1.5)
+				bm.material = _unlit(e.color, 1.0, 1.5 * neon_k)
 				sign.mesh = bm
 				sign.position = base + out * 0.55 + Vector3(0, 1.3, 0)
 				fn.add_child(sign)
@@ -1278,7 +1366,7 @@ func _build_lights() -> void:
 				var lens := MeshInstance3D.new()
 				var lb := BoxMesh.new()
 				lb.size = Vector3(0.15, 0.09, 0.02) if e.out.y != 0 else Vector3(0.02, 0.09, 0.15)
-				lb.material = _unlit(e.color, 1.0, 1.6)
+				lb.material = _unlit(e.color, 1.0, 1.6 * neon_k)
 				lens.mesh = lb
 				lens.position = hous.position + outv * 0.07
 				fn.add_child(lens)
@@ -1304,7 +1392,7 @@ func _build_lights() -> void:
 				var head := MeshInstance3D.new()
 				var hm := BoxMesh.new()
 				hm.size = Vector3(0.11, 0.015, 0.11)
-				hm.material = _unlit(e.color, 1.0, 1.4)
+				hm.material = _unlit(e.color, 1.0, 1.4 * neon_k)
 				head.mesh = hm
 				head.position = base + Vector3(0.22, 1.485, 0.3)
 				fn.add_child(head)
@@ -6534,16 +6622,16 @@ const STREET_BEDS := {"corporate": "amb_corp", "moderate": "amb_city", "combat_z
 
 
 ## [band, time] of the street round this gig: the scene event's, else the campaign gig's (its codes
-## and the clock), else the dev map's district by night.
+## and its hour), else the dev map's district; the time is the hour the map is lit by (Daylight).
 func _street_key() -> Array:
 	if not enc.scene_event.is_empty():
 		return [String(enc.scene_event.band), String(enc.scene_event.time)]
 	if _campaign_gig and Campaign.current:
 		var g: Dictionary = Campaign.current.active_gig
-		return [SceneEvent.band_for(g), SceneEvent.time_of(Campaign.current.minutes, String(g.get("sky", "")))]
+		return [SceneEvent.band_for(g), Daylight.time_of(Daylight.of_map(m))]   # the hour the map is lit by (Daylight)
 	var did := String(gig.get("district", ""))
 	var dc := SecurityCode.normalise(World.district(did).get("security_code")) if did != "" else {}
-	return [SceneEvent.band_of(-1, int(dc.get("n", -1)), String(World.district(did).get("profile", "")) if did != "" else "", String(m.params.get("scene", "")), did), "night"]
+	return [SceneEvent.band_of(-1, int(dc.get("n", -1)), String(World.district(did).get("profile", "")) if did != "" else "", String(m.params.get("scene", "")), did), Daylight.time_of(Daylight.of_map(m))]
 
 
 ## The layer over the bed: a club's beat through the wall (a club, a bar or a rave by night, or the
