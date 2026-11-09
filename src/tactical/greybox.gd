@@ -279,6 +279,7 @@ var _shot_hover := Vector2i(-1, -1)
 var _frames := 0
 var _reveal := false
 var _walk := 0
+var _autoplay := 0   ## review renders (--autoplay=n): both sides play n rounds by the soak's AI first
 var _focus := ""
 var _shot_floor := -1
 var _dev_inside: Array = []   ## review renders: crew member i stands in the i-th building (nearest the crew first) on its storey [i] (-1 stays out), or "b:s": building b, storey s
@@ -429,6 +430,8 @@ func _ready() -> void:
 				_reveal = true
 			"walk":  # review renders: the crew walks n squares toward the target first
 				_walk = int(kv[1])
+			"autoplay":  # review renders: the soak's stand-in player and the AI play n rounds first (mid-gig shots)
+				_autoplay = int(kv[1])
 			"focus":  # review renders: centre the camera on a square ("center" = the target building)
 				_focus = kv[1]
 			"attack":  # review renders: the active crew member fires at the nearest guard
@@ -913,12 +916,14 @@ func new_gig() -> void:
 	rim.light_energy = rimc[1]
 	sun.directional_shadow_max_distance = 140.0
 	_apply_look()
+	var played := _autoplay_rounds()
 	_blueprint = FloorNav.blueprint_floors(m.floors, enc.alive(0).map(func(u): return u.pos))
 	_bp_shown.clear()
 	_build_world()
 	_last_cur = -1
-	_frame_unit(enc.units[0])
-	enc.next_turn()
+	_frame_unit(enc.units[0] if not played else enc.cur)
+	if not played:
+		enc.next_turn()
 	if _reveal:
 		for f in m.floors:
 			for y in m.h:
@@ -4704,6 +4709,27 @@ func _update_obj_zones() -> void:
 			q.material_override = _unlit(tones.get(String(z.get("tone", "gold")), Hud.GOLD), 0.18, 1.0)
 			q.position = Vector3(cell.x + 0.5, _gy(cell) + 0.025, cell.y + 0.5)
 			zn.add_child(q)
+
+
+## Review renders (--autoplay=n): the gig plays itself for n rounds (SoakDriver's stand-in for the
+## player, the guards' own AI), before the world is built, so the shot shows it mid-gig. Locks are
+## left as they are. True if it ran (the turn it stops on is a crew turn: next_turn already ran).
+func _autoplay_rounds() -> bool:
+	if _autoplay <= 0:
+		return false
+	var drv := SoakDriver.new()
+	enc.next_turn()
+	var guard := 0
+	while enc.state == "playing" and enc.init.round_num <= _autoplay and guard < 400:
+		guard += 1
+		drv._crew_turn(enc)
+		if enc.state == "playing":
+			enc.end_turn()
+		if enc.state == "playing":
+			enc.next_turn()
+	enc.events.clear()   # what happened is history: the shot shows where it stands
+	enc.refresh_vision()
+	return true
 
 
 var _settling := false     ## _finish_gig is under way: once per gig

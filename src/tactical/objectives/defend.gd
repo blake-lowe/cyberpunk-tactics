@@ -44,6 +44,10 @@ func setup(target_sid: int, origin: Vector2i, sec: int) -> void:
 	var spots := zone.duplicate()
 	spots.sort_custom(func(a, b): return Vector2(a.x - cell.x, a.y - cell.y).length() < Vector2(b.x - cell.x, b.y - cell.y).length() or \
 		(Vector2(a.x - cell.x, a.y - cell.y).length() == Vector2(b.x - cell.x, b.y - cell.y).length() and a < b))
+	var aps := SceneGen.access_point_cells(e.m)   # not in jack-in reach of a terminal (a start never hands the NET over)
+	var off := spots.filter(func(v): return not SceneGen.any_jack_reach(e.los, [v], aps))
+	if off.size() >= e.units.filter(func(u): return int(u.team) == Encounter.CREW).size():
+		spots = off
 	var k := 0
 	for u in e.units:
 		if int(u.team) == Encounter.CREW and k < spots.size():

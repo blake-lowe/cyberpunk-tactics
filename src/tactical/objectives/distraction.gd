@@ -91,6 +91,9 @@ func act(action: String) -> Dictionary:
 	e.say("%s trips the alarm." % e.cur.c.display_name)
 	e.events.append({"type": "alarm_panel", "unit": e.cur.id, "cell": o.panel})
 	e.call_it_in(e.cur)
+	var called := "%s calls it in." % e.cur.c.display_name   # the panel calls it in, not the crew member
+	if not e.log.is_empty() and e.log[-1].begins_with(called):
+		e.log[-1] = "The alarm goes out." + e.log[-1].substr(called.length())
 	e.alarm = 2   # with responses switched off (balance tests) nobody comes, but the alarm's still up
 	var radio := float(e.doctrine.get("alarm", {}).get("radio_range", 20.0))   # the bell rouses the guards in radio range of it
 	var p: Vector3i = o.panel
