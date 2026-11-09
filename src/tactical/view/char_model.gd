@@ -97,7 +97,8 @@ func _make(team: int, idx: int, role: String, weapon: String, faction := "") -> 
 	set_meta("team", team)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(idx * 131 + team * 7 + 3)
-	var sex := "female" if rng.randf() < 0.45 else "male"
+	var sex := Recruit.body_of(idx, team)   # the same roll, so a recruit's name fits their body
+	rng.randf()   # (body_of's draw: the outfit rolls follow it)
 	look["body"] = sex
 	var body: Node3D = (load(BODY[sex]) as PackedScene).instantiate()
 	body.scale = Vector3.ONE * SCALE

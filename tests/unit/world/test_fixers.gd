@@ -11,7 +11,13 @@ func test_fixers_resolve() -> void:
 		assert_true(String(f.get("name", "")) != "", "%s: a name" % id)
 		assert_between(float(f.get("rank", 0)), 1.0, 10.0, "%s: a Fixer rank" % id)
 		assert_true(String(f.roles).contains("Fixer %d" % int(f.rank)), "%s: rank matches the printed roles" % id)
-		assert_true(World.districts().has(String(f.district)), "%s: district %s exists" % [id, f.district])
+		var spm := String(f.get("cite", "")).begins_with("SPM p.")   # Single Player Mode canon fixers: no district
+		if spm and String(f.district) == "":
+			assert_eq(String(f.get("location", "")), "", "%s: no district, no place" % id)
+		else:
+			assert_true(World.districts().has(String(f.district)), "%s: district %s exists" % [id, f.district])
+		if f.has("faction"):
+			assert_false(World.faction(String(f.faction)).is_empty(), "%s: faction %s exists" % [id, f.faction])
 		for d in f.get("also", []):
 			assert_true(World.districts().has(String(d)), "%s: also-district %s exists" % [id, d])
 		var lid := String(f.get("location", ""))
@@ -19,15 +25,26 @@ func test_fixers_resolve() -> void:
 			assert_false(World.location(lid).is_empty(), "%s: location %s exists" % [id, lid])
 			assert_eq(String(World.location(lid).district), String(f.district), "%s: works where their place is" % id)
 		assert_true(not (f.get("deals_in", []) as Array).is_empty(), "%s: deals in something" % id)
-		assert_true(String(f.get("cite", "")).begins_with("NC2045 p."), "%s: cited" % id)
+		assert_true(String(f.get("cite", "")).begins_with("NC2045 p.") or spm, "%s: cited" % id)
 
 
 func test_each_fixer_is_named_in_their_district_doc() -> void:
 	for id in World.fixers():
 		var f := World.fixer(String(id))
-		for d in [String(f.district)] + Array(f.get("also", [])):
+		for d in ([String(f.district)] if String(f.district) != "" else []) + Array(f.get("also", [])):
 			var text := FileAccess.get_file_as_string("res://docs/world/nc_%s.md" % d)
 			assert_true(text.contains(String(f.name)), "%s is in docs/world/nc_%s.md" % [f.name, d])
+
+
+## The ten canon Fixers of Single Player Mode's NPCs by Role (SPM p.57) are all in the data, the six
+## NC2045 also has under their NC2045 names.
+func test_spm_canon_fixers_are_all_present() -> void:
+	var names: Array = World.fixers().values().map(func(f): return String(f.name))
+	for n in ["3-Piece", "Flasher", "Grease", "Lowball", "Mister Kernaghan", "Molly Anderson", "Ms. Mynah", "Rex Royale", "Maze", "Woodchipper"]:
+		assert_true(names.any(func(x): return String(x).contains(n)), "%s is a fixer" % n)
+	for id in ["grease", "lowball", "molly_anderson", "rex_royale"]:
+		assert_true(String(World.fixer(id).get("cite", "")).begins_with("SPM p.57"), "%s cites SPM" % id)
+	assert_true(String(World.fixers().molly_anderson.faction) == "andersons" and String(World.faction("andersons").get("leader", "")) == "Molly Anderson")
 
 
 func test_every_district_but_new_westbrook_has_a_fixer() -> void:

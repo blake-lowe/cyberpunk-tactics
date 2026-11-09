@@ -220,6 +220,8 @@ func _recruit_card(i: int, full: bool) -> PanelContainer:
 	nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(nm)
 	nm.add_child(UiKit.fit(UiKit.head(r.display_name, 28)))
+	if r.real_name != "":   # the person behind the handle (Names)
+		nm.add_child(UiKit.fit(UiKit.label(r.real_name, 13, Hud.DIM)))
 	nm.add_child(UiKit.label("%s · RANK %d" % [r.role, r.role_rank], 14, Hud.CYAN))
 	nm.add_child(UiKit.label("HP %d" % r.max_hp(), 14, Hud.GREEN))
 	col.add_child(stat_grid(r))

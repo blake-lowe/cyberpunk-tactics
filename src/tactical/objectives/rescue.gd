@@ -12,9 +12,10 @@ extends Objective
 ## Recruit.civilian_blocks), stripped of their weapons.
 func setup(target_sid: int, origin: Vector2i, _sec: int) -> void:
 	var cell := e.secure_cell(target_sid, origin, "captive")
-	var names: Array = cfg.names
 	var blocks := Recruit.civilian_blocks()
-	var c := Recruit.civilian(e.dice, blocks[e.dice.d(blocks.size()) - 1], String(names[e.dice.d(names.size()) - 1]))
+	var block: String = blocks[e.dice.d(blocks.size()) - 1]
+	var name := Names.full_name(Names.sub_dice(e.dice))   # a Night City person: one draw, as the old fixed list took one die
+	var c := Recruit.civilian(e.dice, block, name)
 	c.weapons.clear()
 	c.hp = maxi(1, c.max_hp() / 2)   # roughed up
 	c.faction = "captive"

@@ -1,0 +1,64 @@
+{
+	"_doc": "People of Night City (People.roll / People.types): who a client, an assassination mark or a rescue captive is. A d10 picks the zone (Corporate/Upscale 1-3, Moderate/Community 4-6, Street/Combat Zone 7-9, Outskirts 10), then the zone's die picks a type of person. Schema: zones.<id> = {name, zone_roll [lo, hi] on the d10, die ('1d10' or '2d10'), cite, types: [{id, label, roll [lo, hi] on the zone's die, kind}]}. `label` is a short paraphrased role label (lower case, reads after 'a'/'an'); `kind` is a coarse tag for other systems: corp, civic, street, crime, media, tech, medic, nomad, ai, kin. Table structure and entries from R. Talsorian's Cyberpunk RED: Single Player Mode, printed p.50-51 (paraphrased labels only, no book text).",
+	"_provenance": "Cyberpunk RED: Single Player Mode (R. Talsorian Games), People of Night City, printed p.50-51. Short paraphrased labels with page cites; the book's own text is not reproduced.",
+	"zone_die": "1d10",
+	"zones": {
+		"corporate": {"name": "Corporate/Upscale", "zone_roll": [1, 3], "die": "1d10", "cite": "SPM p.50", "types": [
+			{"id": "c_suite_exec", "label": "high-ranking exec", "roll": [1, 1], "kind": "corp"},
+			{"id": "department_head", "label": "corporate department head", "roll": [2, 2], "kind": "corp"},
+			{"id": "middle_manager", "label": "junior exec", "roll": [3, 3], "kind": "corp"},
+			{"id": "ai_entity", "label": "AI entity", "roll": [4, 4], "kind": "ai"},
+			{"id": "security_specialist", "label": "corporate security specialist", "roll": [5, 5], "kind": "corp"},
+			{"id": "corp_scientist", "label": "corporate scientist", "roll": [6, 6], "kind": "tech"},
+			{"id": "corp_messenger", "label": "corporate messenger", "roll": [7, 7], "kind": "corp"},
+			{"id": "pr_expert", "label": "corporate PR specialist", "roll": [8, 8], "kind": "corp"},
+			{"id": "corp_spy", "label": "corporate spy", "roll": [9, 9], "kind": "corp"},
+			{"id": "corp_dependent", "label": "exec's spouse or child", "roll": [10, 10], "kind": "kin"}
+		]},
+		"moderate": {"name": "Moderate/Community", "zone_roll": [4, 6], "die": "1d10", "cite": "SPM p.50", "types": [
+			{"id": "salaryman", "label": "salaryman", "roll": [1, 1], "kind": "corp"},
+			{"id": "media_or_rocker", "label": "media or rocker", "roll": [2, 2], "kind": "media"},
+			{"id": "local_law", "label": "local cop, guard or private eye", "roll": [3, 3], "kind": "civic"},
+			{"id": "small_business", "label": "small-business owner", "roll": [4, 4], "kind": "civic"},
+			{"id": "fixer", "label": "neighbourhood fixer", "roll": [5, 5], "kind": "crime"},
+			{"id": "activist", "label": "activist", "roll": [6, 6], "kind": "civic"},
+			{"id": "child", "label": "kid", "roll": [7, 7], "kind": "kin"},
+			{"id": "courier", "label": "delivery courier", "roll": [8, 8], "kind": "civic"},
+			{"id": "freelance_tech", "label": "freelance tech", "roll": [9, 9], "kind": "tech"},
+			{"id": "medtech", "label": "medtech", "roll": [10, 10], "kind": "medic"}
+		]},
+		"street": {"name": "Street/Combat Zone", "zone_roll": [7, 9], "die": "2d10", "cite": "SPM p.50", "types": [
+			{"id": "ganger", "label": "ganger", "roll": [2, 2], "kind": "crime"},
+			{"id": "gang_boss", "label": "gang boss", "roll": [3, 3], "kind": "crime"},
+			{"id": "street_performer", "label": "street performer", "roll": [4, 4], "kind": "media"},
+			{"id": "streetrat_courier", "label": "streetrat runner", "roll": [5, 5], "kind": "street"},
+			{"id": "civilian", "label": "civilian with a family", "roll": [6, 6], "kind": "kin"},
+			{"id": "edgerunner", "label": "edgerunner", "roll": [7, 7], "kind": "street"},
+			{"id": "street_fixer", "label": "street fixer", "roll": [8, 8], "kind": "crime"},
+			{"id": "street_vendor", "label": "street vendor", "roll": [9, 9], "kind": "street"},
+			{"id": "netrunner", "label": "netrunner for hire", "roll": [10, 10], "kind": "tech"},
+			{"id": "scavver", "label": "homeless scavver", "roll": [11, 11], "kind": "street"},
+			{"id": "cyberpsycho", "label": "cyberpsycho", "roll": [12, 12], "kind": "street"},
+			{"id": "bounty_hunter", "label": "bounty hunter", "roll": [13, 13], "kind": "street"},
+			{"id": "street_racer", "label": "nomad street racer", "roll": [14, 14], "kind": "nomad"},
+			{"id": "ripperdoc", "label": "ripperdoc", "roll": [15, 15], "kind": "medic"},
+			{"id": "dealer", "label": "drug dealer", "roll": [16, 16], "kind": "crime"},
+			{"id": "slumming_exec", "label": "exec slumming it", "roll": [17, 17], "kind": "corp"},
+			{"id": "local_tech", "label": "local tech", "roll": [18, 18], "kind": "tech"},
+			{"id": "trauma_medic", "label": "Trauma Team medic", "roll": [19, 19], "kind": "medic"},
+			{"id": "cab_driver", "label": "armoured-cab driver", "roll": [20, 20], "kind": "street"}
+		]},
+		"outskirts": {"name": "Outskirts", "zone_roll": [10, 10], "die": "1d10", "cite": "SPM p.51", "types": [
+			{"id": "nomad_leader", "label": "nomad leader", "roll": [1, 1], "kind": "nomad"},
+			{"id": "nomad", "label": "nomad", "roll": [2, 2], "kind": "nomad"},
+			{"id": "smuggler", "label": "smuggler", "roll": [3, 3], "kind": "crime"},
+			{"id": "long_hauler", "label": "corporate long-hauler", "roll": [4, 4], "kind": "corp"},
+			{"id": "badlands_scavver", "label": "badlands scavver", "roll": [5, 5], "kind": "street"},
+			{"id": "reclaimer", "label": "reclaimer", "roll": [6, 6], "kind": "nomad"},
+			{"id": "wanted_criminal", "label": "wanted criminal", "roll": [7, 7], "kind": "crime"},
+			{"id": "survivalist", "label": "survivalist", "roll": [8, 8], "kind": "nomad"},
+			{"id": "farmer", "label": "farmer", "roll": [9, 9], "kind": "civic"},
+			{"id": "corp_scout", "label": "corporate scout", "roll": [10, 10], "kind": "corp"}
+		]}
+	}
+}

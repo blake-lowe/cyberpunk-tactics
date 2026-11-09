@@ -39,6 +39,8 @@ func build_body(body: VBoxContainer) -> void:
 	hv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(hv)
 	hv.add_child(UiKit.head(c.display_name, 36))
+	if c.real_name != "":   # the person behind the handle (Names)
+		hv.add_child(UiKit.label(c.real_name, 14, Hud.DIM))
 	hv.add_child(UiKit.label("%s · RANK %d · %d IP · REPUTATION %d" % [c.role, c.role_rank, c.ip, c.reputation], 15, Hud.CYAN))
 	head.add_child(_recover())
 	var grid := UiKit.hbox(10)

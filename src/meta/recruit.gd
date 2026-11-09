@@ -24,11 +24,21 @@ const LOADOUT := {
 	"nomad": ["shotgun", "heavy_melee"],
 }
 
-const HANDLES := ["Ghost", "Razor", "Mox", "Static", "Jinx", "Bones", "Echo", "Vex", "Kilo", "Neon",
-	"Rook", "Saint", "Dice", "Wraith", "Chrome", "Lotus", "Patch", "Hex", "Torque", "Sable"]
+## The share of bodies drawn female (CharModel's look roll, body_of). HOUSE-RULE.
+const FEMALE_BODY := 0.45
+## A recruit's name given their body (Names.GENDERS): HOUSE-RULE, mostly the matching list, now and
+## then nonbinary.
+const NAME_GENDER := {"female": {"femme": 0.88, "nonbinary": 0.12}, "male": {"masc": 0.88, "nonbinary": 0.12}}
 
 
-static func generate(dice: Dice, role: String, method: String = "edgerunner", handle: String = "") -> Combatant:
+## A recruit of `role` built by `method`, with a real name (Combatant.real_name) and a street
+## handle (Names, data/gen/names.json and handles.json). `handle` fixes the handle; `taken` lists
+## names and handles already in use (the crew and the other recruits: none is repeated); `look` is
+## their look seed (Combatant.look_seed: their body, so the name fits it; -1 leaves it unset).
+## Naming draws one number from `dice` for its own sub-roll (Names.sub_dice), as the old fixed
+## handle list drew one die, so the rest of the build rolls as before; with a fixed `handle` it
+## draws none (the name is seeded from the dice's state).
+static func generate(dice: Dice, role: String, method: String = "edgerunner", handle: String = "", taken: Array = [], look := -1) -> Combatant:
 	var rd: Dictionary = RulesDB.load_json("roles.json")["roles"][role]
 	var rows: Array = rd["stat_rows"]
 	var stats := {}
@@ -41,9 +51,20 @@ static func generate(dice: Dice, role: String, method: String = "edgerunner", ha
 	for s in skills:
 		skills[s] = int(skills[s])
 
+	var nd: Dice   # naming: where the old handle roll was, so the rolls after it are unchanged
 	if handle == "":
-		handle = HANDLES[dice.d(HANDLES.size()) - 1]
+		nd = Names.sub_dice(dice)
+	else:
+		var hs := hash([dice.rng.state, handle, role])
+		nd = Dice.new(hs if hs != 0 else 1)
+	var gender := Names.pick_weighted(nd, NAME_GENDER[body_of(look)]) if look >= 0 else Names.roll_gender(nd)
+	var who := Names.person(nd, gender, "", taken)
+	if handle == "":
+		handle = Names.handle(nd, String(who.given), taken)
 	var c := Combatant.new(handle, stats, skills)
+	c.real_name = String(who.full)
+	if look >= 0:
+		c.look_seed = look
 	c.role = role
 	c.role_rank = 4  # p142
 	if role == "netrunner":   # starting deck Programs (p98: Armor, Sword, and one more; ours: those two)
@@ -63,6 +84,14 @@ static func generate(dice: Dice, role: String, method: String = "edgerunner", ha
 	if role == "solo":
 		_default_awareness(c)
 	return c
+
+
+## The body a crew member's look seed gives them on team `team` ("female" or "male"): the roll
+## CharModel makes for their model, here so a recruit's name can fit it.
+static func body_of(look: int, team := 0) -> String:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(look * 131 + team * 7 + 3)
+	return "female" if rng.randf() < FEMALE_BODY else "male"
 
 
 static func _edgerunner_skills(dice: Dice, rd: Dictionary) -> Dictionary:

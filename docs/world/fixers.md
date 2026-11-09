@@ -20,7 +20,11 @@ At `fixers.fixers.<id>` (id: snake_case of the name, nickname dropped, e.g. `bar
   food, gigs (books jobs for edgerunners), guide, ids, information, investments, labour, loans, luxury,
   media, mediation, medical, netrunning, nomads, programs, property, sabotage, salvage, smuggling,
   supplies, vehicles, veterans, weapons. `data/gen/gigs.json` `fixer_tags` says which tags suit which gig kind.
-- `cite`: `"NC2045 p.N"`; a district chapter range where the Fixers list gives no page.
+- `cite`: `"NC2045 p.N"`; a district chapter range where the Fixers list gives no page. Fixers from the
+  Single Player Mode book (below) cite `"SPM p.N"` (printed page).
+- `district` is `""` for a Fixer no source places in a district (the SPM canon fixers below): they work
+  the whole city and only get jobs where no district Fixer is at hand (`Campaign._pick_fixer`'s fallback).
+- `faction` (optional): the `factions.factions` id of a gang or outfit the Fixer leads.
 
 Left out on purpose (no Fixer rank, or no name): New Westbrook's brokers (Diana, Sizzle Jams, Tom Dolby:
 the doc notes no Fixer is named there), Ginkgo (Little China, Tech 4), "The Knife" (Kabuki, an assassin a few
@@ -152,4 +156,39 @@ Districts without a Fixer of their own (New Westbrook) get jobs from Fixers in n
 		"jenny_nails": {"name": "Jenny Nails", "rank": 3, "roles": "Fixer 3/Solo 6", "district": "watson_development", "location": "watson_development_25", "deals_in": ["fights", "crime"], "cite": "NC2045 p.194"}
 	}
 }
+```
+
+## Canon fixers from Single Player Mode
+
+The Single Player Mode book's NPCs by Role list ten canon Fixers (SPM p.57). Six are already above from
+NC2045: 3-Piece, Mister Kernaghan, Ms. Mynah, Woodchipper, Flasher (Mal "Flasher" Devincher) and Willy Maze
+(William "Mr. AMAAAZE!" Maze, Port of Night City). The other four follow. SPM gives each a one-line note but
+no Fixer rank and no district, so each has `district` `""` and a rank picked from the note.
+HOUSE-RULE: the ranks (SPM prints none).
+
+**Grease.** A street-level Fixer who is still making his name; a natural first contact for a crew nobody
+knows. Rank 2 (HOUSE-RULE). *(SPM p.57.)*
+
+```world fixers.fixers.grease
+{"name": "Grease", "rank": 2, "roles": "Fixer 2", "district": "", "location": "", "deals_in": ["gigs", "combat"], "cite": "SPM p.57"}
+```
+
+**Lowball.** A Fixer whose clients are corporations. Rank 5 (HOUSE-RULE). *(SPM p.57.)*
+
+```world fixers.fixers.lowball
+{"name": "Lowball", "rank": 5, "roles": "Fixer 5", "district": "", "location": "", "deals_in": ["gigs", "information"], "cite": "SPM p.57"}
+```
+
+**Molly Anderson.** Leads the Andersons, an ageing family yogang (`factions.andersons`, whose scavvers and
+thieves feed her Night Market supply chain, NC2045 p.33; the gang has no fixed territory). Rank 4
+(HOUSE-RULE). *(SPM p.57; NC2045 p.33.)*
+
+```world fixers.fixers.molly_anderson
+{"name": "Molly Anderson", "rank": 4, "roles": "Fixer 4", "district": "", "location": "", "deals_in": ["salvage", "crime", "supplies"], "faction": "andersons", "cite": "SPM p.57; NC2045 p.33"}
+```
+
+**Rex Royale.** A casino-themed Fixer who sells weapons and combat gear. Rank 5 (HOUSE-RULE). *(SPM p.57.)*
+
+```world fixers.fixers.rex_royale
+{"name": "Rex Royale", "rank": 5, "roles": "Fixer 5", "district": "", "location": "", "deals_in": ["weapons", "armor", "betting"], "cite": "SPM p.57"}
 ```

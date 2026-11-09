@@ -29,7 +29,8 @@ func test_the_mark_sits_deep_with_bodyguards() -> void:
 	var guards := e.units.filter(func(u): return u.get("bodyguard", false) and e.adjacent(u.pos, vip.pos))
 	assert_eq(guards.size(), 2, "two bodyguards beside the mark")
 	assert_false((e.objective.exits as Array).is_empty(), "the mark has somewhere to run")
-	assert_true(String(e.objective.name) != "", "the mark has a name")
+	assert_true(Names.is_person_name(String(e.objective.name)), "the mark has a generated Night City name (%s)" % e.objective.name)
+	assert_eq(vip.c.display_name, String(e.objective.name))
 
 
 func test_the_mark_runs_when_alerted_and_escape_fails_the_job() -> void:
@@ -305,7 +306,7 @@ func test_the_captive_is_a_civilian() -> void:
 	var cap: Dictionary = e.units[int(e.objective.captive)]
 	assert_true(String(cap.c.block) in Recruit.civilian_blocks(), "one of Night City's civilians (%s)" % cap.c.block)
 	assert_true(cap.c.weapons.is_empty(), "disarmed")
-	assert_true(String(cap.c.display_name) in (RulesDB.gen("objectives.json").rescue.names as Array), "under one of the job's names")
+	assert_true(Names.is_person_name(String(cap.c.display_name)), "a generated Night City name (%s)" % cap.c.display_name)
 
 
 func test_a_corp_mark_is_an_executive_and_a_police_mark_one_of_their_own() -> void:

@@ -1119,6 +1119,57 @@
 				"crime"
 			],
 			"cite": "NC2045 p.194"
+		},
+		"grease": {
+			"name": "Grease",
+			"rank": 2,
+			"roles": "Fixer 2",
+			"district": "",
+			"location": "",
+			"deals_in": [
+				"gigs",
+				"combat"
+			],
+			"cite": "SPM p.57"
+		},
+		"lowball": {
+			"name": "Lowball",
+			"rank": 5,
+			"roles": "Fixer 5",
+			"district": "",
+			"location": "",
+			"deals_in": [
+				"gigs",
+				"information"
+			],
+			"cite": "SPM p.57"
+		},
+		"molly_anderson": {
+			"name": "Molly Anderson",
+			"rank": 4,
+			"roles": "Fixer 4",
+			"district": "",
+			"location": "",
+			"deals_in": [
+				"salvage",
+				"crime",
+				"supplies"
+			],
+			"faction": "andersons",
+			"cite": "SPM p.57; NC2045 p.33"
+		},
+		"rex_royale": {
+			"name": "Rex Royale",
+			"rank": 5,
+			"roles": "Fixer 5",
+			"district": "",
+			"location": "",
+			"deals_in": [
+				"weapons",
+				"armor",
+				"betting"
+			],
+			"cite": "SPM p.57"
 		}
 	}
 }
