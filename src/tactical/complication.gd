@@ -18,9 +18,14 @@ extends RefCounted
 ## hold_cover, command), trap, facedown, reputation, role_ability, cyberware_eb, smoke and EMP
 ## grenades (no kit use yet), and the empty fx.
 
-## HOUSE-RULE pacing: one gig in three rolls a complication. The DLCs roll one per encounter, and a
-## gig holds several encounters' worth of guards; every gig would make them routine.
-const CHANCE_IN := 3
+## Whether a gig runs into one is a Closed Question put to the Oracle (Oracle; SPM p.12-13): "Is
+## the opposition ready with something extra?" (yes is the interesting answer). Either yes answer
+## springs one; the answer is kept on it as `oracle`. HOUSE-RULE: how likely yes is by the gig's 1-3
+## security level, i.e. how hard the place is guarded (SecurityCode.level): Light places Impossible
+## (10%), Medium Unlikely (35%, about the one gig in three this replaced), Heavy 50/50 (60%). The
+## DLCs roll one per encounter, and a gig holds several encounters' worth of guards; on every gig
+## they'd be routine, so a crew nobody knows rarely meets one and a fortress often does.
+const LIKELIHOOD := {1: "impossible", 2: "unlikely", 3: "even"}
 const TIERS := ["mini_boss", "lieutenant", "mook"]   ## strongest first
 const TIER_NAMES := {"mook": "Mook", "lieutenant": "Lieutenant", "mini_boss": "Mini Boss"}
 ## Unit keys the per-unit appliers handle (everything else is a whole-encounter key or skipped).
@@ -32,9 +37,19 @@ static func table(tier: String) -> Array:
 	return (RulesDB.load_json("npcs.json").get("complications", {}) as Dictionary).get(tier, [])
 
 
-## Does this gig get a complication? 1 in CHANCE_IN.
-static func happens(dice: Dice) -> bool:
-	return dice.d(CHANCE_IN) == 1
+## The Oracle's likelihood that a gig at security level `level` (1-3) runs into a complication.
+static func likelihood(level: int) -> String:
+	return String(LIKELIHOOD[clampi(level, 1, 3)])
+
+
+## Ask the Oracle whether a gig at security level `level` gets a complication (Oracle.ask).
+static func ask(dice: Dice, level: int) -> Dictionary:
+	return Oracle.ask(dice, likelihood(level))
+
+
+## Does a gig at security level `level` get a complication? The Oracle's yes (either kind).
+static func happens(dice: Dice, level := 2) -> bool:
+	return bool(ask(dice, level).yes)
 
 
 ## The strongest tier with a table among the opposition's people standing, "" if none.
@@ -45,8 +60,9 @@ static func top_tier(e: Encounter) -> String:
 	return ""
 
 
-## Roll for (CHANCE_IN) and apply a complication on `e`, recording it in e.complication and the
-## log. `force` picks one instead: {tier?, roll?} (tests, the greybox --complication flag; a
+## Ask the Oracle (likelihood by the map's security level) and on a yes apply a complication on
+## `e`, recording it in e.complication and the log. `force` picks one instead: {tier?, roll?}
+## (tests, the greybox --complication flag, a fixer's intel asked ahead: Campaign.foresee; a
 ## missing roll is rolled). Returns e.complication ({} if none).
 static func start(e: Encounter, force: Dictionary = {}) -> Dictionary:
 	var tier := String(force.get("tier", ""))
@@ -55,8 +71,11 @@ static func start(e: Encounter, force: Dictionary = {}) -> Dictionary:
 	var rows := table(tier)
 	if rows.is_empty():
 		return {}
-	if force.is_empty() and not happens(e.dice):
-		return {}
+	var answer := {}
+	if force.is_empty():
+		answer = ask(e.dice, int(e.m.params.get("security", 1)) if e.m != null else 1)
+		if not bool(answer.yes):
+			return {}
 	var r := int(force.get("roll", 0))
 	if r < 1 or r > 10:
 		r = e.dice.d(10)
@@ -65,6 +84,8 @@ static func start(e: Encounter, force: Dictionary = {}) -> Dictionary:
 		if int(row.get("roll", 0)) == r:
 			entry = row
 	var out := {"tier": tier, "roll": r, "text": String(entry.get("text", "")), "hud": String(entry.get("hud", entry.get("text", ""))), "applied": [], "skipped": []}
+	if not answer.is_empty():
+		out["oracle"] = String(answer.outcome)   # yes or yes_complication (a later twist step may make the second worse)
 	e.complication = out
 	e.say("Complication: %s. %s" % [out.hud, out.text])   # the alert, then the rules detail for the log
 	apply(e, tier, entry.get("fx", {}), out)

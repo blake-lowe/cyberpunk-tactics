@@ -177,9 +177,9 @@ static func forced_offer(camp: Campaign, lid: String, kind := "", k := 0) -> Dic
 		if String(id) != lid:
 			used[id] = true
 	var known := camp.best_reputation()
-	var gig := camp._city_offer(g, ts[0], camp._roll_security(g, known), known, used)
+	var gig := camp._city_offer(g, kind, camp._roll_security(g, known), known, used)
 	if gig.is_empty():   # the place starts above the rolled level: the top level reaches it
-		gig = camp._city_offer(g, ts[0], 3, known, used)
+		gig = camp._city_offer(g, kind, 3, known, used)
 	if not gig.is_empty():
 		gig["id"] = "%d-%s-soak" % [camp.day, lid]
 	return gig
@@ -559,6 +559,18 @@ func _check_campaign(camp: Campaign, when: String) -> void:
 	for g in camp.board:
 		if int(g.get("pay", 0)) < 0:
 			_fail("an offer pays %d" % int(g.pay), "offer-pay")
+		# The Mission Builder's offer (MissionBuilder): a playable mission of the job's objective,
+		# a focus it can play, the eb part of its payment as its pay, no twist yet.
+		var m: Dictionary = g.get("mission", {}) if g.get("mission") is Dictionary else {}
+		if m.is_empty() or not MissionBuilder.enabled(MissionBuilder.mission_def(String(m.get("id", "")))) or String(m.get("objective", "")) != Campaign.objective_for(g):
+			_fail("offer %s: mission %s doesn't play as its objective" % [g.get("title", "?"), m.get("id", "none")], "offer-mission")
+		var f: Dictionary = g.get("focus", {}) if g.get("focus") is Dictionary else {}
+		if f.is_empty() or not MissionBuilder.fits(MissionBuilder.focus_def("%s/%s" % [f.get("category", ""), f.get("id", "")]), Campaign.objective_for(g)):
+			_fail("offer %s: focus %s doesn't fit the objective" % [g.get("title", "?"), f.get("id", "none")], "offer-focus")
+		if not g.get("payment") is Dictionary or int(g.payment.get("eb", -1)) != int(g.get("pay", 0)) or g.get("twist") != null:
+			_fail("offer %s: payment or twist out of shape" % g.get("title", "?"), "offer-payment")
+	if camp.intel < 0 or camp.favours.any(func(x): return not String(x.get("kind", "")) in MissionBuilder.FAVOURS):
+		_fail("intel %d or a favour out of shape %s" % [camp.intel, when], "tokens")
 
 
 ## Save, load, and compare: the reloaded campaign's to_dict must be the saved one's, and it must

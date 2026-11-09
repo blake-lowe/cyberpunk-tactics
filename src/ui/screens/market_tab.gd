@@ -174,7 +174,7 @@ func visible_entries() -> Array[Dictionary]:
 
 
 func _budget() -> int:
-	return camp.eb - Campaign.cart_total(state.cart)
+	return camp.eb - camp.cart_due(state.cart)
 
 
 func _refresh(keep_scroll: bool) -> void:
@@ -545,7 +545,8 @@ func _build_cart() -> void:
 	_clear(_cart)
 	var lines: Dictionary = state.cart
 	var count := Campaign.cart_count(lines)
-	var total := Campaign.cart_total(lines)
+	var favour := camp.favour_discount(lines)   # a fixer's market favour (Campaign.favours) covers one item
+	var total := Campaign.cart_total(lines) - favour
 	var left := camp.eb - total
 	var head := PanelContainer.new()
 	head.add_theme_stylebox_override("panel", _flat(Color(0, 0, 0, 0), LINE, [0, 0, 0, 1], 0, Vector4(14, 8, 12, 6)))
@@ -584,6 +585,8 @@ func _build_cart() -> void:
 	var fv := UiKit.vbox(3)
 	foot.add_child(fv)
 	fv.add_child(_sum_row("Items", str(count), 14, Hud.TEXT))
+	if favour > 0:
+		fv.add_child(_sum_row("Fixer's favour", "-%s eb" % UiKit.money(favour), 14, Hud.GOLD))
 	fv.add_child(_sum_row("Total", "%s eb" % UiKit.money(total), 17, Hud.TEXT))
 	fv.add_child(_sum_row("Wallet after", "%s eb" % UiKit.money(left), 14, Hud.RED if left < 0 else Hud.TEXT))
 	var short := left < 0

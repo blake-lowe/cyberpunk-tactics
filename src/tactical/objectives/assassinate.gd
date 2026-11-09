@@ -98,7 +98,8 @@ func hud_text() -> String:
 	var run := "\nTHE TARGET IS RUNNING" if (vip.alerted or e.alarm >= 1) else ""
 	if tt_inbound and int(e.tt.patient) == vip.id:
 		run = "\nTRAUMA TEAM IS ON THE WAY"
-	return "KILL %s%s" % [String(o.name).to_upper(), run]
+	var who := item_marker("")   # the focus: who the mark is (a key exec)
+	return "KILL %s%s%s" % [String(o.name).to_upper(), ("\n" + who) if who != "" else "", run]
 
 
 func before_check() -> void:   # every sighting updates the crew's fix on the mark

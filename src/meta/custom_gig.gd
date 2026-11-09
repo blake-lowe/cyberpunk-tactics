@@ -18,19 +18,24 @@ extends RefCounted
 ## code: "" from the location (Campaign.codes_for), else the printed form "6:ncpd,hardened heavy"
 ## (SecurityCode.parse). utility: auto (the campaign's 1-in-3 roll of the Utility Code), none,
 ## roll (the code rolled every time), or the utilities out ("power", "power,water", ...).
-## complication: auto (the campaign's 1-in-3), none, random (forced, its roll rolled), or
+## complication: auto (the Oracle by security level, Complication.likelihood), none, random (forced, its roll rolled), or
 ## <tier>[:<roll>] / <roll> as greybox --complication. deploy: near | far. basements: on | off
 ## (ordinary target buildings whose site has below_grade). tower: a tower gig (TowerGen, a band of a
 ## tall building: docs/world/towers.md): a tower's short id or location id ("raven", "the_glen_24"),
 ## or "any" (one drawn); "" plays a tower's location as its street-level building, as the board's
 ## ordinary offers do. band: the tower's band ("" its sky band, the only one stage 1a builds).
-## crew: names; [] everyone fit to go.
+## crew: names; [] everyone fit to go. The Mission Builder sheet's rows (SPM p.102; MissionBuilder): client
+## "<zone>/<id>" (People of Night City), mission (a Mission Types id; its objective is used when
+## objective is auto), item "<category>/<id>" (the focus: Mission Items; not "focus", which the
+## base view's --focus flag already means), payment (eb, information, favour,
+## favour:treatment, favour:market, goods); "" rolls each. The twist has no field yet (null).
 const FIELDS := {"district": "", "location": "", "setpiece": "", "variant": "", "scene": "", "profile": "",
 	"site": "", "objective": "", "faction": "", "security": 0, "code": "", "utility": "auto",
-	"complication": "auto", "pay": 0, "seed": 0, "deploy": "", "basements": "", "tower": "", "band": "", "crew": []}
+	"complication": "auto", "pay": 0, "seed": 0, "deploy": "", "basements": "", "tower": "", "band": "", "crew": [],
+	"client": "", "mission": "", "item": "", "payment": ""}
 const NONE := "none"
 const STRING_FLAGS := ["district", "location", "setpiece", "variant", "scene", "profile", "site", "objective",
-	"faction", "code", "utility", "complication", "deploy", "basements", "tower", "band"]
+	"faction", "code", "utility", "complication", "deploy", "basements", "tower", "band", "client", "mission", "item", "payment"]
 const INT_FLAGS := ["security", "pay", "seed"]
 const UTILITY_MODES := ["auto", "none", "roll"]
 ## Scenes where an empty profile takes the district's own streets (as greybox --district does).
@@ -142,6 +147,8 @@ static func build(form: Dictionary, camp: Campaign = null) -> Dictionary:
 	var d := Dice.new(seed * 7919 + 101)   # the random fields' own stream: the map keeps `seed`
 	var g := RulesDB.gen("gigs.json")
 	var kind := kind_of(String(f.objective))
+	if kind == "" and MissionBuilder.enabled(MissionBuilder.mission_def(String(f.mission))):   # the mission type names the objective
+		kind = MissionBuilder.kind_of(MissionBuilder.mission_def(String(f.mission)))
 	var direct := String(f.scene) != "" or String(f.profile) != "" or String(f.site) != ""
 	var sp := String(f.setpiece)
 	# A tower gig (the tower field, or the tower_top scene picked directly): its tower's band.
@@ -216,7 +223,8 @@ static func build(form: Dictionary, camp: Campaign = null) -> Dictionary:
 	gig.merge(Campaign.codes_for(gig, did), true)
 	if not code.is_empty():
 		gig["security_code"] = code
-	gig["pay"] = int(f.pay) if int(f.pay) > 0 else int(g.pay[str(sec)])
+	gig["pay"] = int(g.pay[str(sec)])
+	_mission_steps(f, d, gig)
 	# The encounter's dials.
 	var ut := String(f.utility)
 	if ut != "auto" and ut != "":
@@ -236,10 +244,49 @@ static func build(form: Dictionary, camp: Campaign = null) -> Dictionary:
 	for t in g.templates:
 		if String(t.kind) == kind:
 			label = String(t.get("label", label))
+	label = String((gig.get("mission", {}) as Dictionary).get("label", label))
 	gig["title"] = "DEV · %s: %s" % [label, Campaign.place_name(gig)]
-	gig["blurb"] = "Custom gig from the dev builder. Flags: %s" % " ".join(to_flags(f))
+	var pitch := MissionBuilder.pitch(gig, World.display_name(fid))
+	gig["blurb"] = "Custom gig from the dev builder.%s Flags: %s" % [(" " + pitch) if pitch != "" else "", " ".join(to_flags(f))]
 	gig["form"] = f
 	return gig
+
+
+## The Mission Builder's steps (MissionBuilder.run, SPM p.28) on a dev gig, on the form's dice `d`:
+## the form's client, mission, focus and payment where set, the rest rolled; Pay (eb), when set,
+## is the eb part of the payment. Goods come from the fixer's staples (no campaign's market: one
+## form builds the same gig in any campaign).
+static func _mission_steps(f: Dictionary, d: Dice, gig: Dictionary) -> void:
+	for k in MissionBuilder.STEPS:
+		gig.erase(k)
+	MissionBuilder.run(d, gig, {"client": String(f.client), "mission": String(f.mission), "focus": String(f.item),
+		"payment": String(f.payment), "goods": func(v: int) -> Array: return goods(v)})
+	if int(f.pay) > 0:
+		gig["pay"] = int(f.pay)
+		gig.payment["eb"] = int(f.pay)
+
+
+## Storage keys a dev gig's goods payment worth up to `value` may be: anything the game sells
+## (NightMarket.on_sale) worth at least a third of it (Campaign.goods_pool's rule, without a
+## campaign's market).
+static func goods(value: int) -> Array:
+	var keys: Array = []
+	for id in RulesDB.load_json("weapons.json")["weapons"]:
+		keys.append("weapon/%s" % id)
+	for id in RulesDB.load_json("armor.json")["armor"]:
+		keys.append("armor/%s" % id)
+	for id in Campaign.RIPPERDOC:
+		keys.append("cyberware/%s" % id)
+	keys.append_array(Items.all())
+	var out: Array = []
+	for k in keys:
+		if not NightMarket.on_sale(String(k)):
+			continue
+		var p := Items.price(String(k))
+		if p <= value and p * 3 >= value and Items.is_stored(String(k)):
+			out.append(String(k))
+	out.sort()
+	return out
 
 
 ## A tower gig from the form (build: f.tower set): the named tower ("any": one drawn on `d`, in the
@@ -277,11 +324,11 @@ static func _tower_build(f: Dictionary, d: Dice, g: Dictionary, kind: String, tw
 		var code := SecurityCode.normalise(String(f.code))
 		if not code.is_empty():
 			gig["security_code"] = code
-	if int(f.pay) > 0:
-		gig["pay"] = int(f.pay)
+	gig["pay"] = int((gig.get("payment", {}) as Dictionary).get("base", gig.get("pay", 0)))
+	_mission_steps(f, d, gig)   # the form's builder fields over the tower job's
 	_dials(f, gig)
 	var floors := "%d-%d" % [int(b.storeys[0]), int(b.storeys[1])]
-	gig["title"] = "DEV · %s: %s %s" % [String(gig.title).get_slice(":", 0), String(World.location(lid).get("name", lid)), floors]
+	gig["title"] = "DEV · %s: %s %s" % [String(gig.mission.get("label", String(gig.title).get_slice(":", 0))), String(World.location(lid).get("name", lid)), floors]
 	gig["blurb"] = "Custom tower gig from the dev builder (%s, floors %s). Flags: %s" % [String(t.get("name", lid)), floors, " ".join(to_flags(f))]
 	gig["form"] = f
 	return gig

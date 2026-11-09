@@ -143,7 +143,7 @@ func test_v8_board_twists_and_setups_are_dropped() -> void:
 	d.board[0]["setup"] = true
 	var c := Campaign.from_dict(JSON.parse_string(JSON.stringify(d)))
 	assert_true(c != null)
-	assert_false(c.board[0].has("twist") or c.board[0].has("setup"), "the book's complications replaced them (v9)")
+	assert_false(c.board[0].get("twist") != null or c.board[0].has("setup"), "the book's complications replaced them (v9); v16's twist hook is null")
 	assert_eq(int(c.to_dict().version), SaveMigrations.CURRENT)
 
 

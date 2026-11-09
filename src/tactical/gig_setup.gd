@@ -28,4 +28,13 @@ static func for_campaign(camp: Campaign, kit: PackedStringArray = PackedStringAr
 	var eo := Campaign.encounter_opts(g)
 	eo.merge(extra, true)
 	s.enc = Encounter.setup(s.map, s.dice, crew, Campaign.objective_for(g), eo)
+	name_focus(s.enc, g)
 	return s
+
+
+## The gig's focus item (MissionBuilder, SPM p.73) names what the objective is about: its marker
+## and HUD lines read objective.item {label, short, marker} (Objective.item_marker).
+static func name_focus(e: Encounter, gig: Dictionary) -> void:
+	var f: Variant = gig.get("focus")
+	if f is Dictionary and not (f as Dictionary).is_empty():
+		e.objective["item"] = {"label": String(f.get("label", "")), "short": String(f.get("short", "")), "marker": String(f.get("marker", ""))}

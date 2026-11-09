@@ -70,6 +70,14 @@ var debrief: Array[Dictionary] = []
 ## save that has played dev gigs says so.
 var dev_gigs := 0
 var last_custom: Dictionary = {}
+## Payment in information (MissionBuilder, SPM p.28 step 4): intel tokens. While the crew holds one,
+## every offer on the board shows whether it runs into a complication (foresee); taking a gig
+## spends one. Saved.
+var intel := 0
+## Payment in favours: tokens kept until used, {kind: "treatment" | "market", cap (market: the
+## dearest item it covers), from (the fixer), day}. A treatment favour pays for one Med Bay
+## Treatment (treat); a market favour for one Night Market item up to its cap (buy_cart). Saved.
+var favours: Array[Dictionary] = []
 
 
 ## The running campaign: the one in memory, else the save, else a new game.
@@ -91,9 +99,9 @@ static func new_game(p_seed: int) -> Campaign:
 	c.crew.append(Recruit.generate(c.dice, "netrunner", "edgerunner"))
 	for i in c.crew.size():
 		c.crew[i].look_seed = i
+	c.update_market()   # first: a goods payment on the first board draws from what is on sale
 	c.refresh_board()
 	c.refresh_recruits()
-	c.update_market()
 	c.say("Day 1. %s and %s are looking for work." % [c.crew[0].display_name, c.crew[1].display_name])
 	return c
 
@@ -133,8 +141,9 @@ func best_reputation() -> int:
 # --- Fixer board ------------------------------------------------------------------
 
 ## Three or four offers (M9 P3: jobs come from Night City's real places). Each offer is a job a
-## Fixer working the district has at a canon location (data/world/locations.json, fixers.json):
-## the gig kind comes from a template, its security level is rolled against the crew's best
+## Fixer working the district has at a canon location (data/world/locations.json, fixers.json),
+## built in the Mission Builder's steps (MissionBuilder, SPM p.28: client, mission type, focus,
+## payment, a twist hook): the gig kind comes from the rolled mission type, its security level is rolled against the crew's best
 ## Reputation as before (better jobs need a name, p193) and picks a location of that level (the
 ## location's Security Code intensity, World.location) whose hooks name the kind (else whose `gigs`
 ## include it), weighted toward Security Codes near what the crew's name can take on
@@ -149,6 +158,23 @@ func refresh_board() -> void:
 	_fill_board(g, used)
 	_tower_offer(g, used)
 	_unique_offer(g, used)
+	foresee()
+
+
+## Intel paid for an earlier job (MissionBuilder payment "information"): while the crew holds a
+## token, every offer not yet foreseen has its complication question asked now, on the campaign's
+## dice, with the same Oracle likelihood the gig itself would use (Complication.likelihood by its
+## security level): the answer is kept on the offer as `intel` ("trouble" | "clean") and its
+## `complication` (a forced roll, or none), which the encounter then plays (encounter_opts).
+func foresee() -> void:
+	if intel <= 0:
+		return
+	for b in board:
+		if b.has("intel"):
+			continue
+		var ans := Complication.ask(dice, int(b.get("security", 1)))
+		b["intel"] = "trouble" if bool(ans.yes) else "clean"
+		b["complication"] = {"roll": dice.d(10)} if bool(ans.yes) else CustomGig.NONE
 
 
 ## How many ordinary offers the board holds: 3, 4 once the crew has a name (Reputation 3).
@@ -169,18 +195,21 @@ func _fill_board(g: Dictionary, used: Dictionary) -> void:
 	var have := board.filter(func(b): return not b.get("unique", false)).size()
 	var k := 0
 	for i in maxi(0, board_size() - have):
-		var t: Dictionary = g.templates[dice.d(g.templates.size()) - 1]
+		# Mission Builder step 2 first (SPM p.72): the mission type decides the kind of job, and the
+		# kind which places can host it; the other steps follow once the place is known.
+		var mt := MissionBuilder.roll_mission(dice)
+		var kind := MissionBuilder.kind_of(mt)
 		var sec := _roll_security(g, known)
-		var gig := _city_offer(g, t, sec, known, used)
+		var gig := _city_offer(g, kind, sec, known, used, mt)
 		if gig.is_empty():
-			var others: Array = (g.templates as Array).filter(func(x): return String(x.kind) != String(t.kind))
+			var others: Array = (g.templates as Array).filter(func(x): return String(x.kind) != kind)
 			for j in range(others.size() - 1, 0, -1):   # Fisher-Yates on the campaign's dice
 				var r := dice.rng.randi_range(0, j)
 				var tmp: Variant = others[j]
 				others[j] = others[r]
 				others[r] = tmp
 			for t2 in others:
-				gig = _city_offer(g, t2, sec, known, used)
+				gig = _city_offer(g, String(t2.kind), sec, known, used)   # its mission rolled among the kind's rows
 				if not gig.is_empty():
 					break
 		if gig.is_empty():
@@ -202,9 +231,11 @@ func _roll_security(g: Dictionary, known: int) -> int:
 	return 1
 
 
-## An offer at a canon location, or {} if none fits the kind at `sec` or below.
-func _city_offer(g: Dictionary, t: Dictionary, sec: int, known: int, used: Dictionary) -> Dictionary:
-	var kind := String(t.kind)
+## An offer for a `kind` job at a canon location, or {} if none fits the kind at `sec` or below.
+## The place, target, fixer, level and rate are the board's; the Mission Builder (MissionBuilder)
+## then adds the client, the mission (`mt` if given), the focus, the payment and the twist hook,
+## and its mission type and framing make the title and the pitch.
+func _city_offer(g: Dictionary, kind: String, sec: int, known: int, used: Dictionary, mt: Dictionary = {}) -> Dictionary:
 	var lid := _pick_location(kind, sec, known, used)
 	if lid == "":
 		return {}
@@ -218,19 +249,41 @@ func _city_offer(g: Dictionary, t: Dictionary, sec: int, known: int, used: Dicti
 	var level := clampi(sec, int(rng[0]), int(rng[1]))   # the place's own range (its code's intensity, if it guards the place)
 	var fx := _pick_fixer(did, kind, known)
 	var hook := _hook_for(l, kind)
-	var slots := _target_slots(kind)
-	slots.merge({"target": World.display_name(fid), "data": _pick(g.data)}, true)
-	var pitch := hook if hook != "" else _fill(String(t.get("pitch", "")), slots)
-	pitch = pitch.left(1).to_upper() + pitch.substr(1)
 	var where := String(World.district(did).get("name", did))
 	var gig := {"kind": kind, "fixer": String(fx.get("name", "A fixer")), "fixer_id": String(fx.get("id", "")),
 		"faction": fid, "location": lid, "district": did, "hook": hook,
-		"title": "%s: %s" % [String(t.get("label", kind.capitalize())), String(l.name)],
-		"blurb": "%s has work at %s (%s): %s" % [String(fx.get("name", "A fixer")), String(l.name), where, pitch],
 		"security": level, "pay": int(g.pay[str(level)]), "seed": dice.rng.randi_range(1, 99999)}
 	gig.merge(_place_at(lid))
 	gig.merge(codes_for(gig, did), true)
+	if not mt.is_empty():
+		gig["mission"] = mt
+	build_mission(gig)
+	var pitch := MissionBuilder.pitch(gig, World.display_name(fid))
+	if hook != "":   # the place's own hook (NC2045) says why this job is here
+		pitch = (pitch + " " if pitch != "" else "") + hook.left(1).to_upper() + hook.substr(1)
+	gig["title"] = "%s: %s" % [String(gig.mission.get("label", kind.capitalize())), String(l.name)]
+	gig["blurb"] = "%s has work at %s (%s): %s" % [String(gig.fixer), String(l.name), where, pitch]
 	return gig
+
+
+## Run the Mission Builder's steps on a placed offer (MissionBuilder.run) with the campaign's dice;
+## goods payments draw from what is on sale today (goods_pool).
+func build_mission(gig: Dictionary, opts: Dictionary = {}) -> Dictionary:
+	var o := {"goods": func(v: int) -> Array: return goods_pool(v)}
+	o.merge(opts, true)
+	return MissionBuilder.run(dice, gig, o)
+
+
+## Storage keys a goods payment worth up to `value` eb may be (HOUSE-RULE: something the Night
+## Market or the fixer sells today, worth at least a third of `value`), in storage-key order.
+func goods_pool(value: int) -> Array:
+	var out: Array = []
+	for s in market_stock():
+		var p := int(s.cost)
+		if p <= value and p * 3 >= value and Items.is_stored(String(s.key)):
+			out.append(String(s.key))
+	out.sort()
+	return out
 
 
 ## HOUSE-RULE: the Security Code a crew's name can take on: 3 + best Reputation (a crew nobody
@@ -455,13 +508,15 @@ func _unique_offer(g: Dictionary, used: Dictionary = {}) -> void:
 	if owned.is_empty():
 		slots = _target_slots(kind, _target_for(l, kind))
 	var fx := _pick_fixer("", kind, best_reputation())
-	slots.merge({"fixer": String(fx.get("name", "A fixer")), "data": _pick(g.data), "place": String(l.name).trim_prefix("The ")}, true)
+	slots.merge({"fixer": String(fx.get("name", "A fixer")), "place": String(l.name).trim_prefix("The ")}, true)
 	var gig := {"id": "%d-u" % day, "kind": kind, "fixer": slots.fixer, "fixer_id": String(fx.get("id", "")), "faction": slots.faction,
-		"title": _fill(_pick(_titles_for(t, String(slots.faction))), slots), "security": sec,
-		"unique": true, "pay": int(int(g.pay[str(sec)]) * float(t.pay_mult)), "seed": dice.rng.randi_range(1, 99999)}
+		"security": sec, "unique": true, "pay": int(int(g.pay[str(sec)]) * float(t.pay_mult)), "seed": dice.rng.randi_range(1, 99999)}
 	gig.merge(_place_at(lid))
 	var did := String(l.get("district", ""))
 	gig.merge(codes_for(gig, did), true)
+	build_mission(gig, {"payment": "eb", "focus": String(t.get("focus", ""))})   # a personal job pays its promised eb
+	slots.merge(MissionBuilder.item_slots(gig.focus), true)
+	gig["title"] = _fill(_pick(_titles_for(t, String(slots.faction))), slots)
 	gig["blurb"] = "%s At %s (%s)." % [_fill(String(t.blurb), slots), String(l.name), district_name(gig)]
 	board.append(gig)
 
@@ -526,22 +581,20 @@ func tower_gig(g: Dictionary, lid: String, kind := "", bid := "sky") -> Dictiona
 	var level := clampi(int(rng[0]) if rng.size() >= 2 else 2, 1, 3)
 	var fx := _pick_fixer(did, kind, known)
 	var hook := _hook_for(l, kind)
-	var label := kind.capitalize()
-	for tp in g.templates:
-		if String(tp.kind) == kind:
-			label = String(tp.get("label", label))
 	var floors := "floors %d-%d" % [int(b.storeys[0]), int(b.storeys[1])]
-	var pitch := hook if hook != "" else "the job is %s up, on %s." % ["%d storeys" % int(b.storeys[0]), floors]
-	pitch = pitch.left(1).to_upper() + pitch.substr(1)
 	var gig := {"kind": kind, "fixer": String(fx.get("name", "A fixer")), "fixer_id": String(fx.get("id", "")),
 		"faction": fid, "location": lid, "district": did, "hook": hook,
-		"title": "%s: %s %s" % [label, String(l.name), floors.replace("floors ", "")],
-		"blurb": "%s has work at %s (%s), %s: %s" % [String(fx.get("name", "A fixer")), String(l.name), String(World.district(did).get("name", did)), floors, pitch],
 		"security": level, "pay": int(int(g.pay[str(level)]) * float(g.get("tower", {}).get("pay_mult", 1.0))),
 		"seed": dice.rng.randi_range(1, 99999)}
 	gig.merge(tower_place(lid, bid))
 	gig["sky"] = tower_sky(int(gig.seed))
 	gig.merge(codes_for(gig, did), true)
+	build_mission(gig)
+	var pitch := MissionBuilder.pitch(gig, World.display_name(fid))
+	var extra := hook if hook != "" else "the job is %s up, on %s." % ["%d storeys" % int(b.storeys[0]), floors]
+	pitch = (pitch + " " if pitch != "" else "") + extra.left(1).to_upper() + extra.substr(1)
+	gig["title"] = "%s: %s %s" % [String(gig.mission.get("label", kind.capitalize())), String(l.name), floors.replace("floors ", "")]
+	gig["blurb"] = "%s has work at %s (%s), %s: %s" % [String(gig.fixer), String(l.name), String(World.district(did).get("name", did)), floors, pitch]
 	return gig
 
 
@@ -722,6 +775,9 @@ func _start_gig(gig: Dictionary) -> Dictionary:
 	active_gig["before"] = before
 	debrief.clear()   # the last gig's marks come off the crew cards
 	say("%sTook '%s' from %s." % ["[DEV] " if active_gig.get("dev", false) else "", active_gig.title, active_gig.fixer])
+	if intel > 0 and active_gig.has("intel"):   # the intel was on this board: taking a job spends it
+		intel -= 1
+		say("The fixer's intel said it would %s." % ("run into trouble" if String(active_gig.intel) == "trouble" else "run clean"))
 	if drive > 0:
 		say("Drove %d minutes from %s to %s." % [drive,
 			String(World.district(safehouse_district).get("name", safehouse_district)), district_name(active_gig)])
@@ -781,6 +837,10 @@ func resolve(e: Encounter) -> Dictionary:
 	if won:
 		report.pay = int(gig.get("pay", 0))
 	eb += report.pay
+	report["payment"] = (gig.get("payment", {}) as Dictionary).duplicate(true) if gig.get("payment") is Dictionary else {}
+	report["paid_extra"] = _collect_payment(gig) if won else ""
+	report["focus_line"] = MissionBuilder.debrief_line(gig, won)
+	report["client"] = MissionBuilder.client_text(gig)
 	report.episodes = _downtime_episodes()
 	report["addicted"] = _addiction_checks()
 	report.ip = int(IP_GROUP["failed" if not won else ("barely" if not report.dead.is_empty() else "together")])   # p410
@@ -805,6 +865,40 @@ func resolve(e: Encounter) -> Dictionary:
 	refresh_board()
 	update_market()
 	return report
+
+
+## The part of a won gig's payment that isn't eb (MissionBuilder payment): an intel token, a favour
+## token, or goods into safehouse storage. Returns what came in, in words ("" for eb only).
+func _collect_payment(gig: Dictionary) -> String:
+	var p: Dictionary = gig.get("payment", {}) if gig.get("payment") is Dictionary else {}
+	var from := String(gig.get("fixer", "the fixer"))
+	match String(p.get("type", "eb")):
+		"information":
+			intel += 1
+			say("%s pays partly in information: the next board comes with intel." % from)
+		"favour":
+			var f := {"kind": String(p.get("kind", "treatment")), "from": from, "day": day}
+			if f.kind == "market":
+				f["cap"] = int(p.get("cap", 0))
+			favours.append(f)
+			say("%s owes the crew %s." % [from, MissionBuilder.payment_extra(p).trim_prefix("a favour: ")])
+		"goods":
+			var key := String(p.get("item", ""))
+			if not Items.is_stored(key):
+				return ""
+			_put(key)
+			say("%s pays partly in goods: %s, into storage." % [from, Items.display_name(key)])
+		_:
+			return ""
+	return MissionBuilder.payment_extra(p)
+
+
+## The first favour of `kind` the crew holds (its index in favours), -1 if none.
+func favour_index(kind: String) -> int:
+	for i in favours.size():
+		if String(favours[i].get("kind", "")) == kind:
+			return i
+	return -1
 
 
 ## One crew member's debrief: {name, role, look_seed, dead, ip, reputation (the new Level, 0 if
@@ -980,8 +1074,11 @@ func repair_armor_work(hours: int) -> Array[String]:
 	return done
 
 
-## Clinic price, halved while a Trauma Surgeon is on the crew (HOUSE-RULE perk).
+## Clinic price, halved while a Trauma Surgeon is on the crew (HOUSE-RULE perk); nothing while a
+## fixer owes the crew a treatment favour (MissionBuilder payment).
 func treat_cost() -> int:
+	if favour_index("treatment") >= 0:
+		return 0
 	var mult := 1.0
 	for c in alive_crew():
 		var d := float(c.perk_fx("treat_discount"))
@@ -995,9 +1092,14 @@ func treat(c: Combatant, injury_index: int) -> bool:
 	if injury_index < 0 or injury_index >= c.injuries.size() or eb < treat_cost():
 		return false
 	eb -= treat_cost()
+	var fi := favour_index("treatment")
+	var by := ""
+	if fi >= 0:
+		by = " on %s's favour" % String(favours[fi].get("from", "a fixer"))
+		favours.remove_at(fi)
 	var inj: Dictionary = c.injuries[injury_index]
 	c.injuries.remove_at(injury_index)
-	say("%s's %s treated." % [c.display_name, inj.get("name", "injury")])
+	say("%s's %s treated%s." % [c.display_name, inj.get("name", "injury"), by])
 	return true
 
 
@@ -1100,13 +1202,14 @@ func buy(key: String) -> bool:
 ## unless every line is on sale now and the eb covers the lot. Returns {ok, reason: "" | "empty" |
 ## "off_sale" | "short", key (the line that is off sale), bought: {key: n}, count, total}.
 func buy_cart(lines: Dictionary) -> Dictionary:
-	var out := {"ok": false, "reason": "", "key": "", "bought": {}, "count": cart_count(lines), "total": 0}
+	var out := {"ok": false, "reason": "", "key": "", "bought": {}, "count": cart_count(lines), "total": 0, "favour": 0}
 	for k in lines:
 		if int(lines[k]) > 0 and (not Items.is_stored(String(k)) or not on_sale(String(k))):
 			out.reason = "off_sale"
 			out.key = String(k)
 			return out
-	out.total = cart_total(lines)
+	out.favour = favour_discount(lines)
+	out.total = cart_total(lines) - int(out.favour)
 	if int(out.count) == 0:
 		out.reason = "empty"
 		return out
@@ -1121,11 +1224,44 @@ func buy_cart(lines: Dictionary) -> Dictionary:
 			bought[String(k)] = int(lines[k])
 	out.bought = bought
 	out.ok = true
+	if int(out.favour) > 0:
+		var fi := _market_favour()
+		say("%s's favour covers %s eb of it." % [String(favours[fi].get("from", "A fixer")), eb_text(int(out.favour))])
+		favours.remove_at(fi)
 	if bought.size() == 1 and int(out.count) == 1:
 		say("Bought %s for %s eb" % [Items.display_name(String(bought.keys()[0])), eb_text(int(out.total))])
 	else:
 		say("Bought %d items for %s eb" % [int(out.count), eb_text(int(out.total))])
 	return out
+
+
+## The market favour that covers the most (the highest cap), as an index into favours; -1 if none.
+func _market_favour() -> int:
+	var best := -1
+	for i in favours.size():
+		if String(favours[i].get("kind", "")) == "market" and (best < 0 or int(favours[i].get("cap", 0)) > int(favours[best].get("cap", 0))):
+			best = i
+	return best
+
+
+## What a market favour takes off this cart: the price of its dearest item the favour's cap covers
+## (one of them), 0 without a market favour.
+func favour_discount(lines: Dictionary) -> int:
+	var fi := _market_favour()
+	if fi < 0:
+		return 0
+	var cap := int(favours[fi].get("cap", 0))
+	var best := 0
+	for k in lines:
+		var p := Items.price(String(k))
+		if int(lines[k]) > 0 and p <= cap:
+			best = maxi(best, p)
+	return best
+
+
+## What the crew pays for a cart: list price less a market favour (favour_discount).
+func cart_due(lines: Dictionary) -> int:
+	return cart_total(lines) - favour_discount(lines)
 
 
 ## What a cart costs at list price (`lines`: storage key → how many).
@@ -1569,7 +1705,7 @@ func to_dict() -> Dictionary:
 		"safehouse_district": safehouse_district, "crew": crew.map(func(c): return c.to_dict()),
 		"fallen": fallen, "board": board, "recruits": recruits.map(func(c): return c.to_dict()), "log": log.slice(-50),
 		"rng_state": str(dice.rng.state), "stash": stash, "market": market, "debrief": debrief, "gigs_done": gigs_done,
-		"dev_gigs": dev_gigs, "last_custom": last_custom}
+		"dev_gigs": dev_gigs, "last_custom": last_custom, "intel": intel, "favours": favours}
 
 
 ## A campaign from a save dictionary, upgraded to the current format first (SaveMigrations).
@@ -1592,6 +1728,10 @@ static func from_dict(raw: Dictionary) -> Campaign:
 	c.dev_gigs = int(d.get("dev_gigs", 0))
 	if d.get("last_custom") is Dictionary:
 		c.last_custom = _ints(d.last_custom)
+	c.intel = maxi(0, int(d.get("intel", 0)))
+	for f in d.get("favours", []):
+		if f is Dictionary:
+			c.favours.append(_ints(f))
 	c.minutes = clampi(int(d.get("minutes", 0)), 0, DAY_MINUTES - 1)
 	var sh := String(d.get("safehouse_district", DEFAULT_SAFEHOUSE))
 	c.safehouse_district = sh if World.districts().has(sh) else DEFAULT_SAFEHOUSE
@@ -1615,6 +1755,7 @@ static func from_dict(raw: Dictionary) -> Campaign:
 	c.update_market()   # a save from before markets (v5) gets one now
 	if bool(d.get("refill_board", false)):   # v14 dropped its generic offers: canon ones take their places
 		c._fill_board(RulesDB.gen("gigs.json"), {})
+		c.foresee()
 	return c
 
 
