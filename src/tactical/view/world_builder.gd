@@ -322,6 +322,7 @@ func build(root: Node3D) -> Array[Node3D]:
 			for x in range(maxi(r.position.x, 0), mini(r.end.x, m.w)):
 				_sid_grid[y * m.w + x] = int(st.id)
 	natural = String(m.params.get("scene", "")) == "badlands"
+	_td = TowerDress.new(m, self) if m.is_tower() else null
 	street = m.street
 	gy = street * FH
 	var out: Array[Node3D] = []
@@ -348,6 +349,8 @@ func build(root: Node3D) -> Array[Node3D]:
 		_roof_clutter(f)
 		_facade_dressing(f)
 		SetPieceDressing.dress(self, f)
+		if _td != null:
+			_td.band_floor(f)
 		flush(fn)
 	var sky := Node3D.new()
 	sky.name = "skyline"
@@ -362,12 +365,13 @@ func build(root: Node3D) -> Array[Node3D]:
 		"atrium":
 			_atrium()
 		"sky":
-			_sky_band()
+			_sky_band(sky)
 		"ruins":
 			_skyline(true)
 		_:
 			_skyline()
 	flush(sky)
+	_td = null   # the tower's dressing is built (it holds this builder: no cycle left behind)
 	return out
 
 
@@ -814,6 +818,8 @@ func _run(f: int, horiz: bool, a: int, b0: int, b1: int, glass: bool, k: int) ->
 	if glass and ext and b0 == b1 and _punched(x0, y0c):
 		_punched_window(f, horiz, a, b0, t, c)
 		return
+	if glass and ext and _td != null and _td.glass_run(f, horiz, a, s, e, t, c):
+		return
 	if glass:
 		# sill, pane, lintel, and mullions at a spacing that ignores the grid
 		var sill := 0.32
@@ -865,6 +871,8 @@ func _run(f: int, horiz: bool, a: int, b0: int, b1: int, glass: bool, k: int) ->
 	box(mat("skirt", f, true, trim), c + Vector3(0, y0 + 0.06, 0), size.call(0.12, t + 0.04))
 	if ext and f >= street:
 		box(mat("cornice", f, true, trim), c + Vector3(0, y0 + FH - 0.04 - WALL_GAP, 0), size.call(0.08, t + 0.1))
+	if ext and _td != null:   # a tower's outer wall: the facade's skin outside it (inside, the wall is as it was)
+		_td.wall_skin(f, horiz, a, s, e)
 
 
 ## A set piece's trim (cornices, skirting, parapets: a colour, or a look that may glow), else `fallback`.
@@ -900,6 +908,9 @@ func _punched_window(f: int, horiz: bool, a: int, b: int, t: float, c: Vector3) 
 	var name: String = ["wall_plaster", "wall_concrete", "wall_steel"][k]
 	var sh := {"shell": true}
 	sh.merge(_wall_look(name, _sid_grid[clampi(y, 0, m.h - 1) * m.w + clampi(x, 0, m.w - 1)]))
+	var tower := _td != null and _td.face_of(horiz, a) >= 0   # a tower's outer wall: the facade's skin outside it
+	if tower:
+		_td.punched_skin(f, horiz, a, b)
 	var wm := mat(name, f, true, sh)
 	var sz := func(along: float, h: float, thick: float) -> Vector3:
 		return Vector3(along, h, thick) if horiz else Vector3(thick, h, along)
@@ -918,11 +929,12 @@ func _punched_window(f: int, horiz: bool, a: int, b: int, t: float, c: Vector3) 
 	box(mat("glass", f, true, {"shell": true}), c + Vector3(0, y0 + (sill + lintel) / 2, 0), sz.call(pane, lintel - sill, 0.05))
 	box(mat("frame", f, true, {"shell": true}), c + Vector3(0, y0 + sill + 0.02, 0), sz.call(pane + 0.08, 0.05, t + 0.08))
 	rng.seed = hash(Vector3i(x, y, f)) + 41
-	if rng.randf() < 0.45:   # some rooms lit from inside: the same window, on and off, up the facade
+	var tlit := _td.punched_light(f, horiz, a, b) if tower else Color(0, 0, 0, 0)
+	if (tower and tlit.a > 0.0) or (not tower and rng.randf() < 0.45):   # some rooms lit from inside: the same window, on and off, up the facade
 		var probe := Vector2i(x, y + 1) if horiz else Vector2i(x + 1, y)
 		var norm := Vector3(0, 0, 1) if horiz else Vector3(1, 0, 0)
 		var inward := norm if (m.inb(probe.x, probe.y) and not vision._outdoor(f, probe.x, probe.y)) else -norm
-		var wcol: Color = [Color("ffc890"), Color("ffb070"), Color("ffd8a8")][rng.randi() % 3]
+		var wcol: Color = tlit if tower else [Color("ffc890"), Color("ffb070"), Color("ffd8a8")][rng.randi() % 3]
 		box(mat("dark", f, true, {"glow": 1.2, "emit": wcol, "shell": true}), c + inward * 0.05 + Vector3(0, y0 + (sill + lintel) / 2, 0), sz.call(pane - 0.04, lintel - sill - 0.04, 0.02))
 
 
@@ -1797,106 +1809,15 @@ func _surround() -> String:
 
 var smog := Color("2a2238")   ## a tower band's smog colour (greybox LOOKS smog), set before build
 var daylight := false         ## a tower band by day: fewer lit windows below, no street-light carpet glow
-## How far the drawn city lies below a tower band (world units; the real drop is storey_base x FH,
-## but past the smog nothing more shows).
-const SKY_DROP := 64.0
+var _td: TowerDress = null    ## a tower band's exterior (its outer walls, facade, crown, city), else null
 
 
-## A tower band (TowerGen; docs/plans/towers.md T1 sky deck): the map is the top of a skyscraper.
-## Its facade carries on down under the band's lowest storey as an impostor (lit windows a storey
-## apart, a slab edge every storey) and falls away into layers of smog over a far city plane: a
-## carpet of street lights, lower tower tops with aircraft lights and, behind the map from the
-## default camera, a few neighbours nearly as tall. Nothing here is in the TacMap.
-## A sky-band material: never fogged, never cut, no baked spill (the band's light is storeys up).
-func _skm(name: String, over: Dictionary) -> ShaderMaterial:
-	var o := over.duplicate()
-	o["no_spill"] = true
-	o["mode"] = 2
-	return mat(name, 0, false, o)
-
-
-func _sky_band() -> void:
-	rng.seed = m.seed_value * 13 + 5
-	var plate := Rect2(0, 0, m.w, m.h)
-	for st in m.structures:
-		if st.get("target", false) and st.has("rect"):
-			var r: Rect2i = st.rect
-			plate = Rect2(r.position, r.size)
-	var drop := minf(maxf(m.storey_base * FH, 12.0), SKY_DROP)
-	var mid := plate.get_center()
-	# the facade below the band: one box under the plate with the tower-window pattern, a storey a row
-	var facade := _skm("tower", {"scale": 0.39, "color": Color("2a3140"), "color2": Color("1a1e28")})
-	box(facade, Vector3(mid.x, -drop / 2 - 0.03, mid.y), Vector3(plate.size.x - 0.1, drop, plate.size.y - 0.1))
-	var slab := _skm("cornice", {"mode": 2, "color": Color("3a4458")})
-	for k in range(1, int(drop / FH) + 1):   # a slab edge each storey, proud of the glass
-		var y := -k * FH + 0.06
-		box(slab, Vector3(mid.x, y, plate.position.y + 0.02), Vector3(plate.size.x + 0.12, 0.14, 0.12))
-		box(slab, Vector3(mid.x, y, plate.end.y - 0.02), Vector3(plate.size.x + 0.12, 0.14, 0.12))
-		box(slab, Vector3(plate.position.x + 0.02, y, mid.y), Vector3(0.12, 0.14, plate.size.y + 0.12))
-		box(slab, Vector3(plate.end.x - 0.02, y, mid.y), Vector3(0.12, 0.14, plate.size.y + 0.12))
-	for cx in [plate.position.x, plate.end.x]:   # the corner piers, down into the haze
-		for cz in [plate.position.y, plate.end.y]:
-			box(slab, Vector3(cx, -drop / 2, cz), Vector3(0.5, drop, 0.5))
-	var rf := int(m.bands[0].get("roof_floor", -1)) if not m.bands.is_empty() else -1
-	if rf > 0:   # a knee-high parapet round the band's roof (cut with its storey, never fogged)
-		var par := mat("wall_concrete", rf, true, {"shell": true})
-		var py := rf * FH + 0.2
-		box(par, Vector3(mid.x, py, plate.position.y + 0.12), Vector3(plate.size.x, 0.4, 0.24))
-		box(par, Vector3(mid.x, py, plate.end.y - 0.12), Vector3(plate.size.x, 0.4, 0.24))
-		box(par, Vector3(plate.position.x + 0.12, py, mid.y), Vector3(0.24, 0.4, plate.size.y))
-		box(par, Vector3(plate.end.x - 0.12, py, mid.y), Vector3(0.24, 0.4, plate.size.y))
-	# the far city: dark ground with a carpet of street lights, lower towers rising from it
-	var floor_y := -drop - 4.0
-	var far := _skm("far_ground", {"color": Color("0d0f14") if not daylight else Color("3a3c40")})
-	box(far, Vector3(mid.x, floor_y - 0.1, mid.y), Vector3(900, 0.2, 900))
-	var lamp := _skm("dark", {"mode": 2, "glow": 1.5, "emit": Color("ffb860"), "color": Color("ffb860")})
-	var lamp2 := _skm("dark", {"mode": 2, "glow": 1.5, "emit": Color("b8d8ff"), "color": Color("b8d8ff")})
-	var reach := 240.0
-	if not daylight:
-		for i in 64:   # street grid: lines of lights along x and along z
-			var along_x := i % 2 == 0
-			var off := roundf(rng.randf_range(-reach, reach) / 9.0) * 9.0 + 0.5   # on a 18 m block grid
-			var mt := lamp if rng.randf() < 0.7 else lamp2
-			var t := -reach
-			while t < reach:
-				var p := Vector3(mid.x + (t if along_x else off), floor_y + 0.05, mid.y + (off if along_x else t))
-				box(mt, p, Vector3(0.45, 0.1, 0.45))
-				t += rng.randf_range(1.6, 3.4)
-	var T := _skm("tower", {"scale": 0.39})
-	var top := _skm("tower_top", {})
-	var beacon := _skm("dark", {"glow": 1.6, "emit": Color("ff2020"), "mode": 2})
-	var placed: Array[Rect2] = [plate.grow(3.0)]
-	for i in 170:
-		var ang := rng.randf() * TAU
-		var dist := rng.randf_range(maxf(plate.size.x, plate.size.y) * 0.8, 200.0)
-		var w := rng.randf_range(6.0, 16.0)
-		var d := rng.randf_range(6.0, 16.0)
-		var p := mid + Vector2(cos(ang), sin(ang)) * dist
-		var r := Rect2(p - Vector2(w, d) / 2, Vector2(w, d))
-		if placed.any(func(q: Rect2) -> bool: return q.grow(1.5).intersects(r)):
-			continue
-		placed.append(r)
-		# lower than the band (the city drops away): the nearer, the lower, so none hides the plate;
-		# a few behind the map from the default camera (-x / -z) stand nearly as tall
-		var behind := (p.x - mid.x) + (p.y - mid.y) < -40.0
-		var top_y := -drop * rng.randf_range(0.15, 0.75)
-		if behind and rng.randf() < 0.18:
-			top_y = rng.randf_range(-8.0, 6.0)
-		var hgt := top_y - floor_y
-		box(T, Vector3(p.x, floor_y + hgt / 2, p.y), Vector3(w, hgt, d))
-		box(top, Vector3(p.x, top_y + 0.2, p.y), Vector3(w * 0.7, 0.4, d * 0.7))
-		if rng.randf() < 0.5:   # aircraft warning light
-			box(beacon, Vector3(p.x, top_y + 0.6, p.y), Vector3(0.2, 0.2, 0.2))
-		if rng.randf() < 0.18 * signs:   # a neon edge so the mass has an outline
-			var sc: Color = neon[rng.randi() % neon.size()]
-			box(_skm("dark", {"glow": 1.4, "emit": sc, "mode": 2}), Vector3(p.x + w / 2, top_y - 3.0, p.y + d / 2), Vector3(0.15, 6.0, 0.15))
-	# smog: layers of haze below the band, each a little thicker, so the facade fades out storey by storey
-	for k in 3:
-		var y := -5.0 - k * 12.0
-		if y < floor_y + 1.0:
-			break
-		var hz := _skm("dark", {"mode": 2, "alpha": 0.1 + 0.05 * k, "color": smog, "glow": 0.35 if not daylight else 0.1, "emit": smog})
-		box(hz, Vector3(mid.x, y, mid.y), Vector3(900, 0.02, 900))
+## A tower band (TowerGen; docs/plans/towers.md T1 sky deck): the map is the top of a skyscraper;
+## its facade carries on down under the band into the smog over a far city (TowerDress). Nothing
+## here is in the TacMap.
+func _sky_band(sky: Node3D) -> void:
+	if _td != null:
+		_td.build(sky)
 
 
 ## Undercity: the solid ground between the tunnels, a block up to wall height over every VOID

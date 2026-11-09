@@ -1,0 +1,97 @@
+{
+	"_doc": "Tower looks (TowerLook, TowerDress, WorldBuilder): each tower's facade and crown, by its short id (docs/world/towers.md), else its recipe's, laid over the default. Visual only, so ours throughout; the lore it leans on is noted in _why. The band's own outer walls wear the same look as the impostor facade under it (owner, V1 verdicts: one building, no seam at the band's lowest storey). Colours sit on the night palette (greybox PALETTE). Keys: glass / spandrel / mullion / slab / pier: facade colours (spandrel is the solid wall and the bands between window rows); band_glass: the band's see-through glass tint; mullion_step (squares between mullions), mullion_w; bay: squares per lit room on a generic facade; lit: share of rooms lit at night; dark_floors: share of storeys dark; warm / cool: window light colours, warm_share; seam (+ seam_every squares, seam_glow): vertical light strips; ledge (+ ledge_every storeys): glowing spandrel bands; flood: the facade floodlit in its own colour (0 none); mech_every: a louvred plant storey every n; setbacks: [[storeys under the band, grow per side in squares]]; trim: a lit edge on the roof parapet; crown: fins | logo | ring | tiers | mast (a mast and dishes come with every crown); logo / logo_color: the crown sign (5x7 pixel letters); crown_color: fins and ring light; blade / blade_color / blade_edge: a vertical blade sign at a corner; screens: holo-ad panels on the facade, by colour; greebles: cradle, pipes, gantry, hvac, stub; twin + bridges: a twin tower joined by walkways at these storeys; pad: an AV landing pad cantilevered off the facade.",
+	"default": {
+		"glass": "0b0e16", "spandrel": "1e2636", "mullion": "0b0e16", "slab": "2a3448", "pier": "141a26", "band_glass": "4e5c78",
+		"mullion_step": 0.5, "mullion_w": 0.05, "bay": 3,
+		"lit": 0.4, "dark_floors": 0.18, "warm_share": 0.55, "warm": ["ffc890", "ffb070"], "cool": ["aaf6ff", "dfe6ea"],
+		"seam": "", "seam_every": 0, "seam_glow": 1.0, "flood": 0.0, "ledge": "", "ledge_every": 0, "mech_every": 12,
+		"setbacks": [[22, 1.0]], "trim": "", "crown": "mast", "logo": "", "logo_color": "dfe6ea", "crown_color": "",
+		"blade": "", "blade_color": "", "blade_edge": "", "screens": [], "greebles": ["cradle", "pipes", "gantry", "hvac"],
+		"twin": false, "bridges": [], "pad": false
+	},
+	"recipes": {
+		"tower_hotel": {
+			"flood": 0.15,
+			"_why": "A hotel tower: stone and punched windows, warm rooms, most of them lit.",
+			"spandrel": "554b42", "slab": "8e8476", "pier": "3d3630", "glass": "141a26", "band_glass": "70665a", "mullion": "1a1714",
+			"lit": 0.5, "dark_floors": 0.08, "warm_share": 0.85, "warm": ["ffc890", "ffb070", "ffc8a0"], "cool": ["fff4e0", "dfe6ea"],
+			"crown": "ring", "crown_color": "ffb070"
+		}
+	},
+	"towers": {
+		"raven": {
+			"_why": "A deliberately forgettable tower (NC2045 p.124-125) dressed up for the job: black glass, thin cyan seams, cool lab light.",
+			"glass": "05060a", "spandrel": "0b0e16", "mullion": "141a26", "slab": "1e2636", "pier": "05060a", "band_glass": "2a3448",
+			"seam": "05d9e8", "seam_every": 4, "seam_glow": 0.8, "lit": 0.38, "warm_share": 0.25,
+			"crown": "fins", "crown_color": "05d9e8", "greebles": ["cradle", "pipes", "gantry", "hvac", "stub"]
+		},
+		"maf": {
+			"flood": 0.2,
+			"_why": "Thurgood Towers: twin white skyscrapers joined by walkways every 10 floors, about half the floors empty (NC2045 p.123).",
+			"glass": "1e2636", "spandrel": "8a96a0", "mullion": "66717c", "slab": "b4bec6", "pier": "b4bec6", "band_glass": "8a96a0",
+			"lit": 0.3, "dark_floors": 0.45, "warm_share": 0.7, "warm": ["fff4e0", "ffc890"], "mullion_w": 0.08,
+			"crown": "logo", "logo": "MA&F", "logo_color": "fff4e0", "trim": "dfe6ea",
+			"twin": true, "bridges": [50, 40, 30], "greebles": ["cradle", "gantry", "hvac"]
+		},
+		"continental": {
+			"flood": 0.15,
+			"_why": "Continental Brands (NC2045 p.83): a consumer brand's office tower, warm concrete and its name in red on the crown.",
+			"glass": "141a26", "spandrel": "3d3630", "mullion": "1a1714", "slab": "70665a", "pier": "2b2622", "band_glass": "554b42",
+			"lit": 0.36, "warm_share": 0.75, "mullion_w": 0.1, "ledge": "ff3b4f", "ledge_every": 10,
+			"crown": "logo", "logo": "CONTINENTAL", "logo_color": "ff3b4f", "screens": ["ff6b1a"],
+			"greebles": ["cradle", "pipes", "gantry", "hvac", "stub"]
+		},
+		"ziggurat": {
+			"_why": "Ziggurat HQ (NC2045 p.78), the apex of the city's net company: bronze glass stepping out in tiers, every tier's edge lit gold.",
+			"glass": "2e1c10", "spandrel": "3a2c22", "mullion": "241c18", "slab": "a0601e", "pier": "5a3414", "band_glass": "5a4636",
+			"warm": ["f9c80e", "ffc8a0"], "warm_share": 0.7, "lit": 0.3, "ledge": "f9c80e", "ledge_every": 3,
+			"setbacks": [[6, 1.5], [11, 3.0], [16, 4.5], [21, 6.0], [27, 7.5]], "trim": "f9c80e", "crown": "tiers", "crown_color": "f9c80e",
+			"greebles": ["cradle", "hvac"]
+		},
+		"haakensen": {
+			"flood": 0.25,
+			"_why": "Haakensen Tower (NC2045 p.143), the district's only new skyscraper: green glass and a lit green crown.",
+			"glass": "06261a", "spandrel": "12261a", "mullion": "0b0e16", "slab": "1f4a2a", "pier": "06261a", "band_glass": "3a6a3a",
+			"seam": "39f0a0", "seam_every": 6, "seam_glow": 0.9, "lit": 0.3, "warm_share": 0.45,
+			"crown": "ring", "crown_color": "39f0a0", "greebles": ["cradle", "pipes", "gantry", "hvac", "stub"]
+		},
+		"libertine": {
+			"flood": 0.45,
+			"_why": "New Libertine Tower (NC2045 p.86): a teal tower, the City Manager's offices on top.",
+			"glass": "062430", "spandrel": "0a4a5a", "mullion": "062430", "slab": "0a4a5a", "pier": "062430", "band_glass": "0a4a5a",
+			"seam": "aaf6ff", "seam_every": 4, "seam_glow": 0.8, "lit": 0.3, "warm_share": 0.4,
+			"crown": "fins", "crown_color": "05d9e8", "greebles": ["cradle", "pipes", "gantry", "hvac"]
+		},
+		"segotari": {
+			"flood": 0.2,
+			"_why": "Segotari HQ over EXCEL-1's entertainment floors (NC2045 p.206): magenta seams and holo ads down the facade.",
+			"glass": "1e0a2e", "spandrel": "2a0a1e", "mullion": "0b0e16", "slab": "5a1040", "pier": "1e0a2e", "band_glass": "4a1a6a",
+			"seam": "ff2a6d", "seam_every": 5, "seam_glow": 1.1, "lit": 0.34, "warm_share": 0.5,
+			"crown": "logo", "logo": "SEGOTARI", "logo_color": "ff2a6d", "screens": ["ff2a6d", "b537f2", "f9c80e"],
+			"greebles": ["cradle", "gantry", "hvac"]
+		},
+		"n54": {
+			"_why": "Network 54 Plaza (NC2045 p.218): a fortress tower crowned by the N54 sign, its faces running the network's feed.",
+			"glass": "0b0e16", "spandrel": "2a3448", "mullion": "141a26", "slab": "3a4660", "pier": "1e2636", "band_glass": "3a4660",
+			"lit": 0.28, "warm_share": 0.35, "mullion_w": 0.12, "crown": "logo", "logo": "N54", "logo_color": "ff3b4f",
+			"screens": ["05d9e8", "ff2a6d"], "greebles": ["pipes", "gantry", "hvac"]
+		},
+		"highcourt": {
+			"_why": "Highcourt Plaza (NC2045 p.132): an Art Deco hotel whose guests fly in by Aerocab: amber rooms, deco pilasters, a blade sign and an AV pad.",
+			"seam": "ffb070", "seam_every": 4, "seam_glow": 0.7, "blade": "HIGHCOURT", "blade_color": "ff2a6d", "blade_edge": "f9c80e",
+			"pad": true, "greebles": ["cradle", "gantry", "hvac"]
+		}
+	},
+	"far": {
+		"_why": "The far city's towers: a few facade styles (TowerDress._far_city), each tower its own seed, lit share and accent.",
+		"styles": [
+			{"style": 1, "glass": "0b0e16", "spandrel": "141a26", "mullion": "05060a", "slab": "1e2636", "warm_share": 0.4},
+			{"style": 2, "glass": "141a26", "spandrel": "2a3448", "mullion": "0b0e16", "slab": "3a4660", "warm_share": 0.6},
+			{"style": 3, "glass": "1a1714", "spandrel": "2b2622", "mullion": "1a1714", "slab": "3d3630", "warm_share": 0.85},
+			{"style": 4, "glass": "0b0e16", "spandrel": "1e2636", "mullion": "0b0e16", "slab": "2a3448", "warm_share": 0.5},
+			{"style": 1, "glass": "062430", "spandrel": "0b0e16", "mullion": "05060a", "slab": "0a4a5a", "warm_share": 0.3}
+		],
+		"accents": ["ff2a6d", "05d9e8", "b537f2", "f9c80e", "39f0a0", "ff6b1a"],
+		"ads": ["NOODLES", "BAR", "OPEN", "HOTEL", "CLUB", "BD", "24H", "KABUKI", "MEDS", "GUNS", "JAZZ", "SUSHI"]
+	}
+}

@@ -540,8 +540,17 @@ func tower_gig(g: Dictionary, lid: String, kind := "", bid := "sky") -> Dictiona
 		"security": level, "pay": int(int(g.pay[str(level)]) * float(g.get("tower", {}).get("pay_mult", 1.0))),
 		"seed": dice.rng.randi_range(1, 99999)}
 	gig.merge(tower_place(lid, bid))
+	gig["sky"] = tower_sky(int(gig.seed))
 	gig.merge(codes_for(gig, did), true)
 	return gig
+
+
+## Whether a tower gig with this seed plays by day or at night ("day" / "night"): one in gigs.json
+## tower.day_in by day (owner, V1 verdicts: some tower gigs by day; night stays the campaign look).
+## Kept on the gig (sky), so a save reloads the same light; scene_opts hands it to the map's params.
+static func tower_sky(seed_value: int) -> String:
+	var n := int(RulesDB.gen("gigs.json").get("tower", {}).get("day_in", 3))
+	return "day" if n > 0 and posmod(hash(seed_value * 7 + 3), n) == 0 else "night"
 
 
 ## Where a tower gig at `lid` is played: its band of the tower (scene tower_top; TowerGen).
@@ -652,6 +661,8 @@ static func scene_opts(gig: Dictionary) -> Dictionary:
 	if String(gig.get("tower", "")) != "":   # a tower gig: its band (TowerGen)
 		o["tower"] = String(gig.tower)
 		o["band"] = String(gig.get("band", TowerGen.DEFAULT_BAND))
+		if String(gig.get("sky", "")) != "":   # by day or at night (tower_sky): the view's light (greybox _scene_look)
+			o["sky"] = String(gig.sky)
 	for k in ["variant", "deploy", "basement_storeys"]:   # a dev gig's overrides (CustomGig)
 		if gig.has(k):
 			o[k] = gig[k]

@@ -19,6 +19,10 @@ Each block below sets `locations.locations.<id>.tower` (the place's own entry is
   stages 1b and 2 and are only described here.
 - `ours`: which numbers the book does not give. `cite`: the book page.
 
+How each tower looks (facade, window light, crown, greebles) is visual data, not the book's: `data/gen/tower_looks.json`,
+keyed by the tower's `id` (else its recipe), each with a `_why` that leans on the lore below (MA&F's white twins and
+walkways, the teal New Libertine, the N54 sign, Highcourt's Aerocabs).
+
 Not band towers (plan section 1): Eurasiabank Plaza (sunken, BasementGen's set piece), Totentanz/Burleson Tower
 (played at the club), Militech Offices and Trauma Team Tower (downward bands, later). Tyger Works, Guăngbō
 Tower, Megabuilding H10, Nakagawa Kabuki Theater, the Hall of Justice, the Convention Center and Digital

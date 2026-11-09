@@ -140,7 +140,7 @@ The roadmap principle holds: we keep the book's node types, DVs, abilities, ICE 
   1. The sky band at the default iso camera, three seeds (Raven corp, Ziggurat apex, hotel), day and night palettes. The facade should fall into smog over the far city.
   2. The strip at idle, in call mode, with the car moving, with padlocked rows, in amber lockdown, showing an intel range ("44-48"), and with crew/foe pips.
   3. Lift doors with the floor indicator, the Alt lift plate, and the lift-lobby camera.
-  4. The H1 cut at 49 with 50 dashed above.
+  4. The H1 cut at 49 with 50 dashed above. (Owner's V1 verdict: the dashed outline is removed; the strip tells the floors.)
 - **V2, the release gate, after 2-3.** Everything in V1, plus:
   1. The street band with the tower climbing out of frame and a taller neighbour.
   2. A ride-cut contact sheet: doors close, the counter rolls, the facade streaks, plus the reduced-motion version.
@@ -193,11 +193,19 @@ The roadmap principle holds: we keep the book's node types, DVs, abilities, ICE 
   every tower gig at round 1.
 - **Campaign.** gigs.json `tower`: past best Reputation 4, one board in four carries one tower offer in place of an
   ordinary one; pay x1.5. Ordinary offers at a tower's place still play its street building until stage 1b.
+  One tower gig in `tower.day_in` (3) plays by day (owner, V1 verdicts), drawn from its seed and kept on the gig
+  as `sky` (Campaign.tower_sky; the map's params carry it to the greybox's light). `--sky=day|night` overrides.
   Dev builder: Tower field, `--tower=<id|location|any>`, `--band`.
-- **View.** WorldBuilder surround `sky`: impostor facade under the plate (tower windows a storey a row, slab edges,
-  corner piers), smog layers, a far city plane with a street-light grid and lower towers (a few behind the map
-  nearly as tall), a roof parapet. Height fog hangs under the band (LOOKS `tower_top`, `tower_day` via `--sky=day`).
+- **View.** WorldBuilder surround `sky`, built by TowerDress in each tower's look (TowerLook,
+  `data/gen/tower_looks.json`, by the tower's short id, else its recipe): the band's outer walls get the facade's
+  skin outside (inside they are as they were), and the impostor facade under the plate repeats the band's lowest
+  storey square by square (tower.gdshader mask), rooms lit or dark storey by storey, so there is no seam (owner, V1).
+  Setbacks, plant storeys with catwalks, light seams, floodlighting; the crown (fins, logo sign, gold tiers, lit
+  ring) off the back edges with a mast, dishes and aviation lights, drawn only while the roof is; greebles below
+  (cradle, pipes, holo-ad screens, Highcourt's blade sign and AV pad, MA&F's twin and walkways, sky-bridge stubs);
+  a far city of varied towers with crowns and rooftop ads, huge holograms in the smog, drone traffic, the street
+  grid far below and the smog lit from beneath. Height fog hangs under the band (LOOKS `tower_top`, `tower_day`).
   Lift car with seven-segment floor indicator; Alt lift plate; the tower strip (programme names, car, gold
-  objective notch, `2-47 · 46 floors` hairline, `1 lobby · off map`); the cut-away storeys above the cut dashed.
+  objective notch, `2-47 · 46 floors` hairline, `1 lobby · off map`).
 - **Deferred to stage 2+** (V1 items not built): call mode, the moving car and ride cut, padlocked rows, amber
   lockdown, intel range rows, DING, stairwell transition, street band (1b).
