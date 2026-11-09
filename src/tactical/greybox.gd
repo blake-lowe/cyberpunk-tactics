@@ -279,6 +279,7 @@ var _shot_hover := Vector2i(-1, -1)
 var _frames := 0
 var _reveal := false
 var _walk := 0
+var _autoplay := 0   ## review renders (--autoplay=n): both sides play n rounds by the soak's AI first
 var _focus := ""
 var _shot_floor := -1
 var _dev_inside: Array = []   ## review renders: crew member i stands in the i-th building (nearest the crew first) on its storey [i] (-1 stays out), or "b:s": building b, storey s
@@ -432,6 +433,8 @@ func _ready() -> void:
 				_reveal = true
 			"walk":  # review renders: the crew walks n squares toward the target first
 				_walk = int(kv[1])
+			"autoplay":  # review renders: the soak's stand-in player and the AI play n rounds first (mid-gig shots)
+				_autoplay = int(kv[1])
 			"focus":  # review renders: centre the camera on a square ("center" = the target building)
 				_focus = kv[1]
 			"attack":  # review renders: the active crew member fires at the nearest guard
@@ -926,12 +929,14 @@ func new_gig() -> void:
 	rim.light_energy = rimc[1]
 	sun.directional_shadow_max_distance = 140.0
 	_apply_look()
+	var played := _autoplay_rounds()
 	_blueprint = FloorNav.blueprint_floors(m.floors, enc.alive(0).map(func(u): return u.pos))
 	_bp_shown.clear()
 	_build_world()
 	_last_cur = -1
-	_frame_unit(enc.units[0])
-	enc.next_turn()
+	_frame_unit(enc.units[0] if not played else enc.cur)
+	if not played:
+		enc.next_turn()
 	if _reveal:
 		for f in m.floors:
 			for y in m.h:
@@ -3227,6 +3232,11 @@ func _on_hud(name: String, arg: Variant) -> void:
 				var here := Hud.interact_here(enc)
 				if here.is_empty():
 					hud.toast("NOTHING TO INTERACT WITH HERE")
+				elif String(here[0]) in enc.obj_actions():   # the objective's action (grab, free, plant, drop, ...)
+					var ro: Dictionary = enc.obj_act(String(here[0]))
+					if not ro.get("ok", false):
+						hud.toast(String(ro.get("reason", "can't")).to_upper())
+					_after_action()
 				else:
 					_on_hud(String(here[0]), null)
 		"role":
@@ -4621,7 +4631,7 @@ func _update_keycards() -> void:
 ## Snatch gigs: the package sits on a gold beacon until someone carries it (then a gold diamond
 ## floats over the carrier), and the deploy squares glow as the extraction point.
 func _update_objective() -> void:
-	var snatch: bool = enc.objective.get("kind", "") == "snatch"
+	var snatch: bool = enc.objective.get("kind", "") in ["snatch", "deliver"]   # a package someone carries
 	if obj_node == null or not is_instance_valid(obj_node) or obj_node.get_parent() != world:
 		obj_node = Node3D.new()
 		world.add_child(obj_node)
@@ -4669,6 +4679,7 @@ func _update_objective() -> void:
 			q.position = Vector3(cell.x + 0.5, _gy(cell) + 0.025, cell.y + 0.5)
 			zone.add_child(q)
 	obj_node.visible = not _net_cleaned
+	_update_obj_zones()
 	var carrier: int = enc.objective.get("carrier", -1)
 	var case_n := obj_node.get_node("case") as Node3D
 	if not snatch:   # the deploy zone still marks the way out (withdrawal)
@@ -4683,7 +4694,7 @@ func _update_objective() -> void:
 		case_n.position = p + Vector3(0, 0.08, 0)
 		beacon_n.position = p + Vector3(0, 2.25, 0)
 		case_n.visible = not _cut_hides(cell)
-		beacon_n.visible = case_n.visible
+		beacon_n.visible = case_n.visible and not enc.objective.get("delivered", false)   # a delivered package just sits there
 		tag_n.visible = false
 	else:
 		case_n.visible = false
@@ -4691,6 +4702,57 @@ func _update_objective() -> void:
 		var cn: Node3D = unit_nodes[carrier]
 		tag_n.visible = cn.visible
 		tag_n.position = cn.position + Vector3(0, 2.75, 0)
+
+
+var _zone_key := ""   ## the objective zones (Objective.zones) the floor tint was last built for
+
+
+## The objective's own ground (defend's zone, escort's rendezvous: Objective.zones): faint tinted
+## squares on the floor, like the extraction squares. Rebuilt only when the zones change.
+func _update_obj_zones() -> void:
+	var zs: Array = enc.obj.zones()
+	var key := str(zs)
+	if key == _zone_key and obj_node.has_node("objzone"):
+		return
+	_zone_key = key
+	if obj_node.has_node("objzone"):
+		var was := obj_node.get_node("objzone")
+		obj_node.remove_child(was)
+		was.queue_free()
+	var zn := Node3D.new()
+	zn.name = "objzone"
+	obj_node.add_child(zn)
+	var tones := {"gold": Hud.GOLD, "red": Hud.RED, "cyan": Hud.CYAN}
+	for z in zs:
+		for cell in z.cells:
+			var q := MeshInstance3D.new()
+			var qm := PlaneMesh.new()
+			qm.size = Vector2(0.86, 0.86)
+			q.mesh = qm
+			q.material_override = _unlit(tones.get(String(z.get("tone", "gold")), Hud.GOLD), 0.18, 1.0)
+			q.position = Vector3(cell.x + 0.5, _gy(cell) + 0.025, cell.y + 0.5)
+			zn.add_child(q)
+
+
+## Review renders (--autoplay=n): the gig plays itself for n rounds (SoakDriver's stand-in for the
+## player, the guards' own AI), before the world is built, so the shot shows it mid-gig. Locks are
+## left as they are. True if it ran (the turn it stops on is a crew turn: next_turn already ran).
+func _autoplay_rounds() -> bool:
+	if _autoplay <= 0:
+		return false
+	var drv := SoakDriver.new()
+	enc.next_turn()
+	var guard := 0
+	while enc.state == "playing" and enc.init.round_num <= _autoplay and guard < 400:
+		guard += 1
+		drv._crew_turn(enc)
+		if enc.state == "playing":
+			enc.end_turn()
+		if enc.state == "playing":
+			enc.next_turn()
+	enc.events.clear()   # what happened is history: the shot shows where it stands
+	enc.refresh_vision()
+	return true
 
 
 var _settling := false     ## _finish_gig is under way: once per gig

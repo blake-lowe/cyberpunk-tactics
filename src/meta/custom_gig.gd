@@ -209,7 +209,7 @@ static func build(form: Dictionary, camp: Campaign = null) -> Dictionary:
 		elif sp != "":
 			fid = String(SetPieces.get_def(sp).get("faction", ""))
 		if fid == "":
-			var ids := World.targets_for(kind)
+			var ids := Campaign.targets_for(kind)
 			fid = String(_pick(d, ids)) if not ids.is_empty() else World.DEFAULT_OPFOR
 	gig["faction"] = fid
 	var code := SecurityCode.normalise(String(f.code)) if String(f.code) != "" else {}
@@ -354,14 +354,12 @@ static func _dials(f: Dictionary, gig: Dictionary) -> void:
 		gig["crew"] = (f.crew as Array).map(func(n): return String(n))
 
 
-## The gig kinds a location's hooks and `gigs` name, as a set.
+## The gig kinds a location offers (Campaign.kinds_at: its hooks and `gigs`, and the kinds that
+## borrow those places), as a set.
 static func _kinds_at(l: Dictionary) -> Dictionary:
 	var out := {}
-	for k in l.get("gigs", []):
+	for k in Campaign.kinds_at(l):
 		out[String(k)] = true
-	for h in l.get("hooks", []):
-		for k in h.get("gigs", []):
-			out[String(k)] = true
 	return out
 
 

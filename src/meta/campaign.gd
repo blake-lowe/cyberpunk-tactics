@@ -23,7 +23,8 @@ const ECON := {
 ## taking part" (30). The 40-80 tiers ("extremely well", "stellar moments", side goals) need a GM's eye.
 const IP_GROUP := {"failed": 10, "barely": 20, "together": 30}
 ## Gig kind → encounter objective (Encounter.setup).
-const OBJECTIVES := {"data_theft": "data", "gang_hit": "eliminate", "corp_extraction": "snatch", "assassination": "assassinate", "rescue": "rescue", "sabotage": "sabotage"}
+const OBJECTIVES := {"data_theft": "data", "gang_hit": "eliminate", "corp_extraction": "snatch", "assassination": "assassinate", "rescue": "rescue", "sabotage": "sabotage",
+	"escort": "escort", "defense": "defend", "delivery": "deliver", "plant": "plant", "distraction": "distraction"}
 ## Downtime assignments (spec: "assign downtime actions"): only what the book has a rule for.
 ## Recover: natural healing, BODY HP a day (p223). (The book has no rule for earning IP or eb in
 ## downtime: IP come from the GM after a session, p410.)
@@ -315,7 +316,7 @@ func _pick_location(kind: String, sec: int, known: int, used: Dictionary) -> Str
 			var w := 0.0
 			if (raw.get("hooks", []) as Array).any(func(h): return kind in (h.get("gigs", []) as Array)):
 				w = 3.0
-			elif kind in (raw.get("gigs", []) as Array):
+			elif kind in (raw.get("gigs", []) as Array) or hosted_at(raw, kind):
 				w = 1.0
 			if w <= 0.0:
 				continue
@@ -333,10 +334,66 @@ func _pick_location(kind: String, sec: int, known: int, used: Dictionary) -> Str
 	return ""
 
 
-## Can a `kind` job be played at canon location `lid`? A data theft needs a NET, so never at a
-## site generated without one (sites.json `networked: false`: shacks, squats).
+## The gig kinds whose places and targets a `kind` job borrows (gigs.json hosts: the canon world
+## data names the first six kinds only), the kind itself first.
+static func host_kinds(kind: String) -> Array:
+	var out: Array = [kind]
+	for k in ((RulesDB.gen("gigs.json").get("hosts", {}) as Dictionary).get(kind, []) as Array):
+		if not String(k) in out:
+			out.append(String(k))
+	return out
+
+
+## Does location `l` (raw or World.location) host a `kind` job through a kind it borrows from
+## (host_kinds): its `gigs` or a hook names one?
+static func hosted_at(l: Dictionary, kind: String) -> bool:
+	var hk := host_kinds(kind)
+	hk.remove_at(0)
+	if hk.is_empty():
+		return false
+	if (l.get("gigs", []) as Array).any(func(k): return String(k) in hk):
+		return true
+	return (l.get("hooks", []) as Array).any(func(h): return (h.get("gigs", []) as Array).any(func(k): return String(k) in hk))
+
+
+## The gig kinds a location offers: those its hooks and `gigs` name, then every kind that borrows
+## one of them (host_kinds), in OBJECTIVES order.
+static func kinds_at(l: Dictionary) -> Array:
+	var out: Array = []
+	for h in l.get("hooks", []):
+		for k in h.get("gigs", []):
+			if not String(k) in out:
+				out.append(String(k))
+	for k in l.get("gigs", []):
+		if not String(k) in out:
+			out.append(String(k))
+	for k in OBJECTIVES:
+		if not String(k) in out and hosted_at(l, String(k)):
+			out.append(String(k))
+	return out
+
+
+## Can faction `fid` be the target of a `kind` job? Its factions.json `gigs` name the kind or one
+## it borrows (host_kinds).
+static func targetable(fid: String, kind: String) -> bool:
+	var ts := World.targets_for_any(fid)
+	return host_kinds(kind).any(func(k): return k in ts)
+
+
+## Every faction that can be the target of a `kind` job (targetable).
+static func targets_for(kind: String) -> Array[String]:
+	var out: Array[String] = []
+	for id in World.factions():
+		if targetable(String(id), kind):
+			out.append(String(id))
+	return out
+
+
+## Can a `kind` job be played at canon location `lid`? A data theft (or a plant, which can go in by
+## the NET) needs a NET, so never at a site generated without one (sites.json `networked: false`:
+## shacks, squats).
 static func place_fits(lid: String, kind: String) -> bool:
-	if String(OBJECTIVES.get(kind, "")) != "data":
+	if not String(OBJECTIVES.get(kind, "")) in ["data", "plant"]:
 		return true
 	var site := String(World.location(lid).get("site", ""))
 	return site == "" or bool((RulesDB.gen("sites.json").get(site, {}) as Dictionary).get("networked", true))
@@ -368,13 +425,13 @@ func _target_for(l: Dictionary, kind: String) -> String:
 	var owner := String(l.get("owner", ""))
 	var coder := String(SecurityCode.normalise(l.get("security_code")).get("faction", ""))
 	for f in [owner, coder]:
-		if f != "" and World.has_faction(f) and kind in World.targets_for_any(f):
+		if f != "" and World.has_faction(f) and targetable(f, kind):
 			return f
 	var gangs: Array = (World.district(String(l.get("district", ""))).get("gangs", []) as Array).filter(
-		func(f): return World.has_faction(String(f)) and kind in World.targets_for_any(String(f)))
+		func(f): return World.has_faction(String(f)) and targetable(String(f), kind))
 	if not gangs.is_empty():
 		return String(_pick(gangs))
-	var ids := World.targets_for(kind)
+	var ids := targets_for(kind)
 	return String(_pick(ids)) if not ids.is_empty() else World.DEFAULT_OPFOR
 
 
@@ -628,7 +685,7 @@ static func tower_place(lid: String, bid := "sky") -> Dictionary:
 ## The gig's target (World faction able to be the target of this kind; `fid` if given) and the
 ## {corp}/{gang} names its text uses: the target's own name in its slot, another faction's in the other.
 func _target_slots(kind: String, fid := "") -> Dictionary:
-	var ids := World.targets_for(kind)
+	var ids := targets_for(kind)
 	if fid == "":
 		fid = _pick(ids) if not ids.is_empty() else World.DEFAULT_OPFOR
 	var corps: Array = World.factions().keys().filter(func(f): return World.kind(f) in ["corp", "service"] and not World.targets_for_any(f).is_empty())

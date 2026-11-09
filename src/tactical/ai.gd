@@ -115,6 +115,8 @@ static func _fight(e: Encounter, u: Dictionary) -> void:
 	if u.get("vip", false) and not u.get("fights", false):   # a mark who turned out tough stands and fights (Twist)
 		_vip(e, u)
 		return
+	if e.obj.ai_act(u):   # the objective's own move (defend: wreck the asset)
+		return
 	if e.watching(u) and _enemies(e, u).is_empty():
 		_investigate(e, u)
 		return
@@ -401,7 +403,11 @@ static func follow(e: Encounter, u: Dictionary) -> void:
 	var crew := e.units.filter(func(o): return o.team == 0 and o != u and not e.is_hostage(o) and o.c.can_act())
 	if crew.is_empty() or not e.turn.can_move():
 		return
-	var ex: Array = e.extract_cells.keys()
+	var ex: Array = e.obj.ward_goal()   # escort: the rendezvous; else the extraction zone
+	if not ex.is_empty():
+		_lead_on(e, u, crew, ex)
+		return
+	ex = e.extract_cells.keys()
 	var to_ex: Dictionary = e._with_locks(func(): return e.nav.distance_field(ex, {}, 4000))
 	crew.sort_custom(func(a, b): return int(to_ex.get(a.pos, 9999)) < int(to_ex.get(b.pos, 9999)))
 	var lead: Dictionary = crew[0]
@@ -409,11 +415,11 @@ static func follow(e: Encounter, u: Dictionary) -> void:
 	var opts := e.move_options()
 	var best: Vector3i = u.pos
 	var best_s := INF
-	var lead_out: bool = e.extract_cells.has(lead.pos)
+	var lead_out: bool = ex.has(lead.pos)
 	for cell in opts.keys() + [u.pos]:
 		var d := float(to_lead.get(cell, 999))
 		var sc := maxf(d - 1.5, 0.0) * 2.0 + float(to_ex.get(cell, 999)) * 0.15
-		if lead_out and e.extract_cells.has(cell):
+		if lead_out and ex.has(cell):
 			sc -= 50.0
 		if sc < best_s:
 			best_s = sc
@@ -421,6 +427,32 @@ static func follow(e: Encounter, u: Dictionary) -> void:
 	if best != u.pos:
 		e.move_to(best)
 
+
+
+## An escort's client in auto-play: make for `goal` (Move, then a Run: they carry nothing to use
+## the Action on), never more than WARD_LEAD squares' walk ahead of the nearest of the crew.
+const WARD_LEAD := 4.0
+
+
+static func _lead_on(e: Encounter, u: Dictionary, crew: Array, goal: Array) -> void:
+	var to_goal: Dictionary = e._with_locks(func(): return e.nav.distance_field(goal, {}, 4000))
+	var to_crew: Dictionary = e._with_locks(func(): return e.nav.distance_field(crew.map(func(o): return o.pos), {}, 4000))
+	var opts := e.move_options()
+	if e.turn.action_available:
+		opts.merge(e._with_locks(func(): return e.nav.reachable(u.pos, e.turn.squares_available() + u.c.stat("MOVE"), e._blocking(u))))
+		for v in e.occupied(u):
+			opts.erase(v)
+	var best: Vector3i = u.pos
+	var best_s := INF
+	var cells: Array = opts.keys() + [u.pos]
+	cells.sort()   # a stable pick among equals
+	for cell in cells:
+		var sc := float(to_goal.get(cell, 9999)) + 3.0 * maxf(0.0, float(to_crew.get(cell, 9999)) - WARD_LEAD)
+		if sc < best_s:
+			best_s = sc
+			best = cell
+	if best != u.pos:
+		e.move_to(best, true)
 
 
 ## Trauma Team: get to the patient (alive or flatlined: the body goes too), carry them back to the
