@@ -1,5 +1,5 @@
 {
- "_source": "Hover cards for the action bar's close-quarters actions (Hud.action_help), like net_help.json for the NET panel. Short paraphrases of CPR core p.168-169, p.177, p.183-184 and p.180 (Put Out Fire) as distilled in docs/rules/combat.md sections 3, 5 and 7; hand-edited. Each entry: name, cost, text (what it does), key (its roll or numbers), page. Ids are Encounter.grapple_options().",
+ "_source": "Hover cards for the action bar's close-quarters actions (Hud.action_help), like net_help.json for the NET panel. Short paraphrases of CPR core p.168-169, p.177, p.183-184 and p.180 (Put Out Fire) as distilled in docs/rules/combat.md sections 3, 5 and 7; hand-edited. Each entry: name, cost, text (what it does), key (its roll or numbers), page, book (default CPR core; SPM = Single Player Mode). Ids are Encounter.grapple_options().",
  "actions": {
   "grab": {
    "name": "Grab",
@@ -63,6 +63,14 @@
    "text": "Beat out the flames. While you're On Fire you take its damage straight to HP at the end of every Turn, armor or not, until you spend an Action on this.",
    "key": "Mild 2, Strong 4, Deadly 6 a Turn",
    "page": "p.180"
+  },
+  "search_body": {
+   "name": "Search Body",
+   "cost": "Action",
+   "text": "Go through the pockets of someone down or surrendered beside you, once per body. Most carry nothing worth taking; a find is cash, gear, a keycard, a NET login code or a lead a fixer might follow up. It goes home with whoever found it.",
+   "key": "1d6 for anything (Mook 1-2, Lieutenant 1-3, Mini Boss 1-4), then 1d100 on the body's table",
+   "page": "p.65-70",
+   "book": "SPM"
   }
  }
 }

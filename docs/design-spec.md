@@ -28,6 +28,7 @@ A turn-based tactical game that blends Cyberpunk Red tabletop rules with XCOM 2-
 - **Weapons**: Full CPR weapon stats (damage dice, ROF, autofire, range DVs, etc.). Build incrementally if needed, but combat largely uses rules as written. Percentages update by fire mode.
 - **Variety**: Comes primarily from cyberware, weapons, gear, Role Abilities, and skills.
 - **Reinforcements**: Triggered by conditions (alarm level, noise, failed stealth, gig parameters). Spawn at logical map entrances, roll initiative, and join the fight. Support for NCPD, Trauma Team, MaxTac (carefully scoped).
+- **Morale** (Single Player Mode p.20-21): enemies break at stress points (Seriously Wounded, half their side down, their leader down) on a 1d10 by tier, and flee off the map or surrender. Details: docs/rules/solo-mode.md.
 
 ---
 
@@ -118,7 +119,9 @@ A turn-based tactical game that blends Cyberpunk Red tabletop rules with XCOM 2-
 - Full CPR fidelity: Cyberware costs Humanity (cyberpsychosis risk), provides mechanical benefits, requires installation.
 - Installation time simplified.
 - Gear bought at the book's Night Market (p337-339) into safehouse storage, then equipped from there.
-  (Salvage/loot of downed enemies was removed: the core book has no rule for it.)
+  (Salvage of downed enemies' gear was removed: the core book has no rule for it. Bodies can be
+  searched instead, by Single Player Mode's corpse-loot tables at lower rates than the book:
+  docs/rules/solo-mode.md.)
 - UI keeps selection from feeling overwhelming.
 - **Economy**:
   - Gigs pay eb based on difficulty, risk, and reputation.

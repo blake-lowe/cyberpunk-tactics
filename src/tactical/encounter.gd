@@ -87,6 +87,11 @@ var neutral: NeutralGround = null   ## a house where nobody fights (Totentanz's 
 var turret_side := -1               ## the site's automated turrets (Turret); -1 until the map has one
 var _crew_turret_side := -1         ## turrets a Netrunner holds; -1 until one does
 var _gunner: Combatant = null       ## who aims this attack when not `cur` itself: a Netrunner firing a held turret (fire_turret)
+var morale := true                  ## NPCs break at stress points (Morale, SPM p.20-21); balance tests may switch it off
+var surrendered := 0                ## units that gave up this gig (Morale): the debrief counts them
+var fled := 0                       ## units that ran off the map this gig (Morale)
+var loot: Array[Dictionary] = []    ## what the crew found on bodies (CorpseLoot.search): {body, by, table, roll, label, kind, items, eb, lead, keycard, net_code}
+var login_codes := 0                ## NET login codes found on bodies: each opens one Password (firewall) on this site's NET without a roll (HOUSE-RULE)
 
 
 ## opts: {faction: the gig's target faction id (World), default generic private security;
@@ -287,6 +292,8 @@ func add_side(faction: String, ai: String, opfor: bool, extra: Dictionary = {}) 
 			r = "hostile"
 		if (o == CREW and opfor) or (t == CREW and bool(sides[o].opfor)):
 			r = "hostile"
+		if o != t and (ai == "surrendered" or String(sides[o].ai) == "surrendered"):
+			r = "neutral"   # out of the fight (Morale): nobody's enemy, nobody's friend
 		_rel[Vector2i(t, o)] = r
 		_rel[Vector2i(o, t)] = r
 	return t
@@ -342,12 +349,13 @@ func faction_of(u: Dictionary) -> String:
 
 
 ## The opposition still standing: what "put every guard down" means (the gig's guards, their
-## backup, and police or MaxTac who join in against the crew).
+## backup, and police or MaxTac who join in against the crew). Those who broke (Morale: running
+## for the edge, or surrendered onto a side of their own) don't count.
 func opfor() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	for u in units:
-		if bool(sides[int(u.team)].opfor) and not u.c.dead and u.c.wound_state() != Combatant.Wound.MORTAL:
-			out.append(u)
+		if bool(sides[int(u.team)].opfor) and not u.c.dead and u.c.wound_state() != Combatant.Wound.MORTAL and not u.has("broke"):
+			out.append(u)   # one running for the edge (Morale) is out of the fight: it counts as done
 	return out
 
 
@@ -355,7 +363,7 @@ func opfor() -> Array[Dictionary]:
 func foes(u: Dictionary) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	for o in units:
-		if o != u and hostile(int(u.team), int(o.team)) and not o.c.dead and o.c.wound_state() != Combatant.Wound.MORTAL:
+		if o != u and hostile(int(u.team), int(o.team)) and not o.c.dead and o.c.wound_state() != Combatant.Wound.MORTAL and not o.has("broke"):
 			out.append(o)
 	return out
 
@@ -414,6 +422,10 @@ func next_turn() -> void:
 			_ice_turn(cur)
 			if cur.has("suppressed_by"):
 				_take_cover(cur)
+			if String(cur.get("broke", "")) == "flee":   # broke at a stress point (Morale): runs for the edge
+				AI.flee(self, cur)
+				end_turn()
+				continue
 			if String(sides[cur.team].ai) == "trauma":
 				AI.trauma(self, cur)
 				end_turn()
@@ -480,6 +492,8 @@ func _check_end() -> void:
 		pt.erase("carried")
 		pt.pos = units[int(tt.carrier)].pos
 		tt.carrier = -1
+	if morale:
+		Morale.sweep(self)
 	obj.before_check()
 	# a freed hostage doesn't count: alone they can't finish the job (nobody to walk them out)
 	if units.filter(func(u): return u.team == 0 and not is_hostage(u) and u.c.can_act()).is_empty() \
@@ -909,12 +923,19 @@ func _hand_out_keycards() -> void:
 		g.erase("_score")
 
 
-## A downed guard next to `u` still holding a keycard.
+## A downed (or surrendered: Morale) guard next to `u` still holding a keycard.
 func keycard_in_reach(u: Dictionary) -> Dictionary:
 	for g in units:
-		if g.has("keycard") and (g.c.dead or g.c.unconscious or g.c.wound_state() == Combatant.Wound.MORTAL) and adjacent(u.pos, g.pos) and g.pos.z == u.pos.z:
+		if g.has("keycard") and _searchable_state(g) and adjacent(u.pos, g.pos) and g.pos.z == u.pos.z:
 			return g
 	return {}
+
+
+## Down (dead, out cold, Mortally Wounded) or surrendered, and still on the map.
+func _searchable_state(g: Dictionary) -> bool:
+	if _off_map(g) or g.get("carried", false):
+		return false
+	return g.c.dead or g.c.unconscious or g.c.wound_state() == Combatant.Wound.MORTAL or String(g.get("broke", "")) == "surrender"
 
 
 ## Take a keycard off a downed guard (an Action): every lock of that zone or below opens.
@@ -926,6 +947,14 @@ func loot_keycard() -> Dictionary:
 		return {"ok": false, "reason": "no action left"}
 	var z: int = g.keycard
 	g.erase("keycard")
+	var opened := _open_zone(z)
+	events.append({"type": "keycard", "unit": cur.id, "from": g.id, "zone": z, "opened": opened})
+	say("%s takes a %s keycard: %d door%s unlocked." % [cur.c.display_name, TacMap.ZONE_NAMES[z], opened, "" if opened == 1 else "s"])
+	return {"ok": true, "opened": opened}
+
+
+## The crew holds zone `z`'s keycard: every lock of that zone or below opens. Returns how many.
+func _open_zone(z: int) -> int:
 	keycards[z] = true
 	var opened := 0
 	for d in m.devices:
@@ -934,9 +963,58 @@ func loot_keycard() -> Dictionary:
 			if nav.locked.has(cell):
 				_unlock(cell)
 				opened += 1
-	events.append({"type": "keycard", "unit": cur.id, "from": g.id, "zone": z, "opened": opened})
-	say("%s takes a %s keycard: %d door%s unlocked." % [cur.c.display_name, TacMap.ZONE_NAMES[z], opened, "" if opened == 1 else "s"])
-	return {"ok": true, "opened": opened}
+	return opened
+
+
+# --- Searching bodies (CorpseLoot: SPM p.65-70) ------------------------------------------------
+
+## Whose pockets the crew may go through: anyone not on the crew's side who isn't a bystander,
+## a captive or a turret, once they're down (dead, out cold, Mortally Wounded) or have surrendered
+## (Morale), and still on the map. Once per body.
+func searchable(g: Dictionary) -> bool:
+	if g.has("turret") or g.get("civ", false) or g.get("captive", false) or g.get("searched", false):
+		return false
+	if int(g.team) == CREW or int(g.team) == CAPTIVE:
+		return false
+	return _searchable_state(g)
+
+
+## A body `u` stands on or next to that can be searched, or {}.
+func body_in_reach(u: Dictionary) -> Dictionary:
+	for g in units:
+		if g != u and searchable(g) and g.pos.z == u.pos.z and (g.pos == u.pos or adjacent(u.pos, g.pos)):
+			return g
+	return {}
+
+
+## Search Body (an Action; SPM p.65): go through the pockets of a body beside the active unit
+## (CorpseLoot.search rolls what's there). A keycard opens its doors at once; a NET login code
+## is kept for the Netrunner (login_codes); eb, items and leads go home with whoever found them
+## (Campaign.resolve, CorpseLoot.kept).
+func search_body() -> Dictionary:
+	var g := body_in_reach(cur)
+	if g.is_empty():
+		return {"ok": false, "reason": "no body to search next to you"}
+	if not turn.use_action():
+		return {"ok": false, "reason": "no action left"}
+	var f := CorpseLoot.search(self, cur, g)
+	match String(f.kind):
+		"keycard":
+			var zones: Array = m.devices.filter(func(d): return String(d.type) == "door_lock").map(func(d): return int(d.zone))
+			if zones.is_empty():
+				f["opened"] = 0
+			else:
+				var z: int = zones.max() if String(f.zone) == "high" else zones.min()
+				f["opened"] = _open_zone(z)
+		"net_code":
+			login_codes += 1
+	loot.append(f)
+	events.append({"type": "search", "unit": cur.id, "body": g.id, "find": f})
+	if String(f.kind) == "nothing":
+		say("%s searches %s: nothing worth taking." % [cur.c.display_name, g.c.display_name])
+	else:
+		say("%s searches %s and finds %s." % [cur.c.display_name, g.c.display_name, CorpseLoot.describe(f)])
+	return {"ok": true, "find": f}
 
 
 # --- Withdrawal ------------------------------------------------------------------------
@@ -977,6 +1055,83 @@ func withdraw() -> bool:
 	state = "fled"
 	say("The crew pulls out.")
 	return true
+
+
+# --- Morale (Morale: SPM p.20-21) ----------------------------------------------------------
+
+## `u` gives up (Morale.sweep). It moves to a side of its own for its faction, neutral to
+## everyone (add_side), so hostile AI leaves it be and it no longer counts as opposition; it
+## drops its weapons (there are no items on the ground, so it is just disarmed: `dropped` keeps
+## their keys for the view; a weapon built into its chrome stays, unused), lets go of anyone it
+## holds and leaves the Initiative order. The crew can still shoot it, a choice the attack preview
+## points out (`surrendered` in preview). A keycard it carries can be taken (keycard_in_reach)
+## and it can be searched (search_body).
+func surrender(u: Dictionary, why := "", roll := 0, thr := 0) -> void:
+	_drop_carried_patient(u)
+	u["broke"] = "surrender"
+	u["side0"] = int(u.team)
+	var t := side_for(faction_of(u), "surrendered", false)
+	u.team = t
+	u.c.team = t
+	var dropped: Array = []
+	for w in u.c.weapons.duplicate():
+		if not w.builtin:
+			dropped.append(Items.key_of_weapon(w))
+			u.c.weapons.erase(w)
+	u["dropped"] = dropped
+	var g: Grapple = u.c.grapple
+	if g != null and g.holder == u.c:
+		g.end()
+	u.erase("suppressed_by")
+	u.erase("hold")
+	init.remove(u.c)
+	surrendered += 1
+	events.append({"type": "morale", "unit": u.id, "result": "surrender", "why": why, "roll": roll, "threshold": thr})
+	say("%s surrenders (morale %d vs %d: %s)." % [u.c.display_name, roll, thr, Morale.why_text(why)])
+
+
+## `u` breaks and runs (Morale.sweep): from its next turn it heads for the nearest way off the map
+## (AI.flee) and is gone there (flee_out). It stays on its side, so the crew can still shoot it,
+## but it no longer fights back or counts as opposition (opfor, foes). A sniper leaves its nest.
+func start_flight(u: Dictionary, why := "", roll := 0, thr := 0) -> void:
+	_drop_carried_patient(u)
+	u["broke"] = "flee"
+	u.erase("hold")
+	var g: Grapple = u.c.grapple
+	if g != null and g.holder == u.c:
+		g.end()
+	events.append({"type": "morale", "unit": u.id, "result": "flee", "why": why, "roll": roll, "threshold": thr})
+	say("%s breaks and runs (morale %d vs %d: %s)." % [u.c.display_name, roll, thr, Morale.why_text(why)])
+
+
+## A fleeing unit reached the edge: gone, unharmed (like a bystander who ran, `fled`). HOUSE-RULE
+## (stealth consequence): a guard who gets away while the alarm hasn't been raised (alarm below 2)
+## raises it on the way out.
+func flee_out(u: Dictionary) -> void:
+	if is_guard(u) and alarm < 2 and reinforcements and bool(sides[int(u.team)].opfor):
+		say("%s gets clear and raises the alarm." % u.c.display_name)
+		call_it_in(u)
+	u.c.dead = true   # off the map, not killed: the log and `fled` say so
+	u["fled"] = true
+	init.remove(u.c)
+	fled += 1
+	events.append({"type": "fled", "unit": u.id})
+	say("%s flees the scene." % u.c.display_name)
+
+
+## A Trauma Team carrier who breaks puts the patient down where they stand.
+func _drop_carried_patient(u: Dictionary) -> void:
+	if int(tt.get("carrier", -1)) == int(u.id):
+		var pt: Dictionary = units[int(tt.patient)]
+		pt.erase("carried")
+		pt.pos = u.pos
+		tt.carrier = -1
+
+
+## Who broke this gig, for the debrief: {surrendered, fled} (fleeing units still on the map count
+## as neither until they're gone).
+func morale_counts() -> Dictionary:
+	return {"surrendered": surrendered, "fled": fled}
 
 
 # --- Objective helpers ------------------------------------------------------------------------
@@ -2201,6 +2356,11 @@ func preview(target: Dictionary, weapon: Weapon, mode: Attack.Mode) -> Dictionar
 	p["blocker"] = s.blocker
 	if not sh.is_empty():
 		p["shield"] = sh.id
+	match String(target.get("broke", "")):   # Morale: shooting someone who gave up (or is running) is the crew's choice; the view says so
+		"surrender":
+			p["surrendered"] = true
+		"flee":
+			p["fleeing"] = true
 	return p
 
 
@@ -3205,6 +3365,11 @@ func net_action(kind: String, arg: int = -1) -> Dictionary:
 	var n := run.cur_node()
 	match kind:
 		"backdoor":
+			if login_codes > 0:   # HOUSE-RULE: a login code off a body (CorpseLoot) opens this Password, no roll
+				login_codes -= 1
+				run.broken[n.id] = true
+				say("%s keys in a login code from a body: the Password opens." % cur.c.display_name)
+				return {"ok": true, "success": true, "login_code": true}
 			var c := run.backdoor(dice)
 			say("Backdoor %s." % ("succeeds" if c.success else "fails"))
 			return {"ok": true, "success": c.success}

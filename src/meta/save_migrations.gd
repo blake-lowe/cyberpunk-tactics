@@ -62,6 +62,9 @@ extends RefCounted
 ##     built). An older offer has none of the first three and keeps its title and blurb (the board
 ##     shows what it has); it gains an eb `payment` of its `pay` and twist null. The campaign gains
 ##     `intel` (information tokens, 0) and `favours` (favour tokens, none).
+##     Corpse loot (Single Player Mode, CorpseLoot): the campaign keeps `leads`, the plot hooks
+##     found on bodies ({label, hook, day, gig, faction, district, location, from}); an older save
+##     found none and starts with an empty list. Loot itself lands in the stash, which is unchanged.
 
 const CURRENT := 16
 
@@ -300,3 +303,5 @@ static func _v15_to_v16(d: Dictionary) -> void:
 		d["intel"] = 0
 	if not d.has("favours"):
 		d["favours"] = []
+	if not (d.get("leads") is Array):
+		d["leads"] = []

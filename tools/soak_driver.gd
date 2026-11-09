@@ -29,7 +29,8 @@ var debug := false        ## every crew Move, for chasing a stuck crew
 var failures: Array[String] = []
 var trace: Array[String] = []
 var stats := {"gigs": 0, "won": 0, "fled": 0, "lost": 0, "rounds": 0, "turret_units": 0, "turret_shots": 0, "device_ops": 0,
-	"complications": 0, "utilities": 0, "neutral": 0, "peace_broken": 0, "setpieces": {}, "towers": {}, "sides": {}, "kinds": {}, "offers": {}, "looks": {}}
+	"complications": 0, "utilities": 0, "neutral": 0, "peace_broken": 0, "setpieces": {}, "towers": {}, "sides": {}, "kinds": {}, "offers": {}, "looks": {},
+	"surrendered": 0, "fled_units": 0, "searched": 0, "finds": {}, "leads": 0}
 
 var _ctx := ""            ## "seed 3 gig 2 (title)": prefixed to failures
 var _seen_fail := {}      ## one report per kind of breach per gig
@@ -207,6 +208,7 @@ func _play_gig(camp: Campaign, idx: int) -> void:
 		_fail("resolve refused the encounter")
 		return
 	stats[e.state] = int(stats.get(e.state, 0)) + 1
+	_check_loot(camp, e, rep)
 	trace.append(line + " · pay %d ip %d dead %d eb %d day %d" % [int(rep.pay), int(rep.ip), (rep.dead as Array).size(), camp.eb, camp.day])
 	if int(rep.pay) < 0 or int(rep.ip) < 0:
 		_fail("negative pay %d or IP %d" % [int(rep.pay), int(rep.ip)])
@@ -257,6 +259,8 @@ func _play(camp: Campaign) -> Encounter:
 			_fail("next_turn returned on a non-crew turn (%s)" % ("none" if e.cur.is_empty() else e.cur.c.display_name))
 			break
 		_crew_turn(e)
+		if e.state == "playing":
+			_search(e)
 		if e.state == "playing":
 			e.end_turn()
 		if e.state == "playing":
@@ -441,6 +445,49 @@ static func _net_step(run: NetRun, target: int) -> int:
 			bd = int(dist[id])
 			best = int(id)
 	return best
+
+
+## Search Body (CorpseLoot) with an Action left over and a body beside them; once per body.
+func _search(e: Encounter) -> void:
+	if e.cur.is_empty() or int(e.cur.team) != Encounter.CREW or e.turn == null or not e.turn.action_available:
+		return
+	var b := e.body_in_reach(e.cur)
+	if b.is_empty():
+		return
+	var r := e.search_body()
+	if not r.get("ok", false):
+		_fail("search refused: %s" % String(r.get("reason", "")), "search")
+		return
+	stats.searched += 1
+	_count("finds", String(r.find.kind))
+	if not b.get("searched", false) or e.searchable(b):
+		_fail("%s can be searched twice" % b.c.display_name, "search-twice")
+	for k in r.find.get("items", {}):
+		if not Items.is_stored(String(k)):
+			_fail("a find no storage takes: %s" % k, "loot-key")
+
+
+## Morale and loot at the end of a gig: those who gave up are nobody's enemy and out of the turn
+## order, those who ran are off the map, and what came home is in the report and the lead list.
+func _check_loot(camp: Campaign, e: Encounter, rep: Dictionary) -> void:
+	for u in e.units:
+		match String(u.get("broke", "")):
+			"surrender":
+				if e.hostile(Encounter.CREW, int(u.team)) or e.init.order().has(u.c):
+					_fail("%s surrendered but still fights" % u.c.display_name, "surrender")
+			"flee":
+				if u.get("fled", false) and not u.c.dead:
+					_fail("%s fled but is still on the map" % u.c.display_name, "fled")
+		if u.has("broke") and e.opfor().has(u):
+			_fail("%s broke but counts as opposition" % u.c.display_name, "broke-opfor")
+	stats.surrendered += e.surrendered
+	stats.fled_units += e.fled
+	if int(rep.get("surrendered", -1)) != e.surrendered or int(rep.get("fled", -1)) != e.fled:
+		_fail("the debrief's morale counts differ", "morale-report")
+	var nl := (rep.get("leads", []) as Array).size()
+	stats.leads += nl
+	if camp.leads.size() < nl:
+		_fail("leads went missing", "leads")
 
 
 ## The objective's action if it's offered (grab, free, plant). True if one was taken.

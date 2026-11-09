@@ -52,6 +52,7 @@ func _initialize() -> void:
 	print("sides: %s" % JSON.stringify(d.stats.sides))
 	print("neutral ground %d (peace broken %d)" % [d.stats.neutral, d.stats.peace_broken])
 	print("complications %d, utility outages %d, turrets %d, held-turret shots %d, NET device ops %d" % [d.stats.complications, d.stats.utilities, d.stats.turret_units, d.stats.turret_shots, d.stats.device_ops])
+	print("morale: %d surrendered, %d fled; bodies searched %d, finds %s, leads %d" % [d.stats.surrendered, d.stats.fled_units, d.stats.searched, JSON.stringify(d.stats.finds), d.stats.leads])
 	for f in d.failures:
 		print("FAIL " + f)
 	print("%d failures" % d.failures.size())
