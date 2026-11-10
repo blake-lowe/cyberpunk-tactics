@@ -77,7 +77,7 @@ func _expected(implants: Array, loc: String) -> int:
 func test_pips_follow_the_slot_model() -> void:
 	var imp: Array = [{"id": "neural_link", "loc": "neural_link"}, {"id": "kerenzikov", "loc": "neural_link"},
 		{"id": "chipware_socket", "loc": "neural_link"}, {"id": "pain_editor", "loc": "chipware"},
-		{"id": "cybereye", "loc": "right_eye"}, {"id": "targeting_scope", "loc": "right_eye"}, {"id": "teleoptics", "loc": "right_eye"},
+		{"id": "cybereye", "loc": "right_eye"}, {"id": "targeting_scope", "loc": "right_eye"}, {"id": "microoptics", "loc": "right_eye"},
 		{"id": "subdermal_grip", "loc": "right_arm"}, {"id": "cyberarm", "loc": "left_arm"}, {"id": "skin_weave", "loc": "external"}]
 	var states := func(loc: String) -> Array: return ChromeBody.pips(imp, loc).map(func(p): return String(p.state))
 	assert_eq(states.call("right_eye"), ["filled", "hidden", "empty"], "a seen option, an unplayed one (occupied), a free slot")
@@ -94,7 +94,7 @@ func test_pips_follow_the_slot_model() -> void:
 		var cap := Cyber.capacity(imp, loc)
 		if cap > 0:
 			assert_eq(ps.filter(func(p): return p.state == "empty").size(), maxi(0, Cyber.free_slots(imp, loc)), "free slots at " + loc)
-	assert_eq(ChromeBody.line(imp, "right_eye"), "Cybereye · Targeting Scope", "the hidden Teleoptics isn't named")
+	assert_eq(ChromeBody.line(imp, "right_eye"), "Cybereye · Targeting Scope", "the hidden MicroOptics isn't named")
 	assert_eq(ChromeBody.line(imp, "left_eye"), "Meat")
 	assert_eq(ChromeBody.line([{"id": "biomonitor", "loc": "fashion"}], "fashion"), "Occupied")
 
@@ -195,11 +195,11 @@ func test_keyboard_moves_between_places_and_crew() -> void:
 
 func test_hidden_pieces_never_show() -> void:
 	var camp := DemoState.make()
-	var c: Combatant = camp.alive_crew()[2]   # hidden Teleoptics in the right eye, a hidden Biomonitor
+	var c: Combatant = camp.alive_crew()[2]   # a hidden Biomonitor (its TeleOptics play since phase 1)
 	var hidden: Array = c.implants.filter(func(p): return not Cyber.modelled(String(p.id))).map(func(p): return Cyber.display(String(p.id)).to_upper())
 	assert_false(hidden.is_empty(), "the demo crew member carries unplayed chrome")
 	var s: MedBayScreen = _open(MedBayScreen.new(), camp, "ripperdoc", 2)
-	for loc in ["right_eye", "fashion"]:
+	for loc in ["fashion"]:
 		s._select_loc(loc)
 		var texts := _texts(s)
 		for h in hidden:
@@ -260,3 +260,28 @@ func test_armory_opens_the_full_loadout() -> void:
 
 func test_help_names_the_loadout_key() -> void:
 	assert_true(Hud.help_text().contains("Loadout"), Hud.help_text())
+
+
+## Phase 1's options step (_install_choices): a Skill Chip goes in as the Skill it was bought for.
+func test_a_chip_installs_as_what_it_was_bought_for() -> void:
+	var camp := DemoState.make()
+	var c: Combatant = camp.alive_crew()[1]
+	for k in ["cyberware/neural_link", "cyberware/chipware_socket"]:
+		camp._put(k)
+	if not c.has_cyberware("neural_link"):
+		camp.install(c, "neural_link")
+	camp.install(c, "chipware_socket")
+	camp.stash["cyberware/skill_chip@stealth"] = 1
+	camp.stash["cyberware/skill_chip@handgun"] = 1
+	var s: MedBayScreen = _open(MedBayScreen.new(), camp, "ripperdoc", 1)
+	s._select_loc("chipware")
+	var opts := s._install_choices(c, "skill_chip")
+	assert_eq(opts.map(func(o): return o[1]), ["Stealth", "Handgun"], "one option per chip in storage, by its Skill")
+	assert_eq(camp.install_block(c, "skill_chip", "chipware"), "", "a chip is in storage")
+	_buttons(_live(s, "Stored_skill_chip")[0], "INSTALL")[0].pressed.emit()
+	assert_eq(s._choose, "skill_chip", "asks which first")
+	_buttons(_live(s, "Stored_skill_chip")[0], "STEALTH")[0].pressed.emit()
+	assert_eq(String(c.implant("skill_chip").get("choice", "")), "stealth")
+	assert_eq(camp.stored("cyberware/skill_chip@stealth"), 0)
+	assert_eq(camp.stored("cyberware/skill_chip@handgun"), 1, "the other stays")
+	assert_eq(c.skill_level("stealth"), maxi(3, int(c.skills.get("stealth", 0))))

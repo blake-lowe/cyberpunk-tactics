@@ -8,6 +8,7 @@ var entries: Array[Dictionary] = []  ## {c: Combatant, roll: int, tb: int}
 var index := -1  ## Position of the combatant whose turn it is.
 var round_num := 0
 var _dice: Dice
+var _resort := false   ## a roll changed this Round (adjust): the queue re-sorts when the next Round starts
 
 
 func _init(dice: Dice) -> void:
@@ -36,6 +37,19 @@ func remove(c: Combatant) -> void:
 			if i <= index:
 				index -= 1
 			return
+
+
+## Change `c`'s Initiative by `delta` mid-fight: the Sandevistan's +3 to "any Initiative Roll they
+## make in the next minute" (CPR core p.359), and its end. The book rolls Initiative once per fight
+## (p.168), so the bonus goes onto the roll already made (owner's ruling: the queue re-sorts).
+## HOUSE-RULE (the timing, which the book doesn't give): the new order takes effect from the start of
+## the next Round, so within a Round nobody acts twice or loses a turn; the tie-break key is kept, so
+## the re-sort is deterministic.
+func adjust(c: Combatant, delta: int) -> void:
+	for e in entries:
+		if e.c == c:
+			e.roll = int(e.roll) + delta
+			_resort = true
 
 
 ## Advance to the next combatant able to act. Returns null if nobody can.
@@ -70,6 +84,9 @@ func order() -> Array[Combatant]:
 
 
 func _start_round() -> void:
+	if _resort:   # adjust(): the Round starts in the new order (index is 0 or -1 here: nobody's mid-turn)
+		_resort = false
+		entries.sort_custom(_before)
 	for e in entries:
 		(e.c as Combatant).new_round()
 

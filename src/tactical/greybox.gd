@@ -56,7 +56,8 @@ var cutaway := true   ## buildings cut open per FloorNav.slices (owner retired t
 var sight_mode := 0    ## Z cycles guards' sight lines: 0 near the hovered move / hovered guard, 1 always, 2 off
 var fog_on := true
 var mode := Attack.Mode.SINGLE
-var stage := "main"         ## action bar: "main" or "attack" (weapon tabs + the drawn weapon's attacks)
+var stage := "main"         ## action bar: "main", "attack" (weapon tabs + the drawn weapon's attacks) or "chrome" (the chrome menu)
+var chrome_idx := 0         ## the chrome menu's piece (Encounter.chrome_options index): Tab moves it
 var atk_mode := "single"    ## the armed attack (Encounter.attack_modes ids, or "brawl")
 var cover_mode := false
 var move_opts := {}
@@ -391,6 +392,7 @@ var _reel := ""
 var tool := ""                  ## M5 target-picking action: melee, shell, grenade, stabilize ("" = normal attacks)
 var _dev_kit: PackedStringArray = []   ## --kit=a,b (review renders)
 var _dev_weapons: PackedStringArray = []   ## --weapons=heavy_pistol@poor,microwaver (review renders)
+var _dev_chrome: PackedStringArray = []    ## --chrome=sandevistan,popup_ranged_weapon@heavy_pistol (review renders): installed on the crew
 var _dev_stage := ""                   ## --stage=attack (review renders)
 var _dev_arm := ""                     ## --arm=brawl|grenade|<attack mode> (review renders)
 var _dev_portrait := false             ## --portrait=1 (review renders): hover the hovered foe's portrait instead
@@ -489,6 +491,7 @@ func _ready() -> void:
 			"focusb": _dev_focus_b = kv[1]   # review renders: focus a building (H3), "k" or "k:storey"
 			"kit": _dev_kit = kv[1].split(",")   # review renders: pack every crew member's kit slots
 			"weapons": _dev_weapons = kv[1].split(",")   # review renders: the crew carries these (id[@quality]), first drawn
+			"chrome": _dev_chrome = kv[1].split(",")   # review renders: install these on every crew member (specs; foundations come with them)
 			"stage": _dev_stage = kv[1]   # review renders: open the action bar on this stage (attack)
 			"arm": _dev_arm = kv[1]   # review renders: arm this attack (brawl, grenade = kit slot 1, or a mode id)
 			"portrait": _dev_portrait = kv[1] != "0"   # review renders: the hover goes through the foe's portrait
@@ -710,7 +713,15 @@ func _process(delta: float) -> void:
 				cam_dist = maxf(cam_dist, minf(60.0, (a3 - b3).length() * 1.6 + 8.0))
 				_place_camera()
 		if _frames == 2 and _dev_stage != "":
-			_on_hud("stage", _dev_stage)
+			var st := _dev_stage.get_slice(":", 0)   # chrome:1 = the chrome menu on its second piece; attack:popup = a popup weapon drawn
+			if st == "attack" and _dev_stage.get_slice(":", 1) == "popup":
+				var pw: Array = enc.cur.c.weapons.filter(func(w): return w.popup != "")
+				if not pw.is_empty():
+					enc.draw(pw[0])
+			_on_hud("stage", st)
+			if st == "chrome" and _dev_stage.contains(":"):
+				chrome_idx = int(_dev_stage.get_slice(":", 1))
+				_refresh()
 		if _frames == 2 and _dev_arm != "":
 			if _dev_arm == "grenade":
 				_on_hud("kit", 0)
@@ -1072,6 +1083,7 @@ func new_gig() -> void:
 				cm.kit[i] = _dev_kit[i]
 			if not _dev_weapons.is_empty():
 				cm.weapons.assign(Array(_dev_weapons).map(func(k): return Items.make_weapon("weapon/" + String(k))))
+			dev_chrome(cm, _dev_chrome)
 		var fid := String(gig.get("faction", ""))
 		if fid != "":
 			eo["faction"] = fid
@@ -3449,9 +3461,17 @@ func _unhandled_input(ev: InputEvent) -> void:
 				else:
 					_on_hud("stage", "attack")
 			KEY_TAB:
+				if stage == "chrome":   # the chrome menu: Tab to the next piece, as the attack menu's to the next weapon
+					_on_hud("chrome_next", null)
+					return
 				if stage != "attack":
 					_on_hud("stage", "attack")
 				_on_hud("draw_next", null)
+			KEY_1:   # the chrome menu (Hud.CHROME_KEY: every letter has a job); again: use the piece shown
+				if stage == "chrome":
+					_on_hud("chrome_use", null)
+				else:
+					_on_hud("stage", "chrome")
 			KEY_G: _on_hud("kit", 0)
 			KEY_T: _on_hud("tool", "stabilize")
 			KEY_B: _on_hud("interact", null)
@@ -3486,6 +3506,29 @@ func _unhandled_input(ev: InputEvent) -> void:
 			KEY_M: open_loadout(-1)   # the loadout screen: chrome on the silhouette, gear beside it
 
 
+## Review renders (--chrome): install `specs` on `c` with what they need first (a popup's Cyberarm, a
+## chip's Chipware Socket and Neural Link), wherever they fit.
+static func dev_chrome(c: Combatant, specs: PackedStringArray) -> void:
+	var hum := [c.humanity, c.max_humanity]   # a review render's chrome costs no Humanity (no cyberpsychosis episode on turn one)
+	for spec in specs:
+		var chain: Array[String] = []
+		var need := Cyber.needs(String(spec))
+		while need != "":
+			chain.push_front(need)
+			need = Cyber.needs(need)
+		for f in chain:
+			if not c.has_cyberware(f):
+				c.install_cyberware(f)
+		if Cyber.def(String(spec)).is_empty():
+			continue
+		if Cyber.block_any(c.implants, String(spec)) != "" and not chain.is_empty() and Cyber.block_any(c.implants, chain[-1]) == "":
+			c.install_cyberware(chain[-1])   # the first arm (eye) is full: a second one
+		if Cyber.block_any(c.implants, String(spec)) == "":
+			c.install_cyberware(String(spec))
+	c.humanity = hum[0]
+	c.max_humanity = hum[1]
+
+
 func _on_hud(name: String, arg: Variant) -> void:
 	if name == "portrait_hover":   # [unit id or -1, portrait rect]: hover tracking, even while busy
 		_portrait_hover(int(arg[0]), arg[1])
@@ -3518,7 +3561,13 @@ func _on_hud(name: String, arg: Variant) -> void:
 				else:
 					_click_attack(cover_mode)
 		"stage":
-			if String(arg) == "attack" and stage != "attack":
+			if String(arg) == "chrome" and stage != "chrome":   # the chrome menu (Encounter.chrome_options)
+				if not _crew_turn() or enc.chrome_options().is_empty():
+					return
+				_back_to_main()
+				stage = "chrome"
+				chrome_idx = 0
+			elif String(arg) == "attack" and stage != "attack":
 				if not _spend_check():
 					return
 				stage = "attack"
@@ -3530,6 +3579,22 @@ func _on_hud(name: String, arg: Variant) -> void:
 		"atk_mode":
 			_arm(String(arg))
 			_refresh(); _update_hover()
+		"chrome_next":   # Tab in the chrome menu: the next piece
+			var n := enc.chrome_options().size()
+			chrome_idx = (chrome_idx + 1) % maxi(1, n)
+			_refresh(); _update_hover()
+		"chrome_use":   # work the piece shown (its key again, or a click): the Sandevistan, the Popup Shield
+			if not _crew_turn():
+				return
+			var opts := enc.chrome_options()
+			var cid := String(arg) if arg != null else (String(opts[clampi(chrome_idx, 0, opts.size() - 1)].id) if not opts.is_empty() else "")
+			var r := enc.use_chrome(cid)
+			if not r.get("ok", false):
+				hud.toast(String(r.get("reason", "can't")).to_upper())
+				return
+			if cid == "sandevistan":   # the Action is spent: back to the main bar, as after an attack
+				_back_to_main()
+			_after_action()
 		"atk_cycle":
 			var ms := Encounter.attack_modes(null if atk_mode == "brawl" else (enc.cur.c.weapons[0] if not enc.cur.c.weapons.is_empty() else null))
 			_arm(ms[(ms.find(atk_mode if atk_mode != "brawl" else "melee") + 1) % ms.size()] if atk_mode != "brawl" else "brawl")
@@ -4963,6 +5028,8 @@ func _after_action() -> void:
 	hud.log_hold = false
 	if stage == "attack" and (enc.cur.is_empty() or enc.cur.team != 0 or not (enc.turn.action_available or enc.turn.attacks_left > 0)):
 		_back_to_main()   # the attack is spent: back to the main bar (a ROF 2 second shot stays armed)
+	if stage == "chrome" and (enc.cur.is_empty() or enc.cur.team != 0 or enc.cur.id != _last_cur):
+		_back_to_main()   # someone else's turn: the chrome menu was theirs
 	if _rebuild:
 		_rebuild = false
 		_build_world()
@@ -5439,6 +5506,7 @@ func _event_handlers() -> Dictionary:
 			"twist": _ev_twist,
 			"spoof": _ev_spoof,
 			"stroll": _ev_stroll,
+			"chrome": _ev_chrome,
 		}
 	return _handlers
 
@@ -6410,6 +6478,18 @@ func _anim_reload(e: Dictionary) -> void:
 	await get_tree().create_timer(minf(n.anim.get_animation(clip).length, 2.4) if n.anim.has_animation(clip) else 1.0).timeout
 
 
+## Chrome worked (Encounter.use_chrome): the piece's name over the unit, no rings or glows (owner).
+func _ev_chrome(e: Dictionary) -> void:
+	var u: Dictionary = enc.units[e.unit]
+	if not _seen(u.pos):
+		return
+	_focus_unit = u.id
+	var words := {"sandevistan": "SANDEVISTAN", "popup_shield": "SHIELD OUT" if e.get("on", false) else "SHIELD AWAY"}
+	_float(u, String(words.get(String(e.id), String(e.id).to_upper())), Hud.CHROME_TINT)
+	_snd("sfx_reload", _body_pos(u), -2.0)
+	await get_tree().create_timer(0.6).timeout
+
+
 func _anim_stabilize(e: Dictionary) -> void:
 	var u: Dictionary = enc.units[e.unit]
 	var t: Dictionary = enc.units[e.target]
@@ -6719,6 +6799,7 @@ func _down_juice(u: Dictionary, before: int, after: int, dead: bool, knocked_out
 func _hud_refresh() -> void:
 	hud.tool = tool
 	hud.stage = stage
+	hud.chrome_idx = chrome_idx
 	hud.atk_mode = atk_mode
 	var active: Dictionary = Campaign.current.active_gig if _campaign_gig and Campaign.current else {}
 	var place := place_label(m, active, String(gig.scene))

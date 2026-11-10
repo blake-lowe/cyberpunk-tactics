@@ -184,8 +184,18 @@ static func from_block(dice: Dice, id: String, handle: String = "") -> Combatant
 		var aid := String(b.armor[loc])
 		if (RulesDB.load_json("armor.json")["armor"] as Dictionary).has(aid):
 			c.armor[loc] = ArmorPiece.from_id(aid)
+	var made_for := {}   # a popup printed with the weapon in it (weapon_sources: "heavy_smg" → popup_ranged_weapon)
+	var srcs: Dictionary = b.get("weapon_sources", {})
+	for wid in srcs:
+		if String(wid) in Cyber.choices(String(srcs[wid])):
+			if not made_for.has(srcs[wid]):
+				made_for[srcs[wid]] = []
+			made_for[srcs[wid]].append(String(wid))
 	for cw in Cyber.foundations_first(b.get("cyberware", [])):   # every piece printed: two Cybereyes are two
-		c.install_cyberware(cw, dice, true)
+		var spec := String(cw)
+		if not (made_for.get(cw, []) as Array).is_empty():
+			spec += "@" + String(made_for[cw].pop_front())
+		c.install_cyberware(spec, dice, true)
 	var builtin: Array = c.weapons.duplicate()
 	c.weapons.clear()
 	var q: Dictionary = b.get("weapon_quality", {})

@@ -57,13 +57,133 @@ static func db() -> Dictionary:
 	return RulesDB.load_json("cyberware.json")["cyberware"]
 
 
-## The data entry, {} for an unknown id.
+## The data entry, {} for an unknown id. Takes a spec too ("skill_chip@handgun": see base).
 static func def(id: String) -> Dictionary:
-	return db().get(id, {})
+	return db().get(base(id), {})
 
 
+## A piece's name; a spec's with its choice ("Skill Chip: Handgun", "Popup Ranged Weapon: Heavy Pistol").
 static func display(id: String) -> String:
-	return String(def(id).get("name", id))
+	var nm := String(def(id).get("name", base(id)))
+	var ch := choice_of(id)
+	return nm if ch == "" else "%s: %s" % [nm, choice_name(base(id), ch)]
+
+
+# --- Pieces that carry a choice (Skill Chip, Popup Melee/Ranged Weapon) ---------------------------
+# A spec is an id, or "id@choice" for a piece made for one thing: a Skill Chip for one Skill (CPR core
+# p.360), a Popup Melee Weapon of one class, a Popup Ranged Weapon holding one gun (p.365). The choice
+# is made when it's bought (owner's ruling): it's the storage key's "@" tag (Items) and the installed
+# piece's "choice" field.
+
+static func base(spec: String) -> String:
+	return spec.get_slice("@", 0)
+
+
+static func choice_of(spec: String) -> String:
+	return spec.get_slice("@", 1) if spec.contains("@") else ""
+
+
+## The installed piece's spec ("skill_chip@handgun"; a plain id when it has no choice).
+static func spec_of(piece: Dictionary) -> String:
+	var ch := String(piece.get("choice", ""))
+	return String(piece.id) if ch == "" else "%s@%s" % [piece.id, ch]
+
+
+## What a piece can be made for: every Skill for a Skill Chip (p.360; Surgery is a Medtech Specialty,
+## not a Skill), the Light/Medium/Heavy Melee classes for a Popup Melee Weapon, every One-Handed
+## Ranged Weapon the game sells for a Popup Ranged Weapon (p.365). [] for a piece with no choice.
+static func choices(id: String) -> Array[String]:
+	var out: Array[String] = []
+	var fx: Dictionary = def(id).get("fx", {})
+	if fx.has("skill_chip"):
+		for s in RulesDB.load_json("skills.json")["skills"]:
+			if String(s) != "surgery":
+				out.append(String(s))
+	match String(fx.get("weapon_choice", "")):
+		"melee":
+			out.assign(POPUP_MELEE.keys())
+		"one_handed_ranged":
+			var ws: Dictionary = RulesDB.load_json("weapons.json")["weapons"]
+			for w in ws:
+				var d: Dictionary = ws[w]
+				if int(d.get("hands", 1)) == 1 and not d.get("melee", false) and d.has("sold") and int(d.get("mag", 0)) > 0 \
+						and String(d.get("skill", "")) != "athletics":
+					out.append(String(w))
+	return out
+
+
+## Whether a spec names a real piece and, for a piece made for one thing, one of its choices.
+static func valid_spec(spec: String) -> bool:
+	var ch := choice_of(spec)
+	return not def(spec).is_empty() and (ch in choices(base(spec)) if ch != "" else choices(base(spec)).is_empty())
+
+
+## The choice in words ("Handgun", "Heavy Pistol", "Machete").
+static func choice_name(id: String, ch: String) -> String:
+	if def(id).get("fx", {}).has("skill_chip"):
+		return String(RulesDB.skill(ch).get("name", ch.capitalize()))
+	if POPUP_MELEE.has(ch):
+		return String(POPUP_MELEE[ch])
+	return String(RulesDB.weapon(ch).get("name", ch.capitalize())) if RulesDB.load_json("weapons.json")["weapons"].has(ch) else ch.capitalize()
+
+
+## A Popup Melee Weapon's class and what it's called once in the arm: a one-handed weapon of the
+## book's examples for each class (CPR core p.91, p.365).
+const POPUP_MELEE := {"light_melee": "Knife", "medium_melee": "Machete", "heavy_melee": "Sword"}
+
+
+## The price of a spec: a Skill Chip for an (x2) Skill is 1,000eb, 500eb otherwise (CPR core p.360);
+## a Popup Ranged Weapon's gun is "provided by the user" (p.365), so the buyer pays for it too.
+static func price(spec: String, with_gun := true) -> int:
+	var d := def(spec)
+	var cost := int(d.get("cost", 0))
+	var ch := choice_of(spec)
+	if ch == "":
+		return cost
+	var fx: Dictionary = d.get("fx", {})
+	if fx.has("skill_chip"):
+		return 1000 if RulesDB.skill(ch).get("x2", false) else 500
+	if with_gun and String(fx.get("weapon_choice", "")) == "one_handed_ranged":
+		return cost + int(RulesDB.weapon(ch).get("cost", 0))
+	return cost
+
+
+## The weapon a popup piece holds (CPR core p.360, p.365): `piece` is an installed piece. A Popup
+## Melee Weapon's class made one-handed; a Popup Ranged Weapon's gun; the Popup Grenade Launcher a
+## one-handed Grenade Launcher with a single grenade in its magazine; the Cybereye Dartgun a Dartgun
+## with a single shot in its clip. Concealed until used (Weapon.revealed). null for any other piece.
+static func popup_weapon(piece: Dictionary) -> Weapon:
+	var id := String(piece.id)
+	var fx: Dictionary = def(id).get("fx", {})
+	var wid := String(fx.get("popup", piece.get("choice", ""))) if fx.has("popup") or fx.has("weapon_choice") else ""
+	if wid == "" or not RulesDB.load_json("weapons.json")["weapons"].has(wid):
+		return null
+	var w := Weapon.from_id(wid)
+	w.def = w.def.duplicate(true)
+	w.def["hands"] = 1   # One-Handed (p.365); the launcher too ("A One-Handed Grenade Launcher")
+	w.def["name"] = "Popup " + String(POPUP_MELEE.get(wid, w.def.get("name", wid))) if id != "dartgun" else "Eye Dartgun"
+	if fx.has("popup"):   # "only a single grenade in its magazine" (p.365), "only a single shot in the clip" (p.360)
+		w.def["mag"] = 1
+		w.ammo = 1
+	if id == "dartgun":
+		# The Dartgun fires Non-Basic Arrows only (p.348). The game plays one: Armor-Piercing (p.345).
+		var f: Dictionary = w.def.get("fx", {}).duplicate()
+		f.merge(RulesDB.gear("ammo", "armor_piercing_ammo").get("fx", {}), true)
+		w.def["fx"] = f
+	w.builtin = true
+	w.popup = key(piece)
+	return w
+
+
+## The Popup Shield's full HP: its Bulletproof Shield's (gear.json shields, 10 HP, CPR core p.183).
+static func shield_max(id: String) -> int:
+	var sid := String(def(id).get("fx", {}).get("shield", "bulletproof_shield"))
+	return int(RulesDB.gear("shields", sid).get("fx", {}).get("shield_hp", 10))
+
+
+## The installed piece's spec name ("Skill Chip: Handgun").
+static func piece_name(piece: Dictionary) -> String:
+	return display(spec_of(piece))
 
 
 ## Whether the game plays this piece's effect. The single gate for showing a piece to players and
@@ -99,6 +219,7 @@ static func loc_name(loc: String) -> String:
 
 ## Where this piece could go.
 static func locs_for(id: String) -> Array[String]:
+	id = base(id)
 	var out: Array[String] = []
 	out.assign(HOST_LOCS.get(String(def(id).get("host", "")), []))
 	return out
@@ -106,7 +227,8 @@ static func locs_for(id: String) -> Array[String]:
 
 ## The key a piece goes by in Combatant.cyber_off ("cybereye@left_eye").
 static func key(piece: Dictionary) -> String:
-	return "%s@%s" % [piece.id, piece.loc]
+	var ch := String(piece.get("choice", ""))
+	return "%s@%s" % [piece.id, piece.loc] + ("" if ch == "" else ":" + ch)   # two Skill Chips are two pieces
 
 
 static func pieces_at(implants: Array, loc: String) -> Array:
@@ -171,6 +293,7 @@ static func meat_pieces(implants: Array, loc: String) -> Array:
 ## Why `id` can't go into `loc` now, in a few plain words ("" if it can). Checks the piece itself, not
 ## storage or the crew: Campaign.install_block adds those.
 static func block(implants: Array, id: String, loc: String) -> String:
+	id = base(id)
 	var d := def(id)
 	if d.is_empty():
 		return "Unknown cyberware"
@@ -213,7 +336,7 @@ static func block(implants: Array, id: String, loc: String) -> String:
 	if d.get("free_in_meat", false):
 		return "The %s comes with one" % display(foundation_at(implants, loc)).to_lower()
 	if host == "borgware":
-		return ""   # no Option Slots (CPR core p.367); what each needs is unchecked while Borgware is unmodelled
+		return pieces_block(implants, id)   # no Option Slots (CPR core p.367); a Linear Frame needs Grafted Muscle
 	var cap := capacity(implants, loc)
 	if cap <= 0:
 		match loc:
@@ -228,6 +351,27 @@ static func block(implants: Array, id: String, loc: String) -> String:
 		if loc == "chipware":
 			return "Every chipware socket is full"
 		return "No free slot in the %s" % where if left <= 0 else "Needs %d free slots in the %s" % [need, where]
+	return ""
+
+
+## The pieces a piece needs in already (data "requires".pieces: a Linear Frame's Grafted Muscle and
+## Bone Lace, one for the Sigma and two for the Beta, CPR core p.367): "" or what's missing.
+static func pieces_block(implants: Array, id: String) -> String:
+	var need: Dictionary = def(id).get("requires", {}).get("pieces", {})
+	for pid in need:
+		var n := int(need[pid])
+		if count(implants, String(pid)) < n:
+			return "Needs %s%s" % ["" if n == 1 else "two " if n == 2 else "%d " % n, display(String(pid))]
+	return ""
+
+
+## The STAT a piece needs to go in (data "requires".stat: a Linear Frame's BODY 6 or 8, CPR core
+## p.367), read as the STAT with what's installed (Grafted Muscle and Bone Lace counts): "" or why not.
+static func stat_block(c: Combatant, id: String) -> String:
+	var need: Dictionary = def(id).get("requires", {}).get("stat", {})
+	for s in need:
+		if c.raw_stat(String(s)) < int(need[s]):
+			return "Needs %s %d" % [s, int(need[s])]
 	return ""
 
 
@@ -276,6 +420,9 @@ static func dependents(implants: Array, piece: Dictionary) -> Array:
 			out.append_array(rest.filter(func(p): return int(def(String(p.id)).get("neural_slot", 0)) > 0))
 	if id == "chipware_socket" and pieces_at(rest, "chipware").size() > count(rest, "chipware_socket"):
 		out.append_array(pieces_at(rest, "chipware"))
+	for p in rest:   # a Linear Frame stands on the Grafted Muscle and Bone Lace it needed (p.367)
+		if pieces_block(rest, String(p.id)) != "" and pieces_block(implants, String(p.id)) == "":
+			out.append(p)
 	return out
 
 
@@ -328,7 +475,7 @@ static func shown(implants: Array) -> Array:
 static func shown_names(implants: Array) -> Array[String]:
 	var out: Array[String] = []
 	for p in shown(implants):
-		out.append(display(String(p.id)))
+		out.append(piece_name(p))
 	return out
 
 

@@ -398,8 +398,13 @@ func _stored_row(c: Combatant, id: String) -> Control:
 ## The choices a piece asks for before it goes in, [[value, label], ...]; [] installs at once.
 ## Phase 1's hook (a Skill Chip's skill, a popup weapon's weapon): return them here, and
 ## _install hands the picked value to Campaign.install as a fourth argument.
-func _install_choices(_c: Combatant, _id: String) -> Array:
-	return []
+func _install_choices(_c: Combatant, id: String) -> Array:
+	var out: Array = []
+	for k in camp.cyberware_options():   # what each stored one was bought for ("cyberware/skill_chip@handgun")
+		var ch := Cyber.choice_of(k.get_slice("/", 1))
+		if Items.base_id(k) == id and ch != "":
+			out.append([ch, Cyber.choice_name(id, ch)])
+	return out
 
 
 func _start_install(b: Button, c: Combatant, id: String) -> void:

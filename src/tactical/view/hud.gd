@@ -57,13 +57,19 @@ var _econ: HBoxContainer
 var _buttons: HBoxContainer
 var _tool_buttons := {}   ## id → ActBtn on the main bar
 var _atk_buttons: HBoxContainer   ## the attack stage: weapon tabs, then the drawn weapon's attacks
-var stage := "main"       ## "main" or "attack" (set by the view before refresh)
+var stage := "main"       ## "main", "attack" or "chrome" (set by the view before refresh)
+var _chrome_buttons: HBoxContainer   ## the chrome stage: the piece in hand (Tab), what it does, BACK
+var chrome_idx := 0       ## the chrome stage's piece (Encounter.chrome_options index; set by the view)
+## The chrome menu's key: every letter already has a job (F attack ... M loadout), so the number row
+## starts here (owner: list it in the controls panel, HELP).
+const CHROME_KEY := "1"
+const CHROME_TINT := Color("c88cf8")   ## cyberware's violet (the Med Bay's and market's), lifted for the bar
 var atk_mode := "single"  ## the armed attack in the attack stage (Encounter.attack_modes ids)
 ## Main-bar actions: [id, title, key, signal, arg, tint]. Order is fixed so nothing moves.
 const MAIN_ACTIONS := [["shot", "ATTACK", "F", "stage", "attack", Color("05d9e8")], ["reload", "RELOAD", "R", "reload", null, Color("05d9e8")],
 	["kit0", "KIT", "G", "kit", 0, Color("f9c80e")], ["jack", "JACK IN", "J", "jack_in", null, Color("d68cff")],
 	["interact", "INTERACT", "B", "interact", null, Color("f9c80e")], ["medic", "STABILIZE", "T", "tool", "stabilize", Color("39f0a0")],
-	["role", "ROLE", "V", "role", null, Color("39f0a0")]]
+	["role", "ROLE", "V", "role", null, Color("39f0a0")], ["chrome", "CHROME", CHROME_KEY, "stage", "chrome", CHROME_TINT]]
 ## Stairs (FloorNav.go): [id, title, glyph, dir]. Shown while the active unit stands on a stair
 ## square (or elevator / ladder end) that leads that way; lit when the move fits this turn.
 const STAIR_ACTIONS := [["go_up", "GO UP", "go_up", 1], ["go_down", "GO DOWN", "go_down", -1]]
@@ -950,6 +956,24 @@ class ActBtn extends Button:
 				draw_line(Vector2(ax, o.y - r * 0.9 if not up else o.y + r * 0.3), Vector2(ax, tipy), c, 2.5)
 				var dd := 1.0 if up else -1.0
 				draw_colored_polygon(PackedVector2Array([Vector2(ax, tipy - dd * 3), Vector2(ax - r * 0.45, tipy + dd * r * 0.5), Vector2(ax + r * 0.45, tipy + dd * r * 0.5)]), c)
+			"chip", "chrome":   # a chip with pins
+				draw_rect(Rect2(o + Vector2(-r * 0.8, -r * 0.8), Vector2(r * 1.6, r * 1.6)), c, false, 2.0)
+				draw_rect(Rect2(o + Vector2(-r * 0.35, -r * 0.35), Vector2(r * 0.7, r * 0.7)), c)
+				for k in 3:
+					var d := -r * 0.5 + k * r * 0.5
+					draw_line(o + Vector2(d, -r * 0.8), o + Vector2(d, -r * 1.25), c, 1.5)
+					draw_line(o + Vector2(d, r * 0.8), o + Vector2(d, r * 1.25), c, 1.5)
+					draw_line(o + Vector2(-r * 0.8, d), o + Vector2(-r * 1.25, d), c, 1.5)
+					draw_line(o + Vector2(r * 0.8, d), o + Vector2(r * 1.25, d), c, 1.5)
+			"speed":   # chevrons: speedware
+				for k in 3:
+					var x := o.x - r * 1.1 + k * r * 0.75
+					draw_polyline(PackedVector2Array([Vector2(x, o.y - r), Vector2(x + r * 0.6, o.y), Vector2(x, o.y + r)]), Color(c, 0.5 + 0.25 * k), 2.5)
+			"pshield":   # a shield
+				var shp := PackedVector2Array([o + Vector2(-r, -r), o + Vector2(r, -r), o + Vector2(r, r * 0.3), o + Vector2(0, r * 1.2), o + Vector2(-r, r * 0.3)])
+				draw_colored_polygon(shp, Color(c, 0.25))
+				shp.append(shp[0])
+				draw_polyline(shp, c, 2.0)
 			"end":
 				draw_colored_polygon(PackedVector2Array([o + Vector2(-r * 1.2, -r), o + Vector2(r * 0.2, 0), o + Vector2(-r * 1.2, r)]), c)
 				draw_colored_polygon(PackedVector2Array([o + Vector2(0, -r), o + Vector2(r * 1.4, 0), o + Vector2(0, r)]), c)
@@ -1033,6 +1057,11 @@ func _build_bar() -> void:
 	_atk_buttons.add_theme_constant_override("separation", 5)
 	_atk_buttons.visible = false
 	mid.add_child(_atk_buttons)
+	# Chrome stage (built like the attack stage): the piece shown, Tab to the next, its use, BACK.
+	_chrome_buttons = HBoxContainer.new()
+	_chrome_buttons.add_theme_constant_override("separation", 5)
+	_chrome_buttons.visible = false
+	mid.add_child(_chrome_buttons)
 	_end_btn = ActBtn.new("end", "END TURN", "SPC", GOLD, 96, 66)
 	_end_btn.pressed.connect(func(): action.emit("end_turn", null))
 	row.add_child(_end_btn)
@@ -1390,8 +1419,10 @@ func _refresh_tools(enc: Encounter, crew_turn: bool) -> void:
 	var here := interact_here(enc)
 	var role := role_action(c)
 	var jacked := enc.runs.has(enc.cur.id)
+	var chrome := enc.chrome_options()
 	var show := {"shot": true, "reload": not c.weapons.is_empty() and c.weapons[0].uses_ammo(), "kit0": enc.kit_action(0) in ["grenade", "dose"],
-		"jack": NetRun.interface_rank(c) > 0, "interact": not here.is_empty(), "medic": near_dying, "role": not role.is_empty()}
+		"jack": NetRun.interface_rank(c) > 0, "interact": not here.is_empty(), "medic": near_dying, "role": not role.is_empty(),
+		"chrome": not chrome.is_empty()}
 	var gopts := enc.grapple_options()
 	var g: Grapple = c.grapple
 	for spec in GRAPPLE_ACTIONS:
@@ -1401,14 +1432,14 @@ func _refresh_tools(enc: Encounter, crew_turn: bool) -> void:
 	for k in _tool_buttons:
 		var b: ActBtn = _tool_buttons[k]
 		b.visible = show[k]
-		b.disabled = not crew_turn or (k != "jack" and not can_act) or (k == "reload" and not t.action_available)
+		b.disabled = not crew_turn or (k != "jack" and k != "chrome" and not can_act) or (k == "reload" and not t.action_available)
 		if show[k] and k in ["go_up", "go_down"]:   # a move, not an Action: lit when the flight fits this turn
 			var sg: Dictionary = stairs[1 if k == "go_up" else -1]
 			b.disabled = not crew_turn or not sg.ok
 			b.tooltip_text = ("Take the stairs %s" % ("up" if k == "go_up" else "down")) + (" (uses your Action)" if sg.run else "") + ("" if sg.ok else " · " + String(sg.reason))
 		if show[k] and _is_grapple(k):   # every one is an Action, bar letting go of someone alive (p.177, p.184)
 			b.disabled = not crew_turn or (not t.action_available and not (k == "release" and g != null and g.live()))
-		var armed: bool = {"shot": stage == "attack", "kit0": tool == "grenade", "medic": tool == "stabilize",
+		var armed: bool = {"shot": stage == "attack", "chrome": stage == "chrome", "kit0": tool == "grenade", "medic": tool == "stabilize",
 			"role": not role.is_empty() and tool == String(role[0]), "grab": tool == "grab", "break": tool == "break"}.get(k, false)
 		b.set_pressed_no_signal(b.toggle_mode and armed)
 		match k:
@@ -1432,14 +1463,17 @@ func _refresh_tools(enc: Encounter, crew_turn: bool) -> void:
 					b.title = String(role[1])
 					b.glyph = String(role[2])
 		b.queue_redraw()
-	_buttons.visible = stage != "attack"
+	_buttons.visible = stage == "main"
 	_atk_buttons.visible = stage == "attack"
-	_card.visible = stage != "attack"   # the attack stage gets the whole bar, so its buttons stay full size (owner)
+	_chrome_buttons.visible = stage == "chrome"
+	_card.visible = stage == "main"   # the attack and chrome stages get the whole bar, so their buttons stay full size (owner)
 	_card_sep.visible = _card.visible
 	if stage != "attack":
 		_wheel_idx = -1
 	if stage == "attack":
 		_build_attack_stage(enc, crew_turn and can_act)
+	if stage == "chrome":
+		_build_chrome_stage(enc, crew_turn)
 	_bar.reset_size()
 	_withdraw_btn.visible = crew_turn and enc.can_withdraw()   # owner: only shown once the crew can leave
 	_withdraw_btn.disabled = false
@@ -1554,6 +1588,50 @@ func _build_attack_stage(enc: Encounter, usable: bool) -> void:
 	for ch in _atk_buttons.get_children():
 		if ch is ActBtn:
 			(ch as ActBtn).custom_minimum_size.x = bw
+
+
+## The chrome stage (owner: a menu like the attack menu): the piece in a slot like the weapon wheel
+## (Tab or a click: the next piece), the button that works it (its key again, or a click), its cost
+## and one short line, then BACK (Esc). Encounter.chrome_options: the Sandevistan, the Popup Shield.
+func _build_chrome_stage(enc: Encounter, usable: bool) -> void:
+	_clear(_chrome_buttons)
+	var opts := enc.chrome_options()
+	if opts.is_empty():
+		return
+	var i := clampi(chrome_idx, 0, opts.size() - 1)
+	var o: Dictionary = opts[i]
+	var glyph := "speed" if String(o.id) == "sandevistan" else "pshield"
+	var slot := ActBtn.new("chip", String(o.name), "TAB %d/%d" % [i + 1, opts.size()], GOLD, WHEEL_W, WHEEL_H)
+	slot.toggle_mode = true
+	slot.set_pressed_no_signal(true)
+	slot.disabled = not usable
+	slot.pressed.connect(func(): action.emit("chrome_next", null))
+	_chrome_buttons.add_child(slot)
+	var sep := ColorRect.new()
+	sep.custom_minimum_size = Vector2(1, 50)
+	sep.color = Color(CHROME_TINT, 0.35)
+	_chrome_buttons.add_child(sep)
+	var use := ActBtn.new(glyph, String(o.verb), CHROME_KEY, CHROME_TINT)
+	use.toggle_mode = true
+	use.set_pressed_no_signal(bool(o.on))
+	use.disabled = not usable or not bool(o.ok)
+	use.tooltip_text = String(o.why) if not bool(o.ok) else ""
+	var cid := String(o.id)
+	use.pressed.connect(func(): action.emit("chrome_use", cid))
+	_chrome_buttons.add_child(use)
+	var info := VBoxContainer.new()   # a cost and one short line (owner: keep it short)
+	info.add_theme_constant_override("separation", 0)
+	info.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	info.custom_minimum_size.x = 210
+	info.add_child(_text(String(o.cost) if bool(o.ok) or bool(o.on) else String(o.why).to_upper(), F_DISPLAY, 20, GOLD if bool(o.ok) else DIM))
+	var line := _text(String(o.line), F_TERM, Hud.ts(17), TEXT)
+	line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	line.custom_minimum_size.x = 210
+	info.add_child(line)
+	_chrome_buttons.add_child(info)
+	var back := ActBtn.new("", "BACK", "ESC", Color("8a96a0"))
+	back.pressed.connect(func(): action.emit("stage", "main"))
+	_chrome_buttons.add_child(back)
 
 
 ## Over the END TURN button, just above the bar's right end.
@@ -1689,7 +1767,7 @@ static func stat_block(c: Combatant, full: bool, extra: Array = []) -> String:
 		hp += "  [color=#7d8a96]·[/color] " + ["Unhurt", "Lightly Wounded", "Seriously Wounded", "Mortally Wounded", "Flatlined"][c.wound_state()]
 	out.append(hp)
 	out.append((K % "ARMOR") + " head SP %d · body SP %d" % [c.sp("head"), c.sp("body")])
-	var ws: Array = c.weapons if full else c.weapons.slice(0, 1)
+	var ws: Array = (c.weapons if full else c.weapons.slice(0, 1)).filter(func(w): return c.team == 0 or w.popup == "" or w.revealed)   # a foe's popup: unseen until used (p.365)
 	for w in ws:
 		var q := QualityText.quality_note(Items.key_of_weapon(w))
 		var ap := " AP" if w.special_left > 0 and int(w.special_fx.get("ablate_sp", 1)) > 1 else ""   # a VH Pistol turret's AP rounds (Turret)
@@ -1701,7 +1779,7 @@ static func stat_block(c: Combatant, full: bool, extra: Array = []) -> String:
 		sk.sort_custom(func(a, b): return c.skill_base(a) > c.skill_base(b))
 		if not sk.is_empty():
 			out.append((K % "SKILLS") + " " + ", ".join(sk.slice(0, 8).map(func(k): return "%s %d" % [String(k).replace("_", " ").capitalize(), c.skill_base(k)])))
-		var chrome := Cyber.shown_names(c.implants)   # pieces whose effect isn't played stay hidden
+		var chrome := Cyber.shown_names(c.implants if c.team == 0 else c.implants.filter(func(p): return not c.concealed(p)))   # pieces whose effect isn't played stay hidden; a foe's popups until used
 		if not chrome.is_empty():
 			out.append((K % "CYBERWARE") + " " + ", ".join(chrome))
 		var kit: Array = c.kit.filter(func(k): return k != "")
@@ -1797,6 +1875,10 @@ static func conditions(c: Combatant) -> Array[String]:
 		out.append(String(d).replace("_", " "))
 	if not c.cyber_off.is_empty():
 		out.append("chrome offline")
+	if c.chrome_on.has("sandevistan"):
+		out.append("sandevistan: +3 initiative")
+	if c.shield_out:
+		out.append("popup shield %d HP" % c.shield_hp() if c.shield_hp() > 0 else "popup shield broken")
 	return out
 
 
@@ -2619,6 +2701,9 @@ const HELP := [
 	["OVERLAYS", [
 		["Z", "Guard sight lines: near your move / always / off"],
 		["M", "Loadout: chrome and gear (or click a crew card)"],
+	]],
+	["CHROME", [
+		["1", "Chrome menu: Tab next piece, 1 again to use it"],
 	]],
 ]
 

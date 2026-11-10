@@ -122,6 +122,9 @@ static func _fight(e: Encounter, u: Dictionary) -> void:
 		return
 	if u.c.weapons.is_empty():
 		return
+	if _chrome(e, u):   # the Action went on the Sandevistan: the Move Action closes in
+		_advance(e, u)
+		return
 	var w: Weapon = u.c.weapons[0]
 	if w.jammed or (w.uses_ammo() and w.ammo <= 0):
 		for f in _enemies(e, u):   # empty with an enemy in reach: hit them rather than reload
@@ -136,6 +139,59 @@ static func _fight(e: Encounter, u: Dictionary) -> void:
 		_advance(e, u)
 		if not _special(e, u, w):
 			_shoot(e, u, w)
+
+
+## Chrome for the AI (CPR core p.359, p.365), before the turn's attack: the best weapon in hand, a
+## popup included (drawn and stowed for free, p.365); the Popup Shield out whenever that weapon leaves
+## the arm free, away when it needs both hands (free); the Sandevistan kicked in on first contact (an
+## Action) when no shot this turn is worth taking (best chance under SANDY_SHOT). True if the Action
+## went on the Sandevistan.
+const SANDY_SHOT := 0.5
+
+
+static func _chrome(e: Encounter, u: Dictionary) -> bool:
+	var c: Combatant = u.c
+	var foes := _enemies(e, u)
+	if foes.is_empty() or e.turn == null:
+		return false
+	_pick_weapon(e, u, foes)
+	var w: Weapon = c.weapons[0]
+	if not c.shield_piece().is_empty() and c.shield_block() == "":
+		var two := int(w.def.get("hands", 1)) >= 2 or (w.popup != "" and w.popup.get_slice("@", 1).get_slice(":", 0) == String(c.shield_piece().loc))
+		if c.shield_out == two:   # out with a one-hander, away for a two-hander or a popup in the shield arm
+			e.use_chrome("popup_shield")
+	var sandy: Array = e.chrome_options(u).filter(func(o): return String(o.id) == "sandevistan" and o.ok)
+	if sandy.is_empty() or e.turn.attacks_left > 0:
+		return false
+	var best := 0.0
+	for t in foes:
+		var p := e.preview(t, w, Attack.Mode.SINGLE)
+		if p.ok:
+			best = maxf(best, float(p.chance))
+	return best < SANDY_SHOT and bool(e.use_chrome("sandevistan").get("ok", false))
+
+
+## Draw the weapon worth most this turn (drawing is free with a hand free, p.128; a popup, p.365):
+## a loaded one with the best shot (_best_shot_value), else keep what's in hand. Only popups (and
+## the way back from one) are weighed, so chrome-free fighters keep their primary.
+static func _pick_weapon(e: Encounter, u: Dictionary, foes: Array) -> void:
+	var c: Combatant = u.c
+	if e.turn.attacks_left > 0 or c.weapons.size() < 2:
+		return   # mid-attack (a ROF 2 second shot) or nothing to choose from
+	var cur_w: Weapon = c.weapons[0]
+	var best: Weapon = null
+	var best_v := -1.0
+	for w in c.weapons:
+		if w != cur_w and w.popup == "" and cur_w.popup == "":
+			continue   # chrome-free choices stay as they were: the primary, or back to it from a spent popup
+		if w.jammed or (w.uses_ammo() and w.ammo <= 0) or (w.is_melee() and w != cur_w):
+			continue   # a popup blade comes out by itself when they close in (melee_weapon)
+		var v := _best_shot_value(e, u, w)
+		if v > best_v + (0.0 if w == cur_w else 0.5):   # a clear gain to switch
+			best_v = v
+			best = w
+	if best != null and best != cur_w and best_v > 0.0:
+		e.draw(best)
 
 
 ## Expected damage of the best plain shot this turn (for comparing with the area options).

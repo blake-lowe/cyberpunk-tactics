@@ -103,6 +103,8 @@ static func best_slot(c: Combatant, key: String) -> String:
 static func chrome_name(c: Combatant, w: Weapon) -> String:
 	if c == null or not w.builtin:
 		return ""
+	if w.popup != "":   # a popup's weapon is named for it ("Popup Heavy Pistol")
+		return w.display_name()
 	for id in c.cyber_ids():
 		if String((Cyber.def(id).get("fx", {}) as Dictionary).get("weapon", "")) == w.id():
 			return Cyber.display(id)

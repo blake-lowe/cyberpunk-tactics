@@ -8,7 +8,8 @@ extends RefCounted
 ## Weapons: "weapon/<id>" (Standard Quality) or "weapon/<id>@poor" / "@excellent" (p.342).
 ## Armour: "armor/<id>", plus "@upgraded" for a piece a Tech has upgraded (+1 SP, p148) and
 ## "@sp<N>" for a piece put away ablated to N SP (it stays that way until worn and repaired).
-## Cyberware: "cyberware/<id>", bought like any other gear and kept in storage until the Med Bay's
+## Cyberware: "cyberware/<id>", or "cyberware/<id>@<choice>" for a piece made for one thing (a Skill
+## Chip's Skill, a popup's weapon: Cyber.choices), bought like any other gear and kept in storage until the Med Bay's
 ## ripperdoc installs it (then it's part of that crew member: removable, never moved to anyone else).
 
 const SECTIONS := ["ammo", "drugs", "gear"]
@@ -45,7 +46,7 @@ static func display_name(key: String) -> String:
 			var a := make_armor(key)
 			return a.name + (" +1" if a.upgraded else "") + (" (SP %d/%d)" % [a.sp, a.max_sp] if a.sp < a.max_sp else "")
 		"cyberware":
-			return String(RulesDB.cyberware(base_id(key)).get("name", key)) if is_cyberware(key) else key
+			return Cyber.display(key.get_slice("/", 1)) if is_cyberware(key) else key
 	var d := def(key)
 	return String(d.get("kit_name", d.get("name", key)))
 
@@ -64,7 +65,7 @@ static func price(key: String) -> int:
 		"armor":
 			return int(RulesDB.armor(base_id(key)).get("cost", 0)) if is_stored(key) else 0
 		"cyberware":
-			return int(RulesDB.cyberware(base_id(key)).get("cost", 0)) if is_cyberware(key) else 0
+			return Cyber.price(key.get_slice("/", 1)) if is_cyberware(key) else 0   # a Skill Chip's by its Skill (p.360)
 	return int(def(key).get("cost", 0))
 
 
@@ -126,7 +127,7 @@ static func is_cyberware(key: String) -> bool:
 ## Anything safehouse storage can hold: a kit item, a weapon, an armour piece or a piece of
 ## cyberware waiting to be installed.
 static func is_stored(key: String) -> bool:
-	return is_item(key) or is_weapon(key) or is_armor(key) or (is_cyberware(key) and tags(key).is_empty())
+	return is_item(key) or is_weapon(key) or is_armor(key) or (is_cyberware(key) and Cyber.valid_spec(key.get_slice("/", 1)))
 
 
 ## The book's Price Categories (CPR core p.385), cheapest first: [name, eb]. Super Luxury is

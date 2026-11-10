@@ -54,8 +54,28 @@ func test_price_filters_follow_the_book_rows() -> void:
 	assert_eq(NightMarket.matching({"kind": "armor", "cost": 1000}), ["armor/bodyweight_suit"])
 	assert_eq(NightMarket.matching({"kind": "kit", "section": "drugs", "cost_max": 20}), ["drugs/synthcoke"], "Street Drugs of 20eb or less")
 	assert_eq(NightMarket.matching({"kind": "kit", "section": "drugs", "cost": 50}), ["drugs/black_lace", "drugs/boost"])
-	assert_eq(NightMarket.matching({"kind": "cyberware", "category": "cyberoptics", "option": true, "cost_max": 500}), ["cyberware/targeting_scope"])
-	assert_eq(NightMarket.matching({"kind": "cyberware", "category": "neuralware", "option": true, "cost": 1000}), ["cyberware/pain_editor"])
+	assert_eq(NightMarket.matching({"kind": "cyberware", "category": "cyberoptics", "option": true, "cost_max": 500}),
+		["cyberware/dartgun", "cyberware/targeting_scope", "cyberware/teleoptics"])
+	var thousand := NightMarket.matching({"kind": "cyberware", "category": "neuralware", "option": true, "cost": 1000})
+	assert_eq(thousand[0], "cyberware/pain_editor")
+	assert_true("cyberware/skill_chip@autofire" in thousand, "a chip for an (x2) Skill is 1,000eb (p.360)")
+	assert_false("cyberware/skill_chip@handgun" in thousand, "a chip for any other Skill is 500eb")
+	assert_true("cyberware/skill_chip@handgun" in NightMarket.matching({"kind": "cyberware", "category": "neuralware", "cost_max": 500}))
+
+
+func test_a_dealer_stocks_a_few_skill_chips_each_for_one_skill() -> void:
+	var l := {"name": "Neuralware Option of 500eb or less", "filter": {"kind": "cyberware", "category": "neuralware", "option": true, "cost_max": 500}}
+	var keys := NightMarket.resolve(Dice.new(5), l)
+	var chips := keys.filter(func(k): return Items.base_id(k) == "skill_chip")
+	assert_eq(chips.size(), NightMarket.CHIP_STOCK, "a few chips, chosen at purchase")
+	assert_eq(keys, NightMarket.resolve(Dice.new(5), l), "seeded")
+	for k in chips:
+		assert_true(Items.is_stored(k) and NightMarket.on_sale(k), k)
+		assert_true(Items.display_name(k).begins_with("Skill Chip: "), Items.display_name(k))
+	assert_eq(Items.price("cyberware/skill_chip@autofire"), 1000)
+	assert_eq(Items.price("cyberware/popup_ranged_weapon@heavy_pistol"), 600, "the gun is the buyer's (p.365): 500 + 100")
+	assert_false(Items.is_stored("cyberware/skill_chip"), "a chip is made for a Skill")
+	assert_false(Items.is_stored("cyberware/skill_chip@not_a_skill"))
 	assert_true(NightMarket.matching({"kind": "kit", "section": "attachments", "cost_max": 100}).is_empty(), "attachments aren't stocked yet")
 
 

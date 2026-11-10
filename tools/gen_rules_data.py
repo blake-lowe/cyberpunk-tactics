@@ -57,8 +57,28 @@ CYBER_FX = {
     "talon_foot": {"weapon": "light_melee"},
     "vampyres": {"weapon": "light_melee", "weapon_quality": "excellent"},  # CPR core p.363: Excellent Quality
     "cybersnake": {"weapon": "very_heavy_melee"},
+    # Popups (CPR core p.365) and the Cybereye Dartgun (p.360): a concealed weapon in the piece, drawn and
+    # stowed without an Action. weapon_choice: picked when bought (the storage key's "@" tag, Cyber.choices).
     "popup_melee_weapon": {"weapon_choice": "melee"},
     "popup_ranged_weapon": {"weapon_choice": "one_handed_ranged"},
+    "popup_grenade_launcher": {"popup": "grenade_launcher"},   # one grenade in its magazine (p.365)
+    "dartgun": {"popup": "dartgun"},                           # a single shot in the clip (p.360)
+    "popup_shield": {"shield": "bulletproof_shield"},          # gear.json shields: 10 HP (p.183, p.365)
+    "skill_chip": {"skill_chip": 3},                           # its Skill trained at +3 unless higher (p.360)
+    "medscanner": {"skill_bonus": {"first_aid": 2, "paramedic": 2}},   # p.365; doesn't stack with the carried one
+    "techscanner": {"skill_bonus": {"basic_tech": 2, "cybertech": 2, "land_vehicle_tech": 2, "sea_vehicle_tech": 2,
+                                    "air_vehicle_tech": 2, "electronics_security_tech": 2, "weaponstech": 2}},   # p.366
+    "teleoptics": {"long_shot_bonus": 1, "long_shot_m": 51},   # single shot or Aimed Shot at 51 m+ (p.361)
+    "implanted_linear_frame_sigma": {"stat_set": {"BODY": 12}},   # p.367
+    "implanted_linear_frame_beta": {"stat_set": {"BODY": 14}},    # p.367
+}
+
+# Installation prerequisites beyond the slot model (Campaign.install_block): a minimum STAT and pieces
+# already in. Linear Frames: "Installation requires BODY 6 and Grafted Muscle and Bone Lace" (Sigma) and
+# "BODY 8 and Two Grafted Muscle and Bone Lace" (Beta), CPR core p.367.
+REQUIRES = {
+    "implanted_linear_frame_sigma": {"stat": {"BODY": 6}, "pieces": {"grafted_muscle_and_bone_lace": 1}},
+    "implanted_linear_frame_beta": {"stat": {"BODY": 8}, "pieces": {"grafted_muscle_and_bone_lace": 2}},
 }
 
 # --- Where each piece goes (src/core/cyber.gd reads these; CPR core p.111-116, entries p.358-367) ---
@@ -92,11 +112,14 @@ MEAT_OK = {"big_knucks", "rippers", "scratchers", "slice_n_dice", "subdermal_gri
 # arm/leg" (CPR core p.364, p.366).
 FREE_IN_MEAT = {"standard_hand", "standard_foot"}
 # One of a group per character: one Speedware (CPR core p.359-360).
-GROUP = {"kerenzikov": "speedware", "sandevistan": "speedware"}
+GROUP = {"kerenzikov": "speedware", "sandevistan": "speedware",
+         # One skeleton: a Linear Frame replaces the support structure (p.367; the book never pairs two).
+         "implanted_linear_frame_sigma": "linear frame", "implanted_linear_frame_beta": "linear frame"}
 # One per character: the Cyberaudio Suite (p.362), each Borgware mount (p.367).
 UNIQUE = {"cyberaudio_suite", "artificial_shoulder_mount", "multioptic_mount", "sensor_array"}
-# Several may share a host: Chipware Sockets (CPR core p.359), Interface Plugs (p.359), Light Tattoos (p.358).
-MULTI = {"chipware_socket", "interface_plugs", "light_tattoo"}
+# Several may share a host: Chipware Sockets (CPR core p.359), Interface Plugs (p.359), Light Tattoos (p.358),
+# Skill Chips (one per socket, p.359-360), Grafted Muscle and Bone Lace (the Beta Frame needs two, p.367).
+MULTI = {"chipware_socket", "interface_plugs", "light_tattoo", "skill_chip", "grafted_muscle_and_bone_lace"}
 # Subdermal Grip also "takes up a Neuralware Option Slot" (CPR core p.366).
 NEURAL_SLOT = {"subdermal_grip": 1}
 
@@ -104,7 +127,7 @@ NEURAL_SLOT = {"subdermal_grip": 1}
 # Every other piece gets "unmodelled": it stays in the data for NPC blocks and recruits but is hidden
 # from players and never sold (Cyber.modelled). A foundation is modelled when it plays or holds a piece
 # that does. Played by code rather than fx: Cybereye (teargas, Attack.apply_status), Subdermal Grip
-# (smartgun link, Attack.handling_reason).
+# (smartgun link, Attack.handling_reason), Hardened Shielding (Attack.microwaver_targets).
 SUMMARY = {
     "neural_link": "Wired nervous system: holds 5 neuralware options.",
     "kerenzikov": "+2 Initiative. Only one speedware.",
@@ -126,6 +149,19 @@ SUMMARY = {
     "wolvers": "Heavy melee claws. Fits a meat arm.",
     "subdermal_grip": "Fire smartguns without Interface Plugs. Takes a neuralware slot; fits a meat arm.",
     "talon_foot": "Light melee blade in the foot. Fits a meat leg.",
+    "sandevistan": "Action: +3 Initiative for the rest of the fight. Once a gig.",
+    "skill_chip": "Its skill counts as trained at 3, unless yours is higher.",
+    "popup_melee_weapon": "Hidden melee weapon in the arm. Out and away for free.",
+    "popup_ranged_weapon": "Hidden one-handed gun in the arm. Out and away for free.",
+    "popup_grenade_launcher": "Hidden one-shot grenade launcher in the arm.",
+    "popup_shield": "Hidden bulletproof shield in the arm: 10 HP of cover.",
+    "dartgun": "Hidden one-shot dartgun in the eye.",
+    "medscanner": "+2 First Aid and Paramedic. Doesn't stack with a medscanner.",
+    "techscanner": "+2 to the Tech skills. Doesn't stack with a techscanner.",
+    "teleoptics": "+1 to single and aimed shots at 51 m or more.",
+    "implanted_linear_frame_sigma": "BODY 12: more HP. Needs BODY 6 and Grafted Muscle.",
+    "implanted_linear_frame_beta": "BODY 14: more HP. Needs BODY 8 and two Grafted Muscle.",
+    "hardened_shielding": "This limb's chrome can't be knocked out by EMP.",
 }
 
 FOUNDATION_OF_HOST = {"neural_link": "neural_link", "chipware": "chipware_socket", "eye": "cybereye",
@@ -166,6 +202,8 @@ def placement(sid, category, inst):
         out["group"] = GROUP[sid]
     if sid in NEURAL_SLOT:
         out["neural_slot"] = NEURAL_SLOT[sid]
+    if sid in REQUIRES:
+        out["requires"] = REQUIRES[sid]
     if sid in SUMMARY:
         out["summary"] = SUMMARY[sid]
     else:

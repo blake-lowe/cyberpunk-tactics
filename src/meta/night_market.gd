@@ -48,6 +48,10 @@ static func roll(dice: Dice, day: int) -> Dictionary:
 	return {"opened": day, "closes": day + int(d.house_rules.open_days), "categories": picked, "listings": listings}
 
 
+## Skill Chips one listing offers (resolve): the market's chips, each for one Skill, chosen at purchase.
+const CHIP_STOCK := 3
+
+
 ## What a listing puts on sale: its keys or filter, only what the game plays, every Quality Rating
 ## of a weapon (p338), `choose` of them at random for a "GM's choice" row.
 static func resolve(dice: Dice, listing: Dictionary) -> Array[String]:
@@ -58,6 +62,11 @@ static func resolve(dice: Dice, listing: Dictionary) -> Array[String]:
 				cand.append(String(k))
 	elif listing.has("filter"):
 		cand = matching(listing.filter)
+	var chips := cand.filter(func(k): return Cyber.def(Items.base_id(k)).get("fx", {}).has("skill_chip"))
+	while chips.size() > CHIP_STOCK:   # HOUSE-RULE: a dealer stocks a few Skill Chips, not one for every Skill
+		var drop: String = chips[dice.d(chips.size()) - 1]
+		chips.erase(drop)
+		cand.erase(drop)
 	if listing.has("choose") and cand.size() > int(listing.choose):
 		var pick: Array[String] = []
 		while pick.size() < int(listing.choose):
@@ -84,8 +93,8 @@ static func on_sale(key: String) -> bool:
 			return Items.is_weapon(key) and RulesDB.weapon(Items.base_id(key)).has("sold")
 		"armor":
 			return Items.is_armor(key) and RulesDB.armor(Items.base_id(key)).has("sold")
-		"cyberware":
-			return Items.is_cyberware(key) and Cyber.modelled(Items.base_id(key))
+		"cyberware":   # a piece made for one thing is sold made for it (Cyber.choices: "cyberware/skill_chip@handgun")
+			return Items.is_cyberware(key) and Cyber.modelled(Items.base_id(key)) and Cyber.valid_spec(key.get_slice("/", 1))
 	return key in Items.all()
 
 
@@ -113,9 +122,13 @@ static func matching(f: Dictionary) -> Array[String]:
 				var k := "cyberware/" + String(id)
 				if f.has("option") and bool(f.option) != Cyber.is_option(String(id)):
 					continue
-				keys.append(k)
-				costs[k] = int(db[id].get("cost", 0))
-				cats[k] = String(db[id].get("category", ""))
+				var specs: Array[String] = [k]
+				if not Cyber.choices(String(id)).is_empty():   # one key per choice: a Skill Chip per Skill, a popup per weapon
+					specs.assign(Cyber.choices(String(id)).map(func(ch): return k + "@" + ch))
+				for sk in specs:
+					keys.append(sk)
+					costs[sk] = Cyber.price(sk.get_slice("/", 1), false)   # the piece's own price (a chip's by its Skill, p.360)
+					cats[sk] = String(db[id].get("category", ""))
 		"kit":
 			for k in Items.all():
 				if Items.section(k) == String(f.get("section", Items.section(k))):

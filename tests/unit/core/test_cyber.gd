@@ -217,15 +217,15 @@ func test_vampyres_are_excellent() -> void:
 ## Pieces whose effect isn't played stay in the data but players never see them: cards, rosters,
 ## the HUD inspector, the debrief and the Med Bay all list Cyber.shown.
 func test_inert_pieces_are_hidden_from_cards() -> void:
-	var im := _with(["biomonitor", "neural_link", "sandevistan", "cybereye", "cybereye", "anti_dazzle", "anti_dazzle", "kerenzikov"])
+	var im := _with(["biomonitor", "neural_link", "interface_plugs", "cybereye", "cybereye", "anti_dazzle", "anti_dazzle", "kerenzikov"])
 	var names := Cyber.shown_names(im)
 	assert_true("Neural Link" in names and "Cybereye" in names)
-	for hidden in ["Biomonitor", "Sandevistan", "Anti-Dazzle"]:
+	for hidden in ["Biomonitor", "Interface Plugs", "Anti-Dazzle"]:
 		assert_false(hidden in names, "%s isn't played yet: hidden" % hidden)
 	assert_eq(names.count("Cybereye"), 2, "two eyes, two pieces")
 	var m := Fixtures.unarmored()
 	m.implants.assign(im)
 	var lost: Array = Campaign._lost_gear(m, {})
 	assert_false("Biomonitor" in lost, "the debrief's lost gear hides it too")
-	assert_false(Cyber.modelled("sandevistan"))
+	assert_false(Cyber.modelled("interface_plugs"))
 	assert_true(Cyber.modelled("kerenzikov"))
