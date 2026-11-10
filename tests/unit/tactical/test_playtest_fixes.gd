@@ -152,4 +152,5 @@ func test_a_finished_gig_always_offers_a_way_on() -> void:
 	var e: Encounter = r[0]
 	e.objective.done = true
 	e._check_end()
+	walk_out(e)
 	assert_eq(e.state, "won")

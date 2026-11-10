@@ -387,7 +387,7 @@ var _dev_stairs := ""                  ## --stairs=on|up (review renders): the a
 var _dev_near := 0                     ## --near=n (review renders): bring the nearest foe n squares from the crew
 var _dev_morale := ""                  ## --morale=surrender | flee | search (review renders): stage Morale or Search Body
 var _dev_grapple := ""                 ## --grapple=hold|shield|throw|held (review renders, with --near=1): a sure Grab on the nearest foe first
-var _dev_clock := ""                   ## --clock=roll|empty|add|run (review renders): stage the detection clock (ClockWidget)
+var _dev_clock := ""                   ## --clock=roll|empty|add|run|alarm (review renders): stage the detection clock (ClockWidget)
 var _alt_on := false                   ## Alt is held: enemy outlines, last-known marks, stair and exit signs
 var _portrait_uid := -1                ## the turn-order portrait under the mouse (-1 none)
 var _aim := {}                         ## the hovered attack's preview: shape, from, to, col, ...
@@ -1861,7 +1861,7 @@ func objective_marks() -> Array:
 	if enc == null or enc.state != "playing" or _net_cleaned:
 		return out
 	var tones := {"gold": Hud.GOLD, "red": Hud.RED, "cyan": Hud.CYAN}
-	for mk in enc.obj.marks(fog_on):   # the objective module says where; the view draws it
+	for mk in enc.obj.shown_marks(fog_on):   # the objective module says where (the way out once it's done); the view draws it
 		if mk.get("extract", false):
 			out.append(_extract_mark())
 		else:
@@ -2026,7 +2026,7 @@ func _device_state_text(d: Dictionary) -> String:
 	if enc.device_holder(did) >= 0:
 		out = " · HELD (NET)"
 		if String(d.type) == "camera":
-			out += " · feeding the crew" + (" · looped" if enc.looped.has(did) else " · still reporting")
+			out += " · feeding the crew" + (" · LOOPED" if enc.looped.has(did) else " · STILL REPORTING")
 		elif NetDevices.is_on(enc, d) and String(NetDevices.spec(String(d.type)).get("op", "")) in ["seal", "halt", "lights", "cut_alarm"]:
 			out += " · " + String(DEVICE_WORDS[String(NetDevices.spec(String(d.type)).op)][0]).to_lower()
 	elif enc.disabled_devices.has(did) and String(d.type) != "door_lock":
@@ -5158,8 +5158,8 @@ static func end_banner(state: String) -> Dictionary:
 
 
 ## What the player can do once the gig is over: [[action, button text, key], ...]. A board gig
-## goes home to the safehouse debrief (the design: data theft ends when the File is pulled, a
-## snatch when the package reaches the deploy zone: no extraction phase after the objective). A
+## goes home to the safehouse debrief (the gig ends once the crew is out: every job ends with
+## extraction, Encounter._job_done). A
 ## dev map (no campaign gig) offers another map or quitting. The first is the default (Enter/Space).
 static func end_choices(campaign_gig: bool) -> Array:
 	if campaign_gig:
@@ -5176,8 +5176,8 @@ func _finish_gig() -> void:
 	_back_to_main()
 	_show_net(null)
 	var b := end_banner(enc.state)
-	hud.end_toast = String(b.head)   # the toast that stays up says what the banner says
-	hud.toast(hud.end_toast, 1e9)
+	hud.end_toast = "-"   # the banner is the one headline: no toast under it (owner, playtest v0.10.1)
+	hud.toast("", 0.0)
 	var camp := Campaign.current if _campaign_gig else null
 	_end_juice(enc.state)
 	hud.end_banner(String(b.text if camp != null else b.head), Hud.GREEN if b.good else Hud.RED)   # no debrief off the campaign
@@ -5211,20 +5211,13 @@ func _end_juice(state: String) -> void:
 var _end_opts: Array = []   ## end_choices of the panel that is up
 
 
-func _show_end_panel(b: Dictionary, campaign_gig: bool) -> void:
+## The end choices under the banner: just the buttons (RETURN TO SAFEHOUSE), no panel repeating
+## the headline (owner, playtest v0.10.1: "gig complete" three times). `b` is end_banner's.
+func _show_end_panel(_b: Dictionary, campaign_gig: bool) -> void:
 	if _end_panel != null and is_instance_valid(_end_panel):
 		return
-	var col: Color = Hud.GREEN if b.good else Hud.RED
-	_end_panel = UiKit.panel(col, 16)
-	_end_panel.custom_minimum_size.x = 480
-	var v := UiKit.vbox(10)
-	_end_panel.add_child(v)
-	v.add_child(UiKit.label("// GIG OVER", 13, col))
-	v.add_child(UiKit.head(String(b.head), 32, Hud.TEXT))
-	v.add_child(UiKit.body("Pay, injuries and the fallen are settled. The debrief is waiting at the safehouse." if campaign_gig
-		else "A dev map, outside the campaign: nothing to settle.", 16))
 	var row := UiKit.hbox(12)
-	v.add_child(row)
+	_end_panel = row
 	_end_opts = end_choices(campaign_gig)
 	for ch in _end_opts:
 		var act := String(ch[0])
@@ -5236,7 +5229,7 @@ func _show_end_panel(b: Dictionary, campaign_gig: bool) -> void:
 	if not is_instance_valid(p):
 		return
 	p.reset_size()
-	p.position = ((hud.size - p.size) / 2.0).floor() + Vector2(0, 60)   # under the banner
+	p.position = Vector2(floorf((hud.size.x - p.size.x) / 2.0), 200.0)   # under the banner and its rule
 	var tw := p.create_tween()   # after the end beat has landed (EndJuice: well inside 1.5 s)
 	tw.tween_interval(EndJuice.PANEL_DELAY)
 	tw.tween_property(p, "modulate:a", 1.0, EndJuice.PANEL_FADE)
@@ -5306,7 +5299,7 @@ func _body_pos(u: Dictionary) -> Vector3:
 ## Events that don't count as "hostile activity" for the enemy-phase banner (bookkeeping, third
 ## parties, things the crew caused).
 const QUIET_EVENTS := ["alert", "death", "camera", "tt_call", "av_land", "av_leave", "tt_pickup", "panic", "civ_gone", "morale", "fled", "search", "stroll",
-	"clock", "clock_add", "clock_new", "clock_stop", "clock_escalate", "twist", "spoof"]
+	"clock", "clock_add", "clock_new", "clock_stop", "clock_escalate", "twist", "spoof", "job_done"]
 
 var _handlers: Dictionary = {}
 
@@ -5353,6 +5346,7 @@ func _event_handlers() -> Dictionary:
 			"tt_pickup": _ev_tt_pickup,
 			"av_leave": _anim_av_leave,
 			"target_down": _ev_target_down,
+			"job_done": _ev_job_done,
 			"escape": _ev_escape,
 			"peace_broken": _ev_peace_broken,
 			"grapple": _anim_grapple,
@@ -5458,12 +5452,23 @@ func _ev_dose(e: Dictionary) -> void:
 	await get_tree().create_timer(0.5).timeout
 
 
+## The alarm goes up: who calls it in, the countdown, and why (owner, playtest v0.10.1: the
+## detection dice gave way to ALARM with no reason shown). The cause lands as a red banner as the
+## clock row clears (clock_stop follows); a clock that ran out has had its own banner (_ev_clock).
 func _ev_alarm(e: Dictionary) -> void:
 	var u: Dictionary = enc.units[e.unit]
 	if _seen(u.pos):
 		_float(u, "CALLING IT IN", Hud.RED)
 	hud.toast(Hud.countdown_text(enc.backup_label, int(e.rounds)))
 	_snd("sfx_alarm", _body_pos(u), -6.0, 0.0, 500)
+	var why := Hud.alarm_callout(String(e.get("cause", "")))
+	if why == "":
+		return
+	hud.end_banner(why, Hud.RED)
+	hud.edge_pulse(Hud.RED, 0.7, 0.2)
+	await get_tree().create_timer(1.1).timeout
+	if enc.state == "playing":   # the banner gives way to the next turn's
+		hud.turn_banner(why, Hud.RED)
 
 
 func _ev_bypass(e: Dictionary) -> void:
@@ -5604,6 +5609,20 @@ func _demo_clock() -> void:
 			w.sync(c.pool, c.size, [3, 5, 2, 6])
 			await get_tree().create_timer(0.7).timeout
 			Clocks.reclaim(enc, c, "demo")
+		"alarm":   # the clock part-spent, then a camera's guard calls the alarm in: the row clears, the cause lands
+			c.pool = c.size - 1
+			w.sync(c.pool, c.size, [5, 3, 4, 6, 2])
+			var g: Dictionary = {}
+			for u in enc.units:
+				if int(u.team) == Encounter.OPFOR and not u.c.dead and (g.is_empty() or Vector3(u.pos - enc.cur.pos).length() < Vector3(g.pos - enc.cur.pos).length()):
+					g = u
+			if g.is_empty():
+				return
+			await get_tree().create_timer(0.5).timeout
+			enc.reinforcements = true
+			g["why_next"] = "CAMERA SPOTTED %s" % enc.cur.c.display_name
+			enc._rouse([g])
+			enc.call_it_in(g)
 		"run":   # one roll at a time, each played out before the next, as triggers come in play
 			for f in [[4, 1, 6, 2, 1, 5], [2, 5, 1, 6], [6, 4, 2], [3, 1, 5], [1, 1]]:
 				Clocks.trigger(enc, "failed_tech", int(enc.cur.id), "demo", f)
@@ -5613,10 +5632,20 @@ func _demo_clock() -> void:
 	_after_action()
 
 
+## A camera catches a crew member: its eye flashes red where it hangs, and the toast says who it
+## sent. The guard it sends calls the alarm in on their turn (_ev_alarm says so): drop them or
+## loop the camera before then.
 func _ev_camera(e: Dictionary) -> void:
 	var tu: Dictionary = enc.units[e.target]
+	var gu: Dictionary = enc.units[e.unit]
 	_float(tu, "ON CAMERA", Hud.RED)
-	hud.toast("A CAMERA SPOTTED %s · TAKE ITS NODE IN THE NET AND LOOP IT" % tu.c.display_name.to_upper())
+	hud.toast("CAMERA SPOTTED %s · %s IS COMING TO RAISE THE ALARM" % [tu.c.display_name.to_upper(), gu.c.display_name.to_upper()], 3.2)
+	if e.has("device") and int(e.device) >= 0 and int(e.device) < m.devices.size():
+		var dp := _device_point(int(e.device))
+		for k in 3:   # the red eye blinks: three pings at the lens
+			fx.burst(dp, Hud.RED, 8, 1.4, 0.05, 0.35, 2.5, 0.0)
+			fx._pop_light(dp, Hud.RED, 4.0, 5.0, 0.25)
+			await get_tree().create_timer(0.22).timeout
 
 
 const NET_VIOLET := Color("d68cff")
@@ -5929,7 +5958,14 @@ func _ev_target_down(e: Dictionary) -> void:
 	var u: Dictionary = enc.units[e.unit]
 	_float(u, "TARGET FLATLINED" if u.c.dead else "TARGET DOWN", Hud.GOLD)
 	_ui_snd("sfx_ui_confirm", -6.0)
-	hud.toast("THE MARK IS DOWN · GET TO THE EXTRACTION ZONE OR WITHDRAW")
+
+
+## The job is done but the gig isn't (Encounter._job_done): the way out takes over the round tab
+## and the marker.
+func _ev_job_done(_e: Dictionary) -> void:
+	_ui_snd("sfx_ui_confirm", -4.0)
+	hud.toast("JOB DONE · GET THE CREW TO THE EXTRACTION ZONE", 3.0)
+	_hud_refresh()
 
 
 func _ev_escape(e: Dictionary) -> void:

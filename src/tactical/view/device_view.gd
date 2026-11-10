@@ -5,7 +5,7 @@ extends Node3D
 ## eye, door keypads beside security doors (red locked, green open), turrets, data cores, junction
 ## boxes. Status lights update with the encounter; jack points the crew can use pulse cyan. A device
 ## a Netrunner holds through the NET (NetDevices) wears a small violet HELD diamond above its lamp
-## and its lamp goes violet (a camera feeding the crew, a held turret); a looped camera's eye and a
+## and its lamp goes violet (a held turret; a held camera's eye stays red until it's looped); a looped camera's eye and a
 ## switched device's panel go green. Built once per map; `refresh` restyles the lights.
 
 const KITS := "res://assets/third_party/quaternius/scifi/models/%s.gltf"
@@ -112,12 +112,12 @@ func build(m: TacMap, gy: Callable) -> void:
 
 
 ## Restyle status lights and the HELD badges. Door keypads: red while the door is locked, green
-## open. Camera eyes: red live, violet held and feeding the crew, green looped or dead. Turret eyes:
+## open. Camera eyes: red live (held and feeding the crew too: the site still sees it until it's
+## looped; owner, playtest v0.10.1), green looped or dead. Turret eyes:
 ## red, violet held. Panels and screens: their own colour, violet held, green switched (dark, cut,
 ## sealed, halted).
 func refresh(enc: Encounter) -> void:
 	var held := NetDevices.held_map(enc)
-	var feeding := NetDevices.feeding(enc)
 	for id in _lights:
 		var e: Array = _lights[id]
 		var mi: MeshInstance3D = e[0]
@@ -128,7 +128,7 @@ func refresh(enc: Encounter) -> void:
 		if kind == "lock":
 			col = RED if enc.nav.locked.has(e[4]) else GREEN
 		elif kind == "eye" and t == "camera":
-			col = GREEN if off else (VIOLET if feeding.has(id) else RED)
+			col = GREEN if off else RED   # the HELD badge says it's the runner's; the eye says the site still sees
 		elif kind == "eye":
 			col = VIOLET if held.has(id) else (GREEN if off else RED)
 		elif held.has(id):

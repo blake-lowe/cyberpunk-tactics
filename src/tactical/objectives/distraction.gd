@@ -62,14 +62,7 @@ func tick() -> void:
 
 
 func check_end() -> String:
-	if done() and (e.opfor().is_empty() or e._crew_out()):
-		e.say("The crew gets clear. The job's done.")
-		return "won"
-	return ""
-
-
-func withdraw_wins() -> bool:
-	return done()
+	return "won" if done() else ""   # then the way out (Objective.extracting)
 
 
 func actions() -> Array[String]:
@@ -90,11 +83,12 @@ func act(action: String) -> Dictionary:
 		return r
 	e.say("%s trips the alarm." % e.cur.c.display_name)
 	e.events.append({"type": "alarm_panel", "unit": e.cur.id, "cell": o.panel})
-	e.call_it_in(e.cur)
+	e.call_it_in(e.cur, "%s TRIPPED THE ALARM" % e.cur.c.display_name)
 	var called := "%s calls it in." % e.cur.c.display_name   # the panel calls it in, not the crew member
 	if not e.log.is_empty() and e.log[-1].begins_with(called):
 		e.log[-1] = "The alarm goes out." + e.log[-1].substr(called.length())
 	e.alarm = 2   # with responses switched off (balance tests) nobody comes, but the alarm's still up
+	e._set_alarm_cause("%s TRIPPED THE ALARM" % e.cur.c.display_name)
 	var radio := float(e.doctrine.get("alarm", {}).get("radio_range", 20.0))   # the bell rouses the guards in radio range of it
 	var p: Vector3i = o.panel
 	e._rouse(e.units.filter(func(g): return e.is_guard(g) and e.hostile(int(g.team), Encounter.CREW) and not g.alerted and not g.c.dead \

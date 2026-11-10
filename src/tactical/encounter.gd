@@ -75,6 +75,7 @@ var utility_code := 0               ## NC2045 p.8: 1d10 per utility, under it th
 var outages: Array[String] = []     ## utilities out this gig: power, water, citinet
 var backup_in := -1                 ## rounds until the site code's response arrives (0: arriving this round; -1 none coming)
 var backup_label := "BACKUP"        ## who that is, for the HUD
+var alarm_cause := ""               ## why the alarm went up, upper case for the HUD ("CAMERA SPOTTED VEX"); "" while quiet
 var _backup_round := 0
 var _patrol_round := -1
 var reinforcements := true          ## responses on (balance tests switch them off)
@@ -547,12 +548,28 @@ func _check_end() -> void:
 			and units.filter(func(u): return u.team == 0 and not is_hostage(u) and not u.c.dead and u.c.wake_in > 0).is_empty():
 		state = "lost"   # nobody on the crew can act or will wake up (the loop would otherwise spin)
 		return
-	var r := obj.check_end()
-	if r != "":
-		state = r
+	if not obj.extracting():
+		var r := obj.check_end()
+		if r == "won":
+			_job_done()
+		elif r != "":
+			state = r
+	if state == "playing" and obj.extracting() and _crew_out():
+		state = "won"
+		say("The crew gets clear. The job's done.")
 	if state == "playing":   # the objective taken: the detection clock rolls, a twist may spring
 		Clocks.check_objective(self)
 		Twist.poll(self)
+
+
+## The job itself is done (Objective.check_end said "won"): it never ends the gig on the spot
+## (owner, playtest v0.10.1). The crew still standing has to reach the extraction zone (or an
+## escort's rendezvous: Objective.exit_cells) and leave; _check_end wins it then.
+func _job_done() -> void:
+	objective["done"] = true
+	objective["extract"] = true
+	say("The job's done. Get to the extraction zone.")
+	events.append({"type": "job_done", "unit": int(cur.get("id", 0)) if not cur.is_empty() else 0})
 
 
 # --- Neutral ground (NeutralGround: Totentanz's club floor) ------------------------------------
@@ -1163,7 +1180,7 @@ func start_flight(u: Dictionary, why := "", roll := 0, thr := 0) -> void:
 func flee_out(u: Dictionary) -> void:
 	if is_guard(u) and alarm < 2 and reinforcements and bool(sides[int(u.team)].opfor):
 		say("%s gets clear and raises the alarm." % u.c.display_name)
-		call_it_in(u)
+		call_it_in(u, "%s GOT AWAY" % u.c.display_name)
 	u.c.dead = true   # off the map, not killed: the log and `fled` say so
 	u["fled"] = true
 	init.remove(u.c)
@@ -1189,10 +1206,14 @@ func morale_counts() -> Dictionary:
 
 # --- Objective helpers ------------------------------------------------------------------------
 
-## Every crew member still standing is in the extraction zone.
+## Every crew member still standing is in the extraction zone (or on another of the job's ways out:
+## Objective.exit_cells).
 func _crew_out() -> bool:
 	var up := units.filter(func(u): return u.team == 0 and not u.get("captive", false) and u.c.can_act())
-	return not up.is_empty() and up.all(func(u): return extract_cells.has(u.pos))
+	var out := {}
+	for c in obj.exit_cells():
+		out[c] = true
+	return not up.is_empty() and up.all(func(u): return out.has(u.pos))
 
 
 ## The mark reached an exit (assassination: the AI calls this).
@@ -1823,6 +1844,7 @@ func update_alerts() -> Array:
 			if _spots(g, u):
 				fresh.append(g)
 				say("%s spots %s!" % [g.c.display_name, u.c.display_name])
+				g["why_next"] = "%s SAW %s" % [g.c.display_name, u.c.display_name]
 				break
 	_witness_sightings()
 	var cam_guard := _camera_spots()
@@ -1905,8 +1927,9 @@ func camera_cells(d: Dictionary) -> Dictionary:
 
 ## Security cameras (HOUSE-RULE): a live camera watches its floor within CAMERA_RANGE squares, no
 ## wall between; whoever minds the feed rolls CAMERA_PERCEPTION (-4 in the dark) vs Stealth, once
-## per camera, crew member and round. A hit rouses the nearest unalerted guard. Holding the
-## cameras' Control Node in the NET turns them off - the netrunner's job in a stealth gig.
+## per camera, crew member and round. A hit rouses the nearest unalerted guard, who calls the
+## alarm in on their turn. Looping their feed (the Loop NET action) turns them off; holding the
+## node only gives the runner the feed - the netrunner's job in a stealth gig.
 const CAMERA_RANGE := 6.0   ## HOUSE-RULE (playtest: 8 squares caught every approach)
 const CAMERA_TAMPER_DV := 13   # RULES-UNVERIFIED: Electronics/Security Tech counters devices (p209), DV not given; "everyday" DV13 (p129)
 const CAMERA_HALF_ANGLE := 45.0   ## HOUSE-RULE: a 90° view, pointed away from the wall it's mounted on
@@ -1934,6 +1957,7 @@ func _camera_spots() -> Dictionary:
 						best = g
 				if not best.is_empty():
 					say("A camera catches %s. %s is on the way." % [u.c.display_name, best.c.display_name])
+					best["why_next"] = "CAMERA SPOTTED %s" % u.c.display_name
 					events.append({"type": "camera", "unit": best.id, "device": d.id, "target": u.id})
 					return best
 	return {}
@@ -2160,10 +2184,11 @@ func patrol_step() -> void:
 ## unless the district's faction is the site code's (it has answered already: NC2045 p.7, a
 ## location's code replaces its district's for that place). Gunfire rouses guards (_noise), who
 ## call it in on their turn; dev renders call it directly.
-func call_it_in(g: Dictionary) -> void:
+func call_it_in(g: Dictionary, why := "") -> void:
 	if alarm >= 2 or g.c.dead or not reinforcements:
 		return
 	alarm = 2
+	_set_alarm_cause(why if why != "" else String(g.get("alert_why", "")), g)
 	for w in units:   # a raised alarm in front of a witness is a crime they saw
 		if watching(w) and w.pos.z == g.pos.z and Vector2(w.pos.x - g.pos.x, w.pos.y - g.pos.y).length() <= SPOT_RANGE and los.trace(w.pos, g.pos).clear:
 			_witness(int(w.team), "%s sees %s call in the alarm" % [w.c.display_name, g.c.display_name])
@@ -2190,8 +2215,28 @@ func call_it_in(g: Dictionary) -> void:
 		ncpd_in = maxi(backup_in, 0) + SecurityCode.response_rounds(dice, SecurityCode.quick(street_code)) * slow
 		msg += " The street noticed: %s in %d." % [SecurityCode.faction_name(String(street_code.faction)), ncpd_in]
 	say(msg)
-	events.append({"type": "alarm", "unit": g.id, "rounds": backup_in})
+	events.append({"type": "alarm", "unit": g.id, "rounds": backup_in, "cause": alarm_cause})
 	Clocks.on_alarm(self)   # the detection clock is moot now (an alarm twist springs at the next turn: Twist.poll)
+
+
+## Record why the alarm went up and say so in the log (owner, playtest v0.10.1: the detection clock
+## gave way to an ALARM line with no reason given). `why` upper case, or "" for `g` calling it in.
+func _set_alarm_cause(why: String, g: Dictionary = {}) -> void:
+	if alarm_cause != "":
+		return
+	if why == "":
+		why = ("%s RAISED IT" % g.c.display_name) if not g.is_empty() else "THE SITE IS ON TO YOU"
+	alarm_cause = why.to_upper()
+	say("Alarm: %s." % why_line(alarm_cause))
+
+
+## The cause in a log line: "GUARD 3 SAW VEX" -> "Guard 3 saw Vex" (names keep their capitals).
+func why_line(why: String) -> String:
+	var out := why.to_lower()
+	for u in units:
+		var nm := String(u.c.display_name)
+		out = out.replace(nm.to_lower(), nm)
+	return out.left(1).to_upper() + out.substr(1)
 
 
 ## Who a code sends: the site's own people (the target's, or the contractor holding the posts) come
@@ -2386,16 +2431,25 @@ func _noise(at: Vector3i) -> void:
 		if not g.alerted and not g.c.dead and Vector2(at.x - g.pos.x, at.y - g.pos.y).length() <= GUNFIRE_RANGE \
 				and absi(at.z - g.pos.z) <= 1:
 			fresh.append(g)
-	_rouse(fresh)
+	_rouse(fresh, "SHOTS HEARD")
 
 
-func _rouse(fresh: Array) -> void:
+## Alert `fresh` (and whoever of theirs is within shouting range). `why`: what put them on alert,
+## upper case for the alarm callout ("GUARD 3 SAW VEX", "SHOTS HEARD"); it rides on the unit
+## (`alert_why`) so a later call to the alarm can say why (call_it_in). By default, the crew's
+## active unit attacking them.
+func _rouse(fresh: Array, why := "") -> void:
+	if why == "" and not cur.is_empty() and allied(int(cur.team), CREW):
+		why = "%s ATTACKED" % cur.c.display_name
 	var q := fresh.duplicate()
 	while not q.is_empty():
 		var g: Dictionary = q.pop_front()
 		if g.alerted or not is_guard(g) or _keeps_peace(g):   # bystanders panic instead; captives and medics don't fight
 			continue
 		g.alerted = true
+		var because := String(g.get("why_next", why)).to_upper()   # its own reason (spotted, a camera), else the call's
+		g.erase("why_next")
+		g["alert_why"] = because
 		if bool(sides[int(g.team)].opfor):   # a third side's fighters (FreeForAll) raise no alarm of the site's
 			alarm = maxi(alarm, 1)
 		init.add(g.c)
@@ -2403,6 +2457,8 @@ func _rouse(fresh: Array) -> void:
 		for o in units:
 			if not o.alerted and not o.c.dead and is_guard(o) and allied(int(o.team), int(g.team)) and o.pos.z == g.pos.z \
 					and Vector2(o.pos.x - g.pos.x, o.pos.y - g.pos.y).length() <= float(doctrine.alarm.shout_range):
+				if not o.has("why_next"):
+					o["why_next"] = because   # shouted to: the same reason
 				q.append(o)
 
 

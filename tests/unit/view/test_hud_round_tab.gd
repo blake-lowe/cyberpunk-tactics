@@ -67,7 +67,11 @@ func test_data_theft_steps() -> void:
 	_jack(e, _crew_member(e))
 	var fn: Dictionary = (e.m.architectures[int(e.objective.structure)] as NetArchitecture).nodes[int(e.objective.node)]
 	assert_eq(e.obj.current_step(), "REACH NET LEVEL %d" % int(fn.zone))
-	assert_true(e.obj.hud_text().contains("OR ELIMINATE"), "the full text still lists the alternative (not on the panel)")
+	assert_false(e.obj.hud_text().contains("ELIMINATE"), "no clear-the-site alternative while there's a File to pull (playtest v0.10.1)")
+	e.objective.done = true
+	e._check_end()
+	assert_eq(e.obj.step(), "REACH EXTRACTION", "the File pulled: the way out")
+	assert_eq(e.obj.order(), "STEAL THE DATA", "under the same order")
 
 
 func test_eliminate_steps() -> void:

@@ -3,9 +3,7 @@ extends Objective
 
 
 func check_end() -> String:
-	if e.opfor().is_empty() and e.backup_in > 0:
-		return ""   # HOUSE-RULE: a gang hit isn't done while backup is still on its way
-	return _cleared()
+	return _cleared()   # HOUSE-RULE (Objective._cleared): not done while their backup is on its way
 
 
 ## Half the opposition fielded so far is down (HOUSE-RULE: a gang hit has no package; this is where

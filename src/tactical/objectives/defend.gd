@@ -202,7 +202,7 @@ func check_end() -> String:
 		e.say("They've taken the %s. The job's over." % _room_text().to_lower())
 		return "lost"
 	if done():
-		e.say("The %s held. The job's done." % _room_text().to_lower())
+		e.say("The %s held." % _room_text().to_lower())
 		return "won"
 	return ""
 

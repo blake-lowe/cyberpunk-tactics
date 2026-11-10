@@ -183,6 +183,12 @@ func zones() -> Array:
 	return [{"cells": o.dest, "tone": "gold"}] if o.get("mode", "") == "through" else []
 
 
+## Through to a rendezvous at the map's edge: the crew can leave by it with the client, or go back
+## the way it came.
+func exit_cells() -> Array:
+	return (o.dest as Array) + e.extract_cells.keys() if o.get("mode", "") == "through" else e.extract_cells.keys()
+
+
 func ward_goal() -> Array:
 	return o.dest if o.get("mode", "") == "through" else []
 
