@@ -981,6 +981,11 @@ func _build_bar() -> void:
 	_card = VBoxContainer.new()
 	_card.custom_minimum_size = Vector2(220, 0)
 	_card.add_theme_constant_override("separation", 3)
+	_card.mouse_filter = Control.MOUSE_FILTER_STOP   # click: the loadout screen (M)
+	_card.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	_card.gui_input.connect(func(ev: InputEvent):
+		if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
+			action.emit("loadout", -1))
 	row.add_child(_card)
 	var sep := ColorRect.new()
 	sep.custom_minimum_size = Vector2(1, 0)
@@ -1605,6 +1610,11 @@ func _party_card(u: Dictionary, active: bool) -> Control:
 	var c: Combatant = u.c
 	var p := PanelContainer.new()
 	_cards[u.id] = p
+	var uid := int(u.id)
+	p.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	p.gui_input.connect(func(ev: InputEvent):   # click: their loadout screen
+		if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
+			action.emit("loadout", uid))
 	p.add_theme_stylebox_override("panel", CutBox.make(INK, GOLD if active else Color(_team_col(u), 0.45), 10, 0b0101, GOLD if active else Color(0, 0, 0, 0), 6))
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", 8)
@@ -2608,6 +2618,7 @@ const HELP := [
 	]],
 	["OVERLAYS", [
 		["Z", "Guard sight lines: near your move / always / off"],
+		["M", "Loadout: chrome and gear (or click a crew card)"],
 	]],
 ]
 

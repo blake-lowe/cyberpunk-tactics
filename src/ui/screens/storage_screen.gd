@@ -39,6 +39,12 @@ func setup(p_camp: Campaign, p_portraits: Portraits, p_tab := "", p_sel := 0) ->
 				"slot": slot = val
 				"pick": pick = val
 				"filter": filter = val
+				"loadout": open_loadout.call_deferred()   # --loadout=1: the FULL LOADOUT view open
+				"strip":   # --strip=1: the selected crew member without chrome (a plain loadout)
+					var m := selected()
+					if m:
+						for pc in m.implants.duplicate():
+							m.remove_cyberware(String(pc.id), String(pc.loc))
 	return self
 
 
@@ -210,6 +216,10 @@ func _slots_panel(c: Combatant, wide: bool) -> PanelContainer:
 	who.add_child(UiKit.label("%s · RANK %d ·" % [c.role, c.role_rank], 13, Hud.CYAN))
 	who.add_child(UiKit.label("HP %d/%d" % [c.hp, c.max_hp()], 13, UiKit.hp_colour(c)))
 	head.add_child(who)
+	head.add_child(UiKit.spacer())
+	var full := _small("FULL LOADOUT ›", UiKit.CHROME, func(_b): open_loadout())
+	full.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	head.add_child(full)
 	var list := UiKit.vbox(3)
 	var sc := UiKit.scroller(list)
 	_track("slots", sc)
@@ -329,6 +339,13 @@ func _add_row() -> PanelContainer:
 	if on:
 		_sel_rows["slots"] = p
 	return p
+
+
+## The selected crew member's whole loadout (LoadoutScreen) over this screen, read-only.
+func open_loadout() -> void:
+	var lo := LoadoutScreen.new().setup(camp.alive_crew(), sel, "Change gear here; chrome at the Med Bay.")
+	lo.closed.connect(func(): sel = lo.sel; lo.queue_free(); _build())
+	add_child(lo)
 
 
 # --- Storage ----------------------------------------------------------------------------------
