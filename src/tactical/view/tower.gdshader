@@ -98,12 +98,7 @@ float line(float x, float w) { float d = abs(fract(x) - 0.5); return smoothstep(
 
 void fragment() {
 	float bay4 = bayer4(FRAGCOORD.xy);
-	// as world.gdshader mode 2: dissolve on the camera side above the band's first storey, and in
-	// the see-through hole round the focus
-	if (dot(wpos.xz - cut_center.xz, cut_dir) < -4.0 && wpos.y > 1.2 && wpos.x > -0.5 && wpos.x < map_size.x + 80.0) {
-		float far = smoothstep(4.0, 9.0, -dot(wpos.xz - cut_center.xz, cut_dir));
-		if (far > bay4 + 0.5) discard;
-	}
+	// as world.gdshader mode 2: dissolve in the see-through hole round the focus
 	if (focus_view.w > 0.0 && wpos.y > cut_center.y * 1.6 + 0.9 && -VERTEX.z < focus_view.z - 1.5) {
 		float r = length((SCREEN_UV - focus_view.xy) * vec2(VIEWPORT_SIZE.x / VIEWPORT_SIZE.y, 1.0)) / focus_view.w;
 		if (smoothstep(0.7, 1.0, r) < bay4 + 0.5) discard;

@@ -97,11 +97,9 @@ void fragment() {
 	bool sun_casts = IN_SHADOW_PASS && day_factor > 0.0;
 	// --- see-through hole: tall things between the camera and the focus (skyline, buildings that
 	// haven't been opened) dissolve in a dithered disc around the focus (BG3/Divinity style)
-	// camera-side skyline dissolves entirely above street level
-	if (mode == 2 && dot(wpos.xz - cut_center.xz, cut_dir) < -4.0 && wpos.y > 1.2 && (near_fade || (wpos.x > -0.5 && wpos.x < map_size.x + 80.0))) {
-		float far = smoothstep(4.0, 9.0, -dot(wpos.xz - cut_center.xz, cut_dir));
-		if (far > (emission_energy > 0.9 ? 0.35 : bay + 0.5)) discard;   // glowing strips go cleanly (dithered they left dotted lines)
-	}
+	// (a camera-side band that dissolved all skyline more than 4-9 m before the focus is gone: it
+	// cut background buildings off at a "minimum distance" and, being lopsided in x, hollowed out the
+	// skyline on one side only (owner playtest v0.10.1); the hole below dissolves what really blocks)
 	if (!sun_casts && (mode == 2 || (shell && !cut_open)) && focus_view.w > 0.0 && wpos.y > cut_center.y * 1.6 + 0.9 && -VERTEX.z < focus_view.z - 1.5) {
 		float r = length((SCREEN_UV - focus_view.xy) * vec2(VIEWPORT_SIZE.x / VIEWPORT_SIZE.y, 1.0)) / focus_view.w;
 		if (smoothstep(0.7, 1.0, r) < bay + 0.5) discard;
