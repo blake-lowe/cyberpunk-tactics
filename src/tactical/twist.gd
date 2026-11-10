@@ -24,9 +24,11 @@ extends RefCounted
 ## - tier_up "target": the mark (else the opposition's strongest) steps up a tier, in place;
 ## - clock: a Solo Play Clock starts (Clocks.add: time_limit);
 ## - devices {camera: n, turret: n}: extra devices in the target building (start only: the view
-##   builds devices with the map).
+##   builds devices with the map);
+## - weather "roll": the weather turns (Weather.turn: a storm or hazard from atmospheres.json
+##   twist_pool blows in; its sight and heat rules from then on, the view's sky and rain with it).
 
-const FX := ["units", "extraction", "response", "response_mult", "mark", "tier_up", "clock", "devices"]
+const FX := ["units", "extraction", "response", "response_mult", "mark", "tier_up", "clock", "devices", "weather"]
 const TRIGGERS := ["objective_done", "round", "alarm", "start"]
 const NONE := "none"
 const NEXT_TIER := {"mook": "lieutenant", "lieutenant": "mini_boss", "mini_boss": "mini_boss", "boss": "boss"}
@@ -235,6 +237,13 @@ static func spring(e: Encounter) -> void:
 				out.applied.append("clock")
 				out.lines.append("%s: %dd6 on the clock." % [c.label.capitalize(), c.size])
 			"devices": _devices(e, fx.devices, out)
+			"weather":
+				var w := Weather.turn(e)
+				if w == "":
+					out.skipped.append("weather")
+				else:
+					out.applied.append("weather")
+					out.lines.append("%s rolls in." % Atmosphere.label(w))
 			_:
 				out.skipped.append(String(k))
 	var text := " ".join(out.lines)

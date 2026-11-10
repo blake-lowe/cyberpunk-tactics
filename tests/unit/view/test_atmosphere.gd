@@ -9,14 +9,17 @@ func test_every_mood_is_well_formed() -> void:
 	assert_eq(Atmosphere.default_id(), "clear")
 	assert_eq(String(Atmosphere.ids()[0]), "clear", "the default first")
 	assert_true(Atmosphere.light("clear", false).is_empty() and Atmosphere.light("clear", true).is_empty(), "clear: the scene's own air")
-	for id in ["acid_rain", "dust", "smog", "drizzle"]:
+	for id in ["overcast", "drizzle", "heavy_rain", "storm", "acid_rain", "blood_rain", "ash", "dust", "rad_wind", "smog", "heat_wave", "cold_snap", "flood", "blackout"]:
 		assert_true(Atmosphere.has(id), "a %s mood" % id)
 	for id in Atmosphere.ids():
 		var md: Dictionary = d.moods[id]
 		assert_true(String(md.get("name", "")) != "", "%s: a name for the dev card" % id)
+		assert_true(String(md.get("book", "")).contains("NCW p."), "%s: the Night City Weather row it plays" % id)
+		for k in ["name", "hud"]:   # player-facing: never a page
+			assert_false(String(md.get(k, "")).contains("p."), "%s: no cite in its %s" % [id, k])
 		for day in [false, true]:
 			var lk := Atmosphere.look(String(id), day)
-			for k in ["fog", "smog", "cast", "glow", "rain_col", "dust_col"]:
+			for k in ["fog", "smog", "cast", "glow", "rain_col", "dust_col", "haze_col", "flake_col", "mote_col"]:
 				assert_true(String(lk.get(k, "")) == "" or Color.html_is_valid(String(lk[k])), "%s: %s is a colour" % [id, k])
 			for c in lk.get("sky", []) + lk.get("lit", []):
 				assert_true(Color.html_is_valid(String(c)), "%s: %s is a colour" % [id, c])
@@ -55,10 +58,11 @@ func _share(did: String, mood: String, n := 1500) -> float:
 func test_districts_weight_the_weather() -> void:
 	var w := Atmosphere.weights("outskirts")
 	assert_true(int(w.get("dust", 0)) > int(Atmosphere.weights("the_glen").get("dust", 0)), "the Badlands edge leans dust")
-	assert_true(_share("outskirts", "dust") > 0.3, "dust storms are common out there (%.2f)" % _share("outskirts", "dust"))
-	assert_eq(int(Atmosphere.weights("the_glen").get("dust", 0)), 0, "never a dust storm over the Glen")
-	assert_true(_share("heywood_industrial_zone", "smog") > _share("the_glen", "smog") + 0.15, "the factories lean smog")
-	assert_true(_share("upper_marina", "acid_rain") > _share("charter_hill", "acid_rain"), "the marina leans acid rain off the bay")
+	assert_between(_share("outskirts", "dust"), 0.2, 0.45, "dust storms regularly sweep through out there (NC2045 p.297)")
+	assert_between(_share("the_glen", "dust"), 0.0, 0.04, "a dust storm over the Glen is Strange Weather: rare")
+	assert_between(_share("heywood_industrial_zone", "smog"), 0.4, 0.6, "most days a yellow smog in the Industrial Zone (NC2045 p.256)")
+	assert_true(_share("hot_zone", "rad_wind") > _share("the_glen", "rad_wind") + 0.05, "the Hot Zone's wind carries its dust")
+	assert_true(_share("upper_marina", "drizzle") > _share("charter_hill", "drizzle"), "the marina leans sea drizzle")
 	assert_true(_share("the_glen", "clear") > _share("south_night_city", "clear"), "the corporate centre stays clearer than the combat zone")
 	var base: Dictionary = Atmosphere.data().weights.base
 	var unknown := Atmosphere.weights("no_such_district")

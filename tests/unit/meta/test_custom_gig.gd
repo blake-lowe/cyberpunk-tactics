@@ -57,6 +57,8 @@ func test_flags_give_the_greybox_flag_map() -> void:
 				"setpiece": o["setpiece"] = kv[1]
 				"location": o["location"] = kv[1]
 				"seed": seed = int(kv[1])
+		assert_true(Atmosphere.has(String(gig.get("mood", ""))), "the builder draws the gig's weather")
+		o["mood"] = String(gig.mood)   # greybox takes it as --mood (the flag map below)
 		assert_eq(Campaign.scene_opts(gig), o, "%s: the greybox's scene options" % " ".join(flags))
 		assert_eq(_map_json(gig), JSON.stringify(SceneGen.generate(seed, scene, o).to_dict()), "the greybox's map")
 

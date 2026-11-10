@@ -24,17 +24,18 @@ const EDGE_COL := Color("ffa23a")   ## stair step nosings: a warm amber strip (o
 const EDGE_GLOW := 0.6              ## ... dimmer than lamps (1.2-1.4)
 const EDGE_HINT_GLOW := 1.15        ## the same edges on the stairs toward the objective's floor (greybox pulses it)
 
-## name → [albedo, albedo2, pattern, scale, rough, metal, extra{}]
+## name → [albedo, albedo2, pattern, scale, rough, metal, extra{}]. extra.outdoor: open ground the
+## weather wets, frosts and floods (world.gdshader `weather`, WeatherFx); room floors never are.
 const LIB := {
-	"asphalt": [Color("1c2028"), Color("0e0f12"), 3, 0.6, 0.55, 0.0],
-	"sidewalk": [Color("3b3e43"), Color("25272b"), 4, 1.6, 0.7, 0.0],
-	"concrete": [Color("33363a"), Color("232528"), 1, 0.37, 0.8, 0.0],
-	"gravel": [Color("3b3833"), Color("2a2824"), 5, 2.0, 0.95, 0.0],
-	"dirt": [Color("5a4836"), Color("3e3226"), 5, 0.8, 0.95, 0.0],   # r7 review: lots read as voids when darker
-	"grass": [Color("3e6a30"), Color("54722c"), 5, 1.1, 0.95, 0.0, {"fog_hue": 0.6}],   # yellow-green so moonlight leaves it green, not teal; keeps its hue out of sight
-	"sand": [Color("9a8670"), Color("6a5644"), 5, 0.7, 0.95, 0.0],   # r8 review: wider tone gap so the badlands floor isn't one flat colour
-	"rail": [Color("2c2724"), Color("1a1715"), 6, 0.9, 0.7, 0.2],
-	"dock": [Color("2f2a25"), Color("1a1714"), 2, 0.8, 0.75, 0.0],
+	"asphalt": [Color("1c2028"), Color("0e0f12"), 3, 0.6, 0.55, 0.0, {"outdoor": true}],
+	"sidewalk": [Color("3b3e43"), Color("25272b"), 4, 1.6, 0.7, 0.0, {"outdoor": true}],
+	"concrete": [Color("33363a"), Color("232528"), 1, 0.37, 0.8, 0.0, {"outdoor": true}],
+	"gravel": [Color("3b3833"), Color("2a2824"), 5, 2.0, 0.95, 0.0, {"outdoor": true}],
+	"dirt": [Color("5a4836"), Color("3e3226"), 5, 0.8, 0.95, 0.0, {"outdoor": true}],   # r7 review: lots read as voids when darker
+	"grass": [Color("3e6a30"), Color("54722c"), 5, 1.1, 0.95, 0.0, {"fog_hue": 0.6, "outdoor": true}],   # yellow-green so moonlight leaves it green, not teal; keeps its hue out of sight
+	"sand": [Color("9a8670"), Color("6a5644"), 5, 0.7, 0.95, 0.0, {"outdoor": true}],   # r8 review: wider tone gap so the badlands floor isn't one flat colour
+	"rail": [Color("2c2724"), Color("1a1715"), 6, 0.9, 0.7, 0.2, {"outdoor": true}],
+	"dock": [Color("2f2a25"), Color("1a1714"), 2, 0.8, 0.75, 0.0, {"outdoor": true}],
 	"water": [Color("0a1822"), Color("0a1822"), 10, 0.5, 0.05, 0.2],
 	"slab": [Color("1a1c20"), Color("1a1c20"), 0, 1.0, 0.9, 0.0],
 	"floor_tile": [Color("2c2e33"), Color("1b1c1f"), 1, 1.13, 0.4, 0.0],
@@ -177,6 +178,7 @@ func mat(name: String, f: int, cut := true, over := {}) -> ShaderMaterial:
 	mt.set_shader_parameter("near_fade", extra.get("near_fade", false))
 	mt.set_shader_parameter("no_spill", extra.get("no_spill", false))
 	mt.set_shader_parameter("dry", extra.get("dry", false))
+	mt.set_shader_parameter("outdoor", extra.get("outdoor", false))
 	mt.set_shader_parameter("fog_hue", float(extra.get("fog_hue", 0.0)))
 	mt.set_shader_parameter("cuttable", cut)
 	mt.set_shader_parameter("layout", is_layout(name))
@@ -712,8 +714,8 @@ const EARTH_MARGIN := 6
 func _earth(f: int) -> void:
 	var y0 := f * FH
 	var top := (f + 1) * FH - 0.13   # just under the street's ground slabs: no z-fight from above
-	var soil := mat("dirt", f, false, {"color": Color("3e3a36"), "color2": Color("2c2926"), "pattern": 5, "scale": 1.6, "shell": true, "glow": 0.06, "emit": Color("1c1a18")})
-	var lip := mat("concrete", f, false, {"color": Color("9a8a74"), "color2": Color("7a6a56"), "shell": true, "glow": 0.2, "emit": Color("6a5a48")})
+	var soil := mat("dirt", f, false, {"color": Color("3e3a36"), "color2": Color("2c2926"), "pattern": 5, "scale": 1.6, "shell": true, "glow": 0.06, "emit": Color("1c1a18"), "outdoor": false})
+	var lip := mat("concrete", f, false, {"color": Color("9a8a74"), "color2": Color("7a6a56"), "shell": true, "glow": 0.2, "emit": Color("6a5a48"), "outdoor": false})
 	var dug := func(x: int, y: int) -> bool: return m.inb(x, y) and m.t(f, x, y) != TacMap.T.VOID
 	var used := {}
 	var x0 := -EARTH_MARGIN

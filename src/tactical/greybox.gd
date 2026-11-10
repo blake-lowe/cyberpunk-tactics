@@ -27,7 +27,7 @@ extends Node
 ## Screenshot mode:  -- --shot=path.png [--scene=x] [--profile=y] [--district=z] [--seed=n] [--pixel=3]
 ##   [--levels=0] [--dither=0.5] [--outline=0.4] [--bloom=0.8] [--contrast=1.1] [--ortho=1]
 ##   [--fog=0] [--zoom=24] [--yaw=45] [--lights=1] [--hover=x,y] [--promo=1] [--cut=auto|all|off]
-##   [--tower=raven [--sky=day] [--mood=clear|acid_rain|dust|smog|drizzle|auto]]
+##   [--tower=raven [--sky=day]] [--mood=<atmospheres.json mood>|auto [--flash=1 (a lightning flash at the shot)]]
 ##   [--stage=attack] [--arm=brawl|grenade|grab|<attack mode>] [--grapple=hold|shield|throw|held (with --near=1)] [--portrait=1] [--alt=1] [--near=n] [--help=1] [--stairs=on|up]
 ##   [--exposure=1 --gamma=1 --ambient=1 --lights=1 --spill=1 (lighting review: grade exposure and power curve, ambient, lamp and baked-spill scales)]
 ##   [--hurt=0.6 (the nearest foes roused and hurt)] [--logt=0..1 (the log slide held there)]
@@ -265,6 +265,8 @@ var decals := {}              ## unit id → ground glow MeshInstance3D
 var _withdraw_ask := -10000    ## withdrawal needs a second press within 3 s
 var devices: DeviceView      ## meatspace devices with status lights
 var ambient: AmbientFx       ## scene ambience: embers, flames and smoke, steam, drips, light shafts
+var weather_fx: WeatherFx    ## the weather over the play area: rain, ash, dust, haze, the wet ground, lightning
+var _dev_flash := false      ## --flash=1 (review renders): a lightning flash at the shot
 var keycard_nodes := {}        ## unit id → glinting keycard over a downed carrier
 var obj_node: Node3D           ## snatch objective: the package (a case on a gold beacon) and the extraction squares
 var dash_opts := {}           ## squares reachable by also spending the Action on a Run (amber contour)
@@ -307,13 +309,24 @@ static func scene_look(mp: TacMap, sky_flag := "") -> Dictionary:
 			lk["palette"] = String(db.palette)
 		if lk.get("sun", []).is_empty():   # a real sun, where the hour puts it
 			lk["sun"] = Daylight.sun(int(mp.params.get("hour", 12)))
-	# a gig's weather (Atmosphere, the gig's mood) over the look: the sky, fog and smog, never the
-	# ambient, key or lamp light the play area is lit by
-	var air := Atmosphere.light(Atmosphere.of(mp), day or lit) if mp.is_tower() or mp.params.has("mood") else {}
+	# a gig's weather (Atmosphere, the gig's mood) over the look, never the ambient, key or lamp light
+	# the play area is lit by: a tower band's sky, fog and smog; any other map with sky over it the
+	# fog's colour and the sky, its own fog a little thicker (fog_k)
+	var air := {}
+	if mp.is_tower():
+		air = Atmosphere.light(Atmosphere.of(mp), day or lit)
+	elif mp.params.has("mood") and Atmosphere.has_sky(scene):
+		air = Atmosphere.ground_air(Atmosphere.of(mp), lit)
 	if dl.is_empty() and air.is_empty():
 		return lk
 	lk = lk.duplicate()
 	lk.merge(dl, true)
+	if air.has("fog_k"):
+		lk["fog_d"] = float(lk.get("fog_d", 0.0035)) * float(air.fog_k)
+		air = air.duplicate()
+		air.erase("fog_k")
+		if air.has("fog"):   # half-way to the mood's: the street's own fog colour reads on its kerbs and edges
+			air["fog"] = Color(String(lk.get("fog", air.fog))).lerp(Color(String(air.fog)), 0.5).to_html(false)
 	lk.merge(air, true)
 	return lk
 var open_cells := {}             ## Vector2i square → the cut building (structure id) over it (its rooms + walls)
@@ -467,7 +480,8 @@ func _ready() -> void:
 				gig.scene = "tower_top"
 			"band": gig["band"] = kv[1]   # with --tower: which band (stage 1a: sky)
 			"sky": _sky = kv[1]   # review renders: a tower band's light, night (default) or day
-			"mood": gig["mood"] = kv[1]   # with --tower: its weather (Atmosphere: clear (default), acid_rain, dust, smog, drizzle; auto: the seed's)
+			"mood": gig["mood"] = kv[1]   # the gig's weather (an atmospheres.json mood: clear, overcast, drizzle, heavy_rain, storm, ...; auto: the seed's)
+			"flash": _dev_flash = kv[1] == "1"   # review renders: a lightning flash lights the shot (with a storm's --mood)
 			"floor": _shot_floor = int(kv[1])   # review renders: look at this storey
 			"inside": _dev_inside = Array(kv[1].split(","))   # review renders: crew inside buildings (FloorNav.slices): storey, or building:storey
 			"focusb": _dev_focus_b = kv[1]   # review renders: focus a building (H3), "k" or "k:storey"
@@ -718,6 +732,8 @@ func _process(delta: float) -> void:
 				_inspected = true
 				_inspect_cell = hover
 				_inspect(hover)
+		if _frames == 10 and _dev_flash and weather_fx:   # review renders: a lightning flash held for the shot
+			weather_fx.hold_flash()
 		if _frames == 10 and _attack_demo:
 			_demo_attack()
 		if _frames == 10 and _jack_demo:
@@ -942,6 +958,36 @@ func _apply_look() -> void:
 
 # --- Gig setup -------------------------------------------------------------------
 
+## The air of look `lk` (scene_look): the fog, the haze over the far city and the sky. Again when
+## the weather turns mid-gig (_ev_weather).
+func _set_air(lk: Dictionary) -> void:
+	env.fog_light_color = Color(lk.fog)
+	env.fog_density = lk.fog_d
+	# the low haze over the far city (see _build_view); a tower band hangs it under the band instead
+	env.fog_height = float(lk.get("fog_h", 1.2))
+	env.fog_height_density = float(lk.get("fog_hd", 0.08))
+	var skc: Array = lk.get("sky", ["030308", "0d0817", "521a29"])
+	sky_mat.set_shader_parameter("zenith", Color(skc[0]))
+	sky_mat.set_shader_parameter("mid", Color(skc[1]))
+	sky_mat.set_shader_parameter("horizon", Color(skc[2]))
+	# below the horizon: a tower band looks down into lit smog (sky.gdshader `below`), else the dark ground
+	sky_mat.set_shader_parameter("below", Color(String(lk.get("smog", ""))) if lk.has("smog") else Color(skc[2]) * 0.4)
+	sky_mat.set_shader_parameter("below_blend", 0.35 if lk.has("smog") else 0.0)
+
+
+## The weather over the play area now (WeatherFx): the encounter's mood (a Weather Turns twist
+## changes it), none where there is no sky.
+func _build_weather() -> void:
+	if weather_fx and is_instance_valid(weather_fx):
+		weather_fx.queue_free()
+	weather_fx = WeatherFx.new()
+	world.add_child(weather_fx)
+	var mood := enc.weather if enc else Atmosphere.of(m)
+	if not Atmosphere.has_sky(String(m.params.get("scene", ""))):
+		mood = Atmosphere.default_id()
+	var lk := _scene_look()
+	weather_fx.build(m, mood, float(lk.get("day_factor", 0.0)) > 0.0 or bool(lk.get("day", false)), sky_mat)
+
 func new_gig() -> void:
 	_last_known = {}
 	_aim = {}
@@ -996,6 +1042,8 @@ func new_gig() -> void:
 		var ev: Variant = SceneEvent.roll(sg, (_dev_hour if _dev_hour >= 0 else 23) * 60, String(gig.street))
 		if ev is Dictionary:
 			eo["scene_event"] = ev
+			if SceneEvent.mood_of(ev) != "":   # the street brings its weather (a dust storm rolling in), as Campaign._start_gig does
+				o["mood"] = SceneEvent.mood_of(ev)
 	if _dev_clock != "":   # review renders: the detection clock runs whatever the gig
 		eo["clocks"] = true
 	elif not campaign_gig:   # a dev map plays as a campaign gig would: the clock on a stealth gig
@@ -1032,18 +1080,7 @@ func new_gig() -> void:
 	env.tonemap_exposure = GRADE_EXPOSURE * _dev_exposure
 	sun.light_color = Color(lk.key)
 	sun.light_energy = lk.key_e
-	env.fog_light_color = Color(lk.fog)
-	env.fog_density = lk.fog_d
-	# the low haze over the far city (see _build_view); a tower band hangs it under the band instead
-	env.fog_height = float(lk.get("fog_h", 1.2))
-	env.fog_height_density = float(lk.get("fog_hd", 0.08))
-	var skc: Array = lk.get("sky", ["030308", "0d0817", "521a29"])
-	sky_mat.set_shader_parameter("zenith", Color(skc[0]))
-	sky_mat.set_shader_parameter("mid", Color(skc[1]))
-	sky_mat.set_shader_parameter("horizon", Color(skc[2]))
-	# below the horizon: a tower band looks down into lit smog (sky.gdshader `below`), else the dark ground
-	sky_mat.set_shader_parameter("below", Color(String(lk.get("smog", ""))) if lk.has("smog") else Color(skc[2]) * 0.4)
-	sky_mat.set_shader_parameter("below_blend", 0.35 if lk.has("smog") else 0.0)
+	_set_air(lk)
 	var rimc: Array = lk.get("rim", ["5a6aa0", 0.25])
 	rim.light_color = Color(rimc[0])
 	rim.light_energy = rimc[1]
@@ -1243,6 +1280,7 @@ func _build_world() -> void:
 	ambient = AmbientFx.new()
 	world.add_child(ambient)
 	ambient.build(m, SceneTheme.of(m).get("ambient", []), m.seed_value)
+	_build_weather()
 	if _life_on:
 		ambient.street(m, m.seed_value, String(enc.scene_event.get("sky", "")))   # everyday life: steam, litter, ads, hazards, sky traffic
 	_build_lights()
@@ -5299,7 +5337,7 @@ func _body_pos(u: Dictionary) -> Vector3:
 ## Events that don't count as "hostile activity" for the enemy-phase banner (bookkeeping, third
 ## parties, things the crew caused).
 const QUIET_EVENTS := ["alert", "death", "camera", "tt_call", "av_land", "av_leave", "tt_pickup", "panic", "civ_gone", "morale", "fled", "search", "stroll",
-	"clock", "clock_add", "clock_new", "clock_stop", "clock_escalate", "twist", "spoof", "job_done"]
+	"clock", "clock_add", "clock_new", "clock_stop", "clock_escalate", "twist", "spoof", "job_done", "weather"]
 
 var _handlers: Dictionary = {}
 
@@ -5317,6 +5355,7 @@ func _event_handlers() -> Dictionary:
 			"reload": _anim_reload,
 			"stabilize": _anim_stabilize,
 			"rig": _ev_rig,
+			"weather": _ev_weather,
 			"dose": _ev_dose,
 			"suppress": _anim_suppress,
 			"shell": _anim_shell,
@@ -5565,6 +5604,16 @@ func _ev_clock_escalate(_e: Dictionary) -> void:
 
 ## The plot twist springs: the callout, a stinger, and the view catches up with what changed
 ## (a moved extraction zone, the turret a rigged site hides).
+## The weather turns (Encounter.set_weather, the Weather Turns twist): the map takes the new mood,
+## the sky and the fog follow, and the rain, ash or dust blow in over the play area.
+func _ev_weather(e: Dictionary) -> void:
+	m.params["mood"] = String(e.mood)
+	_set_air(_scene_look())
+	_build_weather()
+	_hud_refresh()
+	await get_tree().create_timer(0.6).timeout
+
+
 func _ev_twist(e: Dictionary) -> void:
 	_ui_snd("sfx_twist", -3.0)
 	hud.twist_callout(String(e.label), String(e.get("note", "")), String(e.get("text", "")))

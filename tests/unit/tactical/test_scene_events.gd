@@ -6,7 +6,7 @@ extends TestCase
 const BOOK_TABLES := ["corporate.day", "corporate.night", "corporate.after_midnight", "moderate.day", "moderate.night",
 	"moderate.after_midnight", "combat_zone.day", "combat_zone.night", "combat_zone.after_midnight", "outskirts.day",
 	"outskirts.night", "outskirts.after_midnight"]
-const UNMODELLED := ["id_check", "spike_strip", "shadow_toll", "dust_storm"]
+const UNMODELLED := ["id_check", "spike_strip", "shadow_toll"]
 
 
 func _crew(dice: Dice) -> Array[Combatant]:
@@ -53,7 +53,7 @@ func test_twelve_tables_by_the_books_numbering() -> void:
 		for r in SceneEvent.rows(k):
 			if not SceneEvent.enabled(r):
 				off.append(String(r.id))
-	assert_eq(off, UNMODELLED, "only what happens to the crew's own car, their ID check, and the weather are off")
+	assert_eq(off, UNMODELLED, "only what happens to the crew's own car and their ID check are off")
 	assert_eq(String(SceneEvent.row("combat_zone.after_midnight", "97").id), "gang_war", "a d100 roll finds its row")
 	assert_eq(SceneEvent.table_of("ncpd_standoff"), "corporate.night")
 

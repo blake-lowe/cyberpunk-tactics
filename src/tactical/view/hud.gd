@@ -1292,7 +1292,7 @@ const ROUND_TAB_W := 216.0   ## the round tab's widest line (logical px): longer
 ## The round tab, top right (owner: one compact panel): the objective's order in gold, the one step
 ## that applies now, the alert state with the response's timer, then the clocks' bare dice rows. No
 ## round counter, no OBJECTIVE or DETECTION labels, no n/m counts. Rule states that change how the
-## gig plays (outages, a neutral house, a sprung complication) follow, when there are any; the
+## gig plays (the weather's penalties, outages, a neutral house, a sprung complication) follow, when there are any; the
 ## plot twist and the street have their own callouts and stay off it.
 func round_tab(enc: Encounter) -> void:
 	if _clock_rail.get_parent() == _round_box:   # the dice rows animate across refreshes: keep them
@@ -1309,6 +1309,9 @@ func round_tab(enc: Encounter) -> void:
 	sync_clocks(enc)
 	_round_box.add_child(_clock_rail)
 	_clock_rail.visible = _clock_rail.get_child_count() > 0
+	var wl := Weather.hud_line(enc.weather)   # weather that changes the rules (Weather: sight, armor in the heat)
+	if wl != "":
+		_round_line(wl, F_TERM, Hud.ts(15), CYAN)
 	if not enc.outages.is_empty():   # Utility Codes (NC2045 p.8)
 		_round_line(" · ".join(enc.outages.map(func(o): return String(o).to_upper() + " OUT")), F_TERM, Hud.ts(15), RED)
 	if enc.neutral != null:   # a house where nobody fights (NeutralGround: Totentanz's club floor)

@@ -1,17 +1,21 @@
 class_name Atmosphere
 extends RefCounted
-## The weather over a gig (data/gen/atmospheres.json): a mood (clear neon-noir, acid rain, dust
-## storm, heavy smog, cold drizzle) picked from the gig's seed and weighted by its district, kept
-## on the gig as `mood` (Campaign.tower_mood) and handed to the map's params (Campaign.scene_opts),
-## so a save reloads the same weather. It tints the sky, the fog and the smog (greybox
-## _scene_look: never the ambient, key or lamp light the play area and the units are lit by), and
-## the tower dressing's far city, street grid, smog layers, rain and dust (TowerDress). Tower bands
-## use it now; nothing in it is tower-only, so ordinary maps can take it up later. Pure data plus
-## lookups (headless-testable).
+## The weather over a gig (data/gen/atmospheres.json): a mood (clear, overcast, light rain, heavy
+## rain, and the Strange Weather rows: acid and blood rain, ash, dust and radioactive windstorms,
+## a thunderstorm, inversion smog, a heat wave, a cold snap, flooding, a blackout) picked from the
+## gig's seed at the official Night City Weather odds (NCW p.3, year-round) and leaned by its
+## district, kept on the gig as `mood` (Campaign.gig_mood) and handed to the map's params
+## (Campaign.scene_opts), so a save reloads the same weather. Every map with sky over it takes it:
+## the sky and the fog's colour (greybox scene_look: never the ambient, key or lamp light the play
+## area and the units are lit by), the rain, ash, dust and haze over the open ground (WeatherFx),
+## and a tower band's far city, street grid and smog (TowerDress). The rules effects (sight, heat,
+## an outage) are Weather's (src/tactical/weather.gd). Pure data plus lookups (headless-testable).
 
-## The scene-light keys a mood may set (greybox LOOKS): the air outside, never the frame's palette
-## (owner: the weather mustn't tint indoors) and never the light on the play area.
+## The scene-light keys a mood may set over a tower band (greybox LOOKS): the air outside, never the
+## frame's palette (owner: the weather mustn't tint indoors) and never the light on the play area.
 const LIGHT_KEYS := ["fog", "fog_d", "fog_h", "fog_hd", "sky", "smog"]   # no palette: owner, the weather mustn't tint indoors
+## The keys a mood sets over any other map (ground_air): the fog's colour, the sky, and fog_k.
+const GROUND_KEYS := ["fog", "sky", "fog_k"]
 
 
 static func data() -> Dictionary:
@@ -26,6 +30,17 @@ static func default_id() -> String:
 ## Every mood id, in data order.
 static func ids() -> Array:
 	return (data().get("moods", {}) as Dictionary).keys()
+
+
+## Does a map of `scene` have sky over it (atmospheres.json no_sky_scenes: the undercity's tunnels,
+## the arcology's atrium)? Those gigs have no weather.
+static func has_sky(scene: String) -> bool:
+	return not scene in (data().get("no_sky_scenes", []) as Array)
+
+
+## A mood's display name ("Light rain"): player-facing, never a page.
+static func label(id: String) -> String:
+	return String((data().get("moods", {}) as Dictionary).get(id, {}).get("name", id))
 
 
 static func has(id: String) -> bool:
@@ -46,7 +61,7 @@ static func weights(did: String) -> Dictionary:
 	for a in adds:
 		for k in a:
 			out[k] = int(out.get(k, 0)) + int(a[k])
-	for k in out.keys():   # only moods we have, never below nothing
+	for k in out.keys():   # only moods we have, never below nothing (a `_why` note is no mood)
 		if not has(String(k)) or int(out[k]) <= 0:
 			out.erase(k)
 	return out
@@ -86,7 +101,7 @@ static func look(id: String, day := false) -> Dictionary:
 	var md: Dictionary = moods.get(id, moods.get(default_id(), {}))
 	var out := {}
 	for k in md:
-		if not k in ["night", "day", "_why"]:
+		if not k in ["night", "day", "_why", "book"]:
 			out[k] = md[k]
 	out.merge(md.get("day" if day else "night", {}), true)
 	out["id"] = id if moods.has(id) else default_id()
@@ -98,6 +113,21 @@ static func light(id: String, day := false) -> Dictionary:
 	var lk := look(id, day)
 	var out := {}
 	for k in LIGHT_KEYS:
+		if lk.has(k):
+			out[k] = lk[k]
+	return out
+
+
+## The air over a map that isn't a tower band (greybox scene_look): the mood's fog colour and sky
+## by day or night, and `fog_k`, the scale on the scene's own fog density (a tower's fog numbers are
+## for a drop of hundreds of metres; a street keeps its own, a little thicker in heavy weather).
+## The default mood: nothing.
+static func ground_air(id: String, day := false) -> Dictionary:
+	if not has(id) or id == default_id():
+		return {}
+	var lk := look(id, day)
+	var out := {}
+	for k in GROUND_KEYS:
 		if lk.has(k):
 			out[k] = lk[k]
 	return out

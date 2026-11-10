@@ -4,7 +4,7 @@ extends TestCase
 ## builder's field and flag, the save, and the debrief.
 
 const PLAYED := ["hired_muscle", "no_way_back", "police_sting", "target_escapes", "target_fights_back",
-	"too_much_heat", "trap_location", "unexpected_ally", "unexpected_rival"]
+	"too_much_heat", "trap_location", "unexpected_ally", "unexpected_rival", "unexpected_weather"]
 
 static var _maps := {}
 
@@ -47,7 +47,7 @@ func test_the_table_has_the_books_fifty_rows() -> void:
 		if not r.has("unmodelled"):
 			for k in r.fx:
 				assert_true(String(k) in Twist.FX, "%s: fx %s is implemented" % [r.id, k])
-	assert_eq(Twist.enabled_rows().map(func(r): return String(r.id)), PLAYED, "the ten rows that play")
+	assert_eq(Twist.enabled_rows().map(func(r): return String(r.id)), PLAYED, "the eleven rows that play")
 	assert_eq(Twist.row("53").id, "police_sting", "a d100 roll finds its row")
 	assert_eq(Twist.row("54").id, "police_sting")
 

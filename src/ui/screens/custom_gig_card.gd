@@ -114,7 +114,7 @@ func _build() -> void:
 	for id in Atmosphere.ids():
 		moods.append([String(id), String(Atmosphere.data().moods[id].get("name", id))])
 	var mood_opt := _opt("mood", moods)
-	mood_opt.tooltip_text = "A tower gig's weather (Atmosphere): auto draws it from the seed, weighted by the district."
+	mood_opt.tooltip_text = "The gig's weather: auto draws it from the seed at the book's odds, leaned by the district. No weather under the city or in the arcology."
 	_field(grid, "Weather", mood_opt)
 	_field(grid, "Pay (eb part)", _spin("pay", 0, 200000, 500))
 	_field(grid, "Seed", _spin("seed", 0, 99999, 1))
@@ -219,7 +219,7 @@ func _mission_builder(v: VBoxContainer) -> void:
 	var fo := _opt("item", focus)
 	fo.tooltip_text = "Mission Items. (data) a data theft's file, (object) a snatch's package, (captive) a rescue, (mark) a hit, (wreck) a sabotage or gang hit."
 	_field(mb, "Focus", fo)
-	var twists: Array = [["auto", AUTO + " (Oracle: most jobs none)"], ["none", "None"]]
+	var twists: Array = [["auto", AUTO + " (Oracle: most gigs none)"], ["none", "None"]]
 	for row in Twist.rows():
 		var on := Twist.enabled(row)
 		var ob: Array = row.get("objectives", [])
