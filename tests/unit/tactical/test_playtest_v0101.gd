@@ -146,13 +146,21 @@ func test_withdrawing_before_the_job_is_done_still_abandons_it() -> void:
 func test_a_guard_who_saw_the_crew_calls_the_alarm_in_with_the_reason() -> void:
 	var e := _job("data", "corp_office", 3)
 	e.reinforcements = true
-	var g: Dictionary = e.units.filter(func(u): return int(u.team) == Encounter.OPFOR and not u.alerted and not u.c.dead)[0]
 	var vex: Dictionary = e.units[0]
-	for d in [Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 1, 0), Vector3i(0, -1, 0)]:
-		var v: Vector3i = g.pos + d
-		if e.m.walkable(v.z, Vector2i(v.x, v.y)) and not e.occupied().has(v) and e.los.trace(g.pos, v).clear:
-			vex.pos = v
+	var cams := e.m.devices.filter(func(d): return String(d.type) == "camera")
+	var g: Dictionary = {}
+	for u in e.units.filter(func(u): return int(u.team) == Encounter.OPFOR and not u.alerted and not u.c.dead):
+		for d in [Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 1, 0), Vector3i(0, -1, 0)]:
+			var v: Vector3i = u.pos + d
+			# beside a guard, out of every camera's view: the guard's eyes are the ones that catch Vex
+			if e.m.walkable(v.z, Vector2i(v.x, v.y)) and not e.occupied().has(v) and e.los.trace(u.pos, v).clear \
+					and not cams.any(func(c): return e.camera_sees(c, v)):
+				vex.pos = v
+				g = u
+				break
+		if not g.is_empty():
 			break
+	assert_false(g.is_empty(), "a guard with a square beside them no camera watches")
 	e._spot_rolls[[g.id, vex.id, e.init.round_num]] = true   # the contest went the guard's way
 	e.update_alerts()
 	assert_true(g.alerted, "spotted")

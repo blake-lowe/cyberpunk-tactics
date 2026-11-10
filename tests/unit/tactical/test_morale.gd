@@ -167,6 +167,7 @@ func test_flee_reaches_the_edge_and_leaves() -> void:
 	u.alerted = true
 	e.init.add(u.c)
 	e.start_flight(u, "half", 2, 9)
+	e.cur = u   # the runner's own field: a guard has the keys to the doors behind them
 	var field := Morale.flee_field(e)
 	assert_true(field.has(u.pos), "there is a way off the map")
 	var start_d := int(field[u.pos])

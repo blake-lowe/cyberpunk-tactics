@@ -3,11 +3,14 @@ extends RefCounted
 ## Room-partition algorithms. Each fills `labels` (w-wide grid) inside `region` with room ids
 ## starting at 0 and returns per-room hints: [{zone_hint: int (-1 = derive from depth), kind: String}].
 ## Walls, doors, zoning and furnishing are shared (MapGen), so algorithms only decide room shapes.
+## Widths are in layout squares, before walls: BuildingGen draws a room's wall on its own east and
+## south edge, so a corridor `cw` squares wide keeps cw - 1 squares of floor (2: a one-square hall,
+## 3: two squares). See corridor_width().
 ##
 ##   bsp      — recursive binary space partition; the top splits become corridors.
 ##   treemap  — squarified treemap (Marson & Musse 2010, "Automatic Real-Time Generation of Floor
 ##              Plans Based on Squarified Treemaps"): zones sized by area, then rooms inside each zone.
-##   corridor_units — apartment blocks: a 2-wide spine corridor along the long axis with units on
+##   corridor_units — apartment blocks: a spine corridor along the long axis with units on
 ##              both sides, some units split into living room + bedroom.
 ##   train    — a long hull cut into cars across its length; some cars split into compartments.
 ##   growth   — constrained growth (Lopes et al. 2010, "A Constrained Growth Method for Procedural
@@ -43,24 +46,34 @@ static func _fill(w: int, labels: PackedInt32Array, r: Rect2i, id: int) -> void:
 static func bsp(dice: Dice, w: int, region: Rect2i, labels: PackedInt32Array, p: Dictionary) -> Array:
 	var mn := int(p.get("min_room", MIN_ROOM))
 	var mx := int(p.get("max_room", MAX_ROOM))
+	var cd := int(p.get("corridor_depth", 2))
+	# The splits that lay corridors come from the building's own skeleton draw, the same on every
+	# storey, so corridors stack floor over floor (and the stair halls beside them line up); the
+	# rooms between them still vary storey by storey.
+	var sk := _skeleton_rng(dice, p)
 	var hints := []
 	var stack: Array = [[region, 0]]
 	while not stack.is_empty():
 		var item: Array = stack.pop_back()
 		var r: Rect2i = item[0]
 		var depth: int = item[1]
+		var rng: RandomNumberGenerator = sk if depth < cd else dice.rng
 		var can_v := r.size.x >= mn * 2 + 1
 		var can_h := r.size.y >= mn * 2 + 1
 		var small := r.size.x <= mx and r.size.y <= mx
-		if (not can_v and not can_h) or (small and dice.d(3) == 1):
+		if (not can_v and not can_h) or (small and rng.randi_range(1, 3) == 1):
 			_fill(w, labels, r, hints.size())
 			hints.append({"zone_hint": -1, "kind": ""})
 			continue
-		var vertical := can_v and (not can_h or r.size.x > r.size.y or (r.size.x == r.size.y and dice.d(2) == 1))
+		var vertical := can_v and (not can_h or r.size.x > r.size.y or (r.size.x == r.size.y and rng.randi_range(1, 2) == 1))
 		var span := r.size.x if vertical else r.size.y
-		var corridor := depth < int(p.get("corridor_depth", 2)) and span >= mn * 2 + 3
-		var cw := 2 if corridor else 0
-		var cut := dice.rng.randi_range(mn, span - mn - cw)
+		# The first split's corridor is the building's main one: two squares of floor once the plate
+		# is big enough (corridor_width); deeper ones stay one square.
+		var cw := corridor_width(p, region) if depth == 0 else 2
+		var corridor := depth < cd and span >= mn * 2 + cw + 1
+		if not corridor:
+			cw = 0
+		var cut := rng.randi_range(mn, span - mn - cw)
 		var a: Rect2i
 		var b: Rect2i
 		var c: Rect2i
@@ -78,6 +91,26 @@ static func bsp(dice: Dice, w: int, region: Rect2i, labels: PackedInt32Array, p:
 		stack.append([a, depth + 1])
 		stack.append([b, depth + 1])
 	return hints
+
+
+## Layout width of a building's main corridor (see the header: 3 is two squares of floor, 2 one).
+## A site's `corridor_w` (layout) wins; otherwise a main corridor is two squares wide on a plate at
+## least `big` squares across both ways (offices, clinics, factories, big blocks) and one square on
+## a small one (a walk-up's passage, a shop's back hall).
+static func corridor_width(p: Dictionary, region: Rect2i, big := 18) -> int:
+	if p.has("corridor_w"):
+		return clampi(int(p.corridor_w), 2, 4)
+	return 3 if mini(region.size.x, region.size.y) >= big else 2
+
+
+## The building's skeleton RNG: seeded once per building (BuildingGen puts `skeleton` in the
+## params), so every storey draws the same corridors. Without one, the shared dice.
+static func _skeleton_rng(dice: Dice, p: Dictionary) -> RandomNumberGenerator:
+	if not p.has("skeleton"):
+		return dice.rng
+	var rng := RandomNumberGenerator.new()
+	rng.seed = int(p.skeleton)
+	return rng
 
 
 # --- Squarified treemap -----------------------------------------------------
@@ -126,10 +159,14 @@ static func treemap(dice: Dice, w: int, region: Rect2i, labels: PackedInt32Array
 			_fill(w, labels, rr, hints.size())
 			hints.append({"zone_hint": zone_ids[i], "kind": ""})
 	# Corridor spine (Marson & Musse add corridors so every room reaches the public zone):
-	# 2-wide north-south hall from the entrance side through the building.
-	var cx := region.position.x + region.size.x / 2 - 1 + dice.rng.randi_range(-2, 2)
+	# a north-south hall from the entrance side through the building, two squares of floor on a
+	# big plate (corridor_width).
+	# Drawn from the building's skeleton, so the spine stacks storey over storey.
+	var sk := _skeleton_rng(dice, p)
+	var cw := corridor_width(p, region)
+	var cx := region.position.x + region.size.x / 2 - 1 + sk.randi_range(-2, 2)
 	var spine_len := roundi(region.size.y * (0.55 + 0.1 * sec))
-	var spine := Rect2i(cx, region.end.y - spine_len, 2, spine_len)
+	var spine := Rect2i(cx, region.end.y - spine_len, cw, spine_len)
 	_fill(w, labels, spine, hints.size())
 	hints.append({"zone_hint": 1, "kind": "corridor"})
 	return hints
@@ -308,7 +345,7 @@ static func corridor_units(dice: Dice, w: int, region: Rect2i, labels: PackedInt
 	var horiz := region.size.x >= region.size.y
 	var long := region.size.x if horiz else region.size.y
 	var short := region.size.y if horiz else region.size.x
-	var cw := 2
+	var cw := corridor_width(p, region, 16)
 	var side := (short - cw) / 2
 	var mk := func(a0: int, a1: int, b0: int, b1: int) -> Rect2i:
 		# a = along the long axis, b = across it

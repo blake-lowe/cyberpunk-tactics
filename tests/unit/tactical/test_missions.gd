@@ -103,7 +103,13 @@ func test_captive_is_neutral_until_freed_then_follows_out() -> void:
 	solo.pos = cap.pos + Vector3i(4, 0, 0) if e.m.walkable(cap.pos.z, Vector2i(cap.pos.x + 4, cap.pos.y)) else solo.pos
 	e.cur = cap
 	e.turn = TurnState.begin(e.dice, cap.c)
-	var walk: Dictionary = e._with_locks(func(): return e.nav.distance_field([solo.pos], {}, 4000))   # on foot, not as the crow flies
+	# the captive keeps up with whoever of the crew is nearest the way out (AI.follow's lead)
+	var to_ex: Dictionary = e._with_locks(func(): return e.nav.distance_field(e.extract_cells.keys(), {}, 4000))
+	var lead: Dictionary = solo
+	for o in e.units:
+		if int(o.team) == 0 and o != cap and o.c.can_act() and int(to_ex.get(o.pos, 9999)) < int(to_ex.get(lead.pos, 9999)):
+			lead = o
+	var walk: Dictionary = e._with_locks(func(): return e.nav.distance_field([lead.pos], {}, 4000))   # on foot, not as the crow flies
 	var before := int(walk.get(cap.pos, 999))
 	AI.follow(e, cap)
 	var after := int(walk.get(cap.pos, 999))

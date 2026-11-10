@@ -548,14 +548,13 @@ static func _watch(e: Encounter, spec: Dictionary, out: Dictionary) -> void:
 	if at.x < 0:
 		out.skipped.append("watch")
 		return
-	var cells := _around(e, at, n if where != "building" else n * 5, 6 if where == "building" or String(spec.get("near", "")) == "crowd" else 4)
-	if where == "building":   # a ring round the door, not a queue at it
-		cells = cells.filter(func(v): return Vector3(v - at).length() >= 2.0)
-		var ring: Array = []
-		for v in cells:   # spread round it, two squares apart
-			if ring.size() < n and not ring.any(func(q): return Vector3(q - v).length() < 2.0):
-				ring.append(v)
-		cells = ring
+	var cells := _watch_cells(e, spec, at, n)
+	if cells.is_empty() and where in ["building", "door"]:   # that door opens on a squeeze: another one
+		for d in _street_doors(e):
+			cells = _watch_cells(e, spec, d, n)
+			if not cells.is_empty():
+				at = d
+				break
 	if cells.is_empty():
 		out.skipped.append("watch")
 		return
@@ -576,6 +575,20 @@ static func _watch(e: Encounter, spec: Dictionary, out: Dictionary) -> void:
 		ids.append(u.id)
 	out.applied.append("watch")
 	out.units.append_array(ids)
+
+
+## Where a watch of `n` stands round `at`: a ring round a building's door, else a knot by it.
+static func _watch_cells(e: Encounter, spec: Dictionary, at: Vector3i, n: int) -> Array:
+	var where := String(spec.get("at", ""))
+	var cells := _around(e, at, n if where != "building" else n * 5, 6 if where == "building" or String(spec.get("near", "")) == "crowd" else 4)
+	if where == "building":   # a ring round the door, not a queue at it
+		cells = cells.filter(func(v): return Vector3(v - at).length() >= 2.0)
+		var ring: Array = []
+		for v in cells:   # spread round it, two squares apart
+			if ring.size() < n and not ring.any(func(q): return Vector3(q - v).length() < 2.0):
+				ring.append(v)
+		cells = ring
+	return cells
 
 
 ## A beat to walk between here and a spot 4-9 squares off (Encounter._post_guards' routes).
@@ -679,6 +692,11 @@ static func _trauma(e: Encounter, out: Dictionary) -> void:
 		return
 	var at := _gather(e, "door")
 	var cells := _around(e, at, 1, 3) if at.x >= 0 else []
+	if cells.is_empty():   # that door opens on a squeeze: the client went down outside another
+		for d in _street_doors(e):
+			cells = _around(e, d, 1, 3)
+			if not cells.is_empty():
+				break
 	if cells.is_empty():
 		out.skipped.append("trauma")
 		return
