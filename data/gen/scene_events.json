@@ -60,7 +60,7 @@
   "street_fallback": "ncpd"
  },
  "fx": {
-  "_why": "text: the log line only. crowd {n, pose, at: street | door | building | vendor}: a cluster of bystanders (Encounter civilians: they panic, block and can be hit). watch {who, n, roam?, at: building | road | door?, near: crowd?}: people on a witness side (neutral until they see a crime: Encounter.witness_side), walking a beat (roam) or holding a spot. gangs {sides: 1 | 2, n, hot, factions?}: a side (or two, at war with each other) at war with everyone who fights (FreeForAll's rule); hot: already shooting (in the initiative order). patrol {n}: more of the site's own people walking the street. trauma {}: a cardholder down on the street and Trauma Team landing for them (Encounter.tt). psycho {maxtac?: [lo, hi] rounds}: a cyberpsycho (the Cyberpsycho block, CPR core p.416) at war with everyone, MaxTac dropping on them after that many rounds. outage: a utility out (Utility Codes, NC2045 p.8). alarm: the alarm starts at that level (1: the site is on edge). dress: set dressing placed as cover (Furnish pieces). sound, sky: view cues.",
+  "_why": "text: the log line only. crowd {n, pose, at: street | door | building | vendor}: a cluster of bystanders (Encounter civilians: they panic, block and can be hit). watch {who, n, roam?, at: building | road | door?, near: crowd?}: people on a witness side (neutral until they see a crime: Encounter.witness_side), walking a beat (roam) or holding a spot. gangs {sides: 1 | 2, n, hot, factions?}: a side (or two, at war with each other) at war with everyone who fights (FreeForAll's rule); hot: already shooting (in the initiative order). patrol {n}: more of the site's own people walking the street. trauma {}: a cardholder down on the street and Trauma Team landing for them (Encounter.tt). psycho {maxtac?: [lo, hi] rounds}: a cyberpsycho (the Cyberpsycho block, CPR core p.416) at war with everyone, MaxTac dropping on them after that many rounds. outage: a utility out (Utility Codes, NC2045 p.8). alarm: the alarm starts at that level (1: the site is on edge). dress: set dressing placed as cover (Furnish pieces). sound, sky: view cues. mood: the weather the street brings (an atmospheres.json mood): the gig plays in it from the start (Campaign._start_gig; Weather, WeatherFx).",
   "psycho_block": "cyberpsycho"
  },
  "tables": {
@@ -3804,8 +3804,7 @@
      "fx": {
       "text": true,
       "mood": "dust"
-     },
-     "unmodelled": "weather is a later pass (gig.mood): kept off until the weather system plays dust"
+     }
     }
    ]
   }

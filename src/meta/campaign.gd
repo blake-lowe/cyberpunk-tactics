@@ -258,6 +258,7 @@ func _city_offer(g: Dictionary, kind: String, sec: int, known: int, used: Dictio
 		"faction": fid, "location": lid, "district": did, "hook": hook,
 		"security": level, "pay": int(g.pay[str(level)]), "seed": dice.rng.randi_range(1, 99999)}
 	gig.merge(_place_at(lid))
+	gig["mood"] = gig_mood(int(gig.seed), did, String(gig.scene))   # its weather (Atmosphere, NCW odds)
 	gig.merge(codes_for(gig, did), true)
 	if not mt.is_empty():
 		gig["mission"] = mt
@@ -578,6 +579,7 @@ func _unique_offer(g: Dictionary, used: Dictionary = {}) -> void:
 		"security": sec, "unique": true, "pay": int(int(g.pay[str(sec)]) * float(t.pay_mult)), "seed": dice.rng.randi_range(1, 99999)}
 	gig.merge(_place_at(lid))
 	var did := String(l.get("district", ""))
+	gig["mood"] = gig_mood(int(gig.seed), did, String(gig.scene))   # its weather (Atmosphere, NCW odds)
 	gig.merge(codes_for(gig, did), true)
 	build_mission(gig, {"payment": "eb", "focus": String(t.get("focus", ""))})   # a personal job pays its promised eb
 	slots.merge(MissionBuilder.item_slots(gig.focus), true)
@@ -672,10 +674,17 @@ static func tower_sky(seed_value: int) -> String:
 	return "day" if n > 0 and posmod(hash(seed_value * 7 + 3), n) == 0 else "night"
 
 
-## The weather over a tower gig with this seed in district `did` (Atmosphere.pick: clear, acid
-## rain, dust, smog, drizzle, weighted by the district). Kept on the gig (mood) as its sky is.
+## The weather over a tower gig with this seed in district `did` (Atmosphere.pick). Kept on the
+## gig (mood) as its sky is.
 static func tower_mood(seed_value: int, did: String) -> String:
 	return Atmosphere.pick(seed_value, did)
+
+
+## The weather over a gig with this seed in district `did` played as `scene` (Atmosphere.pick: the
+## Night City Weather odds, leaned by the district; atmospheres.json). "" where there is no sky (the
+## undercity's tunnels, the arcology's atrium). Every offer keeps it on the gig (mood).
+static func gig_mood(seed_value: int, did: String, scene: String) -> String:
+	return Atmosphere.pick(seed_value, did) if Atmosphere.has_sky(scene) else ""
 
 
 ## Where a tower gig at `lid` is played: its band of the tower (scene tower_top; TowerGen).
@@ -788,8 +797,8 @@ static func scene_opts(gig: Dictionary) -> Dictionary:
 		o["band"] = String(gig.get("band", TowerGen.DEFAULT_BAND))
 		if String(gig.get("sky", "")) != "":   # by day or at night (tower_sky): the view's light (greybox _scene_look)
 			o["sky"] = String(gig.sky)
-		if String(gig.get("mood", "")) != "":   # its weather (tower_mood): the sky, fog and smog (greybox _scene_look, TowerDress)
-			o["mood"] = String(gig.mood)
+	if String(gig.get("mood", "")) != "":   # its weather (gig_mood): the air, the rain (greybox scene_look, WeatherFx, TowerDress) and its rules (Weather)
+		o["mood"] = String(gig.mood)
 	if gig.has("hour"):   # the hour the crew arrives (_start_gig): the map's light by it (Daylight, greybox scene_look)
 		o["hour"] = int(gig.hour)
 	for k in ["variant", "deploy", "basement_storeys"]:   # a dev gig's overrides (CustomGig)
@@ -847,8 +856,12 @@ func _start_gig(gig: Dictionary) -> Dictionary:
 		advance_minutes(drive)
 	if not active_gig.has("hour"):   # the hour the crew gets there: the map is lit by it (Daylight), as the street is rolled for it
 		active_gig["hour"] = minutes / 60
+	if not active_gig.has("mood"):   # an offer from before the weather pass: its weather now (gig_mood)
+		active_gig["mood"] = gig_mood(int(active_gig.get("seed", 1)), String(active_gig.get("district", "")), String(active_gig.get("scene", "")))
 	if not active_gig.has("scene_event"):   # the street round the gig, at the hour the crew gets there (SceneEvent, SPM p.77-84)
 		active_gig["scene_event"] = SceneEvent.roll(active_gig, int(active_gig.hour) * 60 + minutes % 60, String(active_gig.get("street", "")))
+	if SceneEvent.mood_of(active_gig.scene_event) != "" and String(active_gig.get("mood", "")) != "":   # the street brings its weather (a dust storm rolling in)
+		active_gig["mood"] = SceneEvent.mood_of(active_gig.scene_event)
 	var before := {}   # for the debrief: what each crew member already had going in
 	for c in crew:
 		before[c.display_name] = {"injuries": c.injuries.size(), "humanity": c.humanity}

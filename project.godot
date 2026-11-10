@@ -51,3 +51,11 @@ day_factor={
 "type": "float",
 "value": 0.0
 }
+weather={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
+weather_flash={
+"type": "float",
+"value": 0.0
+}

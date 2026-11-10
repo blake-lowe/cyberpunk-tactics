@@ -137,10 +137,16 @@ func test_day_looks_read_as_day() -> void:
 	var bl := _map({"scene": "badlands", "district": "outskirts", "hour": 18})
 	assert_eq(GREYBOX.scene_look(bl).sun, GREYBOX.LOOKS["badlands"].sun, "the badlands' approved sunset is its dusk")
 	var sm := _map({"scene": "street_block", "district": "kabuki", "hour": 13, "mood": "smog"})
-	var air := Atmosphere.light("smog", true)
-	for k in air:   # a mood's air composes over the day look
-		assert_eq(GREYBOX.scene_look(sm)[k], air[k], "smog's %s over the day" % k)
-	assert_eq(GREYBOX.scene_look(sm).key, GREYBOX.scene_look(_map({"scene": "street_block", "district": "kabuki", "hour": 13})).key, "but never the sun")
+	var plain := GREYBOX.scene_look(_map({"scene": "street_block", "district": "kabuki", "hour": 13}))
+	var air := Atmosphere.ground_air("smog", true)
+	assert_eq(GREYBOX.scene_look(sm).sky, air.sky, "a mood's sky over the day look")
+	var want := Color(String(plain.fog)).lerp(Color(String(air.fog)), 0.5)
+	assert_true(Color(String(GREYBOX.scene_look(sm).fog)).is_equal_approx(want) or Color(String(GREYBOX.scene_look(sm).fog)).to_html(false) == want.to_html(false), "its fog half-way to the mood's")
+	assert_near(float(GREYBOX.scene_look(sm).fog_d), float(plain.fog_d) * float(air.fog_k), 0.000001, "the street's own fog, thicker")
+	assert_false(GREYBOX.scene_look(sm).has("fog_k"), "fog_k is spent on the density")
+	for k in ["key", "key_e", "ambient", "amb_e", "rim", "fog_h", "fog_hd"]:
+		assert_eq(GREYBOX.scene_look(sm).get(k), plain.get(k), "but never the %s" % k)
+	assert_eq(GREYBOX.scene_look(_map({"scene": "undercity", "hour": 13, "mood": "storm"})), GREYBOX.scene_look(_map({"scene": "undercity", "hour": 13})), "no weather under the city")
 
 
 func test_bake_lights_by_day() -> void:

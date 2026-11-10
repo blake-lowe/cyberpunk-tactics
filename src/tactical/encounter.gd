@@ -73,6 +73,7 @@ var code: Dictionary = {}
 var street_code: Dictionary = {}    ## {} when there is no separate street roll
 var utility_code := 0               ## NC2045 p.8: 1d10 per utility, under it that utility is out
 var outages: Array[String] = []     ## utilities out this gig: power, water, citinet
+var weather := ""                   ## the mood over the gig now (Atmosphere id; the map's, until a Weather Turns twist): its rules are Weather's
 var backup_in := -1                 ## rounds until the site code's response arrives (0: arriving this round; -1 none coming)
 var backup_label := "BACKUP"        ## who that is, for the HUD
 var alarm_cause := ""               ## why the alarm went up, upper case for the HUD ("CAMERA SPOTTED VEX"); "" while quiet
@@ -132,6 +133,7 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 		e.opfor_faction = World.DEFAULT_OPFOR
 	e._init_sides()
 	e.m = p_map
+	e.weather = Atmosphere.of(p_map) if Atmosphere.has_sky(String(p_map.params.get("scene", ""))) else Atmosphere.default_id()   # no weather in the tunnels
 	e.dice = p_dice
 	SceneEvent.dress(p_map, opts.get("scene_event"))   # its set dressing is cover: on the map before anything reads it
 	e.nav = Nav.new(p_map)
@@ -226,6 +228,9 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 	elif not bool(opts.get("utilities", false)) or SecurityCode.utilities_happen(p_dice):
 		e.outages = SecurityCode.roll_utilities(p_dice, e.utility_code)
 	SceneEvent.pre(e, opts.get("scene_event"))   # a block gone dark
+	var wo := Weather.outage(e.weather)   # a storm took the grid down (blackout, NCW p.4)
+	if wo != "" and not (wo in e.outages):
+		e.outages.append(wo)
 	e._apply_outages()
 	e._compute_light()
 	if e.obj.manned():
@@ -261,6 +266,7 @@ func refresh_vision() -> bool:
 func _add(c: Combatant, pos: Vector3i, team: int) -> void:
 	c.team = team
 	c.death_saves = team == CREW or team == CAPTIVE   # HOUSE-RULE (NPC_FLATLINE): see _flatline_npcs
+	c.heat = Weather.heat(weather)   # a heat wave weighs on everyone's armor (NCW p.5)
 	units.append({"id": units.size(), "c": c, "pos": pos, "team": team, "alerted": team == 0})
 
 
@@ -1992,6 +1998,7 @@ func _spots(g: Dictionary, u: Dictionary) -> bool:
 	if not lit.has(u.pos):
 		base -= DARK_PENALTY
 	base -= 2 * int(maxf(0.0, dist - 5.0) / 5.0)
+	base -= Weather.sight_penalty(m, weather, g.pos, u.pos)   # rain, dust, ash, smog out in the open (NCW p.4-5)
 	var sneak: int = u.c.skill_base("stealth") - u.c.action_penalty()
 	var key := [g.id, u.id, init.round_num if init else 0]   # HOUSE-RULE: one contest per guard, sneaker and round
 	if not _spot_rolls.has(key):
@@ -2294,6 +2301,20 @@ func _arrive(r: Dictionary) -> void:
 	_spawn_wave(roster, String(r.label), team, String(r.fid), String(r.rank), bool(r.code.get("hardened", false)), civ)
 	if bool(r.get("sting", false)) and team != OPFOR:   # a police sting (Twist): they came for the crew
 		_witness(team, "A police sting")
+
+
+# --- Weather (Weather, data/gen/atmospheres.json) ------------------------------------------
+
+## The weather turns mid-gig (the Weather Turns twist, Weather.turn): mood `id` from now on, its
+## heat on everyone's armor; a `weather` event lets the view change the sky, the rain and the air.
+func set_weather(id: String) -> void:
+	if not Atmosphere.has(id) or id == weather:
+		return
+	var was := weather
+	weather = id
+	for u in units:
+		u.c.heat = Weather.heat(weather)
+	events.append({"type": "weather", "unit": Clocks._anchor(self), "mood": id, "was": was})
 
 
 # --- Utility Codes (NC2045 p.8) ------------------------------------------------------------
@@ -2603,8 +2624,10 @@ func preview(target: Dictionary, weapon: Weapon, mode: Attack.Mode) -> Dictionar
 		s.from = cur.pos
 	var dist := _attack_distance(weapon, s.from, target.pos)
 	var sh := shield_for(target, weapon, mode, s.from)   # a Human Shield takes the shot (p.184)
-	var p := Attack.preview(_aimer(), weapon, sh.c if not sh.is_empty() else target.c, mode, dist)
+	var wm := 0 if weapon.is_melee() else -Weather.ranged_penalty(m, weather, s.from, target.pos, dist)   # a shot through the weather (NCW p.4-5)
+	var p := Attack.preview(_aimer(), weapon, sh.c if not sh.is_empty() else target.c, mode, dist, wm)
 	p["from"] = s.from
+	p["weather"] = wm
 	p["blocker"] = s.blocker
 	if not sh.is_empty():
 		p["shield"] = sh.id
@@ -2639,7 +2662,7 @@ func attack(target: Dictionary, weapon: Weapon, mode: Attack.Mode) -> Dictionary
 	var sp_before: int = target.c.sp(loc)
 	var wound_before: int = target.c.wound_state()
 	var ammo_before := weapon.ammo
-	var r := Attack.resolve(dice, _aimer(), weapon, target.c, mode, _attack_distance(weapon, p.from, target.pos))
+	var r := Attack.resolve(dice, _aimer(), weapon, target.c, mode, _attack_distance(weapon, p.from, target.pos), int(p.get("weather", 0)))
 	var mult := 1
 	if mode == Attack.Mode.AUTOFIRE and r.hit and r.check != null:
 		mult = mini(r.check.total - r.check.dv, weapon.autofire_mult())   # rounds that connect (p173)

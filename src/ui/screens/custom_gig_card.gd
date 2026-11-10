@@ -114,7 +114,7 @@ func _build() -> void:
 	for id in Atmosphere.ids():
 		moods.append([String(id), String(Atmosphere.data().moods[id].get("name", id))])
 	var mood_opt := _opt("mood", moods)
-	mood_opt.tooltip_text = "A tower gig's weather (Atmosphere): auto draws it from the seed, weighted by the district."
+	mood_opt.tooltip_text = "The gig's weather: auto draws it from the seed at the book's odds, leaned by the district. No weather under the city or in the arcology."
 	_field(grid, "Weather", mood_opt)
 	_field(grid, "Pay (eb part)", _spin("pay", 0, 200000, 500))
 	_field(grid, "Seed", _spin("seed", 0, 99999, 1))

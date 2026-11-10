@@ -49,6 +49,7 @@ var downtime := "recover"        ## between gigs: recover (Campaign.DOWNTIME)
 var maker := {}                  ## Tech Maker Specialty ranks (p147): field, upgrade, fabrication, invention
 var doses := 0                   ## Pharmaceutical doses carried this gig
 var temp_mods := {}              ## stat → penalty for the rest of the gig (Liche, Scorpion: "for 1 hour")
+var heat := 0                    ## this gig: added to an existing armor penalty by the weather (Weather.heat; set by the Encounter)
 var kit: Array[String] = ["", ""]   ## what they take into a gig from safehouse storage (Items keys; slot rules in gear.json kit_rules)
 var kit_spent: Array[bool] = [false, false]   ## this gig: a consumable slot already used
 var drugs_taken: Array[String] = []   ## this gig: drug ids dosed (addiction checks afterwards, p.229)
@@ -150,7 +151,7 @@ func armor_penalty() -> int:
 	for loc in armor:
 		if armor[loc] != null:
 			worst = maxi(worst, (armor[loc] as ArmorPiece).penalty)
-	return worst
+	return worst + heat if worst > 0 else 0   # a heat wave makes an existing penalty worse (Weather.heat, NCW p.5)
 
 
 func skill_level(skill_id: String) -> int:
@@ -294,6 +295,7 @@ func gig_reset() -> void:
 	stimmed = false
 	speedhealed = false
 	temp_mods.clear()
+	heat = 0
 	burning = 0
 	cyber_off.clear()
 	kit_spent = [false, false]

@@ -24,7 +24,8 @@ extends RefCounted
 ## tall building: docs/world/towers.md): a tower's short id or location id ("raven", "the_glen_24"),
 ## or "any" (one drawn); "" plays a tower's location as its street-level building, as the board's
 ## ordinary offers do. band: the tower's band ("" its sky band, the only one stage 1a builds).
-## mood: a tower gig's weather (Atmosphere: clear, acid_rain, dust, smog, drizzle; "" drawn from the
+## mood: the gig's weather (an Atmosphere id: clear, overcast, drizzle, heavy_rain, storm, acid_rain,
+## blood_rain, ash, dust, rad_wind, smog, heat_wave, cold_snap, flood, blackout; "" drawn from the
 ## seed and district as a board gig's is). crew: names; [] everyone fit to go. The Mission Builder sheet's rows (SPM p.102; MissionBuilder): client
 ## "<zone>/<id>" (People of Night City), mission (a Mission Types id; its objective is used when
 ## objective is auto), item "<category>/<id>" (the focus: Mission Items; not "focus", which the
@@ -228,6 +229,8 @@ static func build(form: Dictionary, camp: Campaign = null) -> Dictionary:
 	gig.merge(Campaign.codes_for(gig, did), true)
 	if not code.is_empty():
 		gig["security_code"] = code
+	gig["mood"] = String(f.mood) if Atmosphere.has(String(f.mood)) and Atmosphere.has_sky(String(gig.scene)) \
+		else Campaign.gig_mood(int(seed), did, String(gig.scene))   # its weather, as a board gig's
 	gig["pay"] = int(g.pay[str(sec)])
 	_mission_steps(f, d, gig)
 	# The encounter's dials.

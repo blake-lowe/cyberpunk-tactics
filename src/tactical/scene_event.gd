@@ -20,11 +20,12 @@ extends RefCounted
 ## one quiet line; poll() runs MaxTac's countdown each round. Show, don't tell (owner verdict
 ## 2026-11-09): no HUD line and no deploy card; the people on the street tell it.
 ##
-## FX: text, crowd, watch, gangs, patrol, trauma, psycho, outage, alarm, dress, sound, sky (see
-## scene_events.json `fx._why`). `mood` (the weather seam) is read by nothing yet: the dust storm
-## row is unmodelled until the weather pass.
+## FX: text, crowd, watch, gangs, patrol, trauma, psycho, outage, alarm, dress, sound, sky, mood (see
+## scene_events.json `fx._why`). `mood` is the weather the street brings (the Outskirts' dust storm
+## rolling in): Campaign._start_gig puts it on the gig before the map is built (mood_of), so the
+## map, the view and the rules (Weather) all have it from the start.
 
-const FX := ["text", "crowd", "watch", "gangs", "patrol", "trauma", "psycho", "outage", "alarm", "dress", "sound", "sky"]
+const FX := ["text", "crowd", "watch", "gangs", "patrol", "trauma", "psycho", "outage", "alarm", "dress", "sound", "sky", "mood"]
 const BANDS := ["corporate", "moderate", "combat_zone", "outskirts"]
 const TIMES := ["day", "night", "after_midnight"]
 const NONE := "none"
@@ -188,6 +189,12 @@ static func valid(s: Variant) -> bool:
 		return false
 	var r := row(String(s.get("table", "")), String(s.get("id", "")))
 	return enabled(r) and int(s.get("row", -1)) == int(r.roll[0])
+
+
+## The weather a scene event brings (its fx `mood`, an Atmosphere id), "" if none.
+static func mood_of(spec: Variant) -> String:
+	var mood := String(fx_of(spec).get("mood", ""))
+	return mood if Atmosphere.has(mood) else ""
 
 
 static func fx_of(spec: Variant) -> Dictionary:
@@ -367,6 +374,8 @@ static func apply(e: Encounter, spec: Variant) -> void:
 	for k in ["text", "sound", "sky"]:
 		if fx.has(k):
 			out.applied.append(k)
+	if fx.has("mood"):   # the gig took the weather before its map was built (Campaign._start_gig)
+		(out.applied if e.weather == String(fx.mood) else out.skipped).append("mood")
 	var note := String(e.scene_event.get("note", ""))
 	e.scene_event["applied"] = out.applied
 	e.scene_event["skipped"] = out.skipped

@@ -49,6 +49,9 @@ uniform bool offmap = false;        // ground beyond the map: fades out with dis
 uniform bool near_fade = false;
 uniform bool no_spill = false;      // no baked light spill (a tower band's impostor facade and the city below)
 uniform bool dry = false;
+uniform bool outdoor = false;       // open ground (WorldBuilder LIB outdoor): the weather wets, frosts and floods it
+global uniform vec4 weather;        // the weather on the open ground (WeatherFx): wet, rain (ripples), ice, flood; all 0 when dry
+global uniform float weather_flash; // a lightning flash (WeatherFx): 0..1, lights the wet street, never a lamp
 uniform bool soft_light = false;    // bright scenes (arcology): no hard banding of light pools           // no puddles (roofs: their specular read as white streaks)     // tall surroundings on every side (arcology walls) dissolve on the camera side
 uniform sampler2D tex : source_color, filter_linear_mipmap, repeat_enable;   // imported models (nature kit)
 uniform float tex_mix = 0.0;        // 1: the model's own texture (tinted by albedo) replaces the pattern
@@ -203,6 +206,38 @@ void fragment() {
 		base = mix(base, albedo2.rgb, g);
 	}
 	if (tex_mix > 0.0) base = mix(base, texture(tex, UV).rgb * albedo.rgb, tex_mix);
+	// --- the weather on the open ground (WeatherFx; global `weather`): damp and dark, puddles that
+	// spread with the rain (a flood stands everywhere but the crowns), rings where rain hits standing
+	// water, frost and black ice in a cold snap, the wet street flaring in a lightning flash
+	if (outdoor && up && mode != 2 && (weather.x > 0.0 || weather.z > 0.0)) {
+		float spread = 0.3 * weather.x + 0.45 * weather.w;
+		float pool = smoothstep(0.8 - spread, 0.84 - spread, fbm(wpos.xz * 0.45 + 13.0));
+		float wp = max(wet, pool * step(0.01, weather.x));
+		base *= 1.0 - 0.28 * weather.x;
+		rough = mix(rough, 0.3, 0.5 * weather.x);
+		rough = mix(rough, 0.06, wp);
+		if (weather.y > 0.0 && wp > 0.5) {
+			vec2 cell = floor(wpos.xz * 2.5);
+			float h = hash(cell);
+			vec2 cp = (cell + 0.25 + 0.5 * vec2(hash(cell + 3.1), hash(cell + 7.7))) / 2.5;
+			float ph = fract(TIME * (0.7 + h) + h * 9.0);
+			float ring = 1.0 - smoothstep(0.0, 0.02, abs(length(wpos.xz - cp) - ph * 0.17));
+			emit += vec3(0.45, 0.55, 0.65) * ring * (1.0 - ph) * 0.1 * step(h, 0.35 + 0.55 * weather.y);
+		}
+		if (weather.z > 0.0) {
+			float l = dot(base, vec3(0.3, 0.59, 0.11));
+			base = mix(base, vec3(0.4, 0.46, 0.55) * (0.55 + l), 0.4 * weather.z * (1.0 - wp));
+			rough = mix(rough, 0.04, wp * weather.z);
+			float sh = hash(floor(wpos.xz * 14.0));
+			emit += vec3(0.55, 0.7, 0.9) * step(0.986, sh) * (0.5 + 0.5 * sin(TIME * 2.5 + sh * 40.0)) * 0.22 * weather.z;
+		}
+		if (weather.w > 0.0) {   // flooding: a few inches of black sea water over the street, slow ripples
+			base = mix(base, vec3(0.035, 0.05, 0.065), wp * 0.75 * weather.w);
+			emit += vec3(0.04, 0.06, 0.08) * wp * weather.w * noise(wpos.xz * 1.5 + vec2(TIME * 0.2, TIME * 0.13));
+		}
+		wet = wp;
+		emit += vec3(0.7, 0.75, 1.0) * weather_flash * (0.04 + 0.28 * wp);
+	}
 	emit *= 1.0 - 0.55 * day_factor;   // by day lit windows, signs and trims are panels, not glows (0 at night: unchanged)
 	// --- grounding: contact darkening at wall/prop bases, a light edge on top faces
 	if (mode != 2) {
@@ -234,7 +269,7 @@ void fragment() {
 	pk = lq;
 	base *= 1.0 - 0.12 * wet;   // puddles: a little darker, a thin saturated reflection (no ink holes)
 	vec3 sb = max(base, vec3(0.045));   // spill must show on near-black asphalt too
-	emit += sb * lf * spill * (1.0 - wet * 0.25) + (lf / max(pk, 1e-3)) * min(pk, 0.6) * wet * 0.12;
+	emit += sb * lf * spill * (1.0 - wet * 0.25) + (lf / max(pk, 1e-3)) * min(pk, 0.6) * wet * (0.12 + (outdoor ? 0.32 * weather.x : 0.0));   // rain: the neon in the puddles
 	if (lq >= 0.75) emit += (lf / max(pk, 1e-3)) * 0.12;   // hot core: pools have a coloured centre
 	if (k < 1.0) {
 		float l = dot(base, vec3(0.3, 0.59, 0.11));

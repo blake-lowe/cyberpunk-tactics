@@ -29,7 +29,8 @@ static func attack_base(attacker: Combatant, weapon: Weapon, mode: Mode) -> int:
 
 ## Everything the UI needs before committing: legality, DV source and exact hit chance.
 ## Keys: ok, reason, base, dv (fixed DV or -1), defense_base (opposed or -1), chance.
-static func preview(attacker: Combatant, weapon: Weapon, defender: Combatant, mode: Mode, distance_m: float) -> Dictionary:
+## `mod`: a situational modifier on the attacker's base from the scene (the weather, Weather).
+static func preview(attacker: Combatant, weapon: Weapon, defender: Combatant, mode: Mode, distance_m: float, mod := 0) -> Dictionary:
 	var p := {"ok": false, "reason": "", "base": 0, "dv": -1, "defense_base": -1, "chance": 0.0}
 	var nf := attacker.awareness_level("fumble_recovery") > 0
 	var reason := _illegal_reason(weapon, mode, distance_m, attacker)
@@ -37,7 +38,7 @@ static func preview(attacker: Combatant, weapon: Weapon, defender: Combatant, mo
 		p.reason = reason
 		return p
 	p.ok = true
-	p.base = attack_base(attacker, weapon, mode)
+	p.base = attack_base(attacker, weapon, mode) + mod
 
 	var evasion := defender.skill_base("evasion") - defender.action_penalty()
 	if weapon.is_melee():
@@ -60,8 +61,8 @@ static func preview(attacker: Combatant, weapon: Weapon, defender: Combatant, mo
 
 ## Roll the attack and apply all consequences to `defender`. Consumes ammo.
 ## Result keys: ok, reason, hit, check, damage, faces, location, through, crits, dropped_item.
-static func resolve(dice: Dice, attacker: Combatant, weapon: Weapon, defender: Combatant, mode: Mode, distance_m: float) -> Dictionary:
-	var p := preview(attacker, weapon, defender, mode, distance_m)
+static func resolve(dice: Dice, attacker: Combatant, weapon: Weapon, defender: Combatant, mode: Mode, distance_m: float, mod := 0) -> Dictionary:
+	var p := preview(attacker, weapon, defender, mode, distance_m, mod)
 	var r := {"ok": p.ok, "reason": p.reason, "hit": false, "check": null, "damage": 0, "faces": PackedInt32Array(),
 		"location": "head" if mode == Mode.AIMED_HEAD else "body", "through": 0, "crits": [], "dropped_item": false, "dodged": false}
 	if not p.ok:

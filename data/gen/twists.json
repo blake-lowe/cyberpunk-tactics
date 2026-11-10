@@ -58,7 +58,7 @@
 		{"roll": [91, 92], "id": "unexpected_detour", "label": "Intel Moves", "note": "a key location shifts mid-job", "fx": {"objective": "moves"}, "trigger": {"on": "round", "n": [3, 5]}, "unmodelled": "the objective moving mid-gig"},
 		{"roll": [93, 94], "id": "unexpected_rival", "label": "Rival Crew", "note": "another crew is after the same prize", "fx": {"units": {"side": "rival", "blocks": ["boosterganger", "bodyguard", "reclaimer_chief"], "n": [3, 4], "rank": "Rival", "at": "far"}}, "trigger": {"on": "round", "n": [3, 5]}},
 		{"roll": [95, 96], "id": "unexpected_romance", "label": "Smitten Contact", "note": "someone on the job falls for a crew member", "fx": {"narrative": true}, "trigger": {"on": "objective_done"}, "unmodelled": "narrative"},
-		{"roll": [97, 98], "id": "unexpected_weather", "label": "Weather Turns", "note": "a storm or hazard rolls in", "fx": {"weather": "roll"}, "trigger": {"on": "round", "n": [3, 5]}, "unmodelled": "mid-gig weather"},
+		{"roll": [97, 98], "id": "unexpected_weather", "label": "Weather Turns", "note": "a storm or hazard rolls in", "fx": {"weather": "roll"}, "trigger": {"on": "round", "n": [3, 5]}},
 		{"roll": [99, 100], "id": "wrong_place_wrong_time", "label": "Gang War Erupts", "note": "the site turns into a battleground", "fx": {"units": {"side": "rival", "n": [5, 7]}}, "trigger": {"on": "round", "n": [2, 4]}, "unmodelled": "overlaps Unexpected Rival; two gangs at war needs a second side"}
 	]
 }
