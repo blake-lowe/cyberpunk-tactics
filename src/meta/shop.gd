@@ -59,10 +59,12 @@ static func describe(it: Dictionary) -> String:
 	var desc := String(it.get("info", ""))
 	if String(it.get("kind", "")) == "cyberware":
 		var id := Items.base_id(String(it.key))
-		var need := String(Campaign.RIPPERDOC.get(id, [""])[0])
-		desc += (" " if desc != "" else "") + "Humanity Loss %s." % String(RulesDB.cyberware(id).get("hl_dice", ""))
+		var need := Cyber.needs(id)
+		desc += (" " if desc != "" else "") + "Humanity Loss %s." % String(Cyber.def(id).get("hl_dice", ""))
+		if Cyber.def(id).get("paired", false):
+			desc += " Paired: one in each %s, both bought." % ("leg" if String(Cyber.def(id).host) == "leg" else "eye")
 		if need != "":
-			desc += " Needs %s." % String(RulesDB.cyberware(need).name)
+			desc += " Needs %s." % Cyber.display(need)
 		desc += " Installed at the Med Bay."
 	return desc
 

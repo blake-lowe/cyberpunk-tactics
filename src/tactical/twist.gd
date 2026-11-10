@@ -471,7 +471,7 @@ static func _tier_up(e: Encounter, out: Dictionary) -> void:
 	c.weapons = n.weapons
 	c.armor = n.armor
 	c.subdermal = n.subdermal
-	c.cyberware = n.cyberware
+	c.implants = n.implants
 	c.awareness = n.awareness
 	c.hp_max_override = n.hp_max_override
 	c.block = n.block

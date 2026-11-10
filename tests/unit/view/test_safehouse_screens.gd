@@ -150,23 +150,25 @@ func test_ripperdoc_installs_from_storage_and_removes_on_a_second_press() -> voi
 	var camp := DemoState.make()
 	var c: Combatant = camp.alive_crew()[0]
 	camp.stash["cyberware/cybereye"] = 1
-	c.cyberware.erase("cybereye")
+	c.implants.clear()
 	var s := _open(MedBayScreen.new(), camp, "ripperdoc")
 	var eb := camp.eb
-	var inst := _buttons(s, "INSTALL")
+	assert_eq(_buttons(s, "RIGHT EYE").size(), 1, "an eye goes in on the side picked")
+	var inst := _buttons(s, "LEFT EYE")
 	assert_false(inst.is_empty())
-	var n := c.cyberware.size()
+	var n := c.implants.size()
 	inst[0].pressed.emit()
-	assert_eq(c.cyberware.size(), n + 1, "installed on the selected crew member")
+	assert_eq(c.implants.size(), n + 1, "installed on the selected crew member")
+	assert_eq(c.implants[-1], {"id": "cybereye", "loc": "left_eye"})
 	assert_eq(camp.eb, eb, "free (p338)")
 	var rm := _buttons(s, "REMOVE")
 	assert_false(rm.is_empty())
 	rm[0].pressed.emit()
-	assert_eq(c.cyberware.size(), n + 1, "the first press only asks")
+	assert_eq(c.implants.size(), n + 1, "the first press only asks")
 	var confirm := _buttons(s, "DESTROY IT")
 	assert_eq(confirm.size(), 1)
 	confirm[0].pressed.emit()
-	assert_eq(c.cyberware.size(), n, "the second takes it out")
+	assert_eq(c.implants.size(), n, "the second takes it out")
 	s.free()
 
 

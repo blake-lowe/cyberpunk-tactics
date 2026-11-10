@@ -10,7 +10,11 @@
    "hl_flat": 0,
    "cost": 100,
    "borgware": false,
-   "fx": {}
+   "host": "fashion",
+   "slots": 1,
+   "needs": "",
+   "unmodelled": true,
+   "cite": "CPR core p.111, p.358-359"
   },
   "chemskin": {
    "name": "Chemskin",
@@ -20,7 +24,12 @@
    "hl_dice": "",
    "hl_flat": 0,
    "cost": 100,
-   "borgware": false
+   "borgware": false,
+   "host": "fashion",
+   "slots": 1,
+   "needs": "",
+   "unmodelled": true,
+   "cite": "CPR core p.111, p.358-359"
   },
   "emp_threading": {
    "name": "EMP Threading",
@@ -30,7 +39,12 @@
    "hl_dice": "",
    "hl_flat": 0,
    "cost": 10,
-   "borgware": false
+   "borgware": false,
+   "host": "fashion",
+   "slots": 1,
+   "needs": "",
+   "unmodelled": true,
+   "cite": "CPR core p.111, p.358-359"
   },
   "light_tattoo": {
    "name": "Light Tattoo",
@@ -40,7 +54,13 @@
    "hl_dice": "",
    "hl_flat": 0,
    "cost": 100,
-   "borgware": false
+   "borgware": false,
+   "host": "fashion",
+   "slots": 1,
+   "needs": "",
+   "multi": true,
+   "unmodelled": true,
+   "cite": "CPR core p.111, p.358-359"
   },
   "shift_tacts": {
    "name": "Shift Tacts",
@@ -50,7 +70,12 @@
    "hl_dice": "",
    "hl_flat": 0,
    "cost": 100,
-   "borgware": false
+   "borgware": false,
+   "host": "fashion",
+   "slots": 1,
+   "needs": "",
+   "unmodelled": true,
+   "cite": "CPR core p.111, p.358-359"
   },
   "skinwatch": {
    "name": "Skinwatch",
@@ -60,7 +85,12 @@
    "hl_dice": "",
    "hl_flat": 0,
    "cost": 100,
-   "borgware": false
+   "borgware": false,
+   "host": "fashion",
+   "slots": 1,
+   "needs": "",
+   "unmodelled": true,
+   "cite": "CPR core p.111, p.358-359"
   },
   "techhair": {
    "name": "Techhair",
@@ -70,7 +100,12 @@
    "hl_dice": "",
    "hl_flat": 0,
    "cost": 100,
-   "borgware": false
+   "borgware": false,
+   "host": "fashion",
+   "slots": 1,
+   "needs": "",
+   "unmodelled": true,
+   "cite": "CPR core p.111, p.358-359"
   },
   "neural_link": {
    "name": "Neural Link",
@@ -81,9 +116,13 @@
    "hl_flat": 7,
    "cost": 500,
    "borgware": false,
-   "fx": {
-    "slots": 5
-   }
+   "host": "neural_link",
+   "foundation": true,
+   "capacity": 5,
+   "slots": 0,
+   "needs": "",
+   "summary": "Wired nervous system: holds 5 neuralware options.",
+   "cite": "CPR core p.112, p.359-360"
   },
   "braindance_recorder": {
    "name": "Braindance Recorder",
@@ -93,7 +132,12 @@
    "hl_dice": "2d6",
    "hl_flat": 7,
    "cost": 500,
-   "borgware": false
+   "borgware": false,
+   "host": "neural_link",
+   "slots": 1,
+   "needs": "neural_link",
+   "unmodelled": true,
+   "cite": "CPR core p.112, p.359-360"
   },
   "chipware_socket": {
    "name": "Chipware Socket",
@@ -103,7 +147,13 @@
    "hl_dice": "2d6",
    "hl_flat": 7,
    "cost": 500,
-   "borgware": false
+   "borgware": false,
+   "host": "neural_link",
+   "slots": 1,
+   "needs": "neural_link",
+   "multi": true,
+   "summary": "Holds one chip.",
+   "cite": "CPR core p.112, p.359-360"
   },
   "interface_plugs": {
    "name": "Interface Plugs",
@@ -115,9 +165,14 @@
    "cost": 500,
    "borgware": false,
    "fx": {
-    "netrun": true,
-    "requires": "neural_link"
-   }
+    "netrun": true
+   },
+   "host": "neural_link",
+   "slots": 1,
+   "needs": "neural_link",
+   "multi": true,
+   "unmodelled": true,
+   "cite": "CPR core p.112, p.359-360"
   },
   "kerenzikov": {
    "name": "Kerenzikov",
@@ -129,9 +184,14 @@
    "cost": 500,
    "borgware": false,
    "fx": {
-    "initiative": 2,
-    "speedware": true
-   }
+    "initiative": 2
+   },
+   "host": "neural_link",
+   "slots": 1,
+   "needs": "neural_link",
+   "group": "speedware",
+   "summary": "+2 Initiative. Only one speedware.",
+   "cite": "CPR core p.112, p.359-360"
   },
   "sandevistan": {
    "name": "Sandevistan",
@@ -143,9 +203,14 @@
    "cost": 500,
    "borgware": false,
    "fx": {
-    "initiative_activated": 3,
-    "speedware": true
-   }
+    "initiative_activated": 3
+   },
+   "host": "neural_link",
+   "slots": 1,
+   "needs": "neural_link",
+   "group": "speedware",
+   "unmodelled": true,
+   "cite": "CPR core p.112, p.359-360"
   },
   "chemical_analyzer": {
    "name": "Chemical Analyzer",
@@ -155,7 +220,12 @@
    "hl_dice": "1d6",
    "hl_flat": 3,
    "cost": 500,
-   "borgware": false
+   "borgware": false,
+   "host": "chipware",
+   "slots": 0,
+   "needs": "chipware_socket",
+   "unmodelled": true,
+   "cite": "CPR core p.112, p.359-360"
   },
   "memory_chip": {
    "name": "Memory Chip",
@@ -165,7 +235,12 @@
    "hl_dice": "",
    "hl_flat": 0,
    "cost": 10,
-   "borgware": false
+   "borgware": false,
+   "host": "chipware",
+   "slots": 0,
+   "needs": "chipware_socket",
+   "unmodelled": true,
+   "cite": "CPR core p.112, p.359-360"
   },
   "olfactory_boost": {
    "name": "Olfactory Boost",
@@ -175,7 +250,12 @@
    "hl_dice": "2d6",
    "hl_flat": 7,
    "cost": 100,
-   "borgware": false
+   "borgware": false,
+   "host": "chipware",
+   "slots": 0,
+   "needs": "chipware_socket",
+   "unmodelled": true,
+   "cite": "CPR core p.112, p.359-360"
   },
   "pain_editor": {
    "name": "Pain Editor",
@@ -187,19 +267,28 @@
    "cost": 1000,
    "borgware": false,
    "fx": {
-    "ignore_seriously_wounded": true,
-    "requires": "chipware_socket"
-   }
+    "ignore_seriously_wounded": true
+   },
+   "host": "chipware",
+   "slots": 0,
+   "needs": "chipware_socket",
+   "summary": "Chip: ignore Seriously Wounded penalties.",
+   "cite": "CPR core p.112, p.359-360"
   },
   "skill_chip": {
    "name": "Skill Chip",
    "category": "neuralware",
    "install": "chip",
-   "effect": "Chipware: specific Skill at Level 3 unless already 3+; (x2) skills cost more",
+   "effect": "Chipware: its Skill counts as trained at +3 unless already trained higher (then it does nothing); (x2) skills cost more",
    "hl_dice": "2d6",
    "hl_flat": 7,
    "cost": 500,
-   "borgware": false
+   "borgware": false,
+   "host": "chipware",
+   "slots": 0,
+   "needs": "chipware_socket",
+   "unmodelled": true,
+   "cite": "CPR core p.112, p.359-360"
   },
   "tactile_boost": {
    "name": "Tactile Boost",
@@ -209,7 +298,12 @@
    "hl_dice": "2d6",
    "hl_flat": 7,
    "cost": 100,
-   "borgware": false
+   "borgware": false,
+   "host": "chipware",
+   "slots": 0,
+   "needs": "chipware_socket",
+   "unmodelled": true,
+   "cite": "CPR core p.112, p.359-360"
   },
   "cybereye": {
    "name": "Cybereye",
@@ -219,7 +313,14 @@
    "hl_dice": "2d6",
    "hl_flat": 7,
    "cost": 100,
-   "borgware": false
+   "borgware": false,
+   "host": "eye",
+   "foundation": true,
+   "capacity": 3,
+   "slots": 0,
+   "needs": "",
+   "summary": "Artificial eye with 3 option slots. With two, teargas can't touch you.",
+   "cite": "CPR core p.112-113, p.360-361"
   },
   "anti_dazzle": {
    "name": "Anti-Dazzle",
@@ -229,7 +330,13 @@
    "hl_dice": "1d6/2",
    "hl_flat": 2,
    "cost": 100,
-   "borgware": false
+   "borgware": false,
+   "host": "eye",
+   "slots": 1,
+   "needs": "cybereye",
+   "paired": true,
+   "unmodelled": true,
+   "cite": "CPR core p.112-113, p.360-361"
   },
   "chyron": {
    "name": "Chyron",
@@ -239,7 +346,12 @@
    "hl_dice": "1d6/2",
    "hl_flat": 2,
    "cost": 100,
-   "borgware": false
+   "borgware": false,
+   "host": "eye",
+   "slots": 1,
+   "needs": "cybereye",
+   "unmodelled": true,
+   "cite": "CPR core p.112-113, p.360-361"
   },
   "color_shift": {
    "name": "Color Shift",
@@ -249,7 +361,12 @@
    "hl_dice": "1d6/2",
    "hl_flat": 2,
    "cost": 100,
-   "borgware": false
+   "borgware": false,
+   "host": "eye",
+   "slots": 1,
+   "needs": "cybereye",
+   "unmodelled": true,
+   "cite": "CPR core p.112-113, p.360-361"
   },
   "dartgun": {
    "name": "Dartgun",
@@ -259,7 +376,12 @@
    "hl_dice": "1d6/2",
    "hl_flat": 2,
    "cost": 500,
-   "borgware": false
+   "borgware": false,
+   "host": "eye",
+   "slots": 3,
+   "needs": "cybereye",
+   "unmodelled": true,
+   "cite": "CPR core p.112-113, p.360-361"
   },
   "image_enhance": {
    "name": "Image Enhance",
@@ -269,7 +391,13 @@
    "hl_dice": "1d6",
    "hl_flat": 3,
    "cost": 500,
-   "borgware": false
+   "borgware": false,
+   "host": "eye",
+   "slots": 1,
+   "needs": "cybereye",
+   "paired": true,
+   "unmodelled": true,
+   "cite": "CPR core p.112-113, p.360-361"
   },
   "low_light_infrared_uv": {
    "name": "Low Light / Infrared / UV",
@@ -279,7 +407,13 @@
    "hl_dice": "1d6",
    "hl_flat": 3,
    "cost": 500,
-   "borgware": false
+   "borgware": false,
+   "host": "eye",
+   "slots": 2,
+   "needs": "cybereye",
+   "paired": true,
+   "unmodelled": true,
+   "cite": "CPR core p.112-113, p.360-361"
   },
   "microoptics": {
    "name": "MicroOptics",
@@ -289,7 +423,12 @@
    "hl_dice": "1d6/2",
    "hl_flat": 2,
    "cost": 100,
-   "borgware": false
+   "borgware": false,
+   "host": "eye",
+   "slots": 1,
+   "needs": "cybereye",
+   "unmodelled": true,
+   "cite": "CPR core p.112-113, p.360-361"
   },
   "microvideo": {
    "name": "MicroVideo",
@@ -299,7 +438,12 @@
    "hl_dice": "1d6/2",
    "hl_flat": 2,
    "cost": 500,
-   "borgware": false
+   "borgware": false,
+   "host": "eye",
+   "slots": 2,
+   "needs": "cybereye",
+   "unmodelled": true,
+   "cite": "CPR core p.112-113, p.360-361"
   },
   "radiation_detector": {
    "name": "Radiation Detector",
@@ -309,7 +453,12 @@
    "hl_dice": "1d6",
    "hl_flat": 3,
    "cost": 1000,
-   "borgware": false
+   "borgware": false,
+   "host": "eye",
+   "slots": 1,
+   "needs": "cybereye",
+   "unmodelled": true,
+   "cite": "CPR core p.112-113, p.360-361"
   },
   "targeting_scope": {
    "name": "Targeting Scope",
@@ -322,7 +471,12 @@
    "borgware": false,
    "fx": {
     "aimed_bonus": 1
-   }
+   },
+   "host": "eye",
+   "slots": 1,
+   "needs": "cybereye",
+   "summary": "+1 to Aimed Shots.",
+   "cite": "CPR core p.112-113, p.360-361"
   },
   "teleoptics": {
    "name": "TeleOptics",
@@ -332,7 +486,12 @@
    "hl_dice": "1d6",
    "hl_flat": 3,
    "cost": 500,
-   "borgware": false
+   "borgware": false,
+   "host": "eye",
+   "slots": 1,
+   "needs": "cybereye",
+   "unmodelled": true,
+   "cite": "CPR core p.112-113, p.360-361"
   },
   "virtuality": {
    "name": "Virtuality",
@@ -342,7 +501,13 @@
    "hl_dice": "1d6/2",
    "hl_flat": 2,
    "cost": 100,
-   "borgware": false
+   "borgware": false,
+   "host": "eye",
+   "slots": 1,
+   "needs": "cybereye",
+   "paired": true,
+   "unmodelled": true,
+   "cite": "CPR core p.112-113, p.360-361"
   },
   "cyberaudio_suite": {
    "name": "Cyberaudio Suite",
@@ -352,7 +517,15 @@
    "hl_dice": "2d6",
    "hl_flat": 7,
    "cost": 500,
-   "borgware": false
+   "borgware": false,
+   "host": "cyberaudio",
+   "foundation": true,
+   "capacity": 3,
+   "slots": 0,
+   "needs": "",
+   "unique": true,
+   "unmodelled": true,
+   "cite": "CPR core p.113, p.361-362"
   },
   "amplified_hearing": {
    "name": "Amplified Hearing",
@@ -362,7 +535,12 @@
    "hl_dice": "1d6",
    "hl_flat": 3,
    "cost": 100,
-   "borgware": false
+   "borgware": false,
+   "host": "cyberaudio",
+   "slots": 1,
+   "needs": "cyberaudio_suite",
+   "unmodelled": true,
+   "cite": "CPR core p.113, p.361-362"
   },
   "audio_recorder": {
    "name": "Audio Recorder",
@@ -372,7 +550,12 @@
    "hl_dice": "1d6/2",
    "hl_flat": 2,
    "cost": 100,
-   "borgware": false
+   "borgware": false,
+   "host": "cyberaudio",
+   "slots": 1,
+   "needs": "cyberaudio_suite",
+   "unmodelled": true,
+   "cite": "CPR core p.113, p.361-362"
   },
   "bug_detector": {
    "name": "Bug Detector",
@@ -382,7 +565,12 @@
    "hl_dice": "1d6/2",
    "hl_flat": 2,
    "cost": 100,
-   "borgware": false
+   "borgware": false,
+   "host": "cyberaudio",
+   "slots": 1,
+   "needs": "cyberaudio_suite",
+   "unmodelled": true,
+   "cite": "CPR core p.113, p.361-362"
   },
   "homing_tracer": {
    "name": "Homing Tracer",
@@ -392,7 +580,12 @@
    "hl_dice": "1d6/2",
    "hl_flat": 2,
    "cost": 100,
-   "borgware": false
+   "borgware": false,
+   "host": "cyberaudio",
+   "slots": 1,
+   "needs": "cyberaudio_suite",
+   "unmodelled": true,
+   "cite": "CPR core p.113, p.361-362"
   },
   "internal_agent": {
    "name": "Internal Agent",
@@ -402,7 +595,12 @@
    "hl_dice": "1d6",
    "hl_flat": 3,
    "cost": 100,
-   "borgware": false
+   "borgware": false,
+   "host": "cyberaudio",
+   "slots": 1,
+   "needs": "cyberaudio_suite",
+   "unmodelled": true,
+   "cite": "CPR core p.113, p.361-362"
   },
   "level_damper": {
    "name": "Level Damper",
@@ -412,7 +610,12 @@
    "hl_dice": "1d6/2",
    "hl_flat": 2,
    "cost": 100,
-   "borgware": false
+   "borgware": false,
+   "host": "cyberaudio",
+   "slots": 1,
+   "needs": "cyberaudio_suite",
+   "unmodelled": true,
+   "cite": "CPR core p.113, p.361-362"
   },
   "radio_communicator": {
    "name": "Radio Communicator",
@@ -422,7 +625,12 @@
    "hl_dice": "1d6/2",
    "hl_flat": 2,
    "cost": 100,
-   "borgware": false
+   "borgware": false,
+   "host": "cyberaudio",
+   "slots": 1,
+   "needs": "cyberaudio_suite",
+   "unmodelled": true,
+   "cite": "CPR core p.113, p.361-362"
   },
   "radio_scanner_music_player": {
    "name": "Radio Scanner / Music Player",
@@ -432,7 +640,12 @@
    "hl_dice": "1d6/2",
    "hl_flat": 2,
    "cost": 50,
-   "borgware": false
+   "borgware": false,
+   "host": "cyberaudio",
+   "slots": 1,
+   "needs": "cyberaudio_suite",
+   "unmodelled": true,
+   "cite": "CPR core p.113, p.361-362"
   },
   "radar_detector": {
    "name": "Radar Detector",
@@ -442,7 +655,12 @@
    "hl_dice": "1d6/2",
    "hl_flat": 2,
    "cost": 500,
-   "borgware": false
+   "borgware": false,
+   "host": "cyberaudio",
+   "slots": 1,
+   "needs": "cyberaudio_suite",
+   "unmodelled": true,
+   "cite": "CPR core p.113, p.361-362"
   },
   "scrambler_descrambler": {
    "name": "Scrambler / Descrambler",
@@ -452,7 +670,12 @@
    "hl_dice": "1d6/2",
    "hl_flat": 2,
    "cost": 100,
-   "borgware": false
+   "borgware": false,
+   "host": "cyberaudio",
+   "slots": 1,
+   "needs": "cyberaudio_suite",
+   "unmodelled": true,
+   "cite": "CPR core p.113, p.361-362"
   },
   "voice_stress_analyzer": {
    "name": "Voice Stress Analyzer",
@@ -462,7 +685,12 @@
    "hl_dice": "1d6",
    "hl_flat": 3,
    "cost": 100,
-   "borgware": false
+   "borgware": false,
+   "host": "cyberaudio",
+   "slots": 1,
+   "needs": "cyberaudio_suite",
+   "unmodelled": true,
+   "cite": "CPR core p.113, p.361-362"
   },
   "audiovox": {
    "name": "AudioVox",
@@ -472,7 +700,12 @@
    "hl_dice": "1d6",
    "hl_flat": 3,
    "cost": 500,
-   "borgware": false
+   "borgware": false,
+   "host": "internal",
+   "slots": 1,
+   "needs": "",
+   "unmodelled": true,
+   "cite": "CPR core p.114, p.362-363"
   },
   "contraceptive_implant": {
    "name": "Contraceptive Implant",
@@ -482,7 +715,12 @@
    "hl_dice": "",
    "hl_flat": 0,
    "cost": 10,
-   "borgware": false
+   "borgware": false,
+   "host": "internal",
+   "slots": 1,
+   "needs": "",
+   "unmodelled": true,
+   "cite": "CPR core p.114, p.362-363"
   },
   "enhanced_antibodies": {
    "name": "Enhanced Antibodies",
@@ -492,7 +730,12 @@
    "hl_dice": "1d6/2",
    "hl_flat": 2,
    "cost": 500,
-   "borgware": false
+   "borgware": false,
+   "host": "internal",
+   "slots": 1,
+   "needs": "",
+   "unmodelled": true,
+   "cite": "CPR core p.114, p.362-363"
   },
   "cybersnake": {
    "name": "Cybersnake",
@@ -505,7 +748,12 @@
    "borgware": false,
    "fx": {
     "weapon": "very_heavy_melee"
-   }
+   },
+   "host": "internal",
+   "slots": 1,
+   "needs": "",
+   "summary": "Very heavy melee weapon in the throat.",
+   "cite": "CPR core p.114, p.362-363"
   },
   "gills": {
    "name": "Gills",
@@ -515,7 +763,12 @@
    "hl_dice": "2d6",
    "hl_flat": 7,
    "cost": 1000,
-   "borgware": false
+   "borgware": false,
+   "host": "internal",
+   "slots": 1,
+   "needs": "",
+   "unmodelled": true,
+   "cite": "CPR core p.114, p.362-363"
   },
   "grafted_muscle_and_bone_lace": {
    "name": "Grafted Muscle and Bone Lace",
@@ -531,7 +784,12 @@
      "BODY": 2
     },
     "stat_cap": 10
-   }
+   },
+   "host": "internal",
+   "slots": 1,
+   "needs": "",
+   "summary": "+2 BODY (max 10): more HP.",
+   "cite": "CPR core p.114, p.362-363"
   },
   "independent_air_supply": {
    "name": "Independent Air Supply",
@@ -541,7 +799,12 @@
    "hl_dice": "1d6/2",
    "hl_flat": 2,
    "cost": 1000,
-   "borgware": false
+   "borgware": false,
+   "host": "internal",
+   "slots": 1,
+   "needs": "",
+   "unmodelled": true,
+   "cite": "CPR core p.114, p.362-363"
   },
   "midnight_lady_sexual_implant": {
    "name": "Midnight Lady Sexual Implant",
@@ -551,7 +814,12 @@
    "hl_dice": "2d6",
    "hl_flat": 7,
    "cost": 100,
-   "borgware": false
+   "borgware": false,
+   "host": "internal",
+   "slots": 1,
+   "needs": "",
+   "unmodelled": true,
+   "cite": "CPR core p.114, p.362-363"
   },
   "mr_studd_sexual_implant": {
    "name": "Mr. Studd Sexual Implant",
@@ -561,7 +829,12 @@
    "hl_dice": "2d6",
    "hl_flat": 7,
    "cost": 100,
-   "borgware": false
+   "borgware": false,
+   "host": "internal",
+   "slots": 1,
+   "needs": "",
+   "unmodelled": true,
+   "cite": "CPR core p.114, p.362-363"
   },
   "nasal_filters": {
    "name": "Nasal Filters",
@@ -571,7 +844,12 @@
    "hl_dice": "1d6/2",
    "hl_flat": 2,
    "cost": 100,
-   "borgware": false
+   "borgware": false,
+   "host": "internal",
+   "slots": 1,
+   "needs": "",
+   "unmodelled": true,
+   "cite": "CPR core p.114, p.362-363"
   },
   "radar_sonar_implant": {
    "name": "Radar / Sonar Implant",
@@ -581,7 +859,12 @@
    "hl_dice": "2d6",
    "hl_flat": 7,
    "cost": 1000,
-   "borgware": false
+   "borgware": false,
+   "host": "internal",
+   "slots": 1,
+   "needs": "",
+   "unmodelled": true,
+   "cite": "CPR core p.114, p.362-363"
   },
   "toxin_binders": {
    "name": "Toxin Binders",
@@ -596,7 +879,12 @@
     "skill": {
      "resist_torture_drugs": 2
     }
-   }
+   },
+   "host": "internal",
+   "slots": 1,
+   "needs": "",
+   "summary": "+2 Resist Torture/Drugs.",
+   "cite": "CPR core p.114, p.362-363"
   },
   "vampyres": {
    "name": "Vampyres",
@@ -608,8 +896,14 @@
    "cost": 500,
    "borgware": false,
    "fx": {
-    "weapon": "light_melee"
-   }
+    "weapon": "light_melee",
+    "weapon_quality": "excellent"
+   },
+   "host": "internal",
+   "slots": 1,
+   "needs": "",
+   "summary": "Excellent light melee fangs.",
+   "cite": "CPR core p.114, p.362-363"
   },
   "hidden_holster": {
    "name": "Hidden Holster",
@@ -619,7 +913,12 @@
    "hl_dice": "2d6",
    "hl_flat": 7,
    "cost": 500,
-   "borgware": false
+   "borgware": false,
+   "host": "external",
+   "slots": 1,
+   "needs": "",
+   "unmodelled": true,
+   "cite": "CPR core p.114, p.364"
   },
   "skin_weave": {
    "name": "Skin Weave",
@@ -632,7 +931,12 @@
    "borgware": false,
    "fx": {
     "armor_sp": 7
-   }
+   },
+   "host": "external",
+   "slots": 1,
+   "needs": "",
+   "summary": "SP 7 under the skin, head and body. Mends 1 SP a day of rest.",
+   "cite": "CPR core p.114, p.364"
   },
   "subdermal_armor": {
    "name": "Subdermal Armor",
@@ -645,7 +949,12 @@
    "borgware": false,
    "fx": {
     "armor_sp": 11
-   }
+   },
+   "host": "external",
+   "slots": 1,
+   "needs": "",
+   "summary": "SP 11 under the skin, head and body. Mends 1 SP a day of rest.",
+   "cite": "CPR core p.114, p.364"
   },
   "subdermal_pocket": {
    "name": "Subdermal Pocket",
@@ -655,7 +964,12 @@
    "hl_dice": "1d6",
    "hl_flat": 3,
    "cost": 100,
-   "borgware": false
+   "borgware": false,
+   "host": "external",
+   "slots": 1,
+   "needs": "",
+   "unmodelled": true,
+   "cite": "CPR core p.114, p.364"
   },
   "cyberarm": {
    "name": "Cyberarm",
@@ -667,9 +981,15 @@
    "cost": 500,
    "borgware": false,
    "fx": {
-    "slots": 4,
     "brawling_min_dice": 2
-   }
+   },
+   "host": "arm",
+   "foundation": true,
+   "capacity": 4,
+   "slots": 0,
+   "needs": "",
+   "summary": "Replacement arm with 4 option slots. Punches hit for at least 2d6.",
+   "cite": "CPR core p.115-116, p.364-367"
   },
   "standard_hand": {
    "name": "Standard Hand",
@@ -679,7 +999,14 @@
    "hl_dice": "1d6/2",
    "hl_flat": 2,
    "cost": 100,
-   "borgware": false
+   "borgware": false,
+   "host": "arm",
+   "slots": 0,
+   "needs": "",
+   "meat_ok": true,
+   "free_in_meat": true,
+   "unmodelled": true,
+   "cite": "CPR core p.115-116, p.364-367"
   },
   "big_knucks": {
    "name": "Big Knucks",
@@ -692,7 +1019,13 @@
    "borgware": false,
    "fx": {
     "weapon": "medium_melee"
-   }
+   },
+   "host": "arm",
+   "slots": 1,
+   "needs": "",
+   "meat_ok": true,
+   "summary": "Medium melee knuckles. Fits a meat arm.",
+   "cite": "CPR core p.115-116, p.364-367"
   },
   "cyberdeck": {
    "name": "Cyberdeck",
@@ -702,7 +1035,12 @@
    "hl_dice": "1d6",
    "hl_flat": 3,
    "cost": 500,
-   "borgware": false
+   "borgware": false,
+   "host": "arm",
+   "slots": 3,
+   "needs": "cyberarm",
+   "unmodelled": true,
+   "cite": "CPR core p.115-116, p.364-367"
   },
   "grapple_hand": {
    "name": "Grapple Hand",
@@ -712,7 +1050,12 @@
    "hl_dice": "1d6",
    "hl_flat": 3,
    "cost": 100,
-   "borgware": false
+   "borgware": false,
+   "host": "arm",
+   "slots": 1,
+   "needs": "cyberarm",
+   "unmodelled": true,
+   "cite": "CPR core p.115-116, p.364-367"
   },
   "medscanner": {
    "name": "Medscanner",
@@ -722,7 +1065,12 @@
    "hl_dice": "2d6",
    "hl_flat": 7,
    "cost": 500,
-   "borgware": false
+   "borgware": false,
+   "host": "arm",
+   "slots": 2,
+   "needs": "cyberarm",
+   "unmodelled": true,
+   "cite": "CPR core p.115-116, p.364-367"
   },
   "popup_grenade_launcher": {
    "name": "Popup Grenade Launcher",
@@ -732,7 +1080,12 @@
    "hl_dice": "2d6",
    "hl_flat": 7,
    "cost": 500,
-   "borgware": false
+   "borgware": false,
+   "host": "arm",
+   "slots": 2,
+   "needs": "cyberarm",
+   "unmodelled": true,
+   "cite": "CPR core p.115-116, p.364-367"
   },
   "popup_melee_weapon": {
    "name": "Popup Melee Weapon",
@@ -744,9 +1097,13 @@
    "cost": 500,
    "borgware": false,
    "fx": {
-    "weapon_choice": "melee",
-    "slots_used": 2
-   }
+    "weapon_choice": "melee"
+   },
+   "host": "arm",
+   "slots": 2,
+   "needs": "cyberarm",
+   "unmodelled": true,
+   "cite": "CPR core p.115-116, p.364-367"
   },
   "popup_shield": {
    "name": "Popup Shield",
@@ -756,7 +1113,12 @@
    "hl_dice": "2d6",
    "hl_flat": 7,
    "cost": 500,
-   "borgware": false
+   "borgware": false,
+   "host": "arm",
+   "slots": 3,
+   "needs": "cyberarm",
+   "unmodelled": true,
+   "cite": "CPR core p.115-116, p.364-367"
   },
   "popup_ranged_weapon": {
    "name": "Popup Ranged Weapon",
@@ -768,9 +1130,13 @@
    "cost": 500,
    "borgware": false,
    "fx": {
-    "weapon_choice": "one_handed_ranged",
-    "slots_used": 2
-   }
+    "weapon_choice": "one_handed_ranged"
+   },
+   "host": "arm",
+   "slots": 2,
+   "needs": "cyberarm",
+   "unmodelled": true,
+   "cite": "CPR core p.115-116, p.364-367"
   },
   "quick_change_mount": {
    "name": "Quick Change Mount",
@@ -780,7 +1146,12 @@
    "hl_dice": "2d6",
    "hl_flat": 7,
    "cost": 100,
-   "borgware": false
+   "borgware": false,
+   "host": "arm",
+   "slots": 1,
+   "needs": "cyberarm",
+   "unmodelled": true,
+   "cite": "CPR core p.115-116, p.364-367"
   },
   "rippers": {
    "name": "Rippers",
@@ -793,7 +1164,13 @@
    "borgware": false,
    "fx": {
     "weapon": "medium_melee"
-   }
+   },
+   "host": "arm",
+   "slots": 1,
+   "needs": "",
+   "meat_ok": true,
+   "summary": "Medium melee claws. Fits a meat arm.",
+   "cite": "CPR core p.115-116, p.364-367"
   },
   "scratchers": {
    "name": "Scratchers",
@@ -806,7 +1183,13 @@
    "borgware": false,
    "fx": {
     "weapon": "light_melee"
-   }
+   },
+   "host": "arm",
+   "slots": 1,
+   "needs": "",
+   "meat_ok": true,
+   "summary": "Light melee nails. Fits a meat arm.",
+   "cite": "CPR core p.115-116, p.364-367"
   },
   "shoulder_cam": {
    "name": "Shoulder Cam",
@@ -816,7 +1199,12 @@
    "hl_dice": "2d6",
    "hl_flat": 7,
    "cost": 500,
-   "borgware": false
+   "borgware": false,
+   "host": "arm",
+   "slots": 2,
+   "needs": "cyberarm",
+   "unmodelled": true,
+   "cite": "CPR core p.115-116, p.364-367"
   },
   "slice_n_dice": {
    "name": "Slice 'N Dice",
@@ -829,7 +1217,13 @@
    "borgware": false,
    "fx": {
     "weapon": "medium_melee"
-   }
+   },
+   "host": "arm",
+   "slots": 1,
+   "needs": "",
+   "meat_ok": true,
+   "summary": "Medium melee monowire whip. Fits a meat arm.",
+   "cite": "CPR core p.115-116, p.364-367"
   },
   "subdermal_grip": {
    "name": "Subdermal Grip",
@@ -839,7 +1233,14 @@
    "hl_dice": "1d6",
    "hl_flat": 3,
    "cost": 100,
-   "borgware": false
+   "borgware": false,
+   "host": "arm",
+   "slots": 1,
+   "needs": "neural_link",
+   "meat_ok": true,
+   "neural_slot": 1,
+   "summary": "Fire smartguns without Interface Plugs. Takes a neuralware slot; fits a meat arm.",
+   "cite": "CPR core p.115-116, p.364-367"
   },
   "techscanner": {
    "name": "Techscanner",
@@ -849,7 +1250,12 @@
    "hl_dice": "2d6",
    "hl_flat": 7,
    "cost": 500,
-   "borgware": false
+   "borgware": false,
+   "host": "arm",
+   "slots": 2,
+   "needs": "cyberarm",
+   "unmodelled": true,
+   "cite": "CPR core p.115-116, p.364-367"
   },
   "tool_hand": {
    "name": "Tool Hand",
@@ -859,7 +1265,13 @@
    "hl_dice": "1d6",
    "hl_flat": 3,
    "cost": 100,
-   "borgware": false
+   "borgware": false,
+   "host": "arm",
+   "slots": 1,
+   "needs": "",
+   "meat_ok": true,
+   "unmodelled": true,
+   "cite": "CPR core p.115-116, p.364-367"
   },
   "wolvers": {
    "name": "Wolvers",
@@ -872,7 +1284,13 @@
    "borgware": false,
    "fx": {
     "weapon": "heavy_melee"
-   }
+   },
+   "host": "arm",
+   "slots": 1,
+   "needs": "",
+   "meat_ok": true,
+   "summary": "Heavy melee claws. Fits a meat arm.",
+   "cite": "CPR core p.115-116, p.364-367"
   },
   "cyberleg": {
    "name": "Cyberleg",
@@ -883,9 +1301,13 @@
    "hl_flat": 3,
    "cost": 100,
    "borgware": false,
-   "fx": {
-    "slots": 3
-   }
+   "host": "leg",
+   "foundation": true,
+   "capacity": 3,
+   "slots": 0,
+   "needs": "",
+   "unmodelled": true,
+   "cite": "CPR core p.115-116, p.364-367"
   },
   "standard_foot": {
    "name": "Standard Foot",
@@ -895,7 +1317,14 @@
    "hl_dice": "1d6/2",
    "hl_flat": 2,
    "cost": 100,
-   "borgware": false
+   "borgware": false,
+   "host": "leg",
+   "slots": 0,
+   "needs": "",
+   "meat_ok": true,
+   "free_in_meat": true,
+   "unmodelled": true,
+   "cite": "CPR core p.115-116, p.364-367"
   },
   "grip_foot": {
    "name": "Grip Foot",
@@ -905,7 +1334,13 @@
    "hl_dice": "1d6",
    "hl_flat": 3,
    "cost": 500,
-   "borgware": false
+   "borgware": false,
+   "host": "leg",
+   "slots": 1,
+   "needs": "cyberleg",
+   "paired": true,
+   "unmodelled": true,
+   "cite": "CPR core p.115-116, p.364-367"
   },
   "jump_booster": {
    "name": "Jump Booster",
@@ -915,7 +1350,13 @@
    "hl_dice": "1d6",
    "hl_flat": 3,
    "cost": 500,
-   "borgware": false
+   "borgware": false,
+   "host": "leg",
+   "slots": 2,
+   "needs": "cyberleg",
+   "paired": true,
+   "unmodelled": true,
+   "cite": "CPR core p.115-116, p.364-367"
   },
   "skate_foot": {
    "name": "Skate Foot",
@@ -925,7 +1366,13 @@
    "hl_dice": "1d6",
    "hl_flat": 3,
    "cost": 500,
-   "borgware": false
+   "borgware": false,
+   "host": "leg",
+   "slots": 1,
+   "needs": "cyberleg",
+   "paired": true,
+   "unmodelled": true,
+   "cite": "CPR core p.115-116, p.364-367"
   },
   "talon_foot": {
    "name": "Talon Foot",
@@ -938,7 +1385,13 @@
    "borgware": false,
    "fx": {
     "weapon": "light_melee"
-   }
+   },
+   "host": "leg",
+   "slots": 1,
+   "needs": "",
+   "meat_ok": true,
+   "summary": "Light melee blade in the foot. Fits a meat leg.",
+   "cite": "CPR core p.115-116, p.364-367"
   },
   "web_foot": {
    "name": "Web Foot",
@@ -948,7 +1401,13 @@
    "hl_dice": "1d6",
    "hl_flat": 3,
    "cost": 500,
-   "borgware": false
+   "borgware": false,
+   "host": "leg",
+   "slots": 1,
+   "needs": "cyberleg",
+   "paired": true,
+   "unmodelled": true,
+   "cite": "CPR core p.115-116, p.364-367"
   },
   "hardened_shielding": {
    "name": "Hardened Shielding",
@@ -958,7 +1417,12 @@
    "hl_dice": "1d6",
    "hl_flat": 3,
    "cost": 1000,
-   "borgware": false
+   "borgware": false,
+   "host": "limb",
+   "slots": 1,
+   "needs": "cyberarm",
+   "unmodelled": true,
+   "cite": "CPR core p.115-116, p.364-367"
   },
   "plastic_covering": {
    "name": "Plastic Covering",
@@ -968,7 +1432,12 @@
    "hl_dice": "",
    "hl_flat": 0,
    "cost": 100,
-   "borgware": false
+   "borgware": false,
+   "host": "limb",
+   "slots": 0,
+   "needs": "cyberarm",
+   "unmodelled": true,
+   "cite": "CPR core p.115-116, p.364-367"
   },
   "realskinn_covering": {
    "name": "Realskinn Covering",
@@ -978,7 +1447,12 @@
    "hl_dice": "",
    "hl_flat": 0,
    "cost": 500,
-   "borgware": false
+   "borgware": false,
+   "host": "limb",
+   "slots": 0,
+   "needs": "cyberarm",
+   "unmodelled": true,
+   "cite": "CPR core p.115-116, p.364-367"
   },
   "superchrome_covering": {
    "name": "Superchrome Covering",
@@ -988,7 +1462,12 @@
    "hl_dice": "",
    "hl_flat": 0,
    "cost": 1000,
-   "borgware": false
+   "borgware": false,
+   "host": "limb",
+   "slots": 0,
+   "needs": "cyberarm",
+   "unmodelled": true,
+   "cite": "CPR core p.115-116, p.364-367"
   },
   "artificial_shoulder_mount": {
    "name": "Artificial Shoulder Mount",
@@ -998,7 +1477,13 @@
    "hl_dice": "4d6",
    "hl_flat": 14,
    "cost": 1000,
-   "borgware": true
+   "borgware": true,
+   "host": "borgware",
+   "slots": 0,
+   "needs": "",
+   "unique": true,
+   "unmodelled": true,
+   "cite": "CPR core p.116, p.367"
   },
   "implanted_linear_frame_beta": {
    "name": "Implanted Linear Frame Beta",
@@ -1008,7 +1493,12 @@
    "hl_dice": "4d6",
    "hl_flat": 14,
    "cost": 5000,
-   "borgware": true
+   "borgware": true,
+   "host": "borgware",
+   "slots": 0,
+   "needs": "",
+   "unmodelled": true,
+   "cite": "CPR core p.116, p.367"
   },
   "implanted_linear_frame_sigma": {
    "name": "Implanted Linear Frame Sigma",
@@ -1018,7 +1508,12 @@
    "hl_dice": "4d6",
    "hl_flat": 14,
    "cost": 1000,
-   "borgware": true
+   "borgware": true,
+   "host": "borgware",
+   "slots": 0,
+   "needs": "",
+   "unmodelled": true,
+   "cite": "CPR core p.116, p.367"
   },
   "multioptic_mount": {
    "name": "MultiOptic Mount",
@@ -1028,7 +1523,13 @@
    "hl_dice": "4d6",
    "hl_flat": 14,
    "cost": 1000,
-   "borgware": true
+   "borgware": true,
+   "host": "borgware",
+   "slots": 0,
+   "needs": "",
+   "unique": true,
+   "unmodelled": true,
+   "cite": "CPR core p.116, p.367"
   },
   "sensor_array": {
    "name": "Sensor Array",
@@ -1038,7 +1539,13 @@
    "hl_dice": "4d6",
    "hl_flat": 14,
    "cost": 1000,
-   "borgware": true
+   "borgware": true,
+   "host": "cyberaudio",
+   "slots": 0,
+   "needs": "cyberaudio_suite",
+   "unique": true,
+   "unmodelled": true,
+   "cite": "CPR core p.116, p.367"
   }
  }
 }

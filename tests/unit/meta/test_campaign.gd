@@ -184,15 +184,15 @@ func test_ripperdoc_foundations_humanity_and_therapy() -> void:
 	c.eb = 10000
 	_market_with(c, ["cyberware/neural_link", "cyberware/kerenzikov", "cyberware/cyberarm", "cyberware/wolvers"])
 	var solo: Combatant = c.crew[0]
-	solo.cyberware.clear()   # a clean slate (Role starting cyberware varies)
+	solo.implants.clear()   # a clean slate (Role starting cyberware varies)
 	solo.weapons = solo.weapons.filter(func(w): return not w.is_melee())
-	assert_eq(c.install_block(solo, "neural_link"), "not in storage", "chrome is installed from storage")
+	assert_eq(c.install_block(solo, "neural_link"), "Not in storage", "chrome is installed from storage")
 	assert_false(c.buy("cyberware/pain_editor"), "not at this market (p338)")
 	for id in ["neural_link", "kerenzikov", "cyberarm", "wolvers"]:
 		assert_true(c.buy("cyberware/" + id), "bought like any other gear")
 	assert_eq(c.eb, 10000 - 500 - 500 - 500 - 500, "list price into storage")
 	assert_eq(c.stored("cyberware/kerenzikov"), 1)
-	assert_eq(c.install_block(solo, "kerenzikov"), "needs Neural Link", "speedware needs the foundation (p111)")
+	assert_eq(c.install_block(solo, "kerenzikov"), "Needs a Neural Link", "speedware needs the foundation (p111)")
 	var hum0 := solo.humanity
 	var eb0 := c.eb
 	assert_true(c.install(solo, "neural_link") > 0)
@@ -200,7 +200,7 @@ func test_ripperdoc_foundations_humanity_and_therapy() -> void:
 	assert_eq(c.eb, eb0, "installing a Night Market piece costs nothing more (p338)")
 	assert_eq(c.stored("cyberware/neural_link"), 0, "out of storage, into them")
 	assert_true(c.install(solo, "kerenzikov") > 0)
-	assert_eq(c.install_block(solo, "kerenzikov"), "installed")
+	assert_eq(Cyber.block_any(solo.implants, "kerenzikov"), "Only one speedware", "a second wouldn't go in (p.359)")
 	c.install(solo, "cyberarm")
 	c.install(solo, "wolvers")
 	assert_eq(solo.weapons.filter(func(w): return w.is_melee()).map(func(w): return w.id()), ["heavy_melee"])
@@ -212,8 +212,8 @@ func test_cyberware_bought_into_storage_installs_on_anyone_once() -> void:
 	_market_with(c, ["cyberware/cybereye", "cyberware/targeting_scope"])
 	var a: Combatant = c.crew[0]
 	var b: Combatant = c.crew[1]
-	a.cyberware.clear()
-	b.cyberware.clear()
+	a.implants.clear()
+	b.implants.clear()
 	assert_true(c.buy("cyberware/cybereye"))
 	assert_true(c.buy("cyberware/cybereye"), "owning one doesn't stop a second")
 	assert_eq(c.cyberware_options(), ["cyberware/cybereye"])
@@ -229,7 +229,7 @@ func test_removing_cyberware_destroys_it_and_keeps_the_humanity_lost() -> void:
 	c.eb = 10000
 	_market_with(c, ["cyberware/cyberarm", "cyberware/wolvers", "cyberware/big_knucks", "cyberware/subdermal_armor", "cyberware/grafted_muscle_and_bone_lace"])
 	var solo: Combatant = c.crew[0]
-	solo.cyberware.clear()
+	solo.implants.clear()
 	solo.subdermal.clear()
 	solo.weapons = solo.weapons.filter(func(w): return not w.is_melee())
 	for id in ["cyberarm", "wolvers", "big_knucks", "subdermal_armor", "grafted_muscle_and_bone_lace"]:
@@ -259,7 +259,7 @@ func test_removing_cyberware_destroys_it_and_keeps_the_humanity_lost() -> void:
 	assert_true(solo.max_hp() < hp0 and solo.hp == solo.max_hp(), "BODY drops, and HP over the new maximum with it")
 	assert_false(c.remove(solo, "grafted_muscle_and_bone_lace"), "not installed any more")
 	var back := Combatant.from_dict(JSON.parse_string(JSON.stringify(solo.to_dict())))
-	assert_true(back.cyberware.is_empty())
+	assert_true(back.implants.is_empty())
 
 
 func test_cyber_claws_stay_put_and_the_knife_they_replace_goes_to_storage() -> void:
@@ -267,7 +267,7 @@ func test_cyber_claws_stay_put_and_the_knife_they_replace_goes_to_storage() -> v
 	c.eb = 10000
 	_market_with(c, ["cyberware/cyberarm", "cyberware/wolvers", "cyberware/big_knucks"])
 	var solo: Combatant = c.crew[0]
-	solo.cyberware.clear()
+	solo.implants.clear()
 	solo.weapons = solo.weapons.filter(func(w): return not w.is_melee())
 	solo.weapons.append(Weapon.from_id("light_melee", "poor"))
 	for id in ["cyberarm", "wolvers", "big_knucks"]:

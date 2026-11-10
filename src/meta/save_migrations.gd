@@ -76,8 +76,15 @@ extends RefCounted
 ##     save never holds; nothing saved changes but the dev builder's last form, which gains its
 ##     `street` field at "auto" (as v17 added `twist`). A board offer that somehow carries a
 ##     `scene_event` in a shape the game no longer plays has it dropped, so it's rolled afresh.
+## v19: the cyberware slot model (CPR core p.111-116, Cyber). Installed chrome was a flat list of ids;
+##     each piece is now {id, loc}: where it sits (right_eye, left_arm, neural_link, chipware,
+##     internal...). Cyber.place_ids places an old list: foundations first, then each piece in the
+##     first location it fits, the right side first (the first Cybereye to the right eye, the second
+##     to the left; an eye option into the first eye with a free slot; Wolvers into a Cyberarm if
+##     there is one, else the meat right arm), and a piece that fits nowhere at its first location
+##     (nothing is lost). Ids the data no longer knows are dropped.
 
-const CURRENT := 18
+const CURRENT := 19
 
 
 ## Upgrade `d` (a parsed save) to CURRENT. Returns {} for a save from a newer build, which this
@@ -106,6 +113,7 @@ static func migrate(d: Dictionary) -> Dictionary:
 			15: _v15_to_v16(d)
 			16: _v16_to_v17(d)
 			17: _v17_to_v18(d)
+			18: _v18_to_v19(d)
 		v += 1
 		d["version"] = v
 	return d
@@ -338,3 +346,12 @@ static func _v17_to_v18(d: Dictionary) -> void:
 	var lc: Variant = d.get("last_custom")
 	if lc is Dictionary and not (lc as Dictionary).is_empty() and not (lc as Dictionary).has("street"):
 		lc["street"] = "auto"
+
+
+static func _v18_to_v19(d: Dictionary) -> void:
+	for c in d.get("crew", []) + d.get("recruits", []):
+		if not c is Dictionary:
+			continue
+		var flat: Array = (c.get("cyberware", []) as Array).filter(func(x): return x is String)
+		if flat.size() == (c.get("cyberware", []) as Array).size():
+			c["cyberware"] = Cyber.place_ids(flat)

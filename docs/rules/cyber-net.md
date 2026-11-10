@@ -113,6 +113,15 @@ AMBIGUITY (p226): "Cost to Install at a Hospital" table is for installing cyberw
 | Cyberlimbs | Cyberleg | 3 |
 | Borgware | see item notes | n/a |
 
+Placement details from the full entries (p358-367), as the game's slot model (src/core/cyber.gd) reads them:
+- A piece takes 1 Option Slot unless its entry says otherwise (p358 sidebar). Chipware takes no Neural Link slot; a Chipware Socket holds a single chip, and several sockets may be installed, each paid for (p359).
+- "Paired" options are purchased twice and installed in two different Cybereyes/Cyberlegs, Humanity Loss for each purchase; they "must be paired to work properly" (p361, p366): Anti-Dazzle, Image Enhance, LL/IR/UV (2 slots per eye), Virtuality; Grip Foot, Jump Booster (2 slots), Skate Foot, Web Foot.
+- Cyberarm and Cyberleg "do not have to be paired" and come with a Standard Hand/Foot that takes no slot and no HL (p364, p366).
+- "Can be installed as the only piece of Cyberware in a meat arm": Big Knucks, Rippers, Scratchers, Slice 'N Dice, Subdermal Grip, Tool Hand, Wolvers; a Standard Hand in a meat arm doesn't count towards that. Meat leg: Talon Foot; Standard Foot doesn't count (p364-367).
+- Subdermal Grip: Cyberarm and Neuralware Option; requires a Neural Link and takes a Neuralware Option Slot (p366).
+- Only one Speedware (p359-360); only one Cyberaudio Suite (p362). Coverings need a Cyberarm or Cyberleg and take no slot; Hardened Shielding makes its limb and options immune to EMP (Microwaver) and Non-Black ICE effects (p367).
+- AMBIGUITY (p366): Subdermal Grip in a Cyberarm: the game charges it a Cyberarm slot (the 1-slot default) as well as the Neuralware slot.
+
 Full cyberware descriptions are on p358-366; the lists below are the abbreviated tables (p111-116).
 
 ### 2.3 Cyberware table (p111-116)
@@ -145,7 +154,7 @@ HL column: dice (creation flat value in parentheses). Install: M = Mall, C = Cli
 | Memory Chip | - | Chipware: data storage for cyberware | 0 | 10eb |
 | Olfactory Boost | - | Chipware: use Tracking by scent | 2d6 (7) | 100eb |
 | Pain Editor | - | Chipware: ignore Seriously Wounded penalties | 4d6 (14) | 1,000eb |
-| Skill Chip | - | Chipware: specific Skill at Level 3 unless already 3+; (x2) skills cost more | 2d6 (7) | 500eb (1,000eb for x2 skill) |
+| Skill Chip | - | Chipware: its Skill counts as trained at +3 unless already trained higher (then it does nothing); (x2) skills cost more | 2d6 (7) | 500eb (1,000eb for x2 skill) |
 | Tactile Boost | - | Chipware: sense motion within 20m by touching a surface | 2d6 (7) | 100eb |
 
 **Cyberoptics (p112-113, foundation Cybereye, 3 slots per eye)** - paired options need two Cybereyes.

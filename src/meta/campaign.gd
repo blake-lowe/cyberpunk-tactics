@@ -1073,8 +1073,7 @@ static func _lost_gear(c: Combatant, kit_of: Dictionary) -> Array:
 		var a: ArmorPiece = c.armor.get(loc)
 		if a:
 			out.append(a.name + (" +1" if a.upgraded else ""))
-	for cw in c.cyberware:
-		out.append(String(RulesDB.cyberware(String(cw)).get("name", cw)))
+	out.append_array(Cyber.shown_names(c.implants))   # chrome players can see (Cyber.shown)
 	out.append_array(kit_of.get(c.display_name, []))
 	return out
 
@@ -1089,8 +1088,8 @@ static func _lost_gear_keys(c: Combatant) -> Array:
 	for loc in ["head", "body"]:
 		if c.armor.get(loc):
 			out.append("")
-	for cw in c.cyberware:
-		out.append("cyberware/" + String(cw))
+	for p in Cyber.shown(c.implants):
+		out.append("cyberware/" + String(p.id))
 	return out
 
 
@@ -1128,12 +1127,15 @@ func marks_for(c: Combatant) -> Array[String]:
 
 # --- Downtime ---------------------------------------------------------------------
 
-## Rest: everyone heals BODY HP per day (p223), up to full, and magazines are refilled. The crew's
-## best hand at Basic Tech spends the days repairing ablated armour they wear (repair_armor_work).
+## Rest: everyone heals BODY HP per day (p223), up to full, and magazines are refilled; Skin Weave
+## and Subdermal Armor mend 1 SP a day (p.364). The crew's best hand at Basic Tech spends the days
+## repairing ablated armour they wear (repair_armor_work).
 func rest(days := 1) -> void:
 	for c in crew:
 		var heal: int = c.raw_stat("BODY") * days
 		c.hp = mini(c.max_hp(), c.hp + heal)
+		if not c.dead:
+			c.mend_subdermal(days)
 		for w in c.weapons:
 			w.reload()
 	repair_armor_work(24 * days)
@@ -1332,7 +1334,7 @@ static func item_info(key: String) -> String:
 			var a := Items.make_armor(key)
 			return "SP %d" % a.max_sp + (" · -%d REF/DEX/MOVE" % a.penalty if a.penalty > 0 else "")
 		"cyberware":
-			return String(RIPPERDOC.get(Items.base_id(key), ["", ""])[1])
+			return Cyber.summary(Items.base_id(key))
 	return String(Items.def(key).get("summary", ""))
 
 
@@ -1473,7 +1475,7 @@ func weapon_options() -> Array[String]:
 func cyberware_options() -> Array[String]:
 	var out: Array[String] = []
 	for k in stash:
-		if Items.is_cyberware(String(k)) and stored(String(k)) > 0:
+		if Items.is_cyberware(String(k)) and stored(String(k)) > 0 and Cyber.modelled(Items.base_id(String(k))):
 			out.append(String(k))
 	return out
 
@@ -1568,72 +1570,53 @@ func check_stash() -> void:
 
 # --- Ripperdoc (cyberware) ----------------------------------------------------------------
 
-## What the ripperdoc installs: pieces whose effects the rules use, with the foundation each needs
-## (p111-116: neuralware needs a Neural Link, cyberoptics a Cybereye, chipware a Chipware Socket,
-## arm options a Cyberarm). A piece is bought from the Night Market that has it on sale (with the
-## foundations it needs, p338) into safehouse storage like any gear; installing it later at the Med
-## Bay costs nothing more (a Night Market sale includes the install, p338; the price includes the
-## surgery, p110). Short effect summaries are our paraphrase.
-const RIPPERDOC := {
-	"neural_link": ["", "Foundation for neuralware."],
-	"kerenzikov": ["neural_link", "+2 Initiative."],
-	"chipware_socket": ["neural_link", "Holds chipware."],
-	"pain_editor": ["chipware_socket", "Ignore Seriously Wounded penalties."],
-	"cybereye": ["", "Foundation for cyberoptics."],
-	"targeting_scope": ["cybereye", "+1 to Aimed Shots."],
-	"skin_weave": ["", "SP 7 under the skin, head and body."],
-	"subdermal_armor": ["", "SP 11 under the skin, head and body."],
-	"grafted_muscle_and_bone_lace": ["", "+2 BODY (max 10): more HP."],
-	"cyberarm": ["", "Brawling hits for at least 2d6; holds arm options."],
-	"big_knucks": ["cyberarm", "Medium melee weapon in the knuckles."],
-	"wolvers": ["cyberarm", "Heavy melee claws."],
-}
+## A piece is bought from a Night Market that has it on sale (with the foundations it needs, p338)
+## into safehouse storage like any gear; installing it later at the Med Bay costs nothing more (a
+## Night Market sale includes the install, p338; the price includes the surgery, p110). What's on
+## sale is what the game plays (Cyber.modelled, NightMarket.on_sale); where a piece goes and whether
+## it fits is the slot model's (Cyber, p111-116).
+
 ## Humanity Loss therapies (gear.json "therapy", CPR core p230).
 const HUMANITY_THERAPY := {"standard": "standard_humanity_therapy", "extreme": "extreme_humanity_therapy"}
 
 
-## Why `c` can't have this stored piece installed now ("" if they can): already installed (the
-## benefits of a second don't stack, p111), none in storage, or its foundation missing (p111).
-func install_block(c: Combatant, id: String) -> String:
+## Why `c` can't have this stored piece installed now ("" if they can), in a few plain words: none
+## in storage, or the slot model's reason (Cyber.block: "No free slot in the left eye", "Needs two
+## cybereyes", "Only one speedware"...). `loc` "" asks whether it fits anywhere.
+func install_block(c: Combatant, id: String, loc: String = "") -> String:
 	if c == null or not c in alive_crew():
-		return "not on the crew"
-	if c.has_cyberware(id):
-		return "installed"
+		return "Not on the crew"
 	if stored("cyberware/" + id) <= 0:
-		return "not in storage"
-	var need: String = String(RIPPERDOC.get(id, ["", ""])[0])
-	if need != "" and not c.has_cyberware(need):
-		return "needs " + String(RulesDB.cyberware(need).name)
-	return ""
+		return "Not in storage"
+	return Cyber.block_any(c.implants, id) if loc == "" else Cyber.block(c.implants, id, loc)
 
 
-## Install a piece from storage. Free: it came from a Night Market, whose sale includes the
-## install (p338). Rolls the Humanity Loss (p110) and arms any built-in melee weapon (a hand-held
-## melee weapon it replaces goes to storage). From then on it's part of `c`: it can be removed
-## (remove), never moved to someone else. Returns the Humanity lost, -1 if it can't be done.
-func install(c: Combatant, id: String) -> int:
-	if install_block(c, id) != "":
+## Install a piece from storage at `loc` ("" = Cyber.auto_loc). Free: it came from a Night Market,
+## whose sale includes the install (p338). Rolls the Humanity Loss (p110) and arms any built-in
+## melee weapon (a hand-held melee weapon it replaces goes to storage). From then on it's part of
+## `c`: it can be removed (remove), never moved to someone else. Returns the Humanity lost, -1 if it
+## can't be done.
+func install(c: Combatant, id: String, loc: String = "") -> int:
+	if install_block(c, id, loc) != "":
 		return -1
-	var d := RulesDB.cyberware(id)
+	var where := loc if loc != "" else Cyber.auto_loc(c.implants, id)
 	_take("cyberware/" + id)
 	var before := c.weapons.duplicate()
-	var loss := c.install_cyberware(id, dice)
+	var loss := c.install_cyberware(id, dice, false, where)
 	for w in before:
 		if not w in c.weapons and not w.builtin:
 			_put(Items.key_of_weapon(w))
-	say("%s gets %s installed (-%d Humanity)." % [c.display_name, d.name, loss])
+	say("%s gets %s installed (-%d Humanity)." % [c.display_name, Cyber.display(id), loss])
 	return loss
 
 
-## Why this installed piece can't come out now ("" if it can): an installed option still needs it
-## as its foundation (p111).
-func remove_block(c: Combatant, id: String) -> String:
-	if c == null or not c.has_cyberware(id):
-		return "not installed"
-	for other in c.cyberware:
-		if String(RIPPERDOC.get(other, [""])[0]) == id:
-			return "%s needs it" % String(RulesDB.cyberware(other).get("name", other))
-	return ""
+## Why this installed piece can't come out now ("" if it can): a piece installed in it still needs
+## it (p111: options come out before their foundation).
+func remove_block(c: Combatant, id: String, loc: String = "") -> String:
+	var piece := c.implant(id, loc) if c != null else {}
+	if piece.is_empty():
+		return "Not installed"
+	return Cyber.remove_block(c.implants, piece)
 
 
 ## Take an installed piece out at the Med Bay. It is destroyed, not stored: harvested chrome is
@@ -1641,12 +1624,11 @@ func remove_block(c: Combatant, id: String) -> String:
 ## (owner's ruling). The book prices no removal (p226 prices installing supplied chrome only), so
 ## it costs nothing (HOUSE-RULE: the crew's ripperdoc does it). Humanity lost isn't returned
 ## (Combatant.remove_cyberware).
-func remove(c: Combatant, id: String) -> bool:
-	if remove_block(c, id) != "":
+func remove(c: Combatant, id: String, loc: String = "") -> bool:
+	if remove_block(c, id, loc) != "":
 		return false
-	var nm := String(RulesDB.cyberware(id).get("name", id))
-	c.remove_cyberware(id)
-	say("%s has %s taken out." % [c.display_name, nm])
+	c.remove_cyberware(id, loc)
+	say("%s has %s taken out." % [c.display_name, Cyber.display(id)])
 	return true
 
 

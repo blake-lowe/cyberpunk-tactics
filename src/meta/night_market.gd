@@ -77,7 +77,7 @@ static func resolve(dice: Dice, listing: Dictionary) -> Array[String]:
 
 
 ## Whether the game can sell this key: weapons, armour and kit marked "sold" (their rules are
-## played), cyberware the Ripperdoc installs.
+## played), cyberware whose effect the game plays (Cyber.modelled).
 static func on_sale(key: String) -> bool:
 	match Items.section(key):
 		"weapon":
@@ -85,7 +85,7 @@ static func on_sale(key: String) -> bool:
 		"armor":
 			return Items.is_armor(key) and RulesDB.armor(Items.base_id(key)).has("sold")
 		"cyberware":
-			return Campaign.RIPPERDOC.has(Items.base_id(key))
+			return Items.is_cyberware(key) and Cyber.modelled(Items.base_id(key))
 	return key in Items.all()
 
 
@@ -111,7 +111,7 @@ static func matching(f: Dictionary) -> Array[String]:
 			var db: Dictionary = RulesDB.load_json("cyberware.json")["cyberware"]
 			for id in db:
 				var k := "cyberware/" + String(id)
-				if f.has("option") and bool(f.option) != (Campaign.RIPPERDOC.has(id) and String(Campaign.RIPPERDOC[id][0]) != ""):
+				if f.has("option") and bool(f.option) != Cyber.is_option(String(id)):
 					continue
 				keys.append(k)
 				costs[k] = int(db[id].get("cost", 0))
@@ -145,13 +145,13 @@ static func _add_foundations(listings: Array) -> void:
 		for k in l["keys"]:
 			if Items.section(String(k)) != "cyberware":
 				continue
-			var need := String(Campaign.RIPPERDOC.get(Items.base_id(String(k)), [""])[0])
+			var need := Cyber.needs(Items.base_id(String(k)))
 			while need != "":
 				var nk := "cyberware/" + need
 				if not have.has(nk):
 					have[nk] = true
 					extra.append(nk)
-				need = String(Campaign.RIPPERDOC.get(need, [""])[0])
+				need = Cyber.needs(need)
 	if not extra.is_empty():
 		listings.append({"category": "cyberware", "name": "Foundational Cyberware", "keys": extra})
 

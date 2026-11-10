@@ -23,7 +23,7 @@ Design source of truth: `docs/design-spec.md`. Milestones and status: `docs/road
 - `src/data/` — `Resource` definitions (characters, weapons, cyberware, roles).
 - `data/rules/` — rules content JSON. skills/cyberware/roles are GENERATED: edit `docs/rules/*.md` or `tools/gen_rules_data.py`, then run `python3 tools/gen_rules_data.py`. weapons/armor/critical_injuries/gear are hand-edited
   (each entry cited; `docs/rules/gear.md` is the equipment reference; an item is sold only when its data has
-  `shop_rep`, no `unmodelled` and only implemented `fx`, enforced by tests/unit/core/test_gear_data.gd).
+  `shop_rep`, no `unmodelled` and only implemented `fx`, enforced by tests/unit/core/test_gear_data.gd). Cyberware: slots, sides and pairs live in `Cyber` (src/core/cyber.gd); a piece is sold, and shown to the player, only when `Cyber.modelled` (tests/unit/core/test_cyber_data.gd).
 - `docs/rules/` — page-cited rules reference distilled from the core book. Read these instead of the PDF.
 - `docs/world/` → `data/world/` — Night City as data: factions, security doctrines, locations. GENERATED: edit the
   `world <file>.<path>` JSON blocks in `docs/world/*.md` (page-cited paraphrase beside each), then

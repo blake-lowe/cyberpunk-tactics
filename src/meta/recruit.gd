@@ -76,8 +76,11 @@ static func generate(dice: Dice, role: String, method: String = "edgerunner", ha
 	c.init_humanity()
 	for w in LOADOUT.get(role, []):   # guns first: weapons[0] is the primary
 		c.weapons.append(Weapon.from_id(w))
-	for choice in rd["cyberware"]:
-		c.install_cyberware(choice[dice.d(choice.size()) - 1], dice, true)
+	var chrome: Array = []
+	for choice in rd["cyberware"]:   # the Role's list names options before their foundation at times
+		chrome.append(choice[dice.d(choice.size()) - 1])
+	for cid in Cyber.foundations_first(chrome):
+		c.install_cyberware(cid, dice, true)
 	c.hp = c.max_hp()
 	c.armor["body"] = ArmorPiece.from_id("light_armorjack")  # p98
 	c.armor["head"] = ArmorPiece.from_id("light_armorjack")
@@ -181,9 +184,8 @@ static func from_block(dice: Dice, id: String, handle: String = "") -> Combatant
 		var aid := String(b.armor[loc])
 		if (RulesDB.load_json("armor.json")["armor"] as Dictionary).has(aid):
 			c.armor[loc] = ArmorPiece.from_id(aid)
-	for cw in b.get("cyberware", []):   # Subdermal Armor, built-in weapons...
-		if not c.has_cyberware(String(cw)):
-			c.install_cyberware(String(cw), dice, true)
+	for cw in Cyber.foundations_first(b.get("cyberware", [])):   # every piece printed: two Cybereyes are two
+		c.install_cyberware(cw, dice, true)
 	var builtin: Array = c.weapons.duplicate()
 	c.weapons.clear()
 	var q: Dictionary = b.get("weapon_quality", {})
