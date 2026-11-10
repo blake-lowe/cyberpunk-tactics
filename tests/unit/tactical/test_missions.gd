@@ -111,6 +111,7 @@ func test_captive_is_neutral_until_freed_then_follows_out() -> void:
 	# into the extraction zone = done
 	cap.pos = e.extract_cells.keys()[0]
 	e._check_end()
+	walk_out(e)
 	assert_eq(e.state, "won")
 
 

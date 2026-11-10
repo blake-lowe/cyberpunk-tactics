@@ -64,14 +64,7 @@ func check_end() -> String:
 		o.done = true
 		e.events.append({"type": "target_down", "unit": vip.id})
 		e.say("%s is down. Get out." % o.name)
-	if done() and (e.opfor().is_empty() or e._crew_out()):
-		e.say("The crew gets clear. The job's done.")
-		return "won"
-	return ""
-
-
-func withdraw_wins() -> bool:
-	return done()
+	return "won" if done() else ""   # then the way out (Objective.extracting)
 
 
 ## The mark reached an exit: gone, and the job with them.

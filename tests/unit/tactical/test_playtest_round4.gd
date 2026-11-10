@@ -58,6 +58,7 @@ func test_the_hostage_reaching_extraction_wins_and_a_dead_one_loses() -> void:
 	var cap := _free(e)
 	cap.pos = e.extract_cells.keys()[0]
 	e._check_end()
+	walk_out(e)
 	assert_eq(e.state, "won", "out = done")
 	var e2 := _rescue()
 	var cap2 := _free(e2)
@@ -121,6 +122,7 @@ func test_the_hostage_is_not_paid_counted_or_recruited() -> void:
 	var cap2 := _free(e2)
 	cap2.pos = e2.extract_cells.keys()[0]
 	e2._check_end()
+	walk_out(e2)
 	assert_eq(e2.state, "won")
 	var r2 := c2.resolve(e2)
 	assert_eq(c2.crew.size(), n2, "a rescued hostage goes home, not onto the roster")

@@ -18,14 +18,7 @@ func setup(target_sid: int, origin: Vector2i, _sec: int) -> void:
 
 
 func check_end() -> String:
-	if o.delivered and (e.opfor().is_empty() or e._crew_out()):
-		e.say("The crew gets clear. The job's done.")
-		return "won"
-	return ""
-
-
-func withdraw_wins() -> bool:
-	return bool(o.get("delivered", false))
+	return "won" if o.delivered else ""   # then the way out (Objective.extracting)
 
 
 func actions() -> Array[String]:

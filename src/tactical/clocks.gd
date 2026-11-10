@@ -150,6 +150,9 @@ static func _empty(e: Encounter, c: Clock) -> void:
 ## highest-ranked on the opposition, nearest the crew on a tie) calls it in, as one who spotted
 ## them would (Encounter.call_it_in: the site's code rolls, the response timer starts). With
 ## `escalated` (Degrees of Consequence) the responses it plans come one intensity step heavier.
+const ALARM_WHY := "DETECTION CLOCK RAN OUT"   ## the alarm's cause (Encounter.alarm_cause) when the clock empties
+
+
 static func raise_alarm(e: Encounter, escalated := false) -> void:
 	if e.alarm >= 2:
 		return
@@ -169,15 +172,17 @@ static func raise_alarm(e: Encounter, escalated := false) -> void:
 			best = g
 	if best.is_empty():
 		e.alarm = 2
+		e._set_alarm_cause(ALARM_WHY)
 		e.say("The alarm goes up.")
 		e.events.append({"type": "alarm", "unit": _anchor(e), "rounds": -1, "clock": true})
 		return
 	if not best.alerted:
 		best.alerted = true
 		e.init.add(best.c)
-	e.call_it_in(best)
+	e.call_it_in(best, ALARM_WHY)
 	if e.alarm < 2:   # responses switched off (balance tests): the alarm still goes up
 		e.alarm = 2
+		e._set_alarm_cause(ALARM_WHY)
 	if escalated:
 		escalate(e)
 

@@ -363,6 +363,9 @@ func _crew_turn(e: Encounter) -> void:
 	if e.obj.withdraw_wins() and e.can_withdraw():
 		e.withdraw()
 		return
+	if e.obj.extracting() and e.turn.action_available and e.turn.run():   # the job's done: Run for the way out (p169)
+		_step_toward(e, u, goal)
+		return
 	if not e.turn.action_available or u.c.weapons.is_empty():
 		return
 	var w: Weapon = u.c.weapons[0]
@@ -376,6 +379,8 @@ func _crew_turn(e: Encounter) -> void:
 ## Where this crew member is headed: the extraction zone once the job is done (or they carry the
 ## package, or the captive is free), else the objective's square or person; [] to just fight.
 func _goal(e: Encounter, u: Dictionary) -> Array:
+	if e.obj.extracting():   # the job's done: every job ends with the way out
+		return e.obj.exit_cells()
 	var own: Variant = e.obj.crew_goal(u)   # a module that says where its crew goes (escort, defend, ...)
 	if own is Array:
 		return own
@@ -556,7 +561,7 @@ func _obj_step(e: Encounter) -> bool:
 func _step_toward(e: Encounter, u: Dictionary, goal: Array) -> void:
 	if not e.turn.can_move():
 		return
-	var field: Dictionary = e._with_locks(func(): return e.nav.distance_field(goal, {}, 4000))
+	var field: Dictionary = e._with_locks(func(): return e.nav.distance_field(goal, e._blocking(u), 4000))   # round whoever stands in the way (a surrendered guard in a doorway)
 	var best: Vector3i = u.pos
 	var best_d := int(field.get(u.pos, 99999))
 	var opts := e.move_options()

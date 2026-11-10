@@ -47,7 +47,9 @@ func before_check() -> void:
 	pass
 
 
-## "won", "lost", or "" to play on. Runs after the crew-wiped check.
+## "won" once the job itself is done (the File pulled, the mark down, the room held), "lost", or
+## "" to play on. Runs after the crew-wiped check, until the job is done: then Encounter starts the
+## extraction (o.extract) and the gig is won when the crew still standing are out (extracting()).
 func check_end() -> String:
 	return _cleared()
 
@@ -73,9 +75,9 @@ func act(_action: String) -> Dictionary:
 	return {"ok": false, "reason": "nothing to do here"}
 
 
-## Leaving through the deploy zone finishes the job (after the hit, the sabotage) instead of fleeing.
+## Leaving through the deploy zone finishes the job instead of fleeing: once it's done (extracting).
 func withdraw_wins() -> bool:
-	return false
+	return extracting()
 
 
 ## Trauma Team got `patient` (a unit id) out alive (a flatlined body they carry off doesn't call this).
@@ -178,6 +180,33 @@ func focus_cell() -> Vector3i:
 	return Vector3i(-1, -1, -1)
 
 
+# --- Extraction (every job: owner, playtest v0.10.1) -------------------------------------------
+# The job done never ends the gig on the spot: Encounter sets o.extract (and o.done) the first time
+# check_end() says "won", and the gig is won when every crew member still standing is in the
+# extraction zone (Encounter._check_end). From then the round tab's step, the marker and the
+# crew's goal are the way out. The framework reads these, never the hooks they wrap.
+
+## The job is done and only getting out is left.
+func extracting() -> bool:
+	return bool(o.get("extract", false))
+
+
+## The round tab's step: current_step() until the job is done, then the way out.
+func step() -> String:
+	return "REACH EXTRACTION" if extracting() else current_step()
+
+
+## The marks the view draws: marks() until the job is done, then the extraction zone.
+func shown_marks(fog: bool) -> Array:
+	return [_extract_mark()] if extracting() else marks(fog)
+
+
+## Squares a crew member stands on to be out: the extraction zone; an escort through to a
+## rendezvous at the map's edge also leaves by it (exit_cells override).
+func exit_cells() -> Array:
+	return e.extract_cells.keys()
+
+
 # --- Helpers ---------------------------------------------------------------------------
 
 func done() -> bool:
@@ -202,9 +231,10 @@ func item_short(fallback: String) -> String:
 	return String(it.get("short", "")) if it is Dictionary and String(it.get("short", "")) != "" else fallback
 
 
-## Every guard down wins (the default for data and elimination jobs).
+## Every guard down: the job's done (elimination). Their backup still on its way doesn't count as
+## cleared (HOUSE-RULE: the place isn't clear while more of them are coming).
 func _cleared() -> String:
-	if e.opfor().is_empty():
+	if e.opfor().is_empty() and e.backup_in <= 0:
 		e.say("All guards are down.")
 		return "won"
 	return ""

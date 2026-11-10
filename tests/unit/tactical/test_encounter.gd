@@ -73,6 +73,7 @@ func test_netrunner_unlocks_doors_and_steals_the_file() -> void:
 		tries += 1
 	assert_true(e.objective.done, "Eye-Dee on the target File completes the objective")
 	e._check_end()
+	walk_out(e)
 	assert_eq(e.state, "won")
 
 

@@ -116,7 +116,7 @@ var _log_open := false
 var roster_on := false    ## the crew roster slides in while Alt is held (owner: strip only by default)
 var log_hold := false     ## the view holds the log while an action plays, so lines land with the callouts
 var _log_tw: Tween
-var end_toast := ""        ## the view's headline once the gig is over ("" = the plain GIG COMPLETE / ABANDONED / FAILED)
+var end_toast := ""        ## the view's headline once the gig is over ("" = the plain GIG COMPLETE / ABANDONED / FAILED; "-" = none, the end banner says it)
 var _round_box: VBoxContainer              ## unit id → party card (hit shake)
 var _clock_rail: VBoxContainer             ## the Solo Play Clocks' dice rows (ClockWidget), kept across refreshes under the stealth line
 var clock_widgets := {}                    ## clock id → ClockWidget
@@ -1106,6 +1106,22 @@ static func countdown_text(label: String, n: int) -> String:
 	return "ALARM · NOBODY ANSWERS"
 
 
+## A held camera's state on its NET row: holding the node only feeds the runner; the site still
+## sees what it sees until the feed is looped. "" for any other row.
+static func loop_tag(o: Dictionary) -> String:
+	if String(o.get("op", "")) != "loop":
+		return ""
+	return " · LOOPED" if bool(o.get("on", false)) else " · STILL REPORTING"
+
+
+## The alarm's cause as its callout: "CAMERA SPOTTED VEX: ALARM", or "" when there's no cause to
+## give (a clock that ran out has its own DETECTED banner).
+static func alarm_callout(cause: String) -> String:
+	if cause == "" or cause.begins_with("DETECTION CLOCK"):
+		return ""
+	return "%s: ALARM" % cause.to_upper()
+
+
 ## The alarm in one line: the site's response counting down, then the street's (the round tab splits it: alert_lines).
 static func alarm_text(enc: Encounter) -> String:
 	if enc.backup_in >= 0:
@@ -1222,7 +1238,7 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 	_net_refresh(enc)
 	for u2 in enc.units:   # remember what the bars showed, for the next ghost drain
 		_hp_seen[u2.id] = float(maxi(u2.c.hp, 0)) / u2.c.max_hp()
-	if enc.state != "playing":
+	if enc.state != "playing" and end_toast != "-":   # "-": the view's end banner says it (Greybox._finish_gig)
 		toast(end_toast if end_toast != "" else "GIG %s" % ("COMPLETE" if enc.state == "won" else ("ABANDONED" if enc.state == "fled" else "FAILED")), 1e9)
 	_layout.call_deferred()
 
@@ -1271,7 +1287,7 @@ func round_tab(enc: Encounter) -> void:
 		_round_box.remove_child(_clock_rail)
 	_clear(_round_box)
 	_round_line(enc.obj.order(), F_TERM, Hud.ts(18), GOLD)
-	var step := enc.obj.current_step()
+	var step := enc.obj.step()   # the job's step, then REACH EXTRACTION once it's done
 	if step != "":
 		_round_line(step, F_TERM, Hud.ts(15), Color(TEXT, 0.85))
 	var al := alert_lines(enc)
@@ -2395,8 +2411,11 @@ func _net_held(enc: Encounter, none: bool) -> int:
 		for o in (row.ops as Array).slice(0, OPS_PER_NODE):
 			var why := String(o.why)
 			var pair := [int(o.node), int(o.device)]
-			var b := _net_button("  %s · %s%s" % [String(o.label), String(o.name).to_upper(), (" · " + why.to_upper()) if why != "" and not row.used else ""],
+			var b := _net_button("  %s · %s%s%s" % [String(o.label), String(o.name).to_upper(), loop_tag(o), (" · " + why.to_upper()) if why != "" and not row.used else ""],
 				func(): action.emit("net_device", pair), 296, 24, none or why != "")
+			if String(o.op) == "loop" and not bool(o.on) and why == "":   # held, not looped: the camera still reports (owner, playtest v0.10.1)
+				b.add_theme_color_override("font_color", GOLD)
+				b.add_theme_stylebox_override("normal", CutBox.make(Color(0.12, 0.09, 0.02, 0.95), GOLD, 6, 0b0100, Color(0, 0, 0, 0), 6))
 			_net_hover(b, "dev_" + String(o.op), ("%s: %s" % [String(o.name), "on" if o.on else "off"]) if String(o.op) not in ["sprinklers", "distract"] else String(o.name))
 			_net_box.add_child(b)
 			rows += 1

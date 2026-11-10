@@ -17,10 +17,7 @@ func setup(target_sid: int, origin: Vector2i, _sec: int) -> void:
 
 
 func check_end() -> String:
-	if done() and (e.opfor().is_empty() or e._crew_out()):
-		e.say("The crew gets clear. The job's done.")
-		return "won"
-	return ""
+	return "won" if done() else ""   # then the way out (Objective.extracting)
 
 
 func near_done() -> bool:
@@ -66,10 +63,6 @@ func tick() -> void:
 	e.say("%s goes up." % String(o.name).capitalize())
 	e.alarm = maxi(e.alarm, 1)
 	e._check_end()
-
-
-func withdraw_wins() -> bool:
-	return done()
 
 
 func hud_text() -> String:

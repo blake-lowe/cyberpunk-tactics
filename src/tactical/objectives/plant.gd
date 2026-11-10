@@ -27,7 +27,7 @@ func plant_actions() -> int:
 
 func check_end() -> String:
 	if done():
-		e.say("The plant is in. The job's done.")
+		e.say("The plant is in.")
 		return "won"
 	if e.los.cover_hp.get(o.cell, 1) <= 0 and int(o.get("node", -1)) < 0:
 		e.say("%s is wrecked and there's no NET to go in by. The job's over." % String(o.name).capitalize())

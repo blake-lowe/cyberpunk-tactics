@@ -187,6 +187,7 @@ func test_escort_with_no_way_across_waits_at_a_pickup_point() -> void:
 	assert_true(bool(e.obj.marks(true)[0].get("extract", false)), "and the way out is the extraction zone")
 	cu.pos = e.extract_cells.keys()[0]
 	e._check_end()
+	walk_out(e)
 	assert_eq(e.state, "won")
 
 
@@ -249,7 +250,9 @@ func test_defend_waves_escalate_and_the_hold_wins() -> void:
 	for u in e.opfor():   # they don't get in
 		u.c.dead = true
 	_to_round(e, int(o.end) + 1)
-	assert_eq(e.state, "won", "the room held through the last round")
+	assert_true(e.obj.done(), "the room held through the last round")
+	walk_out(e)
+	assert_eq(e.state, "won", "then out")
 
 
 func test_defend_is_lost_when_they_hold_the_room_or_wreck_the_asset() -> void:
@@ -444,7 +447,9 @@ func test_plant_by_hand_takes_two_actions_at_the_device() -> void:
 	assert_false(e.obj_act("plant").ok, "one Action a turn")
 	e.turn = TurnState.begin(e.dice, u.c)   # the next turn
 	assert_true(e.obj_act("plant").ok)
-	assert_eq(e.state, "won", "the plant is in")
+	assert_true(e.obj.done(), "the plant is in")
+	walk_out(e)
+	assert_eq(e.state, "won", "and the crew out")
 
 
 func test_plant_through_the_net_and_never_by_clearing_the_site() -> void:

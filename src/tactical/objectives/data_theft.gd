@@ -1,6 +1,7 @@
 extends Objective
 ## Data theft: download the target building's most valuable File by Eye-Dee'ing it in the NET
-## (NetRun sets o.done), or put every guard down. State: {structure, node}.
+## (NetRun sets o.done), then get out (Objective.extracting). Only a site with no NET to steal from
+## plays as clearing it. State: {structure, node}.
 
 
 func setup(target_sid: int, _origin: Vector2i, _sec: int) -> void:
@@ -14,14 +15,14 @@ func setup(target_sid: int, _origin: Vector2i, _sec: int) -> void:
 	o.merge({"structure": target_sid, "node": best})
 
 
+## The File pulled. Putting the guards down is not the job (owner, playtest v0.10.1: the gig ended
+## when the guards broke and ran, Morale, and nobody had jacked in): only a site with no NET target
+## falls back to clearing it.
 func check_end() -> String:
-	var r := _cleared()
-	if r != "":
-		return r
 	if done():
 		e.say("The data is yours.")
 		return "won"
-	return ""
+	return _cleared() if target_level() < 0 else ""
 
 
 ## A crew Netrunner is in the target building's NET (the download is the job's last step).
@@ -50,7 +51,7 @@ func target_level() -> int:
 func hud_text() -> String:
 	if int(o.get("node", -1)) >= 0 and e.m.architectures.has(int(o.structure)):
 		var fn: Dictionary = (e.m.architectures[int(o.structure)] as NetArchitecture).nodes[int(o.node)]
-		return "STEAL THE %s\nGET TO AN ACCESS POINT\nREACH NET LEVEL %d\nOR ELIMINATE ALL HOSTILES" % [item_marker("DATA"), int(fn.zone)]
+		return "STEAL THE %s\nGET TO AN ACCESS POINT\nREACH NET LEVEL %d\nGET OUT" % [item_marker("DATA"), int(fn.zone)]
 	return "ELIMINATE ALL HOSTILES"
 
 
@@ -58,7 +59,7 @@ func order() -> String:
 	return "STEAL THE %s" % item_marker("DATA") if target_level() >= 0 else "ELIMINATE ALL HOSTILES"
 
 
-## Jack in, then reach the File's level (clearing the site also wins, but that's the fallback, not a step).
+## Jack in, then reach the File's level (then Objective.step: the way out).
 func current_step() -> String:
 	if target_level() < 0:
 		return super()
