@@ -238,6 +238,7 @@ var post: ShaderMaterial
 var env: Environment
 var sun: DirectionalLight3D
 var cam: Camera3D
+var _clip_box := AABB()   ## the built scene's bounds (_scene_bounds): the camera's near/far hold all of it
 var cam_target := Vector3.ZERO
 var cam_yaw := 45.0           ## free angle: Q/E turn it while held (CamTurn), middle-drag drags it
 var cam_turn := CamTurn.new()
@@ -1273,6 +1274,24 @@ func _build_world() -> void:
 		_unit_node(u)
 	_apply_world_look()
 	_refresh()
+	_clip_box = _scene_bounds()
+	_place_camera()
+
+
+## Every mesh, multimesh and particle box in the world, plus the map's own volume and some air over
+## it (an AV dropping in, thrown grenades): what the camera's depth range must hold (CamFrame.clip_range).
+func _scene_bounds() -> AABB:
+	var box := AABB(Vector3(0, -FH, 0), Vector3(m.w, (m.floors + 4) * FH, m.h))
+	var stack: Array[Node] = [world]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		var gi := n as GeometryInstance3D
+		if gi:
+			var b := gi.get_aabb()
+			if b.size.length() > 0.0 and b.size.length() < 1.0e5:   # skip unset or effectively infinite boxes
+				box = box.merge(gi.global_transform * b)
+		stack.append_array(n.get_children())
+	return box
 
 
 ## A unit's body (built with the world, or when backup arrives mid-gig).
@@ -1510,6 +1529,8 @@ func _refresh() -> void:
 		var life := String(u.get("life", "")) if u.get("civ", false) and not u.get("panic", false) else ""
 		n.set_meta("life", life)   # everyday life (StreetLife, SceneEvent crowds): what they're doing
 		n.set_meta("crouch_goal", 1.0 if (_beside_cover(u.pos) and life == "") or u.team == Encounter.CAPTIVE or Encounter.cowering(u) else 0.0)   # crouching reads as "in cover"; captives kneel; a scared bystander cowers
+		if u.get("civ", false):   # a bystander shows a gun only when armed and hostile; scared, they cower hands-free
+			(n as CharModel).set_hands_free(u.c.weapons.is_empty() or not enc.hostile(Encounter.CREW, int(u.team)), bool(u.get("panic", false)))
 		if true:
 			n.rotation.x = 0
 			var foes := enc.foes(u).filter(func(o): return o.alerted or enc.is_guard(u))
@@ -1880,16 +1901,17 @@ func _draw_markers(c: Control) -> void:
 		if r.has_point(sp) and not behind:
 			if _alt_on and ap_icons and ap_cells.has(mc):   # Alt's port icon stands there instead (owner: they overlapped)
 				continue
-			var y := sp.y - 18.0 - 4.0 * sin(t * 3.0)
-			c.draw_colored_polygon(PackedVector2Array([Vector2(sp.x - 9, y - 12), Vector2(sp.x + 9, y - 12), Vector2(sp.x, y)]), col)
-			c.draw_polyline(PackedVector2Array([Vector2(sp.x - 13, y - 16), Vector2(sp.x + 13, y - 16), Vector2(sp.x, y + 4), Vector2(sp.x - 13, y - 16)]), Color(col, 0.5), 1.5)
+			var k := Hud.MARK_SCALE
+			var y := sp.y - 18.0 * k - 4.0 * k * sin(t * 3.0)
+			c.draw_colored_polygon(PackedVector2Array([Vector2(sp.x - 9 * k, y - 12 * k), Vector2(sp.x + 9 * k, y - 12 * k), Vector2(sp.x, y)]), col)
+			c.draw_polyline(PackedVector2Array([Vector2(sp.x - 13 * k, y - 16 * k), Vector2(sp.x + 13 * k, y - 16 * k), Vector2(sp.x, y + 4 * k), Vector2(sp.x - 13 * k, y - 16 * k)]), Color(col, 0.5), 1.5)
 			if fdir != 0:
-				_draw_chevron(c, Vector2(sp.x + 22, y - 6), fdir, col)
-			var label := "%s  %d M" % [mk[1], dist]
-			var lw := Hud.F_BOLD.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
-			var lp := Vector2(clampf(sp.x - lw * 0.5, r.position.x, r.end.x - lw), y - 22)   # long names stay on screen
-			c.draw_string_outline(Hud.F_BOLD, lp, label, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, 5, Color(0, 0, 0, 0.85))
-			c.draw_string(Hud.F_BOLD, lp, label, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, col)
+				_draw_chevron(c, Vector2(sp.x + 22 * k, y - 6 * k), fdir, col)
+			var label := Hud.marker_label(String(mk[1]), dist)
+			var lw := Hud.F_BOLD.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, Hud.MARK_FONT).x
+			var lp := Vector2(clampf(sp.x - lw * 0.5, r.position.x, r.end.x - lw), y - 22 * k)   # long names stay on screen
+			c.draw_string_outline(Hud.F_BOLD, lp, label, HORIZONTAL_ALIGNMENT_LEFT, -1, Hud.MARK_FONT, 4, Color(0, 0, 0, 0.85))
+			c.draw_string(Hud.F_BOLD, lp, label, HORIZONTAL_ALIGNMENT_LEFT, -1, Hud.MARK_FONT, col)
 		else:
 			var ctr := r.get_center()
 			var dir := (sp - ctr).normalized() if not behind else (ctr - sp).normalized()
@@ -1901,15 +1923,16 @@ func _draw_markers(c: Control) -> void:
 				k = minf(k, (r.size.y / 2 - 24) / absf(dir.y))
 			var p := ctr + dir * k
 			var side := Vector2(-dir.y, dir.x)
-			c.draw_colored_polygon(PackedVector2Array([p + dir * 14, p - dir * 6 + side * 10, p - dir * 6 - side * 10]), col)
+			var ks := Hud.MARK_SCALE
+			c.draw_colored_polygon(PackedVector2Array([p + dir * 14 * ks, p - dir * 6 * ks + side * 10 * ks, p - dir * 6 * ks - side * 10 * ks]), col)
 			if fdir != 0:
-				_draw_chevron(c, p - dir * 4 + side * 20, fdir, col)
-			var tag := "%s %d M" % [mk[1], dist]
-			var tw := Hud.F_BOLD.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
-			var at := p - dir * (22.0 + tw * 0.5 * absf(dir.x) + 10.0 * absf(dir.y))   # clear of the arrow, whichever edge
+				_draw_chevron(c, p - dir * 4 * ks + side * 20 * ks, fdir, col)
+			var tag := Hud.marker_label(String(mk[1]), dist)
+			var tw := Hud.F_BOLD.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, Hud.MARK_FONT).x
+			var at := p - dir * (22.0 * ks + tw * 0.5 * absf(dir.x) + 10.0 * ks * absf(dir.y))   # clear of the arrow, whichever edge
 			at.x = clampf(at.x, r.position.x + tw * 0.5, r.end.x - tw * 0.5)
-			c.draw_string_outline(Hud.F_BOLD, at - Vector2(tw * 0.5, -6), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, 5, Color(0, 0, 0, 0.85))
-			c.draw_string(Hud.F_BOLD, at - Vector2(tw * 0.5, -6), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, col)
+			c.draw_string_outline(Hud.F_BOLD, at - Vector2(tw * 0.5, -4), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, Hud.MARK_FONT, 4, Color(0, 0, 0, 0.85))
+			c.draw_string(Hud.F_BOLD, at - Vector2(tw * 0.5, -4), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, Hud.MARK_FONT, col)
 
 
 ## A small open chevron, ▲ (dir 1) or ▼ (dir -1), for a marker whose target is on another floor.
@@ -2392,6 +2415,13 @@ func _place_camera() -> void:
 		var sy := roundf(ly / texel) * texel
 		cam.position += bx * (sx - lx) + by * (sy - ly)
 		shift = Vector2(-(lx - sx), (ly - sy)) / texel * px
+	if _clip_box.has_volume():   # near and far hold the whole scene at every zoom and angle (owner v0.10.1: towers clipped)
+		var clip := CamFrame.clip_range(cam.global_transform, _clip_box, cam.projection == Camera3D.PROJECTION_ORTHOGONAL)
+		cam.near = clip.x
+		cam.far = clip.y
+		# shadows reach the far side of the scene too: at the zoom-out limit the whole map lay past the
+		# old fixed 140 m and drew no shadows at all
+		sun.directional_shadow_max_distance = maxf(140.0, clip.y)
 	_screen_base = Vector2(-px, -px) + shift
 	screen.position = _screen_base + (_shake_px + _shake.offset()).round() * px
 	var sd: Array = _scene_look().get("sun", [])

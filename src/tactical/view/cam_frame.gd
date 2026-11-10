@@ -15,6 +15,8 @@ const FIT_W := 0.62        ## share of the half-width that's clear of the HUD pa
 const FIT_H := 0.5         ## share of the half-height clear of the round box and the hotbar
 const MAX_DIST := 240.0     ## past the wheel's 160: a far deploy's opening is an overview of the whole approach
 const CENTRED := 0.25      ## squares: closer than this is already centred (no pan)
+const CLIP_PAD := 12.0     ## metres the clip range reaches past the scene's bounds (units, fx and flyers stray)
+const PERSP_NEAR := 0.05   ## the perspective look's near plane (it can't see behind itself)
 
 
 ## The camera's pitch at `dist` (as greybox._place_camera).
@@ -78,3 +80,21 @@ static func needs_recentre(from: Vector2, to: Vector2) -> bool:
 ## turn (the last one standing after a death).
 static func new_crew_turn(cur_id: int, crew_turn: bool, last_id: int, turn: Object, last_turn: Object) -> bool:
 	return crew_turn and (cur_id != last_id or turn != last_turn)
+
+
+## The camera's clip range, Vector2(near, far), holding every corner of `bounds` (the whole built
+## scene: map, skyline, sky traffic) for a camera at `xf`. The orthographic camera sits only `dist`
+## from its focus, so with Godot's default 0.05 near plane a tower between it and the focus rose
+## through the plane and was cut off (owner, v0.10.1: background buildings clipped at low tilt). Its
+## near is negative instead: an orthographic view sees behind its origin the same as in front. A
+## perspective camera can't, so its near stays small.
+static func clip_range(xf: Transform3D, bounds: AABB, ortho: bool) -> Vector2:
+	var ahead := -xf.basis.z.normalized()
+	var lo := INF
+	var hi := -INF
+	for i in 8:
+		var d := (bounds.get_endpoint(i) - xf.origin).dot(ahead)
+		lo = minf(lo, d)
+		hi = maxf(hi, d)
+	var far := maxf(hi + CLIP_PAD, PERSP_NEAR + 1.0)
+	return Vector2(minf(lo - CLIP_PAD, far - 1.0) if ortho else PERSP_NEAR, far)

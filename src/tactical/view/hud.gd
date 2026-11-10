@@ -1083,6 +1083,18 @@ static func crew_tag(u: Dictionary) -> String:
 	return String(u.get("ward", "HOSTAGE")) if bool(u.get("captive", false)) else String(u.c.role).to_upper()   # escort's client: CLIENT
 
 
+## The objective marker over the map (greybox._draw_markers): its pointer and label are 2/3 the old
+## size (owner, v0.10.1: "maybe 2/3 as large"), and its label carries no star.
+const MARK_SCALE := 2.0 / 3.0
+const MARK_FONT := 11   ## was 16
+
+
+## An objective marker's label: what it points at and how far, "ACCESS POINT  13 M". The objective
+## modules lead their labels with a star (Objective.marks); the marker drops it (owner, v0.10.1).
+static func marker_label(what: String, dist_m: int) -> String:
+	return "%s  %d M" % [what.trim_prefix("★").strip_edges(), dist_m]
+
+
 ## Where side `team` stands with the crew: one query (Encounter.hostile/allied) for every label,
 ## the hover tip, the Alt inspect card and the unit colours. No encounter: HOSTILE.
 static func stance(enc: Encounter, team: int) -> String:
