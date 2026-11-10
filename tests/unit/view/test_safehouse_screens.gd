@@ -151,11 +151,11 @@ func test_ripperdoc_installs_from_storage_and_removes_on_a_second_press() -> voi
 	var c: Combatant = camp.alive_crew()[0]
 	camp.stash["cyberware/cybereye"] = 1
 	c.implants.clear()
-	var s := _open(MedBayScreen.new(), camp, "ripperdoc")
+	var s: MedBayScreen = _open(MedBayScreen.new(), camp, "ripperdoc")
 	var eb := camp.eb
-	assert_eq(_buttons(s, "RIGHT EYE").size(), 1, "an eye goes in on the side picked")
-	var inst := _buttons(s, "LEFT EYE")
-	assert_false(inst.is_empty())
+	s._select_loc("left_eye")   # the eye goes in on the side picked on the silhouette
+	var inst := _buttons(s, "INSTALL")
+	assert_eq(inst.size(), 1)
 	var n := c.implants.size()
 	inst[0].pressed.emit()
 	assert_eq(c.implants.size(), n + 1, "installed on the selected crew member")
