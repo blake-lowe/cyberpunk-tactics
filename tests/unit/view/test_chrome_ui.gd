@@ -260,3 +260,42 @@ func test_armory_opens_the_full_loadout() -> void:
 
 func test_help_names_the_loadout_key() -> void:
 	assert_true(Hud.help_text().contains("Loadout"), Hud.help_text())
+
+
+## The hologram: the crew member's own model, every surface on the hologram material, each body
+## vertex in its location's region, and the leader lines' anchors on the posed body's bones (head
+## over chest over legs, the character's right on the viewer's left).
+func test_hologram_anchors_sit_on_the_body() -> void:
+	Hud._fonts()
+	var camp := DemoState.make()
+	var c: Combatant = camp.alive_crew()[1]
+	var b := ChromeBody.new().setup(c, "left_arm")
+	(Engine.get_main_loop() as SceneTree).root.add_child(b)
+	b.size = Vector2(900, 520)
+	b._pose()
+	b._layout()
+	assert_true(b._model != null, "the model is built")
+	assert_false(b._model.gun.visible, "no gun on the scan")
+	var regions := {}
+	for mi: MeshInstance3D in b._model.find_children("*", "MeshInstance3D", true, false):
+		if b._model.gun.is_ancestor_of(mi):
+			continue
+		assert_eq((mi.material_override as ShaderMaterial).shader, ChromeBody.HOLO, "%s on the hologram" % mi.name)
+		var cols = (mi.mesh as ArrayMesh).surface_get_arrays(0)[Mesh.ARRAY_COLOR] if mi.mesh is ArrayMesh else null
+		if cols != null:
+			for col: Color in cols:
+				regions[int(round(col.r * 16.0))] = true
+	for r in [ChromeBody.Reg.TORSO, ChromeBody.Reg.HEAD, ChromeBody.Reg.R_ARM, ChromeBody.Reg.L_ARM, ChromeBody.Reg.R_LEG, ChromeBody.Reg.L_LEG, ChromeBody.Reg.R_EYE, ChromeBody.Reg.L_EYE]:
+		assert_true(regions.has(r), "body region %d painted" % r)
+	var a := b.anchors
+	assert_eq(a.size(), Cyber.LOCS.size(), "an anchor per location")
+	assert_true(a.neural_link.y < a.right_eye.y and a.right_eye.y < a.internal.y and a.internal.y < a.right_leg.y, "head, eyes, chest, legs top to bottom")
+	assert_true(a.right_eye.x < a.left_eye.x and a.right_arm.x < a.left_arm.x and a.right_leg.x < a.left_leg.x, "their right on the viewer's left")
+	for loc in a:   # (out of the tree the idle doesn't play: a T-pose, the arms out wide)
+		if not loc in ["right_arm", "left_arm", "fashion", "borgware"]:
+			assert_true(b._holo.get_rect().has_point(a[loc]), "%s on the stage" % loc)
+	assert_eq(ChromeBody._bone_region("LeftLowerArm"), ChromeBody.Reg.L_ARM)
+	assert_eq(ChromeBody._bone_region("index_04_leaf_r"), ChromeBody.Reg.R_ARM)
+	assert_eq(ChromeBody._bone_region("ball_leaf_l"), ChromeBody.Reg.L_LEG)
+	assert_eq(ChromeBody._bone_region("RightShoulder"), ChromeBody.Reg.TORSO)
+	b.free()
