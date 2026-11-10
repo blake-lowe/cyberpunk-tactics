@@ -212,7 +212,10 @@ static func indoor_structure(m: TacMap, v: Vector3i) -> int:
 ##  - the focused building is cut at the stack's floor, crew or not (a peek: what the crew does not
 ##    know still draws as the fixer's blueprint);
 ##  - every other building keeps its roof on.
-static func slices(crew: Array, selected: int, focus: int, focus_floor: int) -> Dictionary:
+##  - a building the crew sees into from outside (`peeks`, FloorNav.peeks: through an open door or
+##    a window) is cut at the floor they see, so the squares in sight show; it closes again once
+##    nobody sees in (playtest v0.10.1);
+static func slices(crew: Array, selected: int, focus: int, focus_floor: int, peeks: Dictionary = {}) -> Dictionary:
 	var out := {}
 	for c in crew:
 		var sid := int(c[0])
@@ -220,8 +223,31 @@ static func slices(crew: Array, selected: int, focus: int, focus_floor: int) -> 
 			out[sid] = maxi(int(out.get(sid, c[1])), int(c[1]))
 	if selected >= 0 and selected < crew.size() and int(crew[selected][0]) >= 0:
 		out[int(crew[selected][0])] = int(crew[selected][1])
+	for sid in peeks:
+		if not out.has(sid):
+			out[sid] = int(peeks[sid])
 	if focus >= 0:
 		out[focus] = focus_floor
+	return out
+
+
+const PEEK_MIN := 2   ## indoor squares in sight that open a building's roof (one is a glimpse past a door frame)
+
+
+## Buildings the crew sees into right now, {structure id: floor}: those with at least PEEK_MIN of
+## their indoor squares in `visible` (Vision.visible) on one floor, at the lowest such floor. The
+## walls themselves don't count, so a building seen only from outside stays shut.
+static func peeks(m: TacMap, visible: Dictionary) -> Dictionary:
+	var count := {}
+	for v: Vector3i in visible:
+		var sid := indoor_structure(m, v)
+		if sid >= 0:
+			var k := Vector2i(sid, v.z)
+			count[k] = int(count.get(k, 0)) + 1
+	var out := {}
+	for k: Vector2i in count:
+		if int(count[k]) >= PEEK_MIN and (not out.has(k.x) or k.y < int(out[k.x])):
+			out[k.x] = k.y
 	return out
 
 

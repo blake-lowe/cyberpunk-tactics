@@ -106,9 +106,19 @@ static func _visible(m: TacMap, los: Los, a: Vector3i, r: int) -> Dictionary:
 	var out := {Vector2i(a.x, a.y): true}
 	for i in range(-r, r + 1):
 		for b in [Vector3i(a.x + i, a.y - r, a.z), Vector3i(a.x + i, a.y + r, a.z), Vector3i(a.x - r, a.y + i, a.z), Vector3i(a.x + r, a.y + i, a.z)]:
-			var cells := Los.ray(a, b)
+			var w := Los.walk(a, b)
+			var cells: Array[Vector3i] = w.cells
+			var pinches: Array = w.pinches
 			cells.append(b)
-			for v in cells:
+			var k := 0
+			for j in cells.size():
+				var shut := false
+				while k < pinches.size() and int(pinches[k][0]) == j:
+					shut = shut or los.pinched(pinches[k])   # two walls corner to corner (Los.walk)
+					k += 1
+				if shut:
+					break
+				var v := cells[j]
 				if not m.inb(v.x, v.y):
 					break
 				out[Vector2i(v.x, v.y)] = true

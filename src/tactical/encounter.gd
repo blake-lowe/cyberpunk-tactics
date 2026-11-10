@@ -3493,10 +3493,7 @@ func jack_points(u: Dictionary) -> Array:
 ## Jacking in reaches through open space and windows but not through walls (p198). Furniture
 ## doesn't block a cable.
 func _wall_between(a: Vector3i, b: Vector3i) -> bool:
-	for v in Los.ray(a, b):
-		if los.blocker(v) == "wall":
-			return true
-	return false
+	return los.wall_between(a, b)
 
 
 func jack_in(point: Dictionary) -> bool:

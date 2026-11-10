@@ -65,9 +65,23 @@ func _cast(a: Vector3i) -> void:
 	var r2 := r * r
 	for i in range(-r, r + 1):
 		for b in [Vector3i(a.x + i, a.y - r, a.z), Vector3i(a.x + i, a.y + r, a.z), Vector3i(a.x - r, a.y + i, a.z), Vector3i(a.x + r, a.y + i, a.z)]:
-			var cells := Los.ray(a, b)
+			var w := Los.walk(a, b)
+			var cells: Array[Vector3i] = w.cells
+			var pinches: Array = w.pinches
 			cells.append(b)
-			for v in cells:
+			var k := 0
+			for j in cells.size():
+				var shut := false
+				while k < pinches.size() and int(pinches[k][0]) == j:
+					var p: Array = pinches[k]
+					k += 1
+					for s: Vector3i in [p[1], p[2]]:   # the corner's two squares are in view (lit walls)
+						if m.inb(s.x, s.y) and (s.x - a.x) * (s.x - a.x) + (s.y - a.y) * (s.y - a.y) <= r2:
+							visible[s] = true
+					shut = shut or los.pinched(p)   # two walls corner to corner: no seeing through (Los.walk)
+				if shut:
+					break
+				var v := cells[j]
 				if not m.inb(v.x, v.y) or (v.x - a.x) * (v.x - a.x) + (v.y - a.y) * (v.y - a.y) > r2:
 					break
 				visible[v] = true
