@@ -95,3 +95,16 @@ func test_the_end_beat_fires_once_and_both_ways_mirror() -> void:
 	for p in [a, w]:
 		assert_true(float(p.panel_delay) + EndJuice.PANEL_FADE <= 1.5, "the end panel is up within 1.5 s")
 		assert_true(ResourceLoader.exists("res://assets/audio/%s.wav" % p.sting), "%s exists" % p.sting)
+
+
+## A morale or wound word over a crit number clears the number's bigger face and its pop.
+func test_a_word_over_a_crit_number_clears_its_face_and_pop() -> void:
+	var q := CalloutQueue.new()
+	var yc := q.place(3, 1000, CalloutQueue.LIFE_MS, CalloutPop.line_height("crit", "-26"), CalloutPop.overshoot("crit", "-26"))
+	var t := 1000 + q.wound_delay(3, 1000)
+	var yw := q.place(3, t, CalloutQueue.WOUND_LIFE_MS, CalloutPop.line_height("", "GUARD 3 SURRENDERS"), CalloutPop.overshoot("", "GUARD 3 SURRENDERS"))
+	var crit_c: Dictionary = q.live(3, t)[0]
+	var gap := CalloutQueue.y_at(crit_c, t) - yw
+	assert_true(gap >= CalloutPop.line_height("", "GUARD 3 SURRENDERS") + CalloutPop.overshoot("crit", "-26"), "the word clears the crit's pop (%.1f px)" % gap)
+	assert_true(CalloutPop.line_height("crit", "-26") > CalloutQueue.LINE, "a crit number is taller than a word line")
+	assert_eq(yc, 0.0)

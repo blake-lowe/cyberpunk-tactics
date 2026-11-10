@@ -627,6 +627,10 @@ class Slot extends Control:
 	var ghost_drain := Hud.GHOST_DRAIN
 	var kill_ms := -1       ## msec the portrait was slashed (Hud.kill_slot), -1 alive
 	func _ready() -> void:
+		var bar := Hud.Painter.new()   # the HP bar on its own canvas item: the palette shader washed it (and the red ghost) out to white
+		bar.name = "HpBar"
+		bar.fn = _draw_hp
+		add_child(bar)
 		if hp_ghost > hp:
 			var gt := create_tween()
 			if ghost_hold > 0.0:
@@ -710,11 +714,17 @@ class Slot extends Control:
 			var o := 4.0
 			for cn in [[Vector2(sk - o, -o), Vector2(1, 0), Vector2(0, 1)], [Vector2(w + o, -o), Vector2(-1, 0), Vector2(0, 1)], [Vector2(-o, h + o), Vector2(1, 0), Vector2(0, -1)], [Vector2(w - sk + o, h + o), Vector2(-1, 0), Vector2(0, -1)]]:
 				draw_polyline(PackedVector2Array([cn[0] + cn[1] * 10, cn[0], cn[0] + cn[2] * 10]), Hud.RED, 3.0)
+
+	## The HP bar and its ghost, drawn by the HpBar Painter in their true colours.
+	func _draw_hp(c: Control) -> void:
+		var w := size.x
+		var h := size.y - 12
+		var sk := 12.0
 		var bw := (w - sk) * clampf(hp, 0, 1)
-		draw_rect(Rect2(0, h + 3, w - sk, 4), Color(team_col, 0.18))
+		c.draw_rect(Rect2(0, h + 3, w - sk, 4), Color(team_col, 0.18))
 		if hp_ghost > hp:
-			draw_rect(Rect2(0, h + 3, (w - sk) * clampf(hp_ghost, 0, 1), 4), Hud.GHOST_COL)
-		draw_rect(Rect2(0, h + 3, bw, 4), Hud.GREEN if hp > 0.6 else (Hud.GOLD if hp > 0.3 else Hud.RED))
+			c.draw_rect(Rect2(0, h + 3, (w - sk) * clampf(hp_ghost, 0, 1), 4), Hud.GHOST_COL)
+		c.draw_rect(Rect2(0, h + 3, bw, 4), Hud.GREEN if hp > 0.6 else (Hud.GOLD if hp > 0.3 else Hud.RED))
 
 	func _draw_foe_frame(c: Control) -> void:
 		var w := size.x

@@ -59,15 +59,23 @@ func wound_delay(key: Variant, now: int) -> int:
 
 
 ## A callout appears on `key` now: its vertical offset from the lane's anchor (px, negative is up).
-func place(key: Variant, now: int, life := LIFE_MS) -> float:
+## `h`: its line height (a damage number's bigger face needs more than LINE: CalloutPop.line_height);
+## `over`: how far its pop overshoots past that, up and down (CalloutPop.overshoot). It lands its own
+## height plus both pops' overshoot above the highest callout still up, so a big crit number and the
+## morale or wound word over it never touch.
+func place(key: Variant, now: int, life := LIFE_MS, h := LINE, over := 0.0) -> float:
 	var lane: Array = live(key, now)
 	var y := 0.0
 	if not lane.is_empty():
 		var top := INF
+		var top_over := 0.0
 		for c in lane:
-			top = minf(top, y_at(c, now))
-		y = top - LINE
-	lane.append({"y": y, "at": now, "life": life})
+			var cy := y_at(c, now)
+			if cy < top:
+				top = cy
+				top_over = float(c.get("over", 0.0))
+		y = top - maxf(h, LINE) - top_over - over
+	lane.append({"y": y, "at": now, "life": life, "over": over})
 	_lanes[key] = lane
 	return y
 

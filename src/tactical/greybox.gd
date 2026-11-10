@@ -4926,14 +4926,7 @@ func _update_objective() -> void:
 		var zone := Node3D.new()
 		zone.name = "zone"
 		obj_node.add_child(zone)
-		for cell in enc.extract_cells:
-			var q := MeshInstance3D.new()
-			var qm := PlaneMesh.new()
-			qm.size = Vector2(0.86, 0.86)
-			q.mesh = qm
-			q.material_override = _unlit(Hud.GOLD, 0.22, 1.0)
-			q.position = Vector3(cell.x + 0.5, _gy(cell) + 0.025, cell.y + 0.5)
-			zone.add_child(q)
+		zone.add_child(_zone_outline(enc.extract_cells.keys(), Hud.GOLD, 0.8))
 	obj_node.visible = not _net_cleaned
 	_update_obj_zones()
 	var carrier: int = enc.objective.get("carrier", -1)
@@ -4980,14 +4973,46 @@ func _update_obj_zones() -> void:
 	obj_node.add_child(zn)
 	var tones := {"gold": Hud.GOLD, "red": Hud.RED, "cyan": Hud.CYAN}
 	for z in zs:
-		for cell in z.cells:
-			var q := MeshInstance3D.new()
-			var qm := PlaneMesh.new()
-			qm.size = Vector2(0.86, 0.86)
-			q.mesh = qm
-			q.material_override = _unlit(tones.get(String(z.get("tone", "gold")), Hud.GOLD), 0.18, 1.0)
-			q.position = Vector3(cell.x + 0.5, _gy(cell) + 0.025, cell.y + 0.5)
-			zn.add_child(q)
+		zn.add_child(_zone_outline(z.cells, tones.get(String(z.get("tone", "gold")), Hud.GOLD), 0.7))
+
+
+## A ground zone (the deploy / extraction squares, an objective's zone) as a thin glowing line round
+## its edge. It was a filled translucent square per cell, which the palette post turned into flat
+## brown or near-black tiles under the crew (owner: "strange square shadows"). Additive, so it can
+## only brighten the ground, never darken it.
+func _zone_outline(cells: Array, col: Color, glow: float) -> MeshInstance3D:
+	var inside := {}
+	for c in cells:
+		inside[Vector3i(c.x, c.y, c.z)] = true
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	const W := 0.05   # line width (squares), inset from the cell edge
+	for c: Vector3i in inside:
+		var y := _gy(c) + 0.03
+		for d: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+			if inside.has(c + Vector3i(d.x, d.y, 0)):
+				continue
+			var cx := c.x + 0.5 + d.x * (0.5 - W)   # the side's centre line
+			var cz := c.y + 0.5 + d.y * (0.5 - W)
+			var hx := W if d.x != 0 else 0.5   # half extents along x / z
+			var hz := W if d.y != 0 else 0.5
+			var a := Vector3(cx - hx, y, cz - hz)
+			var b := Vector3(cx + hx, y, cz - hz)
+			var e := Vector3(cx + hx, y, cz + hz)
+			var f := Vector3(cx - hx, y, cz + hz)
+			for v in [a, b, e, a, e, f]:
+				st.add_vertex(v)
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	var mt := StandardMaterial3D.new()
+	mt.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mt.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	mt.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mt.no_depth_test = false
+	mt.albedo_color = Color(col * glow, 1.0)
+	mi.material_override = mt
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return mi
 
 
 ## Review renders (--autoplay=n): the gig plays itself for n rounds (SoakDriver's stand-in for the
@@ -5710,16 +5735,17 @@ func _ev_morale(e: Dictionary) -> void:
 	var u: Dictionary = enc.units[e.unit]
 	var nm: String = u.c.display_name.to_upper()
 	var seen := _seen(u.pos)
+	var word := ("%s SURRENDERS" % nm) if String(e.result) == "surrender" else ("%s FLEES" % nm)
+	var wcol := Hud.GOLD if String(e.result) == "surrender" else FLEE_COL
 	if String(e.result) == "surrender":
 		(unit_nodes[u.id] as CharModel).surrender()
-		if seen:
-			_focus_unit = u.id
-			_float(u, "%s SURRENDERS" % nm, Hud.GOLD, CalloutQueue.WOUND_LIFE_MS)
 	else:
 		_flee_mark(u, true)
-		if seen:
-			_focus_unit = u.id
-			_float(u, "%s FLEES" % nm, FLEE_COL, CalloutQueue.WOUND_LIFE_MS)
+	if seen:
+		# booked like a wound word: after the hit's damage number and stacked over it, never on it
+		_focus_unit = u.id
+		var ms := _callouts.wound_delay(u.id, Time.get_ticks_msec())
+		get_tree().create_timer(ms / 1000.0).timeout.connect(func(): _float(u, word, wcol, CalloutQueue.WOUND_LIFE_MS))
 	if seen:
 		await get_tree().create_timer(0.6).timeout
 
@@ -5870,6 +5896,57 @@ func _frame_pair(a: Vector3, b: Vector3) -> void:
 	if sr.has_point(sa) and sr.has_point(sb) and want <= cam_dist + 0.1:
 		return
 	await _pan_to(mid, 0.28, want)
+
+
+## Frame a grenade throw: the blast centre at the middle of the safe rect (the reel kept leaving it
+## at the edge, under the side panels), as near as the thrower allows: the move is cut short where the
+## thrower would leave the safe rect. A blast already near the middle (BLAST_SETTLED of the safe
+## rect) is left alone, so short throws don't twitch the camera. If the blast still isn't well inside
+## (BLAST_INNER in from each side), it zooms out over the pair instead, blast first. Ortho camera, so
+## a ground shift moves every point on screen alike: solved from two probe projections.
+const BLAST_INNER := 0.24
+const BLAST_SETTLED := 0.12
+
+
+func _frame_blast(thrower: Vector3, at: Vector3) -> void:
+	var sr := _safe_rect()
+	var inner := sr.grow_individual(-sr.size.x * BLAST_INNER, -sr.size.y * BLAST_INNER, -sr.size.x * BLAST_INNER, -sr.size.y * BLAST_INNER)
+	var keep := sr.grow(-40)
+	var s_at := _to_screen(at)
+	var s_th := _to_screen(thrower)
+	var off := s_at - sr.get_center()
+	if absf(off.x) <= sr.size.x * BLAST_SETTLED and absf(off.y) <= sr.size.y * BLAST_SETTLED and keep.has_point(s_th):
+		return
+	var k := 1.0   # how much of the way to centre the blast the thrower allows
+	if not keep.has_point(s_th - off):
+		var lo := 0.0
+		var hi := 1.0
+		for i in 12:
+			var mid := (lo + hi) / 2.0
+			if keep.has_point(s_th - off * mid):
+				lo = mid
+			else:
+				hi = mid
+		k = lo if keep.has_point(s_th) else 0.0
+	if k > 0.0 and inner.has_point(s_at - off * k):
+		await _pan_to(cam_target + _ground_shift(at, off * k), 0.32)
+		return
+	var span := Vector2(thrower.x - at.x, thrower.z - at.z).length()   # too far apart: zoom out on the pair, blast in the middle third
+	await _pan_to(at.lerp(thrower, 0.35), 0.32, maxf(cam_dist, minf(70.0, span * 2.6 + 8.0)))
+
+
+## The ground (xz) move of the camera target that slides every point on screen by -`screen_delta`
+## (the ortho camera's screen is linear in the target).
+func _ground_shift(at: Vector3, screen_delta: Vector2) -> Vector3:
+	var s0 := _to_screen(at)
+	var jx := _to_screen(at + Vector3(1, 0, 0)) - s0
+	var jz := _to_screen(at + Vector3(0, 0, 1)) - s0
+	var det := jx.x * jz.y - jz.x * jx.y
+	if absf(det) < 0.0001:
+		return Vector3.ZERO
+	var a := (screen_delta.x * jz.y - jz.x * screen_delta.y) / det
+	var b := (jx.x * screen_delta.y - screen_delta.x * jx.y) / det
+	return Vector3(a, 0, b)
 
 
 ## Walk the body along the path, square by square, facing the way it goes; the camera follows
@@ -6061,7 +6138,7 @@ func _anim_attack(e: Dictionary) -> void:
 				fx.burst(dest, Color("8a8478"), 3, 0.6, 0.12, 0.6, 0.0, 0.4))
 		_recoil(sn, rounds > 1)
 		_kick(_screen_dir(m0, aim) * -1.0, 1.0 if rounds > 1 else 1.5)
-		_trauma(ScreenShake.shot_trauma(wid, rounds > 1))   # by weapon: a pistol ticks, a shotgun shoves
+		_trauma(ScreenShake.shot_by(ScreenShake.shot_trauma(wid, rounds > 1), _foe(su)))   # by weapon: a pistol ticks, a shotgun shoves
 		await get_tree().create_timer(gap + fx.rng.randf_range(0.0015, 0.003) if rounds > 1 else 0.05).timeout
 	# wait for the last round to land, then hold the framing a moment
 	var t0 := Time.get_ticks_msec()
@@ -6174,7 +6251,7 @@ func _anim_suppress(e: Dictionary) -> void:
 		fx.bullet(m0, dest, wid, func(): fx.burst(dest, Color("ffd27a"), 4, 2.0, 0.035, 0.2, 1.6))
 		_recoil(sn, true)
 		_kick(_screen_dir(m0, aim) * -1.0, 1.0)
-		_trauma(ScreenShake.shot_trauma(wid, true))
+		_trauma(ScreenShake.shot_by(ScreenShake.shot_trauma(wid, true), _foe(su)))
 		await get_tree().create_timer(FIRE_GAP.get(wid, 0.085)).timeout
 	await get_tree().create_timer(0.3).timeout
 	for t in targets:
@@ -6247,7 +6324,7 @@ func _anim_shell(e: Dictionary) -> void:
 			fx.bullet(m0, dest, "medium_pistol")
 	_recoil(sn, false)
 	_kick(_screen_dir(m0, m0 + dir) * -1.0, 3.0)
-	_trauma(ScreenShake.shot_trauma(wid if flame else "shotgun"))
+	_trauma(ScreenShake.shot_by(ScreenShake.shot_trauma(wid if flame else "shotgun"), _foe(su)))
 	await get_tree().create_timer(0.12 if not flame else 0.45).timeout
 	if e.hit:
 		for h in e.hits:
@@ -6299,7 +6376,7 @@ func _anim_blast(e: Dictionary) -> void:
 		await get_tree().create_timer(1.4).timeout
 		return
 	_focus_unit = su.id
-	await _frame_pair(_body_pos(su), at)
+	await _frame_blast(_body_pos(su), at)
 	var d := Vector2(at.x - _body_pos(su).x, at.z - _body_pos(su).z)
 	_turn_to(sn, atan2(d.x, d.y), 0.12)
 	sn.play_once("grenade", 0.1)
@@ -6324,10 +6401,14 @@ func _anim_blast(e: Dictionary) -> void:
 		builder.hide_cover(v)
 		var cv: Array = m.cover.filter(func(c): return c.floor == v.z and c.pos == Vector2i(v.x, v.y))
 		fx.shatter(Vector3(v.x + 0.5, v.z * FH + 0.3, v.y + 0.5), String(cv[0].material) if not cv.is_empty() else "wood", Vector3(v.x - center.x, 0, v.y - center.y), v.z * FH, true)
+	var blast_lane: Variant = null   # someone at ground zero: the blast's number stacks with theirs, not on it
+	for h0 in e.hits:
+		if Vector2i(enc.units[h0.id].pos.x, enc.units[h0.id].pos.y) == Vector2i(center.x, center.y):
+			blast_lane = int(h0.id)
 	if not gas:
-		_float_at(at + Vector3(0, 1.0, 0), "%d" % int(e.damage), Hud.GOLD)
+		_float_at(at + Vector3(0, 1.0, 0), "%d" % int(e.damage), Hud.GOLD, blast_lane)
 	else:
-		_float_at(at + Vector3(0, 1.0, 0), Items.display_name(String(e.payload)).to_upper(), Hud.GOLD)
+		_float_at(at + Vector3(0, 1.0, 0), Items.display_name(String(e.payload)).to_upper(), Hud.GOLD, blast_lane)
 	for h in e.hits:
 		var t: Dictionary = enc.units[h.id]
 		var dir := Vector3(t.pos.x - center.x, 0, t.pos.y - center.y)
@@ -6597,7 +6678,7 @@ func _anim_cover(e: Dictionary) -> void:
 			else:
 				_rebuild = true            # a wall gave way: rebuild after playback
 		_kick(_screen_dir(m0, at), 4.0 if gone else 1.5)
-		_trauma(ScreenShake.COVER_GONE if gone else ScreenShake.shot_trauma(wid) * 0.5)
+		_trauma(ScreenShake.COVER_GONE if gone else ScreenShake.shot_by(ScreenShake.shot_trauma(wid) * 0.5, _foe(su)))
 		_float_at(at + Vector3(0, 0.5, 0), "-%d · %s" % [int(e.damage), "DESTROYED" if gone else "%d HP" % left], Hud.GOLD if gone else Hud.TEXT))
 	await get_tree().create_timer(0.45).timeout
 	create_tween().tween_method(func(v: float): sn.set_meta("aim", v), 1.0, 0.0, 0.25)
@@ -6728,9 +6809,10 @@ func _float_at(wp: Vector3, text: String, col: Color, lane: Variant = null, life
 	l.add_theme_constant_override("shadow_offset_x", 2)
 	var sr := _safe_rect()
 	var p := _to_screen(wp) - Vector2(30, 20)
-	p = Vector2(clampf(p.x, sr.position.x, sr.end.x - 200), clampf(p.y, sr.position.y + CalloutQueue.LINE * 2.0, sr.end.y))
+	p = Vector2(clampf(p.x, sr.position.x, sr.end.x - maxf(200.0, l.get_minimum_size().x + 24.0)), clampf(p.y, sr.position.y + CalloutQueue.LINE * 2.0, sr.end.y))
 	var now := Time.get_ticks_msec()
-	var y0 := p.y + _callouts.place(lane if lane != null else "%d,%d" % [roundi(p.x), roundi(p.y)], now, life_ms)
+	var y0 := p.y + _callouts.place(lane if lane != null else "%d,%d" % [roundi(p.x), roundi(p.y)], now, life_ms,
+			CalloutPop.line_height(style, text), 0.0 if hud.reduced_motion else CalloutPop.overshoot(style, text))
 	l.position = Vector2(p.x, y0)
 	hud.add_child(l)
 	var pop := CalloutPop.plan(style, hud.reduced_motion, fx.rng.randf() < 0.5)
