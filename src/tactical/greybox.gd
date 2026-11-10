@@ -3966,11 +3966,11 @@ func _tool_hover() -> void:
 			hud.tip("%s · %s · %d doses left" % [drug.to_upper(), what, c.doses], mouse, "// PHARMACEUTICALS", Hud.GREEN)
 		"grab":
 			if t.is_empty() or enc.allied(t.team, enc.cur.team):
-				hud.tip(Hud.action_help("grab"), mouse, "// GRAB", Color("ff8a3d"))
+				hud.tip("Pick a foe next to you", mouse, "// GRAB", Color("ff8a3d"))
 				return
 			var gp := enc.grab_preview(t)
 			_set_aim(AimPreview.SWING, enc.cur.pos, t, roundi(gp.chance * 100) if gp.ok else -1, Vector3i(-1, -1, -1), false, "brawling")
-			hud.tip(("[code][font_size=44]%d%%[/font_size][/code]  to Grab · DEX + Brawling [code]%d[/code] vs [code]%d[/code], ties to them\nHeld: -%d to all Actions for you both, no Move Action for them" % [roundi(gp.chance * 100), int(gp.base), int(gp.defense_base), Grapple.PENALTY]) if gp.ok else "[color=#ff3b4f]%s[/color]" % String(gp.reason).capitalize(), mouse, "// GRAB", Color("ff8a3d"))
+			hud.tip(("[code][font_size=44]%d%%[/font_size][/code]  to grab" % roundi(gp.chance * 100)) if gp.ok else "[color=#ff3b4f]%s[/color]" % String(gp.reason).capitalize(), mouse, "// GRAB", Color("ff8a3d"))
 		"break":
 			if t.is_empty() or t == enc.cur or not enc.allied(t.team, enc.cur.team):
 				hud.tip(Hud.action_help("break"), mouse, "// BREAK HOLD", Hud.GREEN)

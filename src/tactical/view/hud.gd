@@ -1709,6 +1709,15 @@ func _interact_tip(b: Control) -> void:
 ## The hover card above a bar button.
 func _bar_tip(b: Control, id: String) -> void:
 	var r := b.get_global_rect()
+	if id == "grab" and interact_enc != null and not interact_enc.cur.is_empty():   # the odds, not the rules (owner)
+		var best := -1.0
+		for t in interact_enc.grab_targets(interact_enc.cur):
+			var gp: Dictionary = interact_enc.grab_preview(t)
+			if gp.ok:
+				best = maxf(best, float(gp.chance))
+		if best >= 0.0:
+			tip("[code][font_size=44]%d%%[/font_size][/code]  to grab" % roundi(best * 100), r.position - global_position + Vector2(-28, -40), "// GRAB", Color("ff8a3d"))
+			return
 	tip(action_help(id), r.position - global_position + Vector2(-28, -40), "// ON FIRE" if id == "put_out" else "// CLOSE QUARTERS", Color("ff8a3d"))
 
 

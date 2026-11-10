@@ -4,7 +4,7 @@
   "grab": {
    "name": "Grab",
    "cost": "Action",
-   "text": "Get hold of a foe in reach. While the grapple lasts you both take -2 to all Actions, they can't use their Move Action (yours drags them along) and neither of you can use a two-handed weapon. A long gun in hand is slung for a one-handed weapon.",
+   "text": "Hold a foe next to you. You both take -2 while it lasts; they can't move.",
    "key": "DEX + Brawling + 1d10 vs theirs, ties to them",
    "page": "p.168, p.177"
   },
