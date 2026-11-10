@@ -726,7 +726,7 @@
 			"cost": null,
 			"cost_tier": null,
 			"cite": "CPR core p.184",
-			"summary": "Grappled foe held as cover; becomes a meat shield with HP equal to its BODY once dead.",
+			"summary": "Grappled enemy held as cover; becomes a meat shield with HP equal to its BODY once dead.",
 			"fx": {
 				"hands": 1,
 				"grants_cover": true,
@@ -763,7 +763,7 @@
 			"cost": 50,
 			"cost_tier": "Costly",
 			"cite": "CPR core p.352",
-			"summary": "Compressed-air injector: dose a willing ally as an Action, or a foe with a Melee attack instead of damage.",
+			"summary": "Compressed-air injector: dose a willing ally as an Action, or an enemy with a Melee attack instead of damage.",
 			"night_market": "survival_gear",
 			"fx": {
 				"drug_delivery": {

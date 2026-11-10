@@ -72,7 +72,7 @@ func _ripperdoc(body: VBoxContainer) -> void:
 		var hu := UiKit.label(_humanity_line(c), 15, _hum_colour(c))
 		hu.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		hl.add_child(hu)
-	tv.add_child(UiKit.body("Installing is free; every piece costs Humanity. Taking a piece out destroys it.", 14, Hud.DIM))
+	tv.add_child(UiKit.body("Installing is free; every piece costs Humanity. Uninstalling a piece destroys it.", 14, Hud.DIM))
 	var lists := UiKit.hbox(10)
 	lists.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	right.add_child(lists)

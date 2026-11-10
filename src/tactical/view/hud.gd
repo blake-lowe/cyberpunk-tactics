@@ -326,7 +326,7 @@ func _build_stack() -> void:
 	_floor_up = FloorBtn.new(1, "SHIFT")
 	_floor_up.custom_minimum_size = Vector2(STACK_W, 22)
 	_floor_up.pressed.connect(func(): action.emit("floor", 1))
-	_floor_up.tooltip_text = "View the floor above (SHIFT, PG UP or ])"
+	_floor_up.tooltip_text = "View the floor above (SHIFT)"
 	v.add_child(_floor_up)
 	_stack_rows = VBoxContainer.new()
 	_stack_rows.add_theme_constant_override("separation", 2)
@@ -334,7 +334,7 @@ func _build_stack() -> void:
 	_floor_down = FloorBtn.new(-1, "CTRL")
 	_floor_down.custom_minimum_size = Vector2(STACK_W, 22)
 	_floor_down.pressed.connect(func(): action.emit("floor", -1))
-	_floor_down.tooltip_text = "View the floor below (CTRL, PG DN or [)"
+	_floor_down.tooltip_text = "View the floor below (CTRL)"
 	v.add_child(_floor_down)
 	_stack.visible = false
 	add_child(_stack)
@@ -1707,11 +1707,12 @@ static func _is_grapple(id: String) -> bool:
 
 
 ## A close-quarters action's hover card from data/rules/action_help.json (the NET panel's style,
-## net_help): name, cost, what it does, its roll. `live` adds a NOW line. "" if unknown.
+## net_help): name, cost, what it does, its roll. `live` adds a NOW line. "" if unknown, or if the
+## entry has no text (owner: self-explanatory actions like Release, Escape, Put Out Fire get no card).
 static func action_help(id: String, live := "") -> String:
 	const K := "[color=#7d8a96]%s[/color]"
 	var e: Dictionary = (RulesDB.load_json("action_help.json").actions as Dictionary).get(id, {})
-	if e.is_empty():
+	if e.is_empty() or String(e.get("text", "")) == "":
 		return ""
 	var out: Array[String] = ["[b]%s[/b]  %s" % [String(e.name), K % String(e.cost)], String(e.text)]
 	if String(e.get("key", "")) != "":
@@ -2589,12 +2590,12 @@ static func _node_label(n: Dictionary, enc: Encounter = null, run: NetRun = null
 ## greybox._unhandled_input / _process / the portrait strip handles. [section, [[input, does], ...]].
 const HELP := [
 	["MOUSE", [
-		["LEFT-CLICK", "Attack the foe under the cursor"],
+		["LEFT-CLICK", "Attack the targeted enemy"],
 		["RIGHT-CLICK", "Move or run to a square"],
-		["CLICK PORTRAIT", "Target a foe from the turn order"],
+		["CLICK PORTRAIT", "Target an enemy from the turn order"],
 		["LEFT-CLICK A BUILDING", "Focus its floors"],
-		["HOVER A FOE", "Line of fire and hit chance"],
-		["HOLD ALT", "Inspect: foe outlines, stairs, exits, range bands"],
+		["HOVER AN ENEMY", "Line of fire and hit chance"],
+		["HOLD ALT", "Inspect: enemy outlines, stairs, exits, range bands"],
 	]],
 	["CAMERA", [
 		["WHEEL", "Zoom"],
@@ -2602,7 +2603,6 @@ const HELP := [
 		["Q / E", "Rotate"],
 		["W A S D", "Pan"],
 		["SHIFT / CTRL", "View one floor up / down (hold to repeat)"],
-		["PG UP / PG DN  ·  ] / [", "The same"],
 		["HOME", "Back to the selected unit's building and floor"],
 	]],
 	["OVERLAYS", [

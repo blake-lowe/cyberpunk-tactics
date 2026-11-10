@@ -1,52 +1,50 @@
 {
- "_source": "Hover cards for the action bar's close-quarters actions (Hud.action_help), like net_help.json for the NET panel. Short paraphrases of CPR core p.168-169, p.177, p.183-184 and p.180 (Put Out Fire) as distilled in docs/rules/combat.md sections 3, 5 and 7; hand-edited. Each entry: name, cost, text (what it does), key (its roll or numbers), page, book (default CPR core; SPM = Single Player Mode). Ids are Encounter.grapple_options().",
+ "_source": "Hover cards for the action bar's close-quarters actions (Hud.action_help), like net_help.json for the NET panel. Short paraphrases of CPR core p.168-169, p.177, p.183-184 and p.180 (Put Out Fire) as distilled in docs/rules/combat.md sections 3, 5 and 7; hand-edited. Each entry: name, cost, text (what it does), key (its roll or numbers), page, book (default CPR core; SPM = Single Player Mode). Ids are Encounter.grapple_options(). An entry with no text gets no hover card (owner verdict 2026-11-10: release, escape and put_out need none); its name, cost and cite stay as the record.",
  "actions": {
   "grab": {
    "name": "Grab",
    "cost": "Action",
-   "text": "Hold a foe next to you. You both take -2 while it lasts; they can't move.",
+   "text": "Hold an adjacent enemy. You both take -2 while it lasts; they can't move.",
    "key": "DEX + Brawling + 1d10 vs theirs, ties to them",
    "page": "p.168, p.177"
   },
   "choke": {
    "name": "Choke",
    "cost": "Action",
-   "text": "Damage equal to your BODY to the one you hold, ignoring armor. A choke that would kill leaves them Unconscious at 1 HP; three Rounds running puts anyone out.",
+   "text": "Damage equal to your BODY to the person you hold, ignoring armor (nonlethal).",
    "key": "no roll · damage = your BODY",
    "page": "p.168, p.177"
   },
   "throw": {
    "name": "Throw",
    "cost": "Action",
-   "text": "Throw the one you hold down: damage equal to your BODY, ignoring armor. The grapple ends and they're Prone.",
+   "text": "Throw the person you hold: damage equal to your BODY, ignoring armor. The grapple ends and they're Prone.",
    "key": "no roll · damage = your BODY",
    "page": "p.169, p.177"
   },
   "shield": {
    "name": "Human Shield",
    "cost": "Action",
-   "text": "Hold the one you grapple between you and the guns: they take the ranged shots, but not melee or Aimed Shots at your head. They can't dodge. If they die, their body is a shield with HP equal to their BODY.",
+   "text": "Your grappled enemy blocks ranged attacks that aren't aimed. If they die, their body is a shield with HP equal to their BODY.",
    "key": "cover · no dodge for the shield",
    "page": "p.169, p.184"
   },
   "release": {
    "name": "Release",
    "cost": "free (a corpse shield: Action)",
-   "text": "Let go. The grapple and its -2 end.",
    "key": "",
    "page": "p.177, p.184"
   },
   "escape": {
    "name": "Escape",
    "cost": "Action",
-   "text": "Break free. Win and your Move Action is back if you haven't used it.",
    "key": "DEX + Brawling + 1d10 vs the holder's, ties to them",
    "page": "p.177"
   },
   "break": {
    "name": "Break Hold",
    "cost": "Action",
-   "text": "Pry an ally loose. Stand next to whoever holds them.",
+   "text": "End the grapple on an ally.",
    "key": "DEX + Brawling + 1d10 vs the holder's, ties to them",
    "page": "p.177"
   },
@@ -60,14 +58,13 @@
   "put_out": {
    "name": "Put Out Fire",
    "cost": "Action",
-   "text": "Beat out the flames. Until you do, the fire hits your HP at the end of every Turn, ignoring armor.",
    "key": "Mild 2, Strong 4, Deadly 6 a Turn",
    "page": "p.180"
   },
   "spoof": {
    "name": "Spoof",
    "cost": "Action",
-   "text": "Fool a camera or alarm panel within 3 squares. Success wins a die back on the detection clock and the camera stops reporting; failure rolls the clock. Once a turn, and once per device.",
+   "text": "Tamper with a camera or alarm panel within 3 squares. Success adds a die back to the detection clock and the camera stops reporting. Failure rolls the clock.",
    "key": "TECH + Electronics/Security Tech (+ Field Expertise) vs DV15",
    "page": "p.26",
    "book": "SPM"

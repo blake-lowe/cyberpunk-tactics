@@ -15,18 +15,7 @@
 		"event": "alarm",
 		"room_zone": 3,
 		"room_rounds": 2,
-		"tip": "Each die that comes up {drop} is gone; when the last goes, the alarm is raised. It rolls on: failed Stealth, a failed Electronics/Security Tech check, a minute in a secured room, a body in a guard's sight, gunfire, taking the objective. SPOOF a camera or alarm panel, or loop the cameras from the NET, to win a die back."
-	},
-	"time_limit": {
-		"label": "TIME LIMIT",
-		"name": "Time Limit",
-		"_pool": "HOUSE-RULE (the Time Limit plot twist, SPM p.75-76, 'barely enough time'): 4d6, the harder variant (a die gone on a 1 or a 6), rolled at the top of every round (SPM p.25 suggests a top-of-round trigger): about 5.6 rounds.",
-		"pool": 4,
-		"drop_on": [1, 6],
-		"escalate": false,
-		"triggers": ["round"],
-		"event": "time_up",
-		"tip": "Rolls at the top of every round; each die that comes up {drop} is gone. When the last goes, time's up: the gig is blown if it isn't done, and the site's response arrives at once if it is."
+		"tip": "Each die that comes up {drop} is removed from the pool. When it's empty, the alarm is raised. It rolls on: failed Stealth, a failed Electronics/Security Tech check, a minute in a secured room, a body in a guard's sight, gunfire, taking the objective. SPOOF a camera or alarm panel, or loop the cameras from the NET, to win a die back."
 	},
 	"reclaim": {
 		"_why": "Reclaiming Their Time (SPM p.26): a difficult, risky skill success adds a die back. SPOOF (a meat Action at a live camera or an alarm panel within `range` squares on the floor, no wall between): TECH + Electronics/Security Tech (+ a Tech's Field Expertise) vs DV `dv` (DV15, Difficult, CPR core p.129). Success loops the camera by hand (the site's feed shows a recording) or spoofs the panel, and adds a die back; failure is a failed Electronics/Security Tech check, so the clock rolls (the risk). From the NET: looping a camera bank or cutting the alarm line (a NET Action, NetDevices) adds a die back (HOUSE-RULE: the NET's own risks, ICE and reaching the Node, are the check). Either way at most once per clock per turn, and each device only once per clock.",

@@ -12,8 +12,7 @@ extends RefCounted
 ##   starts (Encounter.call_it_in: the NC2045 response times are unchanged). With Degrees of
 ##   Consequence (two or more dice on the last roll) the response comes one intensity step heavier.
 ##   Once the alarm is up some other way, it stops.
-## - Time Limit (the plot twist, Twist): rolled at the top of every round. Empty with the job not
-##   done, the job is blown; with it done, the site's response is on the crew at once.
+## - The Time Limit clock went with its plot twist (owner cut, twists.json time_limit: unmodelled).
 ##
 ## Trigger kinds (Encounter calls trigger()): round, failed_stealth, failed_tech, room_time,
 ## body_seen, noise, objective. Rate limits are per kind: see clocks.json `_triggers`.
@@ -67,7 +66,7 @@ static func start(e: Encounter, force: Variant = "auto") -> void:
 		e.clocks.append(c)
 
 
-## Add a clock mid-gig (the Time Limit twist). Returns it.
+## Add a clock mid-gig (a plot twist's `clock` fx). Returns it.
 static func add(e: Encounter, id: String) -> Clock:
 	var have := get_clock(e, id)
 	if have != null:
@@ -140,8 +139,6 @@ static func _empty(e: Encounter, c: Clock) -> void:
 		"alarm":
 			e.say("The detection clock runs out.")
 			raise_alarm(e, c.escalated)
-		"time_up":
-			_time_up(e)
 		_:
 			e.say("%s clock: time's up." % c.label.capitalize())
 
@@ -204,25 +201,6 @@ static func escalate(e: Encounter) -> void:
 	up.call(e._street)
 	e.say("The response will come in heavier.")
 	e.events.append({"type": "clock_escalate", "unit": _anchor(e)})
-
-
-## Time Limit ran out (SPM p.75-76 Time Limit, our reading): the job not done is blown (the gig
-## is lost, as a mark getting away is); done, the site's response is on the crew at once.
-static func _time_up(e: Encounter) -> void:
-	if e.obj != null and e.obj.near_done():
-		e.say("Time's up: the site's response is here. Get out.")
-		if e.alarm < 2:
-			raise_alarm(e)
-		if e._response.is_empty():
-			e._response = e._plan_response(e.code)
-			e.backup_label = String(e._response.label)
-		if e.backup_in != 0:
-			e.backup_in = 0
-			e._backup_round = e.init.round_num
-			e._arrive(e._response)
-		return
-	e.say("Time's up. The gig's blown.")
-	e.state = "lost"
 
 
 ## Once a round, at its start (Encounter.next_turn): the round trigger, a minute in a secured room,

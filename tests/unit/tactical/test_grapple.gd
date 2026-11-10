@@ -434,8 +434,12 @@ func test_grapple_options_follow_the_state() -> void:
 	assert_eq(e.grapple_options(), ["choke", "throw", "shield", "release"] as Array[String])
 	_turn(e, e.units[1])
 	assert_eq(e.grapple_options(), ["escape"] as Array[String])
+	const NO_CARD := ["release", "escape"]   # owner verdict 2026-11-10: self-explanatory, no hover card
 	for id in ["grab", "choke", "throw", "shield", "release", "escape", "break", "get_up"]:
-		assert_true(Hud.action_help(id) != "", "a hover card for %s" % id)
+		if id in NO_CARD:
+			assert_eq(Hud.action_help(id), "", "no hover card for %s" % id)
+		else:
+			assert_true(Hud.action_help(id) != "", "a hover card for %s" % id)
 
 
 # --- AI -------------------------------------------------------------------------------------

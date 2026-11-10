@@ -268,7 +268,7 @@ No corrections: `data/rules/armor.json` matches the book for all 8 entries. It d
 | Medscanner | +2 first_aid, +2 paramedic | 1,000eb (V. Expensive) | p354 |
 | Medtech Bag | - | 100eb (Premium) | p354 |
 
-- **Airhypo**: Compressed-air injector: dose a willing ally as an Action, or a foe with a Melee attack instead of damage. Needs drug doses (p.357). Melee hit delivers one dose instead of damage.
+- **Airhypo**: Compressed-air injector: dose a willing ally as an Action, or an enemy with a Melee attack instead of damage. Needs drug doses (p.357). Melee hit delivers one dose instead of damage.
 - **Cryopump**: Briefcase body-bag pump: puts a dying patient in stasis, halting Death Saves for up to a week. Medtech only. Target must be willing or unconscious; one human-size target; surgery/stabilisation in stasis is safer (no number). Medtech Cryosystem Operation ranks raise charges (p.150).
 - **Cryotank**: Person-sized stasis tank; occupant stays unconscious indefinitely but heals at double rate. Medtech only. Base/med-bay fixture rather than field kit. 'Medical Tech Check' is the Medtech Medicine ability, not a skills.json id.
 - **Medscanner**: Diagnostic scanner with probes; +2 First Aid and Paramedic for non-surgical emergencies. Doesn't stack.

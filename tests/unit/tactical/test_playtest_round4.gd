@@ -223,7 +223,7 @@ func test_put_out_fire_is_offered_only_while_burning_and_costs_the_action() -> v
 	assert_false("put_out" in e.grapple_options(), "not on fire: no entry")
 	c.burning = 4
 	assert_true("put_out" in e.grapple_options(), "on fire: the bar offers it")
-	assert_true(Hud.action_help("put_out").begins_with("[b]Put Out Fire"), "with a hover card")
+	assert_eq(Hud.action_help("put_out"), "", "no hover card (owner verdict 2026-11-10: self-explanatory)")
 	assert_eq(String(RulesDB.load_json("action_help.json").actions.put_out.page), "p.180", "its cite lives in the data's page field")
 	assert_false(TextCites.has_cite(Hud.action_help("put_out")), "never on the card")
 	var row: Array = Hud.GRAPPLE_ACTIONS.filter(func(r): return r[0] == "put_out")[0]

@@ -562,7 +562,7 @@ func _check_end() -> void:
 			state = r
 	if state == "playing" and obj.extracting() and _crew_out():
 		state = "won"
-		say("The crew gets clear. The gig's done.")
+		say("The crew gets clear. The gig's complete.")
 	if state == "playing":   # the objective taken: the detection clock rolls, a twist may spring
 		Clocks.check_objective(self)
 		Twist.poll(self)
@@ -574,7 +574,7 @@ func _check_end() -> void:
 func _job_done() -> void:
 	objective["done"] = true
 	objective["extract"] = true
-	say("The gig's done. Get to the extraction zone.")
+	say("The gig's complete. Get to the extraction zone.")
 	events.append({"type": "job_done", "unit": int(cur.get("id", 0)) if not cur.is_empty() else 0})
 
 
@@ -1018,7 +1018,7 @@ func _searchable_state(g: Dictionary) -> bool:
 func loot_keycard() -> Dictionary:
 	var g := keycard_in_reach(cur)
 	if g.is_empty():
-		return {"ok": false, "reason": "no keycard on anyone next to you"}
+		return {"ok": false, "reason": "no keycard on anyone adjacent"}
 	if not turn.use_action():
 		return {"ok": false, "reason": "no action left"}
 	var z: int = g.keycard
@@ -1070,7 +1070,7 @@ func body_in_reach(u: Dictionary) -> Dictionary:
 func search_body() -> Dictionary:
 	var g := body_in_reach(cur)
 	if g.is_empty():
-		return {"ok": false, "reason": "no body to search next to you"}
+		return {"ok": false, "reason": "no adjacent body to search"}
 	if not turn.use_action():
 		return {"ok": false, "reason": "no action left"}
 	var f := CorpseLoot.search(self, cur, g)
@@ -1126,7 +1126,7 @@ func withdraw() -> bool:
 		say("%s is left behind." % u.c.display_name)
 	if obj.withdraw_wins():
 		state = "won"   # the hit is done: leaving is the rest of the job
-		say("The crew pulls out. The gig's done.")
+		say("The crew pulls out. The gig's complete.")
 		return true
 	state = "fled"
 	say("The crew pulls out.")
@@ -2822,7 +2822,7 @@ func grapple_partner(u: Dictionary) -> Dictionary:
 ## Why the active unit can't Grab `target` ("" if it can).
 func grab_why_not(target: Dictionary) -> String:
 	if target.is_empty() or target == cur:
-		return "pick a foe next to you"
+		return "select an adjacent enemy"
 	if target.has("turret"):
 		return "nothing to get hold of"
 	if not adjacent(cur.pos, target.pos):
@@ -3302,7 +3302,7 @@ func jury_rig(target: Dictionary) -> Dictionary:
 	if int(c.maker.get("field", 0)) < 1:
 		return {"ok": false, "reason": "needs a Tech's Field Expertise"}
 	if not allied(int(target.team), int(cur.team)) or target.c.dead or (target != cur and not adjacent(cur.pos, target.pos)):
-		return {"ok": false, "reason": "pick yourself or an ally next to you"}
+		return {"ok": false, "reason": "target yourself or an adjacent ally"}
 	var loc := rig_target_loc(target)
 	if loc == "":
 		return {"ok": false, "reason": "no worn armor to rig"}
@@ -3330,7 +3330,7 @@ func dose(target: Dictionary, drug: String) -> Dictionary:
 	if not c.knows_drug(drug) or c.doses <= 0:
 		return {"ok": false, "reason": "no %s doses" % drug}
 	if not allied(int(target.team), int(cur.team)) or target.c.dead or (target != cur and not adjacent(cur.pos, target.pos)):
-		return {"ok": false, "reason": "pick yourself or an ally next to you"}
+		return {"ok": false, "reason": "target yourself or an adjacent ally"}
 	var t: Combatant = target.c
 	match drug:
 		"speedheal":

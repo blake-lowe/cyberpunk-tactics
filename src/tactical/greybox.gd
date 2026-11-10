@@ -8,7 +8,7 @@ extends Node
 ## Controls
 ##   WASD / arrows   pan          Mouse wheel   zoom
 ##   Q / E (hold)    rotate (eased)             Middle-drag   rotate freely        H  controls hint
-##   Shift / Ctrl (alone; hold to repeat), PageUp/PageDown or ] / [ (or the floor stack's ▲ ▼ and
+##   Shift / Ctrl (alone; hold to repeat; the only floor keys, owner) (or the floor stack's ▲ ▼ and
 ##                   rows) view a floor up / down in the focused building (each building is cut on
 ##                   its own: FloorNav.slices); Home: back to the selected unit's building and floor.
 ##                   Standing on stairs, the bar offers GO UP / GO DOWN
@@ -3422,8 +3422,6 @@ func _unhandled_input(ev: InputEvent) -> void:
 			KEY_Q, KEY_E: _turn_keys[ev.keycode] = true   # turns while held (_process)
 			KEY_H: hud.toggle_hint()
 			KEY_K: hud.toggle_log()   # collapse / show the combat log (the chevron does the same)
-			KEY_PAGEUP, KEY_BRACKETRIGHT: _change_floor(1)
-			KEY_PAGEDOWN, KEY_BRACKETLEFT: _change_floor(-1)
 			KEY_HOME: _home(true)
 			KEY_SHIFT, KEY_CTRL:   # the floor keys (owner): alone, a floor up / down; held, they repeat (_process)
 				var held_others := _held_keys.keys().any(func(k): return int(k) != int(ev.keycode))
@@ -3966,7 +3964,7 @@ func _click_tool() -> void:
 			if not t.is_empty():
 				r = enc.stabilize(t)
 		"grab":
-			r = enc.grapple(t) if not t.is_empty() else {"ok": false, "reason": "pick a foe next to you"}
+			r = enc.grapple(t) if not t.is_empty() else {"ok": false, "reason": "select an adjacent enemy"}
 		"break":
 			r = enc.escape_grapple(t) if not t.is_empty() and t != enc.cur else {"ok": false, "reason": "pick a held ally"}
 		"rig":
@@ -4046,7 +4044,7 @@ func _tool_hover() -> void:
 			hud.tip(("[code][font_size=44]%d%%[/font_size][/code] on target · %d m\n%s in a 5x5 blast; a miss scatters\n%s" % [pct, roundi(dist), what, ", ".join(names) if not names.is_empty() else "nobody in the blast"]) if ok else "[color=#ff3b4f]Out of range or blocked[/color]", mouse, "// " + Items.display_name(c.kit[0]).to_upper(), Hud.GOLD)
 		"melee":
 			if t.is_empty() or enc.allied(t.team, enc.cur.team):
-				hud.tip("Pick a foe next to you", mouse, "// MELEE", Hud.CYAN)
+				hud.tip("Select an adjacent enemy", mouse, "// MELEE", Hud.CYAN)
 				return
 			var mw := enc.melee_weapon(c)
 			var p := enc.preview(t, mw, Attack.Mode.SINGLE)
@@ -4054,14 +4052,14 @@ func _tool_hover() -> void:
 			hud.tip(("[code][font_size=44]%d%%[/font_size][/code]  %s · %dd6" % [roundi(p.chance * 100), mw.def.name, mw.dice()]) if p.ok else "[color=#ff3b4f]%s[/color]" % String(p.reason).capitalize(), mouse, "// MELEE", Hud.CYAN)
 		"shell":
 			if t.is_empty() or enc.allied(t.team, enc.cur.team):
-				hud.tip("Pick a foe: hits everyone in a 6 m cone", mouse, "// SHOTGUN SHELL", Hud.CYAN)
+				hud.tip("Hits everyone in a 6 m cone", mouse, "// SHOTGUN SHELL", Hud.CYAN)
 				return
 			var pct2 := roundi(Check.chance_vs_dv(c.skill_base(enc.cur.c.weapons[0].skill()) - c.action_penalty(), Attack.SHOTGUN_SHELL_DV) * 100)
 			_set_aim(AimPreview.LINE, enc.cur.pos, t, pct2)
 			hud.tip("[code][font_size=44]%d%%[/font_size][/code]  3d6 to everyone in the cone" % pct2, mouse, "// SHOTGUN SHELL", Hud.CYAN)
 		"rig":
 			if t.is_empty() or not enc.allied(t.team, enc.cur.team):
-				hud.tip("Pick yourself or an ally next to you", mouse, "// JURY-RIG", Hud.CYAN)
+				hud.tip("Target yourself or an adjacent ally", mouse, "// JURY-RIG", Hud.CYAN)
 				return
 			var loc := enc.rig_target_loc(t)
 			if loc == "":
@@ -4069,10 +4067,10 @@ func _tool_hover() -> void:
 				return
 			var ap: ArmorPiece = t.c.armor[loc]
 			var pr := roundi(Check.chance_vs_dv(Encounter.rig_base(c), ArmorPiece.maker_dv(ap.price())) * 100)
-			hud.tip("[code][font_size=44]%d%%[/font_size][/code]  %s SP %d → %d" % [pr, loc.to_upper(), ap.sp, ap.max_sp], mouse, "// JURY-RIG", Hud.CYAN)
+			hud.tip("[code][font_size=44]%d%%[/font_size][/code] %s SP %d → %d · TECH + Basic Tech + Field vs DV%d" % [pr, loc.to_upper(), ap.sp, ap.max_sp, ArmorPiece.maker_dv(ap.price())], mouse, "// JURY-RIG", Hud.CYAN)
 		"dose":
 			if t.is_empty() or not enc.allied(t.team, enc.cur.team):
-				hud.tip("Pick yourself or an ally next to you · %d doses" % c.doses, mouse, "// PHARMACEUTICALS", Hud.GREEN)
+				hud.tip("Target yourself or an adjacent ally · %d doses" % c.doses, mouse, "// PHARMACEUTICALS", Hud.GREEN)
 				return
 			var drug := enc.best_dose(t)
 			if drug == "":
@@ -4082,7 +4080,7 @@ func _tool_hover() -> void:
 			hud.tip("%s · %s · %d doses left" % [drug.to_upper(), what, c.doses], mouse, "// PHARMACEUTICALS", Hud.GREEN)
 		"grab":
 			if t.is_empty() or enc.allied(t.team, enc.cur.team):
-				hud.tip("Pick a foe next to you", mouse, "// GRAB", Color("ff8a3d"))
+				hud.tip("Select an adjacent enemy", mouse, "// GRAB", Color("ff8a3d"))
 				return
 			var gp := enc.grab_preview(t)
 			_set_aim(AimPreview.SWING, enc.cur.pos, t, roundi(gp.chance * 100) if gp.ok else -1, Vector3i(-1, -1, -1), false, "brawling")
@@ -4098,7 +4096,7 @@ func _tool_hover() -> void:
 				hud.tip("Pick a Mortally Wounded ally in reach", mouse, "// STABILIZE", Hud.GREEN)
 				return
 			var pct3 := roundi(Check.chance_vs_dv(maxi(c.skill_base("first_aid"), c.skill_base("paramedic")) - c.action_penalty(), t.c.stabilization_dv()) * 100)
-			hud.tip("[code][font_size=44]%d%%[/font_size][/code]  to stabilize" % pct3, mouse, "// STABILIZE", Hud.GREEN)
+			hud.tip("[code][font_size=44]%d%%[/font_size][/code] vs DV%d · TECH + First Aid" % [pct3, t.c.stabilization_dv()], mouse, "// STABILIZE", Hud.GREEN)
 
 
 func _jack_in() -> void:
@@ -4108,7 +4106,7 @@ func _jack_in() -> void:
 	if pts.is_empty():
 		hud.toast("No access point within %d m." % int(Encounter.jack_range(enc.cur.c)))
 	elif not enc.jack_in(pts[0]):
-		hud.toast("No Action left.")
+		hud.toast("No action left.")
 	else:
 		_ui_snd("sfx_jack_in", -3.0)
 	_after_action()
@@ -5570,11 +5568,10 @@ func _ev_clock(e: Dictionary) -> void:
 	if not hud.reduced_motion:
 		_kick(Vector2(1, -0.4).normalized(), 7.0)
 	await get_tree().create_timer(0.3).timeout
-	var time_up := String(e.clock) == "time_limit"
-	hud.end_banner("TIME'S UP" if time_up else "DETECTED  ·  ALARM RAISED", Hud.RED)
+	hud.end_banner("DETECTED  ·  ALARM RAISED", Hud.RED)
 	await get_tree().create_timer(1.1).timeout
 	if enc.state == "playing":   # the banner gives way to the next turn's
-		hud.turn_banner("TIME'S UP" if time_up else "DETECTED  ·  ALARM RAISED", Hud.RED)
+		hud.turn_banner("DETECTED  ·  ALARM RAISED", Hud.RED)
 
 
 ## A die won back (SPOOF, a loop from the NET): it drops into its socket with a cyan glint.
@@ -6016,7 +6013,7 @@ func _ev_target_down(e: Dictionary) -> void:
 ## and the marker.
 func _ev_job_done(_e: Dictionary) -> void:
 	_ui_snd("sfx_ui_confirm", -4.0)
-	hud.toast("GIG DONE · GET TO EXTRACTION", 3.0)
+	hud.toast("GIG COMPLETE · GET TO EXTRACTION", 3.0)
 	_hud_refresh()
 
 
