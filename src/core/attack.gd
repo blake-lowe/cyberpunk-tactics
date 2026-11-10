@@ -187,7 +187,7 @@ static func on_hit_effects(dice: Dice, weapon: Weapon, defender: Combatant, r: D
 static func apply_status(dice: Dice, defender: Combatant, st: Dictionary, fx: Dictionary, r: Dictionary) -> void:
 	if not r.has("crits"):
 		r["crits"] = []
-	if String(fx.get("meat_only", "")) == "eyes" and defender.has_cyberware("cybereye"):
+	if String(fx.get("meat_only", "")) == "eyes" and Cyber.no_meat_eyes(defender.implants):   # two Cybereyes: no meat eyes left
 		r["status"] = {"name": String(st.name), "resisted": true, "immune": true}
 		return
 	var resist := Check.vs_dv(dice, defender.skill_base(String(st.check)) - defender.action_penalty(), int(st.dv))
@@ -210,15 +210,35 @@ static func apply_status(dice: Dice, defender: Combatant, st: Dictionary, fx: Di
 		r.crits.append(inj)
 	match String(st.name):
 		"cyberware_disabled":
-			# HOUSE-RULE (the GM picks two, p348): the first pieces that do something in a fight.
+			# Any two pieces of cyberware (or carried electronics) go dead for a minute (p348); a limb
+			# with Hardened Shielding and its options are immune (p.367). HOUSE-RULE (the GM picks the
+			# two): pieces whose effect matters in a fight first, in install order, then any other.
 			var hit := 0
-			for cid in defender.cyberware:
+			var cand: Array = microwaver_targets(defender)
+			for p in cand:
 				if hit >= int(fx.get("disable_count", 2)):
 					break
-				if not RulesDB.cyberware(cid).get("fx", {}).is_empty() and not defender.cyber_off.has(cid):
-					defender.cyber_off[cid] = int(st.get("rounds", 20))   # a minute (p126: 3 s turns)
-					hit += 1
+				defender.cyber_off[Cyber.key(p)] = int(st.get("rounds", 20))   # a minute (p126: 3 s turns)
+				hit += 1
 			r.status["pieces"] = hit
+
+
+## What a Microwaver hit can knock out, in the order the GM's pick takes them: every installed piece
+## not already off and not in a limb with Hardened Shielding (CPR core p.367), those whose effect
+## plays in a fight first (fx, or read by the rules by id: Level Damper, Interface Plugs, Subdermal Grip).
+static func microwaver_targets(defender: Combatant) -> Array:
+	var shielded: Array = defender.implants.filter(func(p): return String(p.id) == "hardened_shielding").map(func(p): return String(p.loc))
+	var first: Array = []
+	var rest: Array = []
+	for p in defender.implants:
+		if String(p.loc) in shielded or defender.cyber_off.has(Cyber.key(p)):
+			continue
+		var id := String(p.id)
+		if not (Cyber.def(id).get("fx", {}) as Dictionary).is_empty() or id in ["level_damper", "interface_plugs", "subdermal_grip"]:
+			first.append(p)
+		else:
+			rest.append(p)
+	return first + rest
 
 
 static func _head_crit(id: String) -> Dictionary:
@@ -233,7 +253,7 @@ static func _head_crit(id: String) -> Dictionary:
 ## HOUSE-RULE: a Level Damper (cyberaudio) counts as ear protection.
 static func _self_effects(attacker: Combatant, weapon: Weapon, r: Dictionary) -> void:
 	var ss: Dictionary = weapon.fx().get("self_status", {})
-	if String(ss.get("name", "")) == "damaged_ear" and not attacker.has_cyberware("level_damper") and not attacker.has_injury("damaged_ear"):
+	if String(ss.get("name", "")) == "damaged_ear" and not attacker.cyber_working("level_damper") and not attacker.has_injury("damaged_ear"):
 		attacker.add_injury(RulesDB.crit_table("head")["10"], "head", false)
 		r["self_hurt"] = "damaged_ear"
 
@@ -258,7 +278,7 @@ static func handling_reason(weapon: Weapon, attacker: Combatant) -> String:
 	if req != "":
 		var names: Array[String] = []
 		for cid in req.split("|"):
-			if attacker.has_cyberware(cid):
+			if attacker.cyber_working(cid):   # wired in and not knocked out
 				return ""
 			var db: Dictionary = RulesDB.load_json("cyberware.json")["cyberware"]
 			names.append(String(db[cid].get("name", cid)) if db.has(cid) else cid)

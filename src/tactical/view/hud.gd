@@ -1691,8 +1691,9 @@ static func stat_block(c: Combatant, full: bool, extra: Array = []) -> String:
 		sk.sort_custom(func(a, b): return c.skill_base(a) > c.skill_base(b))
 		if not sk.is_empty():
 			out.append((K % "SKILLS") + " " + ", ".join(sk.slice(0, 8).map(func(k): return "%s %d" % [String(k).replace("_", " ").capitalize(), c.skill_base(k)])))
-		if not c.cyberware.is_empty():
-			out.append((K % "CYBERWARE") + " " + ", ".join(c.cyberware.map(func(x): return String(RulesDB.cyberware(String(x)).get("name", x)))))
+		var chrome := Cyber.shown_names(c.implants)   # pieces whose effect isn't played stay hidden
+		if not chrome.is_empty():
+			out.append((K % "CYBERWARE") + " " + ", ".join(chrome))
 		var kit: Array = c.kit.filter(func(k): return k != "")
 		if not kit.is_empty():
 			out.append((K % "KIT") + " " + ", ".join(kit.map(func(k): return Items.display_name(String(k)))))

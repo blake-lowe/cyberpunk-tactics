@@ -36,19 +36,17 @@ def gen_skills():
     return len(skills)
 
 
-# Machine-readable effects for items the tactical game uses. Keys are interpreted in src/core.
+# Machine-readable effects for items the tactical game uses. Keys are interpreted in src/core
+# (Combatant._cyber_fx and friends); tests/unit/core/test_cyber_data.gd lists the implemented ones.
 CYBER_FX = {
-    "kerenzikov": {"initiative": 2, "speedware": True},
-    "sandevistan": {"initiative_activated": 3, "speedware": True},
-    "pain_editor": {"ignore_seriously_wounded": True, "requires": "chipware_socket"},
-    "neural_link": {"slots": 5},
-    "interface_plugs": {"netrun": True, "requires": "neural_link"},
-    "cyberarm": {"slots": 4, "brawling_min_dice": 2},
-    "cyberleg": {"slots": 3},
-    "biomonitor": {},
+    "kerenzikov": {"initiative": 2},
+    "sandevistan": {"initiative_activated": 3},
+    "interface_plugs": {"netrun": True},
+    "cyberarm": {"brawling_min_dice": 2},
     "subdermal_armor": {"armor_sp": 11},  # body + head, doesn't stack with worn armor
     "skin_weave": {"armor_sp": 7},
     "grafted_muscle_and_bone_lace": {"stat": {"BODY": 2}, "stat_cap": 10},
+    "pain_editor": {"ignore_seriously_wounded": True},
     "toxin_binders": {"skill": {"resist_torture_drugs": 2}},
     "targeting_scope": {"aimed_bonus": 1},
     "wolvers": {"weapon": "heavy_melee"},
@@ -57,11 +55,124 @@ CYBER_FX = {
     "scratchers": {"weapon": "light_melee"},
     "slice_n_dice": {"weapon": "medium_melee"},
     "talon_foot": {"weapon": "light_melee"},
-    "vampyres": {"weapon": "light_melee"},
+    "vampyres": {"weapon": "light_melee", "weapon_quality": "excellent"},  # CPR core p.363: Excellent Quality
     "cybersnake": {"weapon": "very_heavy_melee"},
-    "popup_melee_weapon": {"weapon_choice": "melee", "slots_used": 2},
-    "popup_ranged_weapon": {"weapon_choice": "one_handed_ranged", "slots_used": 2},
+    "popup_melee_weapon": {"weapon_choice": "melee"},
+    "popup_ranged_weapon": {"weapon_choice": "one_handed_ranged"},
 }
+
+# --- Where each piece goes (src/core/cyber.gd reads these; CPR core p.111-116, entries p.358-367) ---
+# host: fashion | neural_link | chipware | eye | cyberaudio | internal | external | arm | leg | limb (arm or
+# leg) | borgware. A piece takes 1 Option Slot unless noted (CPR core p.358 sidebar).
+HOST_BY_CATEGORY = {"fashionware": "fashion", "neuralware": "neural_link", "cyberoptics": "eye", "cyberaudio": "cyberaudio",
+                    "internal_cyberware": "internal", "external_cyberware": "external", "borgware": "borgware"}
+CITE_BY_CATEGORY = {"fashionware": "CPR core p.111, p.358-359", "neuralware": "CPR core p.112, p.359-360",
+                    "cyberoptics": "CPR core p.112-113, p.360-361", "cyberaudio": "CPR core p.113, p.361-362",
+                    "internal_cyberware": "CPR core p.114, p.362-363", "external_cyberware": "CPR core p.114, p.364",
+                    "cyberlimbs": "CPR core p.115-116, p.364-367", "borgware": "CPR core p.116, p.367"}
+LEG_PIECES = {"cyberleg", "standard_foot", "grip_foot", "jump_booster", "skate_foot", "talon_foot", "web_foot"}
+LIMB_PIECES = {"hardened_shielding", "plastic_covering", "realskinn_covering", "superchrome_covering"}
+# Foundations and the Option Slots they hold (CPR core p.111 table; Cybereye p.361, Cyberarm p.364, Cyberleg p.366).
+CAPACITY = {"neural_link": 5, "cybereye": 3, "cyberaudio_suite": 3, "cyberarm": 4, "cyberleg": 3}
+# Option Slots a piece takes when not 1. 0: the coverings (p.367), the Standard Hand/Foot (p.364, p.366)
+# and the Sensor Array (p.367); foundations, chipware (p.359) and Borgware take none either (placement()).
+SLOTS = {"dartgun": 3, "microvideo": 2, "low_light_infrared_uv": 2, "cyberdeck": 3, "medscanner": 2,
+         "popup_grenade_launcher": 2, "popup_melee_weapon": 2, "popup_shield": 3, "popup_ranged_weapon": 2,
+         "shoulder_cam": 2, "techscanner": 2, "jump_booster": 2,
+         "standard_hand": 0, "standard_foot": 0, "plastic_covering": 0, "realskinn_covering": 0,
+         "superchrome_covering": 0, "sensor_array": 0}
+# "Requires two Cybereyes/Cyberlegs and must be paired": bought twice, one in each, Humanity Loss for each
+# (CPR core p.360-361, p.366-367).
+PAIRED = {"anti_dazzle", "image_enhance", "low_light_infrared_uv", "virtuality", "grip_foot", "jump_booster",
+          "skate_foot", "web_foot"}
+# "Can be installed as the only piece of Cyberware in a meat arm/leg" (CPR core p.364-367).
+MEAT_OK = {"big_knucks", "rippers", "scratchers", "slice_n_dice", "subdermal_grip", "tool_hand", "wolvers",
+           "standard_hand", "talon_foot", "standard_foot"}
+# The Standard Hand/Foot "doesn't count towards the number of pieces of cyberware installed in a meat
+# arm/leg" (CPR core p.364, p.366).
+FREE_IN_MEAT = {"standard_hand", "standard_foot"}
+# One of a group per character: one Speedware (CPR core p.359-360).
+GROUP = {"kerenzikov": "speedware", "sandevistan": "speedware"}
+# One per character: the Cyberaudio Suite (p.362), each Borgware mount (p.367).
+UNIQUE = {"cyberaudio_suite", "artificial_shoulder_mount", "multioptic_mount", "sensor_array"}
+# Several may share a host: Chipware Sockets (CPR core p.359), Interface Plugs (p.359), Light Tattoos (p.358).
+MULTI = {"chipware_socket", "interface_plugs", "light_tattoo"}
+# Subdermal Grip also "takes up a Neuralware Option Slot" (CPR core p.366).
+NEURAL_SLOT = {"subdermal_grip": 1}
+
+# Pieces whose effect the game plays, with the Med Bay's one-line description (player text: no cites).
+# Every other piece gets "unmodelled": it stays in the data for NPC blocks and recruits but is hidden
+# from players and never sold (Cyber.modelled). A foundation is modelled when it plays or holds a piece
+# that does. Played by code rather than fx: Cybereye (teargas, Attack.apply_status), Subdermal Grip
+# (smartgun link, Attack.handling_reason).
+SUMMARY = {
+    "neural_link": "Wired nervous system: holds 5 neuralware options.",
+    "kerenzikov": "+2 Initiative. Only one speedware.",
+    "chipware_socket": "Holds one chip.",
+    "pain_editor": "Chip: ignore Seriously Wounded penalties.",
+    "cybereye": "Artificial eye with 3 option slots. With two, teargas can't touch you.",
+    "targeting_scope": "+1 to Aimed Shots.",
+    "skin_weave": "SP 7 under the skin, head and body. Mends 1 SP a day of rest.",
+    "subdermal_armor": "SP 11 under the skin, head and body. Mends 1 SP a day of rest.",
+    "grafted_muscle_and_bone_lace": "+2 BODY (max 10): more HP.",
+    "toxin_binders": "+2 Resist Torture/Drugs.",
+    "cybersnake": "Very heavy melee weapon in the throat.",
+    "vampyres": "Excellent light melee fangs.",
+    "cyberarm": "Replacement arm with 4 option slots. Punches hit for at least 2d6.",
+    "big_knucks": "Medium melee knuckles. Fits a meat arm.",
+    "rippers": "Medium melee claws. Fits a meat arm.",
+    "scratchers": "Light melee nails. Fits a meat arm.",
+    "slice_n_dice": "Medium melee monowire whip. Fits a meat arm.",
+    "wolvers": "Heavy melee claws. Fits a meat arm.",
+    "subdermal_grip": "Fire smartguns without Interface Plugs. Takes a neuralware slot; fits a meat arm.",
+    "talon_foot": "Light melee blade in the foot. Fits a meat leg.",
+}
+
+FOUNDATION_OF_HOST = {"neural_link": "neural_link", "chipware": "chipware_socket", "eye": "cybereye",
+                      "cyberaudio": "cyberaudio_suite", "arm": "cyberarm", "leg": "cyberleg", "limb": "cyberarm"}
+
+
+def placement(sid, category, inst):
+    """The slot-model fields for one piece (documented in src/core/cyber.gd)."""
+    if category == "cyberlimbs":
+        host = "leg" if sid in LEG_PIECES else "limb" if sid in LIMB_PIECES else "arm"
+    elif category == "neuralware" and inst == "chip":
+        host = "chipware"
+    else:
+        host = HOST_BY_CATEGORY[category]
+    if sid == "sensor_array":
+        host = "cyberaudio"
+    out = {"host": host}
+    if sid in CAPACITY:
+        out["foundation"] = True
+        out["capacity"] = CAPACITY[sid]
+        out["slots"] = 0
+    elif host in ("chipware", "borgware"):
+        out["slots"] = 0
+    else:
+        out["slots"] = SLOTS.get(sid, 1)
+    need = ""
+    if not out.get("foundation"):
+        need = "" if sid in MEAT_OK else FOUNDATION_OF_HOST.get(host, "")
+        if sid in NEURAL_SLOT:
+            need = "neural_link"
+    if sid == "chipware_socket":
+        need = "neural_link"
+    out["needs"] = need
+    for flag, ids in (("paired", PAIRED), ("meat_ok", MEAT_OK), ("free_in_meat", FREE_IN_MEAT), ("unique", UNIQUE), ("multi", MULTI)):
+        if sid in ids:
+            out[flag] = True
+    if sid in GROUP:
+        out["group"] = GROUP[sid]
+    if sid in NEURAL_SLOT:
+        out["neural_slot"] = NEURAL_SLOT[sid]
+    if sid in SUMMARY:
+        out["summary"] = SUMMARY[sid]
+    else:
+        out["unmodelled"] = True
+    out["cite"] = CITE_BY_CATEGORY[category]
+    return out
+
 
 INSTALL = {"M": "mall", "C": "clinic", "H": "hospital", "-": "chip"}
 
@@ -103,7 +214,8 @@ def gen_cyberware():
                           "borgware": category == "borgware"}
             if sid in CYBER_FX:
                 items[sid]["fx"] = CYBER_FX[sid]
-    missing = sorted(set(CYBER_FX) - set(items))
+            items[sid].update(placement(sid, category, items[sid]["install"]))
+    missing = sorted((set(CYBER_FX) | set(SUMMARY)) - set(items))
     out = {"_source": "Generated by tools/gen_rules_data.py from docs/rules/cyber-net.md (CPR core p111-116).", "cyberware": items}
     json.dump(out, open("data/rules/cyberware.json", "w"), indent=1)
     return len(items), missing

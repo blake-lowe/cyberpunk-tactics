@@ -58,7 +58,7 @@ var addictions: Array[String] = []    ## drug ids they're hooked on (p.229): the
 var clean_since := {}                 ## drug id → campaign day Addiction Therapy freed them of it (p230: a year of auto-fails)
 var drug_humanity := {}               ## this gig: drug id → Humanity it cost (Black Lace refunds it on resisting addiction)
 var burning := 0                 ## on fire: HP lost at the end of each turn until an Action puts it out (Hellhound 2, p207; flamethrower 4, p348)
-var cyber_off := {}              ## cyberware id → rounds it stays inoperable (Microwaver, p348)
+var cyber_off := {}              ## Cyber.key(piece) ("cybereye@left_eye") → rounds it stays inoperable (Microwaver, p348)
 var programs: Array[String] = [] ## cyberdeck Programs (netrunners start with Sword and Armor, p98)
 var stimmed := false             ## Stim: ignore Seriously Wounded penalties (1 hour = the gig)
 var speedhealed := false         ## Speedheal: once per day   ## Role specialisation perks (data/rules/perks.json, HOUSE-RULE)
@@ -67,7 +67,9 @@ var awareness: Dictionary = {}
 var tracks_humanity := false  ## Mooks skip Humanity entirely.
 var humanity: int = 0
 var max_humanity: int = 0
-var cyberware: Array[String] = []
+## Installed cyberware, one {"id", "loc"} per piece (Cyber: locations, slots, what fits). Change it
+## through install_cyberware / remove_cyberware, which keep subdermal armour and built-in weapons in step.
+var implants: Array[Dictionary] = []
 var subdermal: Dictionary = {}  ## location → ArmorPiece from Subdermal Armor / Skin Weave.
 ## Per-Round trackers for "first X this Round" abilities. Reset by new_round().
 var skip_next_action := false  ## Spinal Injury (p221).
@@ -448,79 +450,122 @@ func init_humanity() -> void:
 	max_humanity = humanity
 
 
-## Install cyberware. At character creation Humanity Loss uses the flat value; afterwards it's
-## rolled (p111). Each piece with HL lowers max Humanity by 2, Borgware by 4 (p230).
-## Returns the Humanity lost.
-func install_cyberware(cyber_id: String, dice: Dice = null, at_creation: bool = false) -> int:
-	var d: Dictionary = RulesDB.cyberware(cyber_id)
-	cyberware.append(cyber_id)
+## Install a piece at `loc` (Cyber locations; "" = Cyber.auto_loc, and where nothing fits, as for a
+## printed stat block, Cyber.fallback_loc). Doesn't check that it fits: Campaign.install_block and
+## Cyber.block do. At character creation Humanity Loss uses the flat value; afterwards it's rolled
+## (p111). Each piece with HL lowers max Humanity by 2, Borgware by 4 (p230); a paired option is
+## two pieces, each paid for (CPR core p.361). Returns the Humanity lost.
+func install_cyberware(cyber_id: String, dice: Dice = null, at_creation: bool = false, loc: String = "") -> int:
+	var d: Dictionary = Cyber.def(cyber_id)
+	var where := loc if loc != "" else Cyber.auto_loc(implants, cyber_id)
+	implants.append({"id": cyber_id, "loc": where if where != "" else Cyber.fallback_loc(cyber_id)})
 	var fx: Dictionary = d.get("fx", {})
-	if fx.has("armor_sp"):
-		for loc in ["body", "head"]:
-			var a := ArmorPiece.new()
-			a.id = cyber_id
-			a.name = d["name"]
-			a.max_sp = int(fx["armor_sp"])
-			a.sp = a.max_sp
-			subdermal[loc] = a
+	if fx.has("armor_sp") and (subdermal.is_empty() or int(fx["armor_sp"]) > (subdermal["body"] as ArmorPiece).max_sp):
+		_set_subdermal(cyber_id)   # only the highest SP counts (p184)
 	if fx.has("weapon"):   # built-in melee weapons (Wolvers, Big Knucks...): keep the hardest-hitting one
-		var nw := Weapon.from_id(String(fx["weapon"]))
-		nw.builtin = true
+		var nw := _builtin_weapon(fx)
 		var melee := weapons.filter(func(x): return x.is_melee())
 		if melee.all(func(x): return x.dice() < nw.dice() or not x.builtin):
 			for old in melee:
 				weapons.erase(old)
 			weapons.append(nw)
 	var loss := 0
-	if tracks_humanity and int(d["hl_flat"]) > 0:
+	if tracks_humanity and int(d.get("hl_flat", 0)) > 0:
 		loss = int(d["hl_flat"]) if at_creation or dice == null else roll_hl(dice, d["hl_dice"])
 		humanity -= loss
-		max_humanity -= 4 if d["borgware"] else 2
+		max_humanity -= 4 if d.get("borgware", false) else 2
 		humanity = mini(humanity, max_humanity)
 	return loss
 
 
+static func _builtin_weapon(fx: Dictionary) -> Weapon:
+	var w := Weapon.from_id(String(fx["weapon"]), String(fx.get("weapon_quality", "standard")))   # Vampyres: Excellent (p.363)
+	w.builtin = true
+	return w
+
+
+func _set_subdermal(cyber_id: String) -> void:
+	for loc in ["body", "head"]:
+		var a := ArmorPiece.new()
+		a.id = cyber_id
+		a.name = Cyber.display(cyber_id)
+		a.max_sp = int(Cyber.def(cyber_id)["fx"]["armor_sp"])
+		a.sp = a.max_sp
+		subdermal[loc] = a
+
+
+## The installed ids, one per piece, in install order ("cybereye" twice for two Cybereyes).
+func cyber_ids() -> Array[String]:
+	var out: Array[String] = []
+	for p in implants:
+		out.append(String(p.id))
+	return out
+
+
 func has_cyberware(cyber_id: String) -> bool:
-	return cyber_id in cyberware
+	return implants.any(func(p): return String(p.id) == cyber_id)
+
+
+## Whether a piece of it is installed and working now: not knocked out by a Microwaver, and for a
+## paired option both halves in (Cyber.active_ids).
+func cyber_working(cyber_id: String) -> bool:
+	return cyber_id in Cyber.active_ids(implants, cyber_off)
+
+
+## The installed piece of `cyber_id` at `loc` ("" = the last one installed), {} if none.
+func implant(cyber_id: String, loc: String = "") -> Dictionary:
+	for i in range(implants.size() - 1, -1, -1):
+		var p: Dictionary = implants[i]
+		if String(p.id) == cyber_id and (loc == "" or String(p.loc) == loc):
+			return p
+	return {}
+
+
+## Skin Weave and Subdermal Armor mend: each day of natural healing repairs 1 lost SP in both the
+## body and the head location (CPR core p.364).
+func mend_subdermal(days: int) -> void:
+	for loc in subdermal:
+		var a: ArmorPiece = subdermal[loc]
+		if a:
+			a.sp = mini(a.max_sp, a.sp + maxi(0, days))
 
 
 ## Take a piece out (a Medtech's harvest, CPR core p226: the piece doesn't survive it in this game,
-## see Campaign.remove). What it gave goes with it: subdermal armour, a built-in weapon (the next
-## hardest-hitting one left takes its place), a STAT bonus (HP over the new maximum is lost).
-## Humanity lost to it is not given back: the book returns Humanity only through therapy
-## (p229-230). The cap it took (2, Borgware 4, p230) comes back so therapy can restore it
-## (RULES-UNVERIFIED: p230 doesn't say whether the cap recalculates on removal; docs/rules/cyber-net.md).
-## Returns false if it isn't installed.
-func remove_cyberware(cyber_id: String) -> bool:
-	if not cyber_id in cyberware:
+## see Campaign.remove): the one at `loc`, or the last one installed. What it gave goes with it:
+## subdermal armour, a built-in weapon (the next hardest-hitting one left takes its place), a STAT
+## bonus (HP over the new maximum is lost). Humanity lost to it is not given back: the book returns
+## Humanity only through therapy (p229-230). The cap it took (2, Borgware 4, p230) comes back so
+## therapy can restore it (RULES-UNVERIFIED: p230 doesn't say whether the cap recalculates on
+## removal; docs/rules/cyber-net.md). Returns false if it isn't installed.
+func remove_cyberware(cyber_id: String, loc: String = "") -> bool:
+	var piece := implant(cyber_id, loc)
+	if piece.is_empty():
 		return false
-	cyberware.erase(cyber_id)
-	var d: Dictionary = RulesDB.cyberware(cyber_id)
+	implants.erase(piece)
+	cyber_off.erase(Cyber.key(piece))
+	var d: Dictionary = Cyber.def(cyber_id)
 	var fx: Dictionary = d.get("fx", {})
 	if fx.has("armor_sp"):
-		subdermal.clear()
-		for cid in cyberware:   # another subdermal piece still under the skin
-			var ofx: Dictionary = RulesDB.cyberware(cid).get("fx", {})
-			if ofx.has("armor_sp") and (subdermal.is_empty() or int(ofx.armor_sp) > (subdermal["body"] as ArmorPiece).max_sp):
-				for loc in ["body", "head"]:
-					var a := ArmorPiece.new()
-					a.id = cid
-					a.name = RulesDB.cyberware(cid)["name"]
-					a.max_sp = int(ofx["armor_sp"])
-					a.sp = a.max_sp
-					subdermal[loc] = a
+		var best := ""
+		for cid in cyber_ids():   # another subdermal piece still under the skin
+			var ofx: Dictionary = Cyber.def(cid).get("fx", {})
+			if ofx.has("armor_sp") and (best == "" or int(ofx.armor_sp) > int(Cyber.def(best).fx.armor_sp)):
+				best = cid
+		if best != String((subdermal.get("body") as ArmorPiece).id if subdermal.get("body") else ""):
+			subdermal.clear()
+			if best != "":
+				_set_subdermal(best)
 	if fx.has("weapon"):
 		weapons.assign(weapons.filter(func(w): return not w.builtin))
-		var best: Weapon = null
-		for cid in cyberware:
-			var ofx: Dictionary = RulesDB.cyberware(cid).get("fx", {})
+		var bw: Weapon = null
+		for cid in cyber_ids():
+			var ofx: Dictionary = Cyber.def(cid).get("fx", {})
 			if ofx.has("weapon"):
-				var nw := Weapon.from_id(String(ofx["weapon"]))
-				if best == null or nw.dice() > best.dice():
-					best = nw
-		if best:
-			best.builtin = true
-			weapons.append(best)
+				var nw := _builtin_weapon(ofx)
+				if bw == null or nw.dice() > bw.dice():
+					bw = nw
+		if bw:
+			weapons.append(bw)
 	if tracks_humanity and int(d.get("hl_flat", 0)) > 0:
 		max_humanity += 4 if d.get("borgware", false) else 2
 	hp = mini(hp, max_hp())
@@ -589,12 +634,12 @@ func cyber_fx_sum(key: String) -> int:
 	return t
 
 
+## Effects of the cyberware that works now: one per id (benefits don't stack, p111), none from a
+## piece knocked out (Microwaver) or a paired option missing its other half (Cyber.active_ids).
 func _cyber_fx() -> Array:
 	var out := []
-	for cid in cyberware:
-		if int(cyber_off.get(cid, 0)) > 0:
-			continue   # knocked out (Microwaver): no effect until it comes back
-		var fx: Dictionary = RulesDB.cyberware(cid).get("fx", {})
+	for cid in Cyber.active_ids(implants, cyber_off):
+		var fx: Dictionary = Cyber.def(cid).get("fx", {})
 		if not fx.is_empty():
 			out.append(fx)
 	out.append_array(drug_fx)   # drugs in the system (Black Lace: shrug off serious wounds, p.358)
@@ -723,7 +768,7 @@ func to_dict() -> Dictionary:
 		"subdermal": sub, "injuries": injuries, "base_dsp": base_dsp, "dsp": dsp, "dead": dead, "unconscious": unconscious,
 		"weapons": weapons.map(func(w): return {"id": w.id(), "ammo": w.ammo, "builtin": w.builtin, "quality": w.quality}), "role": role,
 		"role_rank": role_rank, "awareness": awareness, "tracks_humanity": tracks_humanity, "humanity": humanity,
-		"max_humanity": max_humanity, "cyberware": cyberware, "ip": ip, "look_seed": look_seed, "perks": perks, "medicine": medicine, "maker": maker, "downtime": downtime, "programs": programs,
+		"max_humanity": max_humanity, "cyberware": implants, "ip": ip, "look_seed": look_seed, "perks": perks, "medicine": medicine, "maker": maker, "downtime": downtime, "programs": programs,
 		"kit": kit, "addictions": addictions, "clean_since": clean_since, "reputation": reputation}
 
 
@@ -762,8 +807,14 @@ static func from_dict(d: Dictionary) -> Combatant:
 	c.tracks_humanity = bool(d.tracks_humanity)
 	c.humanity = int(d.humanity)
 	c.max_humanity = int(d.max_humanity)
-	for cw in d.cyberware:
-		c.cyberware.append(String(cw))
+	var flat: Array = []   # bare ids (a hand-written dict, an older save the migration missed): placed by Cyber
+	for cw in d.get("cyberware", []):
+		if cw is Dictionary and Cyber.db().has(String(cw.get("id", ""))):
+			c.implants.append({"id": String(cw.id), "loc": String(cw.get("loc", Cyber.fallback_loc(String(cw.id))))})
+		elif cw is String:
+			flat.append(cw)
+	if not flat.is_empty():
+		c.implants.append_array(Cyber.place_ids(flat))
 	c.ip = int(d.get("ip", 0))
 	c.look_seed = int(d.get("look_seed", -1))
 	c.downtime = String(d.get("downtime", "recover"))

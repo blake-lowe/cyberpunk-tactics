@@ -265,7 +265,7 @@ func test_campaign_rolls_it_at_the_start_and_saves() -> void:
 	assert_true("--street=gang_war" in CustomGig.to_flags(f))
 	# The save: the current version, and a v17 save's last form gains its field.
 	var d: Dictionary = JSON.parse_string(JSON.stringify(c2.to_dict()))
-	assert_eq(int(d.version), 18)
+	assert_eq(int(d.version), SaveMigrations.CURRENT)
 	var old := d.duplicate(true)
 	old["version"] = 17
 	old["last_custom"] = {"seed": 4}

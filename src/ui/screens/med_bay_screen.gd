@@ -6,7 +6,7 @@ extends SafehouseScreen
 ## (Addiction and Humanity Loss Therapy by a Medtech, p229-230) and Treatment for Critical
 ## Injuries (p223). The crew cards here show each member's last-gig health marks.
 
-var _confirm := ""   ## the installed piece whose REMOVE is waiting for a second press
+var _confirm := ""   ## the installed piece ("id@loc") whose REMOVE is waiting for a second press
 
 
 func room_name() -> String:
@@ -76,11 +76,12 @@ func _ripperdoc(body: VBoxContainer) -> void:
 	var lists := UiKit.hbox(10)
 	lists.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	right.add_child(lists)
-	# installed
+	# installed: the pieces players can see (Cyber.shown), each with where it sits
 	var a := _list_panel(lists, "INSTALLED")
-	for id in c.cyberware:
-		a.add_child(_installed_row(c, String(id)))
-	if c.cyberware.is_empty():
+	var shown := Cyber.shown(c.implants)
+	for p in shown:
+		a.add_child(_installed_row(c, String(p.id), String(p.loc)))
+	if shown.is_empty():
 		a.add_child(none("No cyberware."))
 	# in storage
 	var st := _list_panel(lists, "IN STORAGE")
@@ -107,15 +108,13 @@ func _list_panel(parent: Control, heading: String) -> VBoxContainer:
 	return list
 
 
-## What a piece does, in a line (Campaign.RIPPERDOC's paraphrase, else the data's).
+## What a piece does, in a line (the data's summary: player text, no cites).
 static func chrome_summary(id: String) -> String:
-	var d := RulesDB.cyberware(id)
-	return String(Campaign.RIPPERDOC[id][1]) if Campaign.RIPPERDOC.has(id) else String(d.get("effect", ""))
+	return Cyber.summary(id)
 
 
-func _chrome_text(v: VBoxContainer, id: String, extra := "") -> void:
-	var d := RulesDB.cyberware(id)
-	var nm := UiKit.label(String(d.get("name", id)), 16, Hud.VIOLET.lightened(0.35))
+func _chrome_text(v: VBoxContainer, id: String, extra := "", loc := "") -> void:
+	var nm := UiKit.label(Cyber.display(id) + ("  ·  " + Cyber.loc_name(loc) if loc != "" else ""), 16, Hud.VIOLET.lightened(0.35))
 	nm.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	nm.custom_minimum_size.x = 60
@@ -123,60 +122,71 @@ func _chrome_text(v: VBoxContainer, id: String, extra := "") -> void:
 	v.add_child(UiKit.body(chrome_summary(id) + extra, 13, Hud.DIM))
 
 
-func _installed_row(c: Combatant, id: String) -> Control:
+func _installed_row(c: Combatant, id: String, loc: String) -> Control:
 	var row := UiKit.hbox(10)
 	var v := UiKit.vbox(0)
 	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(v)
-	_chrome_text(v, id)
-	var why := camp.remove_block(c, id)
-	var nm := String(RulesDB.cyberware(id).get("name", id))
+	_chrome_text(v, id, "", loc if Cyber.locs_for(id).size() > 1 else "")
+	var why := camp.remove_block(c, id, loc)
+	var nm := Cyber.display(id)
+	var key := "%s@%s" % [id, loc]
 	if why != "":
 		var l := UiKit.label(why, 12, Hud.DIM)
 		l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(l)
-	elif _confirm == id:
+	elif _confirm == key:
 		var bv := UiKit.vbox(4)
 		bv.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(bv)
 		var b := UiKit.button("DESTROY IT", UiKit.DANGER, Callable(), true, 14, true)
-		b.pressed.connect(func(): _confirm = ""; act(b, func(): camp.remove(c, id), nm + " removed", Hud.RED))
+		b.pressed.connect(func(): _confirm = ""; act(b, func(): camp.remove(c, id, loc), nm + " removed", Hud.RED))
 		bv.add_child(b)
 		bv.add_child(UiKit.button("KEEP IT", UiKit.NAV, func(): _confirm = ""; _build(), true, 14, true))
 	else:
-		var b := UiKit.button("REMOVE", UiKit.DANGER, func(): _confirm = id; _build(), true, 14, true)
+		var b := UiKit.button("REMOVE", UiKit.DANGER, func(): _confirm = key; _build(), true, 14, true)
 		b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(b)
 	return row
 
 
+## A stored piece: INSTALL, or one button per side where it could go either way (LEFT EYE /
+## RIGHT EYE), or the reason it can't go in ("No free slot in the left eye").
 func _stored_row(c: Combatant, id: String) -> Control:
-	var d := RulesDB.cyberware(id)
+	var d := Cyber.def(id)
 	var row := UiKit.hbox(10)
 	var v := UiKit.vbox(0)
 	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(v)
-	var need := String(Campaign.RIPPERDOC.get(id, [""])[0])
+	var need := Cyber.needs(id)
 	var extra := " Humanity Loss %s." % String(d.get("hl_dice", ""))
-	if need != "":
-		extra += " Needs %s." % String(RulesDB.cyberware(need).name)
+	if d.get("paired", false):
+		extra += " Paired: one in each %s." % ("leg" if String(d.get("host", "")) == "leg" else "eye")
+	elif need != "":
+		extra += " Needs %s." % Cyber.display(need)
 	var n := camp.stored("cyberware/" + id)
 	if n > 1:
 		extra += "  ·  %d in storage" % n
 	_chrome_text(v, id, extra)
 	var why := camp.install_block(c, id)
 	if why == "":
-		var b := UiKit.button("INSTALL", UiKit.CHROME, Callable())
-		b.custom_minimum_size.x = 120
-		b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		var nm := String(d.name)
-		b.pressed.connect(func():
-			var lost := [0]
-			act(b, func(): lost[0] = camp.install(c, id), "")
-			toast(b, "%s installed · -%d Humanity" % [nm, lost[0]], Hud.VIOLET.lightened(0.35)))
-		row.add_child(b)
+		var bv := UiKit.vbox(4)
+		bv.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(bv)
+		var opts: Array[String] = [""]   # "": wherever it goes (Campaign.install → Cyber.auto_loc)
+		if Cyber.locs_for(id).size() > 1:
+			opts = Cyber.free_locs(c.implants, id)
+		for loc in opts:
+			var b := UiKit.button("INSTALL" if loc == "" else Cyber.loc_name(loc).to_upper(), UiKit.CHROME, Callable())
+			b.custom_minimum_size.x = 120
+			var nm := String(d.name)
+			b.pressed.connect(func():
+				var lost := [0]
+				act(b, func(): lost[0] = camp.install(c, id, loc), "")
+				toast(b, "%s installed · -%d Humanity" % [nm, lost[0]], Hud.VIOLET.lightened(0.35)))
+			bv.add_child(b)
 	else:
-		var l := UiKit.label(why, 12, Hud.GREEN if why == "installed" else Hud.DIM)
+		var l := UiKit.label(why, 12, Hud.DIM)
 		l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(l)
 	return row

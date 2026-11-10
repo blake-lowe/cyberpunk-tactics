@@ -93,8 +93,8 @@ func test_the_malorian_needs_its_smartgun_link() -> void:
 	var w := Weapon.from_id("malorian_arms_3516")
 	var t := Fixtures.unarmored()
 	assert_true(Attack.preview(a, w, t, Attack.Mode.SINGLE, 8.0).reason.begins_with("needs"), "won't fire unlinked (p348)")
-	a.cyberware.append("neural_link")
-	a.cyberware.append("interface_plugs")
+	a.install_cyberware("neural_link")
+	a.install_cyberware("interface_plugs")
 	var std := Weapon.from_id("very_heavy_pistol")
 	assert_eq(Attack.attack_base(a, w, Attack.Mode.SINGLE), Attack.attack_base(a, std, Attack.Mode.SINGLE) + 2, "Excellent +1, smartgun +1")
 
@@ -127,7 +127,8 @@ func test_the_shrieker_deafens_both_ends() -> void:
 	assert_true(deafened)
 	assert_true(a.has_injury("damaged_ear"), "the shooter, without ear protection, too (p349)")
 	var b := Fixtures.shooter("B")
-	b.cyberware.append("level_damper")
+	b.install_cyberware("cyberaudio_suite")
+	b.install_cyberware("level_damper")
 	Attack.resolve(Dice.new(2), b, Weapon.from_id("shrieker"), Fixtures.unarmored(), Attack.Mode.SINGLE, 4.0)
 	assert_false(b.has_injury("damaged_ear"), "a Level Damper protects the shooter (HOUSE-RULE)")
 
@@ -136,7 +137,8 @@ func test_the_microwaver_knocks_out_two_pieces_of_chrome() -> void:
 	var a := Fixtures.shooter("A", {"REF": 8})
 	var w := Weapon.from_id("microwaver")
 	var t := Fixtures.unarmored("T", {"TECH": 2})
-	t.cyberware.append_array(["kerenzikov", "neural_link", "sandevistan"])
+	for id in ["neural_link", "kerenzikov", "sandevistan"]:
+		t.install_cyberware(id)
 	var before := t.initiative_bonus()
 	var done := false
 	for s in 300:
@@ -149,6 +151,27 @@ func test_the_microwaver_knocks_out_two_pieces_of_chrome() -> void:
 			done = true
 			break
 	assert_true(done)
+
+
+## Any cyberware can go dead, not only pieces with a modelled effect (p348): a Cybereye, a Level
+## Damper (which then stops protecting the ear). A limb with Hardened Shielding is immune (p.367).
+func test_the_microwaver_takes_any_chrome_but_not_a_hardened_limb() -> void:
+	var t := Fixtures.unarmored("T", {"TECH": 2})
+	for id in ["cybereye", "cyberaudio_suite", "level_damper"]:
+		t.install_cyberware(id)
+	assert_eq(Attack.microwaver_targets(t).map(func(p): return String(p.id)), ["level_damper", "cybereye", "cyberaudio_suite"],
+		"the Level Damper (read by the rules) first, then any other piece")
+	var r := {"crits": []}
+	var st := {"name": "cyberware_disabled", "check": "cybertech", "dv": 99, "rounds": 20}
+	Attack.apply_status(Dice.new(1), t, st, {"disable_count": 2}, r)
+	assert_eq(int(r.status.pieces), 2)
+	assert_true(t.cyber_off.has("cybereye@right_eye"), "an eye with no fx of its own still goes dead")
+	assert_false(t.cyber_working("level_damper"), "the Level Damper is off: no ear protection")
+	var h := Fixtures.unarmored("H")
+	for id in ["cyberarm", "hardened_shielding", "wolvers"]:
+		h.install_cyberware(id, null, false, "right_arm")
+	h.install_cyberware("cybereye")
+	assert_eq(Attack.microwaver_targets(h).map(func(p): return String(p.id)), ["cybereye"], "the shielded arm and its options are immune")
 
 
 func test_heavy_exotics_reload_over_two_actions() -> void:

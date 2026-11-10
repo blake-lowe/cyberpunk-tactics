@@ -69,6 +69,8 @@ static func in_filter(filter: String, key: String) -> bool:
 		"armor": return Items.is_armor(key)
 		"consumable": return Items.fits(0, key) and Items.is_item(key)
 		"utility": return Items.fits(1, key) and Items.is_item(key)
+	if Items.is_cyberware(key):
+		return Items.is_stored(key) and Cyber.modelled(Items.base_id(key))   # chrome whose effect isn't played stays hidden
 	return Items.is_stored(key)
 
 
@@ -101,10 +103,9 @@ static func best_slot(c: Combatant, key: String) -> String:
 static func chrome_name(c: Combatant, w: Weapon) -> String:
 	if c == null or not w.builtin:
 		return ""
-	var db: Dictionary = RulesDB.load_json("cyberware.json")["cyberware"]
-	for id in c.cyberware:
-		if db.has(id) and String((db[id].get("fx", {}) as Dictionary).get("weapon", "")) == w.id():
-			return String(db[id].get("name", id))
+	for id in c.cyber_ids():
+		if String((Cyber.def(id).get("fx", {}) as Dictionary).get("weapon", "")) == w.id():
+			return Cyber.display(id)
 	return ""
 
 

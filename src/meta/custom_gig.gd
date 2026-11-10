@@ -285,8 +285,8 @@ static func goods(value: int) -> Array:
 		keys.append("weapon/%s" % id)
 	for id in RulesDB.load_json("armor.json")["armor"]:
 		keys.append("armor/%s" % id)
-	for id in Campaign.RIPPERDOC:
-		keys.append("cyberware/%s" % id)
+	for id in Cyber.db():
+		keys.append("cyberware/%s" % id)   # on_sale below keeps what plays
 	keys.append_array(Items.all())
 	var out: Array = []
 	for k in keys:

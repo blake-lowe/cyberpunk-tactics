@@ -284,3 +284,30 @@ func test_v13_generic_offers_are_dropped_and_the_board_refilled() -> void:
 	d2["version"] = 13
 	var c2 := Campaign.from_dict(JSON.parse_string(JSON.stringify(d2)))
 	assert_eq(c2.board.map(func(g): return [String(g.id), String(g.location)]), Campaign.new_game(31).board.map(func(g): return [String(g.id), String(g.location)]), "a v13 board of canon offers loads as it was")
+
+
+## v18 saves held installed chrome as a flat list of ids; v19 gives each piece its location
+## (Cyber.place_ids): the first Cybereye to the right eye, the second to the left, options into a
+## host with room, a meat-arm piece into a meat arm; nothing is lost.
+func test_v18_flat_cyberware_gets_locations() -> void:
+	var d := Campaign.new_game(4).to_dict()
+	d["version"] = 18
+	d.crew[0]["cyberware"] = ["targeting_scope", "cybereye", "anti_dazzle", "cybereye", "anti_dazzle", "wolvers", "pain_editor",
+		"chipware_socket", "neural_link", "kerenzikov", "no_such_chrome"]
+	d.crew[1]["cyberware"] = []
+	var mig := SaveMigrations.migrate(JSON.parse_string(JSON.stringify(d)))
+	var by_loc := {}
+	for p in mig.crew[0].cyberware:
+		by_loc[String(p.id) + "@" + String(p.loc)] = true
+	for k in ["cybereye@right_eye", "cybereye@left_eye", "targeting_scope@right_eye", "anti_dazzle@right_eye", "anti_dazzle@left_eye",
+			"wolvers@right_arm", "neural_link@neural_link", "chipware_socket@neural_link", "kerenzikov@neural_link", "pain_editor@chipware"]:
+		assert_true(by_loc.has(k), "%s placed: %s" % [k, by_loc.keys()])
+	assert_eq((mig.crew[0].cyberware as Array).size(), 10, "every known piece kept, the unknown one dropped")
+	assert_eq(mig.crew[1].cyberware, [])
+	var c := Campaign.from_dict(JSON.parse_string(JSON.stringify(d)))
+	var m: Combatant = c.crew[0]
+	assert_true(m.cyber_working("anti_dazzle"), "a pair placed in both eyes works")
+	assert_eq(m.implant("cybereye", "left_eye").loc, "left_eye")
+	var back := Combatant.from_dict(JSON.parse_string(JSON.stringify(m.to_dict())))
+	assert_eq(back.implants, m.implants, "locations survive a save")
+	assert_eq(int(c.to_dict().version), SaveMigrations.CURRENT)
