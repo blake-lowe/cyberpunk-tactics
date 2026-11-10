@@ -11,14 +11,14 @@
   "backdoor": {
    "name": "Backdoor",
    "cost": "1 NET Action",
-   "text": "Break the Password that bars the way deeper. It stays open until you jack out; knowing the password gets you through without a roll.",
+   "text": "Crack a password that secures a path. Knowing the password gets you through without a roll.",
    "key": "Interface + 1d10 vs the Password's DV",
    "page": "p.199"
   },
   "control": {
    "name": "Control",
    "cost": "1 NET Action",
-   "text": "Take a Control Node and its cameras, turrets, locks, lights or elevators. Then work each from the HELD NODES rows, a NET Action each, from anywhere in the NET. Held cameras feed you what they see. Jacking out drops every node.",
+   "text": "Take control of a node and its devices. Using a held node's devices costs one NET Action each, and each node works once per turn.",
    "key": "Interface + 1d10 vs the Node's DV",
    "page": "p.199"
   },
@@ -81,14 +81,14 @@
   "held": {
    "name": "Held Control Node",
    "cost": "held until you jack out",
-   "text": "You hold this node. Each row is one NET Action, from anywhere in the NET; the node acts once a turn. Its devices carry the HELD badge on the map.",
+   "text": "You hold this node.",
    "key": "no roll: holding it is enough",
    "page": "p.199"
   },
   "dev_loop": {
    "name": "Loop Camera Feed",
    "cost": "1 NET Action",
-   "text": "The node's cameras show the site a recording and stop reporting. You still see the real feed. Restore it the same way.",
+   "text": "The node's cameras show the site a recording and stop reporting. You still see the real feed.",
    "key": "no roll · all the node's cameras at once",
    "page": "p.199, p.215"
   },
@@ -123,7 +123,7 @@
   "dev_cut_alarm": {
    "name": "Cut Alarm Line",
    "cost": "1 NET Action",
-   "text": "Cut the site's alarm line: help takes twice as long to come. Restore it the same way.",
+   "text": "Cut the site's alarm line: help takes twice as long to come.",
    "key": "no roll · response time x2",
    "page": "p.199"
   },
@@ -137,7 +137,7 @@
   "dev_distract": {
    "name": "Start Up",
    "cost": "1 NET Action",
-   "text": "Start the machine (or page over the PA). Unalerted guards near it on its floor turn to look.",
+   "text": "Distract guards.",
    "key": "no roll · guards within 10 squares",
    "page": "p.199"
   }

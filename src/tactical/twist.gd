@@ -22,7 +22,7 @@ extends RefCounted
 ## - response_mult: the response timers counting down are scaled (halved);
 ## - mark "flee": the mark is tipped off and runs for an exit;
 ## - tier_up "target": the mark (else the opposition's strongest) steps up a tier, in place;
-## - clock: a Solo Play Clock starts (Clocks.add: time_limit);
+## - clock: a Solo Play Clock starts (Clocks.add; its only row, time_limit, is cut with its clock);
 ## - devices {camera: n, turret: n}: extra devices in the target building (start only: the view
 ##   builds devices with the map);
 ## - weather "roll": the weather turns (Weather.turn: a storm or hazard from atmospheres.json

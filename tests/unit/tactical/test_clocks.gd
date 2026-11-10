@@ -1,7 +1,7 @@
 extends TestCase
 ## Solo Play Clocks in the encounter (Clocks; SPM p.25-26): the detection clock on a stealth gig,
 ## its triggers, emptying into the alarm (the NC2045 response timer after the call), Degrees of
-## Consequence, winning dice back, and the Time Limit clock.
+## Consequence and winning dice back.
 
 static var _maps := {}
 
@@ -175,31 +175,3 @@ func test_looping_cameras_from_the_net_wins_a_die_back_once_per_device() -> void
 	assert_eq(c.pool, c.size - 1, "that device has fooled them once already")
 	Clocks.on_net_device(e, cam, "loop", false)
 	assert_eq(c.pool, c.size - 1, "restoring a feed wins nothing")
-
-
-func test_time_limit_blows_an_unfinished_job_or_brings_the_response() -> void:
-	var e := _enc()
-	var t := Clocks.add(e, "time_limit")
-	assert_eq(t.size, 4)
-	assert_eq(t.drop_on, [1, 6], "barely enough time: the harder variant")
-	assert_eq(t.triggers, ["round"])
-	var r0 := t.rolls
-	e.init.round_num += 1
-	Clocks.round_start(e)
-	assert_eq(t.rolls, r0 + 1, "rolled at the top of every round")
-	e.init.round_num += 1
-	t.pool = 1
-	Clocks.trigger(e, "round", -1, "test", [6])
-	assert_eq(e.state, "lost", "the window closed on an unfinished job")
-	var e2 := _enc("snatch")
-	var t2 := Clocks.add(e2, "time_limit")
-	e2.units[0].pos = e2.objective.cell
-	e2.objective.carrier = int(e2.units[0].id)   # the package in hand, off the deploy zone
-	t2.pool = 1
-	var n := e2.units.size()
-	e2.init.round_num += 1
-	Clocks.trigger(e2, "round", -1, "test", [1])
-	assert_eq(e2.state, "playing")
-	assert_eq(e2.alarm, 2)
-	assert_eq(e2.backup_in, 0, "the response is on them now")
-	assert_true(e2.units.size() > n, "and it's here")

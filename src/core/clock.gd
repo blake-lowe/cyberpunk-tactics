@@ -18,7 +18,7 @@ extends RefCounted
 
 const STATES := ["running", "empty", "stopped"]
 
-var id := ""                       ## what the clock tracks: "detection", "time_limit", ...
+var id := ""                       ## what the clock tracks: "detection", ...
 var label := ""                    ## the HUD's name ("DETECTION")
 var size := 0                      ## dice the clock started with (the cap for add_die)
 var pool := 0                      ## dice left
