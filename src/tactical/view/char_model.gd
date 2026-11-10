@@ -581,6 +581,12 @@ func _pick(now: bool) -> void:
 		clip = ["idle_look", "idle_phone", "idle_shift", "idle_talk"][index % 4]
 	elif serious:
 		clip = "injured_idle"
+	if get_meta("hands_free", false):
+		clip = hands_free_clip(clip, get_meta("scared", false))
+	_cower_t = 0.0 if clip != "cower" else _cower_t
+	if clip == "cower":
+		_hold_cower()
+		return
 	if clip != state:
 		var quick: bool = clip.ends_with("_crouch") and Time.get_ticks_msec() < _duck_until or state.ends_with("_crouch") and _duck_until > 0
 		state = clip
@@ -590,6 +596,51 @@ func _pick(now: bool) -> void:
 	var native: float = CharAnims.speed.get(clip, 0.0)
 	var top := INJURED_RATE if clip == "injured_walk" else 2.5
 	anim.speed_scale = clampf(ground_speed() / native, 0.4, top) if native > 0.0 and get_meta("walk", false) else 1.0
+
+
+## A bystander with nothing in hand (hands_free: unarmed, or armed but not hostile) never takes a
+## gun stance (owner, v0.10.1: neutral bystanders dropped into a pistol crouch at a gunshot). Any
+## crouch or aim is a cower (Mixamo's Scared: hunched, arms drawn in over the head), a run is a
+## plain sprint, a walk the everyday walk; standing, a scared one cowers and a calm one shifts.
+static func hands_free_clip(clip: String, scared: bool) -> String:
+	if clip.begins_with("injured_") or not (clip.begins_with("pistol_") or clip.begins_with("rifle_")):
+		return clip   # already hands-free: life, injured, dying, hits, deaths
+	if clip.ends_with("_crouch") or clip.ends_with("_aim"):
+		return "cower"
+	if clip.ends_with("_run") or clip.ends_with("_sprint"):
+		return "flee_run"
+	if clip.ends_with("_walk"):
+		return "civ_walk"
+	if clip.ends_with("_idle"):
+		return "cower" if scared else "idle_shift"
+	return clip   # a reload: never asked of a bystander
+
+
+## Cowering: the library has no cower loop (Mixamo's Scared crouches, then gets up and backs
+## off), so this holds its crouched start (COWER_AT, swaying a little) and the Pose layer folds the
+## arms over the head (HANDS_HEAD), as the surrender holds the kneel.
+const COWER_AT := 0.35
+var _cower_t := 0.0   ## 0..1: the arms going over the head
+
+
+func _hold_cower() -> void:
+	if not anim.has_animation("cower"):
+		return
+	if state != "cower":
+		state = "cower"
+		anim.speed_scale = 1.0
+		anim.play("cower", 0.2)
+	anim.seek(COWER_AT + 0.04 * sin(Time.get_ticks_msec() / 400.0 + index), true)
+	_cower_t = minf(1.0, _cower_t + get_process_delta_time() * 4.0)
+
+
+## A bystander's hands (greybox): `on` hides the gun and keeps the body out of every gun stance
+## (hands_free_clip); off (an armed local who has turned hostile) shows the gun again.
+func set_hands_free(on: bool, scared: bool) -> void:
+	set_meta("hands_free", on)
+	set_meta("scared", scared)
+	if gun and gun.get_parent() == skel:   # not one already dropped (surrender)
+		gun.visible = not on
 
 
 ## What a calm bystander's `life` (StreetLife, SceneEvent crowds) looks like: clips picked per body
@@ -962,6 +1013,8 @@ class Pose extends SkeletonModifier3D:
 		var roll := -lh.x * 0.3 * env
 		if model.get_meta("surrender", false):
 			_hands_up(s, model._hands_t)
+		elif model.state == "cower":
+			_hands_head(s, model._cower_t)
 		if absf(pitch) + absf(roll) < 0.0001:
 			model.place_gun(s)
 			return
@@ -984,6 +1037,24 @@ class Pose extends SkeletonModifier3D:
 			var sx := 1.0 if side == "Left" else -1.0
 			_aim_bone(s, side + "UpperArm", Vector3(ARM_OUT.x * sx, ARM_OUT.y, ARM_OUT.z).normalized(), w)
 			_aim_bone(s, side + "LowerArm", Vector3(FOREARM_UP.x * sx, FOREARM_UP.y, FOREARM_UP.z).normalized(), w)
+
+	## Cowering (CharModel._hold_cower): elbows forward and up, forearms folded back over the
+	## crown, hands meeting behind the head. Directions in the body's own space (+Z ahead, +X left).
+	const HEAD_ARM := Vector3(0.4, 0.45, 0.8)
+	const HEAD_FOREARM := Vector3(-0.75, 0.15, -0.45)
+	const HUNCH := 0.18   ## radians forward at each of three spine bones
+
+	func _hands_head(s: Skeleton3D, w: float) -> void:
+		if w <= 0.0:
+			return
+		for b in ["Spine", "Chest", "UpperChest"]:   # hunched over, head down
+			var i := s.find_bone(b)
+			if i >= 0:
+				s.set_bone_pose_rotation(i, s.get_bone_pose_rotation(i) * Quaternion.from_euler(Vector3(HUNCH * w, 0, 0)))
+		for side in ["Left", "Right"]:
+			var sx := 1.0 if side == "Left" else -1.0
+			_aim_bone(s, side + "UpperArm", Vector3(HEAD_ARM.x * sx, HEAD_ARM.y, HEAD_ARM.z).normalized(), w)
+			_aim_bone(s, side + "LowerArm", Vector3(HEAD_FOREARM.x * sx, HEAD_FOREARM.y, HEAD_FOREARM.z).normalized(), w)
 
 	func _aim_bone(s: Skeleton3D, bone: String, want: Vector3, w: float) -> void:
 		var i := s.find_bone(bone)

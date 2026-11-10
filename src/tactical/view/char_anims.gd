@@ -63,16 +63,20 @@ const CLIPS := {
 	"phone_ual": "ual2:Idle_TalkingPhone",
 	"consume": "ual2:Consume",
 	"argue": "mx:idle_argue",
+	# a scared bystander (CharModel.hands_free_clip): no gun stance
+	"cower": "mx:scared",
+	"flee_run": "ual1:Sprint",
 }
 const LOOP := ["rifle_idle", "rifle_aim", "rifle_crouch", "rifle_crouch_aim", "rifle_walk", "rifle_run", "rifle_sprint",
 	"pistol_idle", "pistol_aim", "pistol_walk", "pistol_run", "pistol_sprint", "pistol_crouch", "injured_idle", "injured_walk",
 	"injured_run", "jack", "medtech", "idle_look", "idle_phone", "idle_talk", "idle_shift", "cover_idle", "dying",
-	"civ_walk", "sit", "sit_talk", "dance", "talk_ual", "work", "fold", "phone_ual", "consume", "argue"]
+	"civ_walk", "sit", "sit_talk", "dance", "talk_ual", "work", "fold", "phone_ual", "consume", "argue",
+	"cower", "flee_run"]
 ## Sub-ranges of clips, in seconds: the CPR clip loops on its chest compressions only (owner).
 const TRIM := {"medtech": [0.13, 1.47]}
 ## Playback rate baked in: the big stagger reads better faster (owner).
 const RATE := {"hit_b": 1.6}
-const IN_PLACE := ["rifle_walk", "rifle_run", "rifle_sprint", "pistol_walk", "pistol_run", "pistol_sprint", "injured_walk", "injured_run", "civ_walk"]
+const IN_PLACE := ["rifle_walk", "rifle_run", "rifle_sprint", "pistol_walk", "pistol_run", "pistol_sprint", "injured_walk", "injured_run", "civ_walk", "flee_run"]
 const HIPS := "%GeneralSkeleton:Hips"
 
 static var _lib: AnimationLibrary
