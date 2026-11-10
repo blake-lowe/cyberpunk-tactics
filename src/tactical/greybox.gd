@@ -5021,12 +5021,17 @@ func _zone_outline(cells: Array, col: Color, glow: float) -> MeshInstance3D:
 func _autoplay_rounds() -> bool:
 	if _autoplay <= 0:
 		return false
-	var drv := SoakDriver.new()
+	# Dev-only: tools/ isn't exported, so name SoakDriver through load(), never as a class (a bare
+	# class reference broke the whole greybox, and the safehouse with it, in the v0.10.0 export).
+	const DRIVER := "res://tools/soak_driver.gd"
+	if not ResourceLoader.exists(DRIVER):
+		return false
+	var drv: Object = (load(DRIVER) as Script).new()
 	enc.next_turn()
 	var guard := 0
 	while enc.state == "playing" and enc.init.round_num <= _autoplay and guard < 400:
 		guard += 1
-		drv._crew_turn(enc)
+		drv.call("_crew_turn", enc)
 		if enc.state == "playing":
 			enc.end_turn()
 		if enc.state == "playing":

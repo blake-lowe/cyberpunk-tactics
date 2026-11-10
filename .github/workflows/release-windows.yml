@@ -50,6 +50,13 @@ jobs:
       - name: Unit tests
         run: timeout 1500 tools/test.sh
 
+      - name: Smoke-test the exported build
+        # The unit tests run from the repo; this runs the shipped pack (no tools/, tests/, docs/) and
+        # fails on any script error, so a build like v0.10.0-playtest's can't be published again.
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri >/dev/null
+          tools/export_smoke.sh build/smoke
+
       - name: Export and zip
         run: tools/build_windows.sh "${{ steps.tag.outputs.name }}"
 

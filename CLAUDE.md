@@ -11,6 +11,9 @@ Design source of truth: `docs/design-spec.md`. Milestones and status: `docs/road
   gig loop (SoakDriver: board offers, forced gigs at every set piece; AI both sides; resolve/save/reload;
   invariants, determinism). ~10 s a gig: run it in the background after gig-loop changes.
   `tests/unit/test_soak.gd` is its small pass. Campaign gigs are built by `GigSetup.for_campaign` (greybox and soak share it).
+- The release export leaves out tools/, tests/ and docs/: game code (src/, scenes/) must never name a class from
+  there (load() dev-only scripts by path behind ResourceLoader.exists). `tools/export_smoke.sh` runs the shipped
+  pack (safehouse, jobs, a gig) and fails on script errors; run it before any release (the release workflow does).
 - Gotcha: a parse error in any script a `-s` main script depends on makes Godot hang in the debugger instead of exiting. Always wrap ad-hoc `godot -s` runs in `timeout`, and run code through `tools/test.sh` first to surface parse errors.
 - No GPU in the cloud container: verify logic with tests, not screenshots. Visual work is reviewed by the user locally.
 
