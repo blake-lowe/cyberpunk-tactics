@@ -77,7 +77,7 @@ func build_body(body: VBoxContainer) -> void:
 		body.add_child(finds)
 	var bottom := UiKit.hbox(12)
 	body.add_child(bottom)
-	bottom.add_child(UiKit.body("The crew cards in the Bunks, Med Bay and Training Room keep these marks until the next gig.", 14, Hud.DIM, false))
+	bottom.add_child(UiKit.body("These marks stay on the crew cards until the next gig.", 14, Hud.DIM, false))
 	bottom.add_child(UiKit.spacer())
 	var b := UiKit.button("CONTINUE  ›", UiKit.PRIMARY, func(): closed.emit(), true, 17)
 	b.custom_minimum_size = Vector2(220, 44)
@@ -198,7 +198,7 @@ func _member(m: Dictionary) -> PanelContainer:
 	if int(m.get("humanity_lost", 0)) > 0:
 		_line(v, "HUMANITY", "-%d" % int(m.humanity_lost), Hud.VIOLET.lightened(0.3))
 	if m.get("episode", false):
-		_line(v, "CYBERPSYCHOSIS", "an episode after the job", Hud.RED)
+		_line(v, "CYBERPSYCHOSIS", "an episode after the gig", Hud.RED)
 	return p
 
 

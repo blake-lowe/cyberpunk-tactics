@@ -11,63 +11,63 @@
   "choke": {
    "name": "Choke",
    "cost": "Action",
-   "text": "Squeeze the one you hold: your BODY straight to their HP, armour ignored and not ablated. Someone above 1 HP it would put below 0 is left at 1 HP, Unconscious. Choked three Rounds running, they go out whatever their HP.",
+   "text": "Damage equal to your BODY to the one you hold, ignoring armor. A choke that would kill leaves them Unconscious at 1 HP; three Rounds running puts anyone out.",
    "key": "no roll · damage = your BODY",
    "page": "p.168, p.177"
   },
   "throw": {
    "name": "Throw",
    "cost": "Action",
-   "text": "Throw the one you hold to the ground beside you: your BODY straight to their HP, armour ignored and not ablated. The grapple and its -2 end, and they are Prone until they Get Up.",
+   "text": "Throw the one you hold down: damage equal to your BODY, ignoring armor. The grapple ends and they're Prone.",
    "key": "no roll · damage = your BODY",
    "page": "p.169, p.177"
   },
   "shield": {
    "name": "Human Shield",
    "cost": "Action",
-   "text": "Hold the one you grapple between you and the guns: they are cover against ranged attacks you can see, but not melee or Aimed Shots at your head. They can't dodge, and a shot into them hurts them normally. If they die you hold a corpse shield with HP equal to their BODY.",
+   "text": "Hold the one you grapple between you and the guns: they take the ranged shots, but not melee or Aimed Shots at your head. They can't dodge. If they die, their body is a shield with HP equal to their BODY.",
    "key": "cover · no dodge for the shield",
    "page": "p.169, p.184"
   },
   "release": {
    "name": "Release",
    "cost": "free (a corpse shield: Action)",
-   "text": "Let go: the grapple ends and so does its -2. Dropping a corpse shield takes an Action.",
+   "text": "Let go. The grapple and its -2 end.",
    "key": "",
    "page": "p.177, p.184"
   },
   "escape": {
    "name": "Escape",
    "cost": "Action",
-   "text": "Break the hold on you. Win and the grapple is over: your Move Action is yours again if you haven't used it.",
+   "text": "Break free. Win and your Move Action is back if you haven't used it.",
    "key": "DEX + Brawling + 1d10 vs the holder's, ties to them",
    "page": "p.177"
   },
   "break": {
    "name": "Break Hold",
    "cost": "Action",
-   "text": "Anyone can break a hold: step in beside whoever is holding your friend and pry them loose.",
+   "text": "Pry an ally loose. Stand next to whoever holds them.",
    "key": "DEX + Brawling + 1d10 vs the holder's, ties to them",
    "page": "p.177"
   },
   "get_up": {
    "name": "Get Up",
    "cost": "Action",
-   "text": "Stand up from Prone. Until you do you have no Move Action; once up, your Move Action is back.",
+   "text": "Stand up. While Prone you have no Move Action.",
    "key": "",
    "page": "p.168-169"
   },
   "put_out": {
    "name": "Put Out Fire",
    "cost": "Action",
-   "text": "Beat out the flames. While you're On Fire you take its damage straight to HP at the end of every Turn, armor or not, until you spend an Action on this.",
+   "text": "Beat out the flames. Until you do, the fire hits your HP at the end of every Turn, ignoring armor.",
    "key": "Mild 2, Strong 4, Deadly 6 a Turn",
    "page": "p.180"
   },
   "spoof": {
    "name": "Spoof",
    "cost": "Action",
-   "text": "Fool a camera or an alarm panel within 3 squares to win back time on the detection clock: a looped feed, a panel showing all clear. Success adds a die back (never above the clock's start) and the camera stops reporting. Failure is a failed Electronics/Security Tech check: the clock rolls. Once per clock a turn, each device once.",
+   "text": "Fool a camera or alarm panel within 3 squares. Success wins a die back on the detection clock and the camera stops reporting; failure rolls the clock. Once a turn, and once per device.",
    "key": "TECH + Electronics/Security Tech (+ Field Expertise) vs DV15",
    "page": "p.26",
    "book": "SPM"

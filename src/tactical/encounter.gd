@@ -556,7 +556,7 @@ func _check_end() -> void:
 			state = r
 	if state == "playing" and obj.extracting() and _crew_out():
 		state = "won"
-		say("The crew gets clear. The job's done.")
+		say("The crew gets clear. The gig's done.")
 	if state == "playing":   # the objective taken: the detection clock rolls, a twist may spring
 		Clocks.check_objective(self)
 		Twist.poll(self)
@@ -568,7 +568,7 @@ func _check_end() -> void:
 func _job_done() -> void:
 	objective["done"] = true
 	objective["extract"] = true
-	say("The job's done. Get to the extraction zone.")
+	say("The gig's done. Get to the extraction zone.")
 	events.append({"type": "job_done", "unit": int(cur.get("id", 0)) if not cur.is_empty() else 0})
 
 
@@ -640,7 +640,7 @@ func _break_peace(by: Dictionary) -> void:
 			var l := m.label(g.pos.z, g.pos.x, g.pos.y)
 			if l >= 0 and int(m.rooms[l].get("structure", -1)) == neutral.structure:
 				house.append(g)
-	say("%s: the peace is broken. The whole house turns on the crew." % neutral.name)
+	say("%s: the peace is broken. The house turns on the crew." % neutral.name)
 	events.append({"type": "peace_broken", "unit": int(by.id), "units": house.map(func(g): return g.id)})
 	_rouse(house)
 
@@ -866,7 +866,7 @@ func fire_turret(tid: int, target_id: int) -> Dictionary:
 	if run == null or net_left <= 0:
 		return {"ok": false, "reason": "no NET Actions left"}
 	if not _netting and not turn.action_available:   # the meat Action is spent: no NET this turn (p197)
-		return {"ok": false, "reason": "your Action is spent"}
+		return {"ok": false, "reason": "no action left"}
 	if tid < 0 or tid >= units.size() or int(units[tid].get("held_by", -1)) != int(cur.id):
 		return {"ok": false, "reason": "you don't hold that turret"}
 	var t: Dictionary = units[tid]
@@ -1120,7 +1120,7 @@ func withdraw() -> bool:
 		say("%s is left behind." % u.c.display_name)
 	if obj.withdraw_wins():
 		state = "won"   # the hit is done: leaving is the rest of the job
-		say("The crew pulls out. The job's done.")
+		say("The crew pulls out. The gig's done.")
 		return true
 	state = "fled"
 	say("The crew pulls out.")
@@ -1499,7 +1499,7 @@ func _count_civ_harm() -> void:
 			if not scene_event.is_empty() and not u.get("crew_hit", false):
 				continue
 			civ_casualties += 1
-			say("A bystander is down. That will cost you.")
+			say("A bystander is down.")
 
 
 ## Trauma Team subscribers: the mark on an assassination, and a Lieutenant or Mini Boss at corp sites
@@ -1581,7 +1581,7 @@ func _tick_trauma() -> void:
 		units[id]["tt"] = true
 	tt.merge({"state": "landed", "av": gate, "units": ids, "carrier": -1, "on_foot": true}, true)
 	events.append({"type": "backup", "unit": ids[0], "units": ids, "label": "TRAUMA TEAM"})
-	say("Nowhere to land: Trauma Team comes in on foot. Stay out of their way.")
+	say("Nowhere to land: Trauma Team comes in on foot.")
 
 
 ## The walkable map entrance nearest `near` (the team's way in and out on foot), or (-1, -1, -1).
@@ -1644,7 +1644,7 @@ func _maxtac_drop() -> void:
 	for id in ids:
 		units[id]["maxtac"] = true
 	events.append({"type": "av_land", "unit": ids[0] if not ids.is_empty() else 0, "kind": "maxtac", "cell": spot, "units": ids, "yaw": av_fit.yaw, "scale": av_fit.scale})
-	say("MaxTac drops in. This just became a very bad night.")
+	say("MaxTac drops in.")
 
 
 ## Where an AV sets down: the open ground nearest `near` (between lo and hi squares away). The
@@ -2317,9 +2317,9 @@ func _apply_outages() -> void:
 		if _unpowered(d):
 			disabled_devices[d.id] = true
 	if "power" in outages:
-		say("The power's out: cameras and turrets are dead and the lights are off.")
+		say("The power's out: no cameras, turrets or lights.")
 	if "citinet" in outages:
-		say("CitiNet is down here: any call for help will be slow.")
+		say("CitiNet is down: help will be slow to come.")
 	if "water" in outages:
 		say("The water's off.")
 
@@ -2621,7 +2621,7 @@ func attack(target: Dictionary, weapon: Weapon, mode: Attack.Mode) -> Dictionary
 	if not p.ok:
 		return {"ok": false, "reason": p.reason}
 	if not turn.take_attack(weapon, mode != Attack.Mode.SINGLE or weapon.rof() < 2):
-		return {"ok": false, "reason": "no action left" if turn.attacks_left <= 0 else "the second attack must be a single 2 ROF attack"}
+		return {"ok": false, "reason": "no action left" if turn.attacks_left <= 0 else "the second attack must be a single shot"}
 	if int(target.team) == TT_TEAM and cur.team == CREW:
 		tt_hostile = true
 		set_relation(TT_TEAM, CREW, "hostile")
@@ -2799,7 +2799,7 @@ func grapple_partner(u: Dictionary) -> Dictionary:
 ## Why the active unit can't Grab `target` ("" if it can).
 func grab_why_not(target: Dictionary) -> String:
 	if target.is_empty() or target == cur:
-		return "pick a neighbouring foe"
+		return "pick a foe next to you"
 	if target.has("turret"):
 		return "nothing to get hold of"
 	if not adjacent(cur.pos, target.pos):
@@ -3282,7 +3282,7 @@ func jury_rig(target: Dictionary) -> Dictionary:
 		return {"ok": false, "reason": "pick yourself or an ally next to you"}
 	var loc := rig_target_loc(target)
 	if loc == "":
-		return {"ok": false, "reason": "no worn armour to rig"}
+		return {"ok": false, "reason": "no worn armor to rig"}
 	if not turn.use_action():
 		return {"ok": false, "reason": "no action left"}
 	var a: ArmorPiece = target.c.armor[loc]
@@ -3291,7 +3291,7 @@ func jury_rig(target: Dictionary) -> Dictionary:
 	if check.success:
 		a.sp = a.max_sp
 	events.append({"type": "rig", "unit": cur.id, "target": target.id, "loc": loc, "ok": check.success})
-	say("%s %s %s's %s armour." % [c.display_name, "jury-rigs" if check.success else "fails to fix", target.c.display_name, loc])
+	say("%s %s %s's %s armor." % [c.display_name, "jury-rigs" if check.success else "fails to fix", target.c.display_name, loc])
 	return {"ok": true, "success": check.success}
 
 
@@ -3493,7 +3493,7 @@ func shoot_cover(cell: Vector3i, weapon: Weapon) -> Dictionary:
 	if Attack.grapple_reason(weapon, cur.c) != "":
 		return {"ok": false, "reason": Attack.grapple_reason(weapon, cur.c)}
 	if not turn.take_attack(weapon, weapon.rof() < 2):
-		return {"ok": false, "reason": "no action left" if turn.attacks_left <= 0 else "the second attack must be a single 2 ROF attack"}
+		return {"ok": false, "reason": "no action left" if turn.attacks_left <= 0 else "the second attack must be a single shot"}
 	_keep_peace(cur, [cell])
 	_noise(cur.pos)
 	var dmg := dice.roll(weapon.dice(), 6)
@@ -3588,7 +3588,7 @@ func net_action(kind: String, arg: int = -1) -> Dictionary:
 	if run == null or net_left <= 0:
 		return {"ok": false, "reason": "no NET Actions left"}
 	if not _netting and not turn.action_available:   # the meat Action is spent: no NET this turn (p197)
-		return {"ok": false, "reason": "your Action is spent"}
+		return {"ok": false, "reason": "no action left"}
 	var why := run.action_block(kind)
 	if why != "":
 		return {"ok": false, "reason": why}
@@ -3599,7 +3599,7 @@ func net_action(kind: String, arg: int = -1) -> Dictionary:
 	if kind == "armor" and (run.armor_used or run.armor_rez > 0):
 		return {"ok": false, "reason": "Armor already used this run"}
 	if kind == "slide" and (_slid_this_turn or arg < 0 or arg not in run.slide_targets()):
-		return {"ok": false, "reason": "Slide once a turn, to a neighbouring node"}
+		return {"ok": false, "reason": "one Slide a turn"}
 	if kind == "jack_out" and run.kraken_until >= init.round_num:
 		return {"ok": false, "reason": "a Kraken holds you: no safe Jack Out until its next turn"}
 	if kind == "cross" and (run.current < 0 or String(run.cur_node().type) != "socket" or not run.nets.has(run.cur_node().get("target_structure", -1))):
@@ -3732,7 +3732,7 @@ func net_device(nid: int, did: int) -> Dictionary:
 	if run == null or net_left <= 0:
 		return {"ok": false, "reason": "no NET Actions left"}
 	if not _netting and not turn.action_available:   # the meat Action is spent: no NET this turn (p197)
-		return {"ok": false, "reason": "your Action is spent"}
+		return {"ok": false, "reason": "no action left"}
 	if not run.held.has(nid) or did < 0 or did >= m.devices.size() or not (run.arch.nodes[nid].get("devices", []) as Array).has(did):
 		return {"ok": false, "reason": "not on a node you hold"}
 	var d: Dictionary = m.devices[did]
@@ -3812,7 +3812,7 @@ func _drop_run(uid: int, unsafe: bool, keep_met := Vector2i(-1, -1)) -> void:
 	NetDevices.release(self, uid)
 	runs[uid] = run
 	if had > 0:
-		say("%s's hold on %d node%s is lost: the site has its devices back." % [units[uid].c.display_name, had, "" if had == 1 else "s"])
+		say("%s loses %d held node%s." % [units[uid].c.display_name, had, "" if had == 1 else "s"])
 	_met_memory[uid] = run.met.duplicate()
 	if keep_met.x >= 0:   # a Giant that threw you out stays met (it doesn't re-ambush)
 		_met_memory[uid][keep_met] = true

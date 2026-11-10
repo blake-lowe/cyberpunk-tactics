@@ -30,7 +30,7 @@ func check_end() -> String:
 		e.say("The plant is in.")
 		return "won"
 	if e.los.cover_hp.get(o.cell, 1) <= 0 and int(o.get("node", -1)) < 0:
-		e.say("%s is wrecked and there's no NET to go in by. The job's over." % String(o.name).capitalize())
+		e.say("%s is wrecked and there's no NET way in. The gig's over." % String(o.name).capitalize())
 		return "lost"
 	return ""
 
@@ -95,7 +95,7 @@ func hud_text() -> String:
 		lines.append("BY HAND AT THE %s" % what)
 	if int(o.get("node", -1)) >= 0 and e.m.architectures.has(int(o.structure)):
 		var fn: Dictionary = (e.m.architectures[int(o.structure)] as NetArchitecture).nodes[int(o.node)]
-		lines.append("OR JACK IN: NET LEVEL %d" % int(fn.zone))
+		lines.append("OR REACH NET LEVEL %d" % int(fn.zone))
 	return "\n".join(lines)
 
 

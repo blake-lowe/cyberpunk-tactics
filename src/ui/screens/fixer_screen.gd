@@ -6,16 +6,16 @@ extends SafehouseScreen
 ## shows its Price Category (p.385). Every purchase, cyberware included, goes to safehouse storage;
 ## nothing is bought for a crew member and owning one never blocks buying another.
 
-const OBJECTIVE_TEXT := {"data": "Download the target file, or eliminate all hostiles",
-	"eliminate": "Eliminate all hostiles, including reinforcements",
-	"snatch": "Recover the package and carry it to the extraction zone",
-	"assassinate": "Down the mark before they reach an exit, then get out",
-	"rescue": "Free the captive and walk them to the extraction zone",
+const OBJECTIVE_TEXT := {"data": "Steal the data, then get out",
+	"eliminate": "Eliminate every hostile, backup included",
+	"snatch": "Recover the package and get it to extraction",
+	"assassinate": "Down the target before they escape, then get out",
+	"rescue": "Free the captive and get them to extraction",
 	"sabotage": "Plant a charge on the target machine, get clear, get out",
-	"escort": "Walk the client to the rendezvous alive",
+	"escort": "Get the client to the rendezvous alive",
 	"defend": "Hold the room through every wave",
 	"deliver": "Leave the package at the drop point, then get out",
-	"plant": "Plant it by hand at the device, or in the NET",
+	"plant": "Plant it by hand at the device, or from the NET",
 	"distraction": "Raise the alarm, hold out, then get out"}
 
 ## A Security Code → tint, read from the crew's side: cool blue (low: a response rarely comes,
@@ -47,7 +47,7 @@ func title() -> String:
 
 
 func tabs() -> Array:
-	return [["jobs", "JOBS"], ["hire", "HIRE"], ["market", "NIGHT MARKET"], ["city", "CITY"]]
+	return [["jobs", "GIGS"], ["hire", "HIRE"], ["market", "NIGHT MARKET"], ["city", "CITY"]]
 
 
 ## CITY: the Night City map (CityTab): pick an offer to plot the drive; its pin or button opens it in JOBS.
@@ -84,10 +84,10 @@ func _focus_job(body: VBoxContainer) -> void:
 func _jobs(body: VBoxContainer) -> void:
 	var ready := camp.alive_crew().any(func(c): return c.can_act() and c.wound_state() < Combatant.Wound.MORTAL)
 	var head := UiKit.hbox(12)
-	head.add_child(UiKit.body("%d offers. Better jobs come to a crew with a name: fixers go by the crew's best Reputation." % camp.board.size(), 15, Hud.DIM, false))
+	head.add_child(UiKit.body("%d offers. Better gigs come with Reputation." % camp.board.size(), 15, Hud.DIM, false))
 	body.add_child(head)
 	if not ready:
-		body.add_child(UiKit.body("Nobody on the crew is fit to work. Recover in the Bunks first.", 16, Hud.RED))
+		body.add_child(UiKit.body("Nobody on the crew is fit to work. Rest in the Bunks first.", 16, Hud.RED))
 	var list := UiKit.vbox(8)
 	for i in camp.board.size():
 		list.add_child(_gig_card(i, ready))
@@ -140,7 +140,7 @@ func _gig_card(i: int, ready: bool) -> PanelContainer:
 		var trouble := String(g.intel) == "trouble"
 		mid.add_child(UiKit.body("Intel: expect a complication" if trouble else "Intel: it should run clean", 14, Hud.RED if trouble else Hud.GREEN))
 	if g.get("unique", false):
-		mid.add_child(UiKit.body("Personal job: %s has heard of the crew. Double pay." % String(g.fixer), 14, Hud.CYAN))
+		mid.add_child(UiKit.body("Personal gig from %s. Double pay." % String(g.fixer), 14, Hud.CYAN))
 	for line in SetPieces.briefs(String(g.get("setpiece", ""))):   # the place's house rules (Totentanz: no fighting on the floor)
 		mid.add_child(UiKit.body(line, 13, Hud.GOLD))
 	var right := UiKit.vbox(6)
@@ -238,7 +238,7 @@ static func short_faction(id: String) -> String:
 
 func _hire(body: VBoxContainer) -> void:
 	var full := camp.crew.size() >= 4
-	body.add_child(UiKit.body("Crew %d of 4. Signing someone costs %s eb.%s" % [camp.crew.size(), UiKit.money(int(Campaign.ECON.hire)),
+	body.add_child(UiKit.body("Crew %d of 4. Hiring costs %s eb.%s" % [camp.crew.size(), UiKit.money(int(Campaign.ECON.hire)),
 		"  The crew is full." if full else ""], 15, Hud.DIM, false))
 	var grid := GridContainer.new()
 	grid.columns = 4

@@ -572,7 +572,7 @@ func _build_cart() -> void:
 	sc.name = "CartLines"
 	_cart.add_child(sc)
 	if lines.is_empty():
-		var e := UiKit.body("Nothing in the cart yet. Add items and buy them together.", 14, Hud.DIM)
+		var e := UiKit.body("The cart is empty.", 14, Hud.DIM)
 		e.custom_minimum_size.y = 50
 		list.add_child(e)
 	var by := {}

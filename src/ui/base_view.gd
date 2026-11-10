@@ -762,11 +762,11 @@ func _update_outline() -> void:
 ## Room → the screen it opens (owner: every between-gigs function is a full screen opened from its
 ## room) and what it holds (shown on hover).
 const ROOM_SCREENS := {
-	"intel": ["jobs", "Jobs · Hire · Night Market"],
+	"intel": ["jobs", "Gigs · Hire · Night Market"],
 	"armory": ["storage", "Storage · Loadouts"],
 	"med_bay": ["ripperdoc", "Ripperdoc · Therapy · Critical Injuries"],
 	"training": ["training", "Improvement Points · Role Rank · Perks"],
-	"bunks": ["crew", "Crew · Recover"],
+	"bunks": ["crew", "Crew · Rest"],
 	"workshop": ["workshop", "Armor upgrades"],
 }
 ## Screen id → the screen's tab.

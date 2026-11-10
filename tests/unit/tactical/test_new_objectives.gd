@@ -456,7 +456,7 @@ func test_plant_through_the_net_and_never_by_clearing_the_site() -> void:
 	var e := _job("plant")
 	var o := e.objective
 	assert_true(int(o.node) >= 0, "a corp office has a NET to go in by")
-	assert_true(e.obj.hud_text().contains("OR JACK IN: NET LEVEL"), e.obj.hud_text())
+	assert_true(e.obj.hud_text().contains("OR REACH NET LEVEL"), e.obj.hud_text())
 	assert_true(e.obj.marks(false).any(func(mk): return String(mk.label) == "★ ACCESS POINT"), "the way in is marked too")
 	assert_eq(e.obj.net_line(), ": the false data, planted")
 	for g in e.opfor():

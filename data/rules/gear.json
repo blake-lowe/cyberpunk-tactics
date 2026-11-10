@@ -107,7 +107,7 @@
 			"cost": 500,
 			"cost_tier": "Expensive",
 			"cite": "CPR core p.343",
-			"summary": "Huge magazine; capacity from the Drum column of the Clip Chart. Not concealable. Only one magazine attachment per weapon.",
+			"summary": "Huge drum magazine. Not concealable. One magazine attachment per weapon.",
 			"eligible": {
 				"exotic": false,
 				"exclude": [
@@ -150,7 +150,7 @@
 			"cost": 100,
 			"cost_tier": "Premium",
 			"cite": "CPR core p.343",
-			"summary": "Larger magazine; capacity from the Extended column of the Clip Chart. Not concealable. Only one magazine attachment per weapon.",
+			"summary": "Larger magazine. Not concealable. One magazine attachment per weapon.",
 			"eligible": {
 				"exotic": false,
 				"exclude": [
@@ -426,7 +426,7 @@
 			"cost": 500,
 			"cost_tier": "Expensive",
 			"cite": "CPR core p.345",
-			"summary": "No damage. Targets hit roll Cybertech DV15 or 2 GM-picked cyberware/electronics stop working for a minute.",
+			"summary": "No damage. Targets hit roll Cybertech DV15 or two pieces of cyberware or electronics stop working for a minute.",
 			"types": [
 				"grenades"
 			],
@@ -1560,7 +1560,7 @@
 			"cost": 1000,
 			"cost_tier": "Very Expensive",
 			"cite": "CPR core p.101, 339",
-			"summary": "Protective suit against radiation. Listed in the starting gear table and Night Market, not the Master Gear List.",
+			"summary": "Protective suit against radiation.",
 			"night_market": "survival_gear",
 			"fx": {
 				"immune": [
@@ -1575,7 +1575,7 @@
 			"cost": 50,
 			"cost_tier": "Costly",
 			"cite": "CPR core p.339",
-			"summary": "Digging or chopping tool; appears only in the Night Market survival column, with no rules text.",
+			"summary": "Digging or chopping tool.",
 			"night_market": "survival_gear",
 			"fx": {},
 			"unmodelled": "No description; could double as an improvised melee weapon (GM call)."

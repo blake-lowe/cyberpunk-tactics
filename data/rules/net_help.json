@@ -4,105 +4,105 @@
   "net_actions": {
    "name": "NET Actions",
    "cost": "your turn",
-   "text": "A turn is either one Meat Action or your NET Actions, never both. Your Move Action stays yours either way. Moving between nodes is free.",
+   "text": "Each turn: one Meat Action or your NET Actions, not both. You keep your Move Action. Moving between nodes is free.",
    "key": "Interface 1-3: 2 · 4-6: 3 · 7-9: 4 · 10: 5",
    "page": "p.197-198"
   },
   "backdoor": {
    "name": "Backdoor",
    "cost": "1 NET Action",
-   "text": "Break a Password: here, the firewall that bars the way deeper. A broken Password stays open until you jack out; knowing the password gets you through without a roll. Access that outlasts the run needs a Virus left at the lowest floor, not in the game yet.",
+   "text": "Break the Password that bars the way deeper. It stays open until you jack out; knowing the password gets you through without a roll.",
    "key": "Interface + 1d10 vs the Password's DV",
    "page": "p.199"
   },
   "control": {
    "name": "Control",
    "cost": "1 NET Action",
-   "text": "Take a Control Node and what hangs off it: cameras, turrets, door locks, lights, elevators. Taking it changes nothing by itself: each thing on it is then worked with its own NET Action (the HELD NODES rows), from anywhere in the NET, each node once a turn. Held cameras feed you what they see. Jacking out drops every node you hold.",
+   "text": "Take a Control Node and its cameras, turrets, locks, lights or elevators. Then work each from the HELD NODES rows, a NET Action each, from anywhere in the NET. Held cameras feed you what they see. Jacking out drops every node.",
    "key": "Interface + 1d10 vs the Node's DV",
    "page": "p.199"
   },
   "eye_dee": {
    "name": "Eye-Dee",
    "cost": "1 NET Action",
-   "text": "Identify a File: what the data is and what it is worth (value 1-5: scrap, routine, useful, valuable, paydata). On a data gig, identifying the target File downloads it and gets the job done.",
+   "text": "Identify a File and what it's worth (1-5: scrap, routine, useful, valuable, paydata). On a data gig, identifying the target File downloads it.",
    "key": "Interface + 1d10 vs the File's DV",
    "page": "p.199"
   },
   "pathfinder": {
    "name": "Pathfinder",
    "cost": "1 NET Action",
-   "text": "Map the Architecture as far as your Check reaches, stopping at the first obstruction whose DV beats it. Shows what is there, not the DVs.",
+   "text": "Map the NET as deep as your roll reaches, stopping at the first obstacle whose DV beats it. Shows what's there, not the DVs.",
    "key": "Interface + 1d10: the reach",
    "page": "p.199-200"
   },
   "zap": {
    "name": "Zap",
    "cost": "1 NET Action",
-   "text": "Every Netrunner's built-in attack, here on the Black ICE in front of you. At 0 REZ the ICE is derezzed.",
+   "text": "Attack the Black ICE in front of you. At 0 REZ it's derezzed.",
    "key": "Interface + 1d10 vs ICE DEF + 1d10 · hit: 1d6 REZ",
    "page": "p.201"
   },
   "slide": {
    "name": "Slide",
    "cost": "1 NET Action",
-   "text": "Get away from one Black ICE: on a success you move to a neighbouring node and it stays where you left it. Once a turn, and only once it has found you.",
+   "text": "Escape a Black ICE that has found you: move to a neighbouring node and leave it behind. Once a turn.",
    "key": "Interface + 1d10 vs ICE PER + 1d10 · -2 per Skunk",
    "page": "p.200, p.207"
   },
   "cross": {
    "name": "Cross Socket",
    "cost": "1 NET Action",
-   "text": "Step through the socket into the linked site's NET. Progress in each NET is kept. Linked sites are this game's take on reaching another Architecture, not a book Ability.",
+   "text": "Step through into the linked site's NET. Progress in each NET is kept.",
    "key": "no roll · its Black ICE may be waiting",
    "page": "game rule (M2d)"
   },
   "jack_out": {
    "name": "Jack Out",
    "cost": "1 NET Action",
-   "text": "Leave the NET safely. Your Programs leave with you; held Control Nodes are lost. A Kraken's grip blocks it until its next turn.",
+   "text": "Leave the NET safely; held Control Nodes are lost. A Kraken blocks it until its next turn.",
    "key": "no roll",
    "page": "p.198-199"
   },
   "jack_out_unsafe": {
    "name": "Unsafe Jack Out",
    "cost": "no NET Action",
-   "text": "Pull the plug, Kraken or not. Every Black ICE you have met and not derezzed gets its attack on the way out.",
+   "text": "Pull the plug, Kraken or not. Every Black ICE you've met and not derezzed attacks on the way out.",
    "key": "each ICE met: its ATK + 1d10 vs your Interface + 1d10",
    "page": "p.198"
   },
   "fire_turret": {
    "name": "Fire Turret",
    "cost": "1 NET Action",
-   "text": "Work a turret on a Control Node you hold: it shoots with your own aim. Each node can act once a turn.",
+   "text": "Fire a held turret with your own aim. Each node acts once a turn.",
    "key": "your REF + the weapon's Skill + 1d10 vs the range DV",
    "page": "p.199, p.214"
   },
   "held": {
    "name": "Held Control Node",
    "cost": "held until you jack out",
-   "text": "You hold this node. Each thing on it is one NET Action to work, from anywhere in the NET; the node acts once a turn, whichever of its rows you use (a turret's FIRE included). The HELD badge marks its devices on the map too.",
+   "text": "You hold this node. Each row is one NET Action, from anywhere in the NET; the node acts once a turn. Its devices carry the HELD badge on the map.",
    "key": "no roll: holding it is enough",
    "page": "p.199"
   },
   "dev_loop": {
    "name": "Loop Camera Feed",
    "cost": "1 NET Action",
-   "text": "The node's cameras show the site a recording: they stop reporting anyone they see. You keep watching the real feed. Restore it the same way. While you hold the node its cameras feed the crew what they see, looped or not (house rule: watching isn't operating).",
-   "key": "no roll · all the node's cameras at once (house rule: one camera system)",
+   "text": "The node's cameras show the site a recording and stop reporting. You still see the real feed. Restore it the same way.",
+   "key": "no roll · all the node's cameras at once",
    "page": "p.199, p.215"
   },
   "dev_lock": {
    "name": "Lock / Unlock Door",
    "cost": "1 NET Action",
-   "text": "Throw the door's lock from the NET. Unlocked, anyone walks through. Locked, it swings shut and stays shut to everyone: the guards' keycards don't open a lock you hold (house rule). Jack out and the site has its locks back.",
+   "text": "Lock or unlock the door. Locked, it stays shut to everyone, keycards included. Jack out and the site gets its locks back.",
    "key": "no roll · not while someone stands in the doorway",
    "page": "p.199"
   },
   "dev_seal": {
    "name": "Seal / Open",
    "cost": "1 NET Action",
-   "text": "Close and lock every door this control works (a vault door, the cells, the shutters, the gates), or open them all. Sealed doors keep everyone out, keycards or not, until you open them or jack out.",
+   "text": "Close and lock every door on this control (vault, cells, shutters, gates), or open them all. Sealed doors stay shut to everyone, keycards included, until you open them or jack out.",
    "key": "no roll · one device, all its doors",
    "page": "p.199, p.210-211"
   },
@@ -116,14 +116,14 @@
   "dev_lights": {
    "name": "Lights Off / On",
    "cost": "1 NET Action",
-   "text": "Kill the lights in the rooms these lights serve. Anyone in the dark is harder to spot: -4 to a guard's or camera's Perception.",
+   "text": "Kill the lights in these rooms. Anyone in the dark is harder to spot.",
    "key": "no roll · darkness: -4 Perception",
    "page": "p.199, p.210-211"
   },
   "dev_cut_alarm": {
    "name": "Cut Alarm Line",
    "cost": "1 NET Action",
-   "text": "Cut the site's alarm line. A guard who calls it in must go by radio alone: help takes twice as long to come (house rule). Restore it the same way.",
+   "text": "Cut the site's alarm line: help takes twice as long to come. Restore it the same way.",
    "key": "no roll · response time x2",
    "page": "p.199"
   },
@@ -137,7 +137,7 @@
   "dev_distract": {
    "name": "Start Up",
    "cost": "1 NET Action",
-   "text": "Kick the machine into life (or page someone over the PA). Unalerted guards near it on its floor turn to look its way, their backs to everything else (house rule).",
+   "text": "Start the machine (or page over the PA). Unalerted guards near it on its floor turn to look.",
    "key": "no roll · guards within 10 squares",
    "page": "p.199"
   }
@@ -146,14 +146,14 @@
   "sword": {
    "name": "Sword",
    "cost": "1 NET Action to activate",
-   "text": "Anti-Program Attacker: cuts Black ICE apart. It deactivates after the attack.",
+   "text": "Attacker: cuts Black ICE apart. Deactivates after the attack.",
    "key": "ATK 1 · DEF 0 · REZ 0 · Interface + 1 + 1d10 vs ICE DEF + 1d10 · hit: 3d6 REZ to Black ICE (2d6 to other Programs)",
    "page": "p.201, p.203"
   },
   "armor": {
    "name": "Armor",
    "cost": "1 NET Action to activate",
-   "text": "Defender: lowers the brain damage you take while it is Rezzed. One copy running at a time, each copy once per Netrun.",
+   "text": "Defender: cuts the brain damage you take while Rezzed. Once per Netrun.",
    "key": "ATK 0 · DEF 0 · REZ 7 · brain damage -4",
    "page": "p.203"
   }

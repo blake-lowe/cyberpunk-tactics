@@ -72,7 +72,7 @@ func _ripperdoc(body: VBoxContainer) -> void:
 		var hu := UiKit.label(_humanity_line(c), 15, _hum_colour(c))
 		hu.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		hl.add_child(hu)
-	tv.add_child(UiKit.body("Cyberware bought at the Night Market waits in storage; installing it costs nothing more. Every piece costs Humanity. Once installed it stays theirs: it can be taken out, which destroys it, but never moved to someone else.", 14, Hud.DIM))
+	tv.add_child(UiKit.body("Installing is free; every piece costs Humanity. Taking a piece out destroys it.", 14, Hud.DIM))
 	var lists := UiKit.hbox(10)
 	lists.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	right.add_child(lists)
@@ -202,7 +202,7 @@ func _therapy(body: VBoxContainer) -> void:
 	p.add_child(v)
 	v.add_child(UiKit.head(c.display_name, 30))
 	var doc := camp.therapist_for(c)
-	v.add_child(UiKit.body(("Therapy is a week with %s (the crew's Medtech): TECH + Medical Tech against the therapy's DV. The crew rests meanwhile; materials are bought either way." % doc.display_name)
+	v.add_child(UiKit.body(("Therapy is a week with %s. The crew rests meanwhile; you pay even if it fails." % doc.display_name)
 		if doc else "Therapy needs a Medtech on the crew, and a Medtech can't treat themselves.", 15, Hud.DIM if doc else Hud.GOLD))
 	# Addiction (p229)
 	v.add_child(section("ADDICTION"))
@@ -228,7 +228,7 @@ func _therapy(body: VBoxContainer) -> void:
 		return
 	v.add_child(UiKit.label(_humanity_line(c) + ("" if c.psychosis_tier() == 0 else " · AT RISK OF CYBERPSYCHOSIS"), 16, _hum_colour(c)))
 	if c.humanity >= c.max_humanity:
-		v.add_child(none("No Humanity to regain: they're at their maximum (each piece of chrome lowers it)."))
+		v.add_child(none("Humanity is at its maximum."))
 		return
 	for kind in ["standard", "extreme"]:
 		var k: String = kind
@@ -251,9 +251,9 @@ func _therapy(body: VBoxContainer) -> void:
 func _injuries(body: VBoxContainer) -> void:
 	var fi := camp.favour_index("treatment")
 	if fi >= 0:   # a fixer's favour (payment, MissionBuilder): the next Treatment is on them
-		body.add_child(UiKit.body("Rest doesn't heal a Critical Injury: Treatment removes it for good. %s owes the crew a favour: the next one is free." % String(camp.favours[fi].get("from", "A fixer")), 15, Hud.GOLD))
+		body.add_child(UiKit.body("Rest doesn't heal a Critical Injury; Treatment does. %s owes the crew a favour: the next one is free." % String(camp.favours[fi].get("from", "A fixer")), 15, Hud.GOLD))
 	else:
-		body.add_child(UiKit.body("Rest doesn't heal a Critical Injury: Treatment removes it for good. A street clinic does it for %s eb each." % UiKit.money(camp.treat_cost()), 15, Hud.DIM))
+		body.add_child(UiKit.body("Rest doesn't heal a Critical Injury; Treatment does. A street clinic charges %s eb each." % UiKit.money(camp.treat_cost()), 15, Hud.DIM))
 	var list := UiKit.vbox(8)
 	body.add_child(UiKit.scroller(list))
 	var any := false

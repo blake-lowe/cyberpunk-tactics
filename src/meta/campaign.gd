@@ -29,7 +29,7 @@ const OBJECTIVES := {"data_theft": "data", "gang_hit": "eliminate", "corp_extrac
 ## Recover: natural healing, BODY HP a day (p223). (The book has no rule for earning IP or eb in
 ## downtime: IP come from the GM after a session, p410.)
 const DOWNTIME := {
-	"recover": {"name": "Recover", "desc": "Heal BODY HP a day."},   # CPR core p.223
+	"recover": {"name": "Rest", "desc": "Heal BODY HP a day."},   # CPR core p.223
 }
 
 ## Where a new crew holds up: Little China, a mid-band district (Security Code 4-5, NC2045 p.18) in
@@ -657,7 +657,7 @@ func tower_gig(g: Dictionary, lid: String, kind := "", bid := "sky") -> Dictiona
 	gig.merge(codes_for(gig, did), true)
 	build_mission(gig)
 	var pitch := MissionBuilder.pitch(gig, World.display_name(fid))
-	var extra := hook if hook != "" else "the job is %s up, on %s." % ["%d storeys" % int(b.storeys[0]), floors]
+	var extra := hook if hook != "" else "the gig is %s up, on %s." % ["%d storeys" % int(b.storeys[0]), floors]
 	pitch = (pitch + " " if pitch != "" else "") + extra.left(1).to_upper() + extra.substr(1)
 	gig["title"] = "%s: %s %s" % [String(gig.mission.get("label", kind.capitalize())), String(l.name), floors.replace("floors ", "")]
 	gig["blurb"] = "%s has work at %s (%s), %s: %s" % [String(gig.fixer), String(l.name), String(World.district(did).get("name", did)), floors, pitch]
@@ -725,7 +725,7 @@ func _downtime_episodes() -> Array:
 			o.hp = maxi(1, o.hp - dice.roll(2, 6))
 			hurt = o.display_name
 		out.append(c.display_name)
-		say("%s has a cyberpsychotic episode after the job%s. Therapy would help." % [c.display_name, (" and hurts " + hurt) if hurt != "" else ""])
+		say("%s has a cyberpsychotic episode after the gig%s. Therapy helps." % [c.display_name, (" and hurts " + hurt) if hurt != "" else ""])
 	return out
 
 
@@ -1479,7 +1479,7 @@ func equip_block(c: Combatant, key: String, loc := "body") -> String:
 	if c == null or not c in alive_crew():
 		return "not on the crew"
 	if not (Items.is_weapon(key) or Items.is_armor(key)):
-		return "not a weapon or armour"
+		return "not a weapon or armor"
 	if stored(key) <= 0:
 		return "not in storage"
 	if Items.is_armor(key) and not c.armor.has(loc):

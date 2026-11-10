@@ -1443,7 +1443,7 @@
 			"public_access": true, "civilians": 8,
 			"neutral_ground": {
 				"name": "TOTENTANZ", "part": "main", "hud": "NO FIGHTING ON THE FLOOR", "hud_broken": "THE HOUSE TURNS",
-				"brief": "TOTENTANZ: NO FIGHTING ON THE FLOOR. Maelstrom's bouncers keep the peace in the club; start something where they can see it and the whole house turns on you. Out of their sight, anything goes.",
+				"brief": "TOTENTANZ: NO FIGHTING ON THE FLOOR. Start something where Maelstrom's bouncers can see it and the whole house turns on you.",
 				"_cite": "NC2045 p.94: calm on most nights because Warlock wants buyers coming back; the risk is outside, beyond the bouncers' view. No mechanics given.",
 				"_house_rule": "HOUSE-RULE: the club's public rooms on the ground floor are the house. Guards posted there stay neutral to the crew (no spotting, no joining a fight they didn't see) and the rest of Maelstrom holds fire at crew standing in them; the crew's first attack inside, or one a bouncer has clear sight of (15 squares, any direction), ends it for the gig and rouses the bouncers and every guard in the tower."
 			}
