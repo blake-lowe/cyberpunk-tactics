@@ -22,7 +22,7 @@ extends Node
 ##   Hover an enemy  line of fire / swing / throw arc and the hit chance (AimPreview)
 ##   F attack (again: next mode)   Tab next weapon   R reload   J jack in   Space end turn
 ##   Alt (hold) inspect, crew roster, enemy outlines, stair / exit signs    F4 cyberspace style    N peek out of the NET
-##   Z guard sight lines near your move / always / off
+##   Z guard sight lines near your move / always / off    M loadout (chrome and gear; or click a crew card)
 ##   F1 new gig    F2 look settings    F3 toggle fog of war    K collapse / show the combat log
 ## Screenshot mode:  -- --shot=path.png [--scene=x] [--profile=y] [--district=z] [--seed=n] [--pixel=3]
 ##   [--levels=0] [--dither=0.5] [--outline=0.4] [--bloom=0.8] [--contrast=1.1] [--ortho=1]
@@ -377,6 +377,8 @@ var _demo_weapon := ""                 ## --weapon=id (review renders, with --at
 var _jack_demo := false
 var _av_demo := ""
 var _inspect_demo := false
+var _loadout_demo := -1               ## --loadout=n (review renders): the loadout screen open on crew member n
+var _loadout: LoadoutScreen = null    ## the loadout screen while it's open (M)
 var net_overlay: NetOverlay
 var net_view := true          ## N toggles back to the plain world while jacked in
 var _net_pos := {}            ## architecture instance id → [pos, ground]
@@ -560,6 +562,8 @@ func _ready() -> void:
 				_reel = kv[1]
 			"inspect":  # review renders: show the Alt inspector card for the hovered square
 				_inspect_demo = true
+			"loadout":  # review renders: the loadout screen open for this crew member (unit index among the crew)
+				_loadout_demo = int(kv[1])
 			"delay":  # review renders: take the shot this many seconds after the demo action
 				_shot_delay = float(kv[1])
 			"slow":  # review renders: slow motion so short effects land in a frame (software GL is slow)
@@ -578,6 +582,8 @@ func _ready() -> void:
 					look[kv[0]] = float(kv[1])
 	_build_view()
 	new_gig()
+	if _loadout_demo >= 0:
+		open_loadout.call_deferred(_loadout_demo, true)
 
 
 func _process(delta: float) -> void:
@@ -614,7 +620,7 @@ func _process(delta: float) -> void:
 	if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN): pan.z += 1
 	if Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT): pan.x -= 1
 	if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT): pan.x += 1
-	if pan != Vector3.ZERO:
+	if pan != Vector3.ZERO and not loadout_open():   # the loadout screen takes the arrows
 		cam_target += pan.rotated(Vector3.UP, deg_to_rad(cam_yaw)).normalized() * delta * cam_dist * 0.9
 		_place_camera()
 	if _floor_key != 0:   # a floor key held on its own steps again after a pause, then steadily
@@ -3497,6 +3503,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 				hud.toast("CYBERSPACE STYLE: " + NET_STYLES[int(look.net_style)])
 				_refresh()
 			KEY_N: net_view = not net_view; _refresh()
+			KEY_M: open_loadout(-1)   # the loadout screen: chrome on the silhouette, gear beside it
 
 
 ## Review renders (--chrome): install `specs` on `c` with what they need first (a popup's Cyberarm, a
@@ -3525,6 +3532,9 @@ static func dev_chrome(c: Combatant, specs: PackedStringArray) -> void:
 func _on_hud(name: String, arg: Variant) -> void:
 	if name == "portrait_hover":   # [unit id or -1, portrait rect]: hover tracking, even while busy
 		_portrait_hover(int(arg[0]), arg[1])
+		return
+	if name == "loadout":   # a crew card clicked (the hotbar's or the Alt roster's): their loadout, read-only
+		open_loadout(int(arg))
 		return
 	if name == "floor":   # the floor stack's ▲ ▼ (like PgUp/PgDn: only the view changes)
 		_change_floor(int(arg))
@@ -5336,6 +5346,39 @@ func _show_end_panel(_b: Dictionary, campaign_gig: bool) -> void:
 	var tw := p.create_tween()   # after the end beat has landed (EndJuice: well inside 1.5 s)
 	tw.tween_interval(EndJuice.PANEL_DELAY)
 	tw.tween_property(p, "modulate:a", 1.0, EndJuice.PANEL_FADE)
+
+
+## Open the crew's loadout screen on unit `uid` (-1: the unit whose turn it is, else the first of
+## the crew); again (M) closes it. `index`: uid is an index into the crew instead (review renders).
+func open_loadout(uid: int, index := false) -> void:
+	if loadout_open():
+		_loadout.close()
+		return
+	if enc == null:
+		return
+	var crew: Array[Combatant] = []
+	var at := 0
+	for u in enc.units:
+		if u.team == 0:
+			if int(u.id) == uid or (uid < 0 and not enc.cur.is_empty() and u == enc.cur):
+				at = crew.size()
+			crew.append(u.c)
+	if crew.is_empty():
+		return
+	if index:
+		at = clampi(uid, 0, crew.size() - 1)
+	var layer := CanvasLayer.new()   # its own layer, above the HUD and its clocks and callouts
+	layer.layer = 64
+	add_child(layer)
+	_loadout = LoadoutScreen.new().setup(crew, at)
+	_loadout.closed.connect(func():
+		layer.queue_free()
+		_loadout = null)
+	layer.add_child(_loadout)
+
+
+func loadout_open() -> bool:
+	return _loadout != null and is_instance_valid(_loadout) and not _loadout.is_queued_for_deletion()
 
 
 func _end_choose(act: String) -> void:

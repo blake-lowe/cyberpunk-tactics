@@ -25,7 +25,9 @@ extends Control
 ## --crew=n selects crew member n on it; --hover=<room id> shows a room hovered; --demo uses
 ## DemoState's sample campaign (never saved); with it the Armory also takes --slot=<slot id>,
 ## --pick=<storage key>, --filter=<chip> (StorageScreen.setup) and --stash=<key,key> (more in storage), and the city map --district=<id> or
-## --pin=<board index> (CityTab.setup).
+## --pin=<board index> (CityTab.setup); the Armory --loadout=1 (the FULL LOADOUT screen open) and --strip=1
+## (the selected member without chrome); the ripperdoc --loc=<body location> --pick=remove:<id>|install:<id>
+## --confirm=1 (MedBayScreen.setup).
 
 const GB := preload("res://src/tactical/greybox.gd")
 const POST_SHADER := preload("res://src/tactical/view/post.gdshader")

@@ -1609,7 +1609,7 @@ const HUMANITY_THERAPY := {"standard": "standard_humanity_therapy", "extreme": "
 func install_block(c: Combatant, id: String, loc: String = "") -> String:
 	if c == null or not c in alive_crew():
 		return "Not on the crew"
-	if stored("cyberware/" + id) <= 0:
+	if stored("cyberware/" + id) <= 0 and not (Cyber.choice_of(id) == "" and stored_variants(id) > 0):
 		return "Not in storage"
 	var why := Cyber.block_any(c.implants, id) if loc == "" else Cyber.block(c.implants, id, loc)
 	return why if why != "" else Cyber.stat_block(c, Cyber.base(id))   # a Linear Frame's BODY (p.367)
@@ -1620,7 +1620,13 @@ func install_block(c: Combatant, id: String, loc: String = "") -> String:
 ## melee weapon (a hand-held melee weapon it replaces goes to storage). From then on it's part of
 ## `c`: it can be removed (remove), never moved to someone else. Returns the Humanity lost, -1 if it
 ## can't be done.
-func install(c: Combatant, id: String, loc: String = "") -> int:
+## `choice`: what a piece made for one thing was bought for (the Med Bay's options step,
+## MedBayScreen._install_choices): the same as passing the spec "id@choice".
+func install(c: Combatant, id: String, loc: String = "", choice: Variant = "") -> int:
+	if String(choice) != "":
+		id = "%s@%s" % [Cyber.base(id), String(choice)]
+	if not Cyber.choices(Cyber.base(id)).is_empty() and Cyber.choice_of(id) == "":
+		return -1   # a chip or popup goes in as what it was bought for
 	if install_block(c, id, loc) != "":
 		return -1
 	var where := loc if loc != "" else Cyber.auto_loc(c.implants, id)
@@ -1632,6 +1638,15 @@ func install(c: Combatant, id: String, loc: String = "") -> int:
 			_put(Items.key_of_weapon(w))
 	say("%s gets %s installed (-%d Humanity)." % [c.display_name, Cyber.display(id), loss])
 	return loss
+
+
+## How many of a piece made for one thing are in storage, whatever they were made for.
+func stored_variants(id: String) -> int:
+	var n := 0
+	for k in stash:
+		if Items.section(String(k)) == "cyberware" and Items.base_id(String(k)) == id and Cyber.choice_of(String(k).get_slice("/", 1)) != "":
+			n += stored(String(k))
+	return n
 
 
 ## Chipware comes out of its socket whole and goes back to storage: chips are made to be swapped
