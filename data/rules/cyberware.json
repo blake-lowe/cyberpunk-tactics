@@ -209,7 +209,7 @@
    "slots": 1,
    "needs": "neural_link",
    "group": "speedware",
-   "unmodelled": true,
+   "summary": "Action: +3 Initiative for the rest of the fight. Once a gig.",
    "cite": "CPR core p.112, p.359-360"
   },
   "chemical_analyzer": {
@@ -284,10 +284,14 @@
    "hl_flat": 7,
    "cost": 500,
    "borgware": false,
+   "fx": {
+    "skill_chip": 3
+   },
    "host": "chipware",
    "slots": 0,
    "needs": "chipware_socket",
-   "unmodelled": true,
+   "multi": true,
+   "summary": "Its skill counts as trained at 3, unless yours is higher.",
    "cite": "CPR core p.112, p.359-360"
   },
   "tactile_boost": {
@@ -377,10 +381,13 @@
    "hl_flat": 2,
    "cost": 500,
    "borgware": false,
+   "fx": {
+    "popup": "dartgun"
+   },
    "host": "eye",
    "slots": 3,
    "needs": "cybereye",
-   "unmodelled": true,
+   "summary": "Hidden one-shot dartgun in the eye.",
    "cite": "CPR core p.112-113, p.360-361"
   },
   "image_enhance": {
@@ -482,15 +489,19 @@
    "name": "TeleOptics",
    "category": "cyberoptics",
    "install": "clinic",
-   "effect": "See detail to 800m; +1 Aimed Shots at 51m+",
+   "effect": "See detail to 800m; +1 to single shots and Aimed Shots at 51m+ (p.361)",
    "hl_dice": "1d6",
    "hl_flat": 3,
    "cost": 500,
    "borgware": false,
+   "fx": {
+    "long_shot_bonus": 1,
+    "long_shot_m": 51
+   },
    "host": "eye",
    "slots": 1,
    "needs": "cybereye",
-   "unmodelled": true,
+   "summary": "+1 to single and aimed shots at 51 m or more.",
    "cite": "CPR core p.112-113, p.360-361"
   },
   "virtuality": {
@@ -788,6 +799,7 @@
    "host": "internal",
    "slots": 1,
    "needs": "",
+   "multi": true,
    "summary": "+2 BODY (max 10): more HP.",
    "cite": "CPR core p.114, p.362-363"
   },
@@ -1066,10 +1078,16 @@
    "hl_flat": 7,
    "cost": 500,
    "borgware": false,
+   "fx": {
+    "skill_bonus": {
+     "first_aid": 2,
+     "paramedic": 2
+    }
+   },
    "host": "arm",
    "slots": 2,
    "needs": "cyberarm",
-   "unmodelled": true,
+   "summary": "+2 First Aid and Paramedic. Doesn't stack with a medscanner.",
    "cite": "CPR core p.115-116, p.364-367"
   },
   "popup_grenade_launcher": {
@@ -1081,17 +1099,20 @@
    "hl_flat": 7,
    "cost": 500,
    "borgware": false,
+   "fx": {
+    "popup": "grenade_launcher"
+   },
    "host": "arm",
    "slots": 2,
    "needs": "cyberarm",
-   "unmodelled": true,
+   "summary": "Hidden one-shot grenade launcher in the arm.",
    "cite": "CPR core p.115-116, p.364-367"
   },
   "popup_melee_weapon": {
    "name": "Popup Melee Weapon",
    "category": "cyberlimbs",
    "install": "clinic",
-   "effect": "Light/Medium/Heavy melee concealed; 2 slots",
+   "effect": "One-handed Light/Medium/Heavy melee concealed, drawn/stowed free (p.365); 2 slots",
    "hl_dice": "2d6",
    "hl_flat": 7,
    "cost": 500,
@@ -1102,29 +1123,32 @@
    "host": "arm",
    "slots": 2,
    "needs": "cyberarm",
-   "unmodelled": true,
+   "summary": "Hidden melee weapon in the arm. Out and away for free.",
    "cite": "CPR core p.115-116, p.364-367"
   },
   "popup_shield": {
    "name": "Popup Shield",
    "category": "cyberlimbs",
    "install": "clinic",
-   "effect": "Bulletproof Shield, concealable, replaced at 0 HP; 3 slots",
+   "effect": "Bulletproof Shield (10 HP), concealed; out/away free while it has HP; replaceable (p.365); 3 slots",
    "hl_dice": "2d6",
    "hl_flat": 7,
    "cost": 500,
    "borgware": false,
+   "fx": {
+    "shield": "bulletproof_shield"
+   },
    "host": "arm",
    "slots": 3,
    "needs": "cyberarm",
-   "unmodelled": true,
+   "summary": "Hidden bulletproof shield in the arm: 10 HP of cover.",
    "cite": "CPR core p.115-116, p.364-367"
   },
   "popup_ranged_weapon": {
    "name": "Popup Ranged Weapon",
    "category": "cyberlimbs",
    "install": "clinic",
-   "effect": "One-handed ranged weapon concealed; 2 slots",
+   "effect": "One-handed ranged weapon provided by the user, concealed, drawn/stowed free (p.365); 2 slots",
    "hl_dice": "2d6",
    "hl_flat": 7,
    "cost": 500,
@@ -1135,7 +1159,7 @@
    "host": "arm",
    "slots": 2,
    "needs": "cyberarm",
-   "unmodelled": true,
+   "summary": "Hidden one-handed gun in the arm. Out and away for free.",
    "cite": "CPR core p.115-116, p.364-367"
   },
   "quick_change_mount": {
@@ -1251,10 +1275,21 @@
    "hl_flat": 7,
    "cost": 500,
    "borgware": false,
+   "fx": {
+    "skill_bonus": {
+     "basic_tech": 2,
+     "cybertech": 2,
+     "land_vehicle_tech": 2,
+     "sea_vehicle_tech": 2,
+     "air_vehicle_tech": 2,
+     "electronics_security_tech": 2,
+     "weaponstech": 2
+    }
+   },
    "host": "arm",
    "slots": 2,
    "needs": "cyberarm",
-   "unmodelled": true,
+   "summary": "+2 to the Tech skills. Doesn't stack with a techscanner.",
    "cite": "CPR core p.115-116, p.364-367"
   },
   "tool_hand": {
@@ -1421,7 +1456,7 @@
    "host": "limb",
    "slots": 1,
    "needs": "cyberarm",
-   "unmodelled": true,
+   "summary": "This limb's chrome can't be knocked out by EMP.",
    "cite": "CPR core p.115-116, p.364-367"
   },
   "plastic_covering": {
@@ -1494,10 +1529,24 @@
    "hl_flat": 14,
    "cost": 5000,
    "borgware": true,
+   "fx": {
+    "stat_set": {
+     "BODY": 14
+    }
+   },
    "host": "borgware",
    "slots": 0,
    "needs": "",
-   "unmodelled": true,
+   "group": "linear frame",
+   "requires": {
+    "stat": {
+     "BODY": 8
+    },
+    "pieces": {
+     "grafted_muscle_and_bone_lace": 2
+    }
+   },
+   "summary": "BODY 14: more HP. Needs BODY 8 and two Grafted Muscle.",
    "cite": "CPR core p.116, p.367"
   },
   "implanted_linear_frame_sigma": {
@@ -1509,10 +1558,24 @@
    "hl_flat": 14,
    "cost": 1000,
    "borgware": true,
+   "fx": {
+    "stat_set": {
+     "BODY": 12
+    }
+   },
    "host": "borgware",
    "slots": 0,
    "needs": "",
-   "unmodelled": true,
+   "group": "linear frame",
+   "requires": {
+    "stat": {
+     "BODY": 6
+    },
+    "pieces": {
+     "grafted_muscle_and_bone_lace": 1
+    }
+   },
+   "summary": "BODY 12: more HP. Needs BODY 6 and Grafted Muscle.",
    "cite": "CPR core p.116, p.367"
   },
   "multioptic_mount": {

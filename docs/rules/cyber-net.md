@@ -172,7 +172,7 @@ HL column: dice (creation flat value in parentheses). Install: M = Mall, C = Cli
 | MicroVideo | C | Camera in eye, records; 2 slots | 1d6/2 (2) | 500eb |
 | Radiation Detector | C | Radiation readout within 100m | 1d6 (3) | 1,000eb |
 | Targeting Scope | C | +1 on Aimed Shot check | 1d6 (3) | 500eb |
-| TeleOptics | C | See detail to 800m; +1 Aimed Shots at 51m+ | 1d6 (3) | 500eb |
+| TeleOptics | C | See detail to 800m; +1 to single shots and Aimed Shots at 51m+ (p.361) | 1d6 (3) | 500eb |
 | Virtuality | M | Cyberspace imagery overlay; paired | 1d6/2 (2) | 100eb |
 
 **Cyberaudio (p113, foundation Cyberaudio Suite, 3 slots)** - all options need the Suite.
@@ -230,9 +230,9 @@ HL column: dice (creation flat value in parentheses). Install: M = Mall, C = Cli
 | Grapple Hand | C | Fires hand + 30m line; not a weapon | 1d6 (3) | 100eb |
 | Medscanner | C | +2 First Aid and Paramedic; 2 slots | 2d6 (7) | 500eb |
 | Popup Grenade Launcher | C | Single-shot concealable launcher; 2 slots | 2d6 (7) | 500eb |
-| Popup Melee Weapon | C | Light/Medium/Heavy melee concealed; 2 slots | 2d6 (7) | 500eb |
-| Popup Shield | C | Bulletproof Shield, concealable, replaced at 0 HP; 3 slots | 2d6 (7) | 500eb |
-| Popup Ranged Weapon | C | One-handed ranged weapon concealed; 2 slots | 2d6 (7) | 500eb |
+| Popup Melee Weapon | C | One-handed Light/Medium/Heavy melee concealed, drawn/stowed free (p.365); 2 slots | 2d6 (7) | 500eb |
+| Popup Shield | C | Bulletproof Shield (10 HP), concealed; out/away free while it has HP; replaceable (p.365); 3 slots | 2d6 (7) | 500eb |
+| Popup Ranged Weapon | C | One-handed ranged weapon provided by the user, concealed, drawn/stowed free (p.365); 2 slots | 2d6 (7) | 500eb |
 | Quick Change Mount | C | Remove/install Cyberarm as an Action | 2d6 (7) | 100eb |
 | Rippers | C | Carbo-glass claws, Medium Melee, concealable; sole cyberware in meat arm allowed | 1d6 (3) | 500eb |
 | Scratchers | M | Light Melee fingernails, concealable; sole cyberware in meat arm allowed | 1d6/2 (2) | 100eb |

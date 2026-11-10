@@ -80,13 +80,13 @@ func _ripperdoc(body: VBoxContainer) -> void:
 	var a := _list_panel(lists, "INSTALLED")
 	var shown := Cyber.shown(c.implants)
 	for p in shown:
-		a.add_child(_installed_row(c, String(p.id), String(p.loc)))
+		a.add_child(_installed_row(c, Cyber.spec_of(p), String(p.loc)))   # a spec: a Skill Chip names its Skill
 	if shown.is_empty():
 		a.add_child(none("No cyberware."))
 	# in storage
 	var st := _list_panel(lists, "IN STORAGE")
 	for k in camp.cyberware_options():
-		st.add_child(_stored_row(c, Items.base_id(k)))
+		st.add_child(_stored_row(c, k.get_slice("/", 1)))   # a spec ("skill_chip@handgun"): what it was bought for
 	if camp.cyberware_options().is_empty():
 		st.add_child(none("No cyberware in storage."))
 	var go := UiKit.button("NIGHT MARKET ›", UiKit.NAV, func(): navigate.emit("market"))
@@ -139,7 +139,7 @@ func _installed_row(c: Combatant, id: String, loc: String) -> Control:
 		var bv := UiKit.vbox(4)
 		bv.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(bv)
-		var b := UiKit.button("DESTROY IT", UiKit.DANGER, Callable(), true, 14, true)
+		var b := UiKit.button("TO STORAGE" if Campaign.comes_out_whole(id) else "DESTROY IT", UiKit.DANGER, Callable(), true, 14, true)   # chips come out whole
 		b.pressed.connect(func(): _confirm = ""; act(b, func(): camp.remove(c, id, loc), nm + " removed", Hud.RED))
 		bv.add_child(b)
 		bv.add_child(UiKit.button("KEEP IT", UiKit.NAV, func(): _confirm = ""; _build(), true, 14, true))

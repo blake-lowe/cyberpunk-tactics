@@ -27,6 +27,18 @@ static func attack_base(attacker: Combatant, weapon: Weapon, mode: Mode) -> int:
 	return base
 
 
+## TeleOptics: +1 to a weapon's single shot or an Aimed Shot at a target 51 m/yds or further away
+## (CPR core p.361). Autofire, shells and melee get nothing.
+static func long_shot_bonus(attacker: Combatant, weapon: Weapon, mode: Mode, distance_m: float) -> int:
+	if attacker == null or weapon.is_melee() or mode == Mode.AUTOFIRE:
+		return 0
+	var best := 0
+	for fx in attacker._cyber_fx():
+		if fx.has("long_shot_bonus") and distance_m >= float(fx.get("long_shot_m", 51)):
+			best = maxi(best, int(fx.long_shot_bonus))
+	return best
+
+
 ## Everything the UI needs before committing: legality, DV source and exact hit chance.
 ## Keys: ok, reason, base, dv (fixed DV or -1), defense_base (opposed or -1), chance.
 ## `mod`: a situational modifier on the attacker's base from the scene (the weather, Weather).
@@ -38,7 +50,7 @@ static func preview(attacker: Combatant, weapon: Weapon, defender: Combatant, mo
 		p.reason = reason
 		return p
 	p.ok = true
-	p.base = attack_base(attacker, weapon, mode) + mod
+	p.base = attack_base(attacker, weapon, mode) + mod + long_shot_bonus(attacker, weapon, mode, distance_m)
 
 	var evasion := defender.skill_base("evasion") - defender.action_penalty()
 	if weapon.is_melee():
@@ -294,6 +306,19 @@ static func grapple_reason(weapon: Weapon, attacker: Combatant) -> String:
 	return ""
 
 
+## With the Popup Shield out, its Cyberarm does nothing but hold the shield (CPR core p.365): no
+## two-handed weapon, nothing that pops out of that arm.
+static func shield_reason(weapon: Weapon, attacker: Combatant) -> String:
+	if attacker == null or not attacker.shield_out:
+		return ""
+	if int(weapon.def.get("hands", 1)) >= 2:
+		return "two-handed: shield out"
+	var sp := attacker.shield_piece()
+	if weapon.popup != "" and not sp.is_empty() and weapon.popup.get_slice("@", 1).get_slice(":", 0) == String(sp.loc):
+		return "that arm holds the shield"
+	return ""
+
+
 static func _range_key(weapon: Weapon, mode: Mode) -> String:
 	return weapon.def["autofire_range"] if mode == Mode.AUTOFIRE else weapon.def["range"]
 
@@ -306,6 +331,8 @@ static func _illegal_reason(weapon: Weapon, mode: Mode, distance_m: float, attac
 		return why
 	if grapple_reason(weapon, attacker) != "":
 		return grapple_reason(weapon, attacker)
+	if shield_reason(weapon, attacker) != "":
+		return shield_reason(weapon, attacker)
 	var fx := weapon.fx()
 	if is_aimed(mode) and fx.get("no_aimed_shot", false):
 		return "can't aim"   # Hurricane, Flamethrower, EMG-86, Helix (p348-349)
@@ -355,6 +382,9 @@ static func shotgun_shell(dice: Dice, attacker: Combatant, weapon: Weapon, targe
 	if grapple_reason(weapon, attacker) != "":
 		out.reason = grapple_reason(weapon, attacker)
 		return out
+	if shield_reason(weapon, attacker) != "":
+		out.reason = shield_reason(weapon, attacker)
+		return out
 	if weapon.ammo < 1:
 		out.reason = "empty"
 		return out
@@ -401,6 +431,9 @@ static func suppressive_fire(dice: Dice, attacker: Combatant, weapon: Weapon, ta
 		return out
 	if grapple_reason(weapon, attacker) != "":
 		out.reason = grapple_reason(weapon, attacker)
+		return out
+	if shield_reason(weapon, attacker) != "":
+		out.reason = shield_reason(weapon, attacker)
 		return out
 	out.ok = true
 	weapon.spend(AUTOFIRE_AMMO)

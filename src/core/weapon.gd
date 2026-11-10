@@ -5,6 +5,12 @@ extends RefCounted
 var def: Dictionary
 var ammo: int
 var builtin := false   ## part of installed cyberware (Wolvers, Big Knucks): never sold or swapped out
+## The popup piece holding it (Cyber.key: "popup_ranged_weapon@right_arm:heavy_pistol"), "" if none
+## (Cyber.popup_weapon). Concealed without a Check and drawn or stowed without an Action (CPR core
+## p.360, p.365): nobody sees it until it's used (`revealed`, set by its first attack). Not saved:
+## rebuilt from the implants (Combatant.from_dict).
+var popup := ""
+var revealed := false
 var quality := "standard"   ## poor | standard | excellent (CPR core p.342; weapons.json "quality")
 var jammed := false         ## a Poor weapon that rolled a 1: an Action to clear before it fires again
 var reload_done := 0        ## Actions already spent on a reload that takes several (Helix, EMG-86: 2, p348-349)

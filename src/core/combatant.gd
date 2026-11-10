@@ -71,6 +71,14 @@ var max_humanity: int = 0
 ## through install_cyberware / remove_cyberware, which keep subdermal armour and built-in weapons in step.
 var implants: Array[Dictionary] = []
 var subdermal: Dictionary = {}  ## location → ArmorPiece from Subdermal Armor / Skin Weave.
+## This gig: activated chrome running, id → rounds left (the Sandevistan's minute, CPR core p.359),
+## and chrome already used, id → true (its hour-long cooldown outlasts any gig). Not saved.
+var chrome_on := {}
+var chrome_spent := {}
+## This gig: the Popup Shield is out of its Cyberarm (CPR core p.365). Its HP is the piece's "hp". Not saved.
+var shield_out := false
+## Chipware this character has had in (specs): putting one back in costs no Humanity Loss (CPR core p.359).
+var chips_used: Array[String] = []
 ## Per-Round trackers for "first X this Round" abilities. Reset by new_round().
 var skip_next_action := false  ## Spinal Injury (p221).
 var skip_next_move := false    ## Damaged/Lost Ear after moving > 4 m (p222).
@@ -104,9 +112,13 @@ func raw_stat(s: String) -> int:
 	var v := int(stats.get(s, 0))
 	if s == "EMP" and tracks_humanity:
 		return maxi(0, humanity) / 10  # tens digit of current Humanity (p80)
-	for fx in _cyber_fx():
+	var fxs := _cyber_fx()
+	for fx in fxs:
 		if fx.has("stat") and fx["stat"].has(s):
 			v = mini(v + int(fx["stat"][s]), maxi(v, int(fx.get("stat_cap", 99))))
+	for fx in fxs:   # a Linear Frame: BODY becomes 12 or 14, never lower than it was (CPR core p.367)
+		if fx.has("stat_set") and fx["stat_set"].has(s):
+			v = maxi(v, int(fx["stat_set"][s]))
 	return v
 
 
@@ -158,10 +170,21 @@ func armor_penalty() -> int:
 
 func skill_level(skill_id: String) -> int:
 	var v := int(skills.get(skill_id, 0))
+	if chipped(skill_id):   # Skill Chip: trained at +3 unless already higher (CPR core p.360)
+		v = maxi(v, 3)
 	for fx in _cyber_fx():
 		if fx.has("skill"):
 			v += int(fx["skill"].get(skill_id, 0))
 	return v
+
+
+## A working Skill Chip for this Skill is in a Chipware Socket (CPR core p.359-360).
+func chipped(skill_id: String) -> bool:
+	for p in implants:
+		if String(p.get("choice", "")) == skill_id and Cyber.def(String(p.id)).get("fx", {}).has("skill_chip") \
+				and int(cyber_off.get(Cyber.key(p), 0)) <= 0:
+			return true
+	return false
 
 
 ## STAT + Skill (p130), before situational modifiers.
@@ -170,13 +193,14 @@ func skill_base(skill_id: String) -> int:
 
 
 ## Carried utilities' Skill bonuses (Medscanner +2 First Aid/Paramedic, Techscanner +2 Tech
-## Skills, p.353-355). The same kind of tool doesn't stack: the best one counts.
+## Skills, p.353-355), and the same scanners built into a Cyberarm (p.365-366). The same kind of
+## tool doesn't stack, carried or installed: the best one counts.
 func kit_skill_bonus(skill_id: String) -> int:
 	var best := 0
 	for i in kit.size():
 		if kit[i] != "" and Items.kind(kit[i]) == "utility":
 			best = maxi(best, int(Items.fx(kit[i]).get("skill_bonus", {}).get(skill_id, 0)))
-	for fx in drug_fx:
+	for fx in _cyber_fx():   # installed scanners and drugs in the system
 		best = maxi(best, int(fx.get("skill_bonus", {}).get(skill_id, 0)))
 	return best
 
@@ -300,6 +324,9 @@ func gig_reset() -> void:
 	heat = 0
 	burning = 0
 	cyber_off.clear()
+	chrome_on.clear()
+	chrome_spent.clear()
+	shield_out = false
 	kit_spent = [false, false]
 	drugs_taken.clear()
 	drug_fx.clear()
@@ -311,6 +338,7 @@ func gig_reset() -> void:
 		w.reload()
 		w.jammed = false
 		w.load_special({}, 0)
+		w.revealed = false   # a popup is hidden again for the next gig
 
 
 ## A flashbang's or teargas's injuries last "for the next minute" (p.346-347; Attack `expires_in`
@@ -406,6 +434,8 @@ func initiative_bonus() -> int:
 	var b := awareness_level("initiative_reaction")
 	for fx in _cyber_fx():
 		b += int(fx.get("initiative", 0))
+	for id in chrome_on:   # activated: the Sandevistan's +3 to any Initiative Roll in its minute (p.359)
+		b += int(Cyber.def(String(id)).get("fx", {}).get("initiative_activated", 0))
 	return b
 
 
@@ -457,14 +487,28 @@ func init_humanity() -> void:
 ## two pieces, each paid for (CPR core p.361). Returns the Humanity lost.
 func install_cyberware(cyber_id: String, dice: Dice = null, at_creation: bool = false, loc: String = "") -> int:
 	var d: Dictionary = Cyber.def(cyber_id)
+	var choice := Cyber.choice_of(cyber_id)   # a spec: "skill_chip@handgun", "popup_ranged_weapon@heavy_pistol"
+	var spec := cyber_id
+	cyber_id = Cyber.base(cyber_id)
 	var where := loc if loc != "" else Cyber.auto_loc(implants, cyber_id)
-	implants.append({"id": cyber_id, "loc": where if where != "" else Cyber.fallback_loc(cyber_id)})
+	var piece := {"id": cyber_id, "loc": where if where != "" else Cyber.fallback_loc(cyber_id)}
+	if choice != "":
+		piece["choice"] = choice
 	var fx: Dictionary = d.get("fx", {})
+	if fx.has("shield"):   # the Popup Shield's Bulletproof Shield (p.365), at full HP
+		piece["hp"] = Cyber.shield_max(cyber_id)
+	implants.append(piece)
+	var pw := Cyber.popup_weapon(piece)
+	if pw:   # a popup's weapon: carried, concealed, never the primary (p.365)
+		weapons.append(pw)
+	var reused := String(d.get("host", "")) == "chipware" and spec in chips_used
+	if String(d.get("host", "")) == "chipware" and not reused:
+		chips_used.append(spec)
 	if fx.has("armor_sp") and (subdermal.is_empty() or int(fx["armor_sp"]) > (subdermal["body"] as ArmorPiece).max_sp):
 		_set_subdermal(cyber_id)   # only the highest SP counts (p184)
 	if fx.has("weapon"):   # built-in melee weapons (Wolvers, Big Knucks...): keep the hardest-hitting one
 		var nw := _builtin_weapon(fx)
-		var melee := weapons.filter(func(x): return x.is_melee())
+		var melee := weapons.filter(func(x): return x.is_melee() and x.popup == "")
 		if melee.all(func(x): return x.dice() < nw.dice() or not x.builtin):
 			for old in melee:
 				weapons.erase(old)
@@ -472,6 +516,8 @@ func install_cyberware(cyber_id: String, dice: Dice = null, at_creation: bool = 
 	var loss := 0
 	if tracks_humanity and int(d.get("hl_flat", 0)) > 0:
 		loss = int(d["hl_flat"]) if at_creation or dice == null else roll_hl(dice, d["hl_dice"])
+		if reused:   # "Re-installing Chipware you've already used doesn't" cost Humanity (p.359)
+			loss = 0
 		humanity -= loss
 		max_humanity -= 4 if d.get("borgware", false) else 2
 		humanity = mini(humanity, max_humanity)
@@ -512,13 +558,75 @@ func cyber_working(cyber_id: String) -> bool:
 	return cyber_id in Cyber.active_ids(implants, cyber_off)
 
 
-## The installed piece of `cyber_id` at `loc` ("" = the last one installed), {} if none.
+## The installed piece of `cyber_id` at `loc` ("" = the last one installed), {} if none. A spec
+## ("skill_chip@handgun") picks the piece made for that choice.
 func implant(cyber_id: String, loc: String = "") -> Dictionary:
+	var ch := Cyber.choice_of(cyber_id)
+	cyber_id = Cyber.base(cyber_id)
 	for i in range(implants.size() - 1, -1, -1):
 		var p: Dictionary = implants[i]
-		if String(p.id) == cyber_id and (loc == "" or String(p.loc) == loc):
+		if String(p.id) == cyber_id and (loc == "" or String(p.loc) == loc) and (ch == "" or String(p.get("choice", "")) == ch):
 			return p
 	return {}
+
+
+# --- Activated chrome and popups (CPR core p.359-360, p.365) -----------------------------------
+
+## The Popup Shield piece ({} if none installed).
+func shield_piece() -> Dictionary:
+	for p in implants:
+		if Cyber.def(String(p.id)).get("fx", {}).has("shield"):
+			return p
+	return {}
+
+
+## HP left on the Popup Shield's Bulletproof Shield (0 with none, or destroyed).
+func shield_hp() -> int:
+	var p := shield_piece()
+	return int(p.get("hp", 0)) if not p.is_empty() else 0
+
+
+## Wielding a shield with HP left: "considered to be in cover", and it can be put between them and
+## an attack they see (CPR core p.183). The Popup Shield out of its arm (p.365).
+func shield_up() -> bool:
+	return shield_out and shield_hp() > 0
+
+
+## Why the Popup Shield can't come out or go back now ("" if it can): "drawn or stowed without an
+## Action, provided that the shield has more than 0 HP" (p.365); knocked out, the arm won't work it;
+## one shield at a time (a Human Shield is one, p.184).
+func shield_block() -> String:
+	var p := shield_piece()
+	if p.is_empty():
+		return "No popup shield"
+	if shield_hp() <= 0:
+		return "Shield destroyed"
+	if int(cyber_off.get(Cyber.key(p), 0)) > 0:
+		return "Chrome offline"
+	if not shield_out and grapple != null and grapple.holder == self and grapple.shield:
+		return "Already holding a shield"
+	return ""
+
+
+## A piece nobody else has seen yet: a popup whose weapon hasn't been used, a Popup Shield still in
+## the arm (concealed without a Check, CPR core p.360, p.365).
+func concealed(piece: Dictionary) -> bool:
+	var fx: Dictionary = Cyber.def(String(piece.id)).get("fx", {})
+	if fx.has("shield"):
+		return not shield_out
+	if not (fx.has("popup") or fx.has("weapon_choice")):
+		return false
+	var k := Cyber.key(piece)
+	return not weapons.any(func(w): return w.popup == k and w.revealed)
+
+
+## Put the Popup Shield's hits on it: returns the HP left (0: destroyed, p.183).
+func hit_shield(damage: int) -> int:
+	var p := shield_piece()
+	if p.is_empty():
+		return 0
+	p["hp"] = maxi(0, int(p.get("hp", 0)) - maxi(0, damage))
+	return int(p.hp)
 
 
 ## Skin Weave and Subdermal Armor mend: each day of natural healing repairs 1 lost SP in both the
@@ -543,6 +651,10 @@ func remove_cyberware(cyber_id: String, loc: String = "") -> bool:
 		return false
 	implants.erase(piece)
 	cyber_off.erase(Cyber.key(piece))
+	var pk := Cyber.key(piece)
+	weapons.assign(weapons.filter(func(w): return w.popup != pk))   # its popup weapon goes with it
+	if shield_piece().is_empty():
+		shield_out = false
 	var d: Dictionary = Cyber.def(cyber_id)
 	var fx: Dictionary = d.get("fx", {})
 	if fx.has("armor_sp"):
@@ -556,7 +668,7 @@ func remove_cyberware(cyber_id: String, loc: String = "") -> bool:
 			if best != "":
 				_set_subdermal(best)
 	if fx.has("weapon"):
-		weapons.assign(weapons.filter(func(w): return not w.builtin))
+		weapons.assign(weapons.filter(func(w): return not w.builtin or w.popup != ""))
 		var bw: Weapon = null
 		for cid in cyber_ids():
 			var ofx: Dictionary = Cyber.def(cid).get("fx", {})
@@ -766,10 +878,10 @@ func to_dict() -> Dictionary:
 		sub[loc] = _armor_dict(subdermal[loc])
 	return {"id": id, "name": display_name, "real_name": real_name, "team": team, "faction": faction, "stats": stats, "skills": skills, "hp": hp, "armor": arm,
 		"subdermal": sub, "injuries": injuries, "base_dsp": base_dsp, "dsp": dsp, "dead": dead, "unconscious": unconscious,
-		"weapons": weapons.map(func(w): return {"id": w.id(), "ammo": w.ammo, "builtin": w.builtin, "quality": w.quality}), "role": role,
+		"weapons": weapons.map(func(w): return {"id": w.id(), "ammo": w.ammo, "builtin": w.builtin, "quality": w.quality, "popup": w.popup}), "role": role,
 		"role_rank": role_rank, "awareness": awareness, "tracks_humanity": tracks_humanity, "humanity": humanity,
 		"max_humanity": max_humanity, "cyberware": implants, "ip": ip, "look_seed": look_seed, "perks": perks, "medicine": medicine, "maker": maker, "downtime": downtime, "programs": programs,
-		"kit": kit, "addictions": addictions, "clean_since": clean_since, "reputation": reputation}
+		"kit": kit, "addictions": addictions, "clean_since": clean_since, "reputation": reputation, "chips_used": chips_used}
 
 
 static func from_dict(d: Dictionary) -> Combatant:
@@ -795,7 +907,11 @@ static func from_dict(d: Dictionary) -> Combatant:
 	c.dsp = int(d.dsp)
 	c.dead = bool(d.dead)
 	c.unconscious = bool(d.unconscious)
+	var popups := {}   # popup weapons are rebuilt from their pieces below (Cyber.popup_weapon)
 	for wd in d.weapons:
+		if String(wd.get("popup", "")) != "":
+			popups[String(wd.popup)] = int(wd.ammo)
+			continue
 		var w := Weapon.from_id(String(wd.id), String(wd.get("quality", "standard")))
 		w.ammo = int(wd.ammo)
 		w.builtin = bool(wd.get("builtin", false))
@@ -810,11 +926,22 @@ static func from_dict(d: Dictionary) -> Combatant:
 	var flat: Array = []   # bare ids (a hand-written dict, an older save the migration missed): placed by Cyber
 	for cw in d.get("cyberware", []):
 		if cw is Dictionary and Cyber.db().has(String(cw.get("id", ""))):
-			c.implants.append({"id": String(cw.id), "loc": String(cw.get("loc", Cyber.fallback_loc(String(cw.id))))})
+			var piece := {"id": String(cw.id), "loc": String(cw.get("loc", Cyber.fallback_loc(String(cw.id))))}
+			for k in ["choice", "hp"]:   # what it was made for (Cyber.choices); a Popup Shield's HP
+				if cw.has(k):
+					piece[k] = String(cw[k]) if k == "choice" else int(cw[k])
+			c.implants.append(piece)
 		elif cw is String:
 			flat.append(cw)
 	if not flat.is_empty():
 		c.implants.append_array(Cyber.place_ids(flat))
+	for p in c.implants:   # popup weapons from the pieces holding them
+		var pw := Cyber.popup_weapon(p)
+		if pw:
+			pw.ammo = int(popups.get(pw.popup, pw.mag()))
+			c.weapons.append(pw)
+	for s in d.get("chips_used", []):
+		c.chips_used.append(String(s))
 	c.ip = int(d.get("ip", 0))
 	c.look_seed = int(d.get("look_seed", -1))
 	c.downtime = String(d.get("downtime", "recover"))

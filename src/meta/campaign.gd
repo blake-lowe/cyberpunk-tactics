@@ -930,6 +930,7 @@ func resolve(e: Encounter) -> Dictionary:
 	if won:
 		report.pay = int(gig.get("pay", 0))
 	eb += report.pay
+	report["shields"] = _replace_popup_shields()
 	report["payment"] = (gig.get("payment", {}) as Dictionary).duplicate(true) if gig.get("payment") is Dictionary else {}
 	report["paid_extra"] = _collect_payment(gig) if won else ""
 	report["focus_line"] = MissionBuilder.debrief_line(gig, won)
@@ -962,6 +963,27 @@ func resolve(e: Encounter) -> Dictionary:
 	refresh_board()
 	update_market()
 	return report
+
+
+## A Popup Shield that took hits gets a new Bulletproof Shield at the safehouse: the one in the arm
+## is "easily removable and replaceable with another Bulletproof Shield" (CPR core p.365), at the
+## shield's price (100eb, p.183), paid when the crew can. A destroyed one stays useless until then.
+## Returns who got one.
+func _replace_popup_shields() -> Array:
+	var out: Array = []
+	for c in crew:
+		var p := c.shield_piece()
+		if p.is_empty() or int(p.get("hp", 0)) >= Cyber.shield_max(String(p.id)):
+			continue
+		var cost := int(RulesDB.gear("shields", "bulletproof_shield").get("cost", 100))
+		if eb < cost:
+			say("%s's popup shield needs a new Bulletproof Shield (%d eb): not enough eb." % [c.display_name, cost])
+			continue
+		eb -= cost
+		p["hp"] = Cyber.shield_max(String(p.id))
+		out.append(c.display_name)
+		say("%s's popup shield gets a new Bulletproof Shield (-%d eb)." % [c.display_name, cost])
+	return out
 
 
 ## The plot twist that sprang on the gig, for the debrief: {id, row, label, note, text, round}, or
@@ -1089,7 +1111,7 @@ static func _lost_gear_keys(c: Combatant) -> Array:
 		if c.armor.get(loc):
 			out.append("")
 	for p in Cyber.shown(c.implants):
-		out.append("cyberware/" + String(p.id))
+		out.append("cyberware/" + Cyber.spec_of(p))
 	return out
 
 
@@ -1583,12 +1605,14 @@ const HUMANITY_THERAPY := {"standard": "standard_humanity_therapy", "extreme": "
 ## Why `c` can't have this stored piece installed now ("" if they can), in a few plain words: none
 ## in storage, or the slot model's reason (Cyber.block: "No free slot in the left eye", "Needs two
 ## cybereyes", "Only one speedware"...). `loc` "" asks whether it fits anywhere.
+## `id` may be a spec ("skill_chip@handgun": a piece made for one thing, Cyber.choices).
 func install_block(c: Combatant, id: String, loc: String = "") -> String:
 	if c == null or not c in alive_crew():
 		return "Not on the crew"
 	if stored("cyberware/" + id) <= 0:
 		return "Not in storage"
-	return Cyber.block_any(c.implants, id) if loc == "" else Cyber.block(c.implants, id, loc)
+	var why := Cyber.block_any(c.implants, id) if loc == "" else Cyber.block(c.implants, id, loc)
+	return why if why != "" else Cyber.stat_block(c, Cyber.base(id))   # a Linear Frame's BODY (p.367)
 
 
 ## Install a piece from storage at `loc` ("" = Cyber.auto_loc). Free: it came from a Night Market,
@@ -1610,6 +1634,13 @@ func install(c: Combatant, id: String, loc: String = "") -> int:
 	return loss
 
 
+## Chipware comes out of its socket whole and goes back to storage: chips are made to be swapped
+## (CPR core p.359), here only at the safehouse (owner's ruling); putting it back in costs no
+## Humanity Loss (Combatant.chips_used).
+static func comes_out_whole(id: String) -> bool:
+	return String(Cyber.def(id).get("host", "")) == "chipware"
+
+
 ## Why this installed piece can't come out now ("" if it can): a piece installed in it still needs
 ## it (p111: options come out before their foundation).
 func remove_block(c: Combatant, id: String, loc: String = "") -> String:
@@ -1627,8 +1658,11 @@ func remove_block(c: Combatant, id: String, loc: String = "") -> String:
 func remove(c: Combatant, id: String, loc: String = "") -> bool:
 	if remove_block(c, id, loc) != "":
 		return false
+	var spec := Cyber.spec_of(c.implant(id, loc))
 	c.remove_cyberware(id, loc)
-	say("%s has %s taken out." % [c.display_name, Cyber.display(id)])
+	if comes_out_whole(id):
+		_put("cyberware/" + spec)
+	say("%s has %s taken out." % [c.display_name, Cyber.display(spec)])
 	return true
 
 

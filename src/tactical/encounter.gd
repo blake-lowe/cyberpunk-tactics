@@ -514,6 +514,8 @@ func end_turn() -> void:
 		var b0: int = cur.c.wound_state()
 		cur.c.hp -= cur.c.burning
 		events.append({"type": "harm", "unit": cur.id, "damage": cur.c.burning, "source": "BURNING", "wound_before": b0, "wound_after": cur.c.wound_state()})
+	if turn != null and not cur.is_empty():
+		_tick_chrome(cur)
 	if turn != null and not cur.is_empty():   # knocked-out cyberware comes back a round at a time
 		for cid in cur.c.cyber_off.keys():
 			cur.c.cyber_off[cid] = int(cur.c.cyber_off[cid]) - 1
@@ -2631,6 +2633,10 @@ func preview(target: Dictionary, weapon: Weapon, mode: Attack.Mode) -> Dictionar
 	p["blocker"] = s.blocker
 	if not sh.is_empty():
 		p["shield"] = sh.id
+	elif p.ok and popup_shield_for(target, s.from):   # they put their shield in the way: no dodge, it takes the attack (p.183)
+		p["popup_shield"] = target.c.shield_hp()
+		p.defense_base = -1
+		p.chance = 1.0 if weapon.is_melee() else Check.chance_vs_dv(int(p.base), int(p.dv))
 	match String(target.get("broke", "")):   # Morale: shooting someone who gave up (or is running) is the crew's choice; the view says so
 		"surrender":
 			p["surrendered"] = true
@@ -2651,6 +2657,11 @@ func attack(target: Dictionary, weapon: Weapon, mode: Attack.Mode) -> Dictionary
 	_keep_peace(cur, [target.pos])
 	_rouse([target])
 	_noise(cur.pos)
+	if weapon.popup != "" and not weapon.revealed:   # a popup is seen once it's used (p.365)
+		weapon.revealed = true
+		say("%s reveals a %s." % [cur.c.display_name, weapon.display_name().to_lower()])
+	if p.has("popup_shield"):
+		return _attack_popup_shield(target, weapon, mode, p)
 	if p.has("shield"):   # the Human Shield takes it instead (p.184): the attack goes into them
 		var sh: Dictionary = units[int(p.shield)]
 		say("%s's human shield %s takes the shot." % [target.c.display_name, sh.c.display_name])
@@ -2746,6 +2757,115 @@ func _attack_corpse(target: Dictionary, sh: Dictionary, weapon: Weapon, mode: At
 	return r
 
 
+## Whether `target` puts their Popup Shield between them and an attack from `from` (CPR core p.183):
+## it's out with HP left and they see the attacker. Always, when they can: the shield takes the whole
+## attack, so it beats any dodge (the book leaves it the defender's choice). RULES-UNVERIFIED: area
+## attacks (blasts, shells, suppression) don't go into it, as with a Human Shield (shield_for).
+func popup_shield_for(target: Dictionary, from: Vector3i) -> bool:
+	return not target.is_empty() and target.c.shield_up() and target.c.can_act() and los.sight(target.pos, from).visible
+
+
+## An attack into a Popup Shield (CPR core p.183): the target can't dodge; a ranged attack can still
+## miss its DV; a hit puts the whole attack into the shield's HP, none into them. RULES-UNVERIFIED: a
+## melee attack, whose only defence is the dodge (p.176), always reaches the shield. At 0 HP it's
+## destroyed and covers nothing; it stays out of the arm (only a shield with HP folds away, p.365).
+func _attack_popup_shield(target: Dictionary, weapon: Weapon, mode: Attack.Mode, p: Dictionary) -> Dictionary:
+	var ammo_before := weapon.ammo
+	if weapon.uses_ammo():
+		weapon.spend(weapon.autofire_ammo() if mode == Attack.Mode.AUTOFIRE else 1)
+	var check: Check = null if weapon.is_melee() else Check.vs_dv(dice, int(p.base), int(p.dv))
+	var hit := check == null or check.success
+	var dmg := 0
+	if hit and not weapon.fx().get("no_damage", false):
+		dmg = dice.roll(2, 6) * mini(check.total - check.dv, weapon.autofire_mult()) if mode == Attack.Mode.AUTOFIRE else dice.roll(weapon.dice(), 6)
+	var left: int = target.c.hit_shield(dmg) if hit else target.c.shield_hp()
+	events.append({"type": "attack", "unit": cur.id, "target": target.id, "from": p.from, "hit": false, "dodged": false, "damage": 0, "through": 0,
+		"location": "body", "sp_before": target.c.sp("body"), "sp_after": target.c.sp("body"), "crit": false, "crit_names": [],
+		"wound_before": target.c.wound_state(), "wound_after": target.c.wound_state(), "mult": 1, "rounds": maxi(1, ammo_before - weapon.ammo),
+		"mode": mode, "weapon": weapon.id(), "dead": target.c.dead, "killed": false, "shielded": hit, "shield_left": left, "popup_shield": true})
+	var roll := (" · %d vs %d" % [check.total, check.dv]) if check != null else ""
+	say("%s → %s · popup shield%s · %s" % [cur.c.display_name, target.c.display_name, roll, ("%d into the shield (%d HP left)" % [dmg, left]) if hit else "MISS"])
+	if hit and left <= 0:
+		say("%s's popup shield breaks." % target.c.display_name)
+	_check_end()
+	return {"ok": true, "hit": hit, "check": check, "damage": dmg, "through": 0, "location": "body", "crits": [], "dodged": false, "shield_left": left}
+
+
+# --- Activated chrome: the chrome menu (CPR core p.359, p.365) -------------------------------------
+
+const SANDEVISTAN_ROUNDS := 20   ## "the next minute" (p.359): 20 Rounds of 3 seconds (p.126)
+
+
+## The unit's chrome it works by hand, for the chrome menu and the AI, in a fixed order: one entry per
+## piece {id, name, cost, line, on, ok, why, verb}. The Sandevistan (an Action, once a gig: its hour
+## cooldown outlasts any gig, p.359) and the Popup Shield (out or away for free, p.365). Popup weapons
+## are weapons: the attack menu draws them (drawing one is free, p.365).
+func chrome_options(u: Dictionary = {}) -> Array:
+	if u.is_empty():
+		u = cur
+	var out: Array = []
+	if u.is_empty():
+		return out
+	var c: Combatant = u.c
+	var mine := u == cur and turn != null
+	if c.has_cyberware("sandevistan"):
+		var why := ""
+		var left := int(c.chrome_on.get("sandevistan", 0))
+		if left > 0:
+			why = "Running"
+		elif c.chrome_spent.has("sandevistan"):
+			why = "Used this gig"
+		elif not c.cyber_working("sandevistan"):
+			why = "Chrome offline"
+		elif not mine or not turn.action_available:
+			why = "No Action left"
+		out.append({"id": "sandevistan", "name": "SANDEVISTAN", "cost": "ACTION", "verb": "ACTIVATE", "on": left > 0, "ok": why == "", "why": why,
+			"line": "+3 Initiative from next round, all fight." if left <= 0 else "+3 Initiative · %s left" % Objective.count_text(left, "round").to_lower()})
+	if not c.shield_piece().is_empty():
+		var why := c.shield_block()
+		if why == "" and not mine:
+			why = "Not their turn"
+		var hp: int = c.shield_hp()
+		out.append({"id": "popup_shield", "name": "POPUP SHIELD", "cost": "FREE", "verb": "STOW" if c.shield_out else "EXTEND", "on": c.shield_out,
+			"ok": why == "", "why": why, "line": ("Cover: %d/%d HP. Blocks what you see coming." % [hp, Cyber.shield_max("popup_shield")]) if hp > 0 else "Destroyed. Replaced after the gig."})
+	return out
+
+
+## Work a piece of chrome for the active unit (chrome_options ids): kick in the Sandevistan (an
+## Action: +3 to their Initiative, the queue re-sorting from the next Round, Initiative.adjust), or
+## put the Popup Shield out or away (free). {ok, reason}.
+func use_chrome(id: String) -> Dictionary:
+	var opt: Array = chrome_options().filter(func(o): return String(o.id) == id)
+	if opt.is_empty():
+		return {"ok": false, "reason": "no such chrome"}
+	if not opt[0].ok:
+		return {"ok": false, "reason": String(opt[0].why)}
+	var c: Combatant = cur.c
+	match id:
+		"sandevistan":
+			turn.use_action()
+			c.chrome_on[id] = SANDEVISTAN_ROUNDS
+			c.chrome_spent[id] = true
+			init.adjust(c, int(Cyber.def(id).get("fx", {}).get("initiative_activated", 3)))
+			say("%s kicks in the Sandevistan: +3 Initiative." % c.display_name)
+		"popup_shield":
+			c.shield_out = not c.shield_out
+			say("%s's popup shield %s." % [c.display_name, "snaps out" if c.shield_out else "folds away"])
+	events.append({"type": "chrome", "unit": cur.id, "id": id, "on": c.chrome_on.has(id) or (id == "popup_shield" and c.shield_out)})
+	return {"ok": true}
+
+
+## Activated chrome runs down on its owner's turns (like knocked-out chrome); the Sandevistan's
+## minute over, its +3 comes off the Initiative too.
+func _tick_chrome(u: Dictionary) -> void:
+	for id in u.c.chrome_on.keys():
+		u.c.chrome_on[id] = int(u.c.chrome_on[id]) - 1
+		if int(u.c.chrome_on[id]) <= 0:
+			u.c.chrome_on.erase(id)
+			init.adjust(u.c, -int(Cyber.def(String(id)).get("fx", {}).get("initiative_activated", 0)))
+			say("%s's %s winds down." % [u.c.display_name, Cyber.display(String(id))])
+
+
 ## Ready another carried weapon: it becomes the one in hand (weapons[0]). Drawing an easily
 ## accessible weapon isn't an Action if you have a free hand (CPR core p.128).
 func draw(weapon: Weapon) -> bool:
@@ -2773,7 +2893,7 @@ func grapple_options() -> Array[String]:
 	elif c.is_grappling():
 		if c.grapple.live():
 			out.append_array(["choke", "throw"])
-			if not c.grapple.shield:
+			if not c.grapple.shield and not c.shield_out:   # one shield at a time: not with the Popup Shield out (p.184)
 				out.append("shield")
 		out.append("release")
 	elif not grab_targets(cur).is_empty():
@@ -3139,7 +3259,7 @@ static func attack_modes(weapon: Weapon) -> Array[String]:
 ## out of cover (nothing solid beside them on u's side, AI.covered_from).
 func suppress_targets(u: Dictionary) -> Array:
 	return foes(u).filter(func(o): return Los.distance_m(u.pos, o.pos) <= Attack.SUPPRESSIVE_RANGE_M and los.sight(u.pos, o.pos).visible \
-			and not o.has("turret") and not AI.covered_from(self, o.pos, [u]))
+			and not o.has("turret") and not AI.covered_from(self, o.pos, [u]) and not o.c.shield_up())   # a shield is cover (p.183)
 
 
 func suppress(weapon: Weapon) -> Dictionary:
