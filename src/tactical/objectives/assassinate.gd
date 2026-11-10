@@ -83,7 +83,7 @@ func on_evacuated(patient: int) -> void:
 	o.done = false
 	o.escaped = true
 	e.state = "lost"
-	e.say("Trauma Team saved %s. The job's blown." % o.name)
+	e.say("Trauma Team saved %s. The gig's blown." % o.name)
 
 
 func hud_text() -> String:

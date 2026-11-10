@@ -55,10 +55,10 @@ func _recover() -> VBoxContainer:
 	var left := UiKit.vbox(4)
 	left.custom_minimum_size.x = 300
 	var days := camp.days_to_recover()
-	var b := UiKit.button("RECOVER UNTIL HEALED · %d DAY%s" % [days, "" if days == 1 else "S"] if days > 0 else "EVERYONE IS AT FULL HP", UiKit.HEALTH, Callable(), days > 0)
+	var b := UiKit.button("REST UNTIL HEALED · %d DAY%s" % [days, "" if days == 1 else "S"] if days > 0 else "EVERYONE IS AT FULL HP", UiKit.HEALTH, Callable(), days > 0)
 	b.pressed.connect(func(): act(b, func(): camp.recover_until_healed(), "Rested %d day%s" % [days, "" if days == 1 else "s"]))
 	left.add_child(b)
-	var one := UiKit.button("RECOVER 1 DAY", UiKit.HEALTH, Callable())
+	var one := UiKit.button("REST 1 DAY", UiKit.HEALTH, Callable())
 	one.pressed.connect(func(): act(one, func(): camp.rest(1), "Rested 1 day"))
 	left.add_child(one)
 	left.add_child(UiKit.body("Rest heals BODY HP a day and the crew repairs worn armor. Critical Injuries need Treatment (Med Bay).", 12, Hud.DIM))

@@ -69,8 +69,8 @@ func _refresh() -> void:
 	var v := UiKit.vbox(8)
 	v.add_child(UiKit.head("NIGHT CITY", 32, Hud.TEXT))
 	var home := String(World.district(map.safehouse).get("name", "")) if map.safehouse != "" else ""
-	v.add_child(UiKit.body("Pick a job to plot the drive%s." % ((" from the safehouse in " + home) if home != "" else ""), 13, Hud.DIM))
-	v.add_child(SafehouseScreen.section("JOB OFFERS"))
+	v.add_child(UiKit.body("Pick a gig to plot the drive%s." % ((" from the safehouse in " + home) if home != "" else ""), 13, Hud.DIM))
+	v.add_child(SafehouseScreen.section("GIG OFFERS"))
 	if camp.board.is_empty():
 		v.add_child(SafehouseScreen.none("No offers today."))
 	for i in camp.board.size():
@@ -95,7 +95,7 @@ func _drive(v: VBoxContainer, i: int) -> void:
 	var obj := String(FixerScreen.OBJECTIVE_TEXT.get(Campaign.objective_for(g), ""))
 	if obj != "":
 		v.add_child(UiKit.body("★ " + obj, 13, Hud.TEXT))
-	v.add_child(UiKit.button("OPEN IN JOBS", UiKit.NEUTRAL, func(): open_job.emit(i)))
+	v.add_child(UiKit.button("OPEN IN GIGS", UiKit.NEUTRAL, func(): open_job.emit(i)))
 
 
 ## An offer as a selectable row: its number, title, district and pay (gold-filled when picked).

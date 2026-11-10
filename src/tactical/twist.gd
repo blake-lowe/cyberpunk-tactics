@@ -314,7 +314,7 @@ static func _units(e: Encounter, spec: Dictionary, out: Dictionary) -> void:
 	out.applied.append("units")
 	out.units.append_array(ids)
 	var who := {"opfor": "%d %ss for %s arrive" % [ids.size(), rank.to_lower(), World.display_name(e.post_faction)],
-		"rival": "A rival crew of %d (%s) is in, after the same prize, and at war with everyone" % [ids.size(), World.display_name(fid)],
+		"rival": "A rival crew of %d (%s) is after the same prize, hostile to everyone" % [ids.size(), World.display_name(fid)],
 		"ally": "A stranger joins the crew's side"}
 	out.lines.append(String(who.get(side, "%d more arrive" % ids.size())) + ".")
 	e.events.append({"type": "backup", "unit": ids[0], "units": ids, "label": rank.to_upper() + ("S" if ids.size() > 1 else "")})
@@ -359,7 +359,7 @@ static func _extraction(e: Encounter, out: Dictionary) -> void:
 				cells[v] = true
 	e.extract_cells = cells
 	out.applied.append("extraction")
-	out.lines.append("The way in is shut: the extraction point has moved.")
+	out.lines.append("The way in is shut: the extraction zone has moved.")
 
 
 ## Police Sting: the code's people (NCPD) come in a few rounds, and come hostile.

@@ -414,5 +414,5 @@ func test_every_device_op_has_a_cited_card() -> void:
 		assert_true(card.contains("NET Action"), "%s says what it costs" % id)
 		assert_true(db.ops.has(op) or op == "fire", "%s has its row labels" % op)
 	assert_eq(String(RulesDB.load_json("net_help.json").actions.held.page), "p.199", "the held node's cite, in the data")
-	assert_true(Hud.net_help("backdoor").contains("Password") and Hud.net_help("backdoor").contains("Virus"), "Backdoor: breaks a Password; lasting access is a Virus")
+	assert_true(Hud.net_help("backdoor").contains("Password") and Hud.net_help("backdoor").contains("until you jack out"), "Backdoor: breaks a Password for the run")
 	assert_true(Hud.net_help("eye_dee").contains("worth"), "Eye-Dee: what it is worth")

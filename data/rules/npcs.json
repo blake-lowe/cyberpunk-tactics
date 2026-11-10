@@ -11266,7 +11266,7 @@
 			},
 			{
 				"roll": 5,
-				"text": "One Mook wears heavy armorjack (SP13) body armour and gets +2 REF, DEX and MOVE before the armour penalty.",
+				"text": "One Mook wears heavy armorjack (SP13) body armor and gets +2 REF, DEX and MOVE before the armor penalty.",
 				"fx": {
 					"affects": 1,
 					"armor": {
@@ -11325,7 +11325,7 @@
 			},
 			{
 				"roll": 10,
-				"text": "One Mook has an SMG, Autofire base 16, no head armour and no sense of self-preservation.",
+				"text": "One Mook has an SMG, Autofire base 16, no head armor and no sense of self-preservation.",
 				"fx": {
 					"affects": 1,
 					"weapon": "smg",
@@ -11474,7 +11474,7 @@
 			},
 			{
 				"roll": 4,
-				"text": "Tech-upgraded medium armorjack with no armour penalty.",
+				"text": "Tech-upgraded medium armorjack with no armor penalty.",
 				"fx": {
 					"armor": {
 						"head": "medium_armorjack",

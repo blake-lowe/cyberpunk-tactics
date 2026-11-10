@@ -241,7 +241,7 @@ static func operate(e: Encounter, uid: int, nid: int, did: int) -> Dictionary:
 					e.dev_state.erase(int(x))
 				else:
 					e.dev_state[int(x)] = uid
-			text = "%s %s the alarm line%s." % [who, "restores" if on else "cuts", "" if on else ": a call for help goes out slow"]
+			text = "%s %s the alarm line%s." % [who, "restores" if on else "cuts", "" if on else ": help will be slow to come"]
 		"sprinklers":
 			var doused := []
 			var sid := int(d.get("structure", -1))

@@ -80,7 +80,7 @@ const GRAPPLE_ACTIONS := [["grab", "GRAB", "X", "hold", Color("ff8a3d"), true], 
 const ATK_MODES := {"single": ["SINGLE", "shot", "Single Shot"], "aim_head": ["AIM HEAD", "head", "Aimed Shot: head"],
 	"aim_leg": ["AIM LEG", "head", "Aimed Shot: leg"], "aim_held": ["AIM HELD", "head", "Aimed Shot: held item"],
 	"auto": ["AUTOFIRE", "auto", "Autofire"], "suppress": ["SUPPRESS", "suppress", "Suppressive Fire"],
-	"shell": ["SHELL", "shell", "Shotgun Shell"], "cover": ["COVER", "cover", "Shoot the cover in the way"],
+	"shell": ["SHELL", "shell", "Shotgun Shell"], "cover": ["COVER", "cover", "Shoot Cover"],
 	"melee": ["MELEE", "melee", "Melee Attack"], "brawl": ["BRAWL", "melee", "Brawling"]}
 var tool := ""            ## active target-picking tool (set by the view before refresh)
 var _end_btn: Button
@@ -1203,7 +1203,7 @@ func refresh(enc: Encounter, mode: int, cover_mode: bool, floor_text: String) ->
 		nv.add_theme_constant_override("separation", 0)
 		top.add_child(nv)
 		nv.add_child(_text(c.display_name.to_upper(), F_DISPLAY, 40, GOLD if crew_turn else RED))
-		nv.add_child(_text(crew_tag(enc.cur) + "  ·  " + ["UNHURT", "LIGHT WOUNDS", "SERIOUS WOUNDS", "MORTALLY WOUNDED", "FLATLINED"][c.wound_state()], F_DISPLAY, 20, CYAN if crew_turn else RED))
+		nv.add_child(_text(crew_tag(enc.cur) + "  ·  " + ["UNHURT", "LIGHTLY WOUNDED", "SERIOUSLY WOUNDED", "MORTALLY WOUNDED", "FLATLINED"][c.wound_state()], F_DISPLAY, 20, CYAN if crew_turn else RED))
 		_card.add_child(top)
 		var hp := HBoxContainer.new()
 		hp.add_theme_constant_override("separation", 8)
@@ -1397,7 +1397,7 @@ func _refresh_tools(enc: Encounter, crew_turn: bool) -> void:
 		if show[k] and k in ["go_up", "go_down"]:   # a move, not an Action: lit when the flight fits this turn
 			var sg: Dictionary = stairs[1 if k == "go_up" else -1]
 			b.disabled = not crew_turn or not sg.ok
-			b.tooltip_text = ("Take the stairs %s" % ("up" if k == "go_up" else "down")) + (" (Run: spends your Action)" if sg.run else "") + ("" if sg.ok else " · " + String(sg.reason))
+			b.tooltip_text = ("Take the stairs %s" % ("up" if k == "go_up" else "down")) + (" (uses your Action)" if sg.run else "") + ("" if sg.ok else " · " + String(sg.reason))
 		if show[k] and _is_grapple(k):   # every one is an Action, bar letting go of someone alive (p.177, p.184)
 			b.disabled = not crew_turn or (not t.action_available and not (k == "release" and g != null and g.live()))
 		var armed: bool = {"shot": stage == "attack", "kit0": tool == "grenade", "medic": tool == "stabilize",
@@ -2301,7 +2301,7 @@ func _net_refresh(enc: Encounter) -> void:
 	_net_box.add_child(_text(_node_label(here, enc, run, true).to_upper(), F_DISPLAY, 20, Color("e2c8ff")))
 	if String(here.type) == "file" and run.identified.has(run.current):   # Eye-Dee's answer (p.199)
 		var fi := NetDevices.file_info(enc, here)
-		var fl := _text("EYE-DEE · VALUE %d/5 · %s%s" % [int(fi.value), String(fi.tier).to_upper(), " · THE JOB'S FILE" if _is_target(enc, run, run.current) else ""],
+		var fl := _text("EYE-DEE · VALUE %d/5 · %s%s" % [int(fi.value), String(fi.tier).to_upper(), " · TARGET" if _is_target(enc, run, run.current) else ""],
 			F_TERM, Hud.ts(18), GOLD)
 		fl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		fl.custom_minimum_size.x = 296
@@ -2411,7 +2411,7 @@ func _net_held(enc: Encounter, none: bool) -> int:
 	var ready := func(row: Dictionary) -> bool:
 		return (row.ops as Array).any(func(o): return String(o.why) == "") or turrets.any(func(t): return int(t.node) == int(row.node) and String(t.why) == "")
 	nodes.sort_custom(func(a, b): return ready.call(a) and not ready.call(b))
-	_net_box.add_child(_text("HELD NODES · 1 NET ACTION EACH · ONCE A TURN", F_PIXEL, 20, DIM))
+	_net_box.add_child(_text("HELD NODES · 1 NET ACTION EACH", F_PIXEL, 20, DIM))
 	var rows := 1
 	var shown := 0
 	for row in nodes:
@@ -2441,7 +2441,7 @@ func _net_held(enc: Encounter, none: bool) -> int:
 			_net_box.add_child(b)
 			rows += 1
 		if (row.ops as Array).size() > OPS_PER_NODE:
-			_net_box.add_child(_text("     +%d MORE ON THIS NODE (FARTHER FROM THE CREW)" % ((row.ops as Array).size() - OPS_PER_NODE), F_TERM, Hud.ts(16), DIM))
+			_net_box.add_child(_text("     +%d MORE ON THIS NODE" % ((row.ops as Array).size() - OPS_PER_NODE), F_TERM, Hud.ts(16), DIM))
 			rows += 1
 		for ht in mine:   # its turrets: a NET Action fires one with the runner's own Skill (p.199, p.213-214)
 			rows += _net_turret(enc, ht, none)
@@ -2496,8 +2496,8 @@ static func net_help(id: String, live := "") -> String:
 		out.append("[b]%s[/b]  %s" % [kind.capitalize(), K % ("Black ICE · " + String(st.get("class", "")).replace("_", "-").capitalize())])
 		out.append(String(st.get("effect", "")))
 		out.append((K % "STATS") + " [code]PER %d · SPD %d · ATK %d · DEF %d · REZ %d[/code]" % [int(st.per), int(st.spd), int(st.atk), int(st.def), int(st.rez)])
-		out.append((K % "PER") + " what a Slide must beat  " + (K % "SPD") + " its speed when you meet it")
-		out.append((K % "ATTACKS") + " its ATK + 1d10 vs your Interface + 1d10, once a turn; it chases you through the NET")
+		out.append((K % "PER") + " your Slide must beat it  " + (K % "SPD") + " who acts first")
+		out.append((K % "ATTACKS") + " once a turn; it follows you through the NET")
 		if live != "":
 			out.append((K % "NOW") + " " + live)
 		return "\n".join(out)   # the cite stays in the data (net_help.json ice_page): never in player text
@@ -2586,20 +2586,20 @@ static func _node_label(n: Dictionary, enc: Encounter = null, run: NetRun = null
 ## greybox._unhandled_input / _process / the portrait strip handles. [section, [[input, does], ...]].
 const HELP := [
 	["MOUSE", [
-		["LEFT-CLICK", "Attack the enemy under the cursor"],
+		["LEFT-CLICK", "Attack the foe under the cursor"],
 		["RIGHT-CLICK", "Move or run to a square"],
-		["CLICK PORTRAIT", "Target an enemy from the turn order"],
-		["LEFT-CLICK A BUILDING", "Focus its floors (the floor stack)"],
-		["HOVER ENEMY", "Line of fire and hit chance"],
-		["HOLD ALT", "Inspect, enemy outlines, stairs and exits, range bands"],
+		["CLICK PORTRAIT", "Target a foe from the turn order"],
+		["LEFT-CLICK A BUILDING", "Focus its floors"],
+		["HOVER A FOE", "Line of fire and hit chance"],
+		["HOLD ALT", "Inspect: foe outlines, stairs, exits, range bands"],
 	]],
 	["CAMERA", [
 		["WHEEL", "Zoom"],
 		["MIDDLE-DRAG", "Rotate freely"],
 		["Q / E", "Rotate"],
 		["W A S D", "Pan"],
-		["SHIFT / CTRL", "View one floor up / down (hold to keep going)"],
-		["PG UP / PG DN  ·  ] / [", "The same (or the floor stack's arrows and rows)"],
+		["SHIFT / CTRL", "View one floor up / down (hold to repeat)"],
+		["PG UP / PG DN  ·  ] / [", "The same"],
 		["HOME", "Back to the selected unit's building and floor"],
 	]],
 	["OVERLAYS", [

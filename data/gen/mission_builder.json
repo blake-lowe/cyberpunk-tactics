@@ -56,7 +56,7 @@
 			{"roll": 17, "id": "slumming_exec", "label": "an exec slumming it"},
 			{"roll": 18, "id": "local_tech", "label": "a neighbourhood tech"},
 			{"roll": 19, "id": "trauma_medic", "label": "an off-duty Trauma medic"},
-			{"roll": 20, "id": "cab_driver", "label": "an armoured-cab driver"}]},
+			{"roll": 20, "id": "cab_driver", "label": "an armored-cab driver"}]},
 		"outskirts": {"die": "1d10", "page": "SPM p.51", "rows": [
 			{"roll": 1, "id": "nomad_leader", "label": "a nomad clan chief"},
 			{"roll": 2, "id": "nomad", "label": "a nomad driver"},

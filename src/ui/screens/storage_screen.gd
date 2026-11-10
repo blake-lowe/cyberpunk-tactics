@@ -371,7 +371,7 @@ func _storage_panel(c: Combatant, wide: bool) -> PanelContainer:
 	for k in _keys:
 		list.add_child(_storage_row(c, k, now))
 	if _keys.is_empty():
-		list.add_child(none("Nothing in storage fits %s. Gear is bought at the Fixer Network: the Night Market's, and anything up to Premium any time." % Loadout.slot_label(slot)))
+		list.add_child(none("Nothing in storage fits %s. Buy gear at the Fixer Network." % Loadout.slot_label(slot)))
 		var go := UiKit.button("NIGHT MARKET ›", UiKit.NAV, func(): navigate.emit("market"), true, 13, true)
 		go.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 		list.add_child(go)
@@ -484,7 +484,7 @@ func _detail(c: Combatant, now: String, wide: bool) -> PanelContainer:
 	v.add_child(UiKit.fit(QualityText.apply(UiKit.head(Items.display_name(show), 28, Hud.GOLD if pick != "" else Hud.TEXT), show)))
 	v.add_child(UiKit.fit(UiKit.body(_subtitle(show), 12, Hud.DIM, false)))
 	if Items.is_cyberware(show):
-		v.add_child(UiKit.body("Waiting in storage: the Med Bay's ripperdoc installs it on whoever it's for.", 13, Hud.TEXT))
+		v.add_child(UiKit.body("In storage: install it at the Med Bay.", 13, Hud.TEXT))
 		var mb := UiKit.button("MED BAY ›", UiKit.CHROME, func(): navigate.emit("ripperdoc"), true, 13, true)
 		mb.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 		v.add_child(mb)
@@ -577,7 +577,7 @@ func _chart(c: Combatant, now: String, wide: bool) -> RangeChart:
 	if wi >= 0 and wi < c.weapons.size():
 		series.append({"tag": "NOW", "colour": Hud.CYAN, "data": RangeCurve.for_weapon(c, c.weapons[wi])})
 	ch.set_series(series)
-	ch.tooltip_text = "%s's hit chance by range (single shot; dashed: autofire), from the book's range tables, smoothed" % c.display_name
+	ch.tooltip_text = "%s's hit chance by range (dashed: autofire)" % c.display_name
 	return ch
 
 
@@ -759,9 +759,9 @@ static func repair_text(a: ArmorPiece) -> String:
 func _workshop(body: VBoxContainer) -> void:
 	var t := camp.best_tech()
 	if t == null:
-		body.add_child(none("The workshop is dark: it needs a Tech on the crew (hire one at the Fixer Network)."))
+		body.add_child(none("The workshop needs a Tech on the crew. Hire one at the Fixer Network."))
 		return
-	body.add_child(UiKit.body("%s upgrades worn armor: +1 SP, once per piece. Materials cost the piece's price; the crew rests while the work is done. A failed check wastes the time, not the materials." % t.display_name, 15, Hud.DIM))
+	body.add_child(UiKit.body("%s upgrades worn armor: +1 SP, once per piece. Materials cost the piece's price; the crew rests meanwhile. A failure wastes the time, not the materials." % t.display_name, 15, Hud.DIM))
 	var list := UiKit.vbox(6)
 	for c in camp.alive_crew():
 		for loc in ["head", "body"]:

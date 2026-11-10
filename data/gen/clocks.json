@@ -15,7 +15,7 @@
 		"event": "alarm",
 		"room_zone": 3,
 		"room_rounds": 2,
-		"tip": "A hidden timer on the site noticing something's wrong. Every trigger rolls the dice: each one that comes up {drop} is gone. When the last die goes, the alarm is raised: backup is called, whoever's watching. Triggers: failed Stealth against a guard or camera, a failed Electronics/Security Tech check, a minute in a secured room, a body in a guard's sight, the crew's gunfire, taking the objective. A Tech or Netrunner can win a die back (SPOOF a camera or alarm panel, or loop the cameras from the NET)."
+		"tip": "Each die that comes up {drop} is gone; when the last goes, the alarm is raised. It rolls on: failed Stealth, a failed Electronics/Security Tech check, a minute in a secured room, a body in a guard's sight, gunfire, taking the objective. SPOOF a camera or alarm panel, or loop the cameras from the NET, to win a die back."
 	},
 	"time_limit": {
 		"label": "TIME LIMIT",
@@ -26,7 +26,7 @@
 		"escalate": false,
 		"triggers": ["round"],
 		"event": "time_up",
-		"tip": "The window is closing. The dice roll at the top of every round; each one that comes up {drop} is gone. When the last die goes, time's up: with the job not done it's blown; with it done, the site's response is on the crew at once."
+		"tip": "Rolls at the top of every round; each die that comes up {drop} is gone. When the last goes, time's up: the gig is blown if it isn't done, and the site's response arrives at once if it is."
 	},
 	"reclaim": {
 		"_why": "Reclaiming Their Time (SPM p.26): a difficult, risky skill success adds a die back. SPOOF (a meat Action at a live camera or an alarm panel within `range` squares on the floor, no wall between): TECH + Electronics/Security Tech (+ a Tech's Field Expertise) vs DV `dv` (DV15, Difficult, CPR core p.129). Success loops the camera by hand (the site's feed shows a recording) or spoofs the panel, and adds a die back; failure is a failed Electronics/Security Tech check, so the clock rolls (the risk). From the NET: looping a camera bank or cutting the alarm line (a NET Action, NetDevices) adds a die back (HOUSE-RULE: the NET's own risks, ICE and reaching the Node, are the check). Either way at most once per clock per turn, and each device only once per clock.",

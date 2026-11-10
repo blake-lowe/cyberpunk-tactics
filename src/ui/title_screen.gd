@@ -234,7 +234,7 @@ func _options() -> Control:
 	_box.add_child(fs)
 	var rm := _button("Reduced motion: " + ("On" if bool(_opts.get("reduced_motion", false)) else "Off"), UiKit.NAV, Callable())
 	rm.name = "ReducedMotion"
-	rm.tooltip_text = "Tones down the animations: the clock dice don't tumble or shatter, callouts fade in, no screen shake or hit-stop."
+	rm.tooltip_text = "Calmer animations: no tumbling dice, screen shake or hit-stop; callouts fade in."
 	rm.pressed.connect(func() -> void:
 		_set_opt("reduced_motion", not bool(_opts.get("reduced_motion", false)))
 		rm.text = UiKit.caps("Reduced motion: " + ("On" if bool(_opts.reduced_motion) else "Off")))
@@ -259,7 +259,7 @@ func _options() -> Control:
 
 
 func _dev_text() -> String:
-	return "Developer mode: " + ("On (custom gig builder on JOBS)" if bool(_opts.dev_mode) else "Off")
+	return "Developer mode: " + ("On (custom gig builder on GIGS)" if bool(_opts.dev_mode) else "Off")
 
 
 func _set_opt(k: String, v: Variant) -> void:

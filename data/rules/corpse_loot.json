@@ -469,7 +469,7 @@
 				},
 				{
 					"roll": 86,
-					"label": "armour-piercing grenade",
+					"label": "armor-piercing grenade",
 					"kind": "item",
 					"items": {
 						"ammo/armor_piercing_ammo": 1
@@ -1421,7 +1421,7 @@
 				},
 				{
 					"roll": 51,
-					"label": "folded bodysuit armour",
+					"label": "folded bodysuit armor",
 					"kind": "item",
 					"items": {
 						"armor/bodyweight_suit": 1

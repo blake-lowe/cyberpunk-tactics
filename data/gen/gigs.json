@@ -118,7 +118,7 @@
 		{
 			"kind": "corp_extraction",
 			"titles": [
-				"Personal job: {corp} prototype"
+				"Personal gig: {corp} prototype"
 			],
 			"blurb": "{fixer} trusts you with this one. A {corp} prototype is in storage tonight; bring it back. Double pay.",
 			"focus": "corporate/prototype",
@@ -128,7 +128,7 @@
 		{
 			"kind": "gang_hit",
 			"titles": [
-				"Personal job: wipe out the {gang}"
+				"Personal gig: wipe out the {gang}"
 			],
 			"blurb": "{fixer} wants the {gang} gone for good. Their main crew is at the {place}. Double pay.",
 			"security": 3,
@@ -137,7 +137,7 @@
 		{
 			"kind": "data_theft",
 			"titles": [
-				"Personal job: {corp}'s {item_short}"
+				"Personal gig: {corp}'s {item_short}"
 			],
 			"blurb": "{fixer}'s client wants {corp}'s {item_short}. Expect a deep NET and heavy Black ICE. Double pay.",
 			"security": 3,

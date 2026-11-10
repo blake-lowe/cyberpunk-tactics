@@ -138,7 +138,7 @@ static func _limit_key(e: Encounter, c: Clock, kind: String, uid: int) -> Array:
 static func _empty(e: Encounter, c: Clock) -> void:
 	match String(c.meta.get("event", c.id)):
 		"alarm":
-			e.say("The detection clock runs out: the site knows something's wrong.")
+			e.say("The detection clock runs out.")
 			raise_alarm(e, c.escalated)
 		"time_up":
 			_time_up(e)
@@ -202,7 +202,7 @@ static func escalate(e: Encounter) -> void:
 		r["code"] = code
 	up.call(e._response)
 	up.call(e._street)
-	e.say("Degrees of Consequence: the response comes in heavier.")
+	e.say("The response will come in heavier.")
 	e.events.append({"type": "clock_escalate", "unit": _anchor(e)})
 
 
@@ -221,7 +221,7 @@ static func _time_up(e: Encounter) -> void:
 			e._backup_round = e.init.round_num
 			e._arrive(e._response)
 		return
-	e.say("Time's up: the window's closed and the job's blown.")
+	e.say("Time's up. The gig's blown.")
 	e.state = "lost"
 
 
@@ -375,6 +375,6 @@ static func tip(c: Clock) -> String:
 	var d: Dictionary = db().get(c.id, {})
 	var drop := " or ".join(c.drop_on.map(func(f): return str(f)))
 	var t := String(d.get("tip", "")).replace("{drop}", "a " + drop)
-	var head := "%d of %d dice left (%dd6, a die goes on a %s%s)." % [c.pool, c.size, c.size, drop,
-		", Degrees of Consequence" if c.escalate else ""]
+	var head := "%d of %d dice left. A die goes on a %s.%s" % [c.pool, c.size, drop,
+		" Lose two at once on the last roll and the response is heavier." if c.escalate else ""]
 	return head + "\n" + t

@@ -196,10 +196,10 @@ func _wave() -> void:
 
 func check_end() -> String:
 	if asset_hp() <= 0:
-		e.say("%s is wrecked. The job's over." % String(_asset_text()).capitalize())
+		e.say("%s is wrecked. The gig's over." % String(_asset_text()).capitalize())
 		return "lost"
 	if int(o.held) >= int(cfg.get("lost_rounds", 2)):
-		e.say("They've taken the %s. The job's over." % _room_text().to_lower())
+		e.say("They've taken the %s. The gig's over." % _room_text().to_lower())
 		return "lost"
 	if done():
 		e.say("The %s held." % _room_text().to_lower())

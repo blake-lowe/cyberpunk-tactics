@@ -46,7 +46,7 @@
 			{"id": "slumming_exec", "label": "exec slumming it", "roll": [17, 17], "kind": "corp"},
 			{"id": "local_tech", "label": "local tech", "roll": [18, 18], "kind": "tech"},
 			{"id": "trauma_medic", "label": "Trauma Team medic", "roll": [19, 19], "kind": "medic"},
-			{"id": "cab_driver", "label": "armoured-cab driver", "roll": [20, 20], "kind": "street"}
+			{"id": "cab_driver", "label": "armored-cab driver", "roll": [20, 20], "kind": "street"}
 		]},
 		"outskirts": {"name": "Outskirts", "zone_roll": [10, 10], "die": "1d10", "cite": "SPM p.51", "types": [
 			{"id": "nomad_leader", "label": "nomad leader", "roll": [1, 1], "kind": "nomad"},

@@ -90,7 +90,7 @@ func client() -> Dictionary:
 func check_end() -> String:
 	var cu := client()
 	if cu.c.dead:
-		e.say("%s flatlined. The job's over." % cu.c.display_name)
+		e.say("%s flatlined. The gig's over." % cu.c.display_name)
 		return "lost"
 	if o.met and (o.dest as Array).has(cu.pos) and cu.c.can_act():
 		o.done = true

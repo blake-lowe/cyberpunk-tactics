@@ -203,7 +203,7 @@ func test_equip_and_recover_buttons() -> void:
 	assert_eq(camp.stored(key), 1)
 	s.free()
 	var cs := _open(CrewScreen.new(), camp)
-	var rec := _buttons(cs, "RECOVER UNTIL HEALED")
+	var rec := _buttons(cs, "REST UNTIL HEALED")
 	assert_false(rec.is_empty())
 	rec[0].pressed.emit()
 	assert_eq(camp.days_to_recover(), 0, "everyone healed")
