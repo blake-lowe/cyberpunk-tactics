@@ -1653,7 +1653,8 @@ func _billboards(f: int) -> void:
 			box(mat("dark", f), c + Vector3(0, 0.98, 0), Vector3(1.72, 0.72, 0.05) if face.x == 0 else Vector3(0.05, 0.72, 1.72))
 			var e := SignLib.pick(rng, "holo", ["street", "generic"])
 			var sd := rng.randi()
-			for sg in [1.0, -1.0]:   # a screen each side of the frame, each reading the right way round
+			var backed := m.t(f, x - face.x, y - face.y) == TacMap.T.WALL   # on a terrace against a taller storey: no screen into its wall
+			for sg in ([1.0] if backed else [1.0, -1.0]):   # a screen each side of the frame, each reading the right way round
 				sign_batch.screen(e, c + Vector3(0, 0.98, 0) + outv * (0.035 * sg), outv * sg, Vector2(1.6, 0.62), sd)
 			emitters.append({"cell": Vector3i(x, y, f), "color": SignBatch._col(e, 0), "energy": 1.4, "range": 4.0, "out": Vector2i.ZERO})
 

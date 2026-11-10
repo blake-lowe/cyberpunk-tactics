@@ -12,24 +12,24 @@ static var _cache: Dictionary = {}
 ## before below-grade storeys existed, and re-captured when params.deploy (near / far deploy
 ## zones, playtest round 4) changed every map's params and the near scenes' deploy zones. Scenes built from DistrictGen are left out (other work tunes
 ## district profiles), as are the three set pieces that now dig down.
-const GOLDEN := {
-	"arcology/6/": "2f9eb9d5ccdbcf40bb85b193507bcb87c2f6d3e092f208ee54916b718926279f",
-	"badlands/9/": "78b3b90ba3d4aec9e1aa7ab37e54e8f6a18c7f3cbfbd8b9de8f156c2521ebe4f",
-	"corp_campus/12/": "0569233dfa39f84204fe8ef8bddd6eff774b719aa9d33ae2e09e478ef39a8e1e",
-	"lone_building/11/": "18694589e08611e026d80eb2c4b1c7bcc64c79fde65a19915de85c917198e15f",
-	"lone_building/11/main_port": "ed1a478b3473b84a0ed418717f5724ba9ca3e8f972f89301a9fb4b5e009ceb41",
-	"lone_building/11/norcal_potentilla": "d287772fd632bffab5089088ba7b6cf9879f5054d9bdb570f5a5e5497c3cac2a",
-	"lone_building/11/trauma_team_tower": "9983eba547b493d3cce43d2da007d37293b6091283b7a5d80be8d0e85790c908",
-	"lone_building/11/ziggurat_hq": "294dac7b2ddfff37993afbed2c1c2dee208053705d2430c80cd6364bec690b0c",
-	"lone_building/2024/": "b84ecf4a4b54e0ed6f554d66aea38b4909400ea1a5d122e211456508e529959a",
-	"lone_building/2024/maxtac_hq": "3ee454dc7d3c40b82e1c6abddbf83237281f03196b539ed927b5c85c27bbe3de",
-	"lone_building/2024/totentanz": "088d47e86f88610d4520e9c156b3300a4f9d23c28c2fbe9e793d4853c91e013a",   # re-captured: its near deploy zone sat beside the plaza camera access point (SceneGen.AP_CLEAR_M)
-	"lone_building/77031/the_estates": "c26e73d779076199b2c97796b6bfa2e0302812fbbf13215d6ccb64561ae738bc",
-	"megablock/5/": "2a1c99880d6ddac2903310ebb876fe9a1935ac673709ee391ea28bb8428166e7",
-	"rail_yard/4/": "7d5ed94945be3e6f8ddbe6baa0fe86e50d66b63fcc4121f7ec0011a9b15cb730",
-	"shipyard/3/": "5860a42e356f7d1090a27d53f135f95beb855d2d265460468b7f39c6d0de936b",
-	"skirmish/7/": "ff230a28e3854ae442148fc00ea95b24541ef5c283a38c67adc563bf761bf554",
-	"undercity/8/": "0b2d67f0e921d25227cbff9977bce4dce3c8c82de261232dcd61e92398058c4f",
+const GOLDEN := {   # re-captured 2026-11-10: floor-plan pass (stair halls by plate size, two-square corridors, stacked skeleton)
+	"arcology/6/": "a40d85370063dd1a7e2e3304b787452468195e7ae123fd899c68e5975a6bb2e7",
+	"badlands/9/": "832cf984f2a5e2ef2861aa65b4fa0d211b542e458f6a8bce0e40f191b1886b08",
+	"corp_campus/12/": "06e60a23a0e79362706493048072dbcb81241f278951a9e7ddcd0a2f392d0842",
+	"lone_building/11/": "e818c7e558aaaa113cfc0cbfc1c8294c7d73b72c1819772b8d178c1f43d5c17b",
+	"lone_building/11/main_port": "e0054ffcbe8a8863fadb26e20b5cd44cd9881e4f7e9c4ed7a32353bd3a6cffa4",
+	"lone_building/11/norcal_potentilla": "0aa64f5415bd849959c26495c4a8af161d78c9e82c8d4cde880d3d5bdde86230",
+	"lone_building/11/trauma_team_tower": "bec30b79157b29c2eb5084539b341c963efbffc1276534470901c2740f709721",
+	"lone_building/11/ziggurat_hq": "3fb608f0969a4a1bfcbbe15d60e87316b8d96cf2f53ce3e7f05bebb9274c0742",
+	"lone_building/2024/": "9d562d350d86fdb5b94b86a39e6e06d527ab0f50f6fd0df81cd29902dfb5bf90",
+	"lone_building/2024/maxtac_hq": "e9d3271ee8dc9516defef198dfc416cac3301c215f7b36318be637a2d65bcf72",
+	"lone_building/2024/totentanz": "3c737be94e590890c976b785dcd5f08e5171b32d9d1020bf2e0c5718635fc0d0",   # re-captured: its near deploy zone sat beside the plaza camera access point (SceneGen.AP_CLEAR_M)
+	"lone_building/77031/the_estates": "64d1a5c0bce4f94de6d54a0ee3368957282dadb154ec483393fd114ce33ee5ce",
+	"megablock/5/": "cc3a518cf6d8f851b11765b2bc435ab61a07597b353827d0e98f161f4eda6c8b",
+	"rail_yard/4/": "5043f7c4086b1ea0a8412cb22262e4d0590ff51f2004da1d44f5d8204bf0807d",
+	"shipyard/3/": "a420cbded62428c2349549f44ec6c5f46abd72b9d95f53acc1b563cfaa83a412",
+	"skirmish/7/": "c79522cf7167a2e2bb7b368298d6ab73077ebb6e39f6c3e3734b8050457422bd",
+	"undercity/8/": "20f725406e7ec7ffb15697b1a3398e1c5918ba9b7fe01d85d8b25cd3d0fc1e56",
 }
 
 
