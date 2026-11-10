@@ -49,7 +49,7 @@
 		{"roll": [73, 74], "id": "target_is_an_ally", "label": "Familiar Face", "note": "the target is someone the crew knows", "fx": {"narrative": true}, "trigger": {"on": "objective_done"}, "unmodelled": "narrative"},
 		{"roll": [75, 76], "id": "target_is_protected", "label": "Powerful Friends", "note": "a strong faction shields the objective", "fx": {"units": {"side": "corp", "n": [3, 4]}}, "trigger": {"on": "objective_done"}, "unmodelled": "overlaps Hired Muscle"},
 		{"roll": [77, 78], "id": "target_fights_back", "label": "Mark Hits Back", "note": "the target is far tougher than briefed", "fx": {"tier_up": "target"}, "trigger": {"on": "alarm", "or_round": 6}, "objectives": ["assassinate", "eliminate"]},
-		{"roll": [79, 80], "id": "time_limit", "label": "Clock Running Out", "note": "the window is closing fast", "fx": {"clock": "time_limit"}, "trigger": {"on": "round", "n": 2}},
+		{"roll": [79, 80], "id": "time_limit", "label": "Clock Running Out", "note": "the window is closing fast", "fx": {"clock": "time_limit"}, "trigger": {"on": "round", "n": 2}, "unmodelled": "owner cut: a hard time limit that loses the gig is not fun"},
 		{"roll": [81, 82], "id": "too_much_heat", "label": "Everyone Comes Running", "note": "every response comes in fast", "fx": {"response_mult": 0.5}, "trigger": {"on": "alarm"}},
 		{"roll": [83, 84], "id": "trap_location", "label": "Rigged Site", "note": "extra defences nobody mentioned", "fx": {"devices": {"camera": 2, "turret": 1}}, "trigger": {"on": "start"}},
 		{"roll": [85, 86], "id": "trouble_at_home", "label": "Safehouse Hit", "note": "someone hits the crew's home", "fx": {"after": "defend_gig"}, "trigger": {"on": "objective_done"}, "unmodelled": "a safehouse-defence gig"},

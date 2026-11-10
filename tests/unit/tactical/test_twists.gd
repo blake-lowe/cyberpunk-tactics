@@ -3,7 +3,7 @@ extends TestCase
 ## (the Oracle, HOUSE-RULE by security level), each played row's fx, when it springs, the dev
 ## builder's field and flag, the save, and the debrief.
 
-const PLAYED := ["hired_muscle", "no_way_back", "police_sting", "target_escapes", "target_fights_back", "time_limit",
+const PLAYED := ["hired_muscle", "no_way_back", "police_sting", "target_escapes", "target_fights_back",
 	"too_much_heat", "trap_location", "unexpected_ally", "unexpected_rival"]
 
 static var _maps := {}
@@ -173,12 +173,11 @@ func test_target_fights_back_steps_the_mark_up_a_tier() -> void:
 	assert_true("tier_up" in e2.twist.applied, "on a gang hit, the toughest of them")
 
 
-func test_time_limit_starts_a_clock() -> void:
+func test_time_limit_is_cut() -> void:
+	assert_false(Twist.enabled(Twist.row("time_limit")), "owner cut: a hard time limit that loses the gig")
 	var e := _enc("time_limit")
-	Twist.spring(e)
-	var c := Clocks.get_clock(e, "time_limit")
-	assert_true(c != null and c.running() and c.size == 4)
-	assert_true(e.events.any(func(ev): return String(ev.type) == "clock_new"), "its dice drop in on the HUD")
+	assert_true(e.twist.is_empty(), "a saved offer that holds it arms nothing")
+	assert_true(Clocks.get_clock(e, "time_limit") == null)
 
 
 func test_too_much_heat_halves_the_response_timers() -> void:
@@ -310,7 +309,7 @@ func test_saves_keep_the_twist_and_old_saves_load() -> void:
 func test_the_debrief_names_the_twist_that_sprang() -> void:
 	var c := Campaign.new_game(9)
 	var gig: Dictionary = c.board[0].duplicate(true)
-	gig["twist"] = Twist.make(c.dice, Twist.row("time_limit"), 79, "start")
+	gig["twist"] = Twist.make(c.dice, Twist.row("trap_location"), 83, "start")
 	c.board[0] = gig
 	c.accept(0)
 	var gs := GigSetup.for_campaign(c)
@@ -318,8 +317,8 @@ func test_the_debrief_names_the_twist_that_sprang() -> void:
 	assert_true(bool(e.twist.sprung))
 	e.state = "fled"
 	var rep := c.resolve(e)
-	assert_eq(String(rep.twist.id), "time_limit")
-	assert_true(DebriefScreen.twist_line(rep).begins_with("Clock Running Out, round 0: the window is closing fast."), DebriefScreen.twist_line(rep))
+	assert_eq(String(rep.twist.id), "trap_location")
+	assert_true(DebriefScreen.twist_line(rep).begins_with("Rigged Site, round 0: extra defences nobody mentioned."), DebriefScreen.twist_line(rep))
 	assert_eq(DebriefScreen.twist_line({"twist": {}}), "", "none sprang: nothing said")
 	Hud._fonts()
 	var ds := DebriefScreen.new()

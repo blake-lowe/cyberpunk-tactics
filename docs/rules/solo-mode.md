@@ -113,8 +113,7 @@ Code: `src/core/clock.gd`, `src/tactical/clocks.gd`, `data/gen/clocks.json`; HUD
 - **Hidden:** never on the board card; it springs at its trigger (objective near done, a round,
   the alarm, or the start), with a callout and a log line; the debrief names it.
 - **Played rows:** Heavies Called In (41-42), Exit Cut Off (49-50), Cop Trap (53-54), Mark Bolts
-  (71-72), Mark Hits Back (77-78), Clock Running Out (79-80: a 4d6 Time Limit clock on 1-or-6),
-  Everyone Comes Running (81-82), Rigged Site (83-84), Stranger Lends a Hand (87-88), Rival Crew
-  (93-94).
+  (71-72), Mark Hits Back (77-78), Everyone
+  Comes Running (81-82), Rigged Site (83-84), Stranger Lends a Hand (87-88), Rival Crew (93-94). Clock Running Out (79-80) is cut (owner: a hard time limit that loses the gig isn't fun).
 
 Code: `src/tactical/twist.gd`, `MissionBuilder.twist`, `Campaign.twist_report`.
