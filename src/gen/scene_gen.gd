@@ -611,7 +611,7 @@ static func deploy_cells(m: TacMap) -> Array:
 
 ## Could a Netrunner standing on `from` jack in at an access point on `ap` (within AP_CLEAR_M)?
 static func jack_reach(los: Los, from: Vector3i, ap: Vector3i) -> bool:
-	return from.z == ap.z and Los.distance_m(from, ap) <= AP_CLEAR_M and not Los.ray(from, ap).any(func(r): return los.blocker(r) == "wall")
+	return from.z == ap.z and Los.distance_m(from, ap) <= AP_CLEAR_M and not los.wall_between(from, ap)
 
 
 ## True if any of `cells` is within jack-in reach of any of `aps` (both [Vector3i]).

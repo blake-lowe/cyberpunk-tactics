@@ -350,6 +350,7 @@ var _shot_hover := Vector2i(-1, -1)
 var _frames := 0
 var _reveal := false
 var _walk := 0
+var _dev_atdoor := ""   ## --atdoor=door|pinch (review renders): _demo_at_door
 var _autoplay := 0   ## review renders (--autoplay=n): both sides play n rounds by the soak's AI first
 var _focus := ""
 var _shot_floor := -1
@@ -521,6 +522,8 @@ func _ready() -> void:
 				_reveal = true
 			"walk":  # review renders: the crew walks n squares toward the target first
 				_walk = int(kv[1])
+			"atdoor":  # review renders: the selected crew member just outside an open door (=door) or by a diagonal wall gap (=pinch)
+				_dev_atdoor = kv[1]
 			"autoplay":  # review renders: the soak's stand-in player and the AI play n rounds first (mid-gig shots)
 				_autoplay = int(kv[1])
 			"focus":  # review renders: centre the camera on a square ("center" = the target building)
@@ -1084,6 +1087,8 @@ func new_gig() -> void:
 		enc.update_alerts()
 	if _walk > 0:
 		_frame_unit(enc.cur)
+	if _dev_atdoor != "":
+		_demo_at_door(_dev_atdoor == "pinch")
 	if not _dev_inside.is_empty() or _dev_focus_b != "":
 		_demo_inside()
 	if _focus != "":
@@ -2126,7 +2131,8 @@ func _slices() -> Dictionary:
 		var d: Dictionary = m.devices[int(did)]
 		crew.append([_indoor_structure(Vector3i(d.pos.x, d.pos.y, d.floor)), int(d.floor)])
 	var f := _focused()
-	return FloorNav.slices(crew, sel, f if _bld.has(f) else -1, view_floor)
+	# A building the crew sees into from outside (an open door, a window) lifts its roof too.
+	return FloorNav.slices(crew, sel, f if _bld.has(f) else -1, view_floor, FloorNav.peeks(m, enc.vision.visible))
 
 
 ## The floor a square's column is picked and drawn at: its building's cut, the viewed floor in a
@@ -3018,6 +3024,48 @@ func _demo_buildings() -> Array:
 	var dist := func(sid: int) -> float: return Vector2((_bld[sid].rect as Rect2i).get_center()).distance_to(Vector2(from.x, from.y))
 	out.sort_custom(func(a, b): return dist.call(a) < dist.call(b))
 	return out
+
+
+## Review renders (playtest v0.10.1): the selected crew member stands on the street square just
+## outside the building door nearest the crew, the door open (or, `pinch`, beside the nearest gap
+## between two walls meeting corner to corner on a down-right diagonal), the camera on them.
+func _demo_at_door(pinch: bool) -> void:
+	var u: Dictionary = enc.cur if not enc.cur.is_empty() and enc.cur.team == 0 else enc.alive(0)[0]
+	var best := Vector3i(-1, -1, -1)
+	var look := Vector3i(-1, -1, -1)
+	var bd := INF
+	var occ := enc.occupied(u)
+	var z: int = u.pos.z
+	for y in m.h:
+		for x in m.w:
+			var a := Vector3i(x, y, z)
+			if not m.walkable(z, Vector2i(x, y)) or occ.has(a):
+				continue
+			for d: Vector2i in Nav.DIRS8:
+				var b := Vector3i(x + d.x, y + d.y, z)
+				if not m.inb(b.x, b.y):
+					continue
+				var ok := false
+				if pinch:
+					ok = d.x == d.y and m.walkable(z, Vector2i(b.x, b.y)) and enc.los.blocker(Vector3i(b.x, a.y, z)) == "wall" \
+						and enc.los.blocker(Vector3i(a.x, b.y, z)) == "wall" and m.t(z, b.x, a.y) == TacMap.T.WALL and m.t(z, a.x, b.y) == TacMap.T.WALL
+				else:
+					ok = (d.x == 0 or d.y == 0) and m.t(z, b.x, b.y) == TacMap.T.DOOR and _indoor_structure(a) < 0 \
+						and _indoor_structure(Vector3i(b.x + d.x, b.y + d.y, z)) >= 0 and not enc.nav.locked.has(b)
+				var dd := Vector2(x - u.pos.x, y - u.pos.y).length()
+				if ok and dd < bd:
+					bd = dd
+					best = a
+					look = b
+	if best.x < 0:
+		print("atdoor: nothing found")
+		return
+	u.pos = best
+	if not pinch:
+		enc.los.open_doors[look] = true
+	enc.refresh_vision()
+	print("atdoor: crew at %s by %s" % [best, look])
+	cam_target = Vector3(best.x + 0.5 + (look.x - best.x) * 2.0, 0, best.y + 0.5 + (look.y - best.y) * 2.0)
 
 
 ## Review renders: crew member i stands inside the i-th building on its storey --inside[i] (-1:

@@ -130,3 +130,109 @@ func test_paths_never_enter_walls_or_cut_corners() -> void:
 				if c.x != prev.x and c.y != prev.y:
 					assert_true(sm.walkable(c.z, Vector2i(c.x, prev.y)) and sm.walkable(c.z, Vector2i(prev.x, c.y)), "diagonal %s→%s doesn't cut a corner" % [prev, c])
 			prev = c
+
+
+# --- Playtest v0.10.1: diagonal wall gaps and seeing in through an open door -------------------
+
+## An open 9 x 9 floor with walls at `walls`.
+func _open_map(walls: Array) -> TacMap:
+	var mm := TacMap.new(9, 9, 1)
+	for y in 9:
+		for x in 9:
+			mm.set_t(0, x, y, TacMap.T.FLOOR)
+	for w: Vector2i in walls:
+		mm.set_t(0, w.x, w.y, TacMap.T.WALL)
+	return mm
+
+
+func _check_pinch(a: Vector3i, b: Vector3i, walls: Array, label: String) -> void:
+	var mm := _open_map(walls)
+	var los := Los.new(mm)
+	var v := Vision.new(mm, los)
+	v.update([a])
+	assert_false(Nav.new(mm).reachable(a, 1).has(b), "%s: no diagonal step through the gap" % label)
+	assert_false(los.trace(a, b).clear, "%s: no line of fire through the gap" % label)
+	assert_false(los.sight(a, b).visible, "%s: no sight through the gap, leaning or not" % label)
+	assert_false(los.sight(b, a).visible, "%s: nor back the other way" % label)
+	assert_false(v.visible.has(b), "%s: vision stops at the gap" % label)
+	assert_true(los.wall_between(a, b), "%s: a cable doesn't pass either" % label)
+	# The same squares with no walls: all three pass.
+	var om := _open_map([])
+	var olos := Los.new(om)
+	var ov := Vision.new(om, olos)
+	ov.update([a])
+	assert_true(Nav.new(om).reachable(a, 1).has(b), "%s open: the diagonal step" % label)
+	assert_true(olos.trace(a, b).clear and olos.sight(a, b).visible, "%s open: line of fire and sight" % label)
+	assert_true(ov.visible.has(b), "%s open: vision" % label)
+
+
+func test_diagonal_pinch_blocks_sight_fire_and_movement_alike() -> void:
+	# Every diagonal: the old ray let one pair through and blocked the other on a single wall.
+	_check_pinch(Vector3i(4, 4, 0), Vector3i(5, 5, 0), [Vector2i(5, 4), Vector2i(4, 5)], "down-right")
+	_check_pinch(Vector3i(4, 4, 0), Vector3i(5, 3, 0), [Vector2i(5, 4), Vector2i(4, 3)], "up-right")
+	_check_pinch(Vector3i(4, 4, 0), Vector3i(3, 3, 0), [Vector2i(3, 4), Vector2i(4, 3)], "up-left")
+	_check_pinch(Vector3i(4, 4, 0), Vector3i(3, 5, 0), [Vector2i(3, 4), Vector2i(4, 5)], "down-left")
+
+
+func test_diagonal_pinch_blocks_longer_rays_through_the_corner() -> void:
+	var mm := _open_map([Vector2i(5, 4), Vector2i(4, 5)])   # pinch at the corner (5, 5)
+	var los := Los.new(mm)
+	assert_false(los.trace(Vector3i(2, 2, 0), Vector3i(7, 7, 0)).clear, "a long diagonal through the pinch")
+	assert_false(los.trace(Vector3i(3, 4, 0), Vector3i(6, 5, 0)).clear, "a 3:1 ray through the pinch corner")
+	var v := Vision.new(mm, los)
+	v.update([Vector3i(2, 2, 0)])
+	assert_false(v.visible.has(Vector3i(7, 7, 0)), "vision doesn't leak through the pinch")
+
+
+func test_one_wall_corner_doesnt_stop_a_grazing_ray() -> void:
+	# Only one side of the corner is wall: no pinch, the ray grazes past (no step there, though).
+	var los := Los.new(_open_map([Vector2i(5, 4)]))
+	assert_true(los.trace(Vector3i(4, 4, 0), Vector3i(5, 5, 0)).clear, "down-right grazes past")
+	assert_true(los.trace(Vector3i(4, 4, 0), Vector3i(5, 3, 0)).clear, "up-right grazes past")
+
+
+func test_crates_corner_to_corner_pinch_fire_and_the_crate_is_the_blocker() -> void:
+	var mm := _open_map([])
+	mm.add_cover(Furnish.cover_entry("crate", 0, Vector2i(5, 4), -1))
+	mm.add_cover(Furnish.cover_entry("crate", 0, Vector2i(4, 5), -1))
+	var t := Los.new(mm).trace(Vector3i(4, 4, 0), Vector3i(5, 5, 0))
+	assert_false(t.clear, "two crates corner to corner")
+	assert_true(t.first_blocker in [Vector3i(5, 4, 0), Vector3i(4, 5, 0)], "a crate is what's in the way")
+
+
+## Outdoors (y 0-1), a building (structure 2, y 2-7) with its door at (4, 2).
+func _door_building() -> TacMap:
+	var mm := TacMap.new(9, 9, 1)
+	mm.rooms.append({"id": 0, "floor": 0, "zone": 0, "kind": "office", "cells": 28, "bounds": Rect2i(1, 3, 7, 4), "structure": 2})
+	for y in 9:
+		for x in 9:
+			var inside := y >= 2 and y <= 7
+			var wall := inside and (y == 2 or y == 7 or x == 0 or x == 8)
+			mm.set_t(0, x, y, TacMap.T.OUTSIDE if not inside else (TacMap.T.WALL if wall else TacMap.T.FLOOR))
+			if inside and not wall:
+				mm.labels[0][y * 9 + x] = 0
+	mm.set_t(0, 4, 2, TacMap.T.DOOR)
+	mm.doors.append({"floor": 0, "pos": Vector2i(4, 2), "a": -1, "b": 0, "security": false, "structure": 2})
+	return mm
+
+
+func test_just_outside_an_open_door_sees_the_room_in_its_sight_line() -> void:
+	var mm := _door_building()
+	var los := Los.new(mm)
+	los.open_doors[Vector3i(4, 2, 0)] = true
+	var v := Vision.new(mm, los)
+	var eye := Vector3i(4, 1, 0)
+	v.update([eye])
+	for c in [Vector3i(4, 3, 0), Vector3i(4, 6, 0), Vector3i(3, 6, 0), Vector3i(5, 6, 0), Vector3i(3, 5, 0), Vector3i(5, 5, 0)]:
+		assert_eq(v.state(c), 2, "%s is in the sight line through the door" % c)
+		assert_true(los.sight(eye, c).visible, "%s can be shot at through the door" % c)
+	assert_eq(v.state(Vector3i(1, 3, 0)), 0, "the corner beside the door frame stays fogged")
+	# The view (FloorNav.peeks): the building is seen into, so it is cut at that floor though no
+	# crew member is inside; with the door shut it keeps its roof.
+	var peeks := FloorNav.peeks(mm, v.visible)
+	assert_eq(peeks, {2: 0}, "seen into through the door")
+	assert_eq(FloorNav.slices([[-1, 0]], 0, -1, 0, peeks), {2: 0}, "its roof lifts for the crew outside")
+	los.open_doors.erase(Vector3i(4, 2, 0))
+	v.update([eye])
+	assert_eq(FloorNav.peeks(mm, v.visible), {}, "door shut: nothing inside in sight, the roof stays on")
+	assert_eq(FloorNav.slices([[2, 1]], 0, -1, 0, {2: 0}), {2: 1}, "crew inside keep their own cut")
