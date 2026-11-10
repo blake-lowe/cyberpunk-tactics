@@ -1,7 +1,7 @@
 extends TestCase
 ## Weather (data/gen/atmospheres.json; Atmosphere picks it, Weather plays its rules, WeatherFx draws
 ## it): the Night City Weather odds (NCW p.3), every gig with sky over it carrying a mood, the sight
-## and heat rules out in the open (NCW p.4-5), the blackout's outage, the dust storm scene event and
+## and heat rules out in the open (NCW p.4-5), the dust storm scene event and
 ## the Weather Turns twist, and the view keeping indoors dry.
 
 ## The four seasonal Current Conditions tables (NCW p.3), 1d6 each: 6 is Strange Weather.
@@ -12,8 +12,9 @@ const SEASONS := [
 	["drizzle", "clear", "overcast", "overcast", "clear", "strange"],         # September to November
 ]
 ## Strange Weather (NCW p.3), 1d10; row 8 is a cold snap when the Temperature roll came up Cold or
-## Cool, else a heat wave.
+## Cool, else a heat wave. Row 10, blackout, is cut (owner): it rerolls.
 const STRANGE := ["rad_wind", "ash", "flood", "blood_rain", "acid_rain", "storm", "smog", "snap_or_wave", "dust", "blackout"]
+const CUT := ["blackout"]
 ## The Temperature rolls (NCW p.3) that are Cold or Cool, per season: 6, 4, 0 and 1 of 6.
 const COLD := [6, 4, 0, 1]
 
@@ -32,6 +33,12 @@ func _book_odds() -> Dictionary:
 				else:
 					out["cold_snap"] = float(out.get("cold_snap", 0.0)) + COLD[s] / 6.0 / 240.0
 					out["heat_wave"] = float(out.get("heat_wave", 0.0)) + (6 - COLD[s]) / 6.0 / 240.0
+	var kept := 1.0
+	for k in CUT:
+		kept -= float(out.get(k, 0.0))
+		out.erase(k)
+	for k in out:   # a cut row rerolls
+		out[k] = float(out[k]) / kept
 	return out
 
 
@@ -41,7 +48,7 @@ func test_the_base_odds_are_the_books() -> void:
 	var total := 0
 	for k in base:
 		total += int(base[k])
-	assert_eq(total, 1440, "in 1/1440ths")
+	assert_eq(total, 1416, "in 1/1440ths, less the cut blackout row")
 	assert_eq(book.keys().size(), base.keys().size(), "every row of the tables is a mood")
 	for k in book:
 		assert_true(Atmosphere.has(String(k)), "%s is a mood" % k)
@@ -60,7 +67,7 @@ func test_the_base_odds_are_the_books() -> void:
 	for k in STRANGE:
 		strange += int(hits.get(k, 0))
 	strange += int(hits.get("cold_snap", 0)) + int(hits.get("heat_wave", 0))
-	assert_near(float(strange) / n, 1.0 / 6.0, 0.025, "Strange Weather one roll in six")
+	assert_near(float(strange) / n, (1.0 / 6.0 - 1.0 / 60.0) / (1.0 - 1.0 / 60.0), 0.025, "Strange Weather one roll in six, less the cut blackout (it rerolls)")
 
 
 func test_every_gig_with_sky_has_weather() -> void:
@@ -164,7 +171,7 @@ func test_sight_and_long_shots_in_heavy_weather() -> void:
 	Atmosphere.data()["effects"] = off.effects
 
 
-func test_heat_wave_and_blackout() -> void:
+func test_heat_wave() -> void:
 	var e := _enc("heat_wave")
 	for u in e.units:
 		assert_eq(int(u.c.heat), 2, "a heat wave: armor penalties 2 worse (NCW p.5)")
@@ -174,7 +181,7 @@ func test_heat_wave_and_blackout() -> void:
 	assert_eq(bare.armor_penalty(), 0, "no armor penalty, nothing to make worse")
 	a.gig_reset()
 	assert_eq(a.heat, 0, "gone by the next gig")
-	assert_true("power" in _enc("blackout").outages, "a blackout takes the power out")
+	assert_false(Atmosphere.has("blackout"), "blackout is cut (owner)")
 	assert_false("power" in _enc("clear").outages)
 	assert_eq(Weather.hud_line("dust"), "DUST STORM · SIGHT -2")
 	assert_eq(Weather.hud_line("heat_wave"), "HEAT WAVE · ARMOR PENALTY +2")
@@ -208,6 +215,11 @@ func test_the_weather_turns() -> void:
 	var ev: Array = e.events.filter(func(x): return String(x.type) == "weather")
 	assert_eq(ev.size(), 1, "the view hears of it")
 	assert_eq(String(ev[0].mood), e.weather)
+	assert_eq(String(e.twist.text), "%s rolls in." % Twist._weather_noun(e.weather), "one line: what blew in")
+	assert_eq(Twist._weather_noun("ash"), "An ash storm")
+	assert_eq(Twist._weather_noun("storm"), "A thunderstorm")
+	assert_eq(Twist._weather_noun("acid_rain"), "Acid rain")
+	assert_eq(String(Twist.row("unexpected_weather").label), "The Weather Turns")
 	assert_false(Weather.turn_pool("dust").has("dust"), "never the weather it already has")
 	for id in Weather.turn_pool(""):
 		var md: Dictionary = Atmosphere.data().moods[id]

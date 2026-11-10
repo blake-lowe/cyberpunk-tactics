@@ -9,7 +9,7 @@ func test_every_mood_is_well_formed() -> void:
 	assert_eq(Atmosphere.default_id(), "clear")
 	assert_eq(String(Atmosphere.ids()[0]), "clear", "the default first")
 	assert_true(Atmosphere.light("clear", false).is_empty() and Atmosphere.light("clear", true).is_empty(), "clear: the scene's own air")
-	for id in ["overcast", "drizzle", "heavy_rain", "storm", "acid_rain", "blood_rain", "ash", "dust", "rad_wind", "smog", "heat_wave", "cold_snap", "flood", "blackout"]:
+	for id in ["overcast", "drizzle", "heavy_rain", "storm", "acid_rain", "blood_rain", "ash", "dust", "rad_wind", "smog", "heat_wave", "cold_snap", "flood"]:
 		assert_true(Atmosphere.has(id), "a %s mood" % id)
 	for id in Atmosphere.ids():
 		var md: Dictionary = d.moods[id]

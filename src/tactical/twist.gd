@@ -243,7 +243,7 @@ static func spring(e: Encounter) -> void:
 					out.skipped.append("weather")
 				else:
 					out.applied.append("weather")
-					out.lines.append("%s rolls in." % Atmosphere.label(w))
+					out.lines.append("%s rolls in." % _weather_noun(w))
 			_:
 				out.skipped.append(String(k))
 	var text := " ".join(out.lines)
@@ -269,6 +269,14 @@ static func hud_line(e: Encounter) -> String:
 
 
 # --- FX ---------------------------------------------------------------------------------------
+
+## A mood as the subject of "... rolls in.": "An ash storm", "A thunderstorm", "Acid rain".
+static func _weather_noun(id: String) -> String:
+	var n := Atmosphere.label(id).to_lower()
+	if n.ends_with("rain"):
+		return n.left(1).to_upper() + n.substr(1)
+	return ("An " if n.left(1) in ["a", "e", "i", "o", "u"] else "A ") + n
+
 
 static func _n(e: Encounter, v: Variant) -> int:
 	if v is Array:

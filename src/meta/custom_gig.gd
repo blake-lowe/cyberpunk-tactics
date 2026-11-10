@@ -25,7 +25,7 @@ extends RefCounted
 ## or "any" (one drawn); "" plays a tower's location as its street-level building, as the board's
 ## ordinary offers do. band: the tower's band ("" its sky band, the only one stage 1a builds).
 ## mood: the gig's weather (an Atmosphere id: clear, overcast, drizzle, heavy_rain, storm, acid_rain,
-## blood_rain, ash, dust, rad_wind, smog, heat_wave, cold_snap, flood, blackout; "" drawn from the
+## blood_rain, ash, dust, rad_wind, smog, heat_wave, cold_snap, flood; "" drawn from the
 ## seed and district as a board gig's is). crew: names; [] everyone fit to go. The Mission Builder sheet's rows (SPM p.102; MissionBuilder): client
 ## "<zone>/<id>" (People of Night City), mission (a Mission Types id; its objective is used when
 ## objective is auto), item "<category>/<id>" (the focus: Mission Items; not "focus", which the

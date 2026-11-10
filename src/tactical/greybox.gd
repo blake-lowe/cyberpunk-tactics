@@ -5616,7 +5616,10 @@ func _ev_weather(e: Dictionary) -> void:
 
 func _ev_twist(e: Dictionary) -> void:
 	_ui_snd("sfx_twist", -3.0)
-	hud.twist_callout(String(e.label), String(e.get("note", "")), String(e.get("text", "")))
+	if String(e.get("id", "")) == "unexpected_weather" and String(e.get("text", "")) != "":
+		hud.twist_callout(String(e.label), String(e.text), "")   # owner: one line, what blew in
+	else:
+		hud.twist_callout(String(e.label), String(e.get("note", "")), String(e.get("text", "")))
 	if not (e.get("cells", []) as Array).is_empty() and obj_node != null and is_instance_valid(obj_node):
 		obj_node.queue_free()   # the extraction zone moved (No Way Back): rebuilt where it is now
 		obj_node = null

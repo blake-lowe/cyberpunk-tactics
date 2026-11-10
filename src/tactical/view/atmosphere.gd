@@ -2,7 +2,7 @@ class_name Atmosphere
 extends RefCounted
 ## The weather over a gig (data/gen/atmospheres.json): a mood (clear, overcast, light rain, heavy
 ## rain, and the Strange Weather rows: acid and blood rain, ash, dust and radioactive windstorms,
-## a thunderstorm, inversion smog, a heat wave, a cold snap, flooding, a blackout) picked from the
+## a thunderstorm, inversion smog, a heat wave, a cold snap, flooding) picked from the
 ## gig's seed at the official Night City Weather odds (NCW p.3, year-round) and leaned by its
 ## district, kept on the gig as `mood` (Campaign.gig_mood) and handed to the map's params
 ## (Campaign.scene_opts), so a save reloads the same weather. Every map with sky over it takes it:
