@@ -44,3 +44,14 @@ static func font_size(style: String, text: String) -> int:
 static func arc(ms: float, arc_ms: float) -> float:
 	var k := clampf(ms / maxf(arc_ms, 1.0), 0.0, 1.0)
 	return 1.0 - (1.0 - k) * (1.0 - k)
+
+
+## The callout's line in a lane (CalloutQueue.place): its face plus the outline.
+static func line_height(style: String, text: String) -> float:
+	return float(font_size(style, text)) + 4.0
+
+
+## How far its pop's overshoot reaches past its line, up and down (it scales about its middle).
+static func overshoot(style: String, text: String) -> float:
+	var p: Dictionary = STYLES.get(style, STYLES[""])
+	return maxf(0.0, float(p.peak) - 1.0) * line_height(style, text) / 2.0

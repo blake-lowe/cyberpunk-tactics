@@ -189,3 +189,9 @@ func test_the_hp_ghost_holds_then_catches_up() -> void:
 	assert_eq(Hud.ghost_value(g, 0.5, 99999), 0.5, "and catches up")
 	assert_eq(Hud.ghost_value([], 0.5, 0), -1.0, "no hit, no ghost")
 	assert_true(Hud.GHOST_HOLD + Hud.GHOST_DRAIN < 1.0, "under a second: never holds the turn up")
+
+
+func test_foe_gunfire_shakes_less_than_the_crew_s() -> void:
+	var t := ScreenShake.shot_trauma("assault_rifle")
+	assert_eq(ScreenShake.shot_by(t, false), t, "the crew's own shots: full")
+	assert_near(ScreenShake.shot_by(t, true), t * 0.6, 0.0001, "a foe's: about 60%")

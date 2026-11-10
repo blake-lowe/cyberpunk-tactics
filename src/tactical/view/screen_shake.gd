@@ -26,6 +26,7 @@ const CREW_DOWN := 0.5     ## one of the crew Mortally Wounded, knocked out or k
 const COVER_GONE := 0.22   ## a cover piece shot apart
 const EXPLOSION := 0.62    ## a grenade or launcher round
 const CHARGE := 0.85       ## the sabotage charge (three blasts)
+const FOE_SHOT := 0.6      ## a shot fired by someone hostile to the crew shakes this much of the crew's own (blasts stay full)
 
 ## Hit-stop: a few frames' freeze (tweens, effects and units pause; input is never held).
 const STOP_CRIT_MS := 80
@@ -113,6 +114,11 @@ static func shot_trauma(weapon_id: String, burst := false) -> float:
 	var wdb: Dictionary = RulesDB.load_json("weapons.json").get("weapons", {})
 	var skill := String((wdb.get(weapon_id, {}) as Dictionary).get("skill", ""))
 	return float(BY_SKILL.get(skill, FALLBACK))
+
+
+## A shot's trauma by who fired it: the crew's at full strength, a foe's at FOE_SHOT of it.
+static func shot_by(amount: float, foe: bool) -> float:
+	return amount * (FOE_SHOT if foe else 1.0)
 
 
 ## A hit-stop's length under the player's settings: none with reduced motion, capped at STOP_MAX_MS.
