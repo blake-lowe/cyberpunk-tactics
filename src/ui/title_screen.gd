@@ -26,8 +26,9 @@ func _ready() -> void:
 		SaveSlots.migrate_legacy()
 		AudioDirector.get_or_make(get_tree()).music("explore")
 	_opts = GameSettings.load_values()
-	var bg := Backdrop.new()
-	bg.dim_only = pause
+	var bg := ColorRect.new()   # title: flat dark UI colour; pause: a dim veil over the base view
+	bg.color = Color(0.01, 0.015, 0.025, 0.86) if pause else Color(0.01, 0.015, 0.025)
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
 	var m := MarginContainer.new()
@@ -368,45 +369,3 @@ func _quit() -> void:
 func _autosave() -> void:
 	if pause and camp != null and not camp.has_meta("demo"):
 		camp.save()
-
-
-## The title's backdrop: night sky to a magenta horizon over a receding cyan grid. In pause, a dim veil.
-class Backdrop:
-	extends Control
-	var dim_only := false
-
-	func _ready() -> void:
-		mouse_filter = Control.MOUSE_FILTER_IGNORE
-		resized.connect(queue_redraw)
-
-	func _draw() -> void:
-		var w := size.x
-		var h := size.y
-		if dim_only:
-			draw_rect(Rect2(Vector2.ZERO, size), Color(0.01, 0.015, 0.025, 0.86))
-			return
-		var hz := h * 0.62
-		var steps := 48
-		for i in steps:   # sky: ink to a dark violet at the horizon
-			var t := float(i) / steps
-			draw_rect(Rect2(0, hz * t, w, hz / steps + 1), Color(0.015, 0.02, 0.04).lerp(Color(0.16, 0.03, 0.14), t * t))
-		draw_rect(Rect2(0, hz, w, h - hz), Color(0.01, 0.012, 0.02))
-		var vp := Vector2(w * 0.68, hz)
-		for i in range(-16, 17):   # grid rays to the vanishing point
-			var x := vp.x + i * w * 0.09
-			draw_line(vp, Vector2(vp.x + (x - vp.x) * 3.0, h), Color(Hud.CYAN, 0.16), 1.0)
-		for j in range(1, 14):   # grid rows, closer together towards the horizon
-			var y := hz + (h - hz) * pow(float(j) / 13.0, 2.2)
-			draw_line(Vector2(0, y), Vector2(w, y), Color(Hud.CYAN, 0.08 + 0.14 * float(j) / 13.0), 1.0)
-		var sky := [Vector2(0.52, 0.30), Vector2(0.60, 0.46), Vector2(0.70, 0.24), Vector2(0.78, 0.40), Vector2(0.86, 0.34), Vector2(0.94, 0.48)]
-		for k in sky.size():   # a skyline of towers on the horizon
-			var bw := w * 0.05
-			var top: float = hz * (1.0 - (sky[k] as Vector2).y * 0.55)
-			var bx: float = w * (sky[k] as Vector2).x
-			draw_rect(Rect2(bx, top, bw, hz - top), Color(0.03, 0.02, 0.05))
-			for r in range(int(top) + 10, int(hz) - 6, 14):
-				for cx in range(int(bx) + 6, int(bx + bw) - 6, 12):
-					if (r * 7 + cx * 13 + k) % 5 == 0:
-						draw_rect(Rect2(cx, r, 4, 3), Color(Hud.GOLD if (r + cx) % 3 == 0 else Hud.CYAN, 0.5))
-		draw_line(Vector2(0, hz), Vector2(w, hz), Color(Hud.MAGENTA, 0.9), 2.0)
-		draw_rect(Rect2(0, hz - 6, w, 6), Color(Hud.MAGENTA, 0.12))
