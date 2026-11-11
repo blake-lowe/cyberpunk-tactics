@@ -378,7 +378,7 @@ var _jack_demo := false
 var _av_demo := ""
 var _inspect_demo := false
 var _loadout_demo := -1               ## --loadout=n (review renders): the loadout screen open on crew member n
-var _loadout: LoadoutScreen = null    ## the loadout screen while it's open (M)
+var _loadout: LoadoutScreen = null    ## the loadout screen while it's open (L)
 var net_overlay: NetOverlay
 var net_view := true          ## N toggles back to the plain world while jacked in
 var _net_pos := {}            ## architecture instance id → [pos, ground]
@@ -3454,7 +3454,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 				hud.toast("GUARD SIGHT LINES: " + ["NEAR YOUR MOVE", "ALWAYS", "OFF"][sight_mode])
 				_draw_grid()
 			# Letters only (owner): F attack (again: next attack), Tab next weapon, R reload, G kit,
-			# J jack in/out, B interact, T stabilize, V role ability, L withdraw, Space end turn.
+			# J jack in/out, B interact, T stabilize, V role ability, C chrome, M withdraw,
+			# L loadout, Space end turn.
 			KEY_F:
 				if stage == "attack":
 					_on_hud("atk_cycle", null)
@@ -3467,7 +3468,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 				if stage != "attack":
 					_on_hud("stage", "attack")
 				_on_hud("draw_next", null)
-			KEY_1:   # the chrome menu (Hud.CHROME_KEY: every letter has a job); again: use the piece shown
+			KEY_C:   # the chrome menu (Hud.CHROME_KEY); again: use the piece shown
 				if stage == "chrome":
 					_on_hud("chrome_use", null)
 				else:
@@ -3476,7 +3477,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			KEY_T: _on_hud("tool", "stabilize")
 			KEY_B: _on_hud("interact", null)
 			KEY_V: _on_hud("role", null)
-			KEY_L: _on_hud("withdraw", null)
+			KEY_M: _on_hud("withdraw", null)
 			KEY_ESCAPE:
 				if tool != "" or stage != "main" or cover_mode:
 					_back_to_main()
@@ -3484,13 +3485,13 @@ func _unhandled_input(ev: InputEvent) -> void:
 				elif _focus_pin >= 0:   # nothing armed: a focused building hands the stack back (H3)
 					_home(false)
 			# Close quarters (CPR core p.168-169, p.177): X grab / choke / escape, Y throw, I human shield,
-			# O release, U get up, P break an ally's hold. Each acts only when the bar offers it.
+			# O release, U get up or put out the fire, P break an ally's hold. Each acts only when the bar
+			# offers it.
 			KEY_X: _grapple_key(["grab", "choke", "escape"])
 			KEY_Y: _grapple_key(["throw"])
 			KEY_I: _grapple_key(["shield"])
 			KEY_O: _grapple_key(["release"])
-			KEY_U: _grapple_key(["get_up"])
-			KEY_C: _grapple_key(["put_out"])   # only while On Fire (p.180)
+			KEY_U: _grapple_key(["put_out", "get_up"])   # both take the Action: the flames first (p.180, p.168)
 			KEY_P: _grapple_key(["break"])
 			KEY_R: _on_hud("reload", null)
 			KEY_J: _on_hud("jack_in", null)   # JACK OUT while jacked in
@@ -3503,7 +3504,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 				hud.toast("CYBERSPACE STYLE: " + NET_STYLES[int(look.net_style)])
 				_refresh()
 			KEY_N: net_view = not net_view; _refresh()
-			KEY_M: open_loadout(-1)   # the loadout screen: chrome on the silhouette, gear beside it
+			KEY_L: open_loadout(-1)   # the loadout screen: chrome on the silhouette, gear beside it
 
 
 ## Review renders (--chrome): install `specs` on `c` with what they need first (a popup's Cyberarm, a
@@ -5349,7 +5350,7 @@ func _show_end_panel(_b: Dictionary, campaign_gig: bool) -> void:
 
 
 ## Open the crew's loadout screen on unit `uid` (-1: the unit whose turn it is, else the first of
-## the crew); again (M) closes it. `index`: uid is an index into the crew instead (review renders).
+## the crew); again (L) closes it. `index`: uid is an index into the crew instead (review renders).
 func open_loadout(uid: int, index := false) -> void:
 	if loadout_open():
 		_loadout.close()

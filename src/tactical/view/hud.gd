@@ -60,9 +60,8 @@ var _atk_buttons: HBoxContainer   ## the attack stage: weapon tabs, then the dra
 var stage := "main"       ## "main", "attack" or "chrome" (set by the view before refresh)
 var _chrome_buttons: HBoxContainer   ## the chrome stage: the piece in hand (Tab), what it does, BACK
 var chrome_idx := 0       ## the chrome stage's piece (Encounter.chrome_options index; set by the view)
-## The chrome menu's key: every letter already has a job (F attack ... M loadout), so the number row
-## starts here (owner: list it in the controls panel, HELP).
-const CHROME_KEY := "1"
+## The chrome menu's key (owner: C for chrome; listed in the controls panel, HELP).
+const CHROME_KEY := "C"
 const CHROME_TINT := Color("c88cf8")   ## cyberware's violet (the Med Bay's and market's), lifted for the bar
 var atk_mode := "single"  ## the armed attack in the attack stage (Encounter.attack_modes ids)
 ## Main-bar actions: [id, title, key, signal, arg, tint]. Order is fixed so nothing moves.
@@ -81,7 +80,7 @@ const GRAPPLE_ACTIONS := [["grab", "GRAB", "X", "hold", Color("ff8a3d"), true], 
 	["throw", "THROW", "Y", "throw", Color("ff3b4f"), false], ["shield", "HUMAN SHIELD", "I", "hshield", Color("f9c80e"), false],
 	["release", "RELEASE", "O", "release", Color("8a96a0"), false], ["escape", "ESCAPE", "X", "free", Color("05d9e8"), false],
 	["break", "BREAK HOLD", "P", "free", Color("39f0a0"), true], ["get_up", "GET UP", "U", "getup", Color("05d9e8"), false],
-	["put_out", "PUT OUT FIRE", "C", "flame", Color("ff8a3d"), false]]   # only while On Fire (p.180)
+	["put_out", "PUT OUT FIRE", "U", "flame", Color("ff8a3d"), false]]   # only while On Fire (p.180)
 ## Attack-stage modes: id → [button title, glyph, the book's full name] (CPR core p.170-177).
 const ATK_MODES := {"single": ["SINGLE", "shot", "Single Shot"], "aim_head": ["AIM HEAD", "head", "Aimed Shot: head"],
 	"aim_leg": ["AIM LEG", "head", "Aimed Shot: leg"], "aim_held": ["AIM HELD", "head", "Aimed Shot: held item"],
@@ -1008,7 +1007,7 @@ func _build_bar() -> void:
 	_card = VBoxContainer.new()
 	_card.custom_minimum_size = Vector2(220, 0)
 	_card.add_theme_constant_override("separation", 3)
-	_card.mouse_filter = Control.MOUSE_FILTER_STOP   # click: the loadout screen (M)
+	_card.mouse_filter = Control.MOUSE_FILTER_STOP   # click: the loadout screen (L)
 	_card.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	_card.gui_input.connect(func(ev: InputEvent):
 		if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
@@ -1069,7 +1068,7 @@ func _build_bar() -> void:
 	_end_btn.pressed.connect(func(): action.emit("end_turn", null))
 	row.add_child(_end_btn)
 	add_child(_bar)
-	_withdraw_btn = ActBtn.new("withdraw", "WITHDRAW", "L", RED, 96, 66)
+	_withdraw_btn = ActBtn.new("withdraw", "WITHDRAW", "M", RED, 96, 66)
 	_withdraw_btn.pressed.connect(func(): action.emit("withdraw", null))
 	_withdraw_btn.visible = false
 	add_child(_withdraw_btn)
@@ -1782,7 +1781,7 @@ static func stat_block(c: Combatant, full: bool, extra: Array = []) -> String:
 		sk.sort_custom(func(a, b): return c.skill_base(a) > c.skill_base(b))
 		if not sk.is_empty():
 			out.append((K % "SKILLS") + " " + ", ".join(sk.slice(0, 8).map(func(k): return "%s %d" % [String(k).replace("_", " ").capitalize(), c.skill_base(k)])))
-		var chrome := Cyber.shown_names(c.implants if c.team == 0 else c.implants.filter(func(p): return not c.concealed(p)))   # pieces whose effect isn't played stay hidden; a foe's popups until used
+		var chrome := Cyber.names(c.implants if c.team == 0 else c.implants.filter(func(p): return not c.concealed(p)))   # a foe's popups stay hidden until used
 		if not chrome.is_empty():
 			out.append((K % "CYBERWARE") + " " + ", ".join(chrome))
 		var kit: Array = c.kit.filter(func(k): return k != "")
@@ -2703,10 +2702,10 @@ const HELP := [
 	]],
 	["OVERLAYS", [
 		["Z", "Guard sight lines: near your move / always / off"],
-		["M", "Loadout: chrome and gear (or click a crew card)"],
+		["L", "Loadout: chrome and gear (or click a crew card)"],
 	]],
 	["CHROME", [
-		["1", "Chrome menu: Tab next piece, 1 again to use it"],
+		["C", "Chrome menu: Tab next piece, C again to use it"],
 	]],
 ]
 

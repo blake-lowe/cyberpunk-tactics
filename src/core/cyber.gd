@@ -27,7 +27,7 @@ extends RefCounted
 ## meat arm/leg as its only piece), free_in_meat (Standard Hand/Foot: doesn't count there), unique
 ## (one per character), group (one per group: speedware), multi (several may share a host),
 ## neural_slot (also takes Neural Link slots), summary (the Med Bay line), unmodelled (its effect
-## isn't played yet: hidden from players and never sold), cite.
+## isn't played yet: never sold, though an installed one is shown like any other), cite.
 ##
 ## Benefits of several installations of one piece don't stack (p.111): fx count once per id
 ## (active_ids). Paired options count only when both halves are in and working.
@@ -186,8 +186,8 @@ static func piece_name(piece: Dictionary) -> String:
 	return display(spec_of(piece))
 
 
-## Whether the game plays this piece's effect. The single gate for showing a piece to players and
-## for selling it (NightMarket.on_sale); unmodelled pieces stay for NPC blocks and recruits.
+## Whether the game plays this piece's effect: the gate for selling it (NightMarket.on_sale). An
+## installed unmodelled piece (NPC blocks, recruits) is still shown and named like any other.
 static func modelled(id: String) -> bool:
 	var d := def(id)
 	return not d.is_empty() and not d.get("unmodelled", false)
@@ -466,15 +466,11 @@ static func no_meat_eyes(implants: Array) -> bool:
 	return EYES.all(func(l): return foundation_at(implants, l) == "cybereye")
 
 
-## The pieces players may see: modelled ones only (cards, rosters, inspectors, tooltips, debriefs).
-static func shown(implants: Array) -> Array:
-	return implants.filter(func(p): return modelled(String(p.id)))
-
-
-## shown() as names, one per piece ("Cybereye", "Cybereye", "Targeting Scope").
-static func shown_names(implants: Array) -> Array[String]:
+## Installed pieces as names, one per piece ("Cybereye", "Cybereye", "Targeting Scope"): rosters,
+## inspectors, debriefs. Every piece is named, played yet or not (owner, 2026-11-11).
+static func names(implants: Array) -> Array[String]:
 	var out: Array[String] = []
-	for p in shown(implants):
+	for p in implants:
 		out.append(piece_name(p))
 	return out
 

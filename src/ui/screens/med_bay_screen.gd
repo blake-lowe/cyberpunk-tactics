@@ -105,7 +105,7 @@ func _ripperdoc(body: VBoxContainer) -> void:
 
 
 ## Keep the selection valid: a location (the first where something in storage fits now, else the
-## first with chrome players see), and a picked action in its panel (the first, if none).
+## first with chrome in it), and a picked action in its panel (the first, if none).
 func _settle(c: Combatant) -> void:
 	if not loc in Cyber.LOCS:
 		var h := _hints(c)
@@ -116,7 +116,7 @@ func _settle(c: Combatant) -> void:
 				break
 		if loc == "":
 			for l in Cyber.LOCS:
-				if Cyber.shown(Cyber.pieces_at(c.implants, l)).size() > 0:
+				if not Cyber.pieces_at(c.implants, l).is_empty():
 					loc = l
 					break
 		if loc == "":
@@ -145,10 +145,10 @@ func _hints(c: Combatant) -> Dictionary:
 
 
 ## The selected location's actions in panel order (keyboard ←/→): "remove:<id>" for each piece
-## players see installed there, "install:<id>" for each storage piece that goes there.
+## installed there, "install:<id>" for each storage piece that goes there.
 func _actions_for(c: Combatant) -> Array[String]:
 	var out: Array[String] = []
-	for p in Cyber.shown(Cyber.pieces_at(c.implants, loc)):
+	for p in Cyber.pieces_at(c.implants, loc):
 		if not "remove:" + String(p.id) in out:
 			out.append("remove:" + String(p.id))
 	for id in _stored_here():
@@ -190,23 +190,16 @@ func _slot_panel(c: Combatant, width: int) -> PanelContainer:
 	var list := UiKit.vbox(6)
 	v.add_child(UiKit.scroller(list))
 	list.add_child(section("INSTALLED", ChromeBody.CHROME))
-	var here := Cyber.pieces_at(c.implants, loc)
 	var seen := {}
-	for pc in Cyber.shown(here):
+	for pc in Cyber.pieces_at(c.implants, loc):
 		if seen.has(String(pc.id)):
 			continue
 		seen[String(pc.id)] = true
 		list.add_child(_installed_row(c, String(pc.id)))
-	var hidden := 0
-	for pc in here:
-		if not Cyber.modelled(String(pc.id)) and not Cyber.def(String(pc.id)).get("free_in_meat", false):
-			hidden += maxi(1, int(Cyber.def(String(pc.id)).get("slots", 1)))
-	if hidden > 0:   # chrome whose effect isn't played: never named, but its slots are taken
-		list.add_child(_occupied_row(hidden))
-	if seen.is_empty() and hidden == 0:
+	if seen.is_empty():
 		list.add_child(none("Nothing installed."))
 	for pc in c.implants:   # a Subdermal Grip takes one of the Neural Link's slots from its arm
-		if loc == "neural_link" and String(pc.loc) != loc and int(Cyber.def(String(pc.id)).get("neural_slot", 0)) > 0 and Cyber.modelled(String(pc.id)):
+		if loc == "neural_link" and String(pc.loc) != loc and int(Cyber.def(String(pc.id)).get("neural_slot", 0)) > 0:
 			list.add_child(UiKit.body("%s (%s) takes a slot here." % [Cyber.display(String(pc.id)), Cyber.loc_name(String(pc.loc))], 13, Hud.DIM))
 	list.add_child(section("FROM STORAGE", ChromeBody.CHROME))
 	var ids := _stored_here()
@@ -242,7 +235,7 @@ func _slot_panel(c: Combatant, width: int) -> PanelContainer:
 ## The selected location in a line: its foundation and free slots, or what opens it.
 static func slot_status(implants: Array, l: String) -> String:
 	var f := Cyber.foundation_at(implants, l)
-	var fname := (Cyber.display(f) if Cyber.modelled(f) else "Occupied") if f != "" else ""
+	var fname := Cyber.display(f) if f != "" else ""
 	if l == "borgware":
 		return "Borgware takes no option slots."
 	if Cyber.is_meat(implants, l):
@@ -260,16 +253,6 @@ static func slot_status(implants: Array, l: String) -> String:
 	if l == "chipware":
 		return "%d socket%s · %d free" % [cap, "" if cap == 1 else "s", maxi(0, free)]
 	return ("%s · " % fname if fname != "" else "") + "%d of %d slots free" % [maxi(0, free), cap]
-
-
-## A blocked install's or removal's reason as players may read it: one that names a piece whose
-## effect isn't played ("Interface Plugs needs it") says only that such chrome is in the way.
-static func plain_reason(implants: Array, why: String) -> String:
-	for p in implants:
-		var id := String(p.id)
-		if not Cyber.modelled(id) and why.to_lower().contains(Cyber.display(id).to_lower()):
-			return "Holds chrome not in play yet"
-	return why
 
 
 ## Why a row's action can't be done, on its own line under the piece.
@@ -315,7 +298,7 @@ func _installed_row(c: Combatant, id: String) -> Control:
 	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(t)
 	_chrome_text(t, id)
-	var why := plain_reason(c.implants, camp.remove_block(c, id, loc))
+	var why := camp.remove_block(c, id, loc)
 	var nm := Cyber.display(id)
 	if why != "":
 		v.add_child(_blocked(why))
@@ -342,17 +325,6 @@ func _installed_row(c: Combatant, id: String) -> Control:
 	return p
 
 
-## Hidden pieces' slots (Cyber.shown leaves them out): taken, never named or removed here.
-func _occupied_row(slots: int) -> Control:
-	var p := _row_panel(false)
-	p.name = "Occupied"
-	var v := UiKit.vbox(0)
-	p.add_child(v)
-	v.add_child(UiKit.label("OCCUPIED · %d SLOT%s" % [slots, "" if slots == 1 else "S"], 14, Hud.DIM))
-	v.add_child(UiKit.body("Chrome that isn't in play yet. It stays where it is.", 13, Hud.DIM))
-	return p
-
-
 ## A stored piece that goes here: INSTALL, or the reason it can't go in now.
 func _stored_row(c: Combatant, id: String) -> Control:
 	var d := Cyber.def(id)
@@ -376,7 +348,7 @@ func _stored_row(c: Combatant, id: String) -> Control:
 	if n > 1:
 		extra += "  ·  %d in storage" % n
 	_chrome_text(t, id, extra)
-	var why := plain_reason(c.implants, camp.install_block(c, id, loc))
+	var why := camp.install_block(c, id, loc)
 	if why != "":
 		v.add_child(_blocked(why))
 	elif _choose == id:   # the install's options step (phase 1: a chip's skill, a popup weapon)

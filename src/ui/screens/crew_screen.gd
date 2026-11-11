@@ -120,10 +120,9 @@ func _condition_col(c: Combatant) -> PanelContainer:
 		if c.psychosis_tier() > 0:
 			v.add_child(UiKit.body("At risk of cyberpsychosis. Therapy helps (Med Bay).", 13, Hud.RED))
 	v.add_child(section("CYBERWARE"))
-	var chrome := Cyber.shown(c.implants)   # pieces whose effect isn't played stay hidden
-	if chrome.is_empty():
+	if c.implants.is_empty():
 		v.add_child(none("None."))
-	for p in chrome:
+	for p in c.implants:
 		v.add_child(QualityText.apply(UiKit.label(Cyber.display(String(p.id)), 14, Hud.VIOLET.lightened(0.35)), "cyberware/" + String(p.id)))
 	return x[0]
 

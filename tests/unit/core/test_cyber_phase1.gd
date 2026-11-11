@@ -374,7 +374,7 @@ func test_linear_frames_set_body_and_need_grafted_muscle_and_body() -> void:
 func test_hardened_shielding_is_sold_and_shown() -> void:
 	assert_true(Cyber.modelled("hardened_shielding"))
 	var c := _chromed(["cyberarm", "hardened_shielding"])
-	assert_true("Hardened Shielding" in Cyber.shown_names(c.implants))
+	assert_true("Hardened Shielding" in Cyber.names(c.implants))
 
 
 # --- The chrome menu and the AI ------------------------------------------------------------------------
@@ -390,7 +390,8 @@ func test_the_chrome_menu_lists_only_activated_chrome() -> void:
 	for o in e.chrome_options():
 		assert_true(String(o.line).split(" ").size() <= 10, "one short line: " + String(o.line))
 		assert_false(TextCites.has_cite(String(o.line)), "no cites in player text")
-	assert_true(Hud.help_text().contains("Chrome menu"), "listed in the controls panel")
+	assert_true(Hud.help_text().contains("C  Chrome menu"), "listed in the controls panel")
+	assert_eq(Hud.CHROME_KEY, "C", "C for chrome (owner, 2026-11-11)")
 	assert_false(Hud.MAIN_ACTIONS.any(func(r): return r[2] == Hud.CHROME_KEY and r[0] != "chrome"), "a key of its own")
 
 

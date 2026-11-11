@@ -1095,7 +1095,7 @@ static func _lost_gear(c: Combatant, kit_of: Dictionary) -> Array:
 		var a: ArmorPiece = c.armor.get(loc)
 		if a:
 			out.append(a.name + (" +1" if a.upgraded else ""))
-	out.append_array(Cyber.shown_names(c.implants))   # chrome players can see (Cyber.shown)
+	out.append_array(Cyber.names(c.implants))
 	out.append_array(kit_of.get(c.display_name, []))
 	return out
 
@@ -1110,7 +1110,7 @@ static func _lost_gear_keys(c: Combatant) -> Array:
 	for loc in ["head", "body"]:
 		if c.armor.get(loc):
 			out.append("")
-	for p in Cyber.shown(c.implants):
+	for p in c.implants:
 		out.append("cyberware/" + Cyber.spec_of(p))
 	return out
 
@@ -1497,7 +1497,7 @@ func weapon_options() -> Array[String]:
 func cyberware_options() -> Array[String]:
 	var out: Array[String] = []
 	for k in stash:
-		if Items.is_cyberware(String(k)) and stored(String(k)) > 0 and Cyber.modelled(Items.base_id(String(k))):
+		if Items.is_cyberware(String(k)) and stored(String(k)) > 0:
 			out.append(String(k))
 	return out
 
