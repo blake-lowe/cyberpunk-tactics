@@ -1,7 +1,7 @@
 extends TestCase
 ## The safehouse view's picking: a pixel of the 3D view → the floor → the room under the cursor
-## (owner playtest: nothing hovered), and the fixed camera square-on to the walls (owner: 0° yaw, no
-## rotation or zoom).
+## (owner playtest: nothing hovered), and the camera square-on to the walls at the start (0° yaw).
+## Q/E turning it is test_base_view_turn.gd.
 
 const PX := Vector2(640, 360)   # the low-res view at 720p
 
@@ -11,9 +11,9 @@ func _xf() -> Transform3D:
 
 
 func test_default_view_is_square_on() -> void:
-	assert_eq(BaseView.YAW, 0.0, "owner: 0° yaw")
+	assert_eq(BaseView.YAW, 0.0, "starts at 0° yaw")
 	var bv := BaseView.new()
-	assert_false("yaw" in bv, "no rotatable yaw left on the view (owner: no Q/E rotation)")
+	assert_eq(bv.yaw, 0.0, "a new view starts square-on")
 	bv.free()
 	var xf := _xf()
 	var a := BaseView.view_at(xf, BaseView.VIEW_SIZE, PX, Vector3(0, 0, 0))
