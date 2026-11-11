@@ -95,6 +95,8 @@ static func on_sale(key: String) -> bool:
 			return Items.is_armor(key) and RulesDB.armor(Items.base_id(key)).has("sold")
 		"cyberware":   # a piece made for one thing is sold made for it (Cyber.choices: "cyberware/skill_chip@handgun")
 			return Items.is_cyberware(key) and Cyber.modelled(Items.base_id(key)) and Cyber.valid_spec(key.get_slice("/", 1))
+	if Deck.is_netrun_key(key):   # decks, Programs and Hardware whose rules the NET plays (Deck.sold)
+		return Deck.sold(key)
 	return key in Items.all()
 
 
@@ -129,6 +131,11 @@ static func matching(f: Dictionary) -> Array[String]:
 					keys.append(sk)
 					costs[sk] = Cyber.price(sk.get_slice("/", 1), false)   # the piece's own price (a chip's by its Skill, p.360)
 					cats[sk] = String(db[id].get("category", ""))
+		"netrun":   # Programs and deck Hardware (the "Programs or Hardware of ..." rows, p.338)
+			for k in Deck.all_sold():
+				if Deck.is_loadable(k):
+					keys.append(k)
+					costs[k] = Items.price(k)
 		"kit":
 			for k in Items.all():
 				if Items.section(k) == String(f.get("section", Items.section(k))):
@@ -171,7 +178,7 @@ static func _add_foundations(listings: Array) -> void:
 
 ## Always on sale, market or not: every item the game plays costing up to Premium (100eb), since
 ## that much can be bought without a Fixer or Night Market (CPR core p.385; owner's ruling).
-## Weapons at Standard quality, armour, kit items; in data order.
+## Weapons at Standard quality, armour, kit items, netrunning gear; in data order.
 static func staples() -> Array[String]:
 	var cap := int(data().staples.get("max_cost", 100))
 	var out: Array[String] = []
@@ -187,6 +194,9 @@ static func staples() -> Array[String]:
 			out.append(k)
 	for k in Items.all():
 		if on_sale(k) and Items.price(k) <= cap:
+			out.append(k)
+	for k in Deck.all_sold():   # the Poor Quality deck, most Programs and all Hardware are Premium or less
+		if Items.price(k) <= cap:
 			out.append(k)
 	return out
 

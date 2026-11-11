@@ -288,7 +288,7 @@ Cyberdeck (p196):
 | Standard | 500eb (Expensive) | 7 |
 | Excellent Quality | 1,000eb (V. Expensive) | 9 |
 
-Programs and Hardware share the deck's slots (p196). Black ICE in a deck uses 2 slots (p204). Installing/uninstalling a Program, Black ICE, or Hardware takes 1 hour (p201, p204, p208).
+Programs and Hardware share the deck's slots (p196). Black ICE in a deck uses 2 slots (p204). Installing/uninstalling a Program, Black ICE, or Hardware takes 1 hour (p201, p204, p208). Non-Demon Black ICE can be loaded into a deck; Demons are too big (p204).
 
 Misc upgrades (p208):
 
@@ -307,6 +307,31 @@ Hardware (1 slot each unless noted) (p208):
 | Insulated Wiring | Deck/clothing cannot catch fire from Program effects | 100eb |
 | KRASH Barrier (2 slots) | Immune to Program effects forcing Jack Out | 100eb |
 | Range Upgrade | Access point range 8m (instead of 6m) | 100eb |
+
+Hardware details (p208-209; the same table again on p368): Hardened Circuitry protects the deck from being disabled, made inoperable or destroyed by EMP effects (Microwaver pulses named) and by Non-Black ICE Program Effects; Insulated Wiring means a Program effect can't set the deck or the user's clothing alight (Hellhound's and Hellbolt's "unless insulated", p204, p206); KRASH Barrier makes the deck immune to any Program Effect forcing a Jack Out, safe or unsafe (Giant, DeckKRASH); a Backup Drive restores in the exact saved state (a once-per-Netrun copy stays spent), only Non-Black ICE Attackers, Defenders and Boosters, and a Meat Action re-installs all of them if the slots are free.
+
+Starting gear (p103, Role outfit table): a Netrunner starts with a Cyberdeck (7 slots), Virtuality Goggles and the Programs Armor, Sword, See Ya or Eraser, Sword or Vrizzbolt, and Worm or Sword (one of each pair). The pregenerated Netrunner on p156 carries a 7-slot deck with Sword, Sword, Killer, Worm, Worm, Armor (Killer is Black ICE: 2 slots, so 7 used).
+
+Cyberdeck in a Cyberarm (p364, also p208): a Cyberarm option taking 3 of the arm's Option Slots (Clinic install, 1d6 HL, 500eb). The user supplies the deck at installation; it gives that deck 1 extra Program/Hardware slot, permanently. Uninstalling it from the arm breaks the deck beyond repair, but the Programs and Hardware on it can be recovered. It still needs Interface Plugs and a Neural Link.
+
+Bodyweight Suit (p208, p350): SP11 head and body; stores the deck and the plugs' cords; adds 1 Hardware-only slot to a connected deck, whose Hardware works only while the suit is worn.
+
+Microwaver (p348): on a failed DV15 Cybertech Check the GM picks two pieces of the target's "cyberware or carried electronics" to be inoperable for a minute: a carried deck is fair game (Hardened Circuitry stops it).
+
+Night Market (p338, Personal Electronics column): "Programs or Hardware of 100eb or less" (d100 6-10), "Cyberdeck" (31-35), "Programs or Hardware of exactly 500eb" (46-50). Nothing on the table sells a 1,000eb Program (Giant, Kraken, Dragon, Sabertooth).
+
+#### As the game builds it (Deck, NetRun.progs, Encounter NET; data in data/rules/gear.json "programs" and "hardware")
+
+- A Netrunner carries one deck (gear.json gear/cyberdeck_*) and loads Programs and Hardware onto it at the Armory; the loadout screen (L) shows it read-only. Loading takes the safehouse's hour, never a gig's (p201, p208). Only Netrunners carry decks in the game (no one else can netrun, p197). Swapping decks moves what's loaded across; what no longer fits goes to storage.
+- Netrunner recruits and older saves (v21) get the p103 kit with the choices the game plays: Standard deck; Armor, Sword, See Ya, Sword, Worm (5 of 7 slots).
+- Jacking in needs a deck (and a working one). Programs start each Netrun not running (p198: they leave with you on Jack Out); Activate and Deactivate are NET Actions; each copy once a Round; a running copy can't be Activated again; Armor one copy running and each copy once per Netrun; Attackers deactivate themselves; copies stack (p201-203).
+- Played: See Ya (+2 Pathfinder), Worm (+2 Backdoor), Speedy Gonzalvez (+2 to the speed roll on meeting Black ICE, p205), Armor (-4 brain damage), Sword and Banhammer (Interface + 1 + 1d10 vs ICE DEF + 1d10; 3d6 / 2d6 REZ to Black ICE), your own Killer, Sabertooth and Dragon (2 slots; set on an enemy Black ICE on your node).
+- Enemy Anti-Program Black ICE (Killer, Sabertooth, Dragon) hunts a random live Rezzed Program: ATK + 1d10 vs its DEF + 1d10, its dice (4d6 / 6d6 / 6d6, black_ice.json `program`) to REZ; 0 REZ destroys it. It does nothing while none run. Asp destroys a random Program on the deck; Raven derezzes a random Rezzed Defender (p206-207). Destroyed is permanent: the Program is erased from the deck and must be rebought (p201), unless a Backup Drive saved it.
+- Derezzed (0 REZ, still running): Deactivate then Activate again (2 NET Actions) for full REZ; a new Netrun starts every Program fresh.
+- Hardware played: Backup Drive (in-gig restore is a Meat Action, at the safehouse after every gig automatically), Hardened Circuitry, Insulated Wiring, KRASH Barrier, Range Upgrade. Bodyweight Suit's Hardware slot is played (worn as body armour).
+- HOUSE-RULE: your own Black ICE strikes its target at the start of each of your turns (before the enemy ICE) instead of from its own place at the top of the Initiative Queue (p205). Its target derezzed, it idles until Deactivated and set again.
+- HOUSE-RULE: a deck knocked out (Microwaver, EMP) while jacked in dumps the runner unsafely at the start of their turn (the book doesn't say what a dead deck does to a live run).
+- Not played (no target in the game: no enemy Netrunner ever runs in the game's NETs, and Cloak's traces are never read): Eraser, Flak, Shield, DeckKRASH, Hellbolt, Nervescrub, Poison Flatline, Superglue, Vrizzbolt, and every Anti-Personnel Black ICE for your deck; DNA Lock (nobody steals decks). They stay in the data marked unmodelled and are never sold.
 
 ### 3.2 Actions per Turn (p197-198)
 
@@ -384,7 +409,7 @@ Classes: Booster (improves abilities while Rezzed), Defender (stops/reduces atta
 | Superglue | Anti-Personnel Attacker | 2 | 0 | 0 | Target cannot progress deeper or Jack Out safely for 1d6 Rounds (unsafe Jack Out still allowed); once per Netrun per copy | 100eb |
 | Vrizzbolt | Anti-Personnel Attacker | 1 | 0 | 0 | 1d6 direct to brain; target's total NET Actions next Turn -1 (min 2) | 50eb |
 
-Note: Boosters/Defenders list REZ 7; Attackers list REZ 0 and DEF 0 (p203-204).
+Note: Boosters/Defenders list REZ 7; Attackers list REZ 0 and DEF 0 (p203-204). Tables: Boosters and Defenders p203, Banhammer p203, the rest of the Attackers p204. Prices are each Program's own (Everyday 20eb, Costly 50eb, Premium 100eb).
 
 ### 3.7 Black ICE (p204-207)
 

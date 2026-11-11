@@ -436,10 +436,15 @@ func _net_turn(e: Encounter, u: Dictionary) -> bool:
 		run = e.runs[u.id]
 		var n := run.cur_node()
 		if not run.arch.ice_at(run.current).is_empty():
-			if not e.net_action("sword").get("ok", false):
-				e.net_action("zap")
+			# The deck first (Deck, p.201-205): Armor up, your own Black ICE set on it, every Attacker
+			# copy (each once a round), then Zap.
+			if _run_first(e, run, ["armor", "ice_killer", "ice_sabertooth", "ice_dragon", "sword", "banhammer"]):
+				continue
+			e.net_action("zap")
 			continue
 		if String(n.type) == "firewall" and run.action_block("backdoor") == "" and not run.movable().has(target):
+			if run.boost("backdoor") == 0 and _run_first(e, run, ["worm"]):
+				continue
 			e.net_action("backdoor")
 			continue
 		if run.action_block("control") == "":
@@ -459,6 +464,16 @@ func _net_turn(e: Encounter, u: Dictionary) -> bool:
 			e.net_action("jack_out")
 		break
 	return true
+
+
+## Activate the first copy on the deck, in `order`, that can go now (NetRun.activate_block). True if
+## one did (the NET Action is spent whatever it rolled).
+func _run_first(e: Encounter, run: NetRun, order: Array) -> bool:
+	for pid in order:
+		for i in run.progs.size():
+			if String(run.progs[i].id) == pid and run.activate_block(i, e.init.round_num) == "":
+				return bool(e.net_action("activate", i).get("ok", false))
+	return false
 
 
 ## A held turret with someone in its sights fires (Encounter.fire_turret, a NET Action).

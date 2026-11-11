@@ -1,5 +1,5 @@
 {
- "_source": "Hover cards for the NET panel (Hud.net_help). Short paraphrases of CPR core p.197-207 as distilled in docs/rules/cyber-net.md sections 3.2-3.7; hand-edited. Each entry: name, cost, text (what it does), key (its numbers), page. Ids are Encounter.NET_ACTIONS (plus jack_out_unsafe, fire_turret, held and the dev_<op> rows of data/rules/net_devices.json), Combatant.programs, and the NET Actions header (net_actions).",
+ "_source": "Hover cards for the NET panel (Hud.net_help). Short paraphrases of CPR core p.197-207 as distilled in docs/rules/cyber-net.md sections 3.2-3.7; hand-edited. Each entry: name, cost, text (what it does), key (its numbers), page. Ids are Encounter.NET_ACTIONS (plus jack_out_unsafe, fire_turret, held and the dev_<op> rows of data/rules/net_devices.json), every Program the deck can hold that the game plays (gear.json programs: Deck), restore_backup, and the NET Actions header (net_actions).",
  "actions": {
   "net_actions": {
    "name": "NET Actions",
@@ -140,6 +140,27 @@
    "text": "Distract guards.",
    "key": "no roll · guards within 10 squares",
    "page": "p.199"
+  },
+  "activate": {
+   "name": "Activate Program",
+   "cost": "1 NET Action",
+   "text": "Run a Program on your deck. Each copy activates once a round; a running one has to be stopped first. Attackers stop by themselves.",
+   "key": "Attackers: Interface + ATK + 1d10 vs ICE DEF + 1d10",
+   "page": "p.201-202"
+  },
+  "deactivate": {
+   "name": "Deactivate Program",
+   "cost": "1 NET Action",
+   "text": "Stop a running Program. A derezzed one comes back at full REZ when you run it again.",
+   "key": "no roll",
+   "page": "p.201"
+  },
+  "restore_backup": {
+   "name": "Restore Backup",
+   "cost": "Meat Action",
+   "text": "Put the Programs your Backup Drive saved back on the deck, as they were, if there's room. Not on a turn spent in the NET.",
+   "key": "no roll · needs free slots",
+   "page": "p.208-209"
   }
  },
  "programs": {
@@ -148,14 +169,63 @@
    "cost": "1 NET Action to activate",
    "text": "Attacker: cuts Black ICE apart. Deactivates after the attack.",
    "key": "ATK 1 · DEF 0 · REZ 0 · Interface + 1 + 1d10 vs ICE DEF + 1d10 · hit: 3d6 REZ to Black ICE (2d6 to other Programs)",
-   "page": "p.201, p.203"
+   "page": "p.201, p.204"
   },
   "armor": {
    "name": "Armor",
    "cost": "1 NET Action to activate",
-   "text": "Defender: cuts the brain damage you take while Rezzed. Once per Netrun.",
+   "text": "Defender: cuts the brain damage you take while Rezzed. One copy running at a time; each copy once per Netrun.",
    "key": "ATK 0 · DEF 0 · REZ 7 · brain damage -4",
    "page": "p.203"
+  },
+  "banhammer": {
+   "name": "Banhammer",
+   "cost": "1 NET Action to activate",
+   "text": "Attacker: built for Programs, weaker on Black ICE. Deactivates after the attack.",
+   "key": "ATK 1 · DEF 0 · REZ 0 · Interface + 1 + 1d10 vs ICE DEF + 1d10 · hit: 2d6 REZ to Black ICE (3d6 to other Programs)",
+   "page": "p.201, p.203"
+  },
+  "see_ya": {
+   "name": "See Ya",
+   "cost": "1 NET Action to activate",
+   "text": "Booster: +2 to Pathfinder while Rezzed. Copies stack.",
+   "key": "ATK 0 · DEF 0 · REZ 7 · Pathfinder +2",
+   "page": "p.203"
+  },
+  "worm": {
+   "name": "Worm",
+   "cost": "1 NET Action to activate",
+   "text": "Booster: +2 to Backdoor while Rezzed. Copies stack.",
+   "key": "ATK 0 · DEF 0 · REZ 7 · Backdoor +2",
+   "page": "p.203"
+  },
+  "speedy_gonzalvez": {
+   "name": "Speedy Gonzalvez",
+   "cost": "1 NET Action to activate",
+   "text": "Booster: +2 Speed while Rezzed, for the roll against Black ICE you meet.",
+   "key": "ATK 0 · DEF 0 · REZ 7 · Speed +2 · Interface + Speed + 1d10 vs ICE SPD + 1d10",
+   "page": "p.203"
+  },
+  "ice_killer": {
+   "name": "Killer (yours)",
+   "cost": "1 NET Action to activate",
+   "text": "Your own Black ICE. Set it on the enemy ICE in front of you: it strikes at the start of each of your turns until one of them is derezzed. Takes 2 slots.",
+   "key": "ATK 6 · DEF 2 · REZ 20 · its ATK + 1d10 vs ICE DEF + 1d10 · hit: 4d6 REZ",
+   "page": "p.204-207"
+  },
+  "ice_sabertooth": {
+   "name": "Sabertooth (yours)",
+   "cost": "1 NET Action to activate",
+   "text": "Your own Black ICE. Set it on the enemy ICE in front of you: it strikes at the start of each of your turns until one of them is derezzed. Takes 2 slots.",
+   "key": "ATK 6 · DEF 2 · REZ 25 · its ATK + 1d10 vs ICE DEF + 1d10 · hit: 6d6 REZ",
+   "page": "p.204-207"
+  },
+  "ice_dragon": {
+   "name": "Dragon (yours)",
+   "cost": "1 NET Action to activate",
+   "text": "Your own Black ICE. Set it on the enemy ICE in front of you: it strikes at the start of each of your turns until one of them is derezzed. Takes 2 slots.",
+   "key": "ATK 6 · DEF 6 · REZ 30 · its ATK + 1d10 vs ICE DEF + 1d10 · hit: 6d6 REZ",
+   "page": "p.204-207"
   }
  },
  "ice_page": "p.204-207"

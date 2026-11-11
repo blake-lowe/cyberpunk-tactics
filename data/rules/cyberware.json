@@ -1090,10 +1090,13 @@
    "hl_flat": 3,
    "cost": 500,
    "borgware": false,
+   "fx": {
+    "deck_slots_bonus": 1
+   },
    "host": "arm",
    "slots": 3,
    "needs": "cyberarm",
-   "unmodelled": true,
+   "summary": "Your cyberdeck built into the arm: +1 slot. It can't come out whole.",
    "cite": "CPR core p.115-116, p.364-367"
   },
   "grapple_hand": {

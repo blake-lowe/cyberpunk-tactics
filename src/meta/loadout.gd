@@ -6,9 +6,11 @@ extends RefCounted
 ## screen.
 ##
 ## Slot ids: "w0", "w1"... (carried weapons in draw order), "wadd" (a weapon not yet carried),
-## "head", "body" (armour, p97), "k0" (consumable), "k1" (utility; gear.json kit_rules).
+## "head", "body" (armour, p97), "k0" (consumable), "k1" (utility; gear.json kit_rules). A Netrunner
+## also has "deck" (their cyberdeck), "p0".. (its Programs), "h0".. (its Hardware) and "padd" (load
+## another onto it): Deck, CPR core p.196, p.201-209.
 
-const FILTERS := ["all", "weapons", "armor", "consumable", "utility"]
+const FILTERS := ["all", "weapons", "armor", "consumable", "utility", "netrun"]
 const SORTS := ["name", "damage", "sp", "count"]
 
 
@@ -22,7 +24,32 @@ static func slots(c: Combatant) -> Array[String]:
 	out.append_array(["wadd", "head", "body"])
 	for i in c.kit.size():
 		out.append("k%d" % i)
+	if Deck.can_carry(c):
+		out.append("deck")
+		for i in c.programs.size():
+			out.append("p%d" % i)
+		for i in c.deck_hardware.size():
+			out.append("h%d" % i)
+		if c.deck != "":
+			out.append("padd")
 	return out
+
+
+static func program_index(slot: String) -> int:
+	return int(slot.substr(1)) if slot.begins_with("p") and slot != "padd" else -1
+
+
+static func hardware_index(slot: String) -> int:
+	return int(slot.substr(1)) if slot.begins_with("h") and slot.substr(1).is_valid_int() else -1
+
+
+## The deck's slots: the deck itself, a Program, a Hardware, or the LOAD row.
+static func is_deck_slot(slot: String) -> bool:
+	return slot == "deck" or is_netware_slot(slot)
+
+
+static func is_netware_slot(slot: String) -> bool:
+	return slot == "padd" or program_index(slot) >= 0 or hardware_index(slot) >= 0
 
 
 static func weapon_index(slot: String) -> int:
@@ -45,6 +72,14 @@ static func is_armor_slot(slot: String) -> bool:
 static func slot_label(slot: String) -> String:
 	if slot == "wadd":
 		return "NEW WEAPON"
+	if slot == "deck":
+		return "CYBERDECK"
+	if slot == "padd":
+		return "LOAD"
+	if program_index(slot) >= 0:
+		return "PROGRAM %d" % (program_index(slot) + 1)
+	if hardware_index(slot) >= 0:
+		return "HARDWARE %d" % (hardware_index(slot) + 1)
 	if is_weapon_slot(slot):
 		return "WEAPON %d" % (weapon_index(slot) + 1)
 	if is_armor_slot(slot):
@@ -54,6 +89,8 @@ static func slot_label(slot: String) -> String:
 
 ## The storage filter a slot opens with.
 static func filter_for(slot: String) -> String:
+	if is_deck_slot(slot):
+		return "netrun"
 	if is_weapon_slot(slot):
 		return "weapons"
 	if is_armor_slot(slot):
@@ -69,11 +106,16 @@ static func in_filter(filter: String, key: String) -> bool:
 		"armor": return Items.is_armor(key)
 		"consumable": return Items.fits(0, key) and Items.is_item(key)
 		"utility": return Items.fits(1, key) and Items.is_item(key)
+		"netrun": return Deck.is_netrun_key(key)
 	return Items.is_stored(key)
 
 
 ## Whether `key` can go in `slot` at all (kind only; availability is equip_block).
 static func fits(slot: String, key: String) -> bool:
+	if slot == "deck":
+		return Deck.is_deck_key(key)
+	if is_netware_slot(slot):
+		return Deck.is_loadable(key)
 	if is_weapon_slot(slot):
 		return Items.is_weapon(key)
 	if is_armor_slot(slot):
@@ -90,6 +132,10 @@ static func best_slot(c: Combatant, key: String) -> String:
 		return "wadd"
 	if Items.is_armor(key):
 		return "head" if c != null and c.armor.get("head") == null else "body"
+	if Deck.is_deck_key(key):
+		return "deck" if Deck.can_carry(c) else ""
+	if Deck.is_loadable(key):
+		return "padd" if Deck.can_carry(c) and c.deck != "" else ("deck" if Deck.can_carry(c) else "")
 	if Items.is_item(key):
 		for i in Items.slot_kinds().size():
 			if Items.fits(i, key):
@@ -120,6 +166,16 @@ static func slot_key(c: Combatant, slot: String) -> String:
 	if is_armor_slot(slot):
 		var a: ArmorPiece = c.armor.get(slot)
 		return Items.key_of_armor(a) if a else ""
+	if slot == "deck":
+		return "gear/" + c.deck if c.deck != "" else ""
+	var pi := program_index(slot)
+	if pi >= 0:
+		return "programs/" + c.programs[pi] if pi < c.programs.size() else ""
+	var hi := hardware_index(slot)
+	if hi >= 0:
+		return "hardware/" + c.deck_hardware[hi] if hi < c.deck_hardware.size() else ""
+	if slot == "padd":
+		return ""
 	var k := kit_index(slot)
 	return c.kit[k] if k >= 0 and k < c.kit.size() else ""
 
@@ -136,6 +192,14 @@ static func equip_block(camp: Campaign, c: Combatant, slot: String, key: String)
 		return "nobody selected"
 	if not fits(slot, key):
 		return "doesn't fit " + slot_label(slot)
+	if slot == "deck":
+		return camp.deck_block(c, key)
+	if is_netware_slot(slot):   # what's in the slot comes off first, so its slots count as free
+		var old := slot_key(c, slot)
+		_lift(c, slot)
+		var why := camp.load_block(c, key)
+		_unlift(c, slot, old)
+		return why
 	if Items.is_item(key):
 		var k := kit_index(slot)
 		if c.kit[k] == key:
@@ -159,13 +223,53 @@ static func equip(camp: Campaign, c: Combatant, slot: String, key: String) -> bo
 		return camp.equip_weapon(c, key)
 	if is_armor_slot(slot):
 		return camp.equip_armor(c, slot, key)
+	if slot == "deck":
+		return camp.equip_deck(c, key)
+	if slot == "padd":
+		return camp.load_netware(c, key)
+	if is_netware_slot(slot):   # swap: the old one to storage, the new one onto the deck
+		var old := slot_key(c, slot)
+		store(camp, c, slot)
+		if camp.load_netware(c, key):
+			return true
+		if old != "":
+			camp.load_netware(c, old)
+		return false
 	return camp.set_kit(c, kit_index(slot), key)
+
+
+## Take a Program or Hardware off its slot for a moment (equip_block's what-if); _unlift puts it back.
+static func _lift(c: Combatant, slot: String) -> void:
+	if program_index(slot) >= 0 and program_index(slot) < c.programs.size():
+		c.programs.remove_at(program_index(slot))
+	elif hardware_index(slot) >= 0 and hardware_index(slot) < c.deck_hardware.size():
+		c.deck_hardware.remove_at(hardware_index(slot))
+
+
+static func _unlift(c: Combatant, slot: String, old: String) -> void:
+	if old == "":
+		return
+	if program_index(slot) >= 0:
+		c.programs.insert(program_index(slot), Items.base_id(old))
+	elif hardware_index(slot) >= 0:
+		c.deck_hardware.insert(hardware_index(slot), Items.base_id(old))
+
+
+## A deck built into a Cyberarm (p.364): changed at the Med Bay, never stored.
+static func is_arm_deck(c: Combatant, slot: String) -> bool:
+	return slot == "deck" and Deck.in_arm(c)
 
 
 ## STORE: what's in `slot` back to storage.
 static func store(camp: Campaign, c: Combatant, slot: String) -> bool:
-	if c == null or slot_key(c, slot) == "" or is_chrome(c, slot):
+	if c == null or slot_key(c, slot) == "" or is_chrome(c, slot) or is_arm_deck(c, slot):
 		return false
+	if slot == "deck":
+		return camp.store_deck(c)
+	if program_index(slot) >= 0:
+		return camp.unload_program(c, program_index(slot))
+	if hardware_index(slot) >= 0:
+		return camp.unload_hardware(c, hardware_index(slot))
 	var wi := weapon_index(slot)
 	if wi >= 0:
 		return camp.unequip_weapon(c, wi)
@@ -248,6 +352,12 @@ static func count_text(camp: Campaign, key: String) -> String:
 				var a: ArmorPiece = m.armor.get(loc)
 				if a and a.id == Items.base_id(key):
 					has += 1
+		elif Deck.is_deck_key(key):
+			has = 1 if m.deck == Items.base_id(key) else 0
+		elif Deck.is_program_key(key):
+			has = m.programs.count(Items.base_id(key))
+		elif Deck.is_hardware_key(key):
+			has = m.deck_hardware.count(Items.base_id(key))
 		if has > 0:
 			with[m.display_name] = has
 			order.append(m.display_name)
@@ -276,6 +386,8 @@ static func stats(key: String) -> String:
 			else "SP %d/%d" % [a.sp, a.max_sp]
 	if Items.is_item(key):
 		return kit_stats(key)
+	if Deck.is_netrun_key(key):
+		return Deck.info(key)
 	return Campaign.item_info(key)
 
 
@@ -325,7 +437,13 @@ static func slot_stats(c: Combatant, slot: String) -> String:
 		if a.sp < a.max_sp:
 			s += " · " + repair_text(a)
 		return s
+	if slot == "deck":
+		return "%d/%d slots used%s" % [Deck.used(c), Deck.slots(c), " · in the cyberarm" if Deck.in_arm(c) else ""] if c.deck != "" else ""
+	if slot == "padd":
+		return "%d slot%s free" % [Deck.free_slots(c), "" if Deck.free_slots(c) == 1 else "s"]
 	var key := slot_key(c, slot)
+	if Deck.is_netrun_key(key):
+		return Deck.info(key)
 	return kit_stats(key) if key != "" else ""
 
 
@@ -354,6 +472,11 @@ static func deltas(key: String, now: String) -> Array:
 			out.append(["%+d to hit" % (a.attack_bonus() - b.attack_bonus()), signi(a.attack_bonus() - b.attack_bonus())])
 		if a.is_melee() != b.is_melee():
 			out.append(["melee" if a.is_melee() else "ranged", 0])
+	elif Deck.is_deck_key(key):
+		var da := int(Deck.deck_def(Items.base_id(key)).fx.deck_slots)
+		var db := int(Deck.deck_def(Items.base_id(now)).fx.deck_slots)
+		if da != db:
+			out.append(["%+d slots" % (da - db), signi(da - db)])
 	elif Items.is_armor(key):
 		var a := Items.make_armor(key)
 		var b := Items.make_armor(now)
@@ -387,7 +510,25 @@ static func compare_rows(key: String, now: String) -> Array:
 	elif Items.is_item(key):
 		rows.append(["EFFECT", kit_stats(key), kit_stats(now) if now != "" else "—", 0])
 		rows.append(["USE", Items.use(key), Items.use(now) if now != "" else "—", 0])
+	elif Deck.is_deck_key(key):
+		var sa := int(Deck.deck_def(Items.base_id(key)).fx.deck_slots)
+		var sb := int(Deck.deck_def(Items.base_id(now)).fx.deck_slots) if Deck.is_deck_key(now) else 0
+		rows.append(["SLOTS", str(sa), str(sb) if sb > 0 else "—", signi(sa - sb) if sb > 0 else 0])
+	elif Deck.is_loadable(key):
+		var now_ok := Deck.is_loadable(now)
+		rows.append(["KIND", _kind(key), _kind(now) if now_ok else "—", 0])
+		rows.append(["DOES", Deck.info(key), Deck.info(now) if now_ok else "—", 0])
+		rows.append(["SLOTS", str(Deck.slots_of(key)), str(Deck.slots_of(now)) if now_ok else "—", -signi(Deck.slots_of(key) - Deck.slots_of(now)) if now_ok else 0])
 	return rows
+
+
+## "Booster", "Anti-Program Attacker", "Black ICE", "Hardware".
+static func _kind(key: String) -> String:
+	if Deck.is_hardware_key(key):
+		return "Hardware"
+	var d := Deck.entry(key)
+	var cls := "Black ICE" if String(d.get("class", "")) == "black_ice" else String(d.get("class", "")).capitalize()
+	return (String(d.target).replace("_", "-").capitalize() + " " + cls) if String(d.get("target", "")) != "" and cls == "Attacker" else cls
 
 
 static func _reach(w: Weapon) -> String:
@@ -414,6 +555,9 @@ static func warnings(camp: Campaign) -> Array[String]:
 	for m in crew:
 		if not m.weapons.any(func(w: Weapon): return not w.is_melee()):
 			out.append("%s has no ranged weapon" % m.display_name)
+	for m in crew:
+		if Deck.can_carry(m) and m.deck == "":
+			out.append("%s has no cyberdeck" % m.display_name)
 	return out
 
 

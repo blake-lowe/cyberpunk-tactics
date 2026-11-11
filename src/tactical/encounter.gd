@@ -3954,9 +3954,10 @@ static func net_actions_for(c: Combatant) -> int:
 	return NetRun.net_actions(NetRun.interface_rank(c)) + int(c.perk_fx("net_actions"))
 
 
-## Meatspace jack-in range: 6 m (p198), or a Long Leash perk's (HOUSE-RULE).
+## Meatspace jack-in range: 6 m (p198), 8 m with a Range Upgrade on the deck (p.208-209), or a Long
+## Leash perk's (HOUSE-RULE).
 static func jack_range(c: Combatant) -> float:
-	return maxf(JACK_IN_RANGE_M, float(c.perk_fx("jack_range_m")))
+	return maxf(Deck.jack_range_m(c, JACK_IN_RANGE_M), float(c.perk_fx("jack_range_m")))
 
 
 ## Access points within jack-in range of `u` (6 m, p198): [{index, structure, device}].
@@ -3997,19 +3998,30 @@ func jack_in(point: Dictionary) -> bool:
 	return true
 
 
-## The NET Actions net_action takes (each has a hover card in data/rules/net_help.json; sword and
-## armor activate those Programs).
-const NET_ACTIONS: Array[String] = ["backdoor", "control", "eye_dee", "zap", "cross", "jack_out", "sword", "armor", "slide", "pathfinder"]
+## The NET Actions net_action takes (each has a hover card in data/rules/net_help.json). activate and
+## deactivate take the index of a Program copy on the deck (NetRun.progs).
+const NET_ACTIONS: Array[String] = ["backdoor", "control", "eye_dee", "zap", "cross", "jack_out", "activate", "deactivate", "slide", "pathfinder"]
 
 
-## NET Actions (p198). kind: backdoor | control | eye_dee | zap | cross | jack_out. Moving between
-## nodes is free (run.move_to). A turn spent in the NET forgoes the meat Action (p197).
+## NET Actions (p198). kind: backdoor | control | eye_dee | zap | cross | jack_out | activate |
+## deactivate | slide | pathfinder. A Program's id ("sword") activates its first copy that can go.
+## Moving between nodes is free (run.move_to). A turn spent in the NET forgoes the meat Action (p197).
 func net_action(kind: String, arg: int = -1) -> Dictionary:
 	var run: NetRun = runs.get(cur.id)
 	if kind == "jack_out_unsafe" and run != null:   # pull the plug: no Action needed, Kraken or not, but every ICE met hits (p198)
 		say("%s pulls the plug." % cur.c.display_name)
 		_drop_run(cur.id, true)
 		return {"ok": true}
+	if run != null and kind not in NET_ACTIONS and not Deck.program(kind).is_empty():   # "sword": its first copy ready to go
+		var pick := -1
+		for i in run.progs.size():
+			if String(run.progs[i].id) != kind:
+				continue
+			if pick < 0 or (run.activate_block(pick, init.round_num) != "" and run.activate_block(i, init.round_num) == ""):
+				pick = i
+		if pick < 0:
+			return {"ok": false, "reason": "no %s Program" % Deck.name_of(kind)}
+		return net_action("activate", pick)
 	if kind not in NET_ACTIONS:
 		return {"ok": false, "reason": "unknown action"}
 	if run == null or net_left <= 0:
@@ -4019,12 +4031,14 @@ func net_action(kind: String, arg: int = -1) -> Dictionary:
 	var why := run.action_block(kind)
 	if why != "":
 		return {"ok": false, "reason": why}
-	if kind in ["zap", "sword", "slide"] and run.arch.ice_at(run.current).is_empty():   # check before spending anything
+	if kind in ["zap", "slide"] and run.arch.ice_at(run.current).is_empty():   # check before spending anything
 		return {"ok": false, "reason": "no ICE here"}
-	if kind in ["sword", "armor"] and not run.has_program(kind):
-		return {"ok": false, "reason": "no %s Program" % kind.capitalize()}
-	if kind == "armor" and (run.armor_used or run.armor_rez > 0):
-		return {"ok": false, "reason": "Armor already used this run"}
+	if kind == "activate":
+		var why2 := run.activate_block(arg, init.round_num)
+		if why2 != "":
+			return {"ok": false, "reason": why2}
+	if kind == "deactivate" and (arg < 0 or arg >= run.progs.size() or not bool(run.progs[arg].on) or bool(run.progs[arg].gone)):
+		return {"ok": false, "reason": "not running"}
 	if kind == "slide" and (_slid_this_turn or arg < 0 or arg not in run.slide_targets()):
 		return {"ok": false, "reason": "one Slide a turn"}
 	if kind == "jack_out" and run.kraken_until >= init.round_num:
@@ -4089,20 +4103,11 @@ func net_action(kind: String, arg: int = -1) -> Dictionary:
 			if crossed:
 				_meet_ice(cur, run)
 			return {"ok": crossed}
-		"sword":   # Anti-Program Attacker: Interface + ATK 1 + d10 vs DEF + d10; 3d6 REZ to Black ICE (p201, p203)
-			var tgt2: Dictionary = run.arch.ice_at(run.current)[0]
-			var st2: Dictionary = RulesDB.load_json("black_ice.json")["ice"][tgt2.kind]
-			var hit2 := Check.opposed(dice, run.rank() + 1, int(st2.def))
-			if hit2.success:
-				tgt2["rez"] = int(tgt2.get("rez", st2.rez)) - dice.roll(3, 6)
-				if tgt2.rez <= 0:
-					tgt2["derezzed"] = true
-					say("%s derezzed." % tgt2.kind)
-			return {"ok": true, "success": hit2.success}
-		"armor":   # Defender: -4 brain damage while Rezzed (REZ 7), once per Netrun (p203)
-			run.armor_rez = 7
-			run.armor_used = true
-			say("%s runs Armor." % cur.c.display_name)
+		"activate":
+			return _activate(run, arg)
+		"deactivate":   # p.201: a NET Action; a Derezzed Program comes back at full REZ when Activated again
+			run.derez_off(arg)
+			say("%s stops %s." % [cur.c.display_name, Deck.name_of(String(run.progs[arg].id))])
 			return {"ok": true, "success": true}
 		"slide":   # Interface + d10 vs the ICE's PER + d10, -2 per Skunk (p200, p207)
 			var ice3: Dictionary = run.arch.ice_at(run.current)[0]
@@ -4123,6 +4128,93 @@ func net_action(kind: String, arg: int = -1) -> Dictionary:
 			say("Pathfinder reveals %d nodes." % shown.size())
 			return {"ok": true, "success": not shown.is_empty(), "revealed": shown}
 	return {"ok": false, "reason": "unknown"}
+
+
+## Activate Program copy `i` (p.201-205): a Booster or Defender Rezzes; an Anti-Program Attacker
+## attacks the first Black ICE here (Interface + ATK + 1d10 vs its DEF + 1d10; on a hit its REZ dice,
+## Sword 3d6, Banhammer 2d6) and Deactivates by itself (p.202); your own Black ICE Rezzes set on that
+## ICE and strikes on each of your turns (_own_ice_turn).
+func _activate(run: NetRun, i: int) -> Dictionary:
+	var id := String(run.progs[i].id)
+	var nm := Deck.name_of(id)
+	var d := run.prog_def(i)
+	match Deck.program_class(id):
+		"attacker":
+			var tgt: Dictionary = run.arch.ice_at(run.current)[0]
+			var st: Dictionary = RulesDB.load_json("black_ice.json")["ice"][tgt.kind]
+			run.progs[i].round = init.round_num
+			var hit := Check.opposed(dice, run.rank() + int(d.get("atk", 0)), int(st.def))
+			var dmg := 0
+			if hit.success:
+				dmg = _roll_dice(String(d.fx.program_dmg.black_ice))
+				_hurt_ice(tgt, dmg)
+			say("%s: %s %s." % [nm, String(tgt.kind).capitalize(), ("takes %d REZ" % dmg) if hit.success else "dodges it"])
+			events.append({"type": "program", "unit": cur.id, "program": id, "target": String(tgt.kind), "ok": hit.success, "damage": dmg})
+			return {"ok": true, "success": hit.success, "damage": dmg}
+		"black_ice":   # your own Black ICE, set on the ICE in front of you (p.205)
+			var tgt2: Dictionary = run.arch.ice_at(run.current)[0]
+			run.rez(i, init.round_num, int(tgt2.id))
+			say("%s sets %s on the %s." % [cur.c.display_name, nm, String(tgt2.kind).capitalize()])
+			return {"ok": true, "success": true}
+	run.rez(i, init.round_num)
+	say("%s runs %s." % [cur.c.display_name, nm])
+	return {"ok": true, "success": true}
+
+
+## Damage to an enemy Black ICE's REZ; at 0 it is Derezzed (p.201).
+func _hurt_ice(ice: Dictionary, dmg: int) -> void:
+	var st: Dictionary = RulesDB.load_json("black_ice.json")["ice"][ice.kind]
+	ice["rez"] = int(ice.get("rez", st.rez)) - dmg
+	if int(ice.rez) <= 0:
+		ice["derezzed"] = true
+		say("%s derezzed." % String(ice.kind).capitalize())
+
+
+## "3d6" rolled.
+func _roll_dice(spec: String) -> int:
+	var parts := spec.split("d")
+	return dice.roll(int(parts[0]), int(parts[1])) if parts.size() == 2 else 0
+
+
+## Your own Black ICE strikes the ICE it was set on: ATK + 1d10 vs its DEF + 1d10, its Program
+## damage to that ICE's REZ (p.205-207). HOUSE-RULE (the book puts it at the top of the Initiative
+## Queue): it strikes at the start of each of your turns, before the enemy ICE. Its target gone, it
+## idles until Deactivated and set again.
+func _own_ice_turn(run: NetRun) -> void:
+	for i in run.rezzed("black_ice"):
+		var tid := int(run.progs[i].target)
+		var tgt: Dictionary = {}
+		for x in run.arch.ice:
+			if int(x.id) == tid and not x.get("derezzed", false):
+				tgt = x
+		if tgt.is_empty():
+			continue
+		var mine := Deck.stats(String(run.progs[i].id))
+		var st: Dictionary = RulesDB.load_json("black_ice.json")["ice"][tgt.kind]
+		var ok := Check.opposed(dice, int(mine.atk), int(st.def)).success
+		var dmg := 0
+		if ok:
+			dmg = _roll_dice(String(RulesDB.load_json("black_ice.json")["ice"][String(run.prog_def(i).ice)].get("program", "")))
+			_hurt_ice(tgt, dmg)
+		say("Your %s %s the %s%s." % [Deck.name_of(String(run.progs[i].id)), "hits" if ok else "misses", String(tgt.kind).capitalize(), (" for %d REZ" % dmg) if ok else ""])
+
+
+## A Meat Action (p.208-209): the Backup Drive puts the Programs it saved back on the deck, as they
+## were saved, where there's room.
+func restore_backup() -> Dictionary:
+	if cur.is_empty() or not turn.action_available or _netting:
+		return {"ok": false, "reason": "no action left"}
+	if cur.c.backup.is_empty():
+		return {"ok": false, "reason": "nothing saved"}
+	var back := Deck.restore_backup(cur.c)
+	if back.is_empty():
+		return {"ok": false, "reason": "no free slot"}
+	turn.action_available = false
+	var run: NetRun = runs.get(cur.id)
+	if run != null:
+		run.restore(back)
+	say("%s restores %s from the backup drive." % [cur.c.display_name, ", ".join(back.map(func(x): return Deck.name_of(String(x))))])
+	return {"ok": true, "restored": back}
 
 
 ## The devices on Control Node `n` in words ("3 cameras, door lock").
@@ -4220,7 +4312,7 @@ func net_move(id: int) -> bool:
 func _meet_ice(u: Dictionary, run: NetRun) -> void:
 	for ice in run.meet():
 		var st: Dictionary = RulesDB.load_json("black_ice.json")["ice"][ice.kind]
-		if not Check.opposed(dice, run.rank(), int(st.spd)).success:
+		if not Check.opposed(dice, run.rank() + run.boost("speed"), int(st.spd)).success:   # Speedy Gonzalvez +2 Speed (p.203, p.205)
 			say("%s is faster: it strikes first." % String(ice.kind).capitalize())
 			_ice_effect(u, run, ice)
 			if not runs.has(u.id):
@@ -4258,16 +4350,27 @@ func _ice_turn(u: Dictionary) -> void:
 	var run: NetRun = runs.get(u.id)
 	if run == null:
 		return
+	if Deck.offline(u.c):   # the deck knocked out under them (Microwaver, EMP, p.348): HOUSE-RULE: an unsafe Jack Out
+		say("%s's cyberdeck dies: they're dumped from the NET." % u.c.display_name)
+		_drop_run(u.id, true)
+		return
+	_own_ice_turn(run)
 	for ice in run.arch.ice_at(run.current):
 		_ice_attack(u, run, ice)
+		if not runs.has(u.id):
+			return
 
 
 ## `auto`: the Effect lands without a roll (an unsafe jack-out "suffers" every ICE met, p198).
 func _ice_attack(u: Dictionary, run: NetRun, ice: Dictionary, auto := false) -> void:
 	var stats: Dictionary = RulesDB.load_json("black_ice.json")["ice"][ice.kind]
-	if String(stats["class"]) == "anti_program" and not auto:   # hunts Rezzed Programs: vs their DEF (0)
-		if run.armor_rez > 0 and Check.opposed(dice, int(stats.atk), 0).success:
-			_ice_effect(u, run, ice)
+	if String(stats["class"]) == "anti_program" and not auto:   # hunts one of your Rezzed Programs at random: vs its DEF + 1d10 (p.205)
+		var live := run.rezzed()
+		if live.is_empty():
+			return
+		var i: int = live[dice.d(live.size()) - 1]
+		if Check.opposed(dice, int(stats.atk), int(Deck.stats(String(run.progs[i].id)).def)).success:
+			_ice_effect(u, run, ice, false, i)
 		return
 	if auto or Check.opposed(dice, int(stats.atk), run.rank()).success:
 		_ice_effect(u, run, ice, auto)
@@ -4275,26 +4378,39 @@ func _ice_attack(u: Dictionary, run: NetRun, ice: Dictionary, auto := false) -> 
 
 ## A Black ICE Effect landing on the runner (p206-207). `quiet_giant`: an unsafe jack-out doesn't
 ## chain another forced jack-out.
-func _ice_effect(u: Dictionary, run: NetRun, ice: Dictionary, from_dump := false) -> void:
+func _ice_effect(u: Dictionary, run: NetRun, ice: Dictionary, from_dump := false, prog_i := -1) -> void:
 	var stats: Dictionary = RulesDB.load_json("black_ice.json")["ice"][ice.kind]
 	var kind := String(ice.kind)
-	if String(stats["class"]) == "anti_program":   # Dragon, Killer, Sabertooth: wreck the running Defender
-		if run.armor_rez > 0:
-			run.armor_rez = 0
-			run.lost["armor"] = true
-			say("%s destroys the Armor program." % kind.capitalize())
+	if String(stats["class"]) == "anti_program":   # Dragon, Killer, Sabertooth: their dice to a Rezzed Program; 0 REZ destroys it (p.207)
+		if prog_i < 0:
+			var live := run.rezzed()
+			if live.is_empty():
+				return
+			prog_i = live[dice.d(live.size()) - 1]
+		var p: Dictionary = run.progs[prog_i]
+		p.rez = int(p.rez) - _roll_dice(String(stats.get("program", "")))
+		if int(p.rez) <= 0:
+			var saved := run.destroy(prog_i)
+			say("%s destroys %s's %s%s." % [kind.capitalize(), u.c.display_name, Deck.name_of(String(p.id)), " (the backup drive saves it)" if saved else ""])
+			events.append({"type": "program_lost", "unit": u.id, "program": String(p.id), "by": kind, "saved": saved})
+		else:
+			say("%s hits %s's %s: REZ %d left." % [kind.capitalize(), u.c.display_name, Deck.name_of(String(p.id)), int(p.rez)])
 		return
 	match kind:
-		"asp":   # destroys one random Program on the deck
-			var have: Array = u.c.programs.filter(func(p): return not run.lost.has(p))
+		"asp":   # destroys one random Program on the deck (p.206)
+			var have: Array = range(run.progs.size()).filter(func(i): return not bool(run.progs[i].gone))
 			if not have.is_empty():
-				var p: String = have[dice.d(have.size()) - 1]
-				run.lost[p] = true
-				if p == "armor":
-					run.armor_rez = 0
-				say("Asp destroys %s's %s." % [u.c.display_name, p.capitalize()])
-		"raven":   # derezzes a Rezzed Defender first
-			run.armor_rez = 0
+				var pi: int = have[dice.d(have.size()) - 1]
+				var pid := String(run.progs[pi].id)
+				var saved2 := run.destroy(pi)
+				say("Asp destroys %s's %s%s." % [u.c.display_name, Deck.name_of(pid), " (the backup drive saves it)" if saved2 else ""])
+				events.append({"type": "program_lost", "unit": u.id, "program": pid, "by": kind, "saved": saved2})
+		"raven":   # derezzes one random Rezzed Defender first (p.207)
+			var defs := run.rezzed("defender")
+			if not defs.is_empty():
+				var di: int = defs[dice.d(defs.size()) - 1]
+				run.progs[di].rez = 0
+				say("Raven derezzes %s's %s." % [u.c.display_name, Deck.name_of(String(run.progs[di].id))])
 		"liche":
 			for s in ["INT", "REF", "DEX"]:
 				u.c.temp_mods[s] = int(u.c.temp_mods.get(s, 0)) + dice.roll(1, 6)
@@ -4306,8 +4422,9 @@ func _ice_effect(u: Dictionary, run: NetRun, ice: Dictionary, from_dump := false
 			run.skunks[ice.id] = true
 		"wisp":
 			run.wisp = 1
-		"hellhound":
-			u.c.burning = maxi(u.c.burning, 2)   # Hellhound: 2 a turn (p207); a stronger fire stays
+		"hellhound":   # 2 a turn (p207), unless the deck has Insulated Wiring (p.208-209); a stronger fire stays
+			if not Deck.has_hw(u.c, "fireproof"):
+				u.c.burning = maxi(u.c.burning, 2)
 		"kraken":   # HOUSE-RULE cap (playtest death loop): a lock can't be renewed back to back
 			if init.round_num > run.kraken_until + 1:
 				run.kraken_until = init.round_num + 1
@@ -4315,13 +4432,12 @@ func _ice_effect(u: Dictionary, run: NetRun, ice: Dictionary, from_dump := false
 	if String(stats.brain) != "":
 		var parts := String(stats.brain).split("d")
 		var dmg := dice.roll(int(parts[0]), int(parts[1]))
-		if run.armor_rez > 0:   # Armor: -4 brain damage (p203)
-			dmg = maxi(0, dmg - 4)
+		dmg = maxi(0, dmg - run.brain_reduce())   # Armor: -4 brain damage (p203)
 		var before: int = u.c.wound_state()
 		u.c.hp -= dmg
 		say("%s hits %s for %d brain damage." % [kind.capitalize(), u.c.display_name, dmg])
 		events.append({"type": "harm", "unit": u.id, "damage": dmg, "source": kind.to_upper(), "wound_before": before, "wound_after": u.c.wound_state()})
-	if kind == "giant" and not from_dump and runs.has(u.id):   # forced unsafe Jack Out (the Giant itself excepted)
+	if kind == "giant" and not from_dump and runs.has(u.id) and not Deck.has_hw(u.c, "no_forced_jack_out"):   # forced unsafe Jack Out (the Giant itself excepted); a KRASH Barrier stops it (p.208-209)
 		var gk := run.met_key(ice)
 		run.met.erase(gk)   # its own hit is the Effect; the dump suffers the others (p207)
 		say("The Giant throws %s out of the NET." % u.c.display_name)

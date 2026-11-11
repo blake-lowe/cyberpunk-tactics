@@ -90,6 +90,8 @@ CYBER_FX = {
     "grapple_hand": {"grapple_m": 30},                       # an Action: a line to Thick cover up to 30 m, climbed with no penalty (p.365)
     # Phase 4, NET and downtime (NetRun.jack_block; Combatant.rest_heal).
     "enhanced_antibodies": {"rest_heal_mult": 2},            # "After stabilization, ... heals BODY x 2 for each day spent resting" (p.362)
+    # Netrunning gear (Deck.slots): the user's own deck goes into the arm, +1 Program/Hardware slot (p.208, p.364).
+    "cyberdeck": {"deck_slots_bonus": 1},
 }
 
 # Installation prerequisites beyond the slot model (Campaign.install_block): a minimum STAT and pieces
@@ -201,6 +203,8 @@ SUMMARY = {
     # Phase 4: NET and downtime
     "interface_plugs": "Netrunners need them to jack in. Links to smartguns.",
     "enhanced_antibodies": "Heal twice as fast while resting.",
+    # Netrunning gear
+    "cyberdeck": "Your cyberdeck built into the arm: +1 slot. It can't come out whole.",
 }
 
 FOUNDATION_OF_HOST = {"neural_link": "neural_link", "chipware": "chipware_socket", "eye": "cybereye",

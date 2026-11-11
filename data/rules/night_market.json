@@ -1,6 +1,6 @@
 {
 	"_source": "CPR core p.337-339 (Night Markets, Night Market Generator, On the Shelves), p.340 onward (Night Market Appendix: what each item is and costs; prices come from weapons.json, armor.json, gear.json, cyberware.json). Listing names are the book's row labels; numbers and short paraphrases only.",
-	"_doc": "Campaign/NightMarket read this. A listing's 'keys' are storage keys (Items: weapon/<id>, armor/<id>, <section>/<id>, cyberware/<id>); a weapon key stands for every Quality Rating of it (p338). A 'filter' picks every item matching kind (weapon|armor|kit|cyberware), section (kit), category (weapon or cyberware), option (cyberware that needs a foundation), cost / cost_max / cost_min (list eb); 'choose': n takes n of them at random (the book's 'of GM's choice'). Only what the game plays is ever on sale (weapons/armor/kit marked sold, cyberware the Ripperdoc installs); a listing with neither keys nor filter has no counterpart in the game's data and is shown for flavour.",
+	"_doc": "Campaign/NightMarket read this. A listing's 'keys' are storage keys (Items: weapon/<id>, armor/<id>, <section>/<id>, cyberware/<id>); a weapon key stands for every Quality Rating of it (p338). A 'filter' picks every item matching kind (weapon|armor|kit|cyberware|netrun: Programs and cyberdeck Hardware, Deck), section (kit), category (weapon or cyberware), option (cyberware that needs a foundation), cost / cost_max / cost_min (list eb); 'choose': n takes n of them at random (the book's 'of GM's choice'). Only what the game plays is ever on sale (weapons/armor/kit marked sold, cyberware the Ripperdoc installs); a listing with neither keys nor filter has no counterpart in the game's data and is shown for flavour.",
 	"categories_roll": {
 		"dice": "1d6",
 		"times": 2,
@@ -214,7 +214,11 @@
 						6,
 						10
 					],
-					"name": "Programs or Hardware of 100eb or less"
+					"name": "Programs or Hardware of 100eb or less",
+					"filter": {
+						"kind": "netrun",
+						"cost_max": 100
+					}
 				},
 				{
 					"d100": [
@@ -294,7 +298,11 @@
 						46,
 						50
 					],
-					"name": "Programs or Hardware of exactly 500eb"
+					"name": "Programs or Hardware of exactly 500eb",
+					"filter": {
+						"kind": "netrun",
+						"cost": 500
+					}
 				},
 				{
 					"d100": [

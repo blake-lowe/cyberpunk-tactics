@@ -431,7 +431,7 @@ var _dev_callouts := false             ## --callouts (review renders): a crit an
 var _dev_end := ""                     ## --end=won|lost|fled (review renders): the gig ends that way, the end panel shows
 var _dev_peace := false                ## --peace=broken (review renders): the crew breaks a neutral house's peace
 var _jack_turret := false              ## --jack=turret (review renders): the runner also holds a turret's Control Node
-var _jack_mode := ""                   ## --jack=<mode> (review renders): turret | camera | lock | eyedee | held (_demo_net_work)
+var _jack_mode := ""                   ## --jack=<mode> (review renders): turret | camera | lock | eyedee | held | ice (_demo_net_work)
 var _dev_ambient := 1.0                ## --ambient=s (review renders): scale the scene's ambient energy (dev only)
 var _life_demo := false               ## --life_demo (review renders): walkers stroll every 2 s (StreetLife.tick) for GIFs
 var _life_on := true                  ## --life=0 (review renders): everyday life off, for performance before/after
@@ -3796,6 +3796,20 @@ func _on_hud(name: String, arg: Variant) -> void:
 				if not rd.get("ok", false):
 					hud.toast(String(rd.get("reason", "can't")).to_upper())
 				_after_action()
+		"net_program":   # [copy index, "activate" | "deactivate"]: a Program on the deck (Encounter.net_action)
+			if _crew_turn():
+				var rp := enc.net_action(String(arg[1]), int(arg[0]))
+				if not rp.get("ok", false):
+					hud.toast(String(rp.get("reason", "can't")).to_upper())
+				elif rp.has("damage"):   # an Attacker's hit or miss floats over the runner
+					_float(enc.cur, "%s %s" % [Deck.name_of(String(enc.runs[enc.cur.id].progs[int(arg[0])].id)).to_upper(), ("-%d REZ" % int(rp.damage)) if rp.success else "MISSED"], Color("d68cff"))
+				_after_action()
+		"net_restore":   # the Backup Drive's Programs back on the deck: a Meat Action (Encounter.restore_backup)
+			if _crew_turn():
+				var rr := enc.restore_backup()
+				if not rr.get("ok", false):
+					hud.toast(String(rr.get("reason", "can't")).to_upper())
+				_after_action()
 		"net_slide":
 			if _crew_turn():
 				var rs := enc.net_action("slide", int(arg))
@@ -4338,7 +4352,7 @@ func _demo_jack() -> void:
 			run.held[tn] = true
 			enc._retake_turrets()
 			_demo_turret_target(runner)
-		if _jack_mode in ["camera", "lock", "eyedee", "held"]:
+		if _jack_mode in ["camera", "lock", "eyedee", "held", "ice"]:
 			enc.refresh_vision()
 			await _demo_net_work(runner, run)
 			return
@@ -4400,7 +4414,7 @@ func _demo_net_work(runner: Dictionary, run: NetRun) -> void:
 		run.broken[n.id] = true
 	for i in run.arch.ice:
 		i["derezzed"] = true
-	var want: Array = {"camera": ["camera"], "lock": ["door_lock"], "held": ["camera", "door_lock", "turret"], "eyedee": []}[_jack_mode]
+	var want: Array = {"camera": ["camera"], "lock": ["door_lock"], "held": ["camera", "door_lock", "turret"], "eyedee": [], "ice": []}[_jack_mode]
 	var focus := Vector3i(-1, -1, -1)
 	var home := run.current
 	for kind in want:   # the node with the most of this kind
@@ -4426,7 +4440,7 @@ func _demo_net_work(runner: Dictionary, run: NetRun) -> void:
 				focus = Vector3i(d.pos.x, d.pos.y, d.floor)
 		if kind == "turret":
 			_demo_turret_target(runner)
-	if _jack_mode == "eyedee":
+	if _jack_mode in ["eyedee", "ice"]:
 		var f: int = int(enc.objective.get("node", -1))
 		if f < 0 or f >= run.arch.nodes.size() or String(run.arch.nodes[f].type) != "file":
 			var fs := run.arch.nodes_of_type("file")
@@ -4445,6 +4459,16 @@ func _demo_net_work(runner: Dictionary, run: NetRun) -> void:
 	enc.init.round_num += 1   # a fresh turn: the node taken this one can be worked
 	enc.net_left = 3
 	enc._netting = true
+	if _jack_mode == "ice":   # --jack=ice (deck renders): a Hellhound on the runner's node, Armor and See Ya running
+		var hh := {"id": 9000, "kind": "hellhound", "node": run.current, "patrol": false}
+		run.arch.ice.append(hh)
+		run.met[run.met_key(hh)] = true
+		for pid in ["armor", "see_ya"]:
+			for i in run.progs.size():
+				if String(run.progs[i].id) == pid:
+					run.rez(i, enc.init.round_num - 1)
+					break
+		enc.net_action("sword")   # one Sword already swung this turn (the panel shows the second copy ready)
 	var worked := false
 	for row in enc.device_ops(runner.id):   # work the first thing of the kind asked for
 		for o in row.ops:

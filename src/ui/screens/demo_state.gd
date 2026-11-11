@@ -33,10 +33,14 @@ static func make() -> Campaign:
 	if body:
 		body.sp = maxi(0, body.max_sp - 3)
 		body.repair_work = 10
-	# Night Market with cyberware on sale (the first roll that has it)
-	for s in range(1, 200):
+	# Night Market with cyberware on sale (the first roll that has it); --market=electronics: one
+	# selling Personal Electronics with its Programs rows (netrunning review shots)
+	var want := ["cyberware", "weapons_armor"]
+	if "--market=electronics" in OS.get_cmdline_user_args():
+		want = ["electronics"]
+	for s in range(1, 400):
 		var m := NightMarket.roll(Dice.new(s), c.day)
-		if "cyberware" in m.categories and "weapons_armor" in m.categories:
+		if want.all(func(w): return w in m.categories) and (want.size() > 1 or m.listings.any(func(l): return String(l.name).begins_with("Programs") or String(l.name) == "Cyberdeck")):
 			c.market = m
 			break
 	# storage

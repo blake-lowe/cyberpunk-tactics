@@ -17,7 +17,9 @@ const IMPLEMENTED_FX := ["stat", "stat_cap", "skill", "initiative", "ignore_seri
 	"ignore_obscured", "perception_bonus", "immune", "radar_m", "motion_sense_m",
 	# phase 3: movement (Nav.climb_free, TurnState.run, Encounter.grapple_targets); phase 4: NET and
 	# downtime (NetRun.jack_block, Combatant.rest_heal)
-	"climb_free", "jump_free", "run_bonus_m", "grapple_m", "netrun", "rest_heal_mult"]
+	"climb_free", "jump_free", "run_bonus_m", "grapple_m", "netrun", "rest_heal_mult",
+	# netrunning gear: the arm's Cyberdeck adds a deck slot (Deck.slots)
+	"deck_slots_bonus"]
 ## Every fx key the data may use: the implemented ones and those waiting for a system.
 const KNOWN_FX := IMPLEMENTED_FX
 ## Phase 1 (combat chrome): each now plays, so each is sold.
@@ -30,6 +32,8 @@ const PHASE2 := ["low_light_infrared_uv", "image_enhance", "amplified_hearing", 
 ## Phase 3 (movement), with the Cyberleg that holds the feet; phase 4 (NET and downtime).
 const PHASE3 := ["grip_foot", "jump_booster", "skate_foot", "grapple_hand", "cyberleg"]
 const PHASE4 := ["interface_plugs", "enhanced_antibodies"]
+## Netrunning gear: the Cyberdeck Cyberarm option (+1 deck slot, p.364).
+const DECKS := ["cyberdeck"]
 const HOSTS := ["fashion", "neural_link", "chipware", "eye", "cyberaudio", "internal", "external", "arm", "leg", "limb", "borgware"]
 ## Modelled with no fx of their own: read by the rules by id (teargas: Attack.apply_status; the
 ## smartgun link: Attack.handling_reason), or foundations that hold a modelled piece.
@@ -82,9 +86,9 @@ func test_the_market_only_sells_chrome_that_plays() -> void:
 		var need := Cyber.needs(id)
 		assert_true(need == "" or Cyber.modelled(need), "%s: its foundation %s is sold too" % [id, need])
 	assert_true(sold >= 12, "at least the twelve pieces sold before (%d)" % sold)
-	for id in ["wolvers", "big_knucks", "rippers", "vampyres", "kerenzikov", "targeting_scope"] + PHASE1 + PHASE2 + PHASE3 + PHASE4:
+	for id in ["wolvers", "big_knucks", "rippers", "vampyres", "kerenzikov", "targeting_scope"] + PHASE1 + PHASE2 + PHASE3 + PHASE4 + DECKS:
 		assert_true(Cyber.modelled(id), "%s plays" % id)
 		assert_true(NightMarket.matching({"kind": "cyberware"}).any(func(k): return Items.base_id(k) == id), "%s on sale" % id)
-	# Swimming and the deck's slots aren't played (the Web Foot, the arm's Cyberdeck).
-	for id in ["biomonitor", "radar_detector", "microoptics", "artificial_shoulder_mount", "web_foot", "cyberdeck"]:
+	# Swimming isn't played (the Web Foot).
+	for id in ["biomonitor", "radar_detector", "microoptics", "artificial_shoulder_mount", "web_foot"]:
 		assert_false(Cyber.modelled(id), "%s waits for its system" % id)
