@@ -195,11 +195,17 @@ static func on_hit_effects(dice: Dice, weapon: Weapon, defender: Combatant, r: D
 ## A forced check against a condition (weapon hits, gas and flash grenades). Fills r.status (and
 ## r.crits). Statuses: damaged_ear (Shrieker), cyberware_disabled (Microwaver), flashbang (Damaged
 ## Eye and Ear for a minute, DV15, p.346), teargas (Damaged Eye for a minute, DV13, meat eyes only,
-## p.347). Injuries these give carry no Bonus Damage and, if timed, wear off.
+## p.347), poison and biotoxin (DV13 / DV15 or 2d6 / 3d6 straight to HP, meat only, p.345-346).
+## Injuries these give carry no Bonus Damage and, if timed, wear off.
+## Immunities (Combatant.immune_to, cyberware phase 2): a status that is one hazard (st.hazard: the
+## Shrieker's loud noise, a gas grenade's cloud) doesn't touch anyone immune to it; a flashbang's two
+## injuries are each a hazard (st.hazards: the flash blinds, the bang deafens, p.346): Anti-Dazzle
+## stops the one (p.360), a Level Damper the other (p.361), both together the whole check.
 static func apply_status(dice: Dice, defender: Combatant, st: Dictionary, fx: Dictionary, r: Dictionary) -> void:
 	if not r.has("crits"):
 		r["crits"] = []
-	if String(fx.get("meat_only", "")) == "eyes" and Cyber.no_meat_eyes(defender.implants):   # two Cybereyes: no meat eyes left
+	var crit_ids := status_crits(st, defender)
+	if status_immune(st, fx, defender):
 		r["status"] = {"name": String(st.name), "resisted": true, "immune": true}
 		return
 	var resist := Check.vs_dv(dice, defender.skill_base(String(st.check)) - defender.action_penalty(), int(st.dv))
@@ -207,9 +213,11 @@ static func apply_status(dice: Dice, defender: Combatant, st: Dictionary, fx: Di
 	if resist.success:
 		return
 	var rounds: Variant = st.get("rounds")
-	var crit_ids: Array = st.get("crit_injuries", [])
-	if String(st.name) == "damaged_ear":
-		crit_ids = ["damaged_ear"]
+	if int(st.get("hp_dice", 0)) > 0:   # poison, biotoxin: straight to HP, armor untouched (p.345-346)
+		var dmg := dice.roll(int(st.hp_dice), 6)
+		defender.hp -= dmg
+		r["damage"] = int(r.get("damage", 0)) + dmg
+		r.status["hp"] = dmg
 	for cid in crit_ids:
 		if defender.has_injury(String(cid)):
 			continue
@@ -253,6 +261,35 @@ static func microwaver_targets(defender: Combatant) -> Array:
 	return first + rest
 
 
+## The Critical Injuries status `st` would give `defender` on a failed check: its list (a Shrieker's
+## Damaged Ear), less any whose hazard they're immune to (st.hazards: Anti-Dazzle, Level Damper).
+static func status_crits(st: Dictionary, defender: Combatant) -> Array:
+	var crit_ids: Array = st.get("crit_injuries", [])
+	if String(st.name) == "damaged_ear":
+		crit_ids = ["damaged_ear"]
+	var hz: Dictionary = st.get("hazards", {})
+	return crit_ids.filter(func(cid): return not hz.has(cid) or not defender.immune_to(String(hz[cid])))
+
+
+## Whether status `st` (of an attack or grenade with fx `fx`) can't touch `defender` at all, so they
+## make no check: teargas on two Cybereyes (p.347), poison on a machine (meat only, p.345-346), a
+## hazard they're immune to (st.hazard), or every injury it gives one they're immune to (st.hazards).
+static func status_immune(st: Dictionary, fx: Dictionary, defender: Combatant) -> bool:
+	var mo: Variant = fx.get("meat_only", false)
+	if mo is String and String(mo) == "eyes" and Cyber.no_meat_eyes(defender.implants):   # two Cybereyes: no meat eyes left
+		return true
+	if mo is bool and bool(mo) and not meat(defender):   # a turret has nothing to poison
+		return true
+	if String(st.get("hazard", "")) != "" and defender.immune_to(String(st.hazard)):
+		return true
+	return not (st.get("hazards", {}) as Dictionary).is_empty() and status_crits(st, defender).is_empty()
+
+
+## Meat to poison: anyone but a machine (a turret, CPR core p.214): "anyone meat hit" (p.345-346).
+static func meat(c: Combatant) -> bool:
+	return c.role != "turret"
+
+
 static func _head_crit(id: String) -> Dictionary:
 	var t := RulesDB.crit_table("head")
 	for k in t:
@@ -261,11 +298,11 @@ static func _head_crit(id: String) -> Dictionary:
 	return {}
 
 
-## Firing the Shrieker without ear protection gives the shooter a Damaged Ear (p349).
-## HOUSE-RULE: a Level Damper (cyberaudio) counts as ear protection.
+## Firing the Shrieker without ear protection gives the shooter a Damaged Ear (p349). Ear protection
+## is anything that makes them immune to loud noise: a Level Damper (p.361) or Ear Protectors (p.352).
 static func _self_effects(attacker: Combatant, weapon: Weapon, r: Dictionary) -> void:
 	var ss: Dictionary = weapon.fx().get("self_status", {})
-	if String(ss.get("name", "")) == "damaged_ear" and not attacker.cyber_working("level_damper") and not attacker.has_injury("damaged_ear"):
+	if String(ss.get("name", "")) == "damaged_ear" and not attacker.immune_to("loud_noise") and not attacker.has_injury("damaged_ear"):
 		attacker.add_injury(RulesDB.crit_table("head")["10"], "head", false)
 		r["self_hurt"] = "damaged_ear"
 
@@ -319,6 +356,18 @@ static func shield_reason(weapon: Weapon, attacker: Combatant) -> String:
 	return ""
 
 
+## A hand on a surface for the Tactile Boost "can't be used to do anything else" (CPR core p.359): no
+## two-handed weapon, and nothing at all with the other arm holding a Popup Shield.
+static func hand_reason(weapon: Weapon, attacker: Combatant) -> String:
+	if attacker == null or not attacker.touching:
+		return ""
+	if int(weapon.def.get("hands", 1)) >= 2:
+		return "two-handed: hand on the ground"
+	if attacker.shield_out:
+		return "no free hand"
+	return ""
+
+
 static func _range_key(weapon: Weapon, mode: Mode) -> String:
 	return weapon.def["autofire_range"] if mode == Mode.AUTOFIRE else weapon.def["range"]
 
@@ -333,6 +382,8 @@ static func _illegal_reason(weapon: Weapon, mode: Mode, distance_m: float, attac
 		return grapple_reason(weapon, attacker)
 	if shield_reason(weapon, attacker) != "":
 		return shield_reason(weapon, attacker)
+	if hand_reason(weapon, attacker) != "":
+		return hand_reason(weapon, attacker)
 	var fx := weapon.fx()
 	if is_aimed(mode) and fx.get("no_aimed_shot", false):
 		return "can't aim"   # Hurricane, Flamethrower, EMG-86, Helix (p348-349)
@@ -385,6 +436,9 @@ static func shotgun_shell(dice: Dice, attacker: Combatant, weapon: Weapon, targe
 	if shield_reason(weapon, attacker) != "":
 		out.reason = shield_reason(weapon, attacker)
 		return out
+	if hand_reason(weapon, attacker) != "":
+		out.reason = hand_reason(weapon, attacker)
+		return out
 	if weapon.ammo < 1:
 		out.reason = "empty"
 		return out
@@ -434,6 +488,9 @@ static func suppressive_fire(dice: Dice, attacker: Combatant, weapon: Weapon, ta
 		return out
 	if shield_reason(weapon, attacker) != "":
 		out.reason = shield_reason(weapon, attacker)
+		return out
+	if hand_reason(weapon, attacker) != "":
+		out.reason = hand_reason(weapon, attacker)
 		return out
 	out.ok = true
 	weapon.spend(AUTOFIRE_AMMO)

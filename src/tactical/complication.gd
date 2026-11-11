@@ -15,8 +15,8 @@ extends RefCounted
 ## weapon), drug (in their system from the start), skill_base, skill_base_raise, stat_set,
 ## stat_bonus, armor, no_armor_penalty, weapon (given as primary), ai 'reckless', hp_bonus,
 ## cyberware, tactic ambush / charge / focus_fire, choose. Not yet: other tactics (human_shield,
-## hold_cover, command), trap, facedown, reputation, role_ability, cyberware_eb, smoke and EMP
-## grenades (no kit use yet), and the empty fx.
+## hold_cover, command), trap, facedown, reputation, role_ability, cyberware_eb, EMP
+## grenades (no kit use yet), and the empty fx. A smoke grenade is a kit grenade (Smoke, CPR core p.347).
 
 ## Whether a gig runs into one is a Closed Question put to the Oracle (Oracle; SPM p.12-13): "Is
 ## the opposition ready with something extra?" (yes is the interesting answer). Either yes answer
@@ -200,7 +200,7 @@ static func set_skill_base(c: Combatant, skill: String, base: int) -> bool:
 
 ## Give `c` the kit item `key`: with `qty` > 1, that many special rounds in the primary weapon if it
 ## takes that ammunition (Incendiary rounds, CPR core p.346); otherwise a grenade in a kit slot.
-## False if neither works yet (a smoke or EMP grenade has no kit use).
+## False if neither works yet (an EMP grenade has no kit use).
 static func give_kit(c: Combatant, key: String, qty: int) -> bool:
 	var g := RulesDB.gear(key.get_slice("/", 0), key.get_slice("/", 1))
 	if qty > 1:

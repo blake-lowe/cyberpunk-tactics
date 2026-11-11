@@ -31,6 +31,7 @@ extends Node
 ##   [--stage=attack] [--arm=brawl|grenade|grab|<attack mode>] [--grapple=hold|shield|throw|held (with --near=1)] [--portrait=1] [--alt=1] [--near=n] [--help=1] [--stairs=on|up]
 ##   [--exposure=1 --gamma=1 --ambient=1 --lights=1 --spill=1 (lighting review: grade exposure and power curve, ambient, lamp and baked-spill scales)]
 ##   [--hurt=0.6 (the nearest foes roused and hurt)] [--logt=0..1 (the log slide held there)]
+##   [--smoke=1 (a smoke cloud toward the nearest foe)] [--radar=1 (a Radar/Sonar Implant finds two foes past sight)]
 
 const FH := 1.6           # floor height in squares (3.2 m)
 const POST_SHADER := preload("res://src/tactical/view/post.gdshader")
@@ -266,6 +267,10 @@ var decals := {}              ## unit id → ground glow MeshInstance3D
 var _withdraw_ask := -10000    ## withdrawal needs a second press within 3 s
 var devices: DeviceView      ## meatspace devices with status lights
 var ambient: AmbientFx       ## scene ambience: embers, flames and smoke, steam, drips, light shafts
+var smoke_fx: SmokeFx        ## smoke grenades' clouds (Encounter.smoke)
+var _smoke_hold := -1        ## a smoke cloud whose grenade is still in the air (_anim_blast adds it on landing)
+var _dev_smoke := false      ## --smoke=1 (review renders): a smoke cloud between the crew and the nearest foe
+var _dev_radar := false      ## --radar=1 (review renders): a Radar/Sonar Implant and two foes only it finds
 var weather_fx: WeatherFx    ## the weather over the play area: rain, ash, dust, haze, the wet ground, lightning
 var _dev_flash := false      ## --flash=1 (review renders): a lightning flash at the shot
 var keycard_nodes := {}        ## unit id → glinting keycard over a downed carrier
@@ -492,6 +497,8 @@ func _ready() -> void:
 			"kit": _dev_kit = kv[1].split(",")   # review renders: pack every crew member's kit slots
 			"weapons": _dev_weapons = kv[1].split(",")   # review renders: the crew carries these (id[@quality]), first drawn
 			"chrome": _dev_chrome = kv[1].split(",")   # review renders: install these on every crew member (specs; foundations come with them)
+			"smoke": _dev_smoke = kv[1] != "0"   # review renders: a smoke cloud between the crew and the nearest foe
+			"radar": _dev_radar = kv[1] != "0"   # review renders: the selected crew member's radar finds two foes past sight
 			"stage": _dev_stage = kv[1]   # review renders: open the action bar on this stage (attack)
 			"arm": _dev_arm = kv[1]   # review renders: arm this attack (brawl, grenade = kit slot 1, or a mode id)
 			"portrait": _dev_portrait = kv[1] != "0"   # review renders: the hover goes through the foe's portrait
@@ -712,6 +719,10 @@ func _process(delta: float) -> void:
 				cam_target = (a3 + b3) / 2
 				cam_dist = maxf(cam_dist, minf(60.0, (a3 - b3).length() * 1.6 + 8.0))
 				_place_camera()
+		if _frames == 2 and _dev_smoke:
+			_demo_smoke()
+		if _frames == 2 and _dev_radar:
+			_demo_radar()
 		if _frames == 2 and _dev_stage != "":
 			var st := _dev_stage.get_slice(":", 0)   # chrome:1 = the chrome menu on its second piece; attack:popup = a popup weapon drawn
 			if st == "attack" and _dev_stage.get_slice(":", 1) == "popup":
@@ -1298,6 +1309,8 @@ func _build_world() -> void:
 	ambient = AmbientFx.new()
 	world.add_child(ambient)
 	ambient.build(m, SceneTheme.of(m).get("ambient", []), m.seed_value)
+	smoke_fx = SmokeFx.new()
+	world.add_child(smoke_fx)
 	_build_weather()
 	if _life_on:
 		ambient.street(m, m.seed_value, String(enc.scene_event.get("sky", "")))   # everyday life: steam, litter, ads, hazards, sky traffic
@@ -1557,6 +1570,7 @@ func _refresh() -> void:
 		l[0].visible = not _net_cleaned and not enc.lights_out() and not enc.is_dark(cell) and (l[2] != "room" or not fog_on or enc.vision.explored.has(cell))
 	_build_doors()
 	_update_feed_tiles()
+	_sync_smoke()
 	AimPreview.remember(_last_known, enc.units.filter(func(o): return _foe(o)), _seen)
 	for u in enc.units:
 		var n: Node3D = _unit_node(u)
@@ -2649,6 +2663,7 @@ func _update_outlines() -> void:
 func _draw_aim(c: Control) -> void:
 	if enc == null or _promo:
 		return
+	_draw_reveals(c)
 	if _alt_on:
 		_draw_floor_signs(c)
 		if ap_icons:
@@ -2995,6 +3010,27 @@ func _end_melee_hover() -> void:
 		if not busy:
 			(n as Node3D).rotation.y = yaw
 	_update_outlines()
+
+
+## Units the crew's sense chrome picks up out of sight (Encounter.reveals: Radar/Sonar, Tactile Boost):
+## a quiet blip on their square in their side's colour - a thin open circle with a centre dot, a slow
+## sonar ping on it, and a small tag (RADAR, MOTION). Not a target: nobody can see them.
+func _draw_reveals(c: Control) -> void:
+	var t := Time.get_ticks_msec() / 1000.0
+	for id in enc.reveals:
+		var u: Dictionary = enc.units[int(id)]
+		if u.c.dead or _seen(u.pos) or u.pos.z != _slice_z(Vector2i(u.pos.x, u.pos.y)):
+			continue
+		var wp := Vector3(u.pos.x + 0.5, _gy(u.pos) + 0.6, u.pos.y + 0.5)
+		if cam.is_position_behind(wp):
+			continue
+		var p := _to_screen(wp)
+		var col := Hud.stance_col(Hud.stance(enc, int(u.team)))
+		var ph := fmod(t * 0.6 + float(int(id) % 7) * 0.13, 1.0)
+		c.draw_arc(p, 9.0, 0.0, TAU, 20, Color(col, 0.7), 1.5)
+		c.draw_circle(p, 2.5, Color(col, 0.85))
+		c.draw_arc(p, 9.0 + ph * 12.0, 0.0, TAU, 24, Color(col, 0.45 * (1.0 - ph)), 1.0)
+		c.draw_string(Hud.F_BOLD, p + Vector2(12, 4), "RADAR" if String(enc.reveals[id]) == "radar" else "MOTION", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(col, 0.6))
 
 
 func _draw_last_known(c: Control) -> void:
@@ -3967,6 +4003,38 @@ func _demo_near() -> void:
 				return
 
 
+## Review renders (--radar=1): the selected crew member gets a Radar/Sonar Implant and the nearest two
+## foes stand where only it finds them: 40-48 m off (past the crew's sight), nothing between.
+func _demo_radar() -> void:
+	dev_chrome(enc.cur.c, PackedStringArray(["radar_sonar_implant"]))
+	var foes := enc.units.filter(func(o): return _foe(o) and not o.c.dead and not o.has("turret"))
+	foes.sort_custom(func(a, b): return Vector3(a.pos - enc.cur.pos).length() < Vector3(b.pos - enc.cur.pos).length())
+	var occ := enc.occupied()
+	var c: Vector3i = enc.cur.pos
+	var placed: Array[Vector3i] = []
+	for f in foes.slice(0, 2):
+		var done := false
+		for dy in range(-24, 25):
+			for dx in range(-24, 25):
+				var v := Vector3i(c.x + dx, c.y + dy, c.z)
+				var d := Vector2(dx, dy).length()
+				if done or d < 20.0 or d > 24.0 or not m.inb(v.x, v.y) or not m.walkable(v.z, Vector2i(v.x, v.y)) or occ.has(v) \
+						or placed.any(func(p): return Vector3(p - v).length() < 4.0):
+					continue
+				var tr := enc.los.trace(c, v)
+				if tr.clear and not tr.through_glass:
+					f.pos = v
+					occ[v] = true
+					placed.append(v)
+					done = true
+	enc.refresh_vision()
+	if not placed.is_empty() and _focus == "":
+		cam_target = (Vector3(c.x, 0, c.y) + Vector3(placed[0].x, 0, placed[0].y)) / 2.0
+		cam_dist = maxf(cam_dist, 34.0)
+		_place_camera()
+	_refresh()
+
+
 func _click_move() -> void:
 	if not _crew_turn():
 		return
@@ -4115,9 +4183,16 @@ func _tool_hover() -> void:
 			var pct := roundi(Check.chance_vs_dv(c.skill_base("athletics") - c.action_penalty(), dv) * 100)
 			_set_aim(AimPreview.for_armed(tool, atk_mode, null, c.kit[0]), enc.cur.pos, hover, pct if ok else -1)
 			var caught := enc.units.filter(func(o): return not o.c.dead and o.pos.z == hover.z and maxi(absi(o.pos.x - hover.x), absi(o.pos.y - hover.y)) <= Encounter.BLAST_HALF)
-			var names := caught.map(func(o): return ("[color=#39f0a0]%s[/color]" if enc.allied(o.team, enc.cur.team) else "[color=#ff3b4f]%s[/color]") % o.c.display_name)
-			var what := "no damage; anyone caught must resist" if Items.fx(c.kit[0]).get("no_damage", false) else "6d6"
-			hud.tip(("[code][font_size=44]%d%%[/font_size][/code] on target · %d m\n%s in a 5x5 blast; a miss scatters\n%s" % [pct, roundi(dist), what, ", ".join(names) if not names.is_empty() else "nobody in the blast"]) if ok else "[color=#ff3b4f]Out of range or blocked[/color]", mouse, "// " + Items.display_name(c.kit[0]).to_upper(), Hud.GOLD)
+			var gfx := Items.fx(c.kit[0])
+			var gst: Dictionary = (gfx.get("status", {}) as Dictionary).duplicate()
+			if gfx.has("grenade_hazard"):
+				gst["hazard"] = String(gfx.grenade_hazard)
+			var immune := func(o: Dictionary) -> bool: return not gst.is_empty() and Attack.status_immune(gst, gfx, o.c)   # their chrome or gear stops it
+			var names := caught.map(func(o): return ("[color=#8a96a0]%s (immune)[/color]" if immune.call(o) else "[color=#39f0a0]%s[/color]" if enc.allied(o.team, enc.cur.team) else "[color=#ff3b4f]%s[/color]") % o.c.display_name)
+			var what := "no damage; anyone caught must resist" if gfx.get("no_damage", false) else "6d6"
+			if gfx.has("obscure"):
+				what = "smoke for a minute: -4 to see or shoot through it,"
+			hud.tip(("[code][font_size=44]%d%%[/font_size][/code] on target · %d m\n%s in a 5x5 %s; a miss scatters\n%s" % [pct, roundi(dist), what, "area" if gfx.has("obscure") else "blast", ", ".join(names) if not names.is_empty() else "nobody in the blast"]) if ok else "[color=#ff3b4f]Out of range or blocked[/color]", mouse, "// " + Items.display_name(c.kit[0]).to_upper(), Hud.GOLD)
 		"melee":
 			if t.is_empty() or enc.allied(t.team, enc.cur.team):
 				hud.tip("Select an adjacent enemy", mouse, "// MELEE", Hud.CYAN)
@@ -6485,7 +6560,8 @@ func _ev_chrome(e: Dictionary) -> void:
 	if not _seen(u.pos):
 		return
 	_focus_unit = u.id
-	var words := {"sandevistan": "SANDEVISTAN", "popup_shield": "SHIELD OUT" if e.get("on", false) else "SHIELD AWAY"}
+	var words := {"sandevistan": "SANDEVISTAN", "popup_shield": "SHIELD OUT" if e.get("on", false) else "SHIELD AWAY",
+		"tactile_boost": "FEELING FOR MOVEMENT" if e.get("on", false) else "HAND UP"}
 	_float(u, String(words.get(String(e.id), String(e.id).to_upper())), Hud.CHROME_TINT)
 	_snd("sfx_reload", _body_pos(u), -2.0)
 	await get_tree().create_timer(0.6).timeout
@@ -6638,6 +6714,7 @@ func _anim_blast(e: Dictionary) -> void:
 	var sn: CharModel = unit_nodes[su.id]
 	var center: Vector3i = e.center
 	var at := Vector3(center.x + 0.5, _gy(center), center.y + 0.5)
+	_smoke_hold = int(e.get("smoke", -1))   # not shown before it lands
 	if e.get("charge", false):   # sabotage: the planted charge goes off (no throw)
 		await _pan_to(at, 0.4)
 		for k in 3:   # the last beeps
@@ -6681,6 +6758,15 @@ func _anim_blast(e: Dictionary) -> void:
 	if not e.hit:
 		_float_at(at + Vector3(0, 0.6, 0), "OFF TARGET", Hud.GOLD)
 	await get_tree().create_timer(0.25).timeout   # it rattles for a moment
+	if int(e.get("smoke", -1)) >= 0:   # smoke: a soft pop and the cloud rolls out (SmokeFx); nobody hurt
+		var cl: Array = enc.smoke.clouds.filter(func(c): return int(c.id) == int(e.smoke))
+		if not cl.is_empty():
+			smoke_fx.add(cl[0], _gy(center), true)
+		_smoke_hold = -1
+		_snd("sfx_throw", at, -4.0)
+		_float_at(at + Vector3(0, 1.0, 0), "SMOKE", Hud.DIM)
+		await get_tree().create_timer(1.0).timeout
+		return
 	var gas: bool = String(e.get("payload", "")) != "" and Items.fx(String(e.payload)).get("no_damage", false)
 	fx.explosion(at, _gy(center))
 	if not gas:   # a frag's shockwave and thrown dirt; gas and flash just pop
@@ -6709,19 +6795,58 @@ func _anim_blast(e: Dictionary) -> void:
 			_float(t, "DIVES CLEAR", Hud.CYAN)
 			continue
 		if gas:   # flash and gas: the check is the result
-			_exotic_callouts({"status": h.get("status", {})}, su, t)
+			_exotic_callouts({"status": h.get("status", {}), "crits": h.get("crits", [])}, su, t)
 			continue
 		_exotic_callouts({"ignited": h.get("ignited", false)}, su, t)
 		_outcome(_area_outcome_event(h), su, t, unit_nodes[t.id], _body_pos(t) + Vector3(0, 0.5, 0), dir)
 	await get_tree().create_timer(1.2).timeout
 
 
+## The view's smoke clouds follow the encounter's (Encounter.smoke): new ones appear, cleared ones thin
+## out. A cloud whose grenade hasn't landed in the playback yet waits for _anim_blast.
+func _sync_smoke() -> void:
+	if smoke_fx == null or not is_instance_valid(smoke_fx):
+		return
+	var pending := {}
+	if _smoke_hold >= 0:
+		pending[_smoke_hold] = true
+	for ev in enc.events:
+		if String(ev.get("type", "")) == "blast" and int(ev.get("smoke", -1)) >= 0:
+			pending[int(ev.smoke)] = true
+	smoke_fx.sync(enc.smoke.clouds, func(v: Vector3i) -> float: return _gy(v), func(v: Vector3i) -> bool: return _grade_shows(v.z), pending)
+
+
+## Review renders (--smoke=1): a smoke cloud four squares from the selected crew member toward the
+## nearest foe, as if a grenade had landed there this round.
+func _demo_smoke() -> void:
+	var best := {}
+	for u in enc.units:
+		if _foe(u) and not u.c.dead and u.pos.z == enc.cur.pos.z and (best.is_empty() or Vector2(u.pos.x - enc.cur.pos.x, u.pos.y - enc.cur.pos.y).length() < Vector2(best.pos.x - enc.cur.pos.x, best.pos.y - enc.cur.pos.y).length()):
+			best = u
+	var at: Vector3i = enc.cur.pos + Vector3i(4, 0, 0)
+	if not best.is_empty():
+		var d := Vector2(best.pos.x - enc.cur.pos.x, best.pos.y - enc.cur.pos.y)
+		d = d.normalized() * minf(4.0, d.length() * 0.6)
+		at = Vector3i(enc.cur.pos.x + roundi(d.x), enc.cur.pos.y + roundi(d.y), enc.cur.pos.z)
+	enc.smoke.add(m, enc.los, at, enc.init.round_num if enc.init else 0)
+	if _focus == "":
+		cam_target = Vector3(at.x, 0, at.y)
+		_place_camera()
+	_refresh()
+
+
 ## Exotic weapon effects on the target (and the shooter), as floating words.
 func _exotic_callouts(e: Dictionary, su: Dictionary, tu: Dictionary) -> void:
 	var st: Dictionary = e.get("status", {})
 	if not st.is_empty():
-		var label: String = {"damaged_ear": "DEAFENED", "cyberware_disabled": "CHROME OFFLINE", "flashbang": "BLINDED · DEAFENED", "teargas": "BLINDED"}.get(String(st.get("name", "")), String(st.get("name", "")).to_upper())
-		_float(tu, "RESISTED" if st.get("resisted", false) else label, Hud.DIM if st.get("resisted", false) else Hud.GOLD)
+		var label: String = {"damaged_ear": "DEAFENED", "cyberware_disabled": "CHROME OFFLINE", "flashbang": "BLINDED · DEAFENED", "teargas": "BLINDED",
+			"poison": "POISONED", "biotoxin": "POISONED"}.get(String(st.get("name", "")), String(st.get("name", "")).to_upper())
+		if String(st.get("name", "")) == "flashbang" and not st.get("resisted", false):   # chrome stopped half of it (Anti-Dazzle, Level Damper)
+			var cr: Array = e.get("crits", [])
+			label = "BLINDED" if cr.size() == 1 and String(cr[0]) == "damaged_eye" else "DEAFENED" if cr.size() == 1 else label
+		if int(st.get("hp", 0)) > 0:
+			label += " -%d" % int(st.hp)
+		_float(tu, "IMMUNE" if st.get("immune", false) else "RESISTED" if st.get("resisted", false) else label, Hud.DIM if st.get("resisted", false) else Hud.GOLD)
 	if e.get("ignited", false):
 		_float(tu, "ON FIRE", Hud.RED)
 	if String(e.get("self_hurt", "")) == "damaged_ear":
@@ -7313,6 +7438,12 @@ func _update_hover() -> void:
 		lines.append("Range %d m · DV %d · %s" % [roundi(Los.distance_m(p.from, t.pos)), int(p.dv), w.def.name])
 		if p.blocker.x >= 0 and p.from != enc.cur.pos:
 			lines.append("[color=#05d9e8]Leaning out of cover[/color]")
+		if int(p.get("obscured", 0)) < 0:
+			lines.append("[color=#b4bec6]Through smoke: %d[/color]" % int(p.obscured))
+		if int(p.get("weather", 0)) < 0:
+			lines.append("[color=#b4bec6]Weather: %d[/color]" % int(p.weather))
+		if p.get("sees_through", false):
+			lines.append("[color=#05d9e8]Low light optics: no smoke or weather penalty[/color]")
 		if p.get("surrendered", false):   # Morale: the crew's call, not a mistake
 			lines.append("[color=#f9c80e]Surrendered and unarmed[/color]")
 		elif p.get("fleeing", false):

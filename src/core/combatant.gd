@@ -79,6 +79,9 @@ var chrome_spent := {}
 var shield_out := false
 ## Chipware this character has had in (specs): putting one back in costs no Humanity Loss (CPR core p.359).
 var chips_used: Array[String] = []
+## This gig: a hand on a surface for the Tactile Boost (CPR core p.359): it senses motion within 20 m,
+## and that hand does nothing else (Attack.hand_reason). Moving lifts it. Not saved.
+var touching := false
 ## Per-Round trackers for "first X this Round" abilities. Reset by new_round().
 var skip_next_action := false  ## Spinal Injury (p221).
 var skip_next_move := false    ## Damaged/Lost Ear after moving > 4 m (p222).
@@ -327,6 +330,7 @@ func gig_reset() -> void:
 	chrome_on.clear()
 	chrome_spent.clear()
 	shield_out = false
+	touching = false
 	kit_spent = [false, false]
 	drugs_taken.clear()
 	drug_fx.clear()
@@ -737,6 +741,56 @@ static func roll_hl(dice: Dice, expr: String) -> int:
 		"2d6": return dice.roll(2, 6)
 		"4d6": return dice.roll(4, 6)
 	return 0
+
+
+# --- Senses and hazards (cyberware phase 2: CPR core p.359-363; gear p.352) ------------------------
+
+## What can hurt a character through their senses or lungs, and what shrugs each off:
+##   flash       dangerous flashes of light (a flashbang's Damaged Eye): Anti-Dazzle (p.360)
+##   loud_noise  dangerously loud noises (a flashbang's Damaged Ear, the Shrieker): Level Damper (p.361),
+##               Auto Level Dampening Ear Protectors (p.352)
+##   inhaled     toxic gasses and fumes, anything that must be inhaled (a poison or biotoxin grenade's
+##               cloud): Nasal Filters, Independent Air Supply (p.363), Anti-Smog Breathing Mask (p.352)
+## Teargas isn't one: it works on "anyone with meat eyes" (p.347), so only two Cybereyes stop it.
+const HAZARDS: Array[String] = ["flash", "loud_noise", "inhaled"]
+
+
+## Immune to `hazard` (HAZARDS): working chrome whose fx "immune" lists it, or a carried utility
+## whose does (the ear protectors, the anti-smog mask).
+func immune_to(hazard: String) -> bool:
+	for fx in _cyber_fx():
+		if hazard in (fx.get("immune", []) as Array):
+			return true
+	for k in kit:
+		if k != "" and Items.kind(k) == "utility" and hazard in (Items.fx(k).get("immune", []) as Array):
+			return true
+	return false
+
+
+## Low Light / Infrared / UV, both halves working: penalties for darkness and "other intangible
+## obscurement, like smoke, fog, etc." are 0; it can't see through anything that could be cover (p.360).
+func sees_through_obscurement() -> bool:
+	return _cyber_fx().any(func(fx): return fx.get("ignore_obscured", false))
+
+
+## The Perception bonus for a Check that uses sight and/or hearing: Image Enhance +2 when it includes
+## sight (p.360), Amplified Hearing +2 when it includes hearing (p.361). Two different pieces: a Check
+## using both senses takes both (only installations of the same piece don't stack, p.111).
+func perception_bonus(sight: bool, hearing: bool) -> int:
+	var t := 0
+	for fx in _cyber_fx():
+		var pb: Dictionary = fx.get("perception_bonus", {})
+		t += (int(pb.get("sight", 0)) if sight else 0) + (int(pb.get("hearing", 0)) if hearing else 0)
+	return t
+
+
+## The range in metres of working sense chrome with fx `key` ("radar_m": Radar/Sonar 50 m, p.363;
+## "motion_sense_m": Tactile Boost 20 m, p.359), 0 without it.
+func sense_range(key: String) -> float:
+	var best := 0.0
+	for fx in _cyber_fx():
+		best = maxf(best, float(fx.get(key, 0)))
+	return best
 
 
 func cyber_fx_sum(key: String) -> int:

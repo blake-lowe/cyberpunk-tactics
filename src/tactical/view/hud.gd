@@ -1784,6 +1784,9 @@ static func stat_block(c: Combatant, full: bool, extra: Array = []) -> String:
 		var chrome := Cyber.names(c.implants if c.team == 0 else c.implants.filter(func(p): return not c.concealed(p)))   # a foe's popups stay hidden until used
 		if not chrome.is_empty():
 			out.append((K % "CYBERWARE") + " " + ", ".join(chrome))
+		var sn := senses_text(c)
+		if sn != "":
+			out.append((K % "SENSES") + " " + sn)
 		var kit: Array = c.kit.filter(func(k): return k != "")
 		if not kit.is_empty():
 			out.append((K % "KIT") + " " + ", ".join(kit.map(func(k): return Items.display_name(String(k)))))
@@ -1791,6 +1794,25 @@ static func stat_block(c: Combatant, full: bool, extra: Array = []) -> String:
 	if not cond.is_empty():
 		out.append((K % "CONDITIONS") + " [color=#ff3b4f]%s[/color]" % ", ".join(cond))
 	return "\n".join(out)
+
+
+## What their senses chrome and hazard gear do now, in a few words each ("" if nothing): the
+## inspector's SENSES line (Combatant.sees_through_obscurement, perception_bonus, immune_to, sense_range).
+static func senses_text(c: Combatant) -> String:
+	var parts: Array[String] = []
+	if c.sees_through_obscurement():
+		parts.append("sees through dark and smoke")
+	var pb := c.perception_bonus(true, true)
+	if pb > 0:
+		parts.append("+%d Perception" % pb)
+	for hz in [["flash", "flash-proof"], ["loud_noise", "noise-proof"], ["inhaled", "gas-proof"]]:
+		if c.immune_to(String(hz[0])):
+			parts.append(String(hz[1]))
+	if c.sense_range("radar_m") > 0.0:
+		parts.append("radar %d m" % int(c.sense_range("radar_m")))
+	if c.sense_range("motion_sense_m") > 0.0:
+		parts.append("feels motion %d m%s" % [int(c.sense_range("motion_sense_m")), "" if c.touching else " (hand down)"])
+	return " · ".join(parts)
 
 
 static func _is_grapple(id: String) -> bool:

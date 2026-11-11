@@ -55,7 +55,8 @@ func test_price_filters_follow_the_book_rows() -> void:
 	assert_eq(NightMarket.matching({"kind": "kit", "section": "drugs", "cost_max": 20}), ["drugs/synthcoke"], "Street Drugs of 20eb or less")
 	assert_eq(NightMarket.matching({"kind": "kit", "section": "drugs", "cost": 50}), ["drugs/black_lace", "drugs/boost"])
 	assert_eq(NightMarket.matching({"kind": "cyberware", "category": "cyberoptics", "option": true, "cost_max": 500}),
-		["cyberware/dartgun", "cyberware/targeting_scope", "cyberware/teleoptics"])
+		["cyberware/anti_dazzle", "cyberware/dartgun", "cyberware/image_enhance", "cyberware/low_light_infrared_uv", "cyberware/targeting_scope",
+		"cyberware/teleoptics"])
 	var thousand := NightMarket.matching({"kind": "cyberware", "category": "neuralware", "option": true, "cost": 1000})
 	assert_eq(thousand[0], "cyberware/pain_editor")
 	assert_true("cyberware/skill_chip@autofire" in thousand, "a chip for an (x2) Skill is 1,000eb (p.360)")
