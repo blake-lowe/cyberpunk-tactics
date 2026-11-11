@@ -101,6 +101,8 @@ AMBIGUITY (p226): "Cost to Install at a Hospital" table is for installing cyberw
 - Benefits of multiple installations of the same cyberware do not stack unless stated.
 - Cyberware cost is in eb with Price Category in parentheses.
 
+- Game rulings (owner, 2026-11-11): jumping is as written with no longest jump (2 squares per square jumped, limited by the movement left; standing jumps clear half a running start's distance; Jump Booster 1 per square). The Grapple Hand is unmodelled: "you can't grapple ledges/mantle", so it isn't sold, and shows by name if installed.
+
 | Category | Foundation | Option Slots |
 |---|---|---|
 | Fashionware | none | 7 |

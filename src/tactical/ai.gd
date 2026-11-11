@@ -138,37 +138,9 @@ static func _fight(e: Encounter, u: Dictionary) -> void:
 	if _special(e, u, w):   # a grenade, a shotgun shell, suppression or a punch beats the best shot
 		return
 	if not _shoot(e, u, w):
-		if _grapple_up(e, u):   # no shot from down here: the Grapple Hand to a ledge that has one
-			return
 		_advance(e, u)
 		if not _special(e, u, w):
 			_shoot(e, u, w)
-
-
-## The Grapple Hand for the AI (p.365): with no shot from where they stand, fire the line (the Action)
-## to the ledge within reach of this turn's movement from which the most enemies are in sight (then
-## the nearest to one), if any is. True if they went up.
-static func _grapple_up(e: Encounter, u: Dictionary) -> bool:
-	if not u.c.has_cyberware("grapple_hand") or e.grapple_hand_block(u) != "":
-		return false
-	var foes := _enemies(e, u)
-	var best := Vector3i(-1, -1, -1)
-	var best_score := 0.0
-	var opts := e.grapple_targets(u)
-	for cell in opts:
-		if int(opts[cell]) > e.turn.squares_available():
-			continue
-		var seen := 0.0
-		var near := INF
-		for f in foes:
-			if f.pos.z == cell.z and e.los.sight(cell, f.pos).visible:
-				seen += 1.0
-				near = minf(near, Vector2(f.pos.x - cell.x, f.pos.y - cell.y).length())
-		var score := seen * 100.0 - (near if seen > 0.0 else 0.0)
-		if seen > 0.0 and score > best_score:
-			best_score = score
-			best = cell
-	return best.x >= 0 and bool(e.grapple_line(best).get("ok", false))
 
 
 ## Chrome for the AI (CPR core p.359, p.365), before the turn's attack: the best weapon in hand, a

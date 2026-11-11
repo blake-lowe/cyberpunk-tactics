@@ -1,6 +1,6 @@
 extends TestCase
 ## Cyberware phases 3 and 4 (CPR core p.359-366, p.169): movement (Grip Foot on ladders, Skate Foot on
-## a Run, the Grapple Hand's line to a ledge), the NET and downtime (Interface Plugs gate jacking in,
+## a Run, jumping), the NET and downtime (Interface Plugs gate jacking in,
 ## the save migration, Enhanced Antibodies), the heavily chromed Mini Boss, guards using all of it,
 ## and what's now on sale.
 
@@ -123,15 +123,29 @@ func test_jump_boosters_jump_at_walking_cost() -> void:
 	assert_false(e.nav.jump_free, "theirs alone")
 
 
-func test_the_longest_jump_and_a_standing_one() -> void:
-	assert_true(_jumps(_roofs(4).nav, Vector3i(9, 5, 1)).is_empty(), "8 m of air: too far")
-	var e := _roofs(3)
-	assert_eq(_jumps(e.nav, Vector3i(9, 5, 1)), {Vector3i(13, 5, 1): 8}, "6 m with a run-up: 4 squares at 2 each")
-	e.m.set_t(1, 8, 5, TacMap.T.VOID)   # nothing behind the take-off: a standing jump, half the distance
-	assert_false(_jumps(Nav.new(e.m), Vector3i(9, 5, 1)).has(Vector3i(13, 5, 1)), "standing: not 6 m")
+func test_a_running_jump_is_limited_only_by_the_movement_left() -> void:
+	var e := _roofs(10)   # 20 m of air: no cap in the book
+	assert_eq(_jumps(e.nav, Vector3i(9, 5, 1)), {Vector3i(20, 5, 1): 22}, "11 squares at 2 each")
+	assert_false(e.move_options().has(Vector3i(20, 5, 1)), "6 squares of movement: nowhere near")
+	var e2 := _roofs(2)
+	assert_true(e2.move_options().has(Vector3i(12, 5, 1)), "3 squares travelled: 6 of 6")
+	var e3 := _roofs(3)
+	assert_false(e3.move_options().has(Vector3i(13, 5, 1)), "4 squares travelled needs 8")
+	assert_true(e3.move_to(Vector3i(13, 5, 1), true), "but a Run (another 6) pays for it")
+
+
+func test_a_standing_jump_clears_half_what_a_running_start_could() -> void:
 	var e1 := _roofs(1)
-	e1.m.set_t(1, 8, 5, TacMap.T.VOID)
-	assert_eq(int(_jumps(Nav.new(e1.m), Vector3i(9, 5, 1)).get(Vector3i(11, 5, 1), -1)), 4, "but 2 m")
+	e1.m.set_t(1, 8, 5, TacMap.T.VOID)   # nothing behind the take-off: a standing jump
+	var n := Nav.new(e1.m)
+	var link: Array = n._links[Vector3i(9, 5, 1)].filter(func(l): return l[2] == "stand")[0]
+	assert_eq(int(n.link_cost(Vector3i(9, 5, 1), link)), 4, "still 2 for 1")
+	assert_true(n.neighbours(Vector3i(9, 5, 1), {}, 7).filter(func(nb): return nb[0] == Vector3i(11, 5, 1)).is_empty(), "7 left: a running start would clear 3 squares, standing 1")
+	assert_false(n.neighbours(Vector3i(9, 5, 1), {}, 8).filter(func(nb): return nb[0] == Vector3i(11, 5, 1)).is_empty(), "8 left: a running 4 squares, standing 2")
+	n.jump_free = true
+	assert_eq(int(n.link_cost(Vector3i(9, 5, 1), link)), 2, "Jump Boosters: 1 a square")
+	assert_false(n.neighbours(Vector3i(9, 5, 1), {}, 4).filter(func(nb): return nb[0] == Vector3i(11, 5, 1)).is_empty(), "4 left: 4 squares running, 2 standing")
+	assert_true(n.neighbours(Vector3i(9, 5, 1), {}, 3).filter(func(nb): return nb[0] == Vector3i(11, 5, 1)).is_empty())
 
 
 func test_no_jumps_at_street_level() -> void:
@@ -174,60 +188,16 @@ func test_a_guard_on_skates_runs_further_to_the_crew() -> void:
 
 # --- Grapple Hand (p.365) -------------------------------------------------------------------------
 
-func test_the_grapple_hand_reaches_a_ledge_in_sight_within_30_m() -> void:
-	var e := _arena([])
-	e.cur.pos = Vector3i(10, 5, 0)
-	assert_true(e.grapple_targets(e.cur).is_empty(), "no hand, no line")
-	_chromed(["cyberarm", "grapple_hand"], e.cur.c)
-	var t := e.grapple_targets(e.cur)
-	assert_true(t.has(Vector3i(14, 5, 1)), "the first storey's edge")
-	assert_true(t.has(Vector3i(14, 5, 2)), "the roof's edge")
-	assert_eq(int(t[Vector3i(14, 5, 2)]), 4 + 2, "4 squares across, a storey a square up: no climbing penalty")
-	assert_false(t.has(Vector3i(15, 5, 2)), "only an edge holds the hook: not the middle of the roof")
-	assert_true(t.has(Vector3i(5, 2, 1)), "the ladder's ledge too")
-	assert_false(t.has(Vector3i(4, 2, 1)), "its middle isn't an edge")
-	assert_false(t.has(Vector3i(27, 5, 2)), "beyond 30 m")
-	e.cur.pos = Vector3i(20, 5, 0)   # indoors, under the block: no open air to fire through
-	assert_false(e.grapple_targets(e.cur).keys().any(func(v): return v.x >= 14), "a ceiling overhead")
-
-
-func test_firing_the_line_is_an_action_and_the_climb_is_movement() -> void:
+func test_the_grapple_hand_is_unmodelled_since_ledges_arent_grappled() -> void:
+	assert_false(Cyber.modelled("grapple_hand"), "owner: no grappling ledges or mantling")
+	assert_false(NightMarket.on_sale("cyberware/grapple_hand"))
+	assert_true(Cyber.def("grapple_hand").get("fx", {}).is_empty(), "no effect to play")
 	var e := _arena([])
 	e.cur.pos = Vector3i(10, 5, 0)
 	_chromed(["cyberarm", "grapple_hand"], e.cur.c)
-	var opt: Array = e.chrome_options().filter(func(o): return String(o.id) == "grapple_hand")
-	assert_eq(opt.size(), 1, "in the chrome menu")
-	assert_true(opt[0].ok, String(opt[0].why))
-	assert_false(e.grapple_line(Vector3i(16, 5, 2)).ok, "not an edge")
-	var r := e.grapple_line(Vector3i(14, 5, 2))
-	assert_true(r.ok, String(r.get("reason", "")))
-	assert_eq(e.cur.pos, Vector3i(14, 5, 2))
-	assert_false(e.turn.action_available, "firing it is the Action")
-	assert_eq(e.turn.squares_moved, 6)
-	assert_true(e.events.any(func(x): return x.type == "move" and x.get("grapple", false)))
-	assert_false(e.grapple_line(Vector3i(14, 6, 2)).ok, "once a turn: the Action's gone")
-	assert_eq(String(e.chrome_options().filter(func(o): return String(o.id) == "grapple_hand")[0].why), "No Action left")
-
-
-func test_the_line_must_fit_the_movement_left() -> void:
-	var e := _arena([])
-	e.cur.pos = Vector3i(10, 5, 0)
-	_chromed(["cyberarm", "grapple_hand"], e.cur.c)
-	assert_true(e.move_to(Vector3i(13, 5, 0)))   # 3 of 6 squares gone
-	assert_false(e.grapple_line(Vector3i(14, 1, 2)).ok, "4 across and 2 up is 6: only 3 left")
-	assert_true(e.grapple_line(Vector3i(14, 5, 2)).ok, "1 across and 2 up fits")
-
-
-func test_a_guard_grapples_up_to_a_crew_member_on_the_roof() -> void:
-	var e := _arena([Vector3i(10, 5, 0)])
-	var g: Dictionary = e.units[1]
-	_chromed(["cyberarm", "grapple_hand"], g.c)
-	e.units[0].pos = Vector3i(22, 5, 2)   # on the roof: no shot from the street
-	e.cur = g
-	e.turn = TurnState.begin(e.dice, g.c)
-	AI.act(e, g)
-	assert_eq(g.pos.z, 2, "up the line to the roof")
-	assert_true(e.events.any(func(x): return x.type == "move" and x.get("grapple", false)))
+	assert_true(e.cur.c.has_cyberware("grapple_hand"), "still installed, and named")
+	assert_eq(String(Cyber.def("grapple_hand").name), "Grapple Hand")
+	assert_true(e.chrome_options().filter(func(o): return String(o.id) == "grapple_hand").is_empty(), "no FIRE LINE entry")
 
 
 # --- Tactile Boost on guard (p.359) --------------------------------------------------------------
@@ -392,9 +362,9 @@ func test_chrome_up_is_deterministic_affordable_and_played() -> void:
 # --- On sale ----------------------------------------------------------------------------------------
 
 func test_movement_and_net_chrome_is_on_sale_and_swimming_isnt() -> void:
-	for id in ["grip_foot", "jump_booster", "skate_foot", "grapple_hand", "cyberleg", "interface_plugs", "enhanced_antibodies"]:
+	for id in ["grip_foot", "jump_booster", "skate_foot", "cyberleg", "interface_plugs", "enhanced_antibodies"]:
 		assert_true(Cyber.modelled(id), id)
 		assert_true(NightMarket.on_sale("cyberware/" + id), "%s on sale" % id)
 		assert_false(Cyber.summary(id).contains("p."), "%s: no cites" % id)
-	for id in ["web_foot", "cyberdeck"]:
+	for id in ["web_foot", "cyberdeck", "grapple_hand"]:
 		assert_false(NightMarket.on_sale("cyberware/" + id), "%s: nothing to play it on yet" % id)

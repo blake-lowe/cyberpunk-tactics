@@ -15,9 +15,9 @@ const IMPLEMENTED_FX := ["stat", "stat_cap", "skill", "initiative", "ignore_seri
 	# phase 2: senses and hazards (Combatant.sees_through_obscurement, perception_bonus, immune_to,
 	# sense_range; Encounter.sight_penalty, obscured_mod, update_reveals)
 	"ignore_obscured", "perception_bonus", "immune", "radar_m", "motion_sense_m",
-	# phase 3: movement (Nav.climb_free, TurnState.run, Encounter.grapple_targets); phase 4: NET and
+	# phase 3: movement (Nav.climb_free, TurnState.run); phase 4: NET and
 	# downtime (NetRun.jack_block, Combatant.rest_heal)
-	"climb_free", "jump_free", "run_bonus_m", "grapple_m", "netrun", "rest_heal_mult"]
+	"climb_free", "jump_free", "run_bonus_m", "netrun", "rest_heal_mult"]
 ## Every fx key the data may use: the implemented ones and those waiting for a system.
 const KNOWN_FX := IMPLEMENTED_FX
 ## Phase 1 (combat chrome): each now plays, so each is sold.
@@ -28,7 +28,7 @@ const PHASE1 := ["sandevistan", "popup_ranged_weapon", "popup_melee_weapon", "po
 const PHASE2 := ["low_light_infrared_uv", "image_enhance", "amplified_hearing", "anti_dazzle", "level_damper", "nasal_filters",
 	"independent_air_supply", "radar_sonar_implant", "tactile_boost", "cyberaudio_suite"]
 ## Phase 3 (movement), with the Cyberleg that holds the feet; phase 4 (NET and downtime).
-const PHASE3 := ["grip_foot", "jump_booster", "skate_foot", "grapple_hand", "cyberleg"]
+const PHASE3 := ["grip_foot", "jump_booster", "skate_foot", "cyberleg"]
 const PHASE4 := ["interface_plugs", "enhanced_antibodies"]
 const HOSTS := ["fashion", "neural_link", "chipware", "eye", "cyberaudio", "internal", "external", "arm", "leg", "limb", "borgware"]
 ## Modelled with no fx of their own: read by the rules by id (teargas: Attack.apply_status; the
