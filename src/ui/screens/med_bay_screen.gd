@@ -327,6 +327,11 @@ func _installed_row(c: Combatant, id: String) -> Control:
 		b.pressed.connect(func(): _remove(b, c, id))
 		bh.add_child(b)
 		bh.add_child(UiKit.button("KEEP IT · ESC", UiKit.NAV, func(): _confirm = ""; _build(), true, 14, true))
+	elif Campaign.comes_out_whole(id):   # a chip goes back to storage: nothing to confirm
+		var b := UiKit.button("TAKE OUT", UiKit.NAV, Callable(), true, 14, true)
+		b.pressed.connect(func(): _remove(b, c, id))
+		b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(b)
 	else:
 		var b := UiKit.button("REMOVE", UiKit.DANGER, func(): _ask_remove(id), true, 14, true)
 		b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -426,6 +431,10 @@ func _install(b: Button, c: Combatant, id: String, choice: Variant) -> void:
 
 func _ask_remove(id: String) -> void:
 	_pick = "remove:" + id
+	if Campaign.comes_out_whole(id):   # a chip: straight back to storage, no confirmation
+		var b := _find_button(_pick)
+		_remove(b if b != null else Button.new(), selected(), id)
+		return
 	_confirm = "%s@%s" % [id, loc]
 	_build()
 
@@ -433,7 +442,8 @@ func _ask_remove(id: String) -> void:
 func _remove(b: Button, c: Combatant, id: String) -> void:
 	_confirm = ""
 	var where := loc
-	act(b, func(): camp.remove(c, id, where), Cyber.display(id) + " destroyed", Hud.RED)
+	var whole := Campaign.comes_out_whole(id)
+	act(b, func(): camp.remove(c, id, where), Cyber.display(id) + (" back in storage" if whole else " destroyed"), Hud.CYAN if whole else Hud.RED)
 
 
 ## Keys (like the Armory's): Q/E crew, ↑/↓ body location, ←/→ the location's choices, Enter
@@ -501,7 +511,7 @@ func _find_button(pick: String) -> Button:
 	if row == null:
 		return null
 	for b in row.find_children("*", "Button", true, false):
-		if (b as Button).text in ["INSTALL", "DESTROY IT"] and not (b as Button).is_queued_for_deletion():
+		if (b as Button).text in ["INSTALL", "DESTROY IT", "TAKE OUT"] and not (b as Button).is_queued_for_deletion():
 			return b
 	return null
 

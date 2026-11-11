@@ -816,6 +816,9 @@ class ActBtn extends Button:
 		var tl := _title_layout(w)
 		var o := Vector2(w / 2, size.y * (0.4 if tl[0].size() == 1 else 0.27))
 		var r := minf(w, size.y) * (0.17 if tl[0].size() == 1 else 0.12)
+		var kw0 := Hud.F_TERM.get_string_size(key, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
+		if kw0 > 24.0:   # a wide key ("TAB 1/2") sits top right: the glyph moves left of it
+			o.x = minf(o.x, (w - kw0 - 8.0) / 2.0)
 		match glyph:
 			"shot":
 				draw_arc(o, r, 0, TAU, 20, c, 2.0)

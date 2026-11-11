@@ -285,6 +285,12 @@ func test_a_chip_installs_as_what_it_was_bought_for() -> void:
 	assert_eq(camp.stored("cyberware/skill_chip@stealth"), 0)
 	assert_eq(camp.stored("cyberware/skill_chip@handgun"), 1, "the other stays")
 	assert_eq(c.skill_level("stealth"), maxi(3, int(c.skills.get("stealth", 0))))
+	s._select_loc("chipware")
+	var row: Node = _live(s, "Installed_skill_chip")[0]
+	assert_true(_buttons(row, "DESTROY IT").is_empty() and _buttons(row, "REMOVE").is_empty(), "a chip isn't destroyed")
+	_buttons(row, "TAKE OUT")[0].pressed.emit()
+	assert_false(c.has_cyberware("skill_chip"))
+	assert_eq(camp.stored("cyberware/skill_chip@stealth"), 1, "back in storage, no confirmation")
 
 
 ## The hologram: the crew member's own model, every surface on the hologram material, each body
