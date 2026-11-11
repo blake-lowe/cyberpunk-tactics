@@ -1767,6 +1767,16 @@ func install_block(c: Combatant, id: String, loc: String = "") -> String:
 		return "Not on the crew"
 	if stored("cyberware/" + id) <= 0 and not (Cyber.choice_of(id) == "" and stored_variants(id) > 0):
 		return "Not in storage"
+	if Cyber.paired(id):   # both halves go in together, one from storage for each side (p.360, p.366)
+		if stored("cyberware/" + id) < 2:
+			return "Paired: needs two in storage"
+		var side := loc if loc != "" else Cyber.pair_locs(id)[0]
+		var first := Cyber.block(c.implants, id, side)
+		if first != "":
+			return first
+		var trial: Array = c.implants.duplicate()
+		trial.append({"id": Cyber.base(id), "loc": side})
+		return Cyber.block(trial, id, Cyber.pair_of(id, side))
 	var why := Cyber.block_any(c.implants, id) if loc == "" else Cyber.block(c.implants, id, loc)
 	if why == "" and Cyber.base(id) == "cyberdeck" and c.deck == "":   # "A Cyberdeck must be provided by the user" (p.364)
 		return "Needs a cyberdeck carried"
@@ -1778,6 +1788,10 @@ func install_block(c: Combatant, id: String, loc: String = "") -> String:
 ## melee weapon (a hand-held melee weapon it replaces goes to storage). From then on it's part of
 ## `c`: it can be removed (remove), never moved to someone else. Returns the Humanity lost, -1 if it
 ## can't be done.
+## A paired option (Cyber.paired) goes into both eyes or both legs at once: two from storage, the
+## Humanity Loss rolled for each (owner, playtest: a Skate Foot went into one leg and did nothing;
+## "purchased twice and installed in two different Cyberlegs", CPR core p.366, p.360). The return
+## is both halves' loss.
 ## `choice`: what a piece made for one thing was bought for (the Med Bay's options step,
 ## MedBayScreen._install_choices): the same as passing the spec "id@choice".
 func install(c: Combatant, id: String, loc: String = "", choice: Variant = "") -> int:
@@ -1787,6 +1801,14 @@ func install(c: Combatant, id: String, loc: String = "", choice: Variant = "") -
 		return -1   # a chip or popup goes in as what it was bought for
 	if install_block(c, id, loc) != "":
 		return -1
+	if Cyber.paired(id):
+		var side := loc if loc != "" else Cyber.pair_locs(id)[0]
+		var lost := 0
+		for l in [side, Cyber.pair_of(id, side)]:
+			_take("cyberware/" + id)
+			lost += c.install_cyberware(id, dice, false, l)
+		say("%s gets a pair of %s installed (-%d Humanity)." % [c.display_name, Cyber.display(id), lost])
+		return lost
 	var where := loc if loc != "" else Cyber.auto_loc(c.implants, id)
 	_take("cyberware/" + id)
 	var before := c.weapons.duplicate()
@@ -1820,19 +1842,36 @@ func remove_block(c: Combatant, id: String, loc: String = "") -> String:
 	var piece := c.implant(id, loc) if c != null else {}
 	if piece.is_empty():
 		return "Not installed"
-	return Cyber.remove_block(c.implants, piece)
+	var why := Cyber.remove_block(c.implants, piece)
+	var other := _other_half(c, id, String(piece.loc))
+	if why == "" and not other.is_empty():   # a pair comes out together
+		var rest: Array = c.implants.duplicate()
+		rest.erase(piece)
+		why = Cyber.remove_block(rest, other)
+	return why
+
+
+## The installed other half of a paired option at `loc` ({} if none or not paired).
+func _other_half(c: Combatant, id: String, loc: String) -> Dictionary:
+	return c.implant(id, Cyber.pair_of(id, loc)) if Cyber.paired(id) and loc != "" else {}
 
 
 ## Take an installed piece out at the Med Bay. It is destroyed, not stored: harvested chrome is
 ## worthless without a Cybertech repair (p226), and installed chrome is never moved to someone else
 ## (owner's ruling). The book prices no removal (p226 prices installing supplied chrome only), so
 ## it costs nothing (HOUSE-RULE: the crew's ripperdoc does it). Humanity lost isn't returned
-## (Combatant.remove_cyberware).
+## (Combatant.remove_cyberware). A paired option comes out of both sides: one half does nothing.
 func remove(c: Combatant, id: String, loc: String = "") -> bool:
 	if remove_block(c, id, loc) != "":
 		return false
 	var spec := Cyber.spec_of(c.implant(id, loc))
-	c.remove_cyberware(id, loc)
+	var where := String(c.implant(id, loc).loc)
+	var other := _other_half(c, id, where)
+	c.remove_cyberware(id, where)
+	if not other.is_empty():
+		c.remove_cyberware(id, String(other.loc))
+		say("%s has both %s halves taken out." % [c.display_name, Cyber.display(spec)])
+		return true
 	if comes_out_whole(id):
 		_put("cyberware/" + spec)
 	if id == "cyberdeck" and c.deck != "":   # the deck breaks beyond repair; its Programs and Hardware are recovered (p.364)

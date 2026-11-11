@@ -5,7 +5,7 @@ extends Control
 ## with their weapons in draw order, head and body armour and kit beside it, and what their chrome
 ## does. Opened in a gig (L, or a click on a crew card: the hotbar's or the Alt roster's) and from
 ## the Armory (FULL LOADOUT). Read-only: gear changes at the Armory, chrome at the Med Bay.
-## Keys: Q/E crew, ↑/↓ body location, Esc (or L) closes.
+## Keys: Q/E crew, ↑/↓ body location, Esc (or L) closes (no hint line for them: owner, playtest).
 
 signal closed
 
@@ -80,7 +80,6 @@ func _build() -> void:
 	cols.add_child(_gear_panel(c))
 	var foot := UiKit.hbox(12)
 	v.add_child(foot)
-	foot.add_child(UiKit.label("Q / E CREW · ↑↓ PLACE · ESC CLOSE", 11, Hud.DIM))
 	foot.add_child(UiKit.spacer())
 	foot.add_child(UiKit.body(note, 13, Hud.DIM, false))
 
@@ -92,15 +91,13 @@ func _body_panel(c: Combatant) -> PanelContainer:
 	p.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var v := UiKit.vbox(2)
 	p.add_child(v)
-	var h := UiKit.hbox(12)
+	var h := ChromeBody.header(c, Hud.GOLD)   # the name, EMP and the Humanity bar, as at the Med Bay
 	v.add_child(h)
-	h.add_child(UiKit.fit(UiKit.head(c.display_name, 30, Hud.GOLD)))
+	h.add_child(UiKit.spacer())
 	var who := UiKit.hbox(6)
 	who.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	who.add_child(UiKit.label("%s · RANK %d ·" % [c.role, c.role_rank], 13, Hud.CYAN))
 	who.add_child(UiKit.label("HP %d/%d" % [c.hp, c.max_hp()], 13, UiKit.hp_colour(c)))
-	if c.tracks_humanity:
-		who.add_child(UiKit.label("· HUMANITY %d/%d" % [c.humanity, c.max_humanity], 13, MedBayScreen._hum_colour(c)))
 	h.add_child(who)
 	var fig := ChromeBody.new().setup(c, loc, "", {}, is_inside_tree() and get_viewport_rect().size.y < 700.0)
 	fig.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -231,10 +228,10 @@ func _unhandled_input(ev: InputEvent) -> void:
 			if not k.echo:
 				_select_crew(sel + (-1 if k.keycode == KEY_Q else 1))
 		KEY_UP, KEY_DOWN:
-			var i := Cyber.LOCS.find(loc)
+			var i := ChromeBody.LOCS.find(loc)
 			if i < 0:
 				i = -1 if k.keycode == KEY_DOWN else 0
-			loc = Cyber.LOCS[posmod(i + (-1 if k.keycode == KEY_UP else 1), Cyber.LOCS.size())]
+			loc = ChromeBody.LOCS[posmod(i + (-1 if k.keycode == KEY_UP else 1), ChromeBody.LOCS.size())]
 			_build()
 		KEY_ESCAPE, KEY_L:
 			close()

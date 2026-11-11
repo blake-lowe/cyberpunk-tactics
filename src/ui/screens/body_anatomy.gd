@@ -14,11 +14,14 @@ extends Control
 ## images... drop the skin on versions and baseline both"): the skeleton everywhere with the body a faint
 ## engraving over it (SKIN). The engraving's lines glow cyan, its hatching a faint tone, under a
 ## horizontal glitch fuzz (body_anatomy.gdshader). Round the figure, redrawn crisp: a height scale in
-## heads, the proportion levels, a centre line, registration marks and notes in an asemic hand (no
-## words). Each body region (bones laid over the plate) takes its tint (ChromeBody.region_tints): chrome
-## violet, its bones barer and brighter, with a circuit spine on a limb; the selected location gold;
-## external chrome (shell) a dermal mesh. A click on the figure picks the nearest location. Motion (the
-## glitch, a scan line, a pulse on the selected place) stops under reduced motion.
+## heads, the proportion levels, a centre line and registration marks (owner, playtest: the asemic
+## notes and the navel's crosshair are gone). Each body region (bones laid over the plate) takes its
+## tint (ChromeBody.region_tints): chrome violet, its bones barer and brighter, with a circuit spine on
+## a limb; the selected location gold; external chrome (shell) a dermal mesh. The glitch grows as
+## Humanity falls (`psycho`, ChromeBody.glitch_of: owner, playtest: "crazy cyberpsycho effects" at low
+## Humanity, a little fuzz at full). A click on the figure picks the nearest location. Motion (the
+## glitch, a scan line, a pulse on the selected place) stops under reduced motion; the glitch's
+## strength then shows as a still distortion.
 
 const MEAT := Color("05d9e8")   ## Hud.CYAN
 const SHADER := preload("res://src/ui/screens/body_anatomy.gdshader")
@@ -30,9 +33,11 @@ const SKIN := 0.22
 ## of the head), the soles (the heels' line), the chin, the centre line's x, the navel; the bones laid
 ## over it by hand, [from, to, reach (px), region] (the figure faces us: their right is on the
 ## viewer's left; the eyes and the ear come first: inside their reach they win over the head, as in
-## region_at and the shader); where each location's leader line meets the body; the proportion levels
-## (crown, chin, nipples, navel, crotch, knees, soles); and the asemic notes, [at, side (-1 the
-## viewer's left), lines, seed, the body point their tick runs to].
+## region_at and the shader); where each location's leader line meets the body (placed so the cards'
+## pair rows, ChromeBody.ROWS, run top to bottom on both sides with no leader lines crossing: the
+## Chipware Socket at the neck beside the Fashionware's light tattoo at the collarbone, the External
+## Cyberware on the flank's skin beside the Internal Cyberware's core in the chest); and the
+## proportion levels (crown, chin, nipples, navel, crotch, knees, soles).
 const PLATES := {
 	"male": {
 		"ink": preload("res://assets/third_party/anatomy/anatomy_ink.png"),
@@ -49,7 +54,7 @@ const PLATES := {
 			[Vector2(352, 440), Vector2(238, 786), 60.0, ChromeBody.Reg.R_ARM],
 			[Vector2(238, 786), Vector2(179, 1048), 50.0, ChromeBody.Reg.R_ARM],
 			[Vector2(179, 1048), Vector2(140, 1250), 72.0, ChromeBody.Reg.R_ARM],
-			# his left arm (the forearm and hand: fashionware's)
+			# his left arm (the forearm and hand: L_FORE, tinted as the arm)
 			[Vector2(760, 440), Vector2(821, 786), 60.0, ChromeBody.Reg.L_ARM],
 			[Vector2(821, 786), Vector2(881, 1060), 50.0, ChromeBody.Reg.L_FORE],
 			[Vector2(881, 1060), Vector2(905, 1250), 72.0, ChromeBody.Reg.L_FORE],
@@ -62,17 +67,11 @@ const PLATES := {
 			[Vector2(702, 1915), Vector2(790, 1965), 50.0, ChromeBody.Reg.L_LEG],
 		],
 		"anchors": {"neural_link": Vector2(522, 40), "right_eye": Vector2(448, 150), "left_eye": Vector2(534, 147),
-			"cyberaudio": Vector2(611, 148), "chipware": Vector2(531, 312), "internal": Vector2(540, 560),
-			"borgware": Vector2(757, 445), "right_arm": Vector2(262, 700), "left_arm": Vector2(800, 680),
-			"fashion": Vector2(872, 1020), "external": Vector2(372, 1200), "right_leg": Vector2(421, 1660),
+			"cyberaudio": Vector2(610, 128), "chipware": Vector2(531, 312), "internal": Vector2(540, 560),
+			"right_arm": Vector2(262, 700), "left_arm": Vector2(800, 680),
+			"fashion": Vector2(620, 350), "external": Vector2(420, 600), "right_leg": Vector2(421, 1660),
 			"left_leg": Vector2(672, 1660)},
 		"levels": [9.0, 262.0, 515.0, 786.0, 1060.0, 1488.0, 1990.0],
-		"notes": [
-			[Vector2(640, 40), 1, 3, 11, Vector2(600, 90)],      # over his left shoulder: three lines
-			[Vector2(70, 270), -1, 2, 21, Vector2(440, 250)],    # by his right cheek
-			[Vector2(80, 1560), -1, 3, 31, Vector2(380, 1600)],  # by his right shin
-			[Vector2(760, 1660), 1, 2, 41, Vector2(700, 1700)],  # by his left shin
-		],
 	},
 	"female": {
 		"ink": preload("res://assets/third_party/anatomy_female/anatomy_female_ink.png"),
@@ -90,7 +89,7 @@ const PLATES := {
 			[Vector2(268, 741), Vector2(186, 996), 32.2, ChromeBody.Reg.R_ARM],
 			[Vector2(186, 996), Vector2(132, 1080), 50.9, ChromeBody.Reg.R_ARM],
 			# her left arm, lowered (tools/gen_anatomy_ink.py, F_ARM_TURNS: the forearm and hand hang by
-			# her side; they are fashionware's)
+			# her side; L_FORE, tinted as the arm)
 			[Vector2(595, 393), Vector2(716, 583), 40.2, ChromeBody.Reg.L_ARM],
 			[Vector2(716, 583), Vector2(783, 775), 34.8, ChromeBody.Reg.L_FORE],
 			[Vector2(783, 775), Vector2(785, 915), 53.6, ChromeBody.Reg.L_FORE],
@@ -103,23 +102,18 @@ const PLATES := {
 			[Vector2(544, 1847), Vector2(595, 1961), 53.6, ChromeBody.Reg.L_LEG],
 		],
 		"anchors": {"neural_link": Vector2(414, 46), "right_eye": Vector2(431, 159), "left_eye": Vector2(494, 177),
-			"cyberaudio": Vector2(537, 192), "chipware": Vector2(434, 308), "internal": Vector2(437, 560),
-			"borgware": Vector2(598, 407), "right_arm": Vector2(271, 600), "left_arm": Vector2(650, 478),
-			"fashion": Vector2(759, 708), "external": Vector2(330, 1217), "right_leg": Vector2(415, 1606),
+			"cyberaudio": Vector2(535, 166), "chipware": Vector2(434, 308), "internal": Vector2(440, 500),
+			"right_arm": Vector2(271, 600), "left_arm": Vector2(695, 550),
+			"fashion": Vector2(510, 350), "external": Vector2(350, 560), "right_leg": Vector2(415, 1606),
 			"left_leg": Vector2(525, 1622)},
 		"levels": [25.5, 258.7, 513.3, 774.7, 1022.7, 1404.6, 2001.0],
-		"notes": [
-			[Vector2(622, 131), 1, 3, 11, Vector2(541, 239)],    # over her left shoulder
-			[Vector2(53, 265), -1, 2, 21, Vector2(340, 239)],    # by her right cheek
-			[Vector2(53, 1673), -1, 3, 31, Vector2(367, 1713)],  # by her right shin
-			[Vector2(662, 1606), 1, 2, 41, Vector2(557, 1659)],  # by her left shin
-		],
 	},
 }
 
 var body: ChromeBody
 var plate := "male"        ## a PLATES key
 var motion := true
+var psycho := 0.0          ## the glitch's strength, 0 (full Humanity: a little fuzz) to 1 (ChromeBody.glitch_of)
 var tints: Array = []      ## per region (ChromeBody.Reg): [Color (a = how much), plated 0/1]
 var shell := Color(0, 0, 0, 0)
 var fig := Rect2()         ## the figure's frame
@@ -235,6 +229,7 @@ func _build() -> void:
 	_mat.set_shader_parameter("skin", SKIN)
 	_mat.set_shader_parameter("shell", shell)
 	_mat.set_shader_parameter("motion", 1.0 if motion else 0.0)
+	_mat.set_shader_parameter("psycho", clampf(psycho, 0.0, 1.0))
 	_mat.set_shader_parameter("selected", sel)
 	_ink.material = _mat
 	add_child(_ink)
@@ -318,12 +313,8 @@ func _draw() -> void:
 		draw_line(Vector2(x1 - 8, ly), Vector2(x1, ly), Color(MEAT, 0.5), 1.0)
 		var frac := (sole - ly) / tall
 		draw_string(font, Vector2(x1 - 30, ly - 3), "%.3f" % frac if frac < 0.999 else "1.000", HORIZONTAL_ALIGNMENT_RIGHT, 30, 9, Color(MEAT, 0.45))
-	# the centre line and the navel (gold: the figure's centre)
+	# the centre line
 	_dashed(Vector2(ax, top - 16), Vector2(ax, sole + 10), Color(MEAT, 0.12), 3.0, 4.0)
-	var c := _p(g.navel)
-	draw_arc(c, 6.0, 0, TAU, 24, Color(Hud.GOLD, 0.55), 1.0, true)
-	draw_line(c - Vector2(10, 0), c + Vector2(10, 0), Color(Hud.GOLD, 0.55), 1.0)
-	draw_line(c - Vector2(0, 10), c + Vector2(0, 10), Color(Hud.GOLD, 0.55), 1.0)
 	# the height, crown to sole, beside the levels' numbers
 	var hx := x1 + 2.0
 	if hx < stage.end.x - 2.0:
@@ -332,22 +323,6 @@ func _draw() -> void:
 	var fr := Rect2(Vector2(x0 - 2, top - 10), Vector2(x1 - x0 + 4, tall + 20))
 	for p in [fr.position, Vector2(fr.end.x, fr.position.y), fr.end, Vector2(fr.position.x, fr.end.y)]:
 		_reg_mark(p, 5.0)
-	# notes in an asemic hand, each with a tick to the body
-	var xh := maxf(2.2, fig.size.y * 0.0045)
-	var nc := Color(MEAT, 0.3)
-	for nt in g.notes:
-		var o := _p(nt[0])
-		var w := 0.26 * fig.size.y * aspect()
-		if int(nt[1]) < 0:
-			o.x = maxf(o.x, x0 + 14.0)
-		else:
-			o.x = minf(o.x, x1 - w - 4.0)
-		for ln in int(nt[2]):
-			script_line(o + Vector2(0, ln * xh * 3.3), w - ln * w * 0.18, xh, nc, int(nt[3]) + ln)
-		var tick := _p(nt[4])
-		var from := o + Vector2(w if int(nt[1]) < 0 else -4.0, -xh * 0.5)
-		draw_line(from, tick, Color(MEAT, 0.16), 1.0, true)
-		draw_circle(tick, 1.4, Color(MEAT, 0.4))
 
 
 ## A printer's registration mark: a circle and its cross.
@@ -379,70 +354,3 @@ func _dim(a: Vector2, b: Vector2, col: Color) -> void:
 		draw_colored_polygon(PackedVector2Array([p, p + dd * 6 + n * 2.2, p + dd * 6 - n * 2.2]), col)
 		draw_line(p + n * 4, p - n * 4, col, 1.0)
 
-
-## Pseudo-handwriting (asemic: letter-like shapes, no real words): a line of joined cursive glyphs,
-## seeded, from `o` along +x for `length` pixels with an x-height of `xh`, slanted.
-const GLYPHS := [
-	[Vector2(0, 0.2), Vector2(0.55, 0.55), Vector2(0.5, 0.95), Vector2(0.15, 0.8), Vector2(0.2, 0.2), Vector2(0.6, 0.0), Vector2(1.0, 0.25)],
-	[Vector2(0, 0.3), Vector2(0.3, 0.95), Vector2(0.75, 0.85), Vector2(0.7, 0.15), Vector2(0.3, 0.05), Vector2(0.25, 0.6), Vector2(0.7, 0.95), Vector2(1.0, 0.7)],
-	[Vector2(0, 0.0), Vector2(0.05, 0.9), Vector2(0.25, 0.95), Vector2(0.45, 0.8), Vector2(0.5, 0.0), Vector2(0.55, 0.85), Vector2(0.8, 0.95), Vector2(0.95, 0.5), Vector2(1.0, 0.0)],
-	[Vector2(0, 0.1), Vector2(0.4, 1.4), Vector2(0.55, 2.1), Vector2(0.35, 2.0), Vector2(0.3, 1.0), Vector2(0.5, 0.0), Vector2(1.0, 0.25)],
-	[Vector2(0, 0.6), Vector2(0.4, 0.95), Vector2(0.6, 0.6), Vector2(0.3, 0.2), Vector2(0.6, 0.6), Vector2(0.6, -0.7), Vector2(0.3, -0.9), Vector2(0.2, -0.6), Vector2(0.8, -0.1), Vector2(1.0, 0.3)],
-	[Vector2(0, 0.1), Vector2(0.3, 0.9), Vector2(0.4, 0.1), Vector2(1.0, 0.4)],
-	[Vector2(0, 0.1), Vector2(0.35, 1.7), Vector2(0.45, 0.1), Vector2(1.0, 0.4)],
-	[Vector2(0, 0.5), Vector2(0.5, 0.95), Vector2(0.2, 0.7), Vector2(0.15, 0.15), Vector2(0.5, 0.1), Vector2(0.6, 0.9), Vector2(0.65, 0.1), Vector2(1.0, 0.3)],
-	[Vector2(0, 0.0), Vector2(0.1, 0.9), Vector2(0.4, 0.7), Vector2(0.7, 1.0), Vector2(1.0, 0.3)],
-	[Vector2(0, 0.1), Vector2(0.45, 1.0), Vector2(0.6, 0.5), Vector2(0.3, 0.1), Vector2(1.0, 0.3)],
-]
-const GLYPH_W := [0.75, 0.85, 1.0, 0.6, 0.8, 0.4, 0.45, 0.85, 0.6, 0.6]
-
-
-func script_line(o: Vector2, length: float, xh: float, col: Color, seed_i: int, w := 1.0) -> void:
-	var rng := RandomNumberGenerator.new()
-	rng.seed = seed_i
-	var x := 0.0
-	while x < length:
-		var ctrl := PackedVector2Array()
-		var marks: Array = []   # i dots, t bars
-		for i in rng.randi_range(2, 6):
-			var gi := rng.randi() % GLYPHS.size()
-			var gw: float = GLYPH_W[gi] * xh * rng.randf_range(0.9, 1.15)
-			if x + gw > length:
-				break
-			for q: Vector2 in GLYPHS[gi]:
-				ctrl.append(Vector2(x + q.x * gw, -q.y * xh))
-			if gi == 5:
-				marks.append([Vector2(x + 0.35 * gw, -1.5 * xh), Vector2(x + 0.42 * gw, -1.55 * xh)])
-			elif gi == 6:
-				marks.append([Vector2(x - 0.1 * gw, -1.05 * xh), Vector2(x + 0.8 * gw, -1.1 * xh)])
-			x += gw
-		if ctrl.size() >= 2:
-			draw_polyline(_ink_pts(_spline(ctrl), o), col, w, true)
-			for m in marks:
-				draw_polyline(_ink_pts(PackedVector2Array(m), o), col, w, true)
-		x += xh * rng.randf_range(0.9, 1.7)   # the gap between words
-
-
-## Catmull-Rom through the control points.
-static func _spline(c: PackedVector2Array) -> PackedVector2Array:
-	var out := PackedVector2Array()
-	for i in c.size() - 1:
-		var p0 := c[maxi(i - 1, 0)]
-		var p1 := c[i]
-		var p2 := c[i + 1]
-		var p3 := c[mini(i + 2, c.size() - 1)]
-		for k in 4:
-			var t := k / 4.0
-			var t2 := t * t
-			var t3 := t2 * t
-			out.append(0.5 * ((2.0 * p1) + (-p0 + p2) * t + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2 + (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t3))
-	out.append(c[c.size() - 1])
-	return out
-
-
-## Slant and place.
-static func _ink_pts(pts: PackedVector2Array, o: Vector2) -> PackedVector2Array:
-	var out := PackedVector2Array()
-	for p in pts:
-		out.append(o + Vector2(p.x - p.y * 0.28, p.y))
-	return out

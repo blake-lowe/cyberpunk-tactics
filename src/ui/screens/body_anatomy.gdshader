@@ -12,6 +12,11 @@ shader_type canvas_item;
 // fading out from the body; with motion on, bands of rows now and then tear sideways and the
 // hatching re-rolls in steps, and a slow scan line runs down. Under reduced motion all of it holds
 // still.
+// `psycho` scales it by lost Humanity (owner, playtest: at full Humanity "some minor fuzz and glitch",
+// at low Humanity "crazy cyberpsycho effects"): more and wider tears, faster, blocks of rows shoved
+// bodily sideways, bands dropping out, the whole figure flickering, the colour splitting into red and
+// blue ghosts and a grain over the body. Under reduced motion the same strength holds still: the tears,
+// shoves, dropouts and split frozen in place, no flicker.
 // Bones laid over the figure (segs) give each pixel its body region: its lines take the region's
 // tint (cyan meat, violet chrome, gold for the selected location). A chromed region is violet, its
 // bones brighter and more bare (the body over them fainter, a glint on their highlights), and a
@@ -34,6 +39,13 @@ uniform float gain = 0.72;      // the print's light
 uniform float skin = 0.22;      // the surface plate's share of the print over the bones (the hybrid)
 uniform float edge = 0.32;      // the outline's
 uniform float fuzz = 1.0;       // the horizontal glitch's strength
+uniform float psycho = 0.0;     // lost Humanity: 0 full (a little fuzz) to 1 (cyberpsycho)
+// an install (ChromeBody.flare): 1 at the cut, easing to 0 as the chrome settles. The region (or, with
+// none, a disc round flare_at) flares white hot, scan-tears, and resolves into violet chrome.
+uniform float flare = 0.0;
+uniform int flare_region = -1;
+uniform int flare_region2 = -1;   // a paired option's other half
+uniform vec2 flare_at = vec2(0.5);
 
 float hash(vec2 p) {
 	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
@@ -46,14 +58,24 @@ float rule(float v, float w) {
 
 void fragment() {
 	// --- the glitch: rows nudged sideways ---
+	float ps = clamp(psycho, 0.0, 1.0);
+	float ps2 = ps * ps;
 	float row = floor(UV.y / (px.y * 2.0));                    // two-pixel scan rows
-	float step_t = motion > 0.0 ? floor(TIME * 7.0) : 0.0;      // the smear re-rolls in steps
-	float burst = motion > 0.0 ? floor(TIME * 0.7) : 0.0;       // tears come and go
+	float step_t = motion > 0.0 ? floor(TIME * mix(7.0, 18.0, ps)) : 0.0;   // the smear re-rolls in steps
+	float burst = motion > 0.0 ? floor(TIME * mix(0.7, 5.0, ps)) : 0.0;     // tears come and go
 	float rh = hash(vec2(row, 3.1));
-	float jit = (hash(vec2(row, step_t * 0.37 + 1.7)) - 0.5) * 1.4;   // under a pixel either way, every row
+	float jit = (hash(vec2(row, step_t * 0.37 + 1.7)) - 0.5) * (1.4 + 2.2 * ps);   // under a pixel either way at full Humanity
 	float band = floor(UV.y / (px.y * 9.0));                   // a tear: a band of rows, shoved
-	float tear = step(0.95, hash(vec2(band, burst))) * motion;
-	jit += tear * (hash(vec2(band, burst + 9.0)) - 0.5) * 18.0;
+	float still = motion > 0.0 ? 1.0 : smoothstep(0.08, 0.35, ps);   // held still: torn only once Humanity is going
+	float tear = step(mix(0.95, 0.84, ps), hash(vec2(band, burst))) * still;
+	jit += tear * (hash(vec2(band, burst + 9.0)) - 0.5) * mix(18.0, 46.0, ps);
+	// row displacement: tall blocks of the figure shoved bodily sideways (none at full Humanity)
+	float block = floor(UV.y / (px.y * 46.0));
+	float shove = step(1.0 - 0.22 * ps2, hash(vec2(block, burst * 1.3 + 4.0)));
+	jit += shove * (hash(vec2(block, burst + 2.0)) - 0.5) * 70.0 * ps2;
+	// the install's scan-tearing, in a disc round the place (moving only)
+	float fdisc = flare * (1.0 - smoothstep(0.06, 0.2, length(vec2(UV.x - flare_at.x, (UV.y - flare_at.y) / aspect))));
+	jit += fdisc * motion * step(0.55, hash(vec2(band, floor(TIME * 24.0)))) * (hash(vec2(band, floor(TIME * 24.0) + 3.0)) - 0.5) * 34.0;
 	vec2 uv = UV + vec2(jit * px.x * fuzz, 0.0);
 
 	// (sampled with the page's own gradients: the rows' jumps mustn't blur the mip choice)
@@ -115,6 +137,17 @@ void fragment() {
 	float muscle = print_ * gain * (1.0 + 0.15 * chrome) + tx.a * edge;
 	vec3 o = col * (muscle + bl * 0.22 + (b1.a * 0.6 + b2.a * 0.4) * 0.25) * pulse;
 	o += vec3(1.0) * smoothstep(0.8, 1.0, print_) * (0.1 + 0.06 * chrome);   // the highlights whiten (chrome glints)
+	// colour breakup as Humanity goes: the print splits into a red ghost one way and a blue one the
+	// other, wider in a tear, the cyan between them thinned
+	if (ps > 0.02) {
+		float split = (1.5 + 6.0 * ps + tear * 8.0 * ps) * px.x;
+		vec4 tr = textureGrad(TEXTURE, uv + vec2(split, 0.0), gx, gy);
+		vec4 tb = textureGrad(TEXTURE, uv - vec2(split, px.y * 2.0 * ps), gx, gy);
+		float gr = mix(tr.b, tr.r, sk) * gain + tr.a * edge;
+		float gb = mix(tb.b, tb.r, sk) * gain + tb.a * edge;
+		o *= 1.0 - 0.35 * ps;
+		o += (vec3(1.0, 0.12, 0.3) * gr + vec3(0.15, 0.35, 1.0) * gb) * 0.55 * ps;
+	}
 
 	// --- the fuzz: horizontal hatching off his edges, the rows fading out from the body (as
 	// an engraver shades a figure's flanks), patchy along the contour, every other row or so ---
@@ -131,7 +164,7 @@ void fragment() {
 		float len = mix(6.0, 24.0, hash(vec2(row, step_t + 5.0)));
 		float patch = smoothstep(0.25, 0.75, hash(vec2(floor(UV.y / (px.y * 26.0)), 2.3)));
 		float dash = step(0.18, hash(vec2(row, floor(UV.x / (px.x * 9.0)) + step_t)));
-		o += meat.rgb * exp(-dist / len) * on * dash * mix(0.35, 1.0, patch) * 0.3 * fuzz;
+		o += meat.rgb * exp(-dist / len) * on * dash * mix(0.35, 1.0, patch) * 0.3 * fuzz * (1.0 + 1.5 * ps);
 	}
 
 	// --- chrome: a circuit spine down the limb (two rails, broken into runs, vias at the breaks,
@@ -164,5 +197,23 @@ void fragment() {
 		float sb = exp(-pow((UV.y - sy) / (px.y * 14.0), 2.0));
 		o += col * (muscle * 1.2 + 0.02 * body) * sb;
 	}
-	COLOR = vec4(o, 1.0);
+	// the install: white hot at the cut, cooling to violet, a scan line sweeping down the place
+	if (flare > 0.0) {
+		bool inreg = reg == flare_region || reg == flare_region2 || (flare_region == 4 && reg == 10);   // the left arm takes its forearm
+		float fw = flare_region >= 0 ? (inreg ? body : 0.0) : fdisc / max(flare, 1e-4) * body;
+		vec3 fc = mix(vec3(0.78, 0.49, 1.0), vec3(1.0, 0.97, 1.0), smoothstep(0.45, 1.0, flare));
+		float scan = exp(-pow((UV.y - ((1.0 - flare) * 1.1 - 0.05)) / (px.y * 12.0), 2.0)) * motion;
+		o += fc * fw * flare * (muscle * 2.4 + 0.3 + scan * 1.5);
+	}
+	// lost Humanity: a grain over the body, bands dropping out, and (moving only) the whole figure
+	// flickering, now and then flashing
+	o += col * (hash(floor(UV / px) + vec2(step_t * 1.7, 0.0)) - 0.4) * 0.12 * ps2 * body;
+	float drop = step(1.0 - 0.18 * ps2, hash(vec2(band, step_t + 3.3)));
+	o *= 1.0 - 0.7 * drop;
+	if (motion > 0.0) {
+		float fl = hash(vec2(floor(TIME * 15.0), 5.3));
+		o *= 1.0 - step(1.0 - 0.3 * ps, fl) * 0.7 * ps;
+		o *= 1.0 + step(1.0 - 0.06 * ps2, hash(vec2(floor(TIME * 15.0), 8.1))) * 0.9;
+	}
+	COLOR = vec4(max(o, vec3(0.0)), 1.0);
 }
