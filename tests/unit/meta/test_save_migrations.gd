@@ -303,7 +303,7 @@ func test_v18_flat_cyberware_gets_locations() -> void:
 			"wolvers@right_arm", "neural_link@neural_link", "chipware_socket@neural_link", "kerenzikov@neural_link", "pain_editor@chipware"]:
 		assert_true(by_loc.has(k), "%s placed: %s" % [k, by_loc.keys()])
 	assert_eq((mig.crew[0].cyberware as Array).size(), 10, "every known piece kept, the unknown one dropped")
-	assert_eq(mig.crew[1].cyberware, [])
+	assert_eq((mig.crew[1].cyberware as Array).filter(func(p): return not String(p.id) in ["neural_link", "interface_plugs"]), [], "nothing placed (a Netrunner gets plugs at v20)")
 	var c := Campaign.from_dict(JSON.parse_string(JSON.stringify(d)))
 	var m: Combatant = c.crew[0]
 	assert_true(m.cyber_working("anti_dazzle"), "a pair placed in both eyes works")

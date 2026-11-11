@@ -218,11 +218,11 @@ func test_vampyres_are_excellent() -> void:
 ## hiding while they're built): cards, rosters, the HUD inspector and the debrief list Cyber.names.
 ## Only the market's gate stays (test_cyber_data).
 func test_unplayed_pieces_are_named_on_cards() -> void:
-	var im := _with(["biomonitor", "neural_link", "interface_plugs", "cybereye", "cybereye", "anti_dazzle", "anti_dazzle", "kerenzikov"])
+	var im := _with(["biomonitor", "neural_link", "radar_detector", "cybereye", "cybereye", "anti_dazzle", "anti_dazzle", "kerenzikov"])
 	var names := Cyber.names(im)
 	assert_eq(names.size(), im.size(), "one name per piece")
 	assert_true("Neural Link" in names and "Cybereye" in names)
-	for unplayed in ["Biomonitor", "Interface Plugs", "Anti-Dazzle"]:
+	for unplayed in ["Biomonitor", "Radar Detector", "Anti-Dazzle"]:
 		assert_true(unplayed in names, "%s isn't played yet, but it's named" % unplayed)
 	assert_eq(names.count("Cybereye"), 2, "two eyes, two pieces")
 	var m := Fixtures.unarmored()
@@ -230,6 +230,6 @@ func test_unplayed_pieces_are_named_on_cards() -> void:
 	var lost: Array = Campaign._lost_gear(m, {})
 	assert_true("Biomonitor" in lost, "the debrief's lost gear names it too")
 	assert_eq(Campaign._lost_gear_keys(m).size(), lost.size(), "a key beside each lost name")
-	assert_true(Hud.stat_block(m, true).contains("Interface Plugs"), "and the HUD inspector")
-	assert_false(Cyber.modelled("interface_plugs"))
+	assert_true(Hud.stat_block(m, true).contains("Radar Detector"), "and the HUD inspector")
+	assert_false(Cyber.modelled("radar_detector"))
 	assert_true(Cyber.modelled("kerenzikov"))

@@ -793,6 +793,40 @@ func sense_range(key: String) -> float:
 	return best
 
 
+# --- Movement and downtime chrome (cyberware phases 3 and 4) -------------------------------------
+
+## Grip Foot, both working: climbing costs no more than walking (p.366; climbing is 2 squares per
+## square, p.169): Nav prices a ladder or fire escape like stairs for them.
+func climbs_free() -> bool:
+	return _cyber_fx().any(func(fx): return fx.get("climb_free", false))
+
+
+## Jump Boosters, both working: jumping costs no more than walking (p.366; jumping is 2 squares per
+## square, p.169): Nav prices a jump like a walk for them.
+func jumps_free() -> bool:
+	return _cyber_fx().any(func(fx): return fx.get("jump_free", false))
+
+
+## Extra squares a Run gives (TurnState.run): Skate Foot's +6 m/yds "when using Run Action" (p.366),
+## 3 squares of 2 m (p.126). 0 without a working pair.
+func run_bonus_squares() -> int:
+	return int(sense_range("run_bonus_m") / TurnState.SQUARE_M)
+
+
+## The Grapple Hand's line, 30 m (p.365); 0 without a working one (Encounter.grapple_targets).
+func grapple_range_m() -> float:
+	return sense_range("grapple_m")
+
+
+## HP healed by `days` of rest after stabilization: BODY a day (p.223), BODY x 2 with Enhanced
+## Antibodies (p.362). Campaign.rest; Linear Frames and Grafted Muscle count (raw_stat).
+func rest_heal(days: int) -> int:
+	var mult := 1
+	for fx in _cyber_fx():
+		mult = maxi(mult, int(fx.get("rest_heal_mult", 1)))
+	return raw_stat("BODY") * mult * days
+
+
 func cyber_fx_sum(key: String) -> int:
 	var t := 0
 	for fx in _cyber_fx():

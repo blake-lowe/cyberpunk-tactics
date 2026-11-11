@@ -14,9 +14,9 @@ extends RefCounted
 ## Bonus Damage), kit (a grenade into a kit slot; with qty, special rounds loaded into the primary
 ## weapon), drug (in their system from the start), skill_base, skill_base_raise, stat_set,
 ## stat_bonus, armor, no_armor_penalty, weapon (given as primary), ai 'reckless', hp_bonus,
-## cyberware, tactic ambush / charge / focus_fire, choose. Not yet: other tactics (human_shield,
-## hold_cover, command), trap, facedown, reputation, role_ability, cyberware_eb, EMP
-## grenades (no kit use yet), and the empty fx. A smoke grenade is a kit grenade (Smoke, CPR core p.347).
+## cyberware, cyberware_eb (chrome_up: fitted combat chrome for the eb), tactic ambush / charge /
+## focus_fire, choose. Not yet: other tactics (human_shield, hold_cover, command), trap, facedown,
+## reputation, role_ability, EMP grenades (no kit use yet), and the empty fx. A smoke grenade is a kit grenade (Smoke, CPR core p.347).
 
 ## Whether a gig runs into one is a Closed Question put to the Oracle (Oracle; SPM p.12-13): "Is
 ## the opposition ready with something extra?" (yes is the interesting answer). Either yes answer
@@ -30,7 +30,7 @@ const TIERS := ["mini_boss", "lieutenant", "mook"]   ## strongest first
 const TIER_NAMES := {"mook": "Mook", "lieutenant": "Lieutenant", "mini_boss": "Mini Boss"}
 ## Unit keys the per-unit appliers handle (everything else is a whole-encounter key or skipped).
 const UNIT_KEYS := ["kit", "qty", "drug", "when", "skill_base", "skill_base_raise", "stat_set", "stat_bonus", "armor",
-	"no_armor_penalty", "weapon", "ai", "hp_bonus", "cyberware"]
+	"no_armor_penalty", "weapon", "ai", "hp_bonus", "cyberware", "cyberware_eb"]
 
 
 static func table(tier: String) -> Array:
@@ -106,7 +106,7 @@ static func apply(e: Encounter, tier: String, fx: Dictionary, out: Dictionary) -
 		_add_units(e, tier, fx, out)
 	if fx.has("tactic"):
 		_tactic(e, tier, String(fx.tactic), out)
-	for k in ["trap", "facedown", "reputation", "role_ability", "cyberware_eb"]:
+	for k in ["trap", "facedown", "reputation", "role_ability"]:
 		if fx.has(k):
 			out.skipped.append(k)
 	if UNIT_KEYS.any(func(k): return fx.has(k)):
@@ -163,6 +163,10 @@ static func apply_unit(e: Encounter, u: Dictionary, fx: Dictionary, out: Diction
 		if not c.has_cyberware(String(cw)):
 			c.install_cyberware(String(cw), e.dice, true)
 		did.call("cyberware")
+	if fx.has("cyberware_eb"):   # "600eb more cyberware" (RTG Hardened Mini Bosses p.2)
+		var got := chrome_up(c, int(fx.cyberware_eb))
+		e.say("%s is chromed up: %s." % [c.display_name, ", ".join(got) if not got.is_empty() else "nothing more fits"])
+		did.call("cyberware_eb")
 	if fx.has("kit"):
 		if give_kit(c, String(fx.kit), int(fx.get("qty", 0))):
 			did.call("kit")
@@ -187,6 +191,71 @@ static func apply_unit(e: Encounter, u: Dictionary, fx: Dictionary, out: Diction
 		for s in high.slice(0, int(r.get("count", 1))):
 			set_skill_base(c, String(s), int(r.get("to", 17)))
 		did.call("skill_base_raise")
+
+
+## The heavily chromed Mini Boss's extra chrome (cyberware_eb): combat chrome the game plays
+## (Cyber.modelled), bought at list price (the cost includes the surgery, p.110) and fitted where the
+## slot rules allow, up to `eb`. Deterministic, no dice: each package in CHROME_UP order goes in if
+## it adds something they lack, fits and is affordable with what's left; benefits don't stack, so
+## nothing doubles up (p.111). Returns the piece names fitted, in order.
+const CHROME_UP: Array = [
+	["kerenzikov"],                                                     # +2 Initiative; needs a Neural Link already in
+	["skin_weave"],                                                     # SP 7 under the skin, if their armour is thinner
+	["cybereye", "cybereye", "anti_dazzle", "anti_dazzle"],             # flashbang- and teargas-proof
+	["anti_dazzle", "anti_dazzle"],                                     # ...in two Cybereyes they have
+	["wolvers"],                                                        # heavy melee claws in a meat arm
+	["nasal_filters"],                                                  # gas-proof
+	["toxin_binders"],                                                  # +2 Resist Torture/Drugs
+	["big_knucks"],
+	["scratchers"],
+]
+
+
+static func chrome_up(c: Combatant, eb: int) -> Array[String]:
+	var got: Array[String] = []
+	var left := eb
+	for pack in CHROME_UP:
+		var cost := 0
+		for id in pack:
+			cost += int(Cyber.def(String(id)).get("cost", 0))
+		if cost > left or not _adds(c, pack):
+			continue
+		var trial: Array = c.implants.duplicate()
+		var ok := true
+		for id in pack:
+			var loc := Cyber.auto_loc(trial, String(id))
+			if loc == "" or not Cyber.modelled(String(id)):
+				ok = false
+				break
+			trial.append({"id": String(id), "loc": loc})
+		if not ok:
+			continue
+		for id in pack:
+			c.install_cyberware(String(id), null, true)
+			got.append(Cyber.display(String(id)))
+		left -= cost
+	return got
+
+
+## Whether a CHROME_UP package gives `c` something it lacks: no second Speedware, Skin Weave only over
+## thinner worn body armour (the higher SP counts, p.184) and no subdermal armour, one built-in melee
+## weapon, a piece they don't have yet.
+static func _adds(c: Combatant, pack: Array) -> bool:
+	for id in pack:
+		var d := Cyber.def(String(id))
+		if c.has_cyberware(String(id)) and not (String(id) == "cybereye"):
+			return false
+		if String(d.get("group", "")) != "" and c.implants.any(func(p): return String(Cyber.def(String(p.id)).get("group", "")) == String(d.group)):
+			return false
+		if d.get("fx", {}).has("armor_sp"):
+			var worn: ArmorPiece = c.armor.get("body")
+			if not c.subdermal.is_empty() or (worn != null and worn.sp >= int(d.fx.armor_sp)):
+				return false
+		if d.get("fx", {}).has("weapon") and c.weapons.any(func(w): return w.builtin and w.is_melee() and w.popup == ""):
+			return false
+	if pack.has("cybereye") and Cyber.EYES.any(func(l): return Cyber.foundation_at(c.implants, l) != ""):
+		return false   # the eye package is for meat eyes; two Cybereyes take the anti-dazzle pair alone
+	return true
 
 
 ## Set `c`'s Skill Base (STAT + Skill, as the book prints it) for `skill` to `base`. False if the

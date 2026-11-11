@@ -9,6 +9,8 @@ const MIN_CHANCE := 0.15
 
 
 static func act(e: Encounter, u: Dictionary) -> void:
+	if u.c.touching and e.turn != null and u == e.cur:   # the fight's on: the Tactile Boost's hand comes off the wall (free, p.359)
+		e.use_chrome("tactile_boost")
 	if put_out(e, u):   # the Action's gone on the flames: the Move Action is still theirs
 		_advance(e, u)
 		return
@@ -136,9 +138,37 @@ static func _fight(e: Encounter, u: Dictionary) -> void:
 	if _special(e, u, w):   # a grenade, a shotgun shell, suppression or a punch beats the best shot
 		return
 	if not _shoot(e, u, w):
+		if _grapple_up(e, u):   # no shot from down here: the Grapple Hand to a ledge that has one
+			return
 		_advance(e, u)
 		if not _special(e, u, w):
 			_shoot(e, u, w)
+
+
+## The Grapple Hand for the AI (p.365): with no shot from where they stand, fire the line (the Action)
+## to the ledge within reach of this turn's movement from which the most enemies are in sight (then
+## the nearest to one), if any is. True if they went up.
+static func _grapple_up(e: Encounter, u: Dictionary) -> bool:
+	if not u.c.has_cyberware("grapple_hand") or e.grapple_hand_block(u) != "":
+		return false
+	var foes := _enemies(e, u)
+	var best := Vector3i(-1, -1, -1)
+	var best_score := 0.0
+	var opts := e.grapple_targets(u)
+	for cell in opts:
+		if int(opts[cell]) > e.turn.squares_available():
+			continue
+		var seen := 0.0
+		var near := INF
+		for f in foes:
+			if f.pos.z == cell.z and e.los.sight(cell, f.pos).visible:
+				seen += 1.0
+				near = minf(near, Vector2(f.pos.x - cell.x, f.pos.y - cell.y).length())
+		var score := seen * 100.0 - (near if seen > 0.0 else 0.0)
+		if seen > 0.0 and score > best_score:
+			best_score = score
+			best = cell
+	return best.x >= 0 and bool(e.grapple_line(best).get("ok", false))
 
 
 ## Chrome for the AI (CPR core p.359, p.365), before the turn's attack: the best weapon in hand, a
@@ -458,7 +488,7 @@ static func _vip(e: Encounter, u: Dictionary) -> void:
 	if int(field.get(u.pos, 999)) == 0:
 		e._vip_escapes(u)
 		return
-	var budget: int = e.turn.squares_available() + (u.c.stat("MOVE") if e.turn.action_available else 0)
+	var budget: int = e.turn.squares_available() + (e.turn.run_squares() if e.turn.action_available else 0)
 	var opts: Dictionary = e._with_locks(func(): return e.nav.reachable(u.pos, budget, e._blocking(u)))
 	var best: Vector3i = u.pos
 	for cell in opts:
@@ -490,7 +520,7 @@ static func flee(e: Encounter, u: Dictionary) -> void:
 		return
 	if not e.turn.can_move():
 		return
-	var budget: int = e.turn.squares_available() + (u.c.stat("MOVE") if e.turn.action_available else 0)
+	var budget: int = e.turn.squares_available() + (e.turn.run_squares() if e.turn.action_available else 0)
 	var opts: Dictionary = e._with_locks(func(): return e.nav.reachable(u.pos, budget, e._blocking(u)))
 	var best: Vector3i = u.pos
 	for cell in opts:
@@ -546,7 +576,7 @@ static func _lead_on(e: Encounter, u: Dictionary, crew: Array, goal: Array) -> v
 	var to_crew: Dictionary = e._with_locks(func(): return e.nav.distance_field(crew.map(func(o): return o.pos), {}, 4000))
 	var opts := e.move_options()
 	if e.turn.action_available:
-		opts.merge(e._with_locks(func(): return e.nav.reachable(u.pos, e.turn.squares_available() + u.c.stat("MOVE"), e._blocking(u))))
+		opts.merge(e._with_locks(func(): return e.nav.reachable(u.pos, e.turn.squares_available() + e.turn.run_squares(), e._blocking(u))))
 		for v in e.occupied(u):
 			opts.erase(v)
 	var best: Vector3i = u.pos
@@ -613,7 +643,7 @@ static func _go_toward(e: Encounter, u: Dictionary, goal: Vector3i) -> void:
 	if not e.turn.can_move():
 		return
 	var field: Dictionary = e._with_locks(func(): return e.nav.distance_field([goal], {}, 4000))
-	var budget: int = e.turn.squares_available() + (u.c.stat("MOVE") if e.turn.action_available else 0)
+	var budget: int = e.turn.squares_available() + (e.turn.run_squares() if e.turn.action_available else 0)
 	var opts: Dictionary = e._with_locks(func(): return e.nav.reachable(u.pos, budget, e._blocking(u)))
 	var best: Vector3i = u.pos
 	for cell in opts:

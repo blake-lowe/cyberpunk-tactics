@@ -1948,6 +1948,7 @@ func secure_cell(target_sid: int, origin: Vector2i, role := "", min_room := 0) -
 ## (Initiative.add keeps the current turn). Returns the units alerted by this call.
 func update_alerts() -> Array:
 	var fresh := []
+	_feel_motion()
 	for g in units:
 		if g.alerted or g.c.dead or not is_guard(g) or not hostile(int(g.team), CREW):
 			continue
@@ -1964,6 +1965,23 @@ func update_alerts() -> Array:
 	_rouse(fresh)
 	_wake_turrets()
 	return fresh
+
+
+## A guard on post with a hand on the wall (Tactile Boost: motion within 20 m, through walls and
+## floors, p.359) feels someone of the crew moving and turns to look that way: the motion has no face,
+## so spotting them is still the usual Perception against Stealth, in sight (_spots).
+func _feel_motion() -> void:
+	for g in units:
+		if g.alerted or g.c.dead or not g.c.touching or not is_guard(g) or not hostile(int(g.team), CREW):
+			continue
+		var reach: float = g.c.sense_range("motion_sense_m")
+		var best: Dictionary = {}
+		for u in alive(CREW):
+			if u.pos != g.pos and moving(u) and Los.distance_m(g.pos, u.pos) <= reach \
+					and (best.is_empty() or Los.distance_m(g.pos, u.pos) < Los.distance_m(g.pos, best.pos)):
+				best = u
+		if not best.is_empty() and best.pos.z == g.pos.z:
+			g.facing = Vector2(best.pos.x - g.pos.x, best.pos.y - g.pos.y).normalized()
 
 
 ## The nearest live camera close enough to tamper with (3 squares, same floor, no wall between).
@@ -2265,6 +2283,8 @@ func _post_guards() -> void:
 			if not far.is_empty():
 				g.patrol = [g.pos, far[dice.d(far.size()) - 1]]
 				g.patrol_i = 1
+		if not g.has("patrol") and g.c.cyber_working("tactile_boost"):   # a guard standing post keeps a hand on the wall (p.359)
+			g.c.touching = true
 
 
 ## Between crew turns, patrolling guards who haven't noticed anything walk up to 3 squares along
@@ -2612,14 +2632,19 @@ func _near_crew(u: Dictionary) -> bool:
 ## Guards carry the keys to their own security doors; the crew needs them hacked or shot open.
 ## Trauma Team gets the site's override with the subscriber's contract (HOUSE-RULE: else a patient
 ## behind a locked door could never be collected).
+## Grip Foot prices their climbs like stairs, Jump Boosters their jumps like walking (p.366: Nav).
 func _with_locks(callable: Callable) -> Variant:
 	var saved := nav.locked
 	if not cur.is_empty() and cur.get("tt", false):
 		nav.locked = {}
 	elif not cur.is_empty() and is_guard(cur):
 		nav.locked = sealed   # a door locked from the NET keeps them out too (NetDevices)
+	nav.climb_free = not cur.is_empty() and cur.c.climbs_free()
+	nav.jump_free = not cur.is_empty() and cur.c.jumps_free()
 	var r: Variant = callable.call()
 	nav.locked = saved
+	nav.climb_free = false
+	nav.jump_free = false
 	return r
 
 
@@ -2644,7 +2669,7 @@ func move_options() -> Dictionary:
 func run_options() -> Dictionary:
 	if cur.is_empty() or turn == null or not _can_run():
 		return {}
-	var budget: int = turn.squares_available() + cur.c.stat("MOVE")
+	var budget: int = turn.squares_available() + turn.run_squares()   # another MOVE; Skate Foot +3 (p.366)
 	var opts: Dictionary = _with_locks(func(): return nav.reachable(cur.pos, budget, _blocking(cur)))
 	for v in occupied(cur):
 		opts.erase(v)
@@ -2665,8 +2690,8 @@ func move_preview(dest: Vector3i, allow_run := true) -> Array[Vector3i]:
 	var p: Array[Vector3i] = _with_locks(func(): return nav.path(cur.pos, dest, _blocking(cur)))
 	if p.is_empty():
 		return out
-	var cost := nav.cost_of(cur.pos, p)
-	var reach: int = turn.squares_available() + (cur.c.stat("MOVE") if allow_run and _can_run() else 0)
+	var cost: int = _with_locks(func(): return nav.cost_of(cur.pos, p))   # Grip Foot prices their climbs
+	var reach: int = turn.squares_available() + (turn.run_squares() if allow_run and _can_run() else 0)
 	if cost > reach:
 		return out
 	out.append(cur.pos)
@@ -2693,11 +2718,11 @@ func move_to(dest: Vector3i, allow_run := false) -> bool:
 	var p: Array[Vector3i] = _with_locks(func(): return nav.path(cur.pos, dest, _blocking(cur)))
 	if p.is_empty():
 		return false
-	var cost := nav.cost_of(cur.pos, p)
+	var cost: int = _with_locks(func(): return nav.cost_of(cur.pos, p))   # Grip Foot prices their climbs
 	var ran := false
 	if cost > turn.squares_available():
 		var avail := turn.squares_available()
-		if not allow_run or not turn.action_available or cost > avail + cur.c.stat("MOVE"):
+		if not allow_run or not turn.action_available or cost > avail + turn.run_squares():
 			return false
 		turn.move(avail)
 		if not turn.run():
@@ -2725,6 +2750,117 @@ func move_to(dest: Vector3i, allow_run := false) -> bool:
 		_drop_run(cur.id, true)
 	_check_end()   # a carrier reaching the extraction point
 	return true
+
+
+# --- Grapple Hand (CPR core p.365) ----------------------------------------------------------
+
+const STOREY_M := 3.0   ## a storey's height for the line's reach (Los.distance_m's 3 m a floor)
+
+
+## Where the Grapple Hand's line can take unit `u` now: {square: movement it costs}. The book: "as an
+## Action, can fire a rocket propelled grapple that will attach securely to any Thick cover up to
+## 30m/yds away", and "the user negates the normal movement penalty for climbing when they climb
+## this line" (p.365). On the grid (HOUSE-RULE, the book has no map rules for it): the hook takes a
+## roof or storey edge above them, the ledge being the Thick cover: a free square on a higher floor
+## beside open air (nothing walkable, no wall, on every floor from theirs up to it), whose foot they
+## see from where they stand under open sky (no ceiling over them up to that floor), within 30 m (2 m
+## a square across, 3 m a storey up). Climbing it costs
+## what walking there would: the squares across plus one a storey, like stairs (no climbing penalty).
+func grapple_targets(u: Dictionary) -> Dictionary:
+	var out := {}
+	var reach: float = u.c.grapple_range_m()
+	if reach <= 0.0:
+		return out
+	var occ := occupied(u)
+	var r := int(reach / TurnState.SQUARE_M)
+	var feet := {}   # open-air columns' feet seen from here: Vector2i -> bool
+	for f in range(u.pos.z + 1, m.floors):
+		if (f - u.pos.z) * STOREY_M > reach or not _open_air(Vector2i(u.pos.x, u.pos.y), u.pos.z + 1, f):
+			break
+		for dy in range(-r, r + 1):
+			for dx in range(-r, r + 1):
+				var t := Vector3i(u.pos.x + dx, u.pos.y + dy, f)
+				if not m.inb(t.x, t.y) or not m.walkable(f, Vector2i(t.x, t.y)) or occ.has(t) or nav.locked.has(t):
+					continue
+				if Vector3(dx * TurnState.SQUARE_M, dy * TurnState.SQUARE_M, (f - u.pos.z) * STOREY_M).length() > reach:
+					continue
+				for d in MapGen.DIRS:
+					var e2 := Vector2i(t.x + d.x, t.y + d.y)
+					if not feet.has(e2):
+						feet[e2] = _line_foot(u, e2)
+					if feet[e2] and _open_air(e2, u.pos.z + 1, f):
+						out[t] = maxi(absi(dx), absi(dy)) + (f - u.pos.z)
+						break
+	return out
+
+
+## The square under a line's way up: their own, or walkable on their floor and in their clear sight.
+func _line_foot(u: Dictionary, p: Vector2i) -> bool:
+	var foot := Vector3i(p.x, p.y, u.pos.z)
+	if foot == u.pos:
+		return true
+	return m.inb(p.x, p.y) and m.walkable_tile(m.t(foot.z, p.x, p.y)) and los.trace(u.pos, foot).clear
+
+
+## Nothing to stand on and no wall at `p` on floors `from`..`to`: the air beside a building's face.
+func _open_air(p: Vector2i, from: int, to: int) -> bool:
+	if not m.inb(p.x, p.y):
+		return false
+	for z in range(from, to + 1):
+		var t := m.t(z, p.x, p.y)
+		if m.walkable_tile(t) or t == TacMap.T.WALL or t == TacMap.T.DOOR:
+			return false
+	return true
+
+
+## Why unit `u` (the active one by default) can't fire the Grapple Hand now ("" if it can).
+func grapple_hand_block(u: Dictionary = {}) -> String:
+	if u.is_empty():
+		u = cur
+	var c: Combatant = u.c
+	if not c.cyber_working("grapple_hand"):
+		return "Chrome offline"
+	if u != cur or turn == null:
+		return "Not their turn"
+	if not turn.action_available:
+		return "No Action left"
+	if c.is_grappling() or c.is_grappled():   # "can't hold anything in this arm's hand" (p.365)
+		return "Hands full"
+	if turn.squares_available() <= 0:
+		return "Can't move"
+	var opts := grapple_targets(u)
+	if opts.is_empty():
+		return "Nothing to hook within 30 m"
+	if opts.values().all(func(cost): return int(cost) > turn.squares_available()):
+		return "Not enough movement"
+	return ""
+
+
+## Fire the Grapple Hand to `dest` (a grapple_targets square) and climb: the Action, then the climb
+## out of the Move Action (p.365); the line comes back free. {ok, reason}.
+func grapple_line(dest: Vector3i) -> Dictionary:
+	var why := grapple_hand_block()
+	if why != "":
+		return {"ok": false, "reason": why}
+	var opts := grapple_targets(cur)
+	if not opts.has(dest):
+		return {"ok": false, "reason": "Pick a roof or ledge within 30 m"}
+	var cost := int(opts[dest])
+	if cost > turn.squares_available():
+		return {"ok": false, "reason": "Not enough movement"}
+	turn.use_action()
+	turn.move(cost)
+	cur.c.touching = false   # HOUSE-RULE: moving lifts the Tactile Boost's hand (as move_to)
+	var from: Vector3i = cur.pos
+	cur.pos = dest
+	events.append({"type": "move", "unit": cur.id, "path": [from, dest], "run": false, "grapple": true})
+	say("%s fires a grapple line and climbs up." % cur.c.display_name)
+	update_alerts()
+	if runs.has(cur.id) and Los.distance_m(dest, _ap_pos(runs[cur.id])) > jack_range(cur.c):
+		say("%s moves out of range and is dumped from the NET." % cur.c.display_name)
+		_drop_run(cur.id, true)
+	_check_end()
+	return {"ok": true}
 
 
 # --- Combat ------------------------------------------------------------------------
@@ -2944,6 +3080,10 @@ func chrome_options(u: Dictionary = {}) -> Array:
 			why = "Not their turn"
 		out.append({"id": "tactile_boost", "name": "TACTILE BOOST", "cost": "FREE", "verb": "LIFT HAND" if c.touching else "HAND DOWN", "on": c.touching,
 			"ok": why == "", "why": why, "line": "Feeling for movement within 20 m. That hand is busy." if c.touching else "Feel for movement within 20 m. Busies a hand; moving lifts it."})
+	if c.has_cyberware("grapple_hand"):   # an Action: a 30 m line to a ledge, climbed with no penalty (p.365)
+		var why := grapple_hand_block(u) if mine else ("Chrome offline" if not c.cyber_working("grapple_hand") else "Not their turn")
+		out.append({"id": "grapple_hand", "name": "GRAPPLE HAND", "cost": "ACTION", "verb": "FIRE LINE", "on": false, "ok": why == "", "why": why,
+			"line": "Pick a roof or ledge within 30 m, then climb the line.", "target": true})
 	if not c.shield_piece().is_empty():
 		var why := c.shield_block()
 		if why == "" and not mine:
@@ -2965,6 +3105,8 @@ func use_chrome(id: String) -> Dictionary:
 		return {"ok": false, "reason": String(opt[0].why)}
 	var c: Combatant = cur.c
 	match id:
+		"grapple_hand":   # it needs a square: grapple_line
+			return {"ok": false, "reason": "Pick a roof or ledge"}
 		"sandevistan":
 			turn.use_action()
 			c.chrome_on[id] = SANDEVISTAN_ROUNDS
@@ -3673,7 +3815,7 @@ func _take_cover(u: Dictionary) -> void:
 	u.erase("suppressed_by")
 	if from.c.dead or not los.sight(from.pos, u.pos).visible:
 		return
-	var reach: Dictionary = _with_locks(func(): return nav.reachable(u.pos, turn.squares_available() + u.c.stat("MOVE"), occupied(u)))
+	var reach: Dictionary = _with_locks(func(): return nav.reachable(u.pos, turn.squares_available() + turn.run_squares(), occupied(u)))
 	var best := Vector3i(-1, -1, -1)
 	var best_d := INF
 	var near := Vector3i(-1, -1, -1)
@@ -3836,8 +3978,9 @@ func _wall_between(a: Vector3i, b: Vector3i) -> bool:
 	return los.wall_between(a, b)
 
 
+## Interface Plugs required (NetRun.jack_block, p.196).
 func jack_in(point: Dictionary) -> bool:
-	if NetRun.interface_rank(cur.c) <= 0 or (not _netting and not turn.action_available):
+	if NetRun.jack_block(cur.c) != "" or (not _netting and not turn.action_available):
 		return false
 	turn.action_available = false   # the turn goes to the NET (p197); jacking in is its first NET Action
 	_netting = true

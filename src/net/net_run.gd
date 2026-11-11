@@ -32,6 +32,19 @@ static func interface_rank(c: Combatant) -> int:
 	return c.role_rank if c.role == "netrunner" else 0
 
 
+## Why `c` can't jack in at all ("" if they can): netrunning takes the Interface Role Ability (p.197),
+## and "to even use a Cyberdeck, you need to plug Interface Plugs into it" (p.196, p.359): a Netrunner
+## without working plugs can't, and plugs don't make anyone else a Netrunner. Player text.
+static func jack_block(c: Combatant) -> String:
+	if interface_rank(c) <= 0:
+		return "Not a Netrunner"
+	if not c.has_cyberware("interface_plugs"):
+		return "Needs Interface Plugs"
+	if not c.cyber_working("interface_plugs"):
+		return "Interface Plugs offline"
+	return ""
+
+
 ## NET Actions per turn by Interface Rank (p197).
 static func net_actions(rank: int) -> int:
 	var n := 0

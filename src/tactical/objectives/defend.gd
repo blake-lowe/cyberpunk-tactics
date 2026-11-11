@@ -300,7 +300,7 @@ func ai_act(u: Dictionary) -> bool:
 		return false
 	if not u.c.weapons.is_empty() and AI._best_shot_value(e, u, u.c.weapons[0]) >= float(cfg.get("rush_below", 2.0)):
 		return false   # a shot worth taking: fight as usual
-	var budget: int = e.turn.squares_available() + u.c.stat("MOVE")
+	var budget: int = e.turn.squares_available() + e.turn.run_squares()
 	var opts: Dictionary = e._with_locks(func(): return e.nav.reachable(u.pos, budget, e._blocking(u)))
 	var best: Vector3i = u.pos
 	var cells: Array = opts.keys()
