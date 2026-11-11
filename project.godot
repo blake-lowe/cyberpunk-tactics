@@ -43,6 +43,14 @@ cut_map={
 "type": "sampler2D",
 "value": ""
 }
+cut_holes={
+"type": "sampler2D",
+"value": ""
+}
+cut_hole_count={
+"type": "int",
+"value": 0
+}
 lf_dims={
 "type": "vec3",
 "value": Vector3(0, 0, 0)

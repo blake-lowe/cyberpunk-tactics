@@ -816,7 +816,7 @@ class ActBtn extends Button:
 		var o := Vector2(w / 2, size.y * (0.4 if tl[0].size() == 1 else 0.27))
 		var r := minf(w, size.y) * (0.17 if tl[0].size() == 1 else 0.12)
 		var kw0 := Hud.F_TERM.get_string_size(key, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
-		if kw0 > 24.0:   # a wide key ("TAB 1/2") sits top right: the glyph moves left of it
+		if kw0 > 24.0 and glyph != "end":   # a wide key ("TAB 1/2") sits top right: the glyph moves left of it (END TURN's tall tile has room under it: centred)
 			o.x = minf(o.x, (w - kw0 - 8.0) / 2.0)
 		match glyph:
 			"shot":
@@ -976,9 +976,9 @@ class ActBtn extends Button:
 				draw_colored_polygon(shp, Color(c, 0.25))
 				shp.append(shp[0])
 				draw_polyline(shp, c, 2.0)
-			"end":
-				draw_colored_polygon(PackedVector2Array([o + Vector2(-r * 1.2, -r), o + Vector2(r * 0.2, 0), o + Vector2(-r * 1.2, r)]), c)
-				draw_colored_polygon(PackedVector2Array([o + Vector2(0, -r), o + Vector2(r * 1.4, 0), o + Vector2(0, r)]), c)
+			"end":   # fast-forward, centred on the tile (its two arrows span -1.3r .. 1.3r)
+				draw_colored_polygon(PackedVector2Array([o + Vector2(-r * 1.3, -r), o + Vector2(r * 0.1, 0), o + Vector2(-r * 1.3, r)]), c)
+				draw_colored_polygon(PackedVector2Array([o + Vector2(-r * 0.1, -r), o + Vector2(r * 1.3, 0), o + Vector2(-r * 0.1, r)]), c)
 		var lines: Array = tl[0]
 		var tf: Font = tl[1]
 		var fs: int = tl[2]

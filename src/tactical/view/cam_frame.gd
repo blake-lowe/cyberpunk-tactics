@@ -98,3 +98,13 @@ static func clip_range(xf: Transform3D, bounds: AABB, ortho: bool) -> Vector2:
 		hi = maxf(hi, d)
 	var far := maxf(hi + CLIP_PAD, PERSP_NEAR + 1.0)
 	return Vector2(minf(lo - CLIP_PAD, far - 1.0) if ortho else PERSP_NEAR, far)
+
+
+const BOUNDS_FIT_AREA := 0.6   ## a focused building covering more of the view than this fills it
+
+
+## Whether a focused building's screen bounds `b` frame it usefully inside the view `screen` (the
+## focus brackets, greybox._draw_focus_brackets): wholly on screen, with room round it. One that
+## fills the view or runs off it gets the brackets only as a flash on focusing.
+static func bounds_fit(b: Rect2, screen: Rect2) -> bool:
+	return screen.encloses(b) and b.get_area() <= screen.get_area() * BOUNDS_FIT_AREA
