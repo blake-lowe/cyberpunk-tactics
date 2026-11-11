@@ -515,13 +515,8 @@ func install_cyberware(cyber_id: String, dice: Dice = null, at_creation: bool = 
 		chips_used.append(spec)
 	if fx.has("armor_sp") and (subdermal.is_empty() or int(fx["armor_sp"]) > (subdermal["body"] as ArmorPiece).max_sp):
 		_set_subdermal(cyber_id)   # only the highest SP counts (p184)
-	if fx.has("weapon"):   # built-in melee weapons (Wolvers, Big Knucks...): keep the hardest-hitting one
-		var nw := _builtin_weapon(fx)
-		var melee := weapons.filter(func(x): return x.is_melee() and x.popup == "")
-		if melee.all(func(x): return x.dice() < nw.dice() or not x.builtin):
-			for old in melee:
-				weapons.erase(old)
-			weapons.append(nw)
+	if fx.has("weapon") and not weapons.any(func(x): return x.chrome == cyber_id):
+		weapons.append(chrome_weapon(cyber_id))   # built-in melee (Wolvers, Big Knucks...): one each, beside what's carried
 	var loss := 0
 	if tracks_humanity and int(d.get("hl_flat", 0)) > 0:
 		loss = int(d["hl_flat"]) if at_creation or dice == null else roll_hl(dice, d["hl_dice"])
@@ -533,10 +528,53 @@ func install_cyberware(cyber_id: String, dice: Dice = null, at_creation: bool = 
 	return loss
 
 
-static func _builtin_weapon(fx: Dictionary) -> Weapon:
+## The melee weapon a piece of cyberware is (its fx `weapon`: Wolvers a Heavy Melee Weapon, CPR core
+## p.364-367), named for the piece so the attack menu says "Wolvers". Every installed weapon piece
+## gives its own (two kinds of claws are two weapons to pick from), none for two of the same piece.
+static func chrome_weapon(cyber_id: String) -> Weapon:
+	var fx: Dictionary = Cyber.def(cyber_id).get("fx", {})
 	var w := Weapon.from_id(String(fx["weapon"]), String(fx.get("weapon_quality", "standard")))   # Vampyres: Excellent (p.363)
+	w.def = w.def.duplicate(true)
+	w.def["name"] = Cyber.display(cyber_id)
 	w.builtin = true
+	w.chrome = cyber_id
 	return w
+
+
+## from_dict: each saved built-in melee weapon (a null placeholder in `weapons`, in its saved
+## order) comes back as its piece's chrome_weapon: by its `chrome` id, or for an older save by the
+## weapon id an installed piece gives. Then every installed weapon piece without one gets it (an
+## older save kept only the hardest-hitting). Placeholders nothing matches are dropped.
+func _rebuild_chrome_weapons(saved: Array) -> void:
+	var pieces: Array[String] = []
+	for cid in cyber_ids():
+		if (Cyber.def(cid).get("fx", {}) as Dictionary).has("weapon") and not cid in pieces:
+			pieces.append(cid)
+	var used := {}
+	var k := 0
+	for i in weapons.size():
+		if weapons[i] != null:
+			continue
+		var wd: Dictionary = saved[k]
+		k += 1
+		var pick := String(wd.get("chrome", ""))
+		if pick == "" or not pick in pieces or used.has(pick):
+			pick = ""
+			for cid in pieces:
+				if not used.has(cid) and String(Cyber.def(cid).fx.weapon) == String(wd.id):
+					pick = cid
+					break
+		if pick != "":
+			used[pick] = true
+			weapons[i] = chrome_weapon(pick)
+		else:   # built in some other way (a stat block's printed weapon): as saved
+			var w := Weapon.from_id(String(wd.id), String(wd.get("quality", "standard")))
+			w.ammo = int(wd.get("ammo", w.ammo))
+			w.builtin = true
+			weapons[i] = w
+	for cid in pieces:
+		if not used.has(cid):
+			weapons.append(chrome_weapon(cid))
 
 
 func _set_subdermal(cyber_id: String) -> void:
@@ -649,7 +687,7 @@ func mend_subdermal(days: int) -> void:
 
 ## Take a piece out (a Medtech's harvest, CPR core p226: the piece doesn't survive it in this game,
 ## see Campaign.remove): the one at `loc`, or the last one installed. What it gave goes with it:
-## subdermal armour, a built-in weapon (the next hardest-hitting one left takes its place), a STAT
+## subdermal armour, its built-in weapon (unless another of the same piece is still in), a STAT
 ## bonus (HP over the new maximum is lost). Humanity lost to it is not given back: the book returns
 ## Humanity only through therapy (p229-230). The cap it took (2, Borgware 4, p230) comes back so
 ## therapy can restore it (RULES-UNVERIFIED: p230 doesn't say whether the cap recalculates on
@@ -676,17 +714,8 @@ func remove_cyberware(cyber_id: String, loc: String = "") -> bool:
 			subdermal.clear()
 			if best != "":
 				_set_subdermal(best)
-	if fx.has("weapon"):
-		weapons.assign(weapons.filter(func(w): return not w.builtin or w.popup != ""))
-		var bw: Weapon = null
-		for cid in cyber_ids():
-			var ofx: Dictionary = Cyber.def(cid).get("fx", {})
-			if ofx.has("weapon"):
-				var nw := _builtin_weapon(ofx)
-				if bw == null or nw.dice() > bw.dice():
-					bw = nw
-		if bw:
-			weapons.append(bw)
+	if fx.has("weapon") and not has_cyberware(cyber_id):
+		weapons.assign(weapons.filter(func(w): return w.chrome != cyber_id))
 	if tracks_humanity and int(d.get("hl_flat", 0)) > 0:
 		max_humanity += 4 if d.get("borgware", false) else 2
 	hp = mini(hp, max_hp())
@@ -966,7 +995,7 @@ func to_dict() -> Dictionary:
 		sub[loc] = _armor_dict(subdermal[loc])
 	return {"id": id, "name": display_name, "real_name": real_name, "team": team, "faction": faction, "stats": stats, "skills": skills, "hp": hp, "armor": arm,
 		"subdermal": sub, "injuries": injuries, "base_dsp": base_dsp, "dsp": dsp, "dead": dead, "unconscious": unconscious,
-		"weapons": weapons.map(func(w): return {"id": w.id(), "ammo": w.ammo, "builtin": w.builtin, "quality": w.quality, "popup": w.popup}), "role": role,
+		"weapons": weapons.map(func(w): return {"id": w.id(), "ammo": w.ammo, "builtin": w.builtin, "quality": w.quality, "popup": w.popup, "chrome": w.chrome}), "role": role,
 		"role_rank": role_rank, "awareness": awareness, "tracks_humanity": tracks_humanity, "humanity": humanity,
 		"max_humanity": max_humanity, "cyberware": implants, "ip": ip, "look_seed": look_seed, "perks": perks, "medicine": medicine, "maker": maker, "downtime": downtime, "deck": deck, "programs": programs,
 		"deck_hardware": deck_hardware, "backup": backup, "kit": kit, "addictions": addictions, "clean_since": clean_since, "reputation": reputation, "chips_used": chips_used}
@@ -996,13 +1025,17 @@ static func from_dict(d: Dictionary) -> Combatant:
 	c.dead = bool(d.dead)
 	c.unconscious = bool(d.unconscious)
 	var popups := {}   # popup weapons are rebuilt from their pieces below (Cyber.popup_weapon)
+	var chrome_saved: Array = []   # built-in melee: rebuilt from their pieces (chrome_weapon) where they were
 	for wd in d.weapons:
 		if String(wd.get("popup", "")) != "":
 			popups[String(wd.popup)] = int(wd.ammo)
 			continue
+		if bool(wd.get("builtin", false)):   # chrome melee: rebuilt from the pieces below, in this place
+			c.weapons.append(null)
+			chrome_saved.append(wd)
+			continue
 		var w := Weapon.from_id(String(wd.id), String(wd.get("quality", "standard")))
 		w.ammo = int(wd.ammo)
-		w.builtin = bool(wd.get("builtin", false))
 		c.weapons.append(w)
 	c.role = String(d.role)
 	c.role_rank = int(d.role_rank)
@@ -1028,6 +1061,7 @@ static func from_dict(d: Dictionary) -> Combatant:
 		if pw:
 			pw.ammo = int(popups.get(pw.popup, pw.mag()))
 			c.weapons.append(pw)
+	c._rebuild_chrome_weapons(chrome_saved)
 	for s in d.get("chips_used", []):
 		c.chips_used.append(String(s))
 	c.ip = int(d.get("ip", 0))

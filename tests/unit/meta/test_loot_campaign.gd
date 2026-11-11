@@ -23,7 +23,7 @@ func test_finds_go_into_storage_the_wallet_and_the_lead_list() -> void:
 	e.loot.append({"by": by, "by_name": "Vex", "from": "Guard 2", "kind": "item", "items": {"drugs/synthcoke": 3}, "label": "bottle of Synthcoke"})
 	e.loot.append({"by": by, "by_name": "Vex", "from": "Guard 3", "kind": "lead", "hook": "heist", "label": "heist plans chip"})
 	e.loot.append({"by": by, "by_name": "Vex", "from": "Guard 4", "kind": "nothing", "label": "nothing worth taking"})
-	e.surrendered = 2
+	e.hid = 2
 	e.fled = 1
 	var before := c.stored("drugs/synthcoke")
 	var r := c.resolve(e)
@@ -36,7 +36,7 @@ func test_finds_go_into_storage_the_wallet_and_the_lead_list() -> void:
 	assert_eq(int(c.leads[0].day), 1, "the day it was found")
 	assert_eq((r.loot as Array).size(), 3, "the debrief lists the finds (empty pockets aren't news)")
 	assert_eq((r.leads as Array).size(), 1)
-	assert_eq(int(r.surrendered), 2, "the debrief counts who gave up")
+	assert_eq(int(r.hid), 2, "the debrief counts who hid")
 	assert_eq(int(r.fled), 1, "and who ran")
 
 

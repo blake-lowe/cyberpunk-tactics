@@ -1036,7 +1036,7 @@ func favour_index(kind: String) -> int:
 ## What the crew found on bodies and brought home (CorpseLoot.kept): items into storage, eb into
 ## the wallet, leads onto the lead list. The report gains loot ({label, text, kind, by, from}
 ## per find kept), loot_eb, loot_lost (finds left behind), leads (the new ones), and the Morale
-## counts surrendered and fled.
+## counts hid and fled.
 func _take_loot(e: Encounter, gig: Dictionary, report: Dictionary) -> void:
 	var kept := CorpseLoot.kept(e)
 	var lines: Array = []
@@ -1064,7 +1064,7 @@ func _take_loot(e: Encounter, gig: Dictionary, report: Dictionary) -> void:
 	report["loot_lost"] = e.loot.filter(func(f): return String(f.kind) in ["eb", "item", "lead"]).size() - kept.size()
 	report["leads"] = new_leads
 	var mc := e.morale_counts()
-	report["surrendered"] = int(mc.surrendered)
+	report["hid"] = int(mc.hid)
 	report["fled"] = int(mc.fled)
 	if not lines.is_empty():
 		say("Found on bodies: %s." % ", ".join(kept.map(func(x): return CorpseLoot.describe(x))))

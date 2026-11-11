@@ -1,7 +1,7 @@
 class_name DebriefScreen
 extends SafehouseScreen
 ## After a gig, before the safehouse: how it went (pay, Improvement Points, the Reputation the deed
-## earned, CPR core p193 and p410; who surrendered or fled, SPM p.20-21) and, per crew member, what it cost them (Critical Injuries, Wound
+## earned, CPR core p193 and p410; who fled or hid, SPM p.20-21) and, per crew member, what it cost them (Critical Injuries, Wound
 ## State, consumables used, a new addiction, Humanity, death; the fallen's LOST GEAR one item a line),
 ## then what the crew found on bodies and the leads among it (CorpseLoot, SPM p.65-70). CONTINUE goes to the safehouse; the
 ## room screens' crew cards keep the marks until the next gig (Campaign.marks_for).
@@ -47,8 +47,8 @@ func build_body(body: VBoxContainer) -> void:
 		_sum(sums, "FIXER", String(gig.fixer), Hud.TEXT)
 	if int(report.get("loot_eb", 0)) > 0:
 		_sum(sums, "FOUND ON BODIES", "+%s eb" % UiKit.money(int(report.loot_eb)), Hud.GOLD)
-	if int(report.get("surrendered", 0)) > 0 or int(report.get("fled", 0)) > 0:
-		_sum(sums, "SURRENDERED · FLED", "%d · %d" % [int(report.get("surrendered", 0)), int(report.get("fled", 0))], Hud.TEXT)
+	if int(report.get("fled", 0)) > 0 or int(report.get("hid", 0)) > 0:
+		_sum(sums, "FLED · HID", "%d · %d" % [int(report.get("fled", 0)), int(report.get("hid", 0))], Hud.TEXT)
 	if String(report.get("focus_line", "")) != "":   # what became of the focus (SPM p.73)
 		tv.add_child(UiKit.body(String(report.focus_line), 16, Hud.TEXT if report.get("won", false) else Hud.DIM))
 	var twist := twist_line(report)

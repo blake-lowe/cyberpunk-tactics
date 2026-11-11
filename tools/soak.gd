@@ -52,7 +52,7 @@ func _initialize() -> void:
 	print("sides: %s" % JSON.stringify(d.stats.sides))
 	print("neutral ground %d (peace broken %d)" % [d.stats.neutral, d.stats.peace_broken])
 	print("complications %d, utility outages %d, turrets %d, held-turret shots %d, NET device ops %d" % [d.stats.complications, d.stats.utilities, d.stats.turret_units, d.stats.turret_shots, d.stats.device_ops])
-	print("morale: %d surrendered, %d fled; bodies searched %d, finds %s, leads %d" % [d.stats.surrendered, d.stats.fled_units, d.stats.searched, JSON.stringify(d.stats.finds), d.stats.leads])
+	print("morale: %d fled, %d hid; bodies searched %d, finds %s, leads %d" % [d.stats.fled_units, d.stats.hid, d.stats.searched, JSON.stringify(d.stats.finds), d.stats.leads])
 	print("twists: %d of %d offers (%.0f%%); armed on %d gigs, sprung %s" % [d.stats.offers_twisted, d.stats.offers_seen,
 		100.0 * d.stats.offers_twisted / maxf(1.0, d.stats.offers_seen), d.stats.twists_armed, JSON.stringify(d.stats.twists_sprung)])
 	print("scene events: %d of %d gigs (%.0f%%) %s; %.1f bystanders a gig" % [d.stats.street_gigs, d.stats.gigs, 100.0 * d.stats.street_gigs / maxf(1.0, d.stats.gigs),

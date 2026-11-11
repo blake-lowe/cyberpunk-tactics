@@ -5,6 +5,9 @@ extends RefCounted
 var def: Dictionary
 var ammo: int
 var builtin := false   ## part of installed cyberware (Wolvers, Big Knucks): never sold or swapped out
+## The cyberware piece a built-in melee weapon is (Cyber id: "wolvers", "big_knucks"), "" for any
+## other weapon (a popup's is `popup`). Named for the piece ("Wolvers"), not its class.
+var chrome := ""
 ## The popup piece holding it (Cyber.key: "popup_ranged_weapon@right_arm:heavy_pistol"), "" if none
 ## (Cyber.popup_weapon). Concealed without a Check and drawn or stowed without an Action (CPR core
 ## p.360, p.365): nobody sees it until it's used (`revealed`, set by its first attack). Not saved:

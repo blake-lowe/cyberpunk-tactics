@@ -2,13 +2,17 @@ class_name TitleScreen
 extends Control
 ## The title screen (scenes/title.tscn, the main scene): New Game, Load Game, Options, Credits,
 ## Quit; and, with `pause` set, the safehouse's Esc menu over the base view (Resume, Save, Load,
-## Title, Quit). Save slots: SaveSlots / Campaign.slot. Options: GameSettings.
+## Options, Title, Quit), or with `in_gig` too the gig's Esc menu over the tactical view (Resume,
+## Options, Title, Quit: a gig is never saved half-played, SaveSlots). Save slots: SaveSlots /
+## Campaign.slot. Options: GameSettings.
 ## Keyboard: arrows / Tab move, Enter picks, Esc goes back. Mouse: hover highlights what Enter picks.
 
 const BASE := "res://scenes/base.tscn"
 const TITLE := "res://scenes/title.tscn"
 
 var pause := false        ## the safehouse's Esc menu rather than the title screen
+var in_gig := false       ## pause: the gig's Esc menu (greybox), not the safehouse's
+var board_gig := false    ## in_gig: a campaign gig, which leaving puts back on the board (says so)
 var camp: Campaign        ## pause: the running campaign
 var page := ""
 var _box: VBoxContainer   ## the current page's contents
@@ -42,6 +46,8 @@ func _ready() -> void:
 	m.add_child(col)
 	if pause:
 		col.add_child(UiKit.head("Paused", 48, Hud.CYAN))
+		if in_gig and board_gig:
+			col.add_child(UiKit.label("Leaving now drops this gig: it waits on the board.", 16, Hud.DIM))
 	else:
 		var t := UiKit.vbox(-30)
 		t.add_child(UiKit.head("Cyberpunk", 84, Hud.CYAN))
@@ -61,7 +67,7 @@ func _ready() -> void:
 		var k := a.trim_prefix("--").get_slice("=", 0)
 		match k:
 			"shot": _shot_path = a.get_slice("=", 1)
-			"page": open = a.get_slice("=", 1)
+			"page": open = a.get_slice("=", 1) if not pause else open
 			"slots-dir": SaveSlots.dir = a.get_slice("=", 1)
 	show_page(open)
 
@@ -98,10 +104,13 @@ func show_page(p: String) -> void:
 
 func _main() -> Control:
 	var items: Array = []
-	if pause:
+	if pause and in_gig:   # mid-gig: nothing to save (the slot holds the campaign from before the gig)
+		items = [["Resume", UiKit.PRIMARY, close, true], ["Options", UiKit.NAV, show_page.bind("options"), true],
+			["Title", UiKit.NAV, _to_title, true], ["Quit", UiKit.DANGER, _quit, true]]
+	elif pause:
 		var demo := camp == null or camp.has_meta("demo")
 		items = [["Resume", UiKit.PRIMARY, close, true], ["Save", UiKit.NAV, show_page.bind("save"), not demo],
-			["Load", UiKit.NAV, show_page.bind("load"), SaveSlots.any_used()],
+			["Load", UiKit.NAV, show_page.bind("load"), SaveSlots.any_used()], ["Options", UiKit.NAV, show_page.bind("options"), true],
 			["Title", UiKit.NAV, _to_title, true], ["Quit", UiKit.DANGER, _quit, true]]
 	else:
 		items = [["New Game", UiKit.PRIMARY, show_page.bind("new"), true],

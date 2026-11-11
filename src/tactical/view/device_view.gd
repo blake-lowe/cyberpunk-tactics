@@ -264,6 +264,29 @@ func _ir_ring(parent: Node3D, at: Vector3) -> void:
 		dot.name = "ir_dot_%d" % i
 
 
+var outlined := -1   ## the device id outlined now (-1 none): what the hovered bar action works on
+
+
+## Outline one device in the units' outline style (CharModel.outline_material: an inverted hull a
+## few pixels wide), -1 for none: the camera DISABLE CAMERA or SPOOF would work on, while its
+## button is hovered (greybox).
+func set_outline(id: int, col := Color("f9c80e")) -> void:
+	if id == outlined:
+		return
+	if _roots.has(outlined):
+		_outline_meshes(_roots[outlined], null)
+	outlined = id
+	if _roots.has(id):
+		_outline_meshes(_roots[id], CharModel.outline_material(col))
+
+
+func _outline_meshes(n: Node, mat: Material) -> void:
+	for ch in n.get_children():
+		if ch is MeshInstance3D and (ch as MeshInstance3D).material_override is BaseMaterial3D:
+			((ch as MeshInstance3D).material_override as BaseMaterial3D).next_pass = mat
+		_outline_meshes(ch, mat)
+
+
 func _box(parent: Node3D, size: Vector3, pos: Vector3, col: Color) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	var bm := BoxMesh.new()

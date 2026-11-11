@@ -31,7 +31,7 @@ var failures: Array[String] = []
 var trace: Array[String] = []
 var stats := {"gigs": 0, "won": 0, "fled": 0, "lost": 0, "rounds": 0, "turret_units": 0, "turret_shots": 0, "device_ops": 0,
 	"complications": 0, "utilities": 0, "neutral": 0, "peace_broken": 0, "setpieces": {}, "towers": {}, "sides": {}, "kinds": {}, "offers": {}, "looks": {},
-	"surrendered": 0, "fled_units": 0, "searched": 0, "finds": {}, "leads": 0,
+	"hid": 0, "fled_units": 0, "searched": 0, "finds": {}, "leads": 0,
 	"offers_seen": 0, "offers_twisted": 0, "twists_armed": 0, "twists_sprung": {}, "clock_gigs": 0, "clock_empty": 0, "clock_rolls": 0,
 	"clock_reclaimed": 0, "clock_escalated": 0, "alarm_gigs": 0, "street_gigs": 0, "streets": {}, "civs": 0}
 var _offers_seen := {}    ## offer ids counted for the twist rate
@@ -539,27 +539,35 @@ func _search(e: Encounter) -> void:
 			_fail("a find no storage takes: %s" % k, "loot-key")
 
 
-## Morale and loot at the end of a gig: those who gave up are nobody's enemy and out of the turn
-## order, those who ran are off the map, and what came home is in the report and the lead list.
+## Morale and loot at the end of a gig: those who hide keep out of the way, those who ran are off
+## the map, and what came home is in the report and the lead list.
 func _check_loot(camp: Campaign, e: Encounter, rep: Dictionary) -> void:
 	for u in e.units:
 		match String(u.get("broke", "")):
-			"surrender":
-				if e.hostile(Encounter.CREW, int(u.team)) or e.init.order().has(u.c):
-					_fail("%s surrendered but still fights" % u.c.display_name, "surrender")
+			"hide":
+				if not u.c.dead and u.c.can_act() and int(u.get("hide_turns", 0)) >= 2 and AI.in_the_way(e, u.pos) and _hide_way_out(e, u):
+					_fail("%s hides in the way (%s)" % [u.c.display_name, u.pos], "hide-in-way")
 			"flee":
 				if u.get("fled", false) and not u.c.dead:
 					_fail("%s fled but is still on the map" % u.c.display_name, "fled")
 		if u.has("broke") and e.opfor().has(u):
 			_fail("%s broke but counts as opposition" % u.c.display_name, "broke-opfor")
-	stats.surrendered += e.surrendered
+	stats.hid += e.hid
 	stats.fled_units += e.fled
-	if int(rep.get("surrendered", -1)) != e.surrendered or int(rep.get("fled", -1)) != e.fled:
+	if int(rep.get("hid", -1)) != e.hid or int(rep.get("fled", -1)) != e.fled:
 		_fail("the debrief's morale counts differ", "morale-report")
 	var nl := (rep.get("leads", []) as Array).size()
 	stats.leads += nl
 	if camp.leads.size() < nl:
 		_fail("leads went missing", "leads")
+
+
+## Could a hiding unit have got out of the way: a square off the ways within its move that
+## nobody stands on? (Packed rooms and dead ends can leave nowhere to go: not a failure.)
+func _hide_way_out(e: Encounter, u: Dictionary) -> bool:
+	var occ := e.occupied(u)
+	var opts: Dictionary = e._with_locks(func(): return e.nav.reachable(u.pos, u.c.stat("MOVE"), e._blocking(u)))
+	return opts.keys().any(func(v): return v.z == u.pos.z and not occ.has(v) and not AI.in_the_way(e, v))
 
 
 ## The objective's action if it's offered (grab, free, plant). True if one was taken.
@@ -576,7 +584,7 @@ func _obj_step(e: Encounter) -> bool:
 func _step_toward(e: Encounter, u: Dictionary, goal: Array) -> void:
 	if not e.turn.can_move():
 		return
-	var field: Dictionary = e._with_locks(func(): return e.nav.distance_field(goal, e._blocking(u), 4000))   # round whoever stands in the way (a surrendered guard in a doorway)
+	var field: Dictionary = e._with_locks(func(): return e.nav.distance_field(goal, e._blocking(u), 4000))   # round whoever stands in the way (a guard in a doorway)
 	var best: Vector3i = u.pos
 	var best_d := int(field.get(u.pos, 99999))
 	var opts := e.move_options()

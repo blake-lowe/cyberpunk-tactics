@@ -95,6 +95,7 @@ var _spot_rolls := {}               ## [guard id, crew id, round] → result: on
 var jack_pos := {}                  ## runner unit id → the square of the device they jacked in at
 var disabled_devices := {}          ## device id → true: off for the site (a camera killed, looped or out of power; a lock opened)
 var looped := {}                    ## camera device id → runner unit id: its feed looped from the NET (NetDevices)
+var cam_flagged := {}               ## camera device id → {crew unit id: true}: who that camera has caught once (_camera_spots)
 var sealed := {}                    ## door cell → true: locked from the NET; the guards' keys don't open it (NetDevices)
 var _net_doors := {}                ## door cell → [runner unit id, locked before the NET touched it]
 var dev_state := {}                 ## device id → runner unit id: a device switched from the NET (a seal, an alarm line cut)
@@ -104,7 +105,7 @@ var turret_side := -1               ## the site's automated turrets (Turret); -1
 var _crew_turret_side := -1         ## turrets a Netrunner holds; -1 until one does
 var _gunner: Combatant = null       ## who aims this attack when not `cur` itself: a Netrunner firing a held turret (fire_turret)
 var morale := true                  ## NPCs break at stress points (Morale, SPM p.20-21); balance tests may switch it off
-var surrendered := 0                ## units that gave up this gig (Morale): the debrief counts them
+var hid := 0                        ## units that broke and hid this gig (Morale): the debrief counts them
 var fled := 0                       ## units that ran off the map this gig (Morale)
 var loot: Array[Dictionary] = []    ## what the crew found on bodies (CorpseLoot.search): {body, by, table, roll, label, kind, items, eb, lead, keycard, net_code}
 var login_codes := 0                ## NET login codes found on bodies: each opens one Password (firewall) on this site's NET without a roll (HOUSE-RULE)
@@ -428,8 +429,6 @@ func add_side(faction: String, ai: String, opfor: bool, extra: Dictionary = {}) 
 			r = "neutral" if _spares(side, o) or _spares(sides[o], t) else "hostile"
 		if (o == CREW and opfor) or (t == CREW and bool(sides[o].opfor)):
 			r = "hostile"
-		if o != t and (ai == "surrendered" or String(sides[o].ai) == "surrendered"):
-			r = "neutral"   # out of the fight (Morale): nobody's enemy, nobody's friend
 		_rel[Vector2i(t, o)] = r
 		_rel[Vector2i(o, t)] = r
 	return t
@@ -503,7 +502,7 @@ func faction_of(u: Dictionary) -> String:
 
 ## The opposition still standing: what "put every guard down" means (the gig's guards, their
 ## backup, and police or MaxTac who join in against the crew). Those who broke (Morale: running
-## for the edge, or surrendered onto a side of their own) don't count.
+## for the edge, or hiding out of the way) don't count.
 func opfor() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	for u in units:
@@ -583,6 +582,10 @@ func next_turn() -> void:
 				_take_cover(cur)
 			if String(cur.get("broke", "")) == "flee":   # broke at a stress point (Morale): runs for the edge
 				AI.flee(self, cur)
+				end_turn()
+				continue
+			if String(cur.get("broke", "")) == "hide":   # broke with no way out (Morale): keeps out of the way
+				AI.hide(self, cur)
 				end_turn()
 				continue
 			if String(sides[cur.team].ai) == "trauma":
@@ -1106,7 +1109,7 @@ func _hand_out_keycards() -> void:
 		g.erase("_score")
 
 
-## A downed (or surrendered: Morale) guard next to `u` still holding a keycard.
+## A downed guard next to `u` still holding a keycard.
 func keycard_in_reach(u: Dictionary) -> Dictionary:
 	for g in units:
 		if g.has("keycard") and _searchable_state(g) and adjacent(u.pos, g.pos) and g.pos.z == u.pos.z:
@@ -1114,11 +1117,11 @@ func keycard_in_reach(u: Dictionary) -> Dictionary:
 	return {}
 
 
-## Down (dead, out cold, Mortally Wounded) or surrendered, and still on the map.
+## Down (dead, out cold, Mortally Wounded), and still on the map.
 func _searchable_state(g: Dictionary) -> bool:
 	if _off_map(g) or g.get("carried", false):
 		return false
-	return g.c.dead or g.c.unconscious or g.c.wound_state() == Combatant.Wound.MORTAL or String(g.get("broke", "")) == "surrender"
+	return g.c.dead or g.c.unconscious or g.c.wound_state() == Combatant.Wound.MORTAL
 
 
 ## Take a keycard off a downed guard (an Action): every lock of that zone or below opens.
@@ -1152,8 +1155,8 @@ func _open_zone(z: int) -> int:
 # --- Searching bodies (CorpseLoot: SPM p.65-70) ------------------------------------------------
 
 ## Whose pockets the crew may go through: anyone not on the crew's side who isn't a bystander,
-## a captive or a turret, once they're down (dead, out cold, Mortally Wounded) or have surrendered
-## (Morale), and still on the map. Once per body.
+## a captive or a turret, once they're down (dead, out cold, Mortally Wounded), and still on the
+## map. Once per body.
 func searchable(g: Dictionary) -> bool:
 	if g.has("turret") or g.get("civ", false) or g.get("captive", false) or g.get("searched", false):
 		return false
@@ -1242,37 +1245,6 @@ func withdraw() -> bool:
 
 # --- Morale (Morale: SPM p.20-21) ----------------------------------------------------------
 
-## `u` gives up (Morale.sweep). It moves to a side of its own for its faction, neutral to
-## everyone (add_side), so hostile AI leaves it be and it no longer counts as opposition; it
-## drops its weapons (there are no items on the ground, so it is just disarmed: `dropped` keeps
-## their keys for the view; a weapon built into its chrome stays, unused), lets go of anyone it
-## holds and leaves the Initiative order. The crew can still shoot it, a choice the attack preview
-## points out (`surrendered` in preview). A keycard it carries can be taken (keycard_in_reach)
-## and it can be searched (search_body).
-func surrender(u: Dictionary, why := "", roll := 0, thr := 0) -> void:
-	_drop_carried_patient(u)
-	u["broke"] = "surrender"
-	u["side0"] = int(u.team)
-	var t := side_for(faction_of(u), "surrendered", false)
-	u.team = t
-	u.c.team = t
-	var dropped: Array = []
-	for w in u.c.weapons.duplicate():
-		if not w.builtin:
-			dropped.append(Items.key_of_weapon(w))
-			u.c.weapons.erase(w)
-	u["dropped"] = dropped
-	var g: Grapple = u.c.grapple
-	if g != null and g.holder == u.c:
-		g.end()
-	u.erase("suppressed_by")
-	u.erase("hold")
-	init.remove(u.c)
-	surrendered += 1
-	events.append({"type": "morale", "unit": u.id, "result": "surrender", "why": why, "roll": roll, "threshold": thr})
-	say("%s surrenders (morale %d vs %d: %s)." % [u.c.display_name, roll, thr, Morale.why_text(why)])
-
-
 ## `u` breaks and runs (Morale.sweep): from its next turn it heads for the nearest way off the map
 ## (AI.flee) and is gone there (flee_out). It stays on its side, so the crew can still shoot it,
 ## but it no longer fights back or counts as opposition (opfor, foes). A sniper leaves its nest.
@@ -1285,6 +1257,26 @@ func start_flight(u: Dictionary, why := "", roll := 0, thr := 0) -> void:
 		g.end()
 	events.append({"type": "morale", "unit": u.id, "result": "flee", "why": why, "roll": roll, "threshold": thr})
 	say("%s breaks and runs (morale %d vs %d: %s)." % [u.c.display_name, roll, thr, Morale.why_text(why)])
+
+
+## `u` breaks with no way off the map (Morale.sweep; or a runner whose way out is cut, AI.flee):
+## it stops fighting and keeps out of the way (AI.hide: off doorways, stairs and 1-wide ways, away
+## from the crew). Like a runner it stays on its side, so the crew can still shoot it, but it never
+## fights back and no longer counts as opposition (opfor, foes).
+func start_hiding(u: Dictionary, why := "", roll := 0, thr := 0) -> void:
+	var was := String(u.get("broke", ""))
+	_drop_carried_patient(u)
+	u["broke"] = "hide"
+	u.erase("hold")
+	var g: Grapple = u.c.grapple
+	if g != null and g.holder == u.c:
+		g.end()
+	hid += 1
+	events.append({"type": "morale", "unit": u.id, "result": "hide", "why": why, "roll": roll, "threshold": thr})
+	if was == "flee":
+		say("%s has nowhere left to run and hides." % u.c.display_name)
+	else:
+		say("%s breaks and hides (morale %d vs %d: %s)." % [u.c.display_name, roll, thr, Morale.why_text(why)])
 
 
 ## A fleeing unit reached the edge: gone, unharmed (like a bystander who ran, `fled`). HOUSE-RULE
@@ -1311,10 +1303,10 @@ func _drop_carried_patient(u: Dictionary) -> void:
 		tt.carrier = -1
 
 
-## Who broke this gig, for the debrief: {surrendered, fled} (fleeing units still on the map count
-## as neither until they're gone).
+## Who broke this gig, for the debrief: {hid, fled} (fleeing units still on the map count as
+## neither until they're gone; one that ran and then had to hide counts as hiding).
 func morale_counts() -> Dictionary:
-	return {"surrendered": surrendered, "fled": fled}
+	return {"hid": hid, "fled": fled}
 
 
 # --- Objective helpers ------------------------------------------------------------------------
@@ -1986,31 +1978,38 @@ func _feel_motion() -> void:
 			g.facing = Vector2(best.pos.x - g.pos.x, best.pos.y - g.pos.y).normalized()
 
 
-## The nearest live camera close enough to tamper with (3 squares, same floor, no wall between).
+## The nearest live camera close enough to disable by hand: on its square or beside it
+## (CAMERA_REACH, same floor, no wall between). Countering a device is hands-on work at it (CPR
+## core p.212-213: no range is given for countering, unlike controlling a countered Defense
+## remotely, 6 m from an access point with an Agent); SPOOF uses the same reach (clocks.json).
 func camera_in_reach(u: Dictionary) -> Dictionary:
 	var best := {}
+	var bd := 99
 	for d in m.devices:
 		if String(d.type) != "camera" or disabled_devices.has(d.id) or int(d.floor) != u.pos.z:
 			continue
 		var cp := Vector3i(d.pos.x, d.pos.y, d.floor)
-		if maxi(absi(cp.x - u.pos.x), absi(cp.y - u.pos.y)) <= 3 and not _wall_between(u.pos, cp):
+		var dist := maxi(absi(cp.x - u.pos.x), absi(cp.y - u.pos.y))
+		if dist <= CAMERA_REACH and dist < bd and not _wall_between(u.pos, cp):
 			best = d
+			bd = dist
 	return best
 
 
-## Kill a camera by hand (p209): an Action, TECH + Electronics/Security Tech vs DV13. A fail
-## leaves it running.
+## Disable a camera by hand (DISABLE CAMERA): an Action, TECH + Electronics/Security Tech vs DV9,
+## the book's DV to counter Observation Cameras (CPR core p.213). A fail leaves it running and is a
+## failed Electronics/Security Tech check (the detection clock rolls, SPM p.25).
 func tamper_camera() -> Dictionary:
 	var d := camera_in_reach(cur)
 	if d.is_empty():
-		return {"ok": false, "reason": "no live camera within 3 squares"}
+		return {"ok": false, "reason": "no live camera beside you"}
 	if not turn.use_action():
 		return {"ok": false, "reason": "no action left"}
 	var check := Check.vs_dv(dice, cur.c.skill_base("electronics_security_tech") - cur.c.action_penalty(), CAMERA_TAMPER_DV)
 	if check.success:
 		disabled_devices[d.id] = true
 	events.append({"type": "tamper", "unit": cur.id, "device": d.id, "ok": check.success})
-	say("%s %s a camera." % [cur.c.display_name, "kills" if check.success else "fumbles with"])
+	say("%s %s a camera." % [cur.c.display_name, "disables" if check.success else "fumbles with"])
 	if not check.success:   # a failed Electronics/Security Tech check (SPM p.25 Corporate Heist)
 		Clocks.trigger(self, "failed_tech", int(cur.id), "%s fumbles a camera" % cur.c.display_name)
 	return {"ok": true, "success": check.success}
@@ -2058,12 +2057,19 @@ func camera_cells(d: Dictionary) -> Dictionary:
 
 ## Security cameras (HOUSE-RULE): a live camera watches its floor within CAMERA_RANGE squares, no
 ## wall between; whoever minds the feed rolls CAMERA_PERCEPTION (-4 in the dark or through smoke,
-## none for an infrared camera: camera_penalty) vs Stealth, once
-## per camera, crew member and round. A hit rouses the nearest unalerted guard, who calls the
-## alarm in on their turn. Looping their feed (the Loop NET action) turns them off; holding the
-## node only gives the runner the feed - the netrunner's job in a stealth gig.
+## none for an infrared camera: camera_penalty) vs Stealth, once per camera, crew member and round.
+## HOUSE-RULE (owner, playtest 2026-11-11: one sighting raising the alarm was too punishing): the
+## first time a camera catches someone it flags them and the detection clock rolls (a failed
+## Stealth check, SPM p.25), nothing more; caught again by the same camera on a later round, the
+## feed watcher sends the nearest unalerted guard, who calls the alarm in on their turn. Looping
+## their feed (the Loop NET action, SPOOF) or disabling them turns them off; holding the node only
+## gives the runner the feed - the netrunner's job in a stealth gig.
 const CAMERA_RANGE := 6.0   ## HOUSE-RULE (playtest: 8 squares caught every approach)
-const CAMERA_TAMPER_DV := 13   # RULES-UNVERIFIED: Electronics/Security Tech counters devices (p209), DV not given; "everyday" DV13 (p129)
+## Countering Observation Cameras: DV9 Electronics/Security Tech (CPR core p.213). HOUSE-RULE: an
+## Action rather than the book's minute (a gig plays a minute as two rounds, and a camera job
+## shouldn't pin a crew member that long under the feed).
+const CAMERA_TAMPER_DV := 9
+const CAMERA_REACH := 1   ## squares: on the camera's square or beside it (camera_in_reach)
 const CAMERA_HALF_ANGLE := 45.0   ## HOUSE-RULE: a 90° view, pointed away from the wall it's mounted on
 const CAMERA_PERCEPTION := 8   ## HOUSE-RULE: a bored guard watching the feeds
 
@@ -2105,21 +2111,31 @@ func _camera_spots() -> Dictionary:
 			if not camera_sees(d, u.pos) or passing_as_public(u):
 				continue
 			var key := ["cam", d.id, u.id, init.round_num if init else 0]
-			if not _spot_rolls.has(key):
+			if not _spot_rolls.has(key):   # once per camera, crew member and round
 				var base := CAMERA_PERCEPTION - camera_penalty(d, u.pos)   # dark or smoke: obscured (p.130-131, p.347), unless it's infrared
 				_spot_rolls[key] = Check.opposed(dice, base, u.c.skill_base("stealth") - u.c.action_penalty()).success
-				if _spot_rolls[key]:   # a failed Stealth check (SPM p.25 Corporate Heist)
-					Clocks.trigger(self, "failed_stealth", int(u.id), "a camera catches %s" % u.c.display_name)
-			if _spot_rolls[key]:
-				var best: Dictionary = {}
-				for g in units:
-					if is_guard(g) and hostile(int(g.team), CREW) and not sides[int(g.team)].get("at_war", false) and not g.alerted and not g.c.dead and (best.is_empty() or Vector3(g.pos - cp).length() < Vector3(best.pos - cp).length()):
-						best = g
-				if not best.is_empty():
-					say("A camera catches %s. %s is on the way." % [u.c.display_name, best.c.display_name])
-					best["why_next"] = "CAMERA SPOTTED %s" % u.c.display_name
-					events.append({"type": "camera", "unit": best.id, "device": d.id, "target": u.id})
-					return best
+			if not (_spot_rolls[key] is bool and bool(_spot_rolls[key])):
+				continue   # missed them, or this sighting has been dealt with ("done")
+			_spot_rolls[key] = "done"
+			var again: bool = (cam_flagged.get(d.id, {}) as Dictionary).has(u.id)
+			if not again:   # the first time: flagged, and the clock rolls (a failed Stealth check, SPM p.25 Corporate Heist)
+				if not cam_flagged.has(d.id):
+					cam_flagged[d.id] = {}
+				cam_flagged[d.id][u.id] = true
+				say("A camera catches %s. The feed flags them." % u.c.display_name)
+				events.append({"type": "camera_seen", "unit": u.id, "device": d.id, "target": u.id})
+				Clocks.trigger(self, "failed_stealth", int(u.id), "a camera catches %s" % u.c.display_name)
+				continue
+			Clocks.trigger(self, "failed_stealth", int(u.id), "a camera catches %s again" % u.c.display_name)
+			var best: Dictionary = {}
+			for g in units:
+				if is_guard(g) and hostile(int(g.team), CREW) and not sides[int(g.team)].get("at_war", false) and not g.alerted and not g.c.dead and (best.is_empty() or Vector3(g.pos - cp).length() < Vector3(best.pos - cp).length()):
+					best = g
+			if not best.is_empty():
+				say("A camera catches %s again. %s is on the way." % [u.c.display_name, best.c.display_name])
+				best["why_next"] = "CAMERA SPOTTED %s" % u.c.display_name
+				events.append({"type": "camera", "unit": best.id, "device": d.id, "target": u.id})
+				return best
 	return {}
 
 
@@ -2812,9 +2828,9 @@ func preview(target: Dictionary, weapon: Weapon, mode: Attack.Mode) -> Dictionar
 		p["popup_shield"] = target.c.shield_hp()
 		p.defense_base = -1
 		p.chance = 1.0 if weapon.is_melee() else Check.chance_vs_dv(int(p.base), int(p.dv))
-	match String(target.get("broke", "")):   # Morale: shooting someone who gave up (or is running) is the crew's choice; the view says so
-		"surrender":
-			p["surrendered"] = true
+	match String(target.get("broke", "")):   # Morale: shooting someone running or hiding is the crew's choice; the view says so
+		"hide":
+			p["hiding"] = true
 		"flee":
 			p["fleeing"] = true
 	return p
@@ -3876,6 +3892,90 @@ static func net_actions_for(c: Combatant) -> int:
 ## Leash perk's (HOUSE-RULE).
 static func jack_range(c: Combatant) -> float:
 	return maxf(Deck.jack_range_m(c, JACK_IN_RANGE_M), float(c.perk_fx("jack_range_m")))
+
+
+## Scanner (CPR core p.199): a Netrunner's Interface Ability, used with a Meat Action (the one
+## ability that takes no NET Action, p.198), to find the meatspace locations of access points in
+## the area: Interface + 1d10, "the higher the Check, the more you spot from further away", the GM
+## judging how much (the book's example: a 14 finds two nearby access points).
+## HOUSE-RULE (the GM's call made a number): the Check's total x SCAN_M_PER_POINT metres as the crow
+## flies (Los.distance_m: through walls, 3 m a storey); every access point inside it is found and
+## stays marked for the gig (`scanned`). A 14 reaches 28 m.
+const SCAN_M_PER_POINT := 2.0
+var scanned := {}   ## access point cell (Vector3i) → true: found by a Scan (AccessPoints.known)
+
+
+## Can `u` Scan now: a Netrunner (Interface) with their Action left?
+func can_scan(u: Dictionary) -> bool:
+	return not u.is_empty() and NetRun.interface_rank(u.c) > 0 and turn != null and turn.action_available and u == cur
+
+
+## Scan (the active unit): {ok, check, range_m, found: [access points, nearest first], fresh: how
+## many weren't known before} or {ok: false, reason}.
+func scan_access_points() -> Dictionary:
+	if NetRun.interface_rank(cur.c) <= 0:
+		return {"ok": false, "reason": "only a Netrunner can scan"}
+	if not turn.use_action():
+		return {"ok": false, "reason": "no action left"}
+	var check := Check.vs_dv(dice, NetRun.interface_rank(cur.c), 0)
+	var reach := maxf(0.0, check.total * SCAN_M_PER_POINT)
+	var found := []
+	var fresh := 0
+	for p in AccessPoints.all(self):
+		var d := Los.distance_m(cur.pos, p.cell)
+		if d <= reach:
+			var q: Dictionary = p.duplicate()
+			q["dist_m"] = d
+			found.append(q)
+			if not scanned.has(p.cell):
+				fresh += 1
+			scanned[p.cell] = true
+	found.sort_custom(func(a, b): return a.dist_m < b.dist_m)
+	events.append({"type": "scan", "unit": cur.id, "total": check.total, "range_m": reach, "found": found.map(func(p): return p.cell), "fresh": fresh})
+	if found.is_empty():
+		say("%s scans for access points (%d): nothing within %d m." % [cur.c.display_name, check.total, int(reach)])
+	else:
+		say("%s scans for access points (%d): %d within %d m." % [cur.c.display_name, check.total, found.size(), int(reach)])
+	return {"ok": true, "check": check.total, "range_m": reach, "found": found, "fresh": fresh}
+
+
+## Doors (OPEN DOOR / CLOSE DOOR): a door square beside `u` (side by side, not across a corner, on
+## their floor; not one shot out) as {cell, open, locked}, or {}. Several: the first in N, E, S, W.
+func door_in_reach(u: Dictionary) -> Dictionary:
+	if u.is_empty():
+		return {}
+	for d in [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0)]:
+		var v := Vector3i(u.pos.x + d.x, u.pos.y + d.y, u.pos.z)
+		if not m.inb(v.x, v.y) or m.t(v.z, v.x, v.y) != TacMap.T.DOOR or los.wall_hp.get(v, 1) <= 0:
+			continue
+		return {"cell": v, "open": los.open_doors.has(v), "locked": nav.locked.has(v)}
+	return {}
+
+
+## Open or close the door beside the active unit (door_in_reach). HOUSE-RULE (owner, playtest
+## 2026-11-11): free, no Action or movement spent. The book's Action lists (CPR core p.127-128,
+## p.168-169) have no door action, and walking through a door already opens it for free here. A
+## locked door won't open this way (BYPASS, a keycard or the NET first); a door can't shut on
+## someone standing or lying in it. A closed door blocks sight as a wall does (Los.blocker), so
+## the crew's view and the guards' sight update at once. {ok, open} or {ok: false, reason}.
+func toggle_door() -> Dictionary:
+	var d := door_in_reach(cur)
+	if d.is_empty():
+		return {"ok": false, "reason": "no door beside you"}
+	var v: Vector3i = d.cell
+	if not bool(d.open):
+		if bool(d.locked):
+			return {"ok": false, "reason": "locked"}
+		los.open_doors[v] = true
+	else:
+		if units.any(func(o): return o.pos == v and not o.get("fled", false) and not o.get("carried", false)):
+			return {"ok": false, "reason": "someone's in the doorway"}
+		los.open_doors.erase(v)
+	events.append({"type": "door", "unit": cur.id, "cell": v, "open": not bool(d.open)})
+	say("%s %s a door." % [cur.c.display_name, "closes" if bool(d.open) else "opens"])
+	refresh_vision()
+	update_alerts()
+	return {"ok": true, "open": not bool(d.open)}
 
 
 ## Access points within jack-in range of `u` (6 m, p198): [{index, structure, device}].

@@ -29,7 +29,7 @@ A turn-based tactical game that blends Cyberpunk Red tabletop rules with XCOM 2-
 - **Variety**: Comes primarily from cyberware, weapons, gear, Role Abilities, and skills.
 - **Reinforcements**: Triggered by conditions (alarm level, noise, failed stealth, gig parameters). Spawn at logical map entrances, roll initiative, and join the fight. Support for NCPD, Trauma Team, MaxTac (carefully scoped).
 - **Clocks and plot twists** (Single Player Mode p.25-26, p.75-76): a hidden-length detection clock (visible dice pips on the round tab) adds pressure before the alarm on stealth gigs, and a Tech or Netrunner can win time back; about one gig in four hides a plot twist that springs mid-gig. Details: docs/rules/solo-mode.md.
-- **Morale** (Single Player Mode p.20-21): enemies break at stress points (Seriously Wounded, half their side down, their leader down) on a 1d10 by tier, and flee off the map or surrender. Details: docs/rules/solo-mode.md.
+- **Morale** (Single Player Mode p.20-21): enemies break at stress points (Seriously Wounded, half their side down, their leader down) on a 1d10 by tier, and flee off the map or, with no way out, hide out of the way (no surrender: owner, 2026-11-11). Details: docs/rules/solo-mode.md.
 
 ---
 

@@ -345,6 +345,17 @@ var _outline: ShaderMaterial
 var _outline_on := false
 
 
+## The outline pass on its own, in `col` (DeviceView outlines a device in the same style).
+static func outline_material(col: Color) -> ShaderMaterial:
+	if _outline_shader == null:
+		_outline_shader = Shader.new()
+		_outline_shader.code = OUTLINE
+	var m := ShaderMaterial.new()
+	m.shader = _outline_shader
+	m.set_shader_parameter("col", col)
+	return m
+
+
 func set_outline(on: bool, col := Color("ff3b4f")) -> void:
 	if on == _outline_on and (not on or _outline.get_shader_parameter("col") == col):
 		return

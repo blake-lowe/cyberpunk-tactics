@@ -407,7 +407,9 @@ var _dev_hurt := -1.0                  ## --hurt=f (review renders): the nearest
 var _dev_log_t := -1.0                 ## --logt=t (review renders): the log's slide held at t
 var _dev_stairs := ""                  ## --stairs=on|up (review renders): the active crew member stands on the target building's stairs (up: and takes them)
 var _dev_near := 0                     ## --near=n (review renders): bring the nearest foe n squares from the crew
-var _dev_morale := ""                  ## --morale=surrender | flee | search (review renders): stage Morale or Search Body
+var _dev_morale := ""                  ## --morale=hide | flee | search (review renders): stage Morale or Search Body
+var _dev_gigact := ""                  ## --gigact=scan | door | camera | pause (review renders): stage a gig action (_demo_gigact)
+var _dev_hot := ""                     ## the bar button held as hovered (review renders: "interact" outlines its camera)
 var _dev_grapple := ""                 ## --grapple=hold|shield|throw|held (review renders, with --near=1): a sure Grab on the nearest foe first
 var _dev_clock := ""                   ## --clock=roll|empty|add|run|alarm (review renders): stage the detection clock (ClockWidget)
 var _alt_on := false                   ## Alt is held: enemy outlines, last-known marks, stair and exit signs
@@ -509,7 +511,8 @@ func _ready() -> void:
 			"grapple": _dev_grapple = kv[1]   # review renders: hold | shield | throw | held (the foe grabs the crew)
 			"stairs": _dev_stairs = kv[1]   # review renders: on the target's stairs (GO UP on the bar); =up takes them
 			"near": _dev_near = int(kv[1])   # review renders: the nearest foe stands this many squares off, in the line of fire
-			"morale": _dev_morale = kv[1]   # review renders: surrender | flee (the nearest foe breaks) | search (a body beside the crew, the B button hovered)
+			"morale": _dev_morale = kv[1]   # review renders: hide | flee (the nearest foe breaks) | search (a body beside the crew, the B button hovered)
+			"gigact": _dev_gigact = kv[1]   # review renders: scan (the Netrunner Scans) | door (beside a closed door, the button hovered) | camera (beside a camera, DISABLE CAMERA hovered) | pause (the Esc menu)
 			"callouts": _dev_callouts = true   # review renders: -14, CRITICAL · BROKEN RIBS and MORTALLY WOUNDED stacked
 			"end": _dev_end = kv[1]   # review renders: the gig ends this way (won | lost | fled), the end panel shows
 			"peace": _dev_peace = true   # review renders: --peace=broken: the crew breaks a neutral house's peace (Totentanz)
@@ -627,7 +630,7 @@ func _process(delta: float) -> void:
 	if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN): pan.z += 1
 	if Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT): pan.x -= 1
 	if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT): pan.x += 1
-	if pan != Vector3.ZERO and not loadout_open():   # the loadout screen takes the arrows
+	if pan != Vector3.ZERO and not loadout_open() and not pause_open():   # the loadout screen and the Esc menu take the arrows
 		cam_target += pan.rotated(Vector3.UP, deg_to_rad(cam_yaw)).normalized() * delta * cam_dist * 0.9
 		_place_camera()
 	if _floor_key != 0:   # a floor key held on its own steps again after a pause, then steadily
@@ -659,6 +662,7 @@ func _process(delta: float) -> void:
 	_update_shake(delta)
 	_sync_aim_fx()
 	_sync_jack_lines()
+	_sync_device_outline()
 	# hold Alt to inspect what's under the cursor (owner: a dwell timer would be annoying)
 	var alt := Input.is_key_pressed(KEY_ALT) or _inspect_demo or _alt_demo
 	if hud and alt != hud.roster_on:
@@ -774,6 +778,8 @@ func _process(delta: float) -> void:
 			_demo_grapple()
 		if _frames == 10 and _dev_morale != "":
 			_demo_morale()
+		if _frames == 10 and _dev_gigact != "":
+			_demo_gigact()
 		if _frames == 10 and _dev_clock != "":
 			_demo_clock()
 		if _frames == 10 and _dev_callouts:
@@ -786,7 +792,7 @@ func _process(delta: float) -> void:
 			_demo_ms = Time.get_ticks_msec()
 			enc.state = _dev_end
 			_after_action()
-		var shoot_now: bool = _frames >= 12 if not (_attack_demo or _jack_demo or _av_demo != "" or _dev_peace or _dev_end != "" or _dev_callouts or _dev_grapple != "" or _dev_morale != "" or _dev_clock != "") else (_demo_ms > 0 and Time.get_ticks_msec() - _demo_ms >= int(_shot_delay * 1000.0 / Engine.time_scale))
+		var shoot_now: bool = _frames >= 12 if not (_attack_demo or _jack_demo or _av_demo != "" or _dev_peace or _dev_end != "" or _dev_callouts or _dev_grapple != "" or _dev_morale != "" or _dev_clock != "" or _dev_gigact != "") else (_demo_ms > 0 and Time.get_ticks_msec() - _demo_ms >= int(_shot_delay * 1000.0 / Engine.time_scale))
 		if shoot_now and _shot_ms == 0:
 			if _perf:
 				print("PERF cam=%s draw_calls=%d objects=%d primitives=%d nodes=%d units=%d civs=%d" % [cam_target, 
@@ -1582,8 +1588,6 @@ func _refresh() -> void:
 		dc.visible = false
 		n.set_meta("wound", u.c.wound_state())
 		n.set_meta("calm", enc.is_guard(u) and not u.alerted)
-		if String(u.get("broke", "")) == "surrender" and not n.get_meta("surrender", false) and not u.c.dead:
-			(n as CharModel).surrender()
 		_flee_mark(u, String(u.get("broke", "")) == "flee" and not u.c.dead)
 		n.set_meta("jack", enc.runs.has(u.id))
 		if u.c.dead:
@@ -1598,7 +1602,7 @@ func _refresh() -> void:
 		n.set_meta("slump_goal", 1.0 if u.c.wound_state() == Combatant.Wound.MORTAL else 0.0)
 		var life := String(u.get("life", "")) if u.get("civ", false) and not u.get("panic", false) else ""
 		n.set_meta("life", life)   # everyday life (StreetLife, SceneEvent crowds): what they're doing
-		n.set_meta("crouch_goal", 1.0 if (_beside_cover(u.pos) and life == "") or u.team == Encounter.CAPTIVE or Encounter.cowering(u) else 0.0)   # crouching reads as "in cover"; captives kneel; a scared bystander cowers
+		n.set_meta("crouch_goal", 1.0 if (_beside_cover(u.pos) and life == "") or u.team == Encounter.CAPTIVE or Encounter.cowering(u) or String(u.get("broke", "")) == "hide" else 0.0)   # crouching reads as "in cover"; captives kneel; a scared bystander cowers
 		if u.get("civ", false):   # a bystander shows a gun only when armed and hostile; scared, they cower hands-free
 			(n as CharModel).set_hands_free(u.c.weapons.is_empty() or not enc.hostile(Encounter.CREW, int(u.team)), bool(u.get("panic", false)))
 		if true:
@@ -2104,6 +2108,8 @@ func _device_state_text(d: Dictionary) -> String:
 			out += " · " + String(DEVICE_WORDS[String(NetDevices.spec(String(d.type)).op)][0]).to_lower()
 	elif enc.disabled_devices.has(did) and String(d.type) != "door_lock":
 		out = " · off"
+	if String(d.type) == "camera" and not enc.disabled_devices.has(did) and enc.cam_flagged.has(did):   # caught once: the next time sends a guard
+		out += " · flagged " + ", ".join((enc.cam_flagged[did] as Dictionary).keys().map(func(uid): return enc.units[int(uid)].c.display_name))
 	return out
 
 
@@ -2164,7 +2170,7 @@ func _below_grade_view() -> void:
 ## under it; otherwise the street and everything above (the basements are out of sight under it).
 ## Devices stay hidden until the crew has seen their square (a blueprint storey shows no kit).
 func _device_known(n: Node) -> bool:
-	return not fog_on or not n.has_meta("cell") or enc.vision.explored.has(n.get_meta("cell"))
+	return not fog_on or not n.has_meta("cell") or enc.vision.explored.has(n.get_meta("cell")) or enc.scanned.has(n.get_meta("cell"))
 
 
 func _grade_shows(f: int) -> bool:
@@ -2673,6 +2679,8 @@ func _draw_aim(c: Control) -> void:
 			_draw_access_icons(c)
 		_draw_last_known(c)
 		_draw_range_labels(c)
+	elif ap_icons and not enc.scanned.is_empty() and _crew_turn() and not enc.cur.is_empty() and NetRun.interface_rank(enc.cur.c) > 0:
+		_draw_access_icons(c, true)   # a Netrunner's turn: the port icons over what their Scans found
 
 
 const SIGN_CAP := 8                      ## Alt's floor signs: at most this many, nearest the focus first
@@ -2861,14 +2869,14 @@ func _update_feed_tiles() -> void:
 	feed_node.visible = not shown.is_empty()
 
 
-var _jack_key := []        ## what the sensed access points were worked out for (unit, square, turn)
+var _jack_key := []        ## what the scanned access points were worked out for (unit, square, turn, how many found)
 var _jack_reach: Array = []
 
 
 ## ap_lines: on a crew Netrunner's own turn, while idle (not aiming, moving or in the NET), thin
-## data lines from every access point they sense (AccessPoints.sensed: Interface range, a straight
-## line, HOUSE-RULE) on the floors the view shows, packets flowing in from the port to the runner.
-## Worked out again only when the unit, its square or the turn changes.
+## data lines from every access point the crew's Scans found (AccessPoints.scanned_for; Scanner,
+## CPR core p.199) on the floors the view shows, packets flowing in from the port to the runner.
+## Worked out again only when the unit, its square, the turn or what was found changes.
 func _sync_jack_lines() -> void:
 	if world == null or not is_instance_valid(world):
 		return
@@ -2880,10 +2888,10 @@ func _sync_jack_lines() -> void:
 	if not on:
 		jack_lines.set_lines(Vector3.ZERO, [], Vector3.ZERO, 0.0)
 		return
-	var key := [int(enc.cur.id), enc.cur.pos, enc.turn]
+	var key := [int(enc.cur.id), enc.cur.pos, enc.turn, enc.scanned.size()]
 	if key != _jack_key:
 		_jack_key = key
-		_jack_reach = AccessPoints.sensed(enc, enc.cur)
+		_jack_reach = AccessPoints.scanned_for(enc, enc.cur)
 	var sn: Node3D = unit_nodes.get(enc.cur.id)
 	var from := (sn.global_position if sn else _body_pos(enc.cur)) + Vector3(0, 0.9, 0)
 	var to := []
@@ -2895,11 +2903,12 @@ func _sync_jack_lines() -> void:
 
 
 ## ap_icons, Alt held: a violet (the NET's colour) port pictogram on a dark plate over every access
-## point the crew has seen, in the floor signs' style and cap (nearest first, far ones fade). The
-## objective marker's triangle steps aside for it while Alt is held (_draw_markers).
-func _draw_access_icons(c: Control) -> void:
+## point the crew knows of (seen or Scanned), in the floor signs' style and cap (nearest first, far
+## ones fade). The objective marker's triangle steps aside for it while Alt is held (_draw_markers).
+## `scanned_only`: a Netrunner's own turn without Alt: only the ones their Scans found.
+func _draw_access_icons(c: Control, scanned_only := false) -> void:
 	var vp := c.get_viewport_rect().size
-	var list: Array = AccessPoints.seen(enc, fog_on).filter(func(p): return _grade_shows(int(p.cell.z)))
+	var list: Array = AccessPoints.seen(enc, fog_on).filter(func(p): return _grade_shows(int(p.cell.z)) and (not scanned_only or enc.scanned.has(p.cell)))
 	for s in FloorNav.nearest_signs(list, Vector2(cam_target.x, cam_target.z), SIGN_CAP):
 		var v: Vector3i = s.cell
 		var wp := Vector3(v.x + 0.5, _gy(v) + 1.15, v.y + 0.5)
@@ -3434,6 +3443,8 @@ func _input(ev: InputEvent) -> void:
 
 
 func _unhandled_input(ev: InputEvent) -> void:
+	if pause_open():   # the Esc menu takes every key and click (its own _unhandled_input)
+		return
 	if ev is InputEventMouseMotion:
 		if ev.button_mask & MOUSE_BUTTON_MASK_MIDDLE:   # middle-drag: free rotation
 			cam_yaw = wrapf(cam_yaw - ev.relative.x * 0.35, 0.0, 360.0)
@@ -3517,19 +3528,28 @@ func _unhandled_input(ev: InputEvent) -> void:
 			KEY_B: _on_hud("interact", null)
 			KEY_V: _on_hud("role", null)
 			KEY_M: _on_hud("withdraw", null)
-			KEY_ESCAPE:
+			KEY_ESCAPE:   # backs out of what's open first (a tool, the attack or chrome menu, a focused building, the F2 panel); then the Esc menu
 				if tool != "" or stage != "main" or cover_mode:
 					_back_to_main()
 					_refresh(); _update_hover()
 				elif _focus_pin >= 0:   # nothing armed: a focused building hands the stack back (H3)
 					_home(false)
+				elif hud.settings.visible:
+					hud.settings.visible = false
+				else:
+					open_pause()
+				get_viewport().set_input_as_handled()
 			# Close quarters (CPR core p.168-169, p.177): X grab / choke / escape, Y throw, I human shield,
 			# O release, U get up or put out the fire, P break an ally's hold. Each acts only when the bar
 			# offers it.
 			KEY_X: _grapple_key(["grab", "choke", "escape"])
 			KEY_Y: _grapple_key(["throw"])
 			KEY_I: _grapple_key(["shield"])
-			KEY_O: _grapple_key(["release"])
+			KEY_O:   # RELEASE while holding someone (only then offered), else OPEN / CLOSE DOOR
+				if _crew_turn() and "release" in enc.grapple_options():
+					_grapple_key(["release"])
+				else:
+					_on_hud("door", null)
 			KEY_U: _grapple_key(["put_out", "get_up"])   # both take the Action: the flames first (p.180, p.168)
 			KEY_P: _grapple_key(["break"])
 			KEY_R: _on_hud("reload", null)
@@ -3664,8 +3684,23 @@ func _on_hud(name: String, arg: Variant) -> void:
 		"role":
 			if _crew_turn() and _spend_check():
 				var ra := Hud.role_action(enc.cur.c)
-				if not ra.is_empty():
+				if not ra.is_empty() and String(ra[0]) == "scan":   # acts at once: no target to pick
+					_on_hud("scan", null)
+				elif not ra.is_empty():
 					_on_hud("tool", String(ra[0]))
+		"scan":   # Scanner (CPR core p.199): access points nearby, by Interface + 1d10
+			if _crew_turn():
+				var rsc := enc.scan_access_points()
+				if not rsc.get("ok", false):
+					hud.toast(String(rsc.get("reason", "can't")).to_upper())
+				_after_action()
+		"door":   # OPEN / CLOSE DOOR: free (HOUSE-RULE, Encounter.toggle_door)
+			if _crew_turn() and not busy:
+				var rdo := enc.toggle_door()
+				if not rdo.get("ok", false):
+					hud.toast(String(rdo.get("reason", "can't")).to_upper())
+				else:
+					_after_action()
 		"tool":
 			tool = "" if tool == String(arg) else String(arg)
 			cover_mode = false
@@ -3936,8 +3971,8 @@ func _demo_hurt() -> void:
 	_refresh()
 
 
-## --morale (review renders). surrender: the nearest foe, brought 3 squares from the active unit
-## and hurt, gives up (the card over them hovered); flee: one 7 squares off breaks and runs a few
+## --morale (review renders). hide: the nearest foe, brought 3 squares from the active unit
+## and hurt, breaks and hides (the card over them hovered); flee: one 7 squares off breaks and runs a few
 ## squares toward the edge; search: a flatlined foe beside the active unit and Search Body's button
 ## hovered (no card: the button says it).
 func _demo_morale() -> void:
@@ -3952,9 +3987,9 @@ func _demo_morale() -> void:
 	enc._rouse([g])
 	enc.events.clear()
 	match _dev_morale:
-		"surrender":
+		"hide":
 			g.c.hp = mini(g.c.hp, g.c.seriously_wounded_threshold() - 1)
-			enc.surrender(g, "wounded", 3, Morale.threshold(enc, g))
+			enc.start_hiding(g, "wounded", 3, Morale.threshold(enc, g))
 			cam_target = Vector3(g.pos.x + 0.5, 0, g.pos.y + 0.5)
 			if not _dev_zoom:
 				cam_dist = 11.0
@@ -3989,7 +4024,7 @@ func _demo_morale() -> void:
 	if _dev_morale == "search":
 		await get_tree().create_timer(0.4).timeout
 		hud._interact_tip(hud._tool_buttons["interact"])
-	elif _dev_morale == "surrender":
+	elif _dev_morale == "hide":
 		await get_tree().create_timer(0.3).timeout
 		var gu := _unit_at(hover)
 		if not gu.is_empty():   # the card beside them, clear of the body
@@ -4365,10 +4400,11 @@ func _demo_idle_runner(runner: Dictionary) -> void:
 	keys.sort_custom(func(a, b): return [indoor.call(a), int(reach[a]), a.y * 1000 + a.x] < [indoor.call(b), int(reach[b]), b.y * 1000 + b.x])
 	var home: Vector3i = runner.pos
 	enc.cur = runner
-	for v in keys:   # a square a walk away from which the runner still senses it
+	enc.scanned[ap] = true   # as if their Scan had found it (the lines and icons show what Scans found)
+	for v in keys:   # a square a walk away within a fair Scan's reach (Interface + 5, x 2 m)
 		runner.pos = v
 		enc.turn = TurnState.begin(dice, runner.c)
-		if not AccessPoints.sensed(enc, runner).is_empty():
+		if Los.distance_m(v, ap) <= (NetRun.interface_rank(runner.c) + 5) * Encounter.SCAN_M_PER_POINT:
 			break
 		runner.pos = home
 	enc.turn = TurnState.begin(dice, runner.c)
@@ -5067,6 +5103,97 @@ func _demo_attack() -> void:
 
 
 ## After any rules call: play what happened (moves, shots, alerts) as animation, then sync.
+## --gigact (review renders): scan: the crew's Netrunner stands a walk from the nearest access point
+## and Scans (a fair roll forced: the callout, the pings, the port icons and data lines); door: a
+## crew member beside a closed door, OPEN DOOR's card shown; camera: a crew member beside a live
+## camera, DISABLE CAMERA's card shown and the camera outlined; pause: the Esc menu.
+func _demo_gigact() -> void:
+	_demo_ms = Time.get_ticks_msec()
+	match _dev_gigact:
+		"pause":
+			open_pause()
+		"scan":
+			var rid := _runner_id()
+			if rid < 0:
+				print("gigact: no Netrunner")
+				return
+			var runner: Dictionary = enc.units[rid]
+			_demo_idle_runner(runner)
+			enc.scanned.clear()
+			var hold := enc.dice
+			for s in 50:   # a roll of 6-9 (the runner stands within Interface + 5 of it: the shot shows a find)
+				var die := int(Check.roll_die(Dice.new(s + 3)).die)
+				if die >= 6 and die <= 9:
+					enc.dice = Dice.new(s + 3)
+					break
+			enc.turn = TurnState.begin(hold, runner.c)
+			enc.events.clear()
+			enc.scan_access_points()
+			enc.dice = hold
+			_after_action()
+		"door", "camera":
+			var u: Dictionary = enc.cur if not enc.cur.is_empty() and enc.cur.team == 0 else enc.alive(0)[0]
+			var spot := _gigact_spot(u)
+			if spot.x < 0:
+				print("gigact: no spot for %s" % _dev_gigact)
+				return
+			u.pos = spot
+			enc.cur = u
+			enc.turn = TurnState.begin(enc.dice, u.c)
+			view_floor = spot.z
+			_last_cur = int(u.id)
+			_sel_id = int(u.id)
+			_view_turn = enc.turn
+			enc.refresh_vision()
+			cam_target = Vector3(spot.x + 0.5, 0, spot.y + 0.5)
+			if not _dev_zoom:
+				cam_dist = 12.0
+			_place_camera()
+			_refresh()
+			if _dev_gigact == "camera":
+				_dev_hot = "interact"
+			await get_tree().create_timer(0.3).timeout
+			var bid := "door" if _dev_gigact == "door" else "interact"
+			hud.hot_action = bid
+			hud._interact_tip(hud._tool_buttons[bid], bid)
+
+
+## A free square for --gigact door / camera: beside a closed, unlocked door (side by side, inside a
+## building first), or on a live camera's square or beside it with nothing else on B ahead of it.
+func _gigact_spot(u: Dictionary) -> Vector3i:
+	var occ := enc.occupied(u)
+	var home: Vector3i = u.pos
+	var best := Vector3i(-1, -1, -1)
+	var bd := INF
+	if _dev_gigact == "door":
+		for d in m.doors:
+			var v := Vector3i(d.pos.x, d.pos.y, d.floor)
+			if enc.nav.locked.has(v) or enc.los.open_doors.has(v) or m.t(v.z, v.x, v.y) != TacMap.T.DOOR:
+				continue
+			for dd in [Vector2i(0, 1), Vector2i(1, 0), Vector2i(0, -1), Vector2i(-1, 0)]:
+				var s := Vector3i(v.x + dd.x, v.y + dd.y, v.z)
+				if m.inb(s.x, s.y) and m.walkable(s.z, Vector2i(s.x, s.y)) and m.t(s.z, s.x, s.y) != TacMap.T.DOOR and not occ.has(s):
+					var dist := Vector3(s - home).length()
+					if dist < bd:
+						bd = dist
+						best = s
+		return best
+	for d in m.devices:
+		if String(d.type) != "camera" or enc.disabled_devices.has(d.id):
+			continue
+		var c := Vector3i(d.pos.x, d.pos.y, d.floor)
+		for dy in [-1, 0, 1]:
+			for dx in [-1, 0, 1]:
+				var s := Vector3i(c.x + dx, c.y + dy, c.z)
+				if not m.inb(s.x, s.y) or not m.walkable(s.z, Vector2i(s.x, s.y)) or occ.has(s) or enc.los.wall_between(s, c):
+					continue
+				var dist := Vector3(s - home).length() + (0.0 if dx != 0 or dy != 0 else 0.5)
+				if dist < bd:
+					bd = dist
+					best = s
+	return best
+
+
 ## Encounter-level conditions on a unit for its card (suppressed, unaware); the combatant's own
 ## (injuries, prone, burning, drugs...) come from Hud.conditions.
 func _unit_conditions(u: Dictionary) -> Array:
@@ -5074,8 +5201,8 @@ func _unit_conditions(u: Dictionary) -> Array:
 	if u.has("suppressed_by"):
 		out.append("suppressed")
 	match String(u.get("broke", "")):   # Morale
-		"surrender":
-			out.append("surrendered")
+		"hide":
+			out.append("hiding")
 		"flee":
 			out.append("fleeing")
 	if u.team != 0 and not u.get("alerted", true) and not u.has("held_by") and not u.has("broke"):
@@ -5483,6 +5610,46 @@ func open_loadout(uid: int, index := false) -> void:
 	layer.add_child(_loadout)
 
 
+var _pause: TitleScreen = null   ## the Esc menu while it is up (open_pause)
+
+
+## Esc with nothing open to back out of: the gig's pause menu (TitleScreen, `in_gig`): Resume,
+## Options (the title screen's: volumes, display, screen shake, reduced motion), Title, Quit. Its
+## own layer over the HUD; the game takes no input while it's up. Closing it picks up what the
+## Options changed (screen shake, reduced motion).
+func open_pause() -> void:
+	if pause_open():
+		return
+	var layer := CanvasLayer.new()
+	layer.layer = 90   # over the HUD, its callouts and the loadout screen's layer
+	add_child(layer)
+	_pause = TitleScreen.new()
+	_pause.pause = true
+	_pause.in_gig = true
+	_pause.board_gig = _campaign_gig
+	_pause.tree_exited.connect(func():
+		if is_instance_valid(layer):
+			layer.queue_free()
+		_pause = null
+		hud.reduced_motion = GameSettings.reduced_motion()
+		_shake = ScreenShake.new(GameSettings.shake(), GameSettings.reduced_motion()))
+	layer.add_child(_pause)
+
+
+func pause_open() -> bool:
+	return _pause != null and is_instance_valid(_pause) and not _pause.is_queued_for_deletion()
+
+
+## While the interact button (B) is hovered, outline the device it works on: the camera DISABLE
+## CAMERA would shut down, or what SPOOF would fool (Hud.interact_device), in the units' outline
+## style. `_dev_hot` holds it on for review renders.
+func _sync_device_outline() -> void:
+	if devices == null or not is_instance_valid(devices):
+		return
+	var hot := (hud.hot_action == "interact" or _dev_hot == "interact") and enc != null and not busy and _crew_turn()
+	devices.set_outline(Hud.interact_device(enc) if hot else -1)
+
+
 func loadout_open() -> bool:
 	return _loadout != null and is_instance_valid(_loadout) and not _loadout.is_queued_for_deletion()
 
@@ -5534,10 +5701,10 @@ func _foe(u: Dictionary) -> bool:
 	return enc.hostile(Encounter.CREW, int(u.team))
 
 
-## A left-click attacks them: a foe, or someone who surrendered (Morale: out of the fight, but
-## shooting them is the crew's call; the target card says so).
+## A left-click attacks them: a foe (one running or hiding after Morale broke them stays on its
+## side, so shooting them is the crew's call; the target card says so).
 func _targetable(u: Dictionary) -> bool:
-	return _foe(u) or String(u.get("broke", "")) == "surrender"
+	return _foe(u)
 
 
 func _seen(v: Vector3i) -> bool:
@@ -5550,7 +5717,7 @@ func _body_pos(u: Dictionary) -> Vector3:
 
 ## Events that don't count as "hostile activity" for the enemy-phase banner (bookkeeping, third
 ## parties, things the crew caused).
-const QUIET_EVENTS := ["alert", "death", "camera", "tt_call", "av_land", "av_leave", "tt_pickup", "panic", "civ_gone", "morale", "fled", "search", "stroll",
+const QUIET_EVENTS := ["alert", "death", "camera", "camera_seen", "door", "scan", "tt_call", "av_land", "av_leave", "tt_pickup", "panic", "civ_gone", "morale", "fled", "search", "stroll",
 	"clock", "clock_add", "clock_new", "clock_stop", "clock_escalate", "twist", "spoof", "job_done", "weather"]
 
 var _handlers: Dictionary = {}
@@ -5581,6 +5748,9 @@ func _event_handlers() -> Dictionary:
 			"keycard": _ev_keycard,
 			"tamper": _ev_tamper,
 			"camera": _ev_camera,
+			"camera_seen": _ev_camera_seen,
+			"scan": _ev_scan,
+			"door": _ev_door,
 			"net_control": _ev_net_control,
 			"net_device": _ev_net_device,
 			"eye_dee": _ev_eye_dee,
@@ -5756,12 +5926,38 @@ func _ev_keycard(e: Dictionary) -> void:
 	await get_tree().create_timer(0.5).timeout
 
 
+## Scan (Scanner, CPR core p.199): the roll and what it found over the runner; a violet ping at each
+## access point found (its port icon stays: _draw_access_icons), and the camera eases toward the
+## nearest one when it is off screen.
+func _ev_scan(e: Dictionary) -> void:
+	var u: Dictionary = enc.units[e.unit]
+	_focus_unit = u.id
+	(unit_nodes[u.id] as CharModel).perform("idle_look", 0.8)
+	var found: Array = e.found
+	_float(u, Hud.scan_word(int(e.total), found.size()), Hud.VIOLET.lightened(0.3))
+	if found.is_empty():
+		hud.toast("NO ACCESS POINTS WITHIN %d M" % int(e.range_m), 2.4)
+	for cell in found:
+		var v: Vector3i = cell
+		fx.burst(Vector3(v.x + 0.5, _gy(v) + 0.7, v.y + 0.5), Hud.VIOLET.lightened(0.3), 14, 2.2, 0.05, 0.5, 2.0, 0.0)
+	await get_tree().create_timer(0.6).timeout
+
+
+## A door opened or closed by hand: the leaf swings (_refresh rebuilds the leaves), with its sound.
+func _ev_door(e: Dictionary) -> void:
+	var v: Vector3i = e.cell
+	if bool(e.open):
+		_swing_door(v)
+	else:
+		_snd("sfx_door", Vector3(v.x + 0.5, v.z * FH + 0.6, v.y + 0.5), -6.0)
+
+
 func _ev_tamper(e: Dictionary) -> void:
 	var u: Dictionary = enc.units[e.unit]
 	_focus_unit = u.id
 	(unit_nodes[u.id] as CharModel).perform("idle_shift", 0.8)
 	await get_tree().create_timer(0.6).timeout
-	_float(u, "CAMERA DOWN" if e.ok else "TAMPER FAILED", Hud.CYAN if e.ok else Hud.RED)
+	_float(u, "CAMERA DISABLED" if e.ok else "DISABLE FAILED", Hud.CYAN if e.ok else Hud.RED)
 	await get_tree().create_timer(0.4).timeout
 
 
@@ -5898,14 +6094,27 @@ func _demo_clock() -> void:
 	_after_action()
 
 
-## A camera catches a crew member: its eye flashes red where it hangs, and the toast says who it
-## sent. The guard it sends calls the alarm in on their turn (_ev_alarm says so): drop them or
-## loop the camera before then.
+## A camera catches a crew member it caught before (Encounter._camera_spots: the second sighting):
+## its eye flashes red where it hangs, and the toast says who it sent. The guard it sends calls the
+## alarm in on their turn (_ev_alarm says so): drop them or loop the camera before then.
 func _ev_camera(e: Dictionary) -> void:
 	var tu: Dictionary = enc.units[e.target]
 	var gu: Dictionary = enc.units[e.unit]
-	_float(tu, "ON CAMERA", Hud.RED)
-	hud.toast("CAMERA SPOTTED %s · %s IS ON THE WAY" % [tu.c.display_name.to_upper(), gu.c.display_name.to_upper()], 3.2)
+	_float(tu, "ON CAMERA AGAIN", Hud.RED)
+	hud.toast(Hud.camera_toast(tu.c.display_name, gu.c.display_name), 3.2)
+	_camera_blink(e)
+
+
+## A camera's first sighting of a crew member: flagged on the feed, no alarm. The detection clock
+## rolls right after (its own `clock` event plays the dice).
+func _ev_camera_seen(e: Dictionary) -> void:
+	var tu: Dictionary = enc.units[e.target]
+	_float(tu, "ON CAMERA", Hud.GOLD)
+	hud.toast(Hud.camera_toast(tu.c.display_name, ""), 3.2)
+	_camera_blink(e)
+
+
+func _camera_blink(e: Dictionary) -> void:
 	if e.has("device") and int(e.device) >= 0 and int(e.device) < m.devices.size():
 		var dp := _device_point(int(e.device))
 		for k in 3:   # the red eye blinks: three pings at the lens
@@ -6103,9 +6312,9 @@ func _ev_civ_gone(e: Dictionary) -> void:
 	(unit_nodes[u.id] as Node3D).visible = false
 
 
-## Someone broke at a stress point (Morale): a callout over them naming them ("GUARD 3
-## SURRENDERS", held as long as a wound word); a surrender drops to its knees, hands up, and lets
-## the gun fall; a runner gets the flee mark.
+## Someone broke at a stress point (Morale): a callout over them naming them ("GUARD 3 FLEES",
+## "GUARD 3 HIDES", held as long as a wound word); a runner gets the flee mark, one hiding crouches
+## out of the way (_refresh: crouch_goal).
 const FLEE_COL := Color("ff8a24")
 
 
@@ -6113,12 +6322,10 @@ func _ev_morale(e: Dictionary) -> void:
 	var u: Dictionary = enc.units[e.unit]
 	var nm: String = u.c.display_name.to_upper()
 	var seen := _seen(u.pos)
-	var word := ("%s SURRENDERS" % nm) if String(e.result) == "surrender" else ("%s FLEES" % nm)
-	var wcol := Hud.GOLD if String(e.result) == "surrender" else FLEE_COL
-	if String(e.result) == "surrender":
-		(unit_nodes[u.id] as CharModel).surrender()
-	else:
-		_flee_mark(u, true)
+	var hiding := String(e.result) == "hide"
+	var word := ("%s HIDES" % nm) if hiding else ("%s FLEES" % nm)
+	var wcol := Hud.GOLD if hiding else FLEE_COL
+	_flee_mark(u, not hiding)
 	if seen:
 		# booked like a wound word: after the hit's damage number and stacked over it, never on it
 		_focus_unit = u.id
@@ -7479,8 +7686,8 @@ func _update_hover() -> void:
 			lines.append("[color=#b4bec6]Weather: %d[/color]" % int(p.weather))
 		if p.get("sees_through", false):
 			lines.append("[color=#05d9e8]%s[/color]" % Hud.optics_line(p, enc.weather))
-		if p.get("surrendered", false):   # Morale: the crew's call, not a mistake
-			lines.append("[color=#f9c80e]Surrendered and unarmed[/color]")
+		if p.get("hiding", false):   # Morale: the crew's call, not a mistake
+			lines.append("[color=#f9c80e]Hiding: no threat now[/color]")
 		elif p.get("fleeing", false):
 			lines.append("[color=#ff8a24]Fleeing: no threat now[/color]")
 		if p.has("shield"):   # p.184: the shot goes into whoever they hold up
@@ -7497,8 +7704,8 @@ func _update_hover() -> void:
 	var st := Hud.stance(enc, int(t.team))
 	var stc := Hud.stance_col(st)
 	match String(t.get("broke", "")):   # the card's badge: they've quit (Morale)
-		"surrender":
-			st = "SURRENDERED"
+		"hide":
+			st += " · HIDING"
 			stc = Hud.GOLD
 		"flee":
 			st += " · FLEEING"

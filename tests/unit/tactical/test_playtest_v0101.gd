@@ -19,7 +19,7 @@ func _job(kind: String, site := "corp_office", sec := 2) -> Encounter:
 # --- The early end ------------------------------------------------------------------------------
 
 ## The bug (seeds 0, 1, 4 and more of an AI-vs-AI run of data gigs): one guard down, the leader
-## among them, and Morale broke the rest (SPM p.20-21): some ran for the edge, some surrendered.
+## among them, and Morale broke the rest (SPM p.20-21): some ran for the edge, some hid.
 ## Encounter.opfor() leaves those out, so data theft's "or eliminate all hostiles" read the site as
 ## cleared and won the gig, with the runners still on the map, their backup still coming and nobody
 ## jacked in.
@@ -31,7 +31,7 @@ func test_a_data_theft_does_not_end_when_the_guards_break() -> void:
 	guards[0].c.dead = true   # one killed...
 	for i in range(1, guards.size()):   # ...and the rest break (Morale.sweep's two outcomes)
 		if i % 2 == 0:
-			e.surrender(guards[i], "leader", 2, 4)
+			e.start_hiding(guards[i], "leader", 2, 4)
 		else:
 			e.start_flight(guards[i], "leader", 2, 4)
 	e.backup_in = 4   # the alarm's up: "Gold Dragons in 4 rounds"
@@ -185,6 +185,7 @@ func test_a_camera_names_who_it_caught() -> void:
 			if e.m.walkable(v.z, Vector2i(v.x, v.y)) and not e.occupied(vex).has(v) and e.camera_sees(d, v):
 				vex.pos = v
 				e._spot_rolls[["cam", d.id, vex.id, e.init.round_num]] = true
+				e.cam_flagged[d.id] = {vex.id: true}   # caught once before: this sighting sends a guard (HOUSE-RULE)
 				placed = true
 				break
 		if placed:
@@ -257,6 +258,7 @@ func test_a_held_camera_still_reports_until_it_is_looped() -> void:
 	vex.pos = e.camera_cells(cam).keys()[0]
 	vex.c.skills["stealth"] = 0
 	e._spot_rolls[["cam", cid, vex.id, e.init.round_num]] = true
+	e.cam_flagged[cid] = {vex.id: true}   # caught once before: this sighting sends a guard (HOUSE-RULE)
 	assert_eq(Hud.loop_tag(_loop_row(e, int(runner.id), int(node.id))), " · STILL REPORTING", "the NET row says the camera is still live")
 	var g := e._camera_spots()
 	assert_false(g.is_empty(), "held but not looped: it still reports")

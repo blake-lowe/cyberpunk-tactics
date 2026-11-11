@@ -107,12 +107,14 @@ func test_search_body_once_per_body() -> void:
 	assert_eq(e.loot.size(), 1)
 
 
-func test_a_surrendered_guard_can_be_searched_but_not_a_bystander() -> void:
+func test_a_hiding_guard_cant_be_searched_nor_a_bystander() -> void:
 	var e := _enc()
 	var g: Dictionary = _guards(e)[0]
 	g.pos = _beside(e, e.cur.pos)
-	e.surrender(g, "wounded", 1, 9)
-	assert_eq(e.body_in_reach(e.cur), g, "frisk them")
+	e.start_hiding(g, "wounded", 1, 9)
+	assert_true(e.body_in_reach(e.cur).is_empty(), "still on their feet: no frisking (nobody surrenders now)")
+	g.c.dead = true
+	assert_eq(e.body_in_reach(e.cur), g, "once they're down")
 	var civ := e.units.filter(func(u): return u.get("civ", false))
 	if not civ.is_empty():
 		civ[0].c.dead = true
