@@ -67,6 +67,8 @@ static func meta_for(c: Campaign) -> Dictionary:
 	if c.dev_gigs > 0 or c.active_gig.get("dev", false):   # DEV ONLY: custom gigs played (CustomGig)
 		m["dev_gigs"] = c.dev_gigs
 		m["dev"] = bool(c.active_gig.get("dev", false))
+	if c.dev_cheats > 0:   # DEV ONLY: the safehouse dev menu used (DevCheats)
+		m["dev_cheats"] = c.dev_cheats
 	return m
 
 
@@ -123,6 +125,8 @@ static func describe(m: Dictionary) -> Dictionary:
 			where += " (DEV GIG)"
 	if int(m.get("dev_gigs", 0)) > 0:
 		where += " · %d dev gig%s" % [int(m.dev_gigs), "" if int(m.dev_gigs) == 1 else "s"]
+	if int(m.get("dev_cheats", 0)) > 0:
+		where += " · dev cheats"
 	return {"empty": false, "when": local_time(int(m.get("saved_unix", 0))),
 		"gigs": "%d gig%s completed" % [g, "" if g == 1 else "s"], "where": where}
 

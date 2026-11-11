@@ -74,6 +74,9 @@ var debrief: Array[Dictionary] = []
 ## save that has played dev gigs says so.
 var dev_gigs := 0
 var last_custom: Dictionary = {}
+## DEV ONLY: cheats used from the safehouse dev menu (DevCheats: eb, items, healing...). Saved, so a
+## save that has been cheated in says so.
+var dev_cheats := 0
 ## Payment in information (MissionBuilder, SPM p.28 step 4): intel tokens. While the crew holds one,
 ## every offer on the board shows whether it runs into a complication (foresee); taking a gig
 ## spends one. Saved.
@@ -2024,7 +2027,7 @@ func to_dict() -> Dictionary:
 		"safehouse_district": safehouse_district, "crew": crew.map(func(c): return c.to_dict()),
 		"fallen": fallen, "board": board, "recruits": recruits.map(func(c): return c.to_dict()), "log": log.slice(-50),
 		"rng_state": str(dice.rng.state), "stash": stash, "market": market, "debrief": debrief, "gigs_done": gigs_done,
-		"dev_gigs": dev_gigs, "last_custom": last_custom, "intel": intel, "favours": favours, "leads": leads}
+		"dev_gigs": dev_gigs, "dev_cheats": dev_cheats, "last_custom": last_custom, "intel": intel, "favours": favours, "leads": leads}
 
 
 ## A campaign from a save dictionary, upgraded to the current format first (SaveMigrations).
@@ -2045,6 +2048,7 @@ static func from_dict(raw: Dictionary) -> Campaign:
 	c.day = int(d.day)
 	c.gigs_done = int(d.get("gigs_done", 0))
 	c.dev_gigs = int(d.get("dev_gigs", 0))
+	c.dev_cheats = maxi(0, int(d.get("dev_cheats", 0)))
 	if d.get("last_custom") is Dictionary:
 		c.last_custom = _ints(d.last_custom)
 	c.intel = maxi(0, int(d.get("intel", 0)))

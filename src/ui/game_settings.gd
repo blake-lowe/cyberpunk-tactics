@@ -6,8 +6,8 @@ extends RefCounted
 ## (dev_mode, off by default), which shows the dev-only tools such as the custom gig builder on the
 ## Fixer Network's JOBS (CustomGig). Its toggle is hidden on the Options page (click the Options
 ## heading five times) so a release build has it too; `--dev` on the command line turns it on for
-## one run. Reduced motion (reduced_motion, off by default) tones down the HUD's animations: the
-## clock dice don't tumble, shatter or beat, callouts fade instead of slamming (ClockWidget, Hud).
+## one run. It also shows the safehouse dev menu (DevMenu: cheat in eb and items).
+## Reduced motion (reduced_motion, off by default) tones down the HUD's animations: the clock dice don't tumble, shatter or beat, callouts fade instead of slamming (ClockWidget, Hud).
 ## `--reduced_motion=1` turns it on for one run, and it also turns off screen shake and hit-stop.
 ## Screen shake (shake, 0-1, default 0.6): the tactical view's trauma shake and kicks (ScreenShake);
 ## `--shake=x` overrides it for one run (review renders).
