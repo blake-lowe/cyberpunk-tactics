@@ -1,32 +1,33 @@
 class_name ChromeBody
 extends Control
-## The cyberware body (owner, on the first line figure: "more stylized"; the lead's direction, after
-## Cyberpunk 2077's ripperdoc and Deus Ex: Human Revolution's augmentation screen): the crew
-## member's own 3D model (CharModel, outfitted as in gigs), rendered in a SubViewport as a hologram
+## The cyberware body: a figure of the crew member's body with a callout card per location. Every
+## location (Cyber.LOCS) has a card joined by a leader line to its place on the body (head, eyes,
+## ear, neck, chest, arms, legs). A card shows what's there (the foundation and the pieces) and its
+## Option Slots as pips: filled, empty or locked (no foundation yet). Every installed piece is named
+## and filled, its effect played yet or not (owner, 2026-11-11). Chromed regions are violet, meat
+## cyan, the selected location gold, external chrome a skin over the body.
+## Figure styles (`--body=anatomy|holo|vitruvian`; owner, on the hologram: "our character models
+## don't really hold up when large like this"; on four prototypes, the Vitruvian's "diagram feel looks
+## good... I very much like the horizontal glitch fuzziness", the scan plate and faceted mannequin cut
+## as "cartoonish"): the default, anatomy, is a real anatomical plate (Milton's engraved écorché,
+## 1804) given the Vitruvian's treatment (BodyAnatomy); vitruvian is Leonardo's drawing as a
+## schematic (BodyVitruvian). Both are 2D art (BodyArt) and say where each anchor is. holo is the
+## crew member's own 3D model (CharModel, outfitted as in gigs) in a SubViewport as a hologram
 ## (holo_body.gdshader: a cyan fresnel rim, a faint lit fill, contour slices, drifting scanlines, a
-## scan sweep and a flicker; holo_glow.gdshader blooms it). Body regions with chrome in them glow
-## violet, plated; meat stays cyan; the selected location is gold; external chrome is a violet skin
-## at the edge. It idles and turns a little (none of that under reduced motion), and turns on a drag.
-## Every location (Cyber.LOCS) has a callout card joined by a leader line to its place on the body:
-## the anchor is the model's bone (head, eyes, ear, neck, chest, arms, legs) projected to the screen,
-## so the lines land on the body as it moves. A card shows what's there (the foundation and the
-## pieces) and its Option Slots as pips: filled, empty or locked (no foundation yet). Every installed
-## piece is named and filled, its effect played yet or not (owner, 2026-11-11).
+## scan sweep and a flicker; holo_glow.gdshader blooms it), its regions painted from bone weights,
+## its anchors the model's bones projected to the screen; it idles and turns a little (none of that
+## under reduced motion), and turns on a drag.
 ## The Med Bay's ripperdoc picks a location or an installed piece here (loc_pressed, piece_pressed;
 ## a click on the body picks the nearest place); the loadout screen shows it read-only (clicks only
 ## select). Built from Controls, so tests can read `cards` and each card's `pips` meta. Headless
-## (tests) the viewport doesn't draw but the model still poses, so anchors come from its bones.
-## Figure styles (owner, on the hologram: "our character models don't really hold up when large like
-## this"; prototypes to compare): `--body=holo|vitruvian|scan|facet` on the command line picks the
-## figure, the hologram by default. The others are 2D art (BodyArt), drawn from the same locations:
-## vitruvian (Leonardo's Vitruvian Man as a ripperdoc schematic: BodyVitruvian), scan (a medical scan
-## plate: skeleton, organs, scan bands: BodyScan) and facet (a low-poly chrome mannequin: BodyFacet).
+## (tests) the hologram's viewport doesn't draw but the model still poses, so anchors come from its
+## bones.
 
 signal loc_pressed(loc: String)
 signal piece_pressed(loc: String, id: String)
 
 ## The figure styles (`--body=x`); the first is the default.
-const STYLES: Array[String] = ["holo", "vitruvian", "scan", "facet"]
+const STYLES: Array[String] = ["anatomy", "holo", "vitruvian"]
 ## Tests and review tools set this to force a style ("" = the command line's, else the default).
 static var style_override := ""
 
@@ -148,7 +149,8 @@ func setup(p_c: Combatant, p_sel_loc := "", p_sel_id := "", p_hints := {}, p_com
 	return self
 
 
-## The figure style in use: style_override, else `--body=x` on the command line, else the hologram.
+## The figure style in use: style_override, else `--body=x` on the command line, else the default
+## (the anatomical plate).
 static func style() -> String:
 	if style_override in STYLES:
 		return style_override
@@ -163,10 +165,8 @@ func _make_art(st: String) -> BodyArt:
 	match st:
 		"vitruvian":
 			art = BodyVitruvian.new()
-		"scan":
-			art = BodyScan.new()
 		_:
-			art = BodyFacet.new()
+			art = BodyAnatomy.new()
 	art.name = "Figure"
 	art.body = self
 	art.motion = _motion

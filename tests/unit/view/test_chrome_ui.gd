@@ -310,7 +310,9 @@ func test_hologram_anchors_sit_on_the_body() -> void:
 	Hud._fonts()
 	var camp := DemoState.make()
 	var c: Combatant = camp.alive_crew()[1]
+	ChromeBody.style_override = "holo"
 	var b := ChromeBody.new().setup(c, "left_arm")
+	ChromeBody.style_override = ""
 	(Engine.get_main_loop() as SceneTree).root.add_child(b)
 	b.size = Vector2(900, 520)
 	b._pose()
@@ -342,7 +344,7 @@ func test_hologram_anchors_sit_on_the_body() -> void:
 	b.free()
 
 
-## The 2D figure styles (`--body=vitruvian|scan|facet`, prototypes beside the hologram): each keeps an
+## The 2D figure styles (`--body=anatomy|vitruvian`; the hologram is the third): each keeps an
 ## anchor per location on its figure (head over chest over legs, the character's right on the
 ## viewer's left), between the card columns so no leader line runs back under its card; the regions
 ## take chrome's violet and the selected location's gold.
@@ -350,9 +352,9 @@ func test_figure_styles_keep_the_anchors() -> void:
 	Hud._fonts()
 	var camp := DemoState.make()
 	var c: Combatant = camp.alive_crew()[1]
-	assert_eq(ChromeBody.style(), "holo", "the hologram by default")
-	assert_true(BodyShape.parts().size() <= 48, "the scan shader's part arrays hold the body")
-	for st in ["vitruvian", "scan", "facet"]:
+	assert_eq(ChromeBody.style(), "anatomy", "the anatomical plate by default")
+	assert_eq(ChromeBody.STYLES, ["anatomy", "holo", "vitruvian"] as Array[String], "the cut styles are gone")
+	for st in ["anatomy", "vitruvian"]:
 		ChromeBody.style_override = st
 		for sz in [Vector2(640, 540), Vector2(900, 520)]:
 			var b := ChromeBody.new().setup(c, "left_arm")
@@ -374,5 +376,59 @@ func test_figure_styles_keep_the_anchors() -> void:
 				assert_true((t[ChromeBody.Reg.HEAD][0] as Color).a > 0.0 and float(t[ChromeBody.Reg.HEAD][1]) > 0.0, "%s: the Neural Link's head chromed" % st)
 			b.free()
 	ChromeBody.style_override = ""
-	var m := BodyFacet.mesh()
-	assert_true((m[1] as Array).size() > 400, "the mannequin is cut into facets")
+
+
+## The anatomical plate (the default figure): every anchor sits on the man himself (inside the
+## plate's silhouette), in its own body region (the eyes on his eyes, the ear on his ear, the
+## Fashionware on his left forearm...), and the regions' bones hold to the plate. He stands between
+## the card columns, hands and all, at the Med Bay's and the loadout's sizes; and under reduced
+## motion the glitch holds still.
+func test_anatomy_plate_anchors_land_on_the_body() -> void:
+	var img: Image = BodyAnatomy.INK.get_image()
+	assert_eq(Vector2(img.get_size()), BodyAnatomy.SIZE, "the plate's geometry is in its pixels")
+	if img.is_compressed():
+		img.decompress()
+	var want := {"neural_link": ChromeBody.Reg.HEAD, "right_eye": ChromeBody.Reg.R_EYE, "left_eye": ChromeBody.Reg.L_EYE,
+		"cyberaudio": ChromeBody.Reg.EAR, "chipware": ChromeBody.Reg.NECK, "internal": ChromeBody.Reg.TORSO,
+		"borgware": ChromeBody.Reg.L_ARM, "right_arm": ChromeBody.Reg.R_ARM, "left_arm": ChromeBody.Reg.L_ARM,
+		"fashion": ChromeBody.Reg.L_FORE, "external": ChromeBody.Reg.R_LEG, "right_leg": ChromeBody.Reg.R_LEG,
+		"left_leg": ChromeBody.Reg.L_LEG}
+	assert_eq(BodyAnatomy.ANCHORS.size(), Cyber.LOCS.size(), "an anchor per location")
+	for loc in Cyber.LOCS:
+		var p: Vector2 = BodyAnatomy.ANCHORS[loc]
+		assert_true(img.get_pixelv(Vector2i(p)).g > 0.5, "%s: on the body" % loc)
+		assert_eq(BodyAnatomy.region_at(p), int(want[loc]), "%s: in its region" % loc)
+	for b in BodyAnatomy.BONES:   # every bone runs over the figure
+		for k in 5:
+			var q: Vector2 = (b[0] as Vector2).lerp(b[1], k / 4.0)
+			assert_true(img.get_pixelv(Vector2i(q)).g > 0.5, "a bone of region %d on the body at %s" % [b[3], q])
+	# the parts of him a ripperdoc points at, each in its region
+	for pr in [[Vector2(520, 90), ChromeBody.Reg.HEAD], [Vector2(536, 600), ChromeBody.Reg.TORSO], [Vector2(150, 1200), ChromeBody.Reg.R_ARM],
+			[Vector2(895, 1200), ChromeBody.Reg.L_FORE], [Vector2(810, 600), ChromeBody.Reg.L_ARM], [Vector2(420, 1300), ChromeBody.Reg.R_LEG],
+			[Vector2(690, 1800), ChromeBody.Reg.L_LEG], [Vector2(360, 1960), ChromeBody.Reg.R_LEG], [Vector2(530, 300), ChromeBody.Reg.NECK]]:
+		assert_eq(BodyAnatomy.region_at(pr[0]), int(pr[1]), "the plate at %s" % pr[0])
+	assert_true(BodyAnatomy.BONES.size() <= 24, "the shader's bone arrays hold them")
+	Hud._fonts()
+	var c: Combatant = DemoState.make().alive_crew()[1]
+	for sz in [Vector2(860, 690), Vector2(690, 540), Vector2(732, 560)]:   # Med Bay at 1600 and 1280, the loadout
+		var b := ChromeBody.new().setup(c, "left_arm", "", {}, sz.y < 600)
+		(Engine.get_main_loop() as SceneTree).root.add_child(b)
+		b.size = sz
+		b._layout()
+		assert_true(b._art is BodyAnatomy, "the plate")
+		assert_true(b._fig.size.y >= sz.y - 8.0, "%s: he fills the height" % sz)
+		for loc in ChromeBody.LEFT_COL + ChromeBody.RIGHT_COL:
+			assert_false((b.cards[loc] as Control).get_rect().intersects(b._fig), "%s: %s clear of him" % [sz, loc])
+		assert_eq(float((b._art as BodyAnatomy)._mat.get_shader_parameter("motion")), 1.0, "the glitch moves")
+		b.free()
+	var keep := GameSettings.load_values()
+	var v := keep.duplicate()
+	v.reduced_motion = true
+	GameSettings.save_values(v)
+	var r := ChromeBody.new().setup(c, "left_arm")
+	(Engine.get_main_loop() as SceneTree).root.add_child(r)
+	r.size = Vector2(860, 690)
+	r._layout()
+	assert_eq(float((r._art as BodyAnatomy)._mat.get_shader_parameter("motion")), 0.0, "reduced motion: the glitch holds still")
+	r.free()
+	GameSettings.save_values(keep)
