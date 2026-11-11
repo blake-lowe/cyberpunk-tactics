@@ -260,7 +260,7 @@ func _options() -> Control:
 
 
 func _dev_text() -> String:
-	return "Developer mode: " + ("On (custom gig builder on GIGS)" if bool(_opts.dev_mode) else "Off")
+	return "Developer mode: " + ("On (custom gigs, safehouse dev menu)" if bool(_opts.dev_mode) else "Off")
 
 
 func _set_opt(k: String, v: Variant) -> void:

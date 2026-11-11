@@ -8,9 +8,11 @@ extends Control
 ## Layout on a 2.4-unit module grid: three rooms north of a corridor (Med Bay, Armory, Fixer Network),
 ## three south (Training Room, Workshop, Bunks). Rooms are places with no levels or effects; the
 ## workshop stays dark storage (tarped crates) until a Tech joins the crew.
-## Seen square-on from the south at a fixed angle (owner: 0° yaw, no rotation or zoom). Walls are
-## kit walls on the far (north and west) sides and waist-high everywhere else, so every room reads
-## from above. The crew stand where their downtime job puts them.
+## Seen from the south, square-on to the walls (YAW 0°), no zoom. Q and E orbit the camera round the
+## floor while held (owner playtest), eased in and out as in a gig (CamTurn); a right-button drag
+## turns it too; with reduced motion each press snaps a 45° step instead. Walls are kit walls on the
+## sides facing away from the camera and waist-high everywhere else (rebuilt as the view turns past
+## a side), so every room reads from above. The crew stand where their downtime job puts them.
 ##
 ## The safehouse is the hub (owner's UI audit): every between-gigs function is a full screen opened
 ## from its room (src/ui/screens/): Fixer Network → jobs, hire, Night Market; Armory → storage and
@@ -27,7 +29,8 @@ extends Control
 ## --pick=<storage key>, --filter=<chip> (StorageScreen.setup) and --stash=<key,key> (more in storage), and the city map --district=<id> or
 ## --pin=<board index> (CityTab.setup); the Armory --loadout=1 (the FULL LOADOUT screen open) and --strip=1
 ## (the selected member without chrome); the ripperdoc --loc=<body location> --pick=remove:<id>|install:<id>
-## --confirm=1 (MedBayScreen.setup).
+## --confirm=1 (MedBayScreen.setup). --yaw=<degrees> turns the view; --screen=dev opens the dev menu
+## (developer mode only: DevMenu, also the DEV button and the ` key).
 
 const GB := preload("res://src/tactical/greybox.gd")
 const POST_SHADER := preload("res://src/tactical/view/post.gdshader")
@@ -46,7 +49,10 @@ const LOW := 0.55        ## cutaway wall height
 const PITCH_UP := 16.0   ## camera height over the focus...
 const PITCH_BACK := 18.0 ## ...and distance back along the view (a ~42° isometric-style pitch)
 const VIEW_SIZE := 13.0  ## ortho height framing the whole floor square-on (it was 16 for the 45° diagonal)
-const YAW := 0.0         ## owner: fixed, square-on to the walls from the south (no rotation, no zoom)
+const YAW := 0.0         ## the starting view: square-on to the walls from the south (Q/E turn it: yaw)
+const SNAP_STEP := 45.0  ## reduced motion: one Q/E press turns this far, at once
+const DRAG_RATE := 0.35  ## degrees of turn per pixel of right-button drag
+const DEV_KEY := KEY_QUOTELEFT   ## opens the dev menu (developer mode)
 ## Rooms in modules (x, z, w, d), light colour, title.
 const ROOMS := {
 	"med_bay": [Rect2i(0, 0, 2, 2), "3ce0a0", "MED BAY"],
@@ -79,6 +85,16 @@ var crew_labels := {}       ## Combatant → Label
 var selected := ""          ## room id outlined (hover outlines too)
 var hover := ""
 var focus := Vector3(W / 2, 0, D / 2)
+var yaw := YAW              ## the camera's turn round the floor, degrees (Q/E, right-drag)
+var turn := CamTurn.new()   ## held Q/E: eased in and out (the gig camera's feel)
+var _turn_keys := {}        ## KEY_Q / KEY_E → held (set and cleared by their own key events)
+var _dragging := false
+var _mouse := Vector2(-1, -1)   ## the last cursor position, to re-pick the hover as the view turns
+var _reduced := false
+var _walls_far: Array[String] = []   ## the far sides the walls were built for
+var _fill: DirectionalLight3D
+var _dev_btn: Button
+var _hint: Label
 var _cam_tw: Tween
 var _shot_path := ""
 var _frames := 0
@@ -114,10 +130,13 @@ func _ready() -> void:
 			stay = true
 		if k == "crew":
 			crew_i = int(a.get_slice("=", 1))
+		if k == "yaw":
+			yaw = wrapf(float(a.get_slice("=", 1)), 0.0, 360.0)
 	if dev and not stay:
 		get_tree().change_scene_to_file.call_deferred(GREYBOX)
 		return
 	Hud._fonts()
+	_reduced = GameSettings.reduced_motion()
 	if camp == null and "--demo" in OS.get_cmdline_user_args():   # review shots: DEV-ONLY sample campaign, never saved
 		camp = DemoState.make()
 		for a2 in OS.get_cmdline_user_args():   # --stash=weapon/heavy_pistol@poor,... adds to the demo's storage
@@ -155,9 +174,10 @@ func _ready() -> void:
 		open_screen(open, crew_i)
 
 
-func _process(_d: float) -> void:
+func _process(d: float) -> void:
 	if _cam_tw and _cam_tw.is_running():
 		_place_camera()
+	turn_step(d)
 	_place_labels()
 	if _shot_path != "":
 		_frames += 1
@@ -177,7 +197,7 @@ func _place_labels() -> void:
 	for id in labels:
 		var r := _rect(id)
 		var l: Label = labels[id]
-		var far := r.get_center() - Vector2(0, 1) * (r.size.x * 0.42)   # label at the room's far edge
+		var far := r.get_center() - _view_dir(yaw) * (r.size.x * 0.42)   # label at the room's far edge (as seen)
 		var at := _to_screen(Vector3(far.x, LOW + 0.3, far.y)) - Vector2(l.size.x / 2, l.size.y)
 		l.position = at.clamp(Vector2(6, top), vs - l.size - Vector2(6, 30))   # never clipped by the edges or the top bar
 		l.modulate = Color(1, 1, 1, 1.0 if id == selected else 0.75)
@@ -244,11 +264,11 @@ func _build_view() -> void:
 	moon.light_energy = 0.35
 	moon.shadow_enabled = true
 	svp.add_child(moon)
-	var fill := DirectionalLight3D.new()   # soft shadowless fill from the camera side (south, above)
-	fill.rotation_degrees = Vector3(-50, 0, 0)
-	fill.light_color = Color("c8d0e8")
-	fill.light_energy = 0.3
-	svp.add_child(fill)
+	_fill = DirectionalLight3D.new()   # soft shadowless fill from the camera side (turning with it)
+	_fill.rotation_degrees = Vector3(-50, yaw, 0)
+	_fill.light_color = Color("c8d0e8")
+	_fill.light_energy = 0.3
+	svp.add_child(_fill)
 	cam = Camera3D.new()
 	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
 	cam.size = VIEW_SIZE
@@ -266,17 +286,69 @@ func _resize() -> void:
 
 
 func _place_camera() -> void:
-	aim_camera(cam, focus)
+	aim_camera(cam, focus, yaw)
+	if _fill:
+		_fill.rotation_degrees.y = yaw
 
 
-## The view: from the south (YAW 0, square-on to the walls), looking down on `focus`.
-static func aim_camera(c: Camera3D, at: Vector3) -> void:
-	c.transform = view_xform(at)
+## The view: from `p_yaw` round the floor (0: from the south, square-on to the walls), looking down
+## on `at`.
+static func aim_camera(c: Camera3D, at: Vector3, p_yaw := YAW) -> void:
+	c.transform = view_xform(at, p_yaw)
 
 
-static func view_xform(at: Vector3) -> Transform3D:
-	var dir := Vector3(sin(deg_to_rad(YAW)), 0, cos(deg_to_rad(YAW)))
+static func view_xform(at: Vector3, p_yaw := YAW) -> Transform3D:
+	var dir := Vector3(sin(deg_to_rad(p_yaw)), 0, cos(deg_to_rad(p_yaw)))
 	return Transform3D(Basis(), at + dir * PITCH_BACK + Vector3(0, PITCH_UP, 0)).looking_at(at, Vector3.UP)
+
+
+## From the floor towards the camera, on the floor plane (x, z).
+static func _view_dir(p_yaw: float) -> Vector2:
+	return Vector2(sin(deg_to_rad(p_yaw)), cos(deg_to_rad(p_yaw)))
+
+
+## The ortho height that frames the whole floor at `p_yaw`: VIEW_SIZE square-on, up to 3 more on
+## the diagonals (the floor's corners reach further across and down the screen).
+static func view_size(p_yaw: float) -> float:
+	return VIEW_SIZE + 3.0 * absf(sin(deg_to_rad(2.0 * p_yaw)))
+
+
+# --- Turning (Q/E, right-drag) -------------------------------------------------------------
+
+## Advance a held Q/E turn by `delta` seconds. True while the view is turning.
+func turn_step(delta: float) -> bool:
+	var dir := (1.0 if _turn_keys.has(KEY_E) else 0.0) - (1.0 if _turn_keys.has(KEY_Q) else 0.0)
+	if dir == 0.0 and not turn.turning():
+		return false
+	set_yaw(yaw + turn.step(dir, delta))
+	return true
+
+
+## Turn the view to `deg` (wrapped to 0-360), keeping the whole floor framed; the walls follow when
+## a side turns away, and a hover under a still cursor is picked again.
+func set_yaw(deg: float) -> void:
+	yaw = wrapf(deg, 0.0, 360.0)
+	if cam == null:
+		return
+	if _cam_tw and _cam_tw.is_valid():
+		_cam_tw.kill()
+	focus = overview_focus(yaw)
+	cam.size = view_size(yaw)
+	_place_camera()
+	_sync_walls()
+	if _mouse.x >= 0.0 and _screen == null:
+		hover = _room_at(_pick_floor(_mouse))
+
+
+## Rebuild the walls when a side has turned towards or away from the camera.
+func _sync_walls() -> void:
+	if world == null or _far_sides(yaw) == _walls_far:
+		return
+	var old := world.get_node_or_null("walls")
+	if old:
+		world.remove_child(old)
+		old.queue_free()
+	_build_walls()
 
 
 func _to_screen(p: Vector3) -> Vector2:
@@ -417,9 +489,9 @@ func _build_world() -> void:
 	_place_crew()
 
 
-## Which exterior sides face away from the camera (those get full kit walls).
-static func _far_sides() -> Array[String]:
-	var dir := Vector2(sin(deg_to_rad(YAW)), cos(deg_to_rad(YAW)))
+## Which exterior sides face away from the camera at `p_yaw` (those get full kit walls).
+static func _far_sides(p_yaw := YAW) -> Array[String]:
+	var dir := _view_dir(p_yaw)
 	var out: Array[String] = []
 	var normals := {"north": Vector2(0, -1), "south": Vector2(0, 1), "west": Vector2(-1, 0), "east": Vector2(1, 0)}
 	for side in normals:
@@ -431,7 +503,8 @@ static func _far_sides() -> Array[String]:
 ## Exterior walls (full kit walls on the far sides, waist-high on the near ones) and the waist-high
 ## partitions between rooms and along the corridor (each room opens onto it through one module).
 func _build_walls() -> void:
-	var far := _far_sides()
+	var far := _far_sides(yaw)
+	_walls_far = far
 	var walls := Node3D.new()
 	walls.name = "walls"
 	world.add_child(walls)
@@ -773,7 +846,7 @@ const ROOM_SCREENS := {
 }
 ## Screen id → the screen's tab.
 const SCREEN_TABS := {"jobs": "jobs", "hire": "hire", "market": "market", "city": "city", "storage": "loadouts", "workshop": "workshop",
-	"ripperdoc": "ripperdoc", "therapy": "therapy", "injuries": "injuries", "training": "", "crew": "", "debrief": ""}
+	"ripperdoc": "ripperdoc", "therapy": "therapy", "injuries": "injuries", "training": "", "crew": "", "debrief": "", "dev": ""}
 
 
 static func _make_screen(id: String) -> SafehouseScreen:
@@ -784,6 +857,7 @@ static func _make_screen(id: String) -> SafehouseScreen:
 		"training": return TrainingScreen.new()
 		"crew": return CrewScreen.new()
 		"debrief": return DebriefScreen.new()
+		"dev": return DevMenu.new()   # DEV ONLY (developer mode)
 	return null
 
 var _screen: SafehouseScreen
@@ -822,7 +896,20 @@ func _build_ui() -> void:
 		ui.add_child(l)
 	for c in crew_nodes:
 		crew_labels[c] = _crew_label(c)
+	_hint = UiKit.label("Q · E  rotate", 12, Color(Hud.DIM, 0.8))
+	ui.add_child(_hint)
+	if dev_tools():   # DEV ONLY: the dev menu (developer mode)
+		_dev_btn = UiKit.button("Dev", UiKit.NEUTRAL, func(): open_screen("dev"), true, 13, true)
+		_dev_btn.name = "DevButton"
+		_dev_btn.add_theme_color_override("font_color", Hud.MAGENTA)
+		_dev_btn.tooltip_text = "Dev menu (`)"
+		ui.add_child(_dev_btn)
 	_refresh_ui()
+
+
+## Whether the dev-only tools (the dev menu) are on: developer mode (GameSettings.dev_mode).
+static func dev_tools() -> bool:
+	return GameSettings.dev_mode()
 
 
 func _refresh_ui() -> void:
@@ -837,6 +924,12 @@ func _refresh_ui() -> void:
 	_top.size.x = vs.x - 24
 	for c in crew_labels:
 		(crew_labels[c] as Label).modulate = Color(1, 1, 1, 0.85)
+	if _hint:   # bottom left; the DEV button bottom right
+		_hint.reset_size()
+		_hint.position = Vector2(14, vs.y - _hint.size.y - 10)
+	if _dev_btn:
+		_dev_btn.reset_size()
+		_dev_btn.position = vs - _dev_btn.size - Vector2(14, 10)
 
 
 ## The hovered room's name and what it holds, in place of its label: "MED BAY / Ripperdoc · Therapy ·
@@ -892,7 +985,7 @@ func open_room(id: String) -> void:
 
 ## Open a between-gigs screen full screen over the safehouse (`crew_index` selects someone).
 func open_screen(id: String, crew_index := 0, report := {}) -> void:
-	if not SCREEN_TABS.has(id):
+	if not SCREEN_TABS.has(id) or (id == "dev" and not dev_tools()):
 		return
 	if _screen:
 		_screen.queue_free()
@@ -908,6 +1001,9 @@ func open_screen(id: String, crew_index := 0, report := {}) -> void:
 	_screen = s
 	hover = ""
 	selected = ""
+	_turn_keys.clear()   # Q/E belong to the screen now (Med Bay, Armory: the next crew member)
+	_dragging = false
+	turn.speed = 0.0
 	ui.visible = false
 	svp.render_target_update_mode = SubViewport.UPDATE_DISABLED
 	add_child(s)
@@ -943,16 +1039,17 @@ func _go(gig: Dictionary) -> void:
 ## Glide in on the hovered room (or back out to the whole floor).
 func _overview() -> Vector3:   # the whole floor, nudged down (clear of the top bar), centred on screen
 	_place_camera()
-	return overview_focus()
+	return overview_focus(yaw)
 
 
-static func overview_focus() -> Vector3:
-	return Vector3(W / 2, 0, D / 2) - Vector3(sin(deg_to_rad(YAW)), 0, cos(deg_to_rad(YAW))) * 1.0
+static func overview_focus(p_yaw := YAW) -> Vector3:
+	var dir := _view_dir(p_yaw)
+	return Vector3(W / 2, 0, D / 2) - Vector3(dir.x, 0, dir.y) * 1.0
 
 
 func _frame_selection(now := false) -> void:
 	var goal := _overview()
-	var size := VIEW_SIZE
+	var size := view_size(yaw)
 	if now:
 		focus = goal
 		cam.size = size
@@ -981,7 +1078,16 @@ func _unhandled_input(ev: InputEvent) -> void:
 		_pause.camp = camp
 		add_child(_pause)
 		return
+	if ev is InputEventKey:
+		_turn_key(ev as InputEventKey)
+		return
+	if ev is InputEventMouseButton and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_RIGHT:
+		_dragging = ev.pressed   # right-drag turns the view
+		return
 	if ev is InputEventMouseMotion:
+		_mouse = ev.position
+		if _dragging:
+			set_yaw(yaw + (ev as InputEventMouseMotion).relative.x * DRAG_RATE)
 		var h := _room_at(_pick_floor(ev.position))
 		if h != hover:
 			hover = h
@@ -993,6 +1099,37 @@ func _unhandled_input(ev: InputEvent) -> void:
 		var picked := _room_at(_pick_floor(ev.position))
 		if picked != "":
 			open_room(picked)
+
+
+## Q/E on the hub: held, the view turns (turn_step); with reduced motion a press snaps SNAP_STEP.
+## The ` key opens the dev menu in developer mode.
+func _turn_key(k: InputEventKey) -> void:
+	if k.keycode == DEV_KEY and k.pressed and not k.echo:
+		if dev_tools():
+			_handled()
+			open_screen("dev")
+		return
+	if k.keycode != KEY_Q and k.keycode != KEY_E:
+		return
+	_handled()
+	if not k.pressed:
+		_turn_keys.erase(k.keycode)
+	elif _reduced:
+		if not k.echo:
+			set_yaw(snappedf(yaw, SNAP_STEP) + (SNAP_STEP if k.keycode == KEY_E else -SNAP_STEP))
+	else:
+		_turn_keys[k.keycode] = true
+
+
+func _handled() -> void:
+	if is_inside_tree():
+		get_viewport().set_input_as_handled()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:   # a key let go in another window: stop turning
+		_turn_keys.clear()
+		_dragging = false
 
 
 static func _room_at(p: Vector3) -> String:
