@@ -435,7 +435,7 @@
    "slots": 2,
    "needs": "cybereye",
    "paired": true,
-   "summary": "See through darkness, smoke and bad weather: no penalties.",
+   "summary": "See through darkness, smoke, smog, ash and dust. Heavy rain still blurs it.",
    "cite": "CPR core p.112-113, p.360-361"
   },
   "microoptics": {

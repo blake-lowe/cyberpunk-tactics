@@ -183,7 +183,7 @@ SUMMARY = {
     "hardened_shielding": "This limb's chrome can't be knocked out by EMP.",
     # Phase 2: senses and hazards
     "cyberaudio_suite": "Holds 3 cyberaudio options.",
-    "low_light_infrared_uv": "See through darkness, smoke and bad weather: no penalties.",
+    "low_light_infrared_uv": "See through darkness, smoke, smog, ash and dust. Heavy rain still blurs it.",
     "image_enhance": "+2 Perception when looking.",
     "amplified_hearing": "+2 Perception when listening.",
     "anti_dazzle": "Flashes can't blind you.",

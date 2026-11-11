@@ -12,6 +12,19 @@ extends RefCounted
 ## - ranged_penalty: the same, for a ranged attack past the first range band. HOUSE-RULE reading of
 ##   "a target at a distance": farther than 6 m/yds, the closest band of the range table (CPR core
 ##   p.173). Melee and anything closer never take it.
+## - optics_sight: how much of `sight` still reaches someone seeing with Low Light/Infrared/UV
+##   (Combatant.sees_through_obscurement). HOUSE-RULE (owner ruling 2026-11-11, "do what makes
+##   physical sense"): the book's text (CPR core p.360) zeroes darkness and "smoke, fog, etc." and
+##   says nothing of weather; NCW p.4-5 gives the weather penalties and no optics exception. We split
+##   them by physics. Thermal infrared (8-14 um) passes through fine particulates far smaller than its
+##   wavelength - smoke, fog, haze, inversion smog, ash and blown dust - so those moods have 0. Rain
+##   is different: drops are millimetres across, hundreds of times the wavelength, so they scatter
+##   infrared just as they scatter visible light, and liquid water is close to opaque to it besides
+##   (it absorbs strongly across the thermal band); the falling water also cools every surface toward
+##   one temperature, washing out the contrast a thermal image runs on. So heavy rain, a thunderstorm
+##   and blood rain keep their full penalty for chromed eyes too, not a reduced one: nothing in the
+##   physics makes IR see better through a downpour than the naked eye does. Unset means the full
+##   penalty (an unknown mood is assumed not to be seen through).
 ## - heat: added to a worn armor's penalty to REF, DEX and MOVE (Combatant.heat; NCW p.5: +2 in a
 ##   heat wave). No armor penalty, nothing added.
 ## - outage: a Utility Codes outage (Encounter.outages) the mood brings (blackout: power, NCW p.4).
@@ -35,9 +48,26 @@ static func _mood(id: String) -> Dictionary:
 	return (Atmosphere.data().get("moods", {}) as Dictionary).get(id, {})
 
 
+## Mood `id`'s player-facing name ("Dust storm"), "weather" if unknown.
+static func name_of(id: String) -> String:
+	return String(_mood(id).get("name", "weather"))
+
+
 ## The penalty mood `id` puts on seeing and on shots at a distance (NCW p.4-5), 0 if none or off.
 static func sight(id: String) -> int:
 	return int(_mood(id).get("sight", 0)) if on() else 0
+
+
+## The part of mood `id`'s sight penalty Low Light/Infrared/UV still takes (`optics_sight`, at most
+## `sight`; unset: all of it), 0 if none or off.
+static func optics_sight(id: String) -> int:
+	var s := sight(id)
+	return clampi(int(_mood(id).get("optics_sight", s)), 0, s) if s > 0 else 0
+
+
+## Does Low Light/Infrared/UV see through mood `id` entirely (a sight penalty that optics zero)?
+static func optics_clear(id: String) -> bool:
+	return sight(id) > 0 and optics_sight(id) == 0
 
 
 ## How much worse mood `id` makes an existing armor penalty (NCW p.5: heat wave +2), 0 if none or off.
@@ -70,9 +100,9 @@ static func open_sky(m: TacMap, v: Vector3i) -> bool:
 
 
 ## The penalty to see `to` from `from` in mood `id`: the mood's sight penalty when either of them is
-## out under the open sky, else 0.
-static func sight_penalty(m: TacMap, id: String, from: Vector3i, to: Vector3i) -> int:
-	var p := sight(id)
+## out under the open sky, else 0. `optics`: the viewer sees with Low Light/Infrared/UV (optics_sight).
+static func sight_penalty(m: TacMap, id: String, from: Vector3i, to: Vector3i, optics := false) -> int:
+	var p := optics_sight(id) if optics else sight(id)
 	if p <= 0:
 		return 0
 	return p if open_sky(m, from) or open_sky(m, to) else 0
@@ -80,8 +110,8 @@ static func sight_penalty(m: TacMap, id: String, from: Vector3i, to: Vector3i) -
 
 ## The penalty to a ranged attack from `from` at `to`, `dist_m` away, in mood `id`: the sight
 ## penalty past the first range band (RANGE_BAND_M), else 0.
-static func ranged_penalty(m: TacMap, id: String, from: Vector3i, to: Vector3i, dist_m: float) -> int:
-	return sight_penalty(m, id, from, to) if dist_m > RANGE_BAND_M else 0
+static func ranged_penalty(m: TacMap, id: String, from: Vector3i, to: Vector3i, dist_m: float, optics := false) -> int:
+	return sight_penalty(m, id, from, to, optics) if dist_m > RANGE_BAND_M else 0
 
 
 ## The round tab's line for mood `id` ("" when it changes no rule): "DUST STORM · SIGHT -2".

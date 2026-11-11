@@ -2,7 +2,7 @@ class_name DeviceView
 extends Node3D
 ## Meatspace devices drawn in the world (they used to exist only in the NET overlay): terminals and
 ## jack points (Quaternius sci-fi kit models with a cyan screen), cameras on their mounts with a red
-## eye, door keypads beside security doors (red locked, green open), turrets, data cores, junction
+## eye (an infrared camera wears a crimson illuminator ring round it: _ir_ring), door keypads beside security doors (red locked, green open), turrets, data cores, junction
 ## boxes. Status lights update with the encounter; jack points the crew can use pulse cyan. A device
 ## a Netrunner holds through the NET (NetDevices) wears a small violet HELD diamond above its lamp
 ## and its lamp goes violet (a held turret; a held camera's eye stays red until it's looped); a looped camera's eye and a
@@ -15,6 +15,7 @@ const GREEN := Color("3cf08c")
 const CYAN := Color("39d8ff")
 const AMBER := Color("ffb02e")
 const VIOLET := Color("d68cff")   ## held through the NET (the NET panel's HELD badge)
+const IR := Color("ff1f5a")       ## an infrared camera's illuminator ring (_ir_ring)
 
 var _scenes := {}
 var _lights := {}   ## device id → [MeshInstance3D led, OmniLight3D or null, colour, kind, cell, led position]
@@ -68,6 +69,8 @@ func build(m: TacMap, gy: Callable) -> void:
 				arm.name = "arm"
 				_box(root, Vector3(0.14, 0.1, 0.2), Vector3(0, 1.26, back + 0.22), Color("3a4250"))
 				_led(d.id, root, Vector3(0, 1.31, back + 0.33), Vector3(0.05, 0.05, 0.01), RED, 3.0, "eye")
+				if Encounter.camera_ir(d):
+					_ir_ring(root, Vector3(0, 1.31, back + 0.335))
 			"door_lock":
 				_box(root, Vector3(0.12, 0.18, 0.03), Vector3(0.38, 0.62, 0.0), Color("1e232c"))
 				_led(d.id, root, Vector3(0.38, 0.66, 0.02), Vector3(0.07, 0.07, 0.01), RED, 2.6, "lock")
@@ -230,6 +233,35 @@ func _led(id: int, parent: Node3D, pos: Vector3, size: Vector3, col: Color, glow
 	mi.material_override = m
 	var cell: Vector3i = parent.get_meta("cell", Vector3i(-1, -1, -1))
 	_lights[id] = [mi, null, col, kind, cell, pos]
+
+
+## An infrared camera's illuminator (Encounter.camera_ir): a dark bezel round the lens with a glowing
+## crimson ring and eight emitter dots, like a real IR camera's LED ring. Always lit (the camera's eye
+## alone says live or looped).
+func _ir_ring(parent: Node3D, at: Vector3) -> void:
+	var bezel := _box(parent, Vector3(0.2, 0.2, 0.02), at + Vector3(0, 0, -0.012), Color("14161c"))
+	bezel.name = "ir_bezel"
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = IR
+	mat.emission_enabled = true
+	mat.emission = IR
+	mat.emission_energy_multiplier = 2.6
+	var ring := MeshInstance3D.new()
+	var tm := TorusMesh.new()
+	tm.inner_radius = 0.052
+	tm.outer_radius = 0.064
+	ring.mesh = tm
+	ring.material_override = mat
+	ring.rotation.x = PI / 2.0   # the torus lies in XZ: stand it up to face out of the wall
+	ring.position = at
+	ring.name = "ir_ring"
+	parent.add_child(ring)
+	for i in 8:
+		var a := TAU * i / 8.0
+		var dot := _box(parent, Vector3(0.022, 0.022, 0.012), at + Vector3(cos(a) * 0.084, sin(a) * 0.084, 0.0), IR)
+		dot.material_override = mat
+		dot.name = "ir_dot_%d" % i
 
 
 func _box(parent: Node3D, size: Vector3, pos: Vector3, col: Color) -> MeshInstance3D:

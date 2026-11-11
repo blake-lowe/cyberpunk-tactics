@@ -253,6 +253,7 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 		StreetLife.place(e, cells[0])   # everyday life: vendors, queues, walkers, patrons
 	Twist.arm(e, opts.get("twist"))   # a start twist (Trap Location) places its devices before the turrets mount
 	e._mount_turrets()
+	e._fit_ir_cameras()
 	for line in SetPieces.briefs(String(p_map.params.get("setpiece", ""))):   # the place's house rules, for the briefing
 		e.say(line)
 	Clocks.start(e, opts.get("clocks", false))   # the detection clock on a stealth gig (SPM p.25): campaign gigs ask "auto"
@@ -336,11 +337,12 @@ static func compass(a: Vector3i, b: Vector3i) -> String:
 ## The penalty to see `to` from `from` for `viewer` (a Perception Check to spot, an attack): -4 once
 ## when it's obscured (smoke anywhere on the line, Smoke; or `dark`: the target stands where no light
 ## reaches), plus the weather's sight penalty out in the open (Weather.sight_penalty, NCW p.4-5).
-## Low Light/Infrared/UV takes all of it to 0 (p.360): darkness and "other intangible obscurement,
-## like smoke, fog, etc.", and rain, dust, ash and smog are that - none of them could give cover.
+## Low Light/Infrared/UV takes darkness and smoke to 0 (p.360: darkness and "other intangible
+## obscurement, like smoke, fog, etc."), and of the weather only what thermal infrared sees through
+## (smog, ash, dust); heavy rain still takes its toll (Weather.optics_sight, HOUSE-RULE there).
 func sight_penalty(viewer: Combatant, from: Vector3i, to: Vector3i, dark: bool) -> int:
 	if viewer != null and viewer.sees_through_obscurement():
-		return 0
+		return Weather.sight_penalty(m, weather, from, to, true)
 	return (Smoke.PENALTY if dark or smoke.on_line(from, to) else 0) + Weather.sight_penalty(m, weather, from, to)
 
 
@@ -2055,7 +2057,8 @@ func camera_cells(d: Dictionary) -> Dictionary:
 
 
 ## Security cameras (HOUSE-RULE): a live camera watches its floor within CAMERA_RANGE squares, no
-## wall between; whoever minds the feed rolls CAMERA_PERCEPTION (-4 in the dark) vs Stealth, once
+## wall between; whoever minds the feed rolls CAMERA_PERCEPTION (-4 in the dark or through smoke,
+## none for an infrared camera: camera_penalty) vs Stealth, once
 ## per camera, crew member and round. A hit rouses the nearest unalerted guard, who calls the
 ## alarm in on their turn. Looping their feed (the Loop NET action) turns them off; holding the
 ## node only gives the runner the feed - the netrunner's job in a stealth gig.
@@ -2063,6 +2066,34 @@ const CAMERA_RANGE := 6.0   ## HOUSE-RULE (playtest: 8 squares caught every appr
 const CAMERA_TAMPER_DV := 13   # RULES-UNVERIFIED: Electronics/Security Tech counters devices (p209), DV not given; "everyday" DV13 (p129)
 const CAMERA_HALF_ANGLE := 45.0   ## HOUSE-RULE: a 90° view, pointed away from the wall it's mounted on
 const CAMERA_PERCEPTION := 8   ## HOUSE-RULE: a bored guard watching the feeds
+
+
+## Which cameras are infrared (Security.ir_camera: by the doctrine and the camera's building's
+## security level, from the map seed): marked `ir` on the device, where the view and hover card read it.
+func _fit_ir_cameras() -> void:
+	for d in m.devices:
+		if String(d.type) != "camera":
+			continue
+		var sid := int(d.get("structure", -1))
+		var sec := int(m.structures[sid].get("security", 1)) if sid >= 0 and sid < m.structures.size() else int(m.params.get("security", 1))
+		d["ir"] = Security.ir_camera(doctrine, m.seed_value, int(d.id), sec)
+
+
+## Is camera `d` infrared (sees in the dark and through smoke)?
+static func camera_ir(d: Dictionary) -> bool:
+	return bool(d.get("ir", false))
+
+
+## The feed-watcher's penalty to spot square `v` on camera `d`: -4 (DARK_PENALTY) when it is dark
+## there or smoke is on the line (p.130-131, p.347), none for an infrared camera. HOUSE-RULE (owner
+## ruling 2026-11-11): an IR camera sees heat, so darkness and smoke are nothing to it, as for
+## Low Light/Infrared/UV optics (p.360); no page says which cameras are IR (Security.ir_camera).
+func camera_penalty(d: Dictionary, v: Vector3i) -> int:
+	if camera_ir(d):
+		return 0
+	return DARK_PENALTY if not lit.has(v) or smoke.on_line(Vector3i(d.pos.x, d.pos.y, d.floor), v) else 0
+
+
 func _camera_spots() -> Dictionary:
 	if alarm >= 2:
 		return {}
@@ -2075,7 +2106,7 @@ func _camera_spots() -> Dictionary:
 				continue
 			var key := ["cam", d.id, u.id, init.round_num if init else 0]
 			if not _spot_rolls.has(key):
-				var base := CAMERA_PERCEPTION - (DARK_PENALTY if not lit.has(u.pos) or smoke.on_line(cp, u.pos) else 0)   # dark or smoke: obscured (p.130-131, p.347)
+				var base := CAMERA_PERCEPTION - camera_penalty(d, u.pos)   # dark or smoke: obscured (p.130-131, p.347), unless it's infrared
 				_spot_rolls[key] = Check.opposed(dice, base, u.c.skill_base("stealth") - u.c.action_penalty()).success
 				if _spot_rolls[key]:   # a failed Stealth check (SPM p.25 Corporate Heist)
 					Clocks.trigger(self, "failed_stealth", int(u.id), "a camera catches %s" % u.c.display_name)
@@ -2873,14 +2904,17 @@ func preview(target: Dictionary, weapon: Weapon, mode: Attack.Mode) -> Dictionar
 		s.from = cur.pos
 	var dist := _attack_distance(weapon, s.from, target.pos)
 	var sh := shield_for(target, weapon, mode, s.from)   # a Human Shield takes the shot (p.184)
-	var sees := _aimer().sees_through_obscurement()   # Low Light/Infrared/UV: no smoke or weather penalty (p.360)
-	var wm := 0 if weapon.is_melee() or sees else -Weather.ranged_penalty(m, weather, s.from, target.pos, dist)   # a shot through the weather (NCW p.4-5)
+	var sees := _aimer().sees_through_obscurement()   # Low Light/Infrared/UV: no smoke penalty (p.360), and only the weather thermal can't see through (Weather.optics_sight)
+	var raw := 0 if weapon.is_melee() else Weather.ranged_penalty(m, weather, s.from, target.pos, dist)
+	var wm := 0 if weapon.is_melee() else -Weather.ranged_penalty(m, weather, s.from, target.pos, dist, sees)   # a shot through the weather (NCW p.4-5)
 	var om := obscured_mod(_aimer(), s.from, target.pos)   # smoke on the line (p.347)
 	var p := Attack.preview(_aimer(), weapon, sh.c if not sh.is_empty() else target.c, mode, dist, wm + om)
 	p["from"] = s.from
 	p["weather"] = wm
 	p["obscured"] = om
-	p["sees_through"] = sees and (smoke.on_line(s.from, target.pos) or Weather.ranged_penalty(m, weather, s.from, target.pos, dist) > 0)
+	p["sees_smoke"] = sees and smoke.on_line(s.from, target.pos)   # what the optics took off, for the card
+	p["sees_weather"] = sees and raw + wm > 0
+	p["sees_through"] = p.sees_smoke or p.sees_weather
 	p["blocker"] = s.blocker
 	if not sh.is_empty():
 		p["shield"] = sh.id
