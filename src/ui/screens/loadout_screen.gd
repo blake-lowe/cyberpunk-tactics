@@ -3,9 +3,9 @@ extends Control
 ## A crew member's whole loadout at a glance (owner: "a new in game load out screen" with the
 ## cyberware silhouette and the equipped weapons to the side): the ChromeBody silhouette, read-only,
 ## with their weapons in draw order, head and body armour and kit beside it, and what their chrome
-## does. Opened in a gig (M, or a click on a crew card: the hotbar's or the Alt roster's) and from
+## does. Opened in a gig (L, or a click on a crew card: the hotbar's or the Alt roster's) and from
 ## the Armory (FULL LOADOUT). Read-only: gear changes at the Armory, chrome at the Med Bay.
-## Keys: Q/E crew, ↑/↓ body location, Esc (or M) closes.
+## Keys: Q/E crew, ↑/↓ body location, Esc (or L) closes.
 
 signal closed
 
@@ -146,7 +146,7 @@ func _gear_panel(c: Combatant) -> PanelContainer:
 		if loc != "" and l != loc:
 			continue
 		var seen := {}
-		for pc in Cyber.shown(Cyber.pieces_at(c.implants, l)):
+		for pc in Cyber.pieces_at(c.implants, l):
 			var id := String(pc.id)
 			if seen.has(id):
 				continue
@@ -222,7 +222,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 				i = -1 if k.keycode == KEY_DOWN else 0
 			loc = Cyber.LOCS[posmod(i + (-1 if k.keycode == KEY_UP else 1), Cyber.LOCS.size())]
 			_build()
-		KEY_ESCAPE, KEY_M:
+		KEY_ESCAPE, KEY_L:
 			close()
 	if is_inside_tree():   # a modal screen: no key reaches the game under it
 		get_viewport().set_input_as_handled()

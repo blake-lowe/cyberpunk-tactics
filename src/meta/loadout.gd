@@ -69,8 +69,6 @@ static func in_filter(filter: String, key: String) -> bool:
 		"armor": return Items.is_armor(key)
 		"consumable": return Items.fits(0, key) and Items.is_item(key)
 		"utility": return Items.fits(1, key) and Items.is_item(key)
-	if Items.is_cyberware(key):
-		return Items.is_stored(key) and Cyber.modelled(Items.base_id(key))   # chrome whose effect isn't played stays hidden
 	return Items.is_stored(key)
 
 

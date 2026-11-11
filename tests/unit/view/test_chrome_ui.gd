@@ -1,8 +1,8 @@
 extends TestCase
 ## The cyberware silhouette (ChromeBody) in the Med Bay's ripperdoc and on the loadout screen:
 ## its slot markers follow the slot model (Cyber.capacity / used / free_slots), a blocked install
-## says why, INSTALL and DESTROY IT go through Campaign, and chrome whose effect isn't played is
-## never named (its slots show as occupied). Layout is checked by screenshots.
+## says why, INSTALL and DESTROY IT go through Campaign, and chrome whose effect isn't played yet is
+## shown and named like any other (owner, 2026-11-11). Layout is checked by screenshots.
 
 
 func _open(s: SafehouseScreen, camp: Campaign, tab := "", sel := 0) -> SafehouseScreen:
@@ -80,7 +80,7 @@ func test_pips_follow_the_slot_model() -> void:
 		{"id": "cybereye", "loc": "right_eye"}, {"id": "targeting_scope", "loc": "right_eye"}, {"id": "microoptics", "loc": "right_eye"},
 		{"id": "subdermal_grip", "loc": "right_arm"}, {"id": "cyberarm", "loc": "left_arm"}, {"id": "skin_weave", "loc": "external"}]
 	var states := func(loc: String) -> Array: return ChromeBody.pips(imp, loc).map(func(p): return String(p.state))
-	assert_eq(states.call("right_eye"), ["filled", "hidden", "empty"], "a seen option, an unplayed one (occupied), a free slot")
+	assert_eq(states.call("right_eye"), ["filled", "filled", "empty"], "two options (one not played yet: filled all the same), a free slot")
 	assert_eq(states.call("left_eye"), ["locked", "locked", "locked"], "a meat eye: the Cybereye's slots, locked")
 	assert_eq(states.call("neural_link"), ["filled", "filled", "filled", "empty", "empty"], "Kerenzikov, the socket and the Grip's Neural Link slot")
 	assert_eq(states.call("chipware"), ["filled"], "one chip per socket")
@@ -94,9 +94,10 @@ func test_pips_follow_the_slot_model() -> void:
 		var cap := Cyber.capacity(imp, loc)
 		if cap > 0:
 			assert_eq(ps.filter(func(p): return p.state == "empty").size(), maxi(0, Cyber.free_slots(imp, loc)), "free slots at " + loc)
-	assert_eq(ChromeBody.line(imp, "right_eye"), "Cybereye · Targeting Scope", "the hidden MicroOptics isn't named")
+	assert_eq(ChromeBody.line(imp, "right_eye"), "Cybereye · Targeting Scope · " + Cyber.display("microoptics"), "the unplayed MicroOptics is named")
 	assert_eq(ChromeBody.line(imp, "left_eye"), "Meat")
-	assert_eq(ChromeBody.line([{"id": "biomonitor", "loc": "fashion"}], "fashion"), "Occupied")
+	assert_eq(ChromeBody.line([{"id": "biomonitor", "loc": "fashion"}], "fashion"), "Biomonitor", "never \"Occupied\"")
+	assert_eq(ChromeBody.line([{"id": "cyberleg", "loc": "right_leg"}], "right_leg"), "Cyberleg", "an unplayed foundation by its name")
 
 
 func test_med_bay_markers_match_capacity_for_every_crew_member() -> void:
@@ -170,8 +171,14 @@ func test_install_and_remove_go_through_the_campaign() -> void:
 	var nl := _live(s, "Installed_neural_link")
 	assert_eq(nl.size(), 1)
 	var bl := (nl[0] as Node).find_child("Blocked", true, false) as Label
-	assert_eq(bl.text if bl else "", "⚠ " + UiKit.caps(MedBayScreen.plain_reason(c.implants, camp.remove_block(c, "neural_link", "neural_link"))), "a removal block in plain words")
-	assert_false(bl.text.contains("INTERFACE PLUGS"), "never naming the hidden piece that holds it")
+	assert_eq(bl.text if bl else "", "⚠ " + UiKit.caps(camp.remove_block(c, "neural_link", "neural_link")), "a removal block in plain words")
+	assert_true(bl.text.contains("INTERFACE PLUGS"), "naming the piece that holds it, played yet or not: " + bl.text)
+	# the unplayed piece comes out like any other, and then the foundation can
+	assert_true(camp.remove(c, "interface_plugs", "neural_link"), "Interface Plugs out first")
+	s._select_loc("neural_link")
+	assert_true((_live(s, "Installed_neural_link")[0] as Node).find_child("Blocked", true, false) == null, "the empty Neural Link isn't blocked")
+	assert_eq(_buttons(_live(s, "Installed_neural_link")[0], "REMOVE").size(), 1, "REMOVE offered")
+	assert_true(camp.remove(c, "neural_link", "neural_link"), "and it comes out")
 	s.free()
 
 
@@ -193,25 +200,28 @@ func test_keyboard_moves_between_places_and_crew() -> void:
 	s.free()
 
 
-func test_hidden_pieces_never_show() -> void:
+## Owner, 2026-11-11: chrome whose effect isn't played yet isn't hidden while it's being built: the
+## Med Bay and the loadout screen name it, its pips are filled, and it comes out like any piece.
+func test_unplayed_pieces_show_by_name() -> void:
 	var camp := DemoState.make()
-	var c: Combatant = camp.alive_crew()[2]   # a hidden Biomonitor (its TeleOptics play since phase 1)
-	var hidden: Array = c.implants.filter(func(p): return not Cyber.modelled(String(p.id))).map(func(p): return Cyber.display(String(p.id)).to_upper())
-	assert_false(hidden.is_empty(), "the demo crew member carries unplayed chrome")
+	var c: Combatant = camp.alive_crew()[2]   # an unplayed Biomonitor (its TeleOptics play since phase 1)
+	assert_false(Cyber.modelled("biomonitor"), "the demo crew member carries unplayed chrome")
 	var s: MedBayScreen = _open(MedBayScreen.new(), camp, "ripperdoc", 2)
-	for loc in ["fashion"]:
-		s._select_loc(loc)
-		var texts := _texts(s)
-		for h in hidden:
-			assert_false(texts.any(func(t): return String(t).to_upper().contains(h)), "%s never named (%s)" % [h, loc])
-		assert_eq(_live(s, "Occupied").size(), 1, "its slots show as occupied at " + loc)
-		assert_true(_body(s).cards[loc].get_meta("pips").any(func(p): return p.state == "hidden"), "a grey occupied pip")
-		assert_false(s._actions.any(func(a): return String(a).begins_with("remove:") and not Cyber.modelled(String(a).get_slice(":", 1))), "and it can't be removed")
+	s._select_loc("fashion")
+	assert_true(_texts(s).any(func(t): return String(t).to_upper() == "BIOMONITOR"), "named on the Med Bay")
+	assert_eq(_live(s, "Installed_biomonitor").size(), 1, "an installed row of its own")
+	assert_eq(_live(s, "Occupied").size(), 0, "no anonymous occupied row")
+	assert_true(_body(s).cards["fashion"].get_meta("pips").all(func(p): return p.state in ["filled", "empty"]), "ordinary pips")
+	assert_eq(_body(s).cards["fashion"].get_meta("pips").filter(func(p): return p.state == "filled").size(), 1, "its slot filled")
+	assert_true("remove:biomonitor" in s._actions, "it can be removed")
+	assert_eq(_buttons(_live(s, "Installed_biomonitor")[0], "REMOVE").size(), 1, "REMOVE offered")
 	s.free()
 	var lo := _loadout(camp.alive_crew(), 2)
-	for h in hidden:
-		assert_false(_texts(lo).any(func(t): return String(t).to_upper().contains(h)), "%s not on the loadout" % h)
+	assert_true(_texts(lo).any(func(t): return String(t).to_upper() == "BIOMONITOR"), "named on the loadout")
 	lo.free()
+	var crew := _open(CrewScreen.new(), camp, "", 2)
+	assert_true(_texts(crew).any(func(t): return String(t).to_upper() == "BIOMONITOR"), "and on the crew screen")
+	crew.free()
 
 
 func test_loadout_screen_shows_the_body_and_the_gear() -> void:
@@ -227,7 +237,7 @@ func test_loadout_screen_shows_the_body_and_the_gear() -> void:
 	assert_true("WEAPONS" in texts and "ARMOR" in texts and "KIT" in texts, "the gear to the side")
 	for w in c.weapons:
 		assert_true(texts.any(func(t): return String(t) == (Loadout.chrome_name(c, w) if w.builtin else w.display_name())), "weapon %s listed" % w.id())
-	for nm in Cyber.shown_names(c.implants):
+	for nm in Cyber.names(c.implants):
 		assert_true(texts.any(func(t): return String(t) == nm.to_upper()), "chrome %s described" % nm)
 	assert_true(_buttons(lo, "INSTALL").is_empty() and _buttons(lo, "REMOVE").is_empty(), "read-only")
 	_key(lo, KEY_E)
@@ -244,7 +254,7 @@ func test_loadout_screen_shows_the_body_and_the_gear() -> void:
 	plain.display_name = "Nobody"
 	var lp := _loadout([plain])
 	assert_true(_texts(lp).has("No cyberware."), "says so plainly")
-	assert_true(_body(lp).cards.values().all(func(cd): return not (cd as Control).get_meta("pips").any(func(p): return p.state in ["filled", "hidden"])), "no filled slots")
+	assert_true(_body(lp).cards.values().all(func(cd): return not (cd as Control).get_meta("pips").any(func(p): return p.state == "filled")), "no filled slots")
 	lp.free()
 
 
@@ -259,7 +269,7 @@ func test_armory_opens_the_full_loadout() -> void:
 
 
 func test_help_names_the_loadout_key() -> void:
-	assert_true(Hud.help_text().contains("Loadout"), Hud.help_text())
+	assert_true(Hud.help_text().contains("L  Loadout"), "L opens the loadout (owner, 2026-11-11): " + Hud.help_text())
 
 
 ## Phase 1's options step (_install_choices): a Skill Chip goes in as the Skill it was bought for.

@@ -14,7 +14,7 @@ const IMPLEMENTED_FX := ["stat", "stat_cap", "skill", "initiative", "ignore_seri
 	"stat_set"]
 ## Every fx key the data may use: the implemented ones and those waiting for a system.
 const KNOWN_FX := IMPLEMENTED_FX + ["netrun"]
-## Phase 1 (combat chrome): each now plays, so each is sold and shown.
+## Phase 1 (combat chrome): each now plays, so each is sold.
 const PHASE1 := ["sandevistan", "popup_ranged_weapon", "popup_melee_weapon", "popup_shield", "popup_grenade_launcher", "dartgun",
 	"skill_chip", "medscanner", "techscanner", "teleoptics", "implanted_linear_frame_sigma", "implanted_linear_frame_beta",
 	"hardened_shielding"]

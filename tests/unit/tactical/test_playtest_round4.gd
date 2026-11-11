@@ -227,9 +227,9 @@ func test_put_out_fire_is_offered_only_while_burning_and_costs_the_action() -> v
 	assert_eq(String(RulesDB.load_json("action_help.json").actions.put_out.page), "p.180", "its cite lives in the data's page field")
 	assert_false(TextCites.has_cite(Hud.action_help("put_out")), "never on the card")
 	var row: Array = Hud.GRAPPLE_ACTIONS.filter(func(r): return r[0] == "put_out")[0]
-	assert_eq(String(row[2]), "C", "a key of its own (C, freed when the cutaway modes retired)")
+	assert_eq(String(row[2]), "U", "on U with Get Up (owner, 2026-11-11: C is the chrome menu's)")
 	for r in Hud.MAIN_ACTIONS:
-		assert_true(String(r[2]) != "C", "no clash with the main bar")
+		assert_true(String(r[2]) != "U", "no clash with the main bar")
 	var hp := c.hp
 	assert_true(e.grapple_act("put_out").ok)
 	assert_eq(c.burning, 0, "out")

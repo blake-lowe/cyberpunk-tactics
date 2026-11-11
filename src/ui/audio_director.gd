@@ -88,7 +88,7 @@ func _ready() -> void:
 
 
 func _unhandled_key_input(ev: InputEvent) -> void:
-	if ev is InputEventKey and ev.pressed and not ev.echo and (ev as InputEventKey).keycode == KEY_M:
+	if ev is InputEventKey and ev.pressed and not ev.echo and (ev as InputEventKey).keycode == KEY_F5:   # mute (F5: M is Withdraw in a gig)
 		_muted = not _muted
 		AudioServer.set_bus_mute(0, _muted)
 

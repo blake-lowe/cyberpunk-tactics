@@ -10,9 +10,8 @@ extends Control
 ## Every location (Cyber.LOCS) has a callout card joined by a leader line to its place on the body:
 ## the anchor is the model's bone (head, eyes, ear, neck, chest, arms, legs) projected to the screen,
 ## so the lines land on the body as it moves. A card shows what's there (the foundation and the
-## pieces) and its Option Slots as pips: filled, empty, locked (no foundation yet) or occupied
-## (grey, hatched: chrome whose effect isn't played yet, Cyber.modelled false, is never named, but
-## its slots stay taken).
+## pieces) and its Option Slots as pips: filled, empty or locked (no foundation yet). Every installed
+## piece is named and filled, its effect played yet or not (owner, 2026-11-11).
 ## The Med Bay's ripperdoc picks a location or an installed piece here (loc_pressed, piece_pressed;
 ## a click on the body picks the nearest place); the loadout screen shows it read-only (clicks only
 ## select). Built from Controls, so tests can read `cards` and each card's `pips` meta. Headless
@@ -148,10 +147,10 @@ func _process(delta: float) -> void:
 
 # --- The model, as the cards show it (static: tests read it too) ------------------------------
 
-## A location's Option Slots as pips: [{state, id}], state "filled" (a piece players see),
-## "hidden" (a piece whose effect isn't played: never named), "empty" or "locked" (no foundation
-## yet: what it would hold). A piece takes as many pips as Option Slots (a chip one; a Subdermal
-## Grip also one of the Neural Link's). A meat arm or leg holds one piece: one pip. Borgware: none.
+## A location's Option Slots as pips: [{state, id}], state "filled" (a piece), "empty" or "locked"
+## (no foundation yet: what it would hold). A piece takes as many pips as Option Slots (a chip one;
+## a Subdermal Grip also one of the Neural Link's). A meat arm or leg holds one piece: one pip.
+## Borgware: none.
 static func pips(implants: Array, loc: String) -> Array:
 	var out: Array = []
 	if loc == "borgware":
@@ -159,7 +158,7 @@ static func pips(implants: Array, loc: String) -> Array:
 	if Cyber.is_meat(implants, loc):
 		var mp := Cyber.meat_pieces(implants, loc)
 		for p in mp:
-			out.append({"state": "filled" if Cyber.modelled(String(p.id)) else "hidden", "id": String(p.id)})
+			out.append({"state": "filled", "id": String(p.id)})
 		if mp.is_empty():
 			out.append({"state": "empty", "id": ""})
 		return out
@@ -181,28 +180,27 @@ static func pips(implants: Array, loc: String) -> Array:
 		return out
 	for t in taken:
 		for i in int(t[1]):
-			out.append({"state": "filled" if Cyber.modelled(String(t[0])) else "hidden", "id": String(t[0])})
+			out.append({"state": "filled", "id": String(t[0])})
 	for i in maxi(0, cap - Cyber.used(implants, loc)):
 		out.append({"state": "empty", "id": ""})
 	return out
 
 
-## The card's line: the foundation (or Meat / Empty) and the pieces players may see, "Cybereye ·
-## Targeting Scope". A hidden foundation reads "Occupied"; hidden options aren't named (their pips say it).
+## The card's line: the foundation (or Meat / Empty) and the pieces in it, "Cybereye · Targeting
+## Scope". A meat limb's Standard Hand/Foot isn't listed (it doesn't count there, Cyber.meat_pieces).
 static func line(implants: Array, loc: String) -> String:
 	var parts: Array[String] = []
 	var f := Cyber.foundation_at(implants, loc)
 	if f != "":
-		parts.append(Cyber.display(f) if Cyber.modelled(f) else "Occupied")
+		parts.append(Cyber.display(f))
 	elif loc in LIMBS or loc in Cyber.EYES:
 		parts.append("Meat")
-	for p in Cyber.pieces_at(implants, loc):
-		var id := String(p.id)
-		if id != f and Cyber.modelled(id) and not (Cyber.def(id).get("free_in_meat", false)):
-			parts.append(Cyber.display(id))
+	var ps := Cyber.meat_pieces(implants, loc) if Cyber.is_meat(implants, loc) else Cyber.pieces_at(implants, loc)
+	for p in ps:
+		if String(p.id) != f:
+			parts.append(Cyber.display(String(p.id)))
 	if parts.is_empty():
-		var hidden := Cyber.pieces_at(implants, loc).any(func(p): return not Cyber.modelled(String(p.id)))
-		parts.append("Occupied" if hidden else "Empty")
+		parts.append("Empty")
 	return " · ".join(parts)
 
 
@@ -247,7 +245,7 @@ func _card(loc: String) -> PanelContainer:
 			pip.on = String(pp.id) != "" and String(pp.id) == sel_id and on
 			row.add_child(pip)
 	var txt := line(c.implants, loc)
-	var l := UiKit.fit(UiKit.body(txt, 12 if compact else 13, Hud.TEXT if chrome and txt != "Occupied" else Hud.DIM, false))
+	var l := UiKit.fit(UiKit.body(txt, 12 if compact else 13, Hud.TEXT if chrome else Hud.DIM, false))
 	l.name = "Line"
 	v.add_child(l)
 	var lc := loc
@@ -286,9 +284,6 @@ class Pip extends Control:
 		match state:
 			"filled":
 				draw_colored_polygon(pts, Color(col, 0.9))
-			"hidden":   # occupied by chrome not in play: grey, hatched
-				draw_colored_polygon(pts, Color(Hud.DIM, 0.35))
-				draw_line(Vector2(2, size.y - 2), Vector2(size.x - 2, 2), Color(Hud.DIM, 0.9), 1.0)
 			"empty":
 				pts.append(pts[0])
 				draw_polyline(pts, Color(col, 0.75), 1.0)
