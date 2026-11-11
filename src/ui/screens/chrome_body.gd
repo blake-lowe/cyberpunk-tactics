@@ -17,9 +17,19 @@ extends Control
 ## a click on the body picks the nearest place); the loadout screen shows it read-only (clicks only
 ## select). Built from Controls, so tests can read `cards` and each card's `pips` meta. Headless
 ## (tests) the viewport doesn't draw but the model still poses, so anchors come from its bones.
+## Figure styles (owner, on the hologram: "our character models don't really hold up when large like
+## this"; prototypes to compare): `--body=holo|vitruvian|scan|facet` on the command line picks the
+## figure, the hologram by default. The others are 2D art (BodyArt), drawn from the same locations:
+## vitruvian (Leonardo's Vitruvian Man as a ripperdoc schematic: BodyVitruvian), scan (a medical scan
+## plate: skeleton, organs, scan bands: BodyScan) and facet (a low-poly chrome mannequin: BodyFacet).
 
 signal loc_pressed(loc: String)
 signal piece_pressed(loc: String, id: String)
+
+## The figure styles (`--body=x`); the first is the default.
+const STYLES: Array[String] = ["holo", "vitruvian", "scan", "facet"]
+## Tests and review tools set this to force a style ("" = the command line's, else the default).
+static var style_override := ""
 
 ## The figure's frame (its aspect; the model is fitted to its height); the character faces the
 ## viewer, so their right side is on the viewer's left.
@@ -75,9 +85,11 @@ const POSE_CLIP := "idle_shift"
 ## The char.gdshader parameters the hologram reads the outfit from.
 const OUTFIT := ["tex", "albedo", "skin", "jacket", "sleeve", "forearm", "pants", "boots", "gloves", "belt", "belt_y", "coat_y", "boots_y"]
 ## Body regions the hologram tints (vertex COLOR.r, from each vertex's dominant bone).
-enum Reg { TORSO, HEAD, NECK, R_ARM, L_ARM, R_LEG, L_LEG, R_EYE, L_EYE }
+## EAR and L_FORE (the left forearm and hand: fashionware) only the 2D styles draw.
+enum Reg { TORSO, HEAD, NECK, R_ARM, L_ARM, R_LEG, L_LEG, R_EYE, L_EYE, EAR, L_FORE }
+const REGIONS := 11
 const REGION_LOCS := {Reg.HEAD: "neural_link", Reg.NECK: "chipware", Reg.R_ARM: "right_arm", Reg.L_ARM: "left_arm",
-	Reg.R_LEG: "right_leg", Reg.L_LEG: "left_leg", Reg.R_EYE: "right_eye", Reg.L_EYE: "left_eye"}
+	Reg.R_LEG: "right_leg", Reg.L_LEG: "left_leg", Reg.R_EYE: "right_eye", Reg.L_EYE: "left_eye", Reg.EAR: "cyberaudio"}
 
 var c: Combatant
 var compact := false       ## short screens (1600x900 is ~600 logical lines): smaller cards
@@ -96,6 +108,7 @@ var _over: Control         ## leader lines and anchor marks, over the figure, un
 var _drag := 0.0           ## degrees the player has turned the figure (eases back when let go)
 var _dragging := false
 var _press := Vector2(-1, -1)
+var _art: BodyArt          ## the 2D figure (every style but the hologram)
 static var _meshes := {}   ## source mesh → its hologram copy (regions in COLOR.r)
 
 
@@ -114,8 +127,15 @@ func setup(p_c: Combatant, p_sel_loc := "", p_sel_id := "", p_hints := {}, p_com
 	cards.clear()
 	anchors.clear()
 	_model = null
+	_art = null
+	_holo = null
 	_motion = not GameSettings.reduced_motion()
-	_build_stage()
+	var st := style()
+	if st == "holo":
+		_build_stage()
+	else:
+		_art = _make_art(st)
+		add_child(_art)
 	_over = Overlay.new()
 	_over.body = self
 	_over.name = "Leaders"
@@ -127,6 +147,57 @@ func setup(p_c: Combatant, p_sel_loc := "", p_sel_id := "", p_hints := {}, p_com
 		add_child(card)
 	_layout()
 	return self
+
+
+## The figure style in use: style_override, else `--body=x` on the command line, else the hologram.
+static func style() -> String:
+	if style_override in STYLES:
+		return style_override
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--body=") and a.substr(7) in STYLES:
+			return a.substr(7)
+	return STYLES[0]
+
+
+func _make_art(st: String) -> BodyArt:
+	var art: BodyArt
+	match st:
+		"vitruvian":
+			art = BodyVitruvian.new()
+		"scan":
+			art = BodyScan.new()
+		_:
+			art = BodyFacet.new()
+	art.name = "Figure"
+	art.body = self
+	art.motion = _motion
+	art.tints = region_tints()
+	art.shell = _shell()
+	return art
+
+
+## Every region's tint for the 2D styles: [colour (a = how much; 0 = meat), plated]. The ear is the
+## Cyberaudio Suite's; the left forearm and hand are fashionware's when it has any (else the arm's).
+func region_tints() -> Array:
+	var out: Array = []
+	for r in REGIONS:
+		out.append(_tint(r))
+	if sel_loc == "fashion":
+		out[Reg.L_FORE] = [Color(Hud.GOLD, 0.8), 0.0]
+	elif chromed(c.implants, "fashion"):
+		out[Reg.L_FORE] = [Color(CHROME, 0.75), 0.0]
+	else:
+		out[Reg.L_FORE] = out[Reg.L_ARM]
+	return out
+
+
+## External chrome (skin): a second skin at the body's edge, gold when it's the selected location.
+func _shell() -> Color:
+	if sel_loc == "external":
+		return Color(Hud.GOLD, 0.85)
+	if chromed(c.implants, "external"):
+		return Color(CHROME, 0.75)
+	return Color(0, 0, 0, 0)
 
 
 func _notification(what: int) -> void:
@@ -219,6 +290,8 @@ func _card(loc: String) -> PanelContainer:
 	var p := PanelContainer.new()
 	p.name = "Card_" + loc
 	var fill := Color(0.11, 0.09, 0.02, 0.96) if on else Color(0.025, 0.035, 0.05, 0.94)
+	if _art and _art.wide():   # the drawing shows faintly through the cards it runs under
+		fill.a = 0.92 if on else 0.88
 	var edge := Hud.GOLD if on else (Color(CHROME, 0.7) if chrome else Color(Hud.DIM, 0.35))
 	p.add_theme_stylebox_override("panel", CutBox.make(fill, edge, 6, 0b0101 if loc in LEFT_COL else 0b1010, Hud.GOLD if on else Color(0, 0, 0, 0), 4 if compact else 5))
 	var v := UiKit.vbox(1 if compact else 2)
@@ -365,11 +438,7 @@ func _dress() -> void:
 		var tp := _tint(r)
 		tints.append(tp[0])
 		plated.append(tp[1])
-	var shell := Color(0, 0, 0, 0)
-	if sel_loc == "external":
-		shell = Color(Hud.GOLD, 0.85)
-	elif chromed(c.implants, "external"):
-		shell = Color(CHROME, 0.75)
+	var shell := _shell()
 	for mi: MeshInstance3D in _model.find_children("*", "MeshInstance3D", true, false):
 		if _model.gun and _model.gun.is_ancestor_of(mi):
 			continue
@@ -528,15 +597,26 @@ func _layout() -> void:
 	var h := size.y
 	if w <= 0 or h <= 0:
 		return
-	var fh := minf(h - 6.0, (w - 2.0 * _card_min() - 2.0 * GAP) * FIG.y / FIG.x)
+	var aspect := FIG.x / FIG.y if _art == null else _art.aspect()
+	var fh := minf(h - 6.0, (w - 2.0 * _card_min() - 2.0 * GAP) / aspect)
+	var wide := _art != null and _art.wide()
+	if wide:   # the drawing runs on under the cards (at their narrowest), its middle between them
+		fh = h - 4.0
 	fh = maxf(fh, 120.0)
-	var fw := fh * FIG.x / FIG.y
-	var cw := clampf((w - fw) / 2.0 - GAP, _card_min(), CARD_MAX)
+	var fw := fh * aspect
+	var cw := _card_min() if wide else clampf((w - fw) / 2.0 - GAP, _card_min(), CARD_MAX)
 	_fig = Rect2(Vector2((w - fw) / 2.0, (h - fh) / 2.0), Vector2(fw, fh))
-	var lx := maxf(0.0, _fig.position.x - GAP - cw)
-	var rx := minf(w - cw, _fig.end.x + GAP)
-	_frame_stage(Rect2(Vector2(lx + cw, 0), Vector2(rx - lx - cw, h)))
-	_read_anchors()
+	var lx := 0.0 if wide else maxf(0.0, _fig.position.x - GAP - cw)
+	var rx := w - cw if wide else minf(w - cw, _fig.end.x + GAP)
+	if _art:
+		_art.position = Vector2.ZERO
+		_art.size = size
+		_art.place(_fig, Rect2(Vector2(lx + cw, 0), Vector2(rx - lx - cw, h)))
+		for loc in Cyber.LOCS:
+			anchors[loc] = _art.anchor(loc)
+	else:
+		_frame_stage(Rect2(Vector2(lx + cw, 0), Vector2(rx - lx - cw, h)))
+		_read_anchors()
 	_column(LEFT_COL, lx, cw, h)
 	_column(RIGHT_COL, rx, cw, h)
 	_over.size = size
@@ -647,7 +727,7 @@ func _loc_col(loc: String) -> Color:
 ## Behind the figure: the scanner frame (corner brackets, a height scale, faint scanlines) and the
 ## platform it stands on.
 func _draw() -> void:
-	if c == null or _fig.size.x <= 0:
+	if c == null or _fig.size.x <= 0 or _art != null:
 		return
 	var fr := _fig.grow(10.0)
 	var bc := Color(Hud.CYAN, 0.35)
