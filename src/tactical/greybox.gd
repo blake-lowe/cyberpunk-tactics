@@ -274,7 +274,7 @@ var _dev_radar := false      ## --radar=1 (review renders): a Radar/Sonar Implan
 var weather_fx: WeatherFx    ## the weather over the play area: rain, ash, dust, haze, the wet ground, lightning
 var _dev_flash := false      ## --flash=1 (review renders): a lightning flash at the shot
 var keycard_nodes := {}        ## unit id → glinting keycard over a downed carrier
-var obj_node: Node3D           ## snatch objective: the package (a case on a gold beacon) and the extraction squares
+var obj_node: Node3D           ## snatch objective: the package (a case) and the extraction squares
 var dash_opts := {}           ## squares reachable by also spending the Action on a Run (amber contour)
 var rim: DirectionalLight3D
 var unit_key: DirectionalLight3D   ## lights units only (UNIT_KEY)
@@ -353,6 +353,9 @@ var _floor_key_t := 0.0
 var _floor_key_steps := 0
 var cut_map_img: Image           ## the per-square cut (world.gdshader cut_map)
 var cut_map_tex: ImageTexture
+const HOLES := 24                ## most wall holes at once (world.gdshader cut_holes)
+var holes_img: Image             ## the wall holes (_update_wall_holes)
+var holes_tex: ImageTexture
 const KERB := 0.07               # sidewalk height (WorldBuilder raises sidewalks)
 var _last_cur := -1
 var fx: Fx
@@ -367,6 +370,7 @@ var builder: WorldBuilder
 var _log_seen := 0
 var _shot_path := ""
 var _shot_hover := Vector2i(-1, -1)
+var _dev_path := ""                    ## --hover=path:stairs|climb|jump (review renders): hover the nearest move whose path takes that link
 var _frames := 0
 var _reveal := false
 var _walk := 0
@@ -582,6 +586,9 @@ func _ready() -> void:
 				if kv[1] == "turret":   # the nearest turret in sight
 					_shot_hover = Vector2i(-3, -3)
 					continue
+				if kv[1].begins_with("path:"):   # a move over stairs, a ladder or a jump (its trace)
+					_dev_path = kv[1].substr(5)
+					continue
 				var xy := kv[1].split(",")
 				_shot_hover = Vector2i(int(xy[0]), int(xy[1]))
 			_:
@@ -680,6 +687,7 @@ func _process(delta: float) -> void:
 			var t := Time.get_ticks_msec() / 1000.0
 			caret.position = cn.global_position + Vector3(0, 1.55 + 0.05 * sin(t * 4.0), 0)
 			caret.rotation.y = t * 1.5
+	_update_wall_holes()
 	for fl in fires:  # firelight flicker
 		fl.light_energy = fl.get_meta("base", 1.0) * look.lights * (0.85 + 0.15 * sin(Time.get_ticks_msec() * 0.013 + fl.position.x) + randf() * 0.08)
 	if _reel != "":
@@ -744,6 +752,8 @@ func _process(delta: float) -> void:
 				_refresh()
 			else:
 				_on_hud("atk_mode", _dev_arm)
+		if _frames == 3 and _dev_path != "":
+			_demo_path_hover()
 		if _frames == 3 and _shot_hover.x >= 0:
 			hover = Vector3i(_shot_hover.x, _shot_hover.y, view_floor)
 			mouse = _to_screen(Vector3(hover.x + 0.5, view_floor * FH, hover.y + 0.5))
@@ -1259,6 +1269,11 @@ func _build_world() -> void:
 	cut_map_img = Image.create(m.w, m.h, false, Image.FORMAT_RGBAF)
 	cut_map_tex = ImageTexture.create_from_image(cut_map_img)
 	RenderingServer.global_shader_parameter_set("cut_map", cut_map_tex)
+	if holes_img == null:
+		holes_img = Image.create(HOLES, 2, false, Image.FORMAT_RGBAF)
+		holes_tex = ImageTexture.create_from_image(holes_img)
+		RenderingServer.global_shader_parameter_set("cut_holes", holes_tex)
+	RenderingServer.global_shader_parameter_set("cut_hole_count", 0)
 	room_xy.clear()
 	struct_rooms.clear()
 	_col_sid.clear()
@@ -2139,6 +2154,61 @@ func _update_cut() -> void:
 	_below_grade_view()
 
 
+## The wall holes (world.gdshader cut_holes), every frame so they ride the walkers and the camera.
+## A cut building's walls stand full height (owner playtest: whole camera-side runs dropped to
+## half height whatever the crew was doing, even from outside); each thing worth seeing opens a
+## dithered column through the walls in front of it, down to waist height: every crew member, the
+## units in sight, the hovered square and the objective, when inside or behind a cut building.
+func _update_wall_holes() -> void:
+	if holes_img == null or enc == null or svp == null or svp.size.y <= 0 or not cutaway or _cuts.is_empty():
+		RenderingServer.global_shader_parameter_set("cut_hole_count", 0)
+		return
+	var pts: Array = []   # [world point, world radius, storey]
+	for u in enc.units:
+		var n: Node3D = unit_nodes.get(u.id)
+		if n == null or not is_instance_valid(n) or not n.visible or u.get("civ", false) or u.c.dead:
+			continue
+		var z := clampi(int(round(n.position.y / FH - 0.2)), 0, m.floors - 1)   # mid-flight: the storey below the landing
+		if u.team == 0 or int(u.id) == int(enc.cur.get("id", -1)):
+			pts.push_front([n.position + Vector3(0, 0.75, 0), 0.95, z])   # the crew first: they never lose theirs
+		else:
+			pts.append([n.position + Vector3(0, 0.75, 0), 0.85, z])
+	if hover.x >= 0 and open_cells.has(Vector2i(hover.x, hover.y)):
+		pts.push_front([Vector3(hover.x + 0.5, _gy(hover) + 0.4, hover.y + 0.5), 1.05, hover.z])
+	for mk in objective_marks():
+		var oc: Vector3i = mk[3]
+		if open_cells.has(Vector2i(oc.x, oc.y)) and String(mk[1]) != "EXTRACT":
+			pts.append([Vector3(oc.x + 0.5, oc.z * FH + 0.5, oc.y + 0.5), 0.9, oc.z])
+	var right := cam.global_transform.basis.x
+	var k := 0
+	for p in pts:
+		if k >= HOLES:
+			break
+		var wp: Vector3 = p[0]
+		if not open_cells.has(Vector2i(int(floor(wp.x)), int(floor(wp.z)))) and not _behind_cut(wp):
+			continue   # out in the open with no cut building in front: nothing to open
+		if cam.is_position_behind(wp):
+			continue
+		var c := cam.unproject_position(wp)
+		var r := (cam.unproject_position(wp + right * float(p[1])) - c).length()
+		holes_img.set_pixel(k, 0, Color(c.x / svp.size.x, c.y / svp.size.y, r / svp.size.y, 0.0))
+		holes_img.set_pixel(k, 1, Color(wp.x, wp.z, int(p[2]) * FH, 0.0))
+		k += 1
+	holes_tex.update(holes_img)
+	RenderingServer.global_shader_parameter_set("cut_hole_count", k)
+
+
+## Whether a cut building stands between the camera and a point outside (within a few squares
+## toward the camera on the ground plane), so its walls may need opening.
+func _behind_cut(wp: Vector3) -> bool:
+	var back := Vector2(cam.global_transform.basis.z.x, cam.global_transform.basis.z.z).normalized()
+	for k in range(1, 5):
+		var q := Vector2(wp.x, wp.z) + back * float(k) * 0.75
+		if open_cells.has(Vector2i(int(floor(q.x)), int(floor(q.y)))):
+			return true
+	return false
+
+
 ## Viewing a storey below the street lifts the street and everything above it off whole (the
 ## ground is solid: no cutaway radius to see into), so the basement shows as a dug-out level in
 ## the earth WorldBuilder packs round it; the skyline goes with the street.
@@ -2409,46 +2479,42 @@ func _grid_shows(v: Vector3i) -> bool:
 
 
 func _draw_path() -> void:
-	var pts: Array[Vector3] = []
 	_path_cells.clear()
 	# Only while a move can be chosen: not during playback (the options are the last turn's, and
 	# enc.cur may already be the next unit), and over the normal and the Run (amber) range alike.
 	if not busy and _crew_turn() and (move_opts.has(hover) or dash_opts.has(hover)):
 		_path_cells = enc.move_preview(hover)
-		for c in _path_cells:
-			pts.append(Vector3(c.x + 0.5, c.z * FH + 0.12, c.y + 0.5))
-	if pts.size() < 2:
+	if _path_cells.size() < 2:
 		path_node.mesh = null
 		return
-	# Catmull-Rom through square centres, then a flat ribbon with an end diamond
-	var smooth: Array[Vector3] = []
-	for i in pts.size() - 1:
-		var p0 := pts[maxi(i - 1, 0)]
-		var p1 := pts[i]
-		var p2 := pts[i + 1]
-		var p3 := pts[mini(i + 2, pts.size() - 1)]
-		for k in 4:
-			var t := k / 4.0
-			smooth.append(0.5 * ((2.0 * p1) + (-p0 + p2) * t + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t * t + (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t * t * t))
-	smooth.append(pts[-1])
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var w := 0.05
-	for i in smooth.size() - 1:
-		var a := smooth[i]
-		var b := smooth[i + 1]
-		var side := (b - a).cross(Vector3.UP).normalized() * w
-		for v in [a - side, a + side, b + side, a - side, b + side, b - side]:
-			st.add_vertex(v)
-	var e := pts[-1] + Vector3(0, 0.01, 0)
-	for v in [e + Vector3(-0.2, 0, 0), e + Vector3(0, 0, -0.2), e + Vector3(0.2, 0, 0), e + Vector3(-0.2, 0, 0), e + Vector3(0.2, 0, 0), e + Vector3(0, 0, 0.2)]:
-		st.add_vertex(v)
-	var mesh := st.commit()
-	var ws := _watch_status()   # the ribbon warns: red through watched ground, amber at its edge
+	# a polyline over the walked surfaces (PathTrace): up the treads of a flight, up in front of a
+	# ladder, an arc over a jump, rounded at the corners; a thin tube so it reads at any angle
+	var pts := PathTrace.points(_path_cells, _walk_surf, _flight_dir, FH)
+	var mesh := PathTrace.tube(pts, 0.045, 0.2)
+	var ws := _watch_status()   # the trace warns: red through watched ground, amber at its edge
 	var mt := _unlit(Hud.RED if ws.seen > 0 else (Color("ff8a24") if ws.near else Color("f9c80e")), 1.0, 1.0)
 	mt.cull_mode = BaseMaterial3D.CULL_DISABLED
 	mesh.surface_set_material(0, mt)
 	path_node.mesh = mesh
+
+
+## What a walker stands on at world (x, z) on storey f (PathTrace's surface): a flight of stairs
+## slopes across its square through the nosings of its treads; elsewhere the square's ground (_gy).
+func _walk_surf(x: float, z: float, f: int) -> float:
+	var c := Vector3i(int(floor(x)), int(floor(z)), f)
+	var up := _flight_dir(c)
+	if up != Vector2.ZERO:
+		var s := Vector2(x - c.x - 0.5, z - c.y - 0.5).dot(up)   # -0.5 at the bottom step .. 0.5 at the top
+		return f * FH + clampf(FH * (s + 0.5 + 1.0 / 7.0), 0.0, FH)
+	return _gy(c)
+
+
+## The way a flight of stairs on square c rises (WorldBuilder._stairs: +x or +z across the square,
+## from storey c.z to the next), ZERO where none starts.
+func _flight_dir(c: Vector3i) -> Vector2:
+	if not m.inb(c.x, c.y) or c.z < 0 or c.z >= m.floors or m.t(c.z, c.x, c.y) != TacMap.T.STAIRS or not _flight_from(c):
+		return Vector2.ZERO
+	return Vector2(1, 0) if WorldBuilder.flight_along_x(m, c.z, Vector2i(c.x, c.y)) else Vector2(0, 1)
 
 
 ## Pitch follows zoom (close: low, to see facades and signs; far: high, a planning view). In
@@ -3053,10 +3119,21 @@ func _draw_last_known(c: Control) -> void:
 		c.draw_string(Hud.F_BOLD, p + Vector2(-4, 6), "?", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(Hud.RED, a))
 
 
+var _bracket_sid := -1   ## the building the focus brackets last framed (a new one flashes them)
+var _bracket_ms := 0
+const BRACKET_FLASH := 0.9   ## seconds the brackets show on focusing a building that fills the view
+
+
 ## Thin corner brackets round the focused building while it is not the selected unit's (H1: the
-## common case stays clean), with a name tag: the building and the floor the stack shows. Clamped
-## to the screen when the building is partly off it.
+## common case stays clean), with a name tag: the building and the floor the stack shows. They
+## stay up only while the whole building is on screen with room round it, where they tell which
+## one it is; one that fills the view or runs off it (zoomed in) gets them as a short flash on
+## focusing, then nothing: brackets pinned to the screen edges framed the screen, not the
+## building (owner playtest). The floor stack names it all along.
 func _draw_focus_brackets(c: Control) -> void:
+	if _focus_pin != _bracket_sid:
+		_bracket_sid = _focus_pin
+		_bracket_ms = Time.get_ticks_msec()
 	if enc == null or _promo or _focus_pin < 0 or not _bld.has(_focus_pin) or net_overlay.visible:
 		return
 	var bd: Dictionary = _bld[_focus_pin]
@@ -3075,12 +3152,18 @@ func _draw_focus_brackets(c: Control) -> void:
 				lo = lo.min(p)
 				hi = hi.max(p)
 	var sr := _safe_rect().grow_side(SIDE_RIGHT, -110.0)   # clear of the floor stack on the right
+	var a := 1.0
+	if not CamFrame.bounds_fit(Rect2(lo, hi - lo).grow(6.0), Rect2(Vector2.ZERO, c.size)):
+		a = clampf(1.0 - (Time.get_ticks_msec() - _bracket_ms) / 1000.0 / BRACKET_FLASH, 0.0, 1.0)
+		a = a * a * (3.0 - 2.0 * a)   # eased out
+		if a <= 0.0:
+			return
 	lo = (lo - Vector2(6, 6)).clamp(sr.position, sr.end)
 	hi = (hi + Vector2(6, 6)).clamp(sr.position, sr.end)
 	if hi.x - lo.x < 8 or hi.y - lo.y < 8:
 		return
 	var arm := minf(18.0, minf(hi.x - lo.x, hi.y - lo.y) * 0.25)
-	var col := Color(Hud.CYAN, 0.9)
+	var col := Color(Hud.CYAN, 0.9 * a)
 	for k in [[lo, Vector2(1, 1)], [Vector2(hi.x, lo.y), Vector2(-1, 1)], [Vector2(lo.x, hi.y), Vector2(1, -1)], [hi, Vector2(-1, -1)]]:
 		var o: Vector2 = k[0]
 		var s2: Vector2 = k[1]
@@ -3090,9 +3173,9 @@ func _draw_focus_brackets(c: Control) -> void:
 	var fs := 14
 	var tw := Hud.F_BOLD.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 	var tp := Vector2(lo.x + 4, lo.y - 8 if lo.y - 8 - fs >= sr.position.y else lo.y + fs + 8)   # above the top-left bracket, else just inside it
-	c.draw_rect(Rect2(tp + Vector2(-4, -fs), Vector2(tw + 8, fs + 6)), Color(Hud.INK, 0.85))
-	c.draw_rect(Rect2(tp + Vector2(-4, -fs), Vector2(tw + 8, fs + 6)), Color(Hud.CYAN, 0.6), false, 1.0)
-	c.draw_string(Hud.F_BOLD, tp, tag, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Hud.CYAN)
+	c.draw_rect(Rect2(tp + Vector2(-4, -fs), Vector2(tw + 8, fs + 6)), Color(Hud.INK, 0.85 * a))
+	c.draw_rect(Rect2(tp + Vector2(-4, -fs), Vector2(tw + 8, fs + 6)), Color(Hud.CYAN, 0.6 * a), false, 1.0)
+	c.draw_string(Hud.F_BOLD, tp, tag, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(Hud.CYAN, a))
 
 
 func _make_caret() -> MeshInstance3D:
@@ -5004,6 +5087,60 @@ func _demo_grapple() -> void:
 	_after_action()
 
 
+## Review renders (--hover=path:stairs|climb|jump): hover the move whose path takes a flight of
+## stairs (or a ladder, or a jump) with the fewest squares around it, framed, so the shot shows its trace.
+func _demo_path_hover(retry := true) -> void:
+	var best := Vector3i(-1, -1, -1)
+	var best_k := INF
+	for v: Vector3i in move_opts.keys() + dash_opts.keys():
+		var p: Array = enc.move_preview(v)
+		for i in range(1, p.size()):
+			var a: Vector3i = p[i - 1]
+			var b: Vector3i = p[i]
+			var flat := Vector2(b.x - a.x, b.y - a.y).length()
+			var hit := false
+			match _dev_path:
+				"stairs": hit = a.z != b.z and flat < 0.5
+				"climb": hit = a.z != b.z and flat >= 0.5
+				"jump": hit = a.z == b.z and flat > 1.5
+			if hit:
+				var k := absf(i - 3.0) + absf(p.size() - i - 3.0)   # a few squares either side of it
+				if k < best_k:
+					best_k = k
+					best = v
+				break
+	if best.x < 0 and retry:   # none in reach: start the crew member at a ladder's foot or a jump's take-off
+		var from := Vector3i(-1, -1, -1)
+		if _dev_path == "climb" and not m.connectors.is_empty():
+			from = m.connectors[0].a
+		elif _dev_path == "jump":
+			for v: Vector3i in enc.nav._links:
+				if (enc.nav._links[v] as Array).any(func(l): return String(l[2]) == "jump"):
+					from = v
+					break
+		if from.x >= 0:
+			enc.cur.pos = from
+			enc.turn = TurnState.begin(dice, enc.cur.c)
+			enc.refresh_vision()
+			view_floor = from.z
+			_refresh()
+			_demo_path_hover(false)
+			return
+	if best.x < 0:
+		print("demo path: no %s move" % _dev_path)
+		return
+	view_floor = best.z
+	var p0: Vector3i = enc.cur.pos
+	cam_target = Vector3((p0.x + best.x) / 2.0 + 0.5, 0, (p0.y + best.y) / 2.0 + 0.5)
+	cam_dist = minf(cam_dist, 16.0)
+	_place_camera()
+	_refresh()
+	hover = best
+	mouse = _to_screen(Vector3(hover.x + 0.5, _gy(hover), hover.y + 0.5))
+	_on_hover_changed()
+	_update_hover()
+
+
 ## Review renders: put the active crew member on the target building's stairs at street level.
 func _demo_stairs() -> void:
 	var sid := -1
@@ -5181,7 +5318,7 @@ func _update_keycards() -> void:
 		n.visible = _grade_shows(enc.units[id].pos.z)   # a card over a body on the street lifts off with it below grade
 
 
-## Snatch gigs: the package sits on a gold beacon until someone carries it (then a gold diamond
+## Snatch gigs: the package sits on the floor until someone carries it (then a gold diamond
 ## floats over the carrier), and the deploy squares glow as the extraction point.
 func _update_objective() -> void:
 	var snatch: bool = enc.objective.get("kind", "") in ["snatch", "deliver"]   # a package someone carries
@@ -5200,18 +5337,6 @@ func _update_objective() -> void:
 		case.position.y = 0.08
 		case.name = "case"
 		obj_node.add_child(case)
-		var beacon := MeshInstance3D.new()
-		var cy := CylinderMesh.new()
-		cy.top_radius = 0.3   # a tall shaft of light so it reads from across the map
-		cy.bottom_radius = 0.42
-		cy.height = 4.5
-		cy.cap_top = false
-		cy.cap_bottom = false
-		beacon.mesh = cy
-		beacon.material_override = _unlit(Hud.GOLD, 0.16, 1.3)
-		beacon.position.y = 1.1
-		beacon.name = "beacon"
-		obj_node.add_child(beacon)
 		var tag := MeshInstance3D.new()   # the carrier's diamond
 		var pm := PrismMesh.new()
 		pm.size = Vector3(0.22, 0.3, 0.06)
@@ -5229,22 +5354,18 @@ func _update_objective() -> void:
 	var carrier: int = enc.objective.get("carrier", -1)
 	var case_n := obj_node.get_node("case") as Node3D
 	if not snatch:   # the deploy zone still marks the way out (withdrawal)
-		for nm in ["case", "beacon", "tag"]:
+		for nm in ["case", "tag"]:
 			(obj_node.get_node(nm) as Node3D).visible = false
 		return
-	var beacon_n := obj_node.get_node("beacon") as Node3D
 	var tag_n := obj_node.get_node("tag") as Node3D
 	if carrier < 0:
 		var cell: Vector3i = enc.objective.cell
 		var p := Vector3(cell.x + 0.5, _gy(cell), cell.y + 0.5)
 		case_n.position = p + Vector3(0, 0.08, 0)
-		beacon_n.position = p + Vector3(0, 2.25, 0)
-		case_n.visible = not _cut_hides(cell)
-		beacon_n.visible = case_n.visible and not enc.objective.get("delivered", false)   # a delivered package just sits there
+		case_n.visible = not _cut_hides(cell)   # no light shaft over it (owner playtest: obtrusive; the HUD's bobbing arrow marks it)
 		tag_n.visible = false
 	else:
 		case_n.visible = false
-		beacon_n.visible = false
 		var cn: Node3D = unit_nodes[carrier]
 		tag_n.visible = cn.visible
 		tag_n.position = cn.position + Vector3(0, 2.75, 0)

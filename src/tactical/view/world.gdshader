@@ -2,7 +2,8 @@ shader_type spatial;
 render_mode cull_disabled;
 // Everything built by WorldBuilder: lit surface with an off-grid procedural pattern, fog of war
 // from a per-cell texture (bilinear, so fog edges are soft rather than square), and an XCOM-style
-// radial cutaway around the focus point.
+// cutaway: cut buildings lose the storeys above their cut, and the cut storey's walls open in a
+// column in front of each thing worth seeing (cut_holes).
 // fog texture: one row block per floor (h rows each); value 0 unknown, ~0.5 explored, 1 visible.
 // mode 0: surface (hidden when unknown); 1: unknown interior (hologram, shown only when unknown);
 // 2: no fog. `shell`: exterior surfaces never fog out (building shells are always known, XCOM-style).
@@ -40,9 +41,13 @@ global uniform vec2 cut_dir;        // camera forward on the ground plane
 global uniform vec4 focus_view;     // focus in screen UV (xy), its view depth (z), hole radius (w)
 // per-building slices (FloorNav.slices): one texel per map square (greybox._update_fog). r: the cut
 // floor of the building over that square, -1 whole (roof on; the street is never cut); g, b: the
-// building's footprint packed as x0 + 1024 * x1 and y0 + 1024 * y1, so the camera-side walls drop
-// around the focus clamped into that building.
+// building's footprint packed as x0 + 1024 * x1 and y0 + 1024 * y1.
 global uniform sampler2D cut_map : filter_nearest, repeat_disable;
+// wall holes (greybox._update_wall_holes): what the player cares about inside or behind a cut
+// building (the crew, units in sight, the hovered square, the objective), one column each. Row 0:
+// screen uv xy, radius (in viewport heights); row 1: world x, z, and the storey's floor height.
+global uniform sampler2D cut_holes : filter_nearest, repeat_disable;
+global uniform int cut_hole_count;
 global uniform float day_factor;     // daylight (Daylight, greybox LOOKS day_factor): 0 at night .. 1 at noon; sunlight drowns glow
 uniform bool flat_shade = false;    // faceted lighting (rocks)
 uniform bool offmap = false;        // ground beyond the map: fades out with distance
@@ -107,19 +112,25 @@ void fragment() {
 		float r = length((SCREEN_UV - focus_view.xy) * vec2(VIEWPORT_SIZE.x / VIEWPORT_SIZE.y, 1.0)) / focus_view.w;
 		if (smoothstep(0.7, 1.0, r) < bay + 0.5) discard;
 	}
-	// --- cutaway (XCOM roof-off), per building: in a cut building every storey above its cut goes,
-	// and on the cut storey the walls on the camera side of the focus (clamped into that building,
-	// so a second cut building opens toward the camera too) drop to waist height with a dithered
-	// edge. Far walls stay up for context. Cut faces show as section caps.
+	// --- cutaway (XCOM roof-off), per building: in a cut building every storey above its cut goes.
+	// The cut storey's walls stand full height (owner playtest: the camera-side half walls dropped
+	// round whole buildings, even with the crew outside); they open to waist height only in a
+	// dithered column in front of what the player cares about (cut_holes), on its camera side.
 	if (cut_radius > 0.0 && cut_open && !sun_casts) {
 		float cutf = cm.r;
 		if (floor_idx > cutf + 0.5) discard;
 		if (cuttable && floor_idx > cutf - 0.5 && wpos.y - floor_idx * 1.6 > 0.72) {
-			vec2 lo = vec2(mod(cm.g, 1024.0), mod(cm.b, 1024.0));
-			vec2 hi = vec2(floor(cm.g / 1024.0), floor(cm.b / 1024.0)) + 1.0;
-			vec2 piv = clamp(cut_center.xz, lo + 1.5, max(hi - 1.5, lo + 1.5));
-			float along = dot(wpos.xz - piv, cut_dir);
-			if (smoothstep(-0.12, 0.12, along) < bay + 0.5) discard;
+			float aspect = VIEWPORT_SIZE.x / VIEWPORT_SIZE.y;
+			float open_k = 0.0;
+			for (int i = 0; i < cut_hole_count; i++) {
+				vec4 hs = texelFetch(cut_holes, ivec2(i, 0), 0);
+				vec4 hw = texelFetch(cut_holes, ivec2(i, 1), 0);
+				if (hw.z > floor_idx * 1.6 + 1.2 || hw.z < floor_idx * 1.6 - 1.2) continue;   // a point on another storey
+				float along = dot(wpos.xz - hw.xy, cut_dir);   // < 0: between the point and the camera
+				float r = length((SCREEN_UV - hs.xy) * vec2(aspect, 1.0)) / max(hs.z, 1e-4);
+				open_k = max(open_k, (1.0 - smoothstep(0.7, 1.0, r)) * (1.0 - smoothstep(-0.3, -0.1, along)));
+			}
+			if (open_k > bay + 0.5) discard;
 		}
 	}
 	// --- fog of war: dithered frontier; explored-but-unseen is dimmer, cooler, with lights low
