@@ -1,10 +1,10 @@
 shader_type canvas_item;
-// The "anatomy" cyberware figure (BodyAnatomy): Milton's engraved écorché as light on the dark page.
+// The cyberware figure (BodyAnatomy): an engraved anatomical plate (Milton's man, Bell's woman) as light on the dark page.
 // TEXTURE (tools/gen_anatomy_ink.py): R the plate printed as light (the paper inside him glows, the
 // engraver's lines stay dark: his hatching models the form), G the figure's silhouette, B the deep
 // plate the same way (bones and deep muscles, warped onto him), A his outline. A bloom from the mip
 // chain softens it.
-// The glitch (owner, on the Vitruvian: "I very much like the horizontal glitch fuzziness"): every
+// The glitch (owner, on an early prototype: "I very much like the horizontal glitch fuzziness"): every
 // scan row is nudged sideways a little, and broken horizontal hatching runs off the figure's edges,
 // fading out from the body; with motion on, bands of rows now and then tear sideways and the
 // hatching re-rolls in steps, and a slow scan line runs down. Under reduced motion all of it holds
@@ -113,7 +113,7 @@ void fragment() {
 	o += vec3(1.0) * smoothstep(0.8, 1.0, print_) * 0.18 * (1.0 - 0.5 * deep);   // the highlights whiten
 
 	// --- the fuzz: horizontal hatching off his edges, the rows fading out from the body (as
-	// Leonardo shaded the Vitruvian's flanks), patchy along the contour, every other row or so ---
+	// an engraver shades a figure's flanks), patchy along the contour, every other row or so ---
 	if (body < 0.5) {
 		float dist = 99.0;   // to the body along the row, in pixels, either side
 		for (int k = 1; k <= 14; k++) {
