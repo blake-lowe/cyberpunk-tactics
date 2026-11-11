@@ -161,6 +161,8 @@ func test_ripperdoc_installs_from_storage_and_removes_on_a_second_press() -> voi
 	assert_eq(inst.size(), 1, "the picker: the stored Cybereye")
 	var n := c.implants.size()
 	inst[0].pressed.emit()
+	assert_eq(c.implants.size(), n, "the first press arms it")
+	_buttons(s, "CONFIRM")[0].pressed.emit()
 	assert_eq(c.implants.size(), n + 1, "installed on the selected crew member")
 	assert_eq(c.implants[-1], {"id": "cybereye", "loc": "left_eye"})
 	assert_eq(camp.eb, eb, "free (p338)")

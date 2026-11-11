@@ -459,6 +459,25 @@ static func active_ids(implants: Array, off: Dictionary = {}) -> Array[String]:
 	return out
 
 
+## A paired option: "purchased twice and installed in two different" Cybereyes or Cyberlegs, Humanity
+## Loss for each (CPR core p.360, p.366). The Med Bay installs and removes both halves together.
+static func paired(id: String) -> bool:
+	return bool(def(id).get("paired", false))
+
+
+## Where a paired option's two halves go: both eyes or both legs (right first).
+static func pair_locs(id: String) -> Array[String]:
+	return LEGS if String(def(id).get("host", "")) == "leg" else EYES
+
+
+## The other half's place for a paired option at `loc` ("" for anything else).
+static func pair_of(id: String, loc: String) -> String:
+	if not paired(id):
+		return ""
+	var pl := pair_locs(id)
+	return pl[1] if loc == pl[0] else (pl[0] if loc == pl[1] else "")
+
+
 ## Whether a paired option is in both eyes (or legs) and neither half is knocked out.
 static func paired_working(implants: Array, id: String, off: Dictionary = {}) -> bool:
 	var pair := LEGS if String(def(id).get("host", "")) == "leg" else EYES

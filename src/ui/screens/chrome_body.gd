@@ -213,6 +213,42 @@ func region_tints() -> Array:
 	return out
 
 
+## How long an install's presentation runs (the card's bar, the figure's flare, sfx_surgery).
+const INSTALL_SECS := 1.4
+
+
+## The body region a location's install flares (-1: a disc round its anchor, for the skin and the
+## Fashionware, which have no region of their own).
+static func region_of(loc: String) -> int:
+	if loc == "internal":
+		return Reg.TORSO
+	for r in REGION_LOCS:
+		if REGION_LOCS[r] == loc:
+			return int(r)
+	return -1
+
+
+## An install at `loc` (owner, playtest): the place flares white hot, scan-tears and resolves into
+## violet chrome over INSTALL_SECS; `also` (a paired option's other half) with it. `still` (reduced
+## motion): a short, static glow instead.
+func flare(loc: String, still := false, also := "") -> void:
+	if _art == null:
+		return
+	_art._build()   # (a no-op once built; a fresh figure may not have been laid out yet)
+	var m := _art._mat
+	m.set_shader_parameter("flare_region", region_of(loc))
+	m.set_shader_parameter("flare_region2", region_of(also) if also != "" else -1)
+	m.set_shader_parameter("flare_at", _art.anchor_uv(loc))
+	if still:
+		m.set_shader_parameter("flare", 0.35)
+		if is_inside_tree():
+			get_tree().create_timer(0.6).timeout.connect(func(): if is_instance_valid(self) and _art and _art._mat: _art._mat.set_shader_parameter("flare", 0.0))
+		return
+	m.set_shader_parameter("flare", 1.0)
+	if is_inside_tree():
+		create_tween().tween_method(func(v: float): m.set_shader_parameter("flare", v), 1.0, 0.0, INSTALL_SECS).set_ease(Tween.EASE_IN)
+
+
 ## External chrome (skin): a second skin at the body's edge, gold when it's the selected location.
 func _shell() -> Color:
 	if sel_loc == "external":

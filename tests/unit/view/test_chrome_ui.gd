@@ -146,7 +146,7 @@ func test_blocked_install_says_why() -> void:
 	var c: Combatant = camp.alive_crew()[2]   # a Cybereye already in the right eye
 	assert_eq(Cyber.foundation_at(c.implants, "right_eye"), "cybereye")
 	camp.stash["cyberware/cybereye"] = 1
-	camp.stash["cyberware/anti_dazzle"] = 1   # paired: needs a cybereye in each eye
+	camp.stash["cyberware/anti_dazzle"] = 2   # paired: two in storage, a cybereye in each eye
 	var s: MedBayScreen = _open(MedBayScreen.new(), camp, "ripperdoc", 2)
 	s._select_loc("right_eye")
 	assert_true(_live(s, "InstallFoundation").is_empty(), "a cybereye already: no INSTALL CYBEREYE")
@@ -180,7 +180,7 @@ func test_install_and_remove_go_through_the_campaign() -> void:
 	assert_eq(s._pick, "slot")
 	_key(s, KEY_ENTER)
 	assert_eq(s._picker, "slot")
-	_buttons(_live(s, "Stored_skin_weave")[0], "INSTALL")[0].pressed.emit()
+	_buttons(_live(s, "Stored_skin_weave")[0], "INSTALL")[0].pressed.emit(); _confirm_install(s)
 	assert_true(c.implant("skin_weave", "external").size() > 0, "installed on the skin")
 	assert_eq(s._picker, "", "the picker closes")
 	assert_eq(camp.stored("cyberware/skin_weave"), 0, "out of storage")
@@ -327,7 +327,7 @@ func test_a_chip_installs_as_what_it_was_bought_for() -> void:
 	assert_eq(camp.install_block(c, "skill_chip", "chipware"), "", "a chip is in storage")
 	_buttons(_live(s, "Stored_skill_chip")[0], "INSTALL")[0].pressed.emit()
 	assert_eq(s._choose, "skill_chip", "asks which first")
-	_buttons(_live(s, "Stored_skill_chip")[0], "STEALTH")[0].pressed.emit()
+	_buttons(_live(s, "Stored_skill_chip")[0], "STEALTH")[0].pressed.emit(); _confirm_install(s)
 	assert_eq(String(c.implant("skill_chip").get("choice", "")), "stealth")
 	assert_eq(camp.stored("cyberware/skill_chip@stealth"), 0)
 	assert_eq(camp.stored("cyberware/skill_chip@handgun"), 1, "the other stays")
@@ -729,7 +729,7 @@ func test_slot_cards_and_the_filtered_picker() -> void:
 	var rows: Array = _live(picker, "Stored_*").map(func(n): return String(n.name))
 	rows.sort()
 	assert_eq(rows, ["Stored_targeting_scope", "Stored_teleoptics"], "only what goes in the eye's slot")
-	_buttons(_live(s, "Stored_targeting_scope")[0], "INSTALL")[0].pressed.emit()
+	_buttons(_live(s, "Stored_targeting_scope")[0], "INSTALL")[0].pressed.emit(); _confirm_install(s)
 	assert_true(c.implant("targeting_scope", "left_eye").size() > 0, "installed")
 	assert_eq(_status(s), "Cybereye. 2 option slots available.")
 	assert_eq(_live(s, "Slot_*").size(), 2, "one card fewer")
@@ -774,7 +774,7 @@ func test_install_cyberlimb_button() -> void:
 	assert_true(_live(s, "Stored_cyberarm").is_empty(), "not the cyberarm")
 	_key(s, KEY_ESCAPE)
 	_live(s, "InstallFoundation")[0].pressed.emit()
-	_buttons(_live(s, "Stored_cyberarm")[0], "INSTALL")[0].pressed.emit()
+	_buttons(_live(s, "Stored_cyberarm")[0], "INSTALL")[0].pressed.emit(); _confirm_install(s)
 	assert_eq(Cyber.foundation_at(c.implants, "right_arm"), "cyberarm", "a cyberarm in the right arm")
 	assert_eq(_status(s), "Cyberarm. 4 option slots available.")
 	assert_true(_live(s, "InstallFoundation").is_empty(), "no button once it's chrome")
@@ -857,3 +857,162 @@ func test_pairs_share_a_row() -> void:
 				assert_true(l.get_rect().end.y <= sz.y + 0.5, "%s %s: inside the bottom edge" % [body, sz])
 				last = l.get_rect().end.y
 			b.free()
+
+
+# --- Owner's second playtest round ------------------------------------------------------------
+
+## The second press on an armed INSTALL (CONFIRM): exactly one is live.
+func _confirm_install(s: Node) -> void:
+	var b := _buttons(s, "CONFIRM")
+	assert_eq(b.size(), 1, "INSTALL armed to CONFIRM")
+	if not b.is_empty():
+		b[0].pressed.emit()
+
+
+## No reminder line or NIGHT MARKET link at the foot of the ripperdoc's panel.
+func test_no_reminder_or_market_link_on_the_panel() -> void:
+	var camp := DemoState.make()
+	var s: MedBayScreen = _open(MedBayScreen.new(), camp, "ripperdoc", 0)
+	var panel: Node = _live(s, "SlotPanel")[0]
+	assert_false(_texts(panel).any(func(t): return String(t).begins_with("Installing is free")), "no reminder")
+	assert_true(_buttons(panel, "NIGHT MARKET").is_empty(), "no market link")
+	s.free()
+
+
+## INSTALL arms first (CONFIRM), the second press installs; Esc, a click elsewhere or another key
+## disarms; Enter follows the same two steps. The install goes into the campaign at once and the
+## surgery plays over it: a bar across the new card, the figure's place flaring.
+func test_install_arms_then_confirms() -> void:
+	var camp := _bare()
+	var c: Combatant = camp.alive_crew()[0]
+	camp.stash["cyberware/toxin_binders"] = 1
+	camp.stash["cyberware/nasal_filters"] = 1
+	var s: MedBayScreen = _open(MedBayScreen.new(), camp, "ripperdoc", 0)
+	s._select_loc("internal")
+	s._open_picker("slot")
+	var row: Node = _live(s, "Stored_toxin_binders")[0]
+	_buttons(row, "INSTALL")[0].pressed.emit()
+	assert_true(c.implant("toxin_binders").is_empty(), "the first press only arms it")
+	assert_eq(_buttons(_live(s, "Stored_toxin_binders")[0], "CONFIRM").size(), 1, "INSTALL now reads CONFIRM")
+	_key(s, KEY_ESCAPE)
+	assert_eq(s._armed, "", "Esc disarms")
+	assert_eq(s._picker, "slot", "and leaves the picker open")
+	assert_true(_buttons(s, "CONFIRM").is_empty())
+	_buttons(_live(s, "Stored_toxin_binders")[0], "INSTALL")[0].pressed.emit()
+	_click(_live(s, "Stored_nasal_filters")[0])
+	assert_eq(s._armed, "", "a click elsewhere disarms")
+	# the keyboard: Enter arms, Enter again installs
+	s._pick = "install:toxin_binders"
+	_key(s, KEY_ENTER)
+	assert_eq(s._armed, "toxin_binders", "Enter arms")
+	assert_true(c.implant("toxin_binders").is_empty())
+	_key(s, KEY_ENTER)
+	assert_false(c.implant("toxin_binders", "internal").is_empty(), "Enter again installs, at once (deterministic)")
+	assert_eq(s.last_install, {"id": "toxin_binders", "loc": "internal"}, "the surgery plays for it")
+	var card: Node = _live(s, "Installed_toxin_binders")[0]
+	assert_true(card.find_child("InstallBar", true, false) != null, "a progress bar across the new card")
+	var fig := _body(s)
+	assert_true(float(fig._art._mat.get_shader_parameter("flare")) > 0.0, "the figure's place flares")
+	assert_eq(int(fig._art._mat.get_shader_parameter("flare_region")), ChromeBody.Reg.TORSO, "the internal chrome's region")
+	s.free()
+	assert_true(ResourceLoader.exists("res://assets/audio/sfx_surgery.wav"), "the surgery sound is generated")
+	var sh := FileAccess.get_file_as_string("res://src/ui/screens/body_anatomy.gdshader")
+	assert_true(sh.contains("uniform float flare") and sh.contains("flare_region"), "the shader's install flare")
+	assert_eq(ChromeBody.region_of("left_arm"), ChromeBody.Reg.L_ARM)
+	assert_eq(ChromeBody.region_of("fashion"), -1, "no region: a disc round the anchor")
+
+
+## Under reduced motion the surgery is a still version: the bar full and a steady glow, briefly.
+func test_install_presentation_under_reduced_motion() -> void:
+	var keep := GameSettings.load_values()
+	var v := keep.duplicate()
+	v.reduced_motion = true
+	GameSettings.save_values(v)
+	var camp := _bare()
+	camp.stash["cyberware/skin_weave"] = 1
+	var s: MedBayScreen = _open(MedBayScreen.new(), camp, "ripperdoc", 0)
+	s._select_loc("external")
+	s._open_picker("slot")
+	_buttons(_live(s, "Stored_skin_weave")[0], "INSTALL")[0].pressed.emit()
+	_confirm_install(s)
+	var bar: MedBayScreen.InstallBar = (_live(s, "Installed_skin_weave")[0] as Node).find_child("InstallBar", true, false)
+	assert_true(bar != null and is_equal_approx(bar.t, 1.0), "the bar shown full, not sliding")
+	var fig := _body(s)
+	assert_eq(float(fig._art._mat.get_shader_parameter("motion")), 0.0)
+	assert_near(float(fig._art._mat.get_shader_parameter("flare")), 0.35, 1e-4, "a steady glow")
+	assert_eq(int(fig._art._mat.get_shader_parameter("flare_region")), -1, "the skin: round its anchor")
+	s.free()
+	GameSettings.save_values(keep)
+
+
+## A paired option (Skate Foot, Low Light/Infrared/UV...) goes into both legs or eyes at once, two
+## from storage, a slot (or two) taken on each side; it comes out of both. One in storage isn't
+## enough; one cyberleg isn't either.
+func test_a_paired_option_goes_into_both_sides() -> void:
+	var camp := _bare()
+	var c: Combatant = camp.alive_crew()[0]
+	c.implants.append({"id": "cyberleg", "loc": "right_leg"})
+	camp.stash["cyberware/skate_foot"] = 1
+	assert_eq(camp.install_block(c, "skate_foot", "right_leg"), "Paired: needs two in storage")
+	camp.stash["cyberware/skate_foot"] = 2
+	assert_eq(camp.install_block(c, "skate_foot", "right_leg"), "Needs two cyberlegs")
+	c.implants.append({"id": "cyberleg", "loc": "left_leg"})
+	assert_eq(camp.install_block(c, "skate_foot", "left_leg"), "")
+	var s: MedBayScreen = _open(MedBayScreen.new(), camp, "ripperdoc", 0)
+	s._select_loc("left_leg")
+	s._open_picker("slot")
+	assert_true(_texts(s).any(func(t): return String(t).contains("goes into both legs")), "the picker says so")
+	_buttons(_live(s, "Stored_skate_foot")[0], "INSTALL")[0].pressed.emit()
+	_confirm_install(s)
+	for l in Cyber.LEGS:
+		assert_false(c.implant("skate_foot", l).is_empty(), "a Skate Foot in the %s" % l)
+		assert_eq(Cyber.free_slots(c.implants, l), 2, "%s: one of its three slots taken" % l)
+	assert_eq(camp.stored("cyberware/skate_foot"), 0, "both from storage")
+	assert_true("skate_foot" in Cyber.active_ids(c.implants), "and the pair works")
+	assert_true(camp.log[-1].contains("pair of Skate Foot"), camp.log[-1])
+	var m := _body(s)._art._mat
+	assert_eq([int(m.get_shader_parameter("flare_region")), int(m.get_shader_parameter("flare_region2"))], [ChromeBody.Reg.L_LEG, ChromeBody.Reg.R_LEG], "both legs flare")
+	# out of both
+	s._select_loc("right_leg")
+	_buttons(_live(s, "Installed_skate_foot")[0], "REMOVE")[0].pressed.emit()
+	assert_true(_texts(s).any(func(t): return String(t).contains("Skate Foot in both legs")), "the popup says both")
+	_buttons(_live(s, "Confirm")[0], "DESTROY IT")[0].pressed.emit()
+	for l in Cyber.LEGS:
+		assert_true(c.implant("skate_foot", l).is_empty(), "out of the %s" % l)
+	s.free()
+	# two slots a side: Low Light / Infrared / UV, and a side without the room blocks the pair
+	var eyes: Array = [{"id": "cybereye", "loc": "right_eye"}, {"id": "cybereye", "loc": "left_eye"}, {"id": "microvideo", "loc": "left_eye"}]
+	c.implants.assign(eyes)
+	camp.stash["cyberware/low_light_infrared_uv"] = 2
+	assert_eq(camp.install_block(c, "low_light_infrared_uv", "right_eye"), "Needs 2 free slots in the left eye", "the left eye has 1 slot left of 3")
+	c.implants.assign(eyes.slice(0, 2))
+	assert_true(camp.install(c, "low_light_infrared_uv", "right_eye") >= 0)
+	for l in Cyber.EYES:
+		assert_eq(Cyber.free_slots(c.implants, l), 1, "%s: two of three slots taken" % l)
+
+
+## The slot model against the book's tables (CPR core p.111-116, p.358-367): foundations' Option
+## Slots, the pieces that take more (or none), the paired options, the meat-limb pieces, chipware.
+func test_slot_counts_match_the_book() -> void:
+	var cap := {"neural_link": 5, "cybereye": 3, "cyberaudio_suite": 3, "cyberarm": 4, "cyberleg": 3}
+	for f in cap:
+		assert_eq(int(Cyber.def(f).capacity), cap[f], "%s's Option Slots" % f)
+	var two := ["microvideo", "low_light_infrared_uv", "medscanner", "popup_grenade_launcher", "popup_melee_weapon",
+		"popup_ranged_weapon", "shoulder_cam", "techscanner", "jump_booster"]
+	var three := ["dartgun", "cyberdeck", "popup_shield"]
+	var none := ["standard_hand", "standard_foot", "plastic_covering", "realskinn_covering", "superchrome_covering", "sensor_array"]
+	for id in Cyber.db():
+		var d: Dictionary = Cyber.def(id)
+		var want := 2 if id in two else 3 if id in three else 0 if (id in none or d.get("foundation", false) or String(d.host) in ["chipware", "borgware"]) else 1
+		assert_eq(int(d.slots), want, "%s takes %d Option Slot(s)" % [id, want])
+	var pairs := ["anti_dazzle", "image_enhance", "low_light_infrared_uv", "virtuality", "grip_foot", "jump_booster", "skate_foot", "web_foot"]
+	var meat := ["big_knucks", "rippers", "scratchers", "slice_n_dice", "subdermal_grip", "tool_hand", "wolvers", "standard_hand", "talon_foot", "standard_foot"]
+	for id in Cyber.db():
+		assert_eq(Cyber.paired(id), id in pairs, "%s paired" % id)
+		assert_eq(bool(Cyber.def(id).get("meat_ok", false)), id in meat, "%s fits a meat limb" % id)
+	assert_eq(String(Cyber.def("chipware_socket").host), "neural_link", "a socket is a Neuralware option: a Neural Link slot")
+	assert_eq(int(Cyber.def("chipware_socket").slots), 1)
+	assert_eq(int(Cyber.def("subdermal_grip").get("neural_slot", 0)), 1, "the Grip takes a Neuralware slot too")
+	for loc in ["fashion", "internal", "external"]:
+		assert_eq(Cyber.capacity([], loc), 7, "%s: 7 Option Slots" % loc)
+	assert_eq(Cyber.capacity([{"id": "cyberaudio_suite", "loc": "cyberaudio"}, {"id": "sensor_array", "loc": "cyberaudio"}], "cyberaudio"), 8, "a Sensor Array: 5 more")

@@ -40,6 +40,12 @@ uniform float skin = 0.22;      // the surface plate's share of the print over t
 uniform float edge = 0.32;      // the outline's
 uniform float fuzz = 1.0;       // the horizontal glitch's strength
 uniform float psycho = 0.0;     // lost Humanity: 0 full (a little fuzz) to 1 (cyberpsycho)
+// an install (ChromeBody.flare): 1 at the cut, easing to 0 as the chrome settles. The region (or, with
+// none, a disc round flare_at) flares white hot, scan-tears, and resolves into violet chrome.
+uniform float flare = 0.0;
+uniform int flare_region = -1;
+uniform int flare_region2 = -1;   // a paired option's other half
+uniform vec2 flare_at = vec2(0.5);
 
 float hash(vec2 p) {
 	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
@@ -67,6 +73,9 @@ void fragment() {
 	float block = floor(UV.y / (px.y * 46.0));
 	float shove = step(1.0 - 0.22 * ps2, hash(vec2(block, burst * 1.3 + 4.0)));
 	jit += shove * (hash(vec2(block, burst + 2.0)) - 0.5) * 70.0 * ps2;
+	// the install's scan-tearing, in a disc round the place (moving only)
+	float fdisc = flare * (1.0 - smoothstep(0.06, 0.2, length(vec2(UV.x - flare_at.x, (UV.y - flare_at.y) / aspect))));
+	jit += fdisc * motion * step(0.55, hash(vec2(band, floor(TIME * 24.0)))) * (hash(vec2(band, floor(TIME * 24.0) + 3.0)) - 0.5) * 34.0;
 	vec2 uv = UV + vec2(jit * px.x * fuzz, 0.0);
 
 	// (sampled with the page's own gradients: the rows' jumps mustn't blur the mip choice)
@@ -187,6 +196,14 @@ void fragment() {
 		float sy = fract(TIME * 0.045) * 1.3 - 0.15;
 		float sb = exp(-pow((UV.y - sy) / (px.y * 14.0), 2.0));
 		o += col * (muscle * 1.2 + 0.02 * body) * sb;
+	}
+	// the install: white hot at the cut, cooling to violet, a scan line sweeping down the place
+	if (flare > 0.0) {
+		bool inreg = reg == flare_region || reg == flare_region2 || (flare_region == 4 && reg == 10);   // the left arm takes its forearm
+		float fw = flare_region >= 0 ? (inreg ? body : 0.0) : fdisc / max(flare, 1e-4) * body;
+		vec3 fc = mix(vec3(0.78, 0.49, 1.0), vec3(1.0, 0.97, 1.0), smoothstep(0.45, 1.0, flare));
+		float scan = exp(-pow((UV.y - ((1.0 - flare) * 1.1 - 0.05)) / (px.y * 12.0), 2.0)) * motion;
+		o += fc * fw * flare * (muscle * 2.4 + 0.3 + scan * 1.5);
 	}
 	// lost Humanity: a grain over the body, bands dropping out, and (moving only) the whole figure
 	// flickering, now and then flashing

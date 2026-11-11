@@ -17,6 +17,8 @@ var _choose := ""    ## a storage piece whose install waits for its option (_ins
 var _picker := ""    ## the open storage picker: "slot" (options for a free slot), "foundation" (the INSTALL button's), "" none
 var _actions: Array[String] = []   ## the panel's actions in order (←/→), or the picker's (↑/↓)
 var _popup: Control  ## the open popup (the picker or the removal's confirmation)
+var _armed := ""     ## the INSTALL armed to CONFIRM: a piece's id, or "id@choice" for an options-step choice
+var last_install := {}   ## the last install's presentation: {id, loc} (tests, shots)
 
 
 func setup(p_camp: Campaign, p_portraits: Portraits, p_tab := "", p_sel := 0) -> SafehouseScreen:
@@ -120,11 +122,12 @@ func _ripperdoc(body: VBoxContainer) -> void:
 	cols.add_child(_slot_panel(c, 380 if wide else (280 if narrow else 300)))
 
 
-## Close the popups and the options step.
+## Close the popups and the options step, and disarm INSTALL.
 func _shut() -> void:
 	_confirm = ""
 	_choose = ""
 	_picker = ""
+	_armed = ""
 
 
 ## Keep the selection valid: a location (the first where something in storage fits now, else the
@@ -304,11 +307,7 @@ func _slot_panel(c: Combatant, width: int) -> PanelContainer:
 		for pair in to_go:
 			var tl: String = pair[1]
 			fl.add_child(UiKit.button("%s › %s" % [Cyber.display(String(pair[0])), Cyber.loc_name(tl)], UiKit.NAV, func(): _select_loc(tl), true, 12, true))
-	v.add_child(UiKit.body("Installing is free; every piece costs Humanity. Removing a piece destroys it.", 13, Hud.DIM))
-	var go := UiKit.button("NIGHT MARKET ›", UiKit.NAV, func(): navigate.emit("market"), true, 13, true)
-	go.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	v.add_child(go)
-	return p
+	return p   # (no reminder line or NIGHT MARKET link at the foot: owner, playtest)
 
 
 ## The selected location in a line (owner, playtest: a meat eye just "Meat."; a Cybereye "Cybereye. 3
@@ -480,8 +479,11 @@ func _confirm_popup(c: Combatant, id: String) -> Control:
 	var v: VBoxContainer = m[1]
 	(m[0] as Control).name = "Confirm"
 	var nm := Cyber.display(id)
+	var both := ""
+	if Cyber.paired(id) and not c.implant(id, Cyber.pair_of(id, loc)).is_empty():
+		both = " in both %ss" % ("leg" if Cyber.pair_locs(id) == Cyber.LEGS else "eye")
 	v.add_child(UiKit.label("Remove the %s?" % nm, 16, Hud.RED))
-	v.add_child(UiKit.body("Removing destroys the %s. It can't be sold or refitted, and Humanity already lost stays lost." % nm, 14, Hud.TEXT))
+	v.add_child(UiKit.body("Removing destroys the %s%s. It can't be sold or refitted, and Humanity already lost stays lost." % [nm, both], 14, Hud.TEXT))
 	var bh := UiKit.hbox(8)
 	v.add_child(bh)
 	var b := UiKit.button("DESTROY IT", UiKit.DANGER, Callable(), true, 14, true)
@@ -505,8 +507,8 @@ func _stored_row(c: Combatant, id: String) -> Control:
 	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(t)
 	var extra := " Humanity Loss %s." % String(d.get("hl_dice", ""))
-	if d.get("paired", false):
-		extra += " Paired: one in each %s." % ("leg" if String(d.get("host", "")) == "leg" else "eye")
+	if Cyber.paired(id):
+		extra += " Paired: goes into both %ss, two from storage." % ("leg" if Cyber.pair_locs(id) == Cyber.LEGS else "eye")
 	var n := camp.stored("cyberware/" + id)
 	if n > 1:
 		extra += "  ·  %d in storage" % n
@@ -519,18 +521,21 @@ func _stored_row(c: Combatant, id: String) -> Control:
 		v.add_child(f)
 		for ch in _install_choices(c, id):
 			var val: Variant = ch[0]
-			var b := UiKit.button(String(ch[1]), UiKit.CHROME, Callable(), true, 13, true)
-			b.pressed.connect(func(): _install(b, c, id, val))
+			var armed := _armed == "%s@%s" % [id, String(val)]
+			var b := UiKit.button("CONFIRM" if armed else String(ch[1]), UiKit.PRIMARY if armed else UiKit.CHROME, Callable(), true, 13, true)
+			b.pressed.connect(func(): _install_press(b, c, id, val))
 			f.add_child(b)
-		f.add_child(UiKit.button("BACK", UiKit.NAV, func(): _choose = ""; _build(), true, 13, true))
+		f.add_child(UiKit.button("BACK", UiKit.NAV, func(): _choose = ""; _armed = ""; _build(), true, 13, true))
 	else:
-		var b := UiKit.button("INSTALL", UiKit.CHROME, Callable(), true, 14, true)
+		var armed := _armed == id
+		var b := UiKit.button("CONFIRM" if armed else "INSTALL", UiKit.PRIMARY if armed else UiKit.CHROME, Callable(), true, 14, true)
+		b.name = "InstallButton"
 		b.custom_minimum_size.x = 96
 		b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		b.pressed.connect(func(): _start_install(b, c, id))
 		row.add_child(b)
 	var pick := "install:" + id
-	UiKit.clickable(p, func(): _pick = pick; _build())
+	UiKit.clickable(p, func(): _pick = pick; _armed = ""; _build())
 	p.mouse_filter = Control.MOUSE_FILTER_PASS
 	return p
 
@@ -547,22 +552,103 @@ func _install_choices(_c: Combatant, id: String) -> Array:
 	return out
 
 
+## INSTALL: arms it (CONFIRM), or with the piece's options step, shows its choices.
 func _start_install(b: Button, c: Combatant, id: String) -> void:
 	if _install_choices(c, id).is_empty():
-		_install(b, c, id, null)
+		_install_press(b, c, id, null)
 	else:
 		_choose = id
+		_armed = ""
 		_pick = "install:" + id
 		_build()
 
 
+## Install takes two presses (owner, playtest): the first arms the button (CONFIRM), the second
+## installs. Esc, another click or key disarms it.
+func _install_press(b: Button, c: Combatant, id: String, choice: Variant) -> void:
+	var key := id if choice == null else "%s@%s" % [id, String(choice)]
+	if _armed == key:
+		_install(b, c, id, choice)
+	else:
+		_armed = key
+		_pick = "install:" + id
+		_build()
+
+
+## The install itself goes into the campaign at once (deterministic); the surgery plays over it as
+## presentation (_present).
 func _install(b: Button, c: Combatant, id: String, choice: Variant) -> void:
 	var lost := [0]
 	var where := loc
 	_shut()
 	_pick = ""
 	act(b, func(): lost[0] = camp.install(c, id, where) if choice == null else int(camp.callv("install", [c, id, where, choice])), "")
+	if lost[0] >= 0:
+		_present(Cyber.base(id), where)
 	toast(b, "%s installed · -%d Humanity" % [Cyber.display(id), lost[0]], ChromeBody.CHROME)
+
+
+## The surgery, as presentation (owner, playtest): a progress bar slides across the new piece's card
+## while sfx_surgery plays, and its place on the figure flares, scan-tears and resolves into violet
+## chrome (ChromeBody.flare), all over ChromeBody.INSTALL_SECS. Reduced motion: the bar shown full
+## and a still glow, briefly.
+func _present(id: String, where: String) -> void:
+	var still := GameSettings.reduced_motion()
+	last_install = {"id": id, "loc": where}
+	if AudioDirector.I and is_instance_valid(AudioDirector.I):
+		AudioDirector.I.ui("sfx_surgery", -2.0)
+	var fig := _live_one("ChromeBody") as ChromeBody
+	if fig:
+		fig.flare(where, still, Cyber.pair_of(id, where))
+	var row := _live_one("Installed_" + id)
+	if row == null:
+		return
+	var bar := InstallBar.new()
+	bar.name = "InstallBar"
+	row.add_child(bar)
+	if not is_inside_tree():
+		bar.t = 1.0
+		return
+	if still:
+		bar.t = 1.0
+		get_tree().create_timer(0.6).timeout.connect(func(): if is_instance_valid(bar): bar.queue_free())
+	else:
+		var tw := bar.create_tween()
+		tw.tween_property(bar, "t", 1.0, ChromeBody.INSTALL_SECS)
+		tw.tween_property(bar, "modulate:a", 0.0, 0.25)
+		tw.tween_callback(bar.queue_free)
+
+
+## A node under the screen that a rebuild hasn't thrown away (by name), or null.
+func _live_one(pattern: String) -> Control:
+	for n in find_children(pattern, "", true, false):
+		var gone := false
+		var a: Node = n
+		while a:
+			if a.is_queued_for_deletion():
+				gone = true
+				break
+			a = a.get_parent()
+		if not gone:
+			return n as Control
+	return null
+
+
+## The install's progress across a card: a violet fill with a bright leading edge.
+class InstallBar extends Control:
+	var t := 0.0:
+		set(v):
+			t = v
+			queue_redraw()
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	func _draw() -> void:
+		var w := size.x * clampf(t, 0.0, 1.0)
+		draw_rect(Rect2(Vector2.ZERO, Vector2(w, size.y)), Color(ChromeBody.CHROME, 0.22))
+		draw_rect(Rect2(Vector2(maxf(0.0, w - 3.0), 0), Vector2(3.0, size.y)), Color(1, 0.95, 1, 0.85 * (1.0 - t * 0.5)))
+		draw_rect(Rect2(Vector2(0, size.y - 3.0), Vector2(w, 3.0)), Color(ChromeBody.CHROME, 0.9))
 
 
 func _ask_remove(id: String) -> void:
@@ -612,7 +698,10 @@ func _unhandled_input(ev: InputEvent) -> void:
 		KEY_ENTER, KEY_KP_ENTER, KEY_DELETE:
 			_press_pick(c, k.keycode == KEY_DELETE)
 		KEY_ESCAPE:
-			if _confirm != "" or _choose != "" or _picker != "":
+			if _armed != "":   # first, disarm a CONFIRM (the picker stays open)
+				_armed = ""
+				_build()
+			elif _confirm != "" or _choose != "" or _picker != "":
 				_shut()
 				_build()
 			else:
@@ -629,6 +718,7 @@ func _step(fwd: bool) -> void:
 		return
 	_pick = _actions[posmod(_actions.find(_pick) + (1 if fwd else -1), _actions.size())]
 	_choose = ""
+	_armed = ""
 	_build()
 
 
@@ -659,11 +749,11 @@ func _press_pick(c: Combatant, del: bool) -> void:
 
 ## The live action button of a pick (INSTALL / DESTROY IT / TAKE OUT), for the toast's place.
 func _find_button(pick: String) -> Button:
-	var at: Node = _popup if _confirm != "" and _popup != null else find_child(("Stored_" if pick.begins_with("install:") else "Installed_") + pick.get_slice(":", 1), true, false)
+	var at: Node = _popup if _confirm != "" and _popup != null else _live_one(("Stored_" if pick.begins_with("install:") else "Installed_") + pick.get_slice(":", 1))
 	if at == null:
 		return null
 	for b in at.find_children("*", "Button", true, false):
-		if (b as Button).text in ["INSTALL", "DESTROY IT", "TAKE OUT"] and not (b as Button).is_queued_for_deletion():
+		if (b as Button).text in ["INSTALL", "CONFIRM", "DESTROY IT", "TAKE OUT"] and not (b as Button).is_queued_for_deletion():
 			return b
 	return null
 

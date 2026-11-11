@@ -122,7 +122,9 @@ SLOTS = {"dartgun": 3, "microvideo": 2, "low_light_infrared_uv": 2, "cyberdeck":
          "standard_hand": 0, "standard_foot": 0, "plastic_covering": 0, "realskinn_covering": 0,
          "superchrome_covering": 0, "sensor_array": 0}
 # "Requires two Cybereyes/Cyberlegs and must be paired": bought twice, one in each, Humanity Loss for each
-# (CPR core p.360-361, p.366-367).
+# (CPR core p.360-361, p.366-367). `slots` is per side (Low Light/Infrared/UV: "2 Option Slots per
+# Cybereye"; the Jump Booster's 2 read the same way). The Med Bay installs and removes both halves
+# together (Campaign.install / remove): one half alone does nothing (Cyber.active_ids).
 PAIRED = {"anti_dazzle", "image_enhance", "low_light_infrared_uv", "virtuality", "grip_foot", "jump_booster",
           "skate_foot", "web_foot"}
 # "Can be installed as the only piece of Cyberware in a meat arm/leg" (CPR core p.364-367).

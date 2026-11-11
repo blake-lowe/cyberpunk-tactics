@@ -507,6 +507,35 @@ def sfx_collapse():
 
 
 @sfx
+def sfx_surgery():
+    """A ripperdoc install (Med Bay, owner playtest: "a ripping, fleshy surgery sound"): a bone saw
+    spinning up and biting, wet squelches and a tearing rip as the meat opens, then a servo chirp and a
+    latch as the chrome seats. ~1.4 s, the install animation's length."""
+    total = 1.5
+    # the bone saw: a buzzing saw tone that spins up, wobbles as it bites, and winds down
+    saw_t = t(0.95)
+    wob = 1.0 + 0.06 * np.sin(2 * np.pi * 9.0 * saw_t)
+    saw = sweep(0.95, 140, 260, "saw", 0.35) * wob
+    saw = drive(bp(saw + bp(_rn(361, 0.95), 1200, 4200) * 0.35, 300, 3800) * np.sin(np.pi * saw_t / 0.95) ** 0.6, 2.2)
+    x = at(saw * 0.55, 0.0, total)
+    # wet squelches: low smacky noise bursts with a sagging pitch under them
+    for k, (s, g) in enumerate([(0.12, 0.9), (0.33, 0.7), (0.58, 1.0), (0.81, 0.6)]):
+        sq = lp(_rn(362 + k, 0.16), 650) * env(0.16, 0.003, 0.035)
+        sq = mix(sq * 1.6, sweep(0.16, 420, 110, curve=0.5) * env(0.16, 0.002, 0.04) * 0.5)
+        x += at(drive(sq, 2.0) * g, s, total)
+    # the rip: crackling band-passed tearing, ragged
+    rip_n = 0.42
+    crackle = (np.random.default_rng(370).uniform(0, 1, int(rip_n * SR)) > 0.985) * 1.0
+    rip = bp(_rn(371, rip_n), 900, 3800) * (0.4 + 0.6 * crackle) * np.sin(np.pi * t(rip_n) / rip_n) ** 0.8
+    x += at(drive(rip * 1.4, 2.5) * 0.6, 0.46, total)
+    # the chrome seats: a servo chirp up and a hard latch
+    chirp = sweep(0.22, 700, 1900, curve=0.6) * env(0.22, 0.01, 0.12) * 0.25
+    latch = mix(click(2200, 0.004, 0.04) * 0.9, lp(_rn(375, 0.08), 900) * env(0.08, 0.0005, 0.015) * 0.6)
+    x += at(chirp, 1.05, total) + at(latch, 1.27, total)
+    return fade(reverb(x, 0.15, 0.12, 0.4), 0.002, 0.08)
+
+
+@sfx
 def sfx_gig_fail():
     """Gig failed: a deep impact, then a detuned minor chord sagging down and out."""
     total = 2.2
