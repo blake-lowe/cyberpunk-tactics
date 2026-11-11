@@ -356,10 +356,11 @@ func test_plates_anchor_on_the_body() -> void:
 		"male": [[Vector2(520, 90), ChromeBody.Reg.HEAD], [Vector2(536, 600), ChromeBody.Reg.TORSO], [Vector2(150, 1200), ChromeBody.Reg.R_ARM],
 			[Vector2(895, 1200), ChromeBody.Reg.L_FORE], [Vector2(810, 600), ChromeBody.Reg.L_ARM], [Vector2(420, 1300), ChromeBody.Reg.R_LEG],
 			[Vector2(690, 1800), ChromeBody.Reg.L_LEG], [Vector2(360, 1960), ChromeBody.Reg.R_LEG], [Vector2(530, 300), ChromeBody.Reg.NECK]],
-		"female": [[Vector2(400, 110), ChromeBody.Reg.HEAD], [Vector2(400, 650), ChromeBody.Reg.TORSO], [Vector2(150, 1000), ChromeBody.Reg.R_ARM],
-			[Vector2(980, 650), ChromeBody.Reg.L_FORE], [Vector2(620, 470), ChromeBody.Reg.L_ARM], [Vector2(330, 1300), ChromeBody.Reg.R_LEG],
-			[Vector2(480, 1700), ChromeBody.Reg.L_LEG], [Vector2(370, 1960), ChromeBody.Reg.R_LEG], [Vector2(395, 300), ChromeBody.Reg.NECK],
-			[Vector2(530, 1950), ChromeBody.Reg.L_LEG]],
+		# (her left arm lowered: the forearm and the hand hang by her side)
+		"female": [[Vector2(440, 110), ChromeBody.Reg.HEAD], [Vector2(440, 650), ChromeBody.Reg.TORSO], [Vector2(190, 1000), ChromeBody.Reg.R_ARM],
+			[Vector2(780, 860), ChromeBody.Reg.L_FORE], [Vector2(755, 690), ChromeBody.Reg.L_FORE], [Vector2(645, 470), ChromeBody.Reg.L_ARM],
+			[Vector2(370, 1300), ChromeBody.Reg.R_LEG], [Vector2(520, 1700), ChromeBody.Reg.L_LEG], [Vector2(410, 1960), ChromeBody.Reg.R_LEG],
+			[Vector2(435, 300), ChromeBody.Reg.NECK], [Vector2(570, 1950), ChromeBody.Reg.L_LEG]],
 	}
 	assert_eq(BodyAnatomy.PLATES.keys(), ["male", "female"], "two plates")
 	for pl: String in BodyAnatomy.PLATES:
@@ -422,6 +423,98 @@ func test_plates_anchor_on_the_body() -> void:
 		r._layout()
 		assert_eq(float(r._art._mat.get_shader_parameter("motion")), 0.0, "%s, reduced motion: the glitch holds still" % body)
 		r.free()
+	GameSettings.save_values(keep)
+
+
+## Her left arm, once held out with the drape, hangs lowered (owner: "change the lifted hand and arm
+## pose to be lower (bend at wrist and elbow joint)"): shoulder over elbow over wrist over the hand's
+## end, the forearm and hand near upright, the figure's frame no wider than the man's; the place the
+## arm was held out is empty, the arm is clear of her flank, and it is on the body along every bone.
+func test_her_left_arm_hangs_lowered() -> void:
+	var g: Dictionary = BodyAnatomy.PLATES.female
+	var img: Image = (g.ink as Texture2D).get_image()
+	if img.is_compressed():
+		img.decompress()
+	var arm: Array = (g.bones as Array).filter(func(b: Array) -> bool: return int(b[3]) in [ChromeBody.Reg.L_ARM, ChromeBody.Reg.L_FORE])
+	assert_eq(arm.size(), 3, "upper arm, forearm, hand")
+	for i in arm.size():
+		var a: Vector2 = arm[i][0]
+		var e: Vector2 = arm[i][1]
+		assert_true(e.y > a.y, "each joint below the one before (%s)" % i)
+		if i > 0:
+			assert_true(absf((e - a).angle_to(Vector2.DOWN)) < deg_to_rad(30.0), "forearm and hand hang near upright (%s)" % i)
+	var tip: Vector2 = arm[2][1]
+	assert_true(tip.y > float(g.navel.y), "her hand hangs below her navel")
+	assert_true((g.size as Vector2).x <= (BodyAnatomy.PLATES.male.size as Vector2).x, "no wider a frame than the man's")
+	for p in [Vector2(800, 600), Vector2(850, 560)]:   # where the forearm and hand were held out
+		assert_true(img.get_pixelv(Vector2i(p)).g < 0.2, "nothing left where the arm was held out (%s)" % p)
+	assert_true(img.get_pixelv(Vector2i(670, 734)).g < 0.2, "the arm clear of her flank")
+	assert_true(img.get_pixelv(Vector2i(760, 734)).g > 0.5, "the forearm by her side")
+
+
+## The figure is always the skeletal hybrid (owner: "drop the skin on versions and baseline both the
+## male and female skeleton engraving hybrid images"): on both plates the skeleton channel lights the
+## whole figure, along every bone; the shader prints the skeleton with a faint body over it everywhere
+## (no surface-only path left); chromed regions are violet and plated (a circuit, barer and brighter
+## bones), unchromed ones cyan meat, the selected one gold; reduced motion stills it and keeps the hybrid.
+func test_the_figure_is_the_skeleton_hybrid() -> void:
+	for pl: String in BodyAnatomy.PLATES:
+		var g: Dictionary = BodyAnatomy.PLATES[pl]
+		var img: Image = (g.ink as Texture2D).get_image()
+		if img.is_compressed():
+			img.decompress()
+		for b in g.bones:
+			if int(b[3]) in [ChromeBody.Reg.R_EYE, ChromeBody.Reg.L_EYE, ChromeBody.Reg.EAR]:
+				continue
+			var lit := 0
+			for k in 9:
+				var q: Vector2 = (b[0] as Vector2).lerp(b[1], k / 8.0)
+				var best := 0.0
+				for dy in range(-12, 13, 4):
+					for dx in range(-12, 13, 4):
+						var pp := Vector2i(q) + Vector2i(dx, dy)
+						if pp.x >= 0 and pp.y >= 0 and pp.x < img.get_width() and pp.y < img.get_height():
+							best = maxf(best, img.get_pixelv(pp).b)
+				lit += 1 if best > 0.4 else 0
+			assert_true(lit >= 6, "%s: the skeleton lights the bone of region %d from %s (%d/9)" % [pl, b[3], b[0], lit])
+	var sh := FileAccess.get_file_as_string("res://src/ui/screens/body_anatomy.gdshader")
+	assert_true(sh.contains("mix(tx.b, tx.r, sk)"), "the print is the skeleton with the body over it")
+	for gone in ["dp1", "dp2", "mix(tx.r, tx.b"]:
+		assert_false(sh.contains(gone), "no surface-only (skin-on) path: %s" % gone)
+	assert_true(BodyAnatomy.SKIN > 0.05 and BodyAnatomy.SKIN < 0.5, "a faint body, the bones through it")
+	Hud._fonts()
+	for body in ["male", "female"]:
+		var c := _crew_of(body)
+		c.implants = [{"id": "cyberarm", "loc": "right_arm"}]
+		var b := ChromeBody.new().setup(c, "left_arm")
+		(Engine.get_main_loop() as SceneTree).root.add_child(b)
+		b.size = Vector2(860, 690)
+		b._layout()
+		var m := b._art._mat
+		assert_eq(float(m.get_shader_parameter("skin")), BodyAnatomy.SKIN, "%s: the hybrid" % body)
+		var t := b.region_tints()
+		var cols: PackedColorArray = m.get_shader_parameter("tints")
+		var plated: PackedFloat32Array = m.get_shader_parameter("plated")
+		assert_eq(cols.size(), ChromeBody.REGIONS, "%s: a tint per region" % body)
+		for r in ChromeBody.REGIONS:
+			assert_true(cols[r].is_equal_approx(t[r][0]) and is_equal_approx(plated[r], float(t[r][1])), "%s: region %d drawn as tinted" % [body, r])
+		assert_true(cols[ChromeBody.Reg.R_ARM].is_equal_approx(Color(ChromeBody.CHROME, 0.85)) and plated[ChromeBody.Reg.R_ARM] == 1.0, "%s: the cyberarm violet and plated" % body)
+		for r in [ChromeBody.Reg.R_LEG, ChromeBody.Reg.L_LEG, ChromeBody.Reg.HEAD, ChromeBody.Reg.TORSO]:
+			assert_true(cols[r].a == 0.0 and plated[r] == 0.0, "%s: meat region %d cyan, unplated" % [body, r])
+		assert_true(cols[ChromeBody.Reg.L_ARM].is_equal_approx(Color(Hud.GOLD, 0.8)), "%s: the selected arm gold" % body)
+		assert_eq(int(m.get_shader_parameter("selected")), ChromeBody.Reg.L_ARM, "%s: and pulsing" % body)
+		b.free()
+	var keep := GameSettings.load_values()
+	var v := keep.duplicate()
+	v.reduced_motion = true
+	GameSettings.save_values(v)
+	var r := ChromeBody.new().setup(_crew_of("female"), "left_arm")
+	(Engine.get_main_loop() as SceneTree).root.add_child(r)
+	r.size = Vector2(860, 690)
+	r._layout()
+	assert_eq(float(r._art._mat.get_shader_parameter("motion")), 0.0, "reduced motion: still")
+	assert_eq(float(r._art._mat.get_shader_parameter("skin")), BodyAnatomy.SKIN, "reduced motion: still the hybrid")
+	r.free()
 	GameSettings.save_values(keep)
 
 

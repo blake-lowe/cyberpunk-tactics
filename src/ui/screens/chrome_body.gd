@@ -9,7 +9,8 @@ extends Control
 ## The figure is a real anatomical plate as light on the dark page (BodyAnatomy; owner, 2026-11-11:
 ## "Let's take that going forward and drop the ... other attempts"): a man (Milton's écorché, 1804)
 ## or a woman (Bell's superficial figure, 1798), as the crew member's body is (plate_of: the body
-## their 3D model has).
+## their 3D model has), always as the skeleton hybrid (the bones through a faint body: owner,
+## 2026-11-11, "drop the skin on versions").
 ## The Med Bay's ripperdoc picks a location or an installed piece here (loc_pressed, piece_pressed;
 ## a click on the body picks the nearest place); the loadout screen shows it read-only (clicks only
 ## select). Built from Controls, so tests can read `cards` and each card's `pips` meta.

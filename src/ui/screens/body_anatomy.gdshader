@@ -2,17 +2,21 @@ shader_type canvas_item;
 // The cyberware figure (BodyAnatomy): an engraved anatomical plate (Milton's man, Bell's woman) as light on the dark page.
 // TEXTURE (tools/gen_anatomy_ink.py): R the plate printed as light (the paper inside him glows, the
 // engraver's lines stay dark: his hatching models the form), G the figure's silhouette, B the deep
-// plate the same way (bones and deep muscles, warped onto him), A his outline. A bloom from the mip
-// chain softens it.
+// plate the same way (the skeleton, warped onto him), A his outline. A bloom from the mip chain
+// softens it.
+// The figure is always the hybrid (owner: "aesthetically I prefer the look of the skeletal hybrid
+// images... drop the skin on versions"): the deep plate's bones everywhere, the surface plate a faint
+// body over them (`skin`, its share of the print).
 // The glitch (owner, on an early prototype: "I very much like the horizontal glitch fuzziness"): every
 // scan row is nudged sideways a little, and broken horizontal hatching runs off the figure's edges,
 // fading out from the body; with motion on, bands of rows now and then tear sideways and the
 // hatching re-rolls in steps, and a slow scan line runs down. Under reduced motion all of it holds
 // still.
 // Bones laid over the figure (segs) give each pixel its body region: its lines take the region's
-// tint (cyan meat, violet chrome, gold for the selected location). A chromed or selected region
-// shows the deep plate through the muscle (the bones beneath), and a chromed limb gets a circuit
-// spine along the bone; external chrome (shell) is a dermal mesh over the whole skin.
+// tint (cyan meat, violet chrome, gold for the selected location). A chromed region is violet, its
+// bones brighter and more bare (the body over them fainter, a glint on their highlights), and a
+// chromed limb gets a circuit spine along the bone; external chrome (shell) is a dermal mesh over the
+// whole skin.
 render_mode blend_add;
 
 uniform vec4 segs[24];          // per bone: from.xy, to.xy (uv)
@@ -27,6 +31,7 @@ uniform float motion = 1.0;
 uniform vec2 px = vec2(0.002, 0.001);   // one screen pixel, in uv
 uniform float aspect = 0.5;     // the texture's width over its height (uv x units per uv y unit)
 uniform float gain = 0.72;      // the print's light
+uniform float skin = 0.22;      // the surface plate's share of the print over the bones (the hybrid)
 uniform float edge = 0.32;      // the outline's
 uniform float fuzz = 1.0;       // the horizontal glitch's strength
 
@@ -102,15 +107,14 @@ void fragment() {
 	vec3 col = mix(meat.rgb, t.rgb, t.a * body);
 	// the selected place: brighter (gold reads olive when dim), pulsing with motion on
 	float pulse = (reg == selected) ? (1.4 + 0.3 * motion * sin(TIME * 2.6)) * kb + (1.0 - kb) : 1.0;
-	// the deep plate shows through where chrome is (or the selected place): the muscle fades
-	float dp1 = max(plated[reg] * 0.8, reg == selected ? 0.4 : 0.0);
-	float dp2 = max(plated[reg2] * 0.8, reg2 == selected ? 0.4 : 0.0);
-	float deep = body * mix(dp2, dp1, kb);
-	float print_ = mix(tx.r, tx.b, deep);
-	float bl = mix(b1.r * 0.6 + b2.r * 0.4, b1.b * 0.6 + b2.b * 0.4, deep);
-	float muscle = print_ * gain + tx.a * edge;
+	// the hybrid: the bones with a faint body over them; chrome bares and brightens them
+	float chrome = body * mix(plated[reg2], plated[reg], kb);
+	float sk = skin * (1.0 - 0.45 * chrome);
+	float print_ = mix(tx.b, tx.r, sk);
+	float bl = mix(b1.b * 0.6 + b2.b * 0.4, b1.r * 0.6 + b2.r * 0.4, sk);
+	float muscle = print_ * gain * (1.0 + 0.15 * chrome) + tx.a * edge;
 	vec3 o = col * (muscle + bl * 0.22 + (b1.a * 0.6 + b2.a * 0.4) * 0.25) * pulse;
-	o += vec3(1.0) * smoothstep(0.8, 1.0, print_) * 0.18 * (1.0 - 0.5 * deep);   // the highlights whiten
+	o += vec3(1.0) * smoothstep(0.8, 1.0, print_) * (0.1 + 0.06 * chrome);   // the highlights whiten (chrome glints)
 
 	// --- the fuzz: horizontal hatching off his edges, the rows fading out from the body (as
 	// an engraver shades a figure's flanks), patchy along the contour, every other row or so ---

@@ -22,6 +22,13 @@ or added: the anatomy is Milton's.
 Channels: R the main plate as light, G its silhouette, B the deep plate as light (warped), A the
 outline. Import it with `process/fix_alpha_border=false` (every channel is data).
 
+How the game shows them (2026-11-11, owner: "aesthetically I prefer the look of the skeletal hybrid
+images... drop the skin on versions and baseline both the male and female skeleton engraving hybrid
+images"): always as the hybrid, the deep plate's skeleton over the whole figure with the main plate a
+faint body over it (`body_anatomy.gdshader`, `skin` = `BodyAnatomy.SKIN`, 0.22 of the print). There is
+no surface-only view; chrome is told apart by colour (violet, the selected place gold), barer and
+brighter bones and the circuit spine, not by revealing the bones.
+
 Considered and not used: Julien Bouglé's colour muscle figure (Wikimedia Commons, "Bougle whole2
 retouched.png", 1899; public domain), a fine plate but colour lithograph tones extract poorly as
 line, and Commons was refusing full-size downloads from this machine; Paul Richer's *Anatomie
