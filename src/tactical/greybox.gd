@@ -2074,6 +2074,9 @@ func _inspect(v: Vector3i) -> void:
 					if ap.device == d.id:
 						on_net = true
 			lines.append("Device: %s%s%s" % [String(d.type).replace("_", " "), " · access point" if on_net else "", _device_state_text(d)])
+			var note := Hud.device_note(d)
+			if note != "":
+				lines.append("[color=#ff5a7a]%s[/color]" % note)
 	if lines.is_empty():
 		var t2 := m.t(v.z, v.x, v.y)
 		var l := m.label(v.z, v.x, v.y)
@@ -7473,7 +7476,7 @@ func _update_hover() -> void:
 		if int(p.get("weather", 0)) < 0:
 			lines.append("[color=#b4bec6]Weather: %d[/color]" % int(p.weather))
 		if p.get("sees_through", false):
-			lines.append("[color=#05d9e8]Low light optics: no smoke or weather penalty[/color]")
+			lines.append("[color=#05d9e8]%s[/color]" % Hud.optics_line(p, enc.weather))
 		if p.get("surrendered", false):   # Morale: the crew's call, not a mistake
 			lines.append("[color=#f9c80e]Surrendered and unarmed[/color]")
 		elif p.get("fleeing", false):

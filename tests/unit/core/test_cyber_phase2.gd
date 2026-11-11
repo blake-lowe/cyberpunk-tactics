@@ -138,13 +138,14 @@ func test_low_light_ignores_darkness_smoke_and_weather() -> void:
 	assert_false(g.c.sees_through_obscurement(), "one eye only: a paired option needs both")
 	_chromed(["low_light_infrared_uv"], g.c)
 	assert_true(g.c.sees_through_obscurement())
-	assert_eq(e.sight_penalty(g.c, g.pos, a.pos, true), 0, "darkness, smoke and fog: 0")
+	assert_eq(e.sight_penalty(g.c, g.pos, a.pos, true), 0, "darkness, smoke and smog: 0 (thermal sees through it)")
 	var before := e.spot_base(g, a)
 	g.c.cyber_off[Cyber.key(g.c.implant("low_light_infrared_uv", "left_eye"))] = 3
 	assert_eq(e.spot_base(g, a), before - 4 - Weather.sight("smog"), "knocked out: back to the penalties")
 
 
-func test_low_light_shoots_through_smoke_and_weather() -> void:
+## Owner ruling 2026-11-11 (physics): thermal sees through smoke and smog, not through heavy rain.
+func test_low_light_shoots_through_smoke_and_smog_not_rain() -> void:
 	var e := _arena([Vector3i(14, 5, 0)], TacMap.T.OUTSIDE)
 	var g: Dictionary = e.units[1]
 	var w: Weapon = e.cur.c.weapons[0]
@@ -156,9 +157,12 @@ func test_low_light_shoots_through_smoke_and_weather() -> void:
 	_chromed(LLIR, e.cur.c)
 	var q := e.preview(g, w, Attack.Mode.SINGLE)
 	assert_eq(int(q.obscured), 0)
-	assert_eq(int(q.weather), 0)
+	assert_eq(int(q.weather), -Weather.sight("heavy_rain"), "the rain still blurs it")
 	assert_true(q.sees_through, "the card says why")
-	assert_eq(int(q.base), int(p.base) + 4 + Weather.sight("heavy_rain"))
+	assert_eq(int(q.base), int(p.base) + 4)
+	e.weather = "smog"
+	var r := e.preview(g, w, Attack.Mode.SINGLE)
+	assert_eq(int(r.weather), 0, "smog is nothing to thermal")
 
 
 # --- Image Enhance (p.360) and Amplified Hearing (p.361) ------------------------------------------
@@ -240,6 +244,7 @@ func test_a_level_damper_shrugs_off_the_shrieker_both_ends() -> void:
 	assert_eq(String(br.get("self_hurt", "")), "damaged_ear")
 
 
+## Owner ruling 2026-11-11: poison and biotoxin grenades are breathable gas (filters stop them).
 func test_gas_grenades_poison_unless_the_air_is_filtered() -> void:
 	for key in ["ammo/poison_ammo", "ammo/biotoxin_ammo"]:
 		var e := _arena([Vector3i(8, 5, 0), Vector3i(9, 5, 0), Vector3i(8, 6, 0), Vector3i(9, 6, 0)])
@@ -266,6 +271,7 @@ func test_gas_grenades_poison_unless_the_air_is_filtered() -> void:
 		assert_eq(int(plain.sp("body")), plain.armor["body"].sp if plain.armor["body"] else 0, "armor untouched")
 
 
+## Owner ruling 2026-11-11: Nasal Filters don't block teargas; two Cybereyes do.
 func test_teargas_needs_meat_eyes_not_lungs() -> void:
 	var fx := Items.fx("ammo/teargas_ammo")
 	var nasal := _chromed(["nasal_filters"], _weak("N"))

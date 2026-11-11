@@ -1799,6 +1799,26 @@ static func stat_block(c: Combatant, full: bool, extra: Array = []) -> String:
 	return "\n".join(out)
 
 
+## The attack card's line for Low Light/Infrared/UV optics: what they took off this shot, from an
+## Encounter.preview (sees_smoke, sees_weather) in mood `mood` ("Thermal optics: ignore smoke and
+## the dust storm").
+static func optics_line(p: Dictionary, mood: String) -> String:
+	var what: Array[String] = []
+	if p.get("sees_smoke", false):
+		what.append("smoke")
+	if p.get("sees_weather", false):
+		what.append("the " + Weather.name_of(mood).to_lower())
+	return "Thermal optics: ignore " + " and ".join(what) if not what.is_empty() else ""
+
+
+## A device's extra hover-card line ("" if none): an infrared camera says it sees in the dark
+## (Encounter.camera_ir).
+static func device_note(d: Dictionary) -> String:
+	if String(d.get("type", "")) == "camera" and bool(d.get("ir", false)):
+		return "Infrared: sees in the dark and through smoke"
+	return ""
+
+
 ## What their senses chrome and hazard gear do now, in a few words each ("" if nothing): the
 ## inspector's SENSES line (Combatant.sees_through_obscurement, perception_bonus, immune_to, sense_range).
 static func senses_text(c: Combatant) -> String:

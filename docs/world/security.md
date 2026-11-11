@@ -7,7 +7,7 @@ How a faction guards its own site: guard budget, officers, patrols, radio, Traum
 **Who holds the posts** (`SecurityCode.guarded_by`): a location's code is either its on-site protection or the authorities' interest in it (p.7). When the code's faction is the target's own, the target's people hold the posts; when it is a security provider guarding an owned place (Lazarus at Night Corp HQ), that contractor's people hold them, playing their own doctrine on the opposition's side, and the target's people are the staff and VIPs the objective needs. HOUSE-RULE: the public police (NCPD) and gangs or patrons count as an outside authority, except that NCPD guards the city's own buildings. Under an outside authority's code the target's people hold the posts at their ordinary strength and the code only says who answers a call. A code's intensity reaches the posts once, through the gig's 1-3 security level (Light 1, Medium 2, Heavy 3, kept only when the code guards the place); the intensity table's crew-size shift (`SecurityCode.budget_crew_size`) sizes responses only. A Hardened code puts Hardened people on the posts only when it guards the place. Utility Codes (p.8) are an optional complication in the book; we roll them on one gig in three (HOUSE-RULE pacing, as for complications): power out kills cameras, turrets and lights; CitiNet out doubles response times; water out is flavour.
 
 ```world security._doc
-"Security doctrines (Security.doctrine): how a faction guards a site and answers trouble. A faction names its doctrine in factions.json; anything a doctrine leaves out comes from 'default'. All numbers are HOUSE-RULE (the Night City 2045 book has no per-faction guard detail). budget: the guard roster is crew_size x (base + per_level x security) edgerunners' worth (CPR p399 costs: Mook 1, Lieutenant 2, Mini Boss 3), with officers by security level and at least min_mooks Mooks. outer_patrols: pairs of Mooks out in the open, one pair per area_per_pair squares over area_start, at most max_pairs. A Security Code's intensity reaches this budget through the security level only (Campaign.location_levels, NC2045 p.7). alarm: radio_range rouses the caller's side within that many squares, shout_range spreads an alert on a floor. Who responds to the call, and when, comes from the gig's Security Codes (SecurityCode), not the doctrine. trauma_cards: the mark holds one (mark), officers (Lieutenants and Mini Bosses) at this chance. keycards: guards carry their zone's keycard."
+"Security doctrines (Security.doctrine): how a faction guards a site and answers trouble. A faction names its doctrine in factions.json; anything a doctrine leaves out comes from 'default'. All numbers are HOUSE-RULE (the Night City 2045 book has no per-faction guard detail). budget: the guard roster is crew_size x (base + per_level x security) edgerunners' worth (CPR p399 costs: Mook 1, Lieutenant 2, Mini Boss 3), with officers by security level and at least min_mooks Mooks. outer_patrols: pairs of Mooks out in the open, one pair per area_per_pair squares over area_start, at most max_pairs. A Security Code's intensity reaches this budget through the security level only (Campaign.location_levels, NC2045 p.7). alarm: radio_range rouses the caller's side within that many squares, shout_range spreads an alert on a floor. Who responds to the call, and when, comes from the gig's Security Codes (SecurityCode), not the doctrine. trauma_cards: the mark holds one (mark), officers (Lieutenants and Mini Bosses) at this chance. keycards: guards carry their zone's keycard. ir_cameras: the chance, by the camera's building's 1-3 security level, that a camera is infrared (sees in the dark and through smoke; Encounter.camera_ir), decided per camera from the map seed (Security.ir_camera)."
 ```
 
 ## Doctrines
@@ -15,6 +15,8 @@ How a faction guards its own site: guard budget, officers, patrols, radio, Traum
 ### Private security (`default`)
 
 The baseline every doctrine starts from: the tuned numbers (HOUSE-RULE).
+
+**Infrared cameras** (`ir_cameras`). The book's Observation Cameras all see in Low Light, Infrared and UV (CPR core p.214, Environmental Defenses). HOUSE-RULE (owner ruling 2026-11-11: "some cameras can see in the dark, only if they're infra red"): only some do, more the better guarded the place: none at security 1, half at 2, most at 3. An infrared camera ignores darkness and, by the same physics as Low Light/Infrared/UV optics, smoke. A militarised corp fits more of them, a gang fewer.
 
 ```world security.doctrines.default
 {
@@ -46,7 +48,12 @@ The baseline every doctrine starts from: the tuned numbers (HOUSE-RULE).
 		"mark": false,
 		"officers": 0.0
 	},
-	"keycards": true
+	"keycards": true,
+	"ir_cameras": {
+		"1": 0.0,
+		"2": 0.5,
+		"3": 0.85
+	}
 }
 ```
 
@@ -88,6 +95,10 @@ A militarised corp (Militech): more guards and patrols, wider radio net, every o
 	"trauma_cards": {
 		"mark": true,
 		"officers": 1.0
+	},
+	"ir_cameras": {
+		"2": 0.75,
+		"3": 1.0
 	}
 }
 ```
@@ -113,6 +124,10 @@ Gang turf: more bodies and shouting instead of radios; no keycards.
 		"radio_range": 12,
 		"shout_range": 10
 	},
-	"keycards": false
+	"keycards": false,
+	"ir_cameras": {
+		"2": 0.25,
+		"3": 0.5
+	}
 }
 ```

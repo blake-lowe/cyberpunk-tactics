@@ -61,3 +61,18 @@ static func roster(d: Dictionary, crew_size: int, security: int) -> Array[String
 static func patrol_pairs(d: Dictionary, area: int) -> int:
 	var p: Dictionary = d.outer_patrols
 	return clampi(int((area - int(p.area_start)) / int(p.area_per_pair)), 0, int(p.max_pairs))
+
+
+## Is camera `device_id` on map seed `map_seed` infrared, at its building's `security` level
+## (1-3), under doctrine `d`? HOUSE-RULE (owner ruling 2026-11-11): the book's Observation Cameras
+## all see in Low Light, Infrared and UV (CPR core p.214); ours only some, by the doctrine's
+## `ir_cameras` chance per level (none at 1, about half at 2, most at 3). Rolled on a Dice of its own
+## seeded from the map and the camera, so the gig's dice are untouched and a reload agrees.
+static func ir_camera(d: Dictionary, map_seed: int, device_id: int, security: int) -> bool:
+	var chance := float((d.get("ir_cameras", {}) as Dictionary).get(str(clampi(security, 1, 3)), 0.0))
+	if chance <= 0.0:
+		return false
+	if chance >= 1.0:
+		return true
+	var s := map_seed * 1000003 + device_id * 7919 + 6271
+	return Dice.new(s if s != 0 else 1).rng.randf() < chance
