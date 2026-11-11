@@ -340,3 +340,39 @@ func test_hologram_anchors_sit_on_the_body() -> void:
 	assert_eq(ChromeBody._bone_region("ball_leaf_l"), ChromeBody.Reg.L_LEG)
 	assert_eq(ChromeBody._bone_region("RightShoulder"), ChromeBody.Reg.TORSO)
 	b.free()
+
+
+## The 2D figure styles (`--body=vitruvian|scan|facet`, prototypes beside the hologram): each keeps an
+## anchor per location on its figure (head over chest over legs, the character's right on the
+## viewer's left), between the card columns so no leader line runs back under its card; the regions
+## take chrome's violet and the selected location's gold.
+func test_figure_styles_keep_the_anchors() -> void:
+	Hud._fonts()
+	var camp := DemoState.make()
+	var c: Combatant = camp.alive_crew()[1]
+	assert_eq(ChromeBody.style(), "holo", "the hologram by default")
+	assert_true(BodyShape.parts().size() <= 48, "the scan shader's part arrays hold the body")
+	for st in ["vitruvian", "scan", "facet"]:
+		ChromeBody.style_override = st
+		for sz in [Vector2(640, 540), Vector2(900, 520)]:
+			var b := ChromeBody.new().setup(c, "left_arm")
+			(Engine.get_main_loop() as SceneTree).root.add_child(b)
+			b.size = sz
+			b._layout()
+			assert_true(b._art != null and b._model == null, "%s: 2D art, no model" % st)
+			var a := b.anchors
+			assert_eq(a.size(), Cyber.LOCS.size(), "%s: an anchor per location" % st)
+			assert_true(a.neural_link.y < a.right_eye.y and a.right_eye.y < a.internal.y and a.internal.y < a.right_leg.y, "%s: head, eyes, chest, legs top to bottom" % st)
+			assert_true(a.right_eye.x < a.left_eye.x and a.right_arm.x < a.left_arm.x and a.right_leg.x < a.left_leg.x, "%s: their right on the viewer's left" % st)
+			for loc in ChromeBody.LEFT_COL:
+				assert_true(a[loc].x > (b.cards[loc] as Control).get_rect().end.x, "%s %s: right of its card" % [st, loc])
+			for loc in ChromeBody.RIGHT_COL:
+				assert_true(a[loc].x < (b.cards[loc] as Control).position.x, "%s %s: left of its card" % [st, loc])
+			var t := b.region_tints()
+			assert_true((t[ChromeBody.Reg.L_ARM][0] as Color).is_equal_approx(Color(Hud.GOLD, 0.8)), "%s: the selected arm gold" % st)
+			if ChromeBody.chromed(c.implants, "neural_link"):
+				assert_true((t[ChromeBody.Reg.HEAD][0] as Color).a > 0.0 and float(t[ChromeBody.Reg.HEAD][1]) > 0.0, "%s: the Neural Link's head chromed" % st)
+			b.free()
+	ChromeBody.style_override = ""
+	var m := BodyFacet.mesh()
+	assert_true((m[1] as Array).size() > 400, "the mannequin is cut into facets")
