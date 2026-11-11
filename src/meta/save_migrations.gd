@@ -96,8 +96,14 @@ extends RefCounted
 ##     (p.103), a Standard deck with Armor, Sword, See Ya, Sword and Worm (Deck.STARTING_PROGRAMS),
 ##     keeping what they had (the Sword and Armor count towards it). Anyone else gets an empty deck
 ##     record.
+## v22: Night Market stock (HOUSE-RULE, NightMarket; owner playtest): a market no longer stays a set
+##     3 days with everything in unlimited supply. Each item it sells that isn't a fixer's staple has
+##     a `stock`, sold off a day at a time (`sold`: the day it last traded) and by purchases; the
+##     market packs up when it has all gone or at `closes`. A v21 market keeps its listings and
+##     closing day; each item not a staple gets the average of its stock roll (NightMarket.mean_stock,
+##     by list price: no dice in a migration), and it last traded on the save's day.
 
-const CURRENT := 21
+const CURRENT := 22
 
 
 ## Upgrade `d` (a parsed save) to CURRENT. Returns {} for a save from a newer build, which this
@@ -129,6 +135,7 @@ static func migrate(d: Dictionary) -> Dictionary:
 			18: _v18_to_v19(d)
 			19: _v19_to_v20(d)
 			20: _v20_to_v21(d)
+			21: _v21_to_v22(d)
 		v += 1
 		d["version"] = v
 	return d
@@ -404,3 +411,19 @@ static func _v20_to_v21(d: Dictionary) -> void:
 		c["programs"] = had
 		c["deck_hardware"] = []
 		c["backup"] = []
+
+
+static func _v21_to_v22(d: Dictionary) -> void:
+	var m = d.get("market", {})
+	if not m is Dictionary or (m as Dictionary).is_empty() or (m as Dictionary).has("stock"):
+		return
+	var stock := {}
+	for l in m.get("listings", []):
+		if not l is Dictionary:
+			continue
+		for k in l.get("keys", []):
+			var key := String(k)
+			if Items.is_stored(key) and not NightMarket.is_staple(key) and not stock.has(key):
+				stock[key] = NightMarket.mean_stock(Items.price(key))
+	m["stock"] = stock
+	m["sold"] = int(d.get("day", m.get("opened", 1)))

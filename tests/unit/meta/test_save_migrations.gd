@@ -311,3 +311,37 @@ func test_v18_flat_cyberware_gets_locations() -> void:
 	var back := Combatant.from_dict(JSON.parse_string(JSON.stringify(m.to_dict())))
 	assert_eq(back.implants, m.implants, "locations survive a save")
 	assert_eq(int(c.to_dict().version), SaveMigrations.CURRENT)
+
+
+## v22: Night Market stock. A v21 market (3 days, unlimited supply) keeps its listings and closing
+## day; what the fixer doesn't sell gets its stock roll's average, and it last traded on the save's day.
+func test_v21_market_gets_stock_and_keeps_its_listings() -> void:
+	var c0 := Campaign.new_game(4)
+	var d: Dictionary = JSON.parse_string(JSON.stringify(c0.to_dict()))
+	d["version"] = 21
+	d.market = {"opened": int(d.day), "closes": int(d.day) + 3, "categories": ["weapons_armor", "cyberware"],
+		"listings": [{"category": "weapons_armor", "row": 5, "name": "Assault Rifle", "keys": ["weapon/assault_rifle@poor", "weapon/assault_rifle", "weapon/assault_rifle@excellent"]},
+			{"category": "weapons_armor", "row": 15, "name": "Armor of 100eb or less", "keys": ["armor/kevlar"]},
+			{"category": "cyberware", "row": 2, "name": "Neural Link", "keys": ["cyberware/neural_link", "weapon/nonsense"]}]}
+	var raw: Dictionary = JSON.parse_string(JSON.stringify(d))
+	var mig := SaveMigrations.migrate(raw.duplicate(true))
+	assert_eq(int(mig.version), SaveMigrations.CURRENT)
+	var st: Dictionary = mig.market.stock
+	assert_eq(int(st["weapon/assault_rifle"]), 3, "the average of its roll: 1d6 at 500eb")
+	assert_eq(int(st["cyberware/neural_link"]), NightMarket.mean_stock(Items.price("cyberware/neural_link")))
+	assert_true(st.has("weapon/assault_rifle@poor") and st.has("weapon/assault_rifle@excellent"), "each Quality Rating has its own")
+	assert_false(st.has("armor/kevlar"), "a staple never runs out")
+	assert_false(st.has("weapon/nonsense"), "nothing the game can't store")
+	assert_eq(int(mig.market.sold), int(d.day))
+	assert_eq(int(mig.market.closes), int(d.day) + 3, "it keeps its closing day")
+	var c := Campaign.from_dict(raw)
+	assert_true(c != null, "loads")
+	assert_eq(NightMarket.keys_of(c.market), NightMarket.keys_of(d.market), "the same market is up")
+	assert_true(c.on_sale("weapon/assault_rifle"))
+	assert_true(Shop.entries(c).any(func(e): return String(e.key) == "weapon/assault_rifle" and int(e.stock) == 3))
+	var back := Campaign.from_dict(JSON.parse_string(JSON.stringify(c.to_dict())))
+	assert_eq(back.market.stock, c.market.stock, "stock survives a save")
+	var empty := Campaign.new_game(4).to_dict()
+	empty["version"] = 21
+	empty["market"] = {}
+	assert_eq(SaveMigrations.migrate(empty).market, {}, "no market: the load rolls one")

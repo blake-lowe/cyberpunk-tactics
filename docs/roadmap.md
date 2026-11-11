@@ -59,6 +59,9 @@ Check-ins (🔶) are where work pauses for a user decision or review.
   - **Item art:** none.
   - **One shop:** market and fixer stock together, market items badged, with a Market only filter.
   - **Flavour:** light, with plain wording: "available for N days" / "LAST DAY", not "node goes dark".
+    Superseded (owner playtest 2026-11-11): stock, not days ("3 IN STOCK"); no filters on the rail
+    (Market only, afford, owned are gone); a cart line is one row (name, − qty +, ×, price) with no tier,
+    unit price, wallet-after or storage note.
   - **Poor quality:** never italic.
 - Towers V1 (owner verdicts, 2026-11-09):
   - **Approved:** the night look, strip, lift, the fog and drop, the target's lift-only exit, the public sky lobby, the gate and pay, and the heights.
@@ -312,8 +315,13 @@ Check-ins (🔶) are where work pauses for a user decision or review.
   The old two-guns-plus-one-melee limit, resale at half and the +20% fixer markup are gone.
 - Night Market (p337-339, data/rules/night_market.json): 1d6 twice for two categories, 1d10 listings
   each on the d100 columns, repeats rerolled, every Quality Rating of a weapon, a Cyberware Option brings
-  its foundations; only items the game plays are on sale. HOUSE-RULE: a market stays 3 days, then the
-  next is rolled (no schedule in the book); no quantity cap (the book gives none). No Reputation gate
+  its foundations; only items the game plays are on sale. HOUSE-RULE stock (owner playtest 2026-11-11,
+  replacing the old 3 days and unlimited supply; save v22): each item not a staple has a stock rolled at
+  opening by price (to 100eb 2d6, to 500eb 1d6, to 1,000eb 1d3, dearer 1); each day every piece left
+  sells on a d6 of 4+; buying takes from it; at 0 it's gone; the market packs up when all of it has gone
+  (or after 7 days) and the next is rolled. Staples never run out. HOUSE-RULE reading: a priced cyberware
+  row (e.g. Neuralware Option of 500eb or less) is one type of goods, so one piece of it is on sale (a
+  market's chrome is its rows plus their foundations). No Reputation gate
   (p337 gives no number). Cyberware on sale is installed free at the Ripperdoc (p338). Staples (owner's
   design): Teargas and Flashbang grenades are always available from the fixer.
 - Removed: Med Bay +2 HP/day and clinic discount, Fixer Network +1 gig / earlier security, Training Room

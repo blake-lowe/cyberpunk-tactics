@@ -133,7 +133,7 @@ A turn-based tactical game that blends Cyberpunk Red tabletop rules with XCOM 2-
     night markets.~~ Superseded (owner ruling, core-book systems only): list prices, no markup, no
     Reputation gate.
 - **Night Markets**: the book's generator (p338-339): each market rolls two categories of goods and
-  what's on the shelves; a new one sets up every few days (house rule). The fixer always has a few
+  what's on the shelves, each item in a limited stock that sells off day by day; a new one sets up when it has sold out (house rule). The fixer always has a few
   staple consumables (owner's design).
 - **Humanity & Cyberpsychosis**:
   - Full pressure. Low Humanity imposes penalties.

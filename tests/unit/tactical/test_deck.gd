@@ -425,7 +425,7 @@ func test_the_v21_migration_gives_netrunners_their_deck() -> void:
 	assert_eq(c.programs.size(), 5)
 	var round := Combatant.from_dict(c.to_dict())
 	assert_eq(round.programs, c.programs, "saves and loads")
-	assert_eq(SaveMigrations.CURRENT, 21)
+	assert_true(SaveMigrations.CURRENT >= 21)
 
 
 func _full_dict(over: Dictionary) -> Dictionary:

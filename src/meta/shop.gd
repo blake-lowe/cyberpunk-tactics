@@ -2,8 +2,8 @@ class_name Shop
 extends RefCounted
 ## The Fixer Network's NIGHT MARKET tab as a shop (MarketTab draws it): one list of everything for
 ## sale now (Campaign.market_stock: the Night Market's listings and the fixer's staples, CPR core
-## p.337-339 and p.385), one entry per item and Quality Rating, with the shop's categories, filters,
-## sorts and the market's closing date in plain words. Pure functions over plain dictionaries so they
+## p.337-339 and p.385), one entry per item and Quality Rating, with the shop's categories, search,
+## sorts and the market's stock in plain words. Pure functions over plain dictionaries so they
 ## test headless; the cart is a Dictionary (storage key → how many) and Campaign.buy_cart buys it.
 
 ## The shop's categories, in TYPE sort order. The first six are always listed (owner's verdict);
@@ -35,13 +35,10 @@ static func category_of(key: String) -> String:
 
 
 ## Everything for sale now, one entry per key: Campaign.market_stock's fields plus cat (category_of),
-## tier (Price Category, p.385), quality, market (only the Night Market sells it: gone when it
-## closes) and desc (the full description: what it does; cyberware's Humanity Loss, what it needs
+## tier (Price Category, p.385), quality, market (only the Night Market sells it: gone when its
+## stock runs out) and desc (the full description: what it does; cyberware's Humanity Loss, what it needs
 ## and where it's installed).
 static func entries(camp: Campaign) -> Array[Dictionary]:
-	var staples := {}
-	for k in NightMarket.staples():
-		staples[k] = true
 	var out: Array[Dictionary] = []
 	for it in camp.market_stock():
 		var e: Dictionary = it.duplicate()
@@ -50,7 +47,7 @@ static func entries(camp: Campaign) -> Array[Dictionary]:
 		e.tier = Items.price_tier(int(e.cost))
 		var tags := Items.tags(key)
 		e.quality = tags[0] if Items.section(key) == "weapon" and not tags.is_empty() else "standard"   # p.342
-		e.market = not staples.has(key)
+		e.market = not NightMarket.is_staple(key)
 		e.desc = describe(e)
 		out.append(e)
 	return out
@@ -77,17 +74,11 @@ static func describe(it: Dictionary) -> String:
 	return desc
 
 
-## A filter: {cat: "All" or a category, market_only, afford, hide_owned, query}. `budget` is the eb
-## left after the cart (afford keeps what fits it, and anything already in `cart`).
-static func matches(e: Dictionary, f: Dictionary, budget: int, cart: Dictionary = {}, ignore_cat := false) -> bool:
+## What the shop shows: {cat: "All" or a category, query} (owner: no filters, the market just
+## has a reasonable number of items).
+static func matches(e: Dictionary, f: Dictionary, ignore_cat := false) -> bool:
 	var cat := String(f.get("cat", ALL))
 	if not ignore_cat and cat != ALL and String(e.cat) != cat:
-		return false
-	if bool(f.get("market_only", false)) and not bool(e.market):
-		return false
-	if bool(f.get("hide_owned", false)) and int(e.owned) > 0:
-		return false
-	if bool(f.get("afford", false)) and int(e.cost) > budget and not cart.has(String(e.key)):
 		return false
 	var q := String(f.get("query", "")).strip_edges().to_lower()
 	if q != "":
@@ -98,22 +89,21 @@ static func matches(e: Dictionary, f: Dictionary, budget: int, cart: Dictionary 
 	return true
 
 
-static func filtered(list: Array[Dictionary], f: Dictionary, budget: int, cart: Dictionary = {}) -> Array[Dictionary]:
+static func filtered(list: Array[Dictionary], f: Dictionary) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	for e in list:
-		if matches(e, f, budget, cart):
+		if matches(e, f):
 			out.append(e)
 	return out
 
 
-## Category → how many entries the filter shows in it (every filter but the category), plus "All".
-## Gear is left out when it has none.
-static func counts(list: Array[Dictionary], f: Dictionary, budget: int, cart: Dictionary = {}) -> Dictionary:
+## Category → how many entries the search shows in it (whatever category is picked), plus "All".
+static func counts(list: Array[Dictionary], f: Dictionary) -> Dictionary:
 	var out := {ALL: 0}
 	for c in CATEGORIES:
 		out[c] = 0
 	for e in list:
-		if matches(e, f, budget, cart, true):
+		if matches(e, f, true):
 			out[String(e.cat)] = int(out.get(String(e.cat), 0)) + 1
 			out[ALL] = int(out[ALL]) + 1
 	return out
@@ -163,24 +153,21 @@ static func cart_set(cart: Dictionary, key: String, n: int) -> void:
 		cart[key] = n
 
 
-# --- The market's dates, in plain words (owner's verdict: no "node goes dark") ---------------
+# --- The market's stock, in plain words (owner: stock instead of days left) ----------------
 
-## Days until the Night Market packs up (it is gone on its closing day: Campaign.update_market);
-## -1 with no market up.
-static func days_left(camp: Campaign) -> int:
-	if (camp.market.get("categories", []) as Array).is_empty():
-		return -1
-	return maxi(1, int(camp.market.get("closes", camp.day)) - camp.day)
+## Whether a Night Market is up.
+static func market_up(camp: Campaign) -> bool:
+	return not (camp.market.get("categories", []) as Array).is_empty()
 
 
-## "Night Market here until day 15 · 3 days left" (or "· last day"); "No Night Market is up".
+## "Night Market here · 23 pieces in stock" (or "· sold out"); "No Night Market is up".
 static func market_note(camp: Campaign) -> String:
-	var d := days_left(camp)
-	if d < 0:
+	if not market_up(camp):
 		return "No Night Market is up"
-	return "Night Market here until day %d · %s" % [int(camp.market.closes), "last day" if d == 1 else "%d days left" % d]
+	var n := NightMarket.stock_left(camp.market)
+	return "Night Market here · %s" % ("sold out" if n == 0 else "%d piece%s in stock" % [n, "" if n == 1 else "s"])
 
 
-## A market item's badge: "3 DAYS LEFT", "LAST DAY".
-static func badge(days: int) -> String:
-	return "LAST DAY" if days <= 1 else "%d DAYS LEFT" % days
+## A market item's badge: "3 IN STOCK".
+static func badge(stock: int) -> String:
+	return "%d IN STOCK" % stock

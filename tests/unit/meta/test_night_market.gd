@@ -4,7 +4,7 @@ extends TestCase
 
 
 func _market_with(c: Campaign, keys: Array) -> void:
-	c.market = {"opened": c.day, "closes": c.day + 999, "categories": [], "listings": [{"category": "test", "name": "Test", "keys": keys}]}
+	c.market = NightMarket.stocked(keys, c.day)
 
 
 func test_every_category_has_twenty_d100_rows_covering_1_to_100() -> void:
@@ -41,7 +41,8 @@ func test_a_roll_is_two_different_categories_with_one_to_ten_listings_each() -> 
 		for k in NightMarket.keys_of(m):
 			assert_true(NightMarket.on_sale(k), "%s: only what the game plays is on sale" % k)
 		assert_eq(int(m.opened), 5)
-		assert_eq(int(m.closes), 5 + int(NightMarket.data().house_rules.open_days))
+		assert_eq(int(m.closes), 5 + int(NightMarket.data().house_rules.max_days))
+		assert_eq(int(m.sold), 5, "it hasn't traded yet")
 
 
 func test_the_same_seed_rolls_the_same_market() -> void:
@@ -66,6 +67,8 @@ func test_price_filters_follow_the_book_rows() -> void:
 
 func test_a_dealer_stocks_a_few_skill_chips_each_for_one_skill() -> void:
 	var l := {"name": "Neuralware Option of 500eb or less", "filter": {"kind": "cyberware", "category": "neuralware", "option": true, "cost_max": 500}}
+	assert_eq(NightMarket.resolve(Dice.new(5), l).size(), 1, "a cyberware row is one type of goods: one piece on sale (HOUSE-RULE)")
+	l["choose"] = 99   # every piece in the bracket, to see the chips
 	var keys := NightMarket.resolve(Dice.new(5), l)
 	var chips := keys.filter(func(k): return Items.base_id(k) == "skill_chip")
 	assert_eq(chips.size(), NightMarket.CHIP_STOCK, "a few chips, chosen at purchase")
@@ -99,12 +102,107 @@ func test_a_cyberware_option_brings_its_foundations() -> void:
 func test_markets_come_and_go() -> void:
 	var c := Campaign.new_game(4)
 	assert_eq((c.market.categories as Array).size(), 2, "a market is up from day 1")
-	var closes := int(c.market.closes)
+	var opened := int(c.market.opened)
 	var first := JSON.stringify(c.market)
-	c.rest(closes - c.day - 1)
-	assert_eq(JSON.stringify(c.market), first, "still the same market")
+	c.update_market()
+	assert_eq(JSON.stringify(c.market), first, "no day passed: the same market")
+	c.market.stock = {}   # nothing stock-limited: it stays until its last day
+	c.rest(int(c.market.closes) - c.day - 1)
+	assert_eq(int(c.market.opened), opened, "still the same market")
 	c.rest(1)
-	assert_eq(int(c.market.opened), closes, "a new one sets up when it closes")
+	assert_true(int(c.market.opened) > opened, "a new one sets up on its last day")
+
+
+## HOUSE-RULE stock (house_rules.stock): rolled when the market opens, by list price, for what the
+## fixer doesn't sell; the staples never run out.
+func test_stock_is_rolled_when_the_market_opens() -> void:
+	for s in 20:
+		var m := NightMarket.roll(Dice.new(s), 1)
+		var st: Dictionary = m.stock
+		for k in NightMarket.keys_of(m):
+			if NightMarket.is_staple(k):
+				assert_false(st.has(k), "%s: a staple has no stock" % k)
+				assert_eq(NightMarket.stock_of(m, k), -1)
+				continue
+			var r := NightMarket.stock_dice(Items.price(k))
+			assert_between(float(st[k]), float(r.n), float(int(r.n) * int(r.d)), "%s: its price's stock roll" % k)
+	var nd := func(cost: int) -> Array: return [int(NightMarket.stock_dice(cost).n), int(NightMarket.stock_dice(cost).d)]
+	assert_eq(nd.call(500), [1, 6])
+	assert_eq(nd.call(1000), [1, 3])
+	assert_eq(nd.call(5000), [1, 1], "a Luxury piece is the only one")
+	assert_eq(NightMarket.stock_of(NightMarket.roll(Dice.new(3), 1), "weapon/not_listed"), 0)
+
+
+## Each day every piece still in stock sells on a d6 of 4+, seeded through the campaign's Dice; the
+## market packs up when it has all gone and the next one is rolled.
+func test_stock_sells_off_day_by_day_until_the_market_packs_up() -> void:
+	var m := NightMarket.stocked(["weapon/assault_rifle", "weapon/sniper_rifle"], 1, 6)
+	var m2 := m.duplicate(true)
+	NightMarket.sell_off(Dice.new(11), m)
+	NightMarket.sell_off(Dice.new(11), m2)
+	assert_eq(m.stock, m2.stock, "seeded")
+	var sold := 0
+	for k in m.stock:
+		assert_between(float(m.stock[k]), 0.0, 6.0)
+		sold += 6 - int(m.stock[k])
+	assert_true(sold > 0, "a day's trade sells something (12 pieces at 1 in 2)")
+	var total := 0
+	var dice := Dice.new(5)
+	for t in 200:
+		var one := NightMarket.stocked(["weapon/assault_rifle"], 1, 6)
+		NightMarket.sell_off(dice, one)
+		total += 6 - int(one.stock["weapon/assault_rifle"])
+	assert_between(total / 200.0, 2.5, 3.5, "about half a stack a day")
+	var c := Campaign.new_game(4)
+	c.market = NightMarket.stocked(["weapon/assault_rifle"], c.day, 1, 99)
+	c.market.categories = ["test"]
+	var day0 := c.day
+	var days := 0
+	while int(c.market.opened) == day0 and days < 40:
+		c.rest(1)
+		days += 1
+		if int(c.market.opened) == day0:
+			assert_eq(int(c.market.stock["weapon/assault_rifle"]), 1, "still there")
+			assert_eq(int(c.market.sold), c.day, "traded up to today")
+	assert_true(days < 40, "the last piece sells and the market packs up")
+	assert_true(c.log.any(func(l): return String(l).begins_with("A Night Market sets up")), "the next one is rolled")
+
+
+func test_a_sold_out_market_packs_up_on_the_next_day() -> void:
+	var c := Campaign.new_game(4)
+	c.eb = 5000
+	c.market = NightMarket.stocked(["weapon/assault_rifle"], c.day, 1, 99)
+	c.market.categories = ["test"]
+	var day0 := c.day
+	assert_true(c.buy("weapon/assault_rifle"))
+	assert_true(NightMarket.sold_out(c.market))
+	c.update_market()
+	assert_eq(int(c.market.opened), day0, "it stays up for the rest of the day")
+	c.advance_minutes(Campaign.DAY_MINUTES)
+	assert_true(int(c.market.opened) > day0, "a new one the next day")
+
+
+## HOUSE-RULE reading of p338: a cyberware row with a price bracket is one type of chrome, so a
+## market's chrome is at most its 1d10 rows plus the foundations they need.
+func test_a_market_offers_a_reasonable_amount_of_cyberware() -> void:
+	var most := 0
+	for s in 300:
+		var m := NightMarket.roll(Dice.new(s), 1)
+		if not "cyberware" in m.categories:
+			continue
+		var rows: Array = m.listings.filter(func(l): return l.category == "cyberware" and l.has("row"))
+		var chrome := 0
+		for l in m.listings:
+			if l.category == "cyberware":
+				chrome += (l["keys"] as Array).size()
+			if l.category == "cyberware" and l.has("row"):
+				assert_true((l["keys"] as Array).size() <= 1, "%s: one piece a row" % l.name)
+		var found: Array = m.listings.filter(func(l): return l.name == "Foundational Cyberware")
+		var foundations := 0 if found.is_empty() else (found[0]["keys"] as Array).size()
+		assert_true(chrome <= rows.size() + foundations, "rows plus foundations")
+		most = maxi(most, chrome)
+	assert_true(most <= 16, "never a wall of chrome (most was %d)" % most)
+	assert_true(most >= 5, "but a good market has a few pieces")
 
 
 func test_buying_goes_into_storage_and_never_blocks_another() -> void:
