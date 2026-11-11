@@ -2,11 +2,17 @@ class_name NightMarket
 extends RefCounted
 ## The book's Night Market generator (CPR core p.337-339; data/rules/night_market.json). Pure
 ## functions over a market dictionary, which Campaign keeps and saves:
-##   {"opened": day, "closes": day, "categories": [category ids],
-##    "listings": [{"category", "row" (index in its column), "name", "keys": [storage keys on sale]}]}
+##   {"opened": day, "closes": day (the last day it can stay), "sold": day (the stock has sold off
+##    up to it), "categories": [category ids],
+##    "listings": [{"category", "row" (index in its column), "name", "keys": [storage keys on sale]}],
+##    "stock": {storage key: how many are left}}
 ## Two different categories of goods (1d6 twice, a repeat rerolled); per category 1d10 types of
 ## items, each a d100 row of its column (a repeat rerolled); an item with Quality Ratings is there
 ## in all of them (p338). Rows the game has no item for are listed with no keys.
+## HOUSE-RULE stock (the book gives no quantities, p338): every item a market sells that the fixer
+## doesn't (not a staple) has a stock rolled when the market opens (by its price, house_rules.stock),
+## sells off a day at a time (sell_off), and buying takes from it; at 0 the item is gone, and once
+## everything is gone (or at `closes`) the market packs up and the next one is rolled.
 
 
 static func data() -> Dictionary:
@@ -45,7 +51,88 @@ static func roll(dice: Dice, day: int) -> Dictionary:
 			seen[i] = true
 			listings.append({"category": cid, "row": i, "name": String(rows[i].name), "keys": resolve(dice, rows[i])})
 	_add_foundations(listings)
-	return {"opened": day, "closes": day + int(d.house_rules.open_days), "categories": picked, "listings": listings}
+	var m := {"opened": day, "closes": day + int(d.house_rules.max_days), "sold": day, "categories": picked, "listings": listings}
+	m["stock"] = roll_stock(dice, m)
+	return m
+
+
+# --- Stock (HOUSE-RULE: the book gives no quantities; night_market.json house_rules.stock) -------
+
+## A fresh stock for every key the market sells that isn't a fixer's staple (staples never run out).
+static func roll_stock(dice: Dice, market: Dictionary) -> Dictionary:
+	var out := {}
+	for k in keys_of(market):
+		if not is_staple(k):
+			var r := stock_dice(Items.price(k))
+			out[k] = dice.roll(int(r.n), int(r.d))
+	return out
+
+
+## The stock dice for an item of this list price: {n, d} (house_rules.stock, the first row whose
+## cost_max covers it; the last row has none).
+static func stock_dice(cost: int) -> Dictionary:
+	for r in data().house_rules.stock:
+		if not (r as Dictionary).has("cost_max") or cost <= int(r.cost_max):
+			return r
+	return {"n": 1, "d": 1}
+
+
+## What a stock roll comes to on average, rounded down, at least 1 (a save from before stock gets it).
+static func mean_stock(cost: int) -> int:
+	var r := stock_dice(cost)
+	return maxi(1, int(r.n) * (int(r.d) + 1) / 2)
+
+
+## How many of `key` the market has left: -1 for a staple (the fixer never runs out), 0 for what
+## isn't on the market or has sold out.
+static func stock_of(market: Dictionary, key: String) -> int:
+	if is_staple(key):
+		return -1
+	return int((market.get("stock", {}) as Dictionary).get(key, 0))
+
+
+## Take `n` of `key` off the market's stock (a purchase); a staple's is unlimited.
+static func take(market: Dictionary, key: String, n: int) -> void:
+	var st: Dictionary = market.get("stock", {})
+	if st.has(key):
+		st[key] = maxi(0, int(st[key]) - n)
+
+
+## A day's trade (HOUSE-RULE, house_rules.sell_off): each piece left sells to someone else on a d6
+## of sell_off.d6_min or more, one roll a piece, so a big stack lasts longer than a single one.
+static func sell_off(dice: Dice, market: Dictionary) -> void:
+	var st: Dictionary = market.get("stock", {})
+	var need := int(data().house_rules.sell_off.d6_min)
+	for k in st.keys():
+		var left := int(st[k])
+		for i in int(st[k]):
+			if dice.d(6) >= need:
+				left -= 1
+		st[k] = left
+
+
+## Whether a market that had stock has none of it left.
+static func sold_out(market: Dictionary) -> bool:
+	var st: Dictionary = market.get("stock", {})
+	return not st.is_empty() and st.values().all(func(v): return int(v) <= 0)
+
+
+## How many pieces the market has left in all (staples aside).
+static func stock_left(market: Dictionary) -> int:
+	var n := 0
+	for v in (market.get("stock", {}) as Dictionary).values():
+		n += maxi(0, int(v))
+	return n
+
+
+## A market selling these keys from `day`, `qty` of each (tests and dev shots; staples unlimited).
+static func stocked(keys: Array, day: int, qty := 99, open_for := 999) -> Dictionary:
+	var m := {"opened": day, "closes": day + open_for, "sold": day, "categories": [], "stock": {},
+		"listings": [{"category": "test", "name": "Test", "keys": keys}]}
+	for k in keys:
+		if not is_staple(String(k)):
+			m.stock[String(k)] = qty
+	return m
 
 
 ## Skill Chips one listing offers (resolve): the market's chips, each for one Skill, chosen at purchase.
@@ -53,7 +140,10 @@ const CHIP_STOCK := 3
 
 
 ## What a listing puts on sale: its keys or filter, only what the game plays, every Quality Rating
-## of a weapon (p338), `choose` of them at random for a "GM's choice" row.
+## of a weapon (p338), `choose` of them at random for a "GM's choice" row. A cyberware row with a
+## price filter ("Neuralware Option of 500eb or less") is one type of goods, not every piece in that
+## bracket (p338: "a general listing of types"), so it puts house_rules.cyberware_row_items of them
+## on sale (HOUSE-RULE: which ones is the GM's call; we pick at random).
 static func resolve(dice: Dice, listing: Dictionary) -> Array[String]:
 	var cand: Array[String] = []
 	if listing.has("keys"):
@@ -67,9 +157,12 @@ static func resolve(dice: Dice, listing: Dictionary) -> Array[String]:
 		var drop: String = chips[dice.d(chips.size()) - 1]
 		chips.erase(drop)
 		cand.erase(drop)
-	if listing.has("choose") and cand.size() > int(listing.choose):
+	var choose := int(listing.get("choose", 0))
+	if choose == 0 and listing.has("filter") and String(listing.filter.kind) == "cyberware":
+		choose = int(data().house_rules.cyberware_row_items)   # HOUSE-RULE reading: a row is one type of chrome (p338)
+	if choose > 0 and cand.size() > choose:
 		var pick: Array[String] = []
-		while pick.size() < int(listing.choose):
+		while pick.size() < choose:
 			var k: String = cand[dice.d(cand.size()) - 1]
 			if not k in pick:
 				pick.append(k)
@@ -174,6 +267,17 @@ static func _add_foundations(listings: Array) -> void:
 				need = Cyber.needs(need)
 	if not extra.is_empty():
 		listings.append({"category": "cyberware", "name": "Foundational Cyberware", "keys": extra})
+
+
+static var _staple_set := {}
+
+
+## Whether the fixer always sells `key` (staples; looked up once).
+static func is_staple(key: String) -> bool:
+	if _staple_set.is_empty():
+		for k in staples():
+			_staple_set[k] = true
+	return _staple_set.has(key)
 
 
 ## Always on sale, market or not: every item the game plays costing up to Premium (100eb), since

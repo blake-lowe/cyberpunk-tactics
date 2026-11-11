@@ -19,9 +19,19 @@
 		"free_install": true
 	},
 	"house_rules": {
-		"open_days": 3,
-		"open_days_doc": "HOUSE-RULE: the book gives no schedule (p337: markets pop up without warning, for a few hours or regularly at a site). One market is up at a time; it stays open 3 days, then the next one is rolled.",
-		"quantity_doc": "HOUSE-RULE reading: the book gives no quantities (p338: a listing is a type of goods, not the total inventory), so a listed item can be bought any number of times while the market is up.",
+		"max_days": 7,
+		"max_days_doc": "HOUSE-RULE: the book gives no schedule (p337: markets pop up without warning, for a few hours or regularly at a site). One market is up at a time; it packs up once its stock has all sold (or been bought), and after 7 days at most, then the next one is rolled.",
+		"stock": [
+			{"cost_max": 100, "n": 2, "d": 6},
+			{"cost_max": 500, "n": 1, "d": 6},
+			{"cost_max": 1000, "n": 1, "d": 3},
+			{"n": 1, "d": 1}
+		],
+		"stock_doc": "HOUSE-RULE: the book gives no quantities (p338: a listing is a type of goods, not the total inventory). Each item a market sells that isn't a fixer's staple has a stock rolled when it opens, by list price: up to 100eb 2d6, up to 500eb 1d6, up to 1,000eb 1d3, dearer a single piece. Each Quality Rating of a weapon is its own item. Buying takes from it; at 0 the item is gone. Staples never run out (owner's ruling from p.385: anyone sells them).",
+		"sell_off": {"d6_min": 4},
+		"sell_off_doc": "HOUSE-RULE: each day the market is up, every piece still in stock sells to someone else on a d6 of 4+ (a single piece lasts about 2 days, a stack of 6 about 4).",
+		"cyberware_row_items": 1,
+		"cyberware_row_items_doc": "HOUSE-RULE reading of p338 ('a general listing of types of things'): a cyberware row with a price bracket (e.g. Neuralware Option of 500eb or less) is one type of goods, so it puts one piece from that bracket on sale (the GM's call; picked at random), as the book's 'of GM's Choice' rows do. A market's chrome is then at most its 1d10 rows plus the foundations they need (p338).",
 		"access_doc": "No Reputation gate: p337 says finding a market is about connections, with no number; the crew's fixers bring them in."
 	},
 	"staples": {

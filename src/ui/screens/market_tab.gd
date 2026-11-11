@@ -2,25 +2,26 @@ class_name MarketTab
 extends PanelContainer
 ## The Fixer Network's NIGHT MARKET tab as a web shop (owner's verdicts: proposal A's dark web
 ## portal around proposal C's dense list; list only, no cards or art). A slim address bar (the
-## node's address, a connection readout and, in plain words, how long the Night Market is here),
-## then three columns: a rail (the shop's logo, categories with counts, filters), the list (search,
-## sort, item count; a row per item and Quality Rating with its full description, tier, source,
-## owned count, price and a − qty + stepper; category headers when sorted by type) and a cart that
-## is always open. The fixer's stock and the market's listings are one list, market items badged
-## with the days left. The cart is bought in one go (Campaign.buy_cart) into safehouse storage.
-## Shop logic is Shop (src/meta/); the state (cart, filters, sort) belongs to the screen
-## (FixerScreen.shop) and lasts while it's open.
+## node's address, a connection readout and, in plain words, how much the Night Market has in stock),
+## then three columns: a rail (the shop's logo and categories with counts; no filters, owner), the
+## list (search, sort, item count; a row per item and Quality Rating with its full description, tier,
+## source, owned count, price and a − qty + stepper; category headers when sorted by type) and a
+## cart that is always open (a line per item: name, − qty +, ×, price; then the total and WIRE).
+## The fixer's stock and the market's listings are one list, market items badged with how many are
+## in stock (HOUSE-RULE stock, NightMarket). The cart is bought in one go (Campaign.buy_cart) into
+## safehouse storage. Shop logic is Shop (src/meta/); the state (cart, category, search, sort)
+## belongs to the screen (FixerScreen.shop) and lasts while it's open.
 ##
 ## DEV ONLY (review shots, with --demo): --cart=<key>[:n],... fills the cart;
-## --shop-filter=market,afford,owned; --shop-cat=<category>; --shop-sort=type|low|high;
-## --shop-q=<text>; --checkout buys the cart once the tab is up.
+## --shop-cat=<category>; --shop-sort=type|low|high; --shop-q=<text>; --checkout buys the cart
+## once the tab is up.
 
 signal bought   ## a checkout went through: the screen saves and rebuilds (the top bar's eb)
 
 const RAIL_W := 168
-const CART_W := 260
+const CART_W := 304
 const RAIL_W_COMPACT := 148
-const CART_W_COMPACT := 236
+const CART_W_COMPACT := 288
 const COMPACT_BELOW := 1200.0   ## logical width (UiScale): 1600x900 lays out at 1067x600
 ## The portal's own darker inks (the mockup's), around the HUD palette.
 const BG := Color("04060a")
@@ -53,10 +54,9 @@ var _cart: VBoxContainer
 var _wire: Button
 
 
-## A fresh shop state: the cart (storage key → how many), the category, filters, search and sort.
+## A fresh shop state: the cart (storage key → how many), the category, search and sort.
 static func new_state() -> Dictionary:
-	return {"cart": {}, "cat": Shop.ALL, "market_only": false, "afford": false, "hide_owned": false, "query": "",
-		"sort": "type", "toast": "", "toast_ok": true}
+	return {"cart": {}, "cat": Shop.ALL, "query": "", "sort": "type", "toast": "", "toast_ok": true}
 
 
 ## `width`: the screen's logical width (below COMPACT_BELOW: narrower rail, cart and columns).
@@ -114,13 +114,14 @@ func setup(p_camp: Campaign, p_state: Dictionary, width := 1280.0) -> MarketTab:
 
 # --- Actions (the buttons call these; tests too) ------------------------------------------
 
+## One more (`n` more) of `key` in the cart, never more than the market has in stock.
 func add(key: String, n := 1) -> void:
-	Shop.cart_add(state.cart, key, n)
-	_refresh(true)
+	set_qty(key, int((state.cart as Dictionary).get(key, 0)) + n)
 
 
 func set_qty(key: String, n: int) -> void:
-	Shop.cart_set(state.cart, key, n)
+	var st := NightMarket.stock_of(camp.market, key)
+	Shop.cart_set(state.cart, key, n if st < 0 else mini(n, st))
 	_refresh(true)
 
 
@@ -131,12 +132,6 @@ func clear_cart() -> void:
 
 func set_cat(c: String) -> void:
 	state.cat = c
-	_refresh(false)
-
-
-## "market_only", "afford" or "hide_owned".
-func toggle(flag: String) -> void:
-	state[flag] = not bool(state.get(flag, false))
 	_refresh(false)
 
 
@@ -163,18 +158,15 @@ func checkout() -> Dictionary:
 		bought.emit()
 	else:
 		var why := {"short": "Not enough eb for the cart", "empty": "The cart is empty",
-			"off_sale": "%s isn't on sale any more" % Items.display_name(String(r.key))}
+			"off_sale": "%s isn't on sale any more" % Items.display_name(String(r.key)),
+			"stock": "Only %d %s in stock" % [int(r.stock), Items.display_name(String(r.key))]}
 		_show_toast(String(why.get(String(r.reason), "Couldn't buy the cart")), false)
 	return r
 
 
-## The entries the shop shows now, filtered and sorted.
+## The entries the shop shows now, by category and search, sorted.
 func visible_entries() -> Array[Dictionary]:
-	return Shop.sorted(Shop.filtered(_all, state, _budget(), state.cart), String(state.sort))
-
-
-func _budget() -> int:
-	return camp.eb - camp.cart_due(state.cart)
+	return Shop.sorted(Shop.filtered(_all, state), String(state.sort))
 
 
 func _refresh(keep_scroll: bool) -> void:
@@ -186,8 +178,8 @@ func _refresh(keep_scroll: bool) -> void:
 
 # --- Address bar ---------------------------------------------------------------------------
 
-## "nmkt://ghost-7f3a.node/bazaar/  ·  3 HOPS · ICE CLEAN" (flavour) and, in plain words, how long
-## the Night Market is here (owner: no "node goes dark").
+## "nmkt://ghost-7f3a.node/bazaar/  ·  3 HOPS · ICE CLEAN" (flavour) and, in plain words, how much
+## the Night Market has left (owner: stock, not days left).
 func _address_bar() -> Control:
 	var p := PanelContainer.new()
 	p.add_theme_stylebox_override("panel", _flat(BAR_BG, LINE, [0, 0, 0, 1], 0, Vector4(10, 4, 12, 4)))
@@ -199,7 +191,7 @@ func _address_bar() -> Control:
 	addr.custom_minimum_size = Vector2(380 if compact else 520, 24)
 	var a := UiKit.hbox(8)
 	addr.add_child(a)
-	var up := Shop.days_left(camp) >= 0
+	var up := Shop.market_up(camp)
 	var lock := ColorRect.new()
 	lock.color = Hud.GREEN if up else H_DIM
 	lock.custom_minimum_size = Vector2(9, 9)
@@ -225,7 +217,7 @@ func _address_bar() -> Control:
 	return p
 
 
-# --- Rail: logo, categories, filters ---------------------------------------------------------
+# --- Rail: logo and categories (owner: no filters) ------------------------------------------
 
 func _build_rail() -> void:
 	_clear(_rail)
@@ -238,15 +230,10 @@ func _build_rail() -> void:
 	_rail.add_child(logo)
 	var cats := UiKit.vbox(1)
 	cats.add_child(_rail_head("SHOP"))
-	var n := Shop.counts(_all, state, _budget(), state.cart)
+	var n := Shop.counts(_all, state)
 	for c in [Shop.ALL] + Shop.listed_categories(_all):
 		cats.add_child(_cat_row(String(c), int(n.get(c, 0))))
 	_rail.add_child(cats)
-	var fl := UiKit.vbox(6)
-	fl.add_child(_rail_head("FILTER"))
-	for f in [["market_only", "Market only"], ["afford", "I can afford it"], ["hide_owned", "Hide what I own"]]:
-		fl.add_child(_check(String(f[0]), String(f[1])))
-	_rail.add_child(fl)
 
 
 func _rail_head(s: String) -> Label:
@@ -266,20 +253,6 @@ func _cat_row(c: String, count: int) -> Control:
 	row.add_child(_mono(str(count), 19, Hud.TEXT if on else H_DIM))
 	UiKit.clickable(p, func(): set_cat(c))
 	return p
-
-
-func _check(flag: String, text: String) -> Control:
-	var on := bool(state.get(flag, false))
-	var row := UiKit.hbox(8)
-	row.name = "Filter_" + flag
-	var box := Panel.new()
-	box.custom_minimum_size = Vector2(14, 14)
-	box.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	box.add_theme_stylebox_override("panel", _flat(Hud.CYAN if on else Color(0, 0, 0, 0), Hud.CYAN if on else Color("3a4a58"), [1, 1, 1, 1], 0))
-	row.add_child(box)
-	row.add_child(UiKit.body(text, 14, Hud.TEXT if on else Hud.DIM, false))
-	UiKit.clickable(row, func(): toggle(flag))
-	return row
 
 
 # --- Toolbar: search, sort, count, GRID / LIST --------------------------------------------
@@ -368,7 +341,7 @@ func _build_results(keep_scroll: bool) -> void:
 	_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_RESERVE   # the columns line up with the header, scrolling or not
 	_holder.add_child(_scroll)
 	if list.is_empty():
-		var none := UiKit.body("Nothing for sale matches. Clear the search or a filter.", 15, Hud.DIM)
+		var none := UiKit.body("Nothing for sale matches. Clear the search or pick another category.", 15, Hud.DIM)
 		var pad := MarginContainer.new()
 		pad.add_theme_constant_override("margin_left", 12)
 		pad.add_theme_constant_override("margin_top", 12)
@@ -401,7 +374,7 @@ func _group_head(cat: String, n: int) -> Control:
 
 ## The full text behind a row (its tooltip): name, Price Category, price, where it's from, the description.
 static func tooltip(e: Dictionary) -> String:
-	var src := "Night Market" if bool(e.market) else "Fixer's stock"
+	var src := ("Night Market · %d in stock" % int(e.get("stock", 0))) if bool(e.market) else "Fixer's stock"
 	var own := ("  ·  %d in storage" % int(e.owned)) if int(e.owned) > 0 else ""
 	return "%s\n%s · %s eb · %s%s\n%s" % [String(e.name), String(e.tier), UiKit.money(int(e.cost)), src, own, String(e.desc)]
 
@@ -472,7 +445,7 @@ func _row(e: Dictionary) -> Control:
 		tier2.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		pc.add_child(tier2)
 	row.add_child(pc)
-	var q := _stepper(key, n, int(e.cost) <= camp.eb, false)
+	var q := _stepper(key, n, _can_add(key, n, int(e.cost)), false)
 	_col(q, "qty")
 	q.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_child(q)
@@ -498,15 +471,21 @@ func _name(e: Dictionary, size: int) -> Label:
 	return l
 
 
-## "3 DAYS LEFT" in magenta for the market's listings, FIXER for the fixer's own stock.
+## "3 IN STOCK" in magenta for the market's listings, FIXER for the fixer's own stock.
 func _source_chip(e: Dictionary) -> Control:
 	var mk := bool(e.market)
 	var col := Hud.MAGENTA if mk else FIXER_TEAL
 	var p := PanelContainer.new()
 	p.add_theme_stylebox_override("panel", _flat(Color(col.r * 0.1, col.g * 0.1, col.b * 0.1, 0.95), Color(col, 0.6), [1, 1, 1, 1], 0, Vector4(5, 0, 5, 0)))
 	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	p.add_child(_mono(Shop.badge(Shop.days_left(camp)) if mk else "FIXER", 16, col))
+	p.add_child(_mono(Shop.badge(int(e.get("stock", 0))) if mk else "FIXER", 16, col))
 	return p
+
+
+## Whether + can put one more of `key` in the cart: affordable alone and still in stock.
+func _can_add(key: String, n: int, cost: int) -> bool:
+	var st := NightMarket.stock_of(camp.market, key)
+	return cost <= camp.eb and (st < 0 or n < st)
 
 
 ## − n + : one fewer / one more of `key` in the cart.
@@ -521,7 +500,8 @@ func _stepper(key: String, n: int, can_add: bool, in_cart: bool) -> HBoxContaine
 	q.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	h.add_child(q)
 	var plus := _small_button("+", func(): add(key), can_add)
-	plus.tooltip_text = "One more" if can_add else "More than the crew's eb"
+	var st := NightMarket.stock_of(camp.market, key)
+	plus.tooltip_text = "One more" if can_add else ("No more in stock" if st >= 0 and n >= st else "More than the crew's eb")
 	h.add_child(plus)
 	return h
 
@@ -587,8 +567,7 @@ func _build_cart() -> void:
 	fv.add_child(_sum_row("Items", str(count), 14, Hud.TEXT))
 	if favour > 0:
 		fv.add_child(_sum_row("Fixer's favour", "-%s eb" % UiKit.money(favour), 14, Hud.GOLD))
-	fv.add_child(_sum_row("Total", "%s eb" % UiKit.money(total), 17, Hud.TEXT))
-	fv.add_child(_sum_row("Wallet after", "%s eb" % UiKit.money(left), 14, Hud.RED if left < 0 else Hud.TEXT))
+	fv.add_child(_sum_row("Total", "%s eb" % UiKit.money(total), 17, Hud.RED if left < 0 else Hud.TEXT))
 	var short := left < 0
 	var label := "NOT ENOUGH eb" if short else ("WIRE · %s eb" % UiKit.money(total) if count > 0 else "WIRE")
 	_wire = _mag_button(label, true, checkout, count > 0 and not short, false)
@@ -598,36 +577,37 @@ func _build_cart() -> void:
 	gap.custom_minimum_size.y = 4
 	fv.add_child(gap)
 	fv.add_child(_wire)
-	fv.add_child(UiKit.body("Everything goes to safehouse storage (Armory). Cyberware is installed at the Med Bay.", 12, H_DIM))
 	_cart.add_child(foot)
 
 
-## One cart line: name and line total; Price Category and unit price; − n + and remove.
+## One cart line, on one row: the name, − n +, remove ×, and the line's price (owner).
 func _cart_line(key: String, n: int, e: Dictionary) -> Control:
 	var p := PanelContainer.new()
 	p.name = "Line_" + key.replace("/", "_").replace("@", "_")
-	p.add_theme_stylebox_override("panel", _flat(Color(0, 0, 0, 0), Color("18222c"), [0, 0, 0, 1], 0, Vector4(0, 7, 0, 7)))
-	var v := UiKit.vbox(3)
-	p.add_child(v)
-	var top := UiKit.hbox(8)
-	v.add_child(top)
+	p.add_theme_stylebox_override("panel", _flat(Color(0, 0, 0, 0), Color("18222c"), [0, 0, 0, 1], 0, Vector4(0, 6, 0, 6)))
+	var row := UiKit.hbox(4)
+	p.add_child(row)
 	var cost := Items.price(key)
 	var nm := _name(e if not e.is_empty() else {"key": key, "name": Items.display_name(key), "kind": Items.section(key)}, 14)
+	nm.name = "Name"
 	nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	top.add_child(nm)
-	var tot := UiKit.label("%s eb" % UiKit.money(cost * n), 14, Hud.TEXT)
-	tot.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	top.add_child(tot)
-	var bot := UiKit.hbox(6)
-	v.add_child(bot)
-	bot.add_child(UiKit.body("%s · %s eb each" % [Items.price_tier(cost), UiKit.money(cost)], 12, Hud.DIM))
-	var st := _stepper(key, n, cost <= camp.eb, true)
+	nm.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(nm)
+	var st := _stepper(key, n, _can_add(key, n, cost), true)
+	st.name = "Qty"
 	st.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	bot.add_child(st)
+	row.add_child(st)
 	var rm := _small_button("×", func(): set_qty(key, 0), true)
+	rm.name = "Remove"
 	rm.tooltip_text = "Remove from the cart"
 	rm.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	bot.add_child(rm)
+	row.add_child(rm)
+	var tot := UiKit.label("%s eb" % UiKit.money(cost * n), 14, Hud.TEXT)
+	tot.name = "Price"
+	tot.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	tot.custom_minimum_size.x = 56 if compact else 64
+	tot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(tot)
 	return p
 
 
@@ -754,9 +734,6 @@ func _dev_flags(args: PackedStringArray) -> bool:
 			"shop-cat": state.cat = val
 			"shop-sort": state.sort = val
 			"shop-q": state.query = val
-			"shop-filter":
-				for f in val.split(",", false):
-					state[{"market": "market_only", "owned": "hide_owned"}.get(f, f)] = true
 			"checkout": go = true
 	return go
 

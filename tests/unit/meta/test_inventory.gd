@@ -13,8 +13,7 @@ const MEDSCAN := "gear/medscanner"
 func _camp() -> Campaign:
 	var c := Campaign.new_game(4)
 	c.eb = 20000
-	c.market = {"opened": c.day, "closes": c.day + 999, "categories": [], "listings": [{"category": "test", "name": "Test",
-		"keys": [FLASH, AP, FIRE, COKE, LACE, MEDSCAN]}]}
+	c.market = NightMarket.stocked([FLASH, AP, FIRE, COKE, LACE, MEDSCAN], c.day)
 	return c
 
 

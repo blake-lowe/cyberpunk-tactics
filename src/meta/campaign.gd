@@ -1306,30 +1306,41 @@ func hire(index: int) -> bool:
 # --- Night Market and safehouse storage ---------------------------------------------
 
 ## The Night Market that's up (CPR core p.337-339; NightMarket, data/rules/night_market.json): two
-## categories of goods and the types of items each has on sale. When it closes a new one is rolled
-## (HOUSE-RULE open_days: the book gives no schedule).
+## categories of goods and the types of items each has on sale. HOUSE-RULE stock (the book gives no
+## schedule or quantities): each day since it last traded, its stock sells off (NightMarket.sell_off);
+## once it has all gone, or on its last day (max_days), it packs up and the next one is rolled.
 func update_market() -> void:
-	if not market.is_empty() and day < int(market.get("closes", 0)):
-		return
+	if not market.is_empty():
+		var last := int(market.get("sold", market.get("opened", day)))
+		while last < day:
+			last += 1
+			NightMarket.sell_off(dice, market)
+			if last >= int(market.get("closes", 0)) or NightMarket.sold_out(market):
+				market = {}
+				break
+		if not market.is_empty():
+			market["sold"] = last
+			return
 	market = NightMarket.roll(dice, day)
-	say("A Night Market sets up (%s) until day %d." % [NightMarket.title(market), int(market.closes)])
+	say("A Night Market sets up (%s)." % NightMarket.title(market))
 
 
-## Whether `key` can be bought now: on the market's listings, or one of the fixer's staples.
+## Whether `key` can be bought now: one of the fixer's staples, or in stock at the market.
 func on_sale(key: String) -> bool:
-	return key in NightMarket.keys_of(market) or key in NightMarket.staples()
+	return NightMarket.stock_of(market, key) != 0
 
 
-## Everything for sale now, the market's listings first, then the fixer's staples:
-## {key, name, cost, kind: weapon|armor|kit|cyberware, kit: consumable|utility|"", listing (the
-## book's row it came from), staple, owned (in storage), info}. Prices are list prices (p385 Market
-## Price). Cyberware is bought into storage like the rest; the Med Bay installs it free (p338).
+## Everything for sale now, the market's listings first (what's still in stock), then the fixer's
+## staples: {key, name, cost, kind: weapon|armor|kit|cyberware, kit: consumable|utility|"", listing
+## (the book's row it came from), staple, stock (how many the market has left; -1: a staple, never
+## runs out), owned (in storage), info}. Prices are list prices (p385 Market Price). Cyberware is
+## bought into storage like the rest; the Med Bay installs it free (p338).
 func market_stock() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	var seen := {}
 	for l in market.get("listings", []):
 		for k in l.get("keys", []):
-			if not seen.has(k):
+			if not seen.has(k) and NightMarket.stock_of(market, String(k)) > 0:
 				seen[k] = true
 				out.append(_stock_entry(String(k), String(l.name), false))
 	for k in NightMarket.staples():
@@ -1342,7 +1353,8 @@ func market_stock() -> Array[Dictionary]:
 func _stock_entry(key: String, listing: String, staple: bool) -> Dictionary:
 	var sec := Items.section(key)
 	return {"key": key, "name": Items.display_name(key), "cost": Items.price(key), "kind": sec if sec in ["weapon", "armor", "cyberware"] else ("netrun" if Deck.is_netrun_key(key) else "kit"),
-		"kit": Items.kind(key), "listing": listing, "staple": staple, "owned": stored(key), "info": item_info(key)}
+		"kit": Items.kind(key), "listing": listing, "staple": staple, "stock": -1 if staple else NightMarket.stock_of(market, key),
+		"owned": stored(key), "info": item_info(key)}
 
 
 ## One line on what an item does, for the market and storage lists.
@@ -1375,6 +1387,7 @@ func buy(key: String) -> bool:
 	if not Items.is_stored(key) or not on_sale(key) or eb < Items.price(key):
 		return false
 	eb -= Items.price(key)
+	NightMarket.take(market, key, 1)
 	_put(key)
 	say("Bought %s" % Items.display_name(key))
 	return true
@@ -1382,14 +1395,21 @@ func buy(key: String) -> bool:
 
 ## Buy a whole cart (the Night Market tab's cart) into safehouse storage at list price, all or
 ## nothing: `lines` is storage key → how many (lines of 0 or fewer are skipped). Nothing is bought
-## unless every line is on sale now and the eb covers the lot. Returns {ok, reason: "" | "empty" |
-## "off_sale" | "short", key (the line that is off sale), bought: {key: n}, count, total}.
+## unless every line is on sale now, the market has as many in stock and the eb covers the lot.
+## Returns {ok, reason: "" | "empty" | "off_sale" | "stock" | "short", key (the line that is off
+## sale or short of stock), stock (what it has), bought: {key: n}, count, total}.
 func buy_cart(lines: Dictionary) -> Dictionary:
-	var out := {"ok": false, "reason": "", "key": "", "bought": {}, "count": cart_count(lines), "total": 0, "favour": 0}
+	var out := {"ok": false, "reason": "", "key": "", "stock": -1, "bought": {}, "count": cart_count(lines), "total": 0, "favour": 0}
 	for k in lines:
 		if int(lines[k]) > 0 and (not Items.is_stored(String(k)) or not on_sale(String(k))):
 			out.reason = "off_sale"
 			out.key = String(k)
+			return out
+		var st := NightMarket.stock_of(market, String(k))
+		if st >= 0 and int(lines[k]) > st:
+			out.reason = "stock"
+			out.key = String(k)
+			out.stock = st
 			return out
 	out.favour = favour_discount(lines)
 	out.total = cart_total(lines) - int(out.favour)
@@ -1403,6 +1423,7 @@ func buy_cart(lines: Dictionary) -> Dictionary:
 	var bought := {}
 	for k in lines:
 		if int(lines[k]) > 0:
+			NightMarket.take(market, String(k), int(lines[k]))
 			_put(String(k), int(lines[k]))
 			bought[String(k)] = int(lines[k])
 	out.bought = bought
@@ -2069,7 +2090,7 @@ static func from_dict(raw: Dictionary) -> Campaign:
 	for k in d.get("stash", {}):
 		if Items.is_stored(String(k)) and int(d.stash[k]) > 0:
 			c.stash[String(k)] = int(d.stash[k])
-	c.market = _ints(d.get("market", {}))   # JSON numbers come back as floats (opened, closes, rows)
+	c.market = _ints(d.get("market", {}))   # JSON numbers come back as floats (opened, closes, rows, stock)
 	for l in d.get("log", []):
 		c.log.append(String(l))
 	for m in d.get("debrief", []):

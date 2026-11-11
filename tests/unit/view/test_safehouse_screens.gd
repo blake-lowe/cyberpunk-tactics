@@ -110,7 +110,7 @@ func test_market_cyberware_goes_through_the_cart_to_storage() -> void:
 	s.free()
 
 
-func test_market_list_view_filters_and_short_cart() -> void:
+func test_market_list_view_stock_no_filters_and_short_cart() -> void:
 	var camp := DemoState.make()
 	var s := _open(FixerScreen.new(), camp, "market")
 	var t := _market(s)
@@ -121,20 +121,27 @@ func test_market_list_view_filters_and_short_cart() -> void:
 	assert_eq(rows.size(), t.visible_entries().size(), "one row per entry")
 	assert_eq(rows.size(), Shop.entries(camp).size(), "everything on sale, fixer's and market's")
 	assert_true(_labels(s).has("%d ITEMS" % rows.size()), "the result count")
+	assert_true(s.find_children("Filter_*", "", true, false).filter(func(n): return not _stale(n)).is_empty(), "no filters on the rail (owner)")
+	assert_false(_labels(s).has("FILTER"), "no FILTER heading")
+	assert_false(t.has_method("toggle"))
 	t.set_sort("low")
 	assert_true(s.find_child("Group_Firearms", true, false) == null or _stale(s.find_child("Group_Firearms", true, false)), "no headers when sorted by price")
-	t.toggle("market_only")
-	var mk := t.visible_entries()
+	var mk := t.visible_entries().filter(func(e): return bool(e.market))
 	assert_false(mk.is_empty())
-	assert_true(mk.all(func(e): return bool(e.market)), "market only")
-	var badge := Shop.badge(Shop.days_left(camp))
-	assert_true(_labels(s).count(badge) >= mk.size(), "each market row carries %s" % badge)
-	assert_true(_labels(s).any(func(x): return String(x).begins_with("NIGHT MARKET HERE UNTIL DAY")), "the plain-words header")
-	t.toggle("market_only")
+	var labels := _labels(s)
+	for e in mk:
+		assert_true(int(e.stock) > 0, "%s: in stock" % e.name)
+		assert_true(labels.has(Shop.badge(int(e.stock))), "%s carries %s" % [e.name, Shop.badge(int(e.stock))])
+	assert_false(labels.any(func(x): return String(x).contains("DAYS LEFT") or String(x).contains("LAST DAY")), "stock, not days left")
+	assert_true(labels.any(func(x): return String(x).begins_with("NIGHT MARKET HERE · ") and String(x).ends_with("IN STOCK")), "the plain-words header")
+	var one: Dictionary = mk[0]
+	t.add(String(one.key), int(one.stock) + 5)
+	assert_eq(int(t.state.cart[String(one.key)]), int(one.stock), "never more in the cart than in stock")
+	t.clear_cart()
 	t.set_cat("Cyberware")
 	assert_true(t.visible_entries().all(func(e): return String(e.cat) == "Cyberware"))
 	t.set_cat(Shop.ALL)
-	var dear: Dictionary = Shop.entries(camp).filter(func(e): return int(e.cost) <= camp.eb).reduce(func(a, b): return a if int(a.cost) >= int(b.cost) else b)
+	var dear: Dictionary = Shop.entries(camp).filter(func(e): return int(e.cost) <= camp.eb and int(e.stock) < 0).reduce(func(a, b): return a if int(a.cost) >= int(b.cost) else b)
 	t.add(String(dear.key), camp.eb / int(dear.cost) + 1)
 	var off := s.find_children("Wire", "Button", true, false).filter(func(n): return not _stale(n))
 	assert_eq(off.size(), 1)
@@ -143,6 +150,37 @@ func test_market_list_view_filters_and_short_cart() -> void:
 	var eb := camp.eb
 	assert_false(bool(t.checkout().ok), "all or nothing")
 	assert_eq(camp.eb, eb)
+	s.free()
+
+
+## Owner playtest: a cart line is one row: the name, − qty +, a remove ×, and the price; no tier,
+## no unit price, no wallet-after line and no note about storage.
+func test_cart_lines_are_one_row_name_qty_remove_price() -> void:
+	var camp := DemoState.make()
+	camp.eb = 100000
+	var s := _open(FixerScreen.new(), camp, "market")
+	var t := _market(s)
+	var key := "ammo/flashbang_ammo"
+	t.add(key, 3)
+	var line: Control = null
+	for n in s.find_children("Line_ammo_flashbang_ammo", "", true, false):
+		if not _stale(n):
+			line = n
+	assert_true(line != null, "a line for it")
+	var row: Node = line.get_child(0)
+	assert_true(row is HBoxContainer, "one row")
+	assert_eq(row.get_children().map(func(n): return String(n.name)), ["Name", "Qty", "Remove", "Price"], "name, − qty +, ×, price")
+	var texts: Array = line.find_children("*", "Label", true, false).map(func(l): return (l as Label).text)
+	texts.append_array(line.find_children("*", "Button", true, false).map(func(b): return (b as Button).text))
+	assert_true(texts.has(Items.display_name(key).to_upper()) and texts.has("3") and texts.has("%s eb" % UiKit.money(3 * Items.price(key))), "name, qty and line price: %s" % [texts])
+	for x in texts:
+		assert_false(String(x).contains("each") or String(x) in ["Cheap", "Everyday", "Costly", "Premium", "Expensive", "Very Expensive", "Luxury", "Super Luxury"], "no tier or unit price: %s" % x)
+	var all := _labels(s)
+	assert_false(all.any(func(x): return String(x).begins_with("Wallet after")), "no wallet-after line")
+	assert_false(all.any(func(x): return String(x).begins_with("Everything goes to safehouse")), "no storage note")
+	assert_true(all.has("Total"))
+	(line.find_children("*", "Button", true, false).filter(func(b): return (b as Button).text == "×")[0] as Button).pressed.emit()
+	assert_false((s as FixerScreen).shop.cart.has(key), "× removes the line")
 	s.free()
 
 

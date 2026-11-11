@@ -73,7 +73,7 @@ func test_a_market_listing_has_every_quality() -> void:
 	assert_eq(keys, ["weapon/heavy_pistol@poor", "weapon/heavy_pistol", "weapon/heavy_pistol@excellent"], "all Quality Ratings are present (p338)")
 	var camp := Campaign.new_game(4)
 	camp.eb = 5000
-	camp.market = {"opened": 1, "closes": 99, "categories": [], "listings": [{"category": "weapons_armor", "name": "Heavy Pistol", "keys": keys}]}
+	camp.market = NightMarket.stocked(keys, 1)
 	assert_true(camp.buy("weapon/heavy_pistol@excellent"))
 	var c: Combatant = camp.crew[0]
 	assert_true(camp.equip_weapon(c, "weapon/heavy_pistol@excellent", 0))

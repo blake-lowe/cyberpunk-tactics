@@ -176,7 +176,7 @@ func test_ip_raises_skills_at_book_cost() -> void:
 
 ## A Night Market with these keys on sale for the rest of the test.
 func _market_with(c: Campaign, keys: Array) -> void:
-	c.market = {"opened": c.day, "closes": c.day + 999, "categories": [], "listings": [{"category": "test", "name": "Test", "keys": keys}]}
+	c.market = NightMarket.stocked(keys, c.day)
 
 
 func test_ripperdoc_foundations_humanity_and_therapy() -> void:

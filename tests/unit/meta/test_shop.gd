@@ -1,12 +1,13 @@
 extends TestCase
 ## The Night Market shop (Shop, Campaign.buy_cart): the cart is bought all or nothing into
-## storage; categories, filters, sorts and the market's dates in plain words.
+## storage; categories, search, sorts and the market's stock in plain words.
 
 
-func _camp(keys: Array, eb := 5000) -> Campaign:
+func _camp(keys: Array, eb := 5000, qty := 99) -> Campaign:
 	var c := Campaign.new_game(4)
 	c.eb = eb
-	c.market = {"opened": c.day, "closes": c.day + 3, "categories": ["test"], "listings": [{"category": "test", "name": "Test", "keys": keys}]}
+	c.market = NightMarket.stocked(keys, c.day, qty, 3)
+	c.market.categories = ["test"]
 	return c
 
 
@@ -87,33 +88,23 @@ func test_one_entry_per_quality_and_market_badge() -> void:
 	assert_true(String(chrome[0].desc).contains("Needs Neural Link"))
 
 
-func test_filters_counts_and_sorts() -> void:
+func test_search_counts_and_sorts_with_no_filters() -> void:
 	var c := _camp(["weapon/shotgun@poor", "weapon/shotgun", "weapon/shotgun@excellent", "armor/flak"], 600)
 	c.stash = {"weapon/heavy_pistol": 1}
 	var all := Shop.entries(c)
 	var f := MarketTab.new_state()
-	assert_eq(Shop.filtered(all, f, c.eb).size(), all.size(), "no filter: everything")
-	f.market_only = true
-	var mk := Shop.filtered(all, f, c.eb)
-	assert_eq(mk.size(), 4, "market only: the four listings")
-	f.market_only = false
-	f.hide_owned = true
-	assert_false(Shop.filtered(all, f, c.eb).any(func(e): return String(e.key) == "weapon/heavy_pistol"), "hide what I own")
-	f.hide_owned = false
-	f.afford = true
-	var budget := c.eb - 500   # a 500eb cart
-	var cart := {"weapon/shotgun": 1}
-	var fit := Shop.filtered(all, f, budget, cart)
-	assert_true(fit.all(func(e): return int(e.cost) <= budget or cart.has(String(e.key))), "what the eb left after the cart covers")
-	assert_true(fit.any(func(e): return String(e.key) == "weapon/shotgun"), "what's already in the cart stays")
-	assert_false(fit.any(func(e): return String(e.key) == "armor/flak"))
-	f.afford = false
+	for gone in ["market_only", "afford", "hide_owned"]:
+		assert_false(f.has(gone), "no %s filter (owner)" % gone)
+	assert_eq(Shop.filtered(all, f).size(), all.size(), "everything on sale is listed")
+	assert_eq(all.filter(func(e): return bool(e.market)).size(), 4, "the four listings")
+	assert_true(all.any(func(e): return String(e.key) == "weapon/heavy_pistol"), "what the crew owns stays listed")
+	assert_true(all.any(func(e): return String(e.key) == "armor/flak"), "and what they can't afford")
 	f.query = "shotgun"
-	assert_eq(Shop.filtered(all, f, c.eb).size(), 3)
+	assert_eq(Shop.filtered(all, f).size(), 3)
 	f.query = ""
 	f.cat = "Armor"
-	assert_true(Shop.filtered(all, f, c.eb).all(func(e): return String(e.cat) == "Armor"))
-	var n := Shop.counts(all, f, c.eb)
+	assert_true(Shop.filtered(all, f).all(func(e): return String(e.cat) == "Armor"))
+	var n := Shop.counts(all, f)
 	assert_eq(int(n.All), all.size(), "counts ignore the category picked")
 	assert_eq(int(n.Firearms), all.filter(func(e): return String(e.cat) == "Firearms").size())
 	var low := Shop.sorted(all, "low")
@@ -129,20 +120,43 @@ func test_filters_counts_and_sorts() -> void:
 		assert_true(a < b or (a == b and int(typ[i - 1].cost) <= int(typ[i].cost)), "by category, then price")
 
 
-func test_cart_helpers_and_market_dates() -> void:
+func test_cart_helpers_and_market_stock_in_plain_words() -> void:
 	var cart := {}
 	Shop.cart_add(cart, "ammo/flashbang_ammo")
 	Shop.cart_add(cart, "ammo/flashbang_ammo", 2)
 	assert_eq(int(cart["ammo/flashbang_ammo"]), 3)
 	Shop.cart_set(cart, "ammo/flashbang_ammo", 0)
 	assert_true(cart.is_empty(), "0 removes the line")
-	var c := _camp(["armor/flak"])
-	assert_eq(Shop.days_left(c), 3)
-	assert_eq(Shop.market_note(c), "Night Market here until day %d · 3 days left" % (c.day + 3))
-	assert_eq(Shop.badge(3), "3 DAYS LEFT")
-	c.day += 2
-	assert_eq(Shop.market_note(c), "Night Market here until day %d · last day" % (c.day + 1))
-	assert_eq(Shop.badge(Shop.days_left(c)), "LAST DAY")
+	var c := _camp(["armor/flak", "weapon/assault_rifle"], 5000, 3)
+	assert_eq(Shop.market_note(c), "Night Market here · 6 pieces in stock")
+	assert_eq(Shop.badge(3), "3 IN STOCK")
+	var flak: Dictionary = Shop.entries(c).filter(func(e): return String(e.key) == "armor/flak")[0]
+	assert_eq(int(flak.stock), 3)
+	assert_true(MarketTab.tooltip(flak).contains("3 in stock"))
+	var fixer: Dictionary = Shop.entries(c).filter(func(e): return String(e.key) == "armor/kevlar")[0]
+	assert_eq(int(fixer.stock), -1, "the fixer's staples never run out")
+	c.market.stock = {"armor/flak": 0, "weapon/assault_rifle": 0}
+	assert_eq(Shop.market_note(c), "Night Market here · sold out")
+	assert_false(Shop.entries(c).any(func(e): return String(e.key) == "armor/flak"), "at 0 the item is gone")
+	for e in Shop.entries(c):
+		assert_false(String(MarketTab.tooltip(e)).to_lower().contains("days left"), "no days left anywhere")
 	c.market = {}
-	assert_eq(Shop.days_left(c), -1)
+	assert_false(Shop.market_up(c))
 	assert_eq(Shop.market_note(c), "No Night Market is up")
+
+
+func test_buying_takes_from_the_stock_and_never_more_than_it_has() -> void:
+	var c := _camp(["weapon/assault_rifle", "armor/flak"], 10000, 2)
+	var r := c.buy_cart({"weapon/assault_rifle": 3})
+	assert_false(r.ok)
+	assert_eq(String(r.reason), "stock", "only 2 in stock")
+	assert_eq(int(r.stock), 2)
+	assert_eq(c.eb, 10000, "nothing paid")
+	assert_true(c.buy_cart({"weapon/assault_rifle": 1, "armor/kevlar": 5}).ok, "a staple has no stock limit")
+	assert_eq(NightMarket.stock_of(c.market, "weapon/assault_rifle"), 1, "one bought, one left")
+	assert_true(c.buy("weapon/assault_rifle"), "buy() takes the last")
+	assert_eq(NightMarket.stock_of(c.market, "weapon/assault_rifle"), 0)
+	assert_false(c.on_sale("weapon/assault_rifle"), "sold out: gone")
+	assert_false(c.buy("weapon/assault_rifle"))
+	assert_eq(String(c.buy_cart({"weapon/assault_rifle": 1}).reason), "off_sale")
+	assert_eq(c.stored("weapon/assault_rifle"), 2)
