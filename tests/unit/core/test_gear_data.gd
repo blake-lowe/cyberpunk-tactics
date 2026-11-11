@@ -15,7 +15,9 @@ const IMPLEMENTED_FX := ["attack_bonus", "no_damage", "acid_sp_ablate", "no_crit
 	# kit items (inventory): grenade payloads, drugs, carried tools
 	"ablate_sp", "burning_trigger", "burning_stacks", "burning_extinguish", "duration", "meat_only", "consumable",
 	"administer", "addiction_dv", "addiction_check", "stack_extends", "stat_bonus", "stat_cap_bypass", "paranoia",
-	"addicted", "humanity_loss", "humanity_refund_on_resist", "ignore_seriously_wounded", "skill_bonus", "no_stack"]
+	"addicted", "humanity_loss", "humanity_refund_on_resist", "ignore_seriously_wounded", "skill_bonus", "no_stack",
+	# cyberware phase 2: smoke clouds (Smoke), gas grenades and hazard gear (Combatant.immune_to)
+	"obscure", "grenade_hazard", "immune"]
 const AMMO_KINDS := ["bullets", "arrows", "grenades", "rockets", "shotgun_shells", "none"]
 const SECTIONS := ["attachments", "ammo", "shields", "gear", "fashion", "drugs", "pharmaceuticals", "therapy"]
 

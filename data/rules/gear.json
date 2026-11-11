@@ -418,8 +418,14 @@
 					"check": "resist_torture_drugs",
 					"hp_dice": 3
 				},
-				"ablate_sp": 0
-			}
+				"ablate_sp": 0,
+				"grenade_hazard": "inhaled"
+			},
+			"kit": "consumable",
+			"sold": true,
+			"kit_name": "Biotoxin Grenade",
+			"kit_use": "grenade",
+			"kit_short": "BIOTOX"
 		},
 		"emp_ammo": {
 			"name": "EMP Ammunition",
@@ -491,7 +497,11 @@
 						"damaged_eye",
 						"damaged_ear"
 					],
-					"no_bonus_damage": true
+					"no_bonus_damage": true,
+					"hazards": {
+						"damaged_eye": "flash",
+						"damaged_ear": "loud_noise"
+					}
 				},
 				"duration": "1 minute"
 			},
@@ -556,8 +566,14 @@
 					"check": "resist_torture_drugs",
 					"hp_dice": 2
 				},
-				"ablate_sp": 0
-			}
+				"ablate_sp": 0,
+				"grenade_hazard": "inhaled"
+			},
+			"kit": "consumable",
+			"sold": true,
+			"kit_name": "Poison Grenade",
+			"kit_use": "grenade",
+			"kit_short": "POISON"
 		},
 		"rubber_ammo": {
 			"name": "Rubber Ammunition",
@@ -667,7 +683,11 @@
 				},
 				"duration": "1 minute"
 			},
-			"unmodelled": "Smoke does not damage; 10 m square = 5x5 grid squares (1 square = 2 m)."
+			"kit": "consumable",
+			"sold": true,
+			"kit_name": "Smoke Grenade",
+			"kit_use": "grenade",
+			"kit_short": "SMOKE"
 		},
 		"teargas_ammo": {
 			"name": "Teargas Ammunition",
@@ -788,7 +808,10 @@
 					"inhaled"
 				]
 			},
-			"unmodelled": "Teargas (p.347) hits meat eyes, not lungs, so RAW the mask does not stop it; smoke still obscures vision."
+			"kit": "utility",
+			"sold": true,
+			"kit_name": "Anti-Smog Mask",
+			"kit_use": "carried"
 		},
 		"audio_recorder": {
 			"category": "electronics",
@@ -808,14 +831,17 @@
 			"cost": 1000,
 			"cost_tier": "Very Expensive",
 			"cite": "CPR core p.352",
-			"summary": "Compact earwear; wearer is immune to deafening noise effects such as flashbangs.",
+			"summary": "Compact earwear; the wearer is immune to deafening noise, such as a flashbang's bang.",
 			"night_market": "survival_gear",
 			"fx": {
 				"immune": [
 					"loud_noise"
 				]
 			},
-			"unmodelled": "Blocks the Damaged Ear half of a Flashbang (p.346) and the Shrieker's self-inflicted Damaged Ear (p.349); Damaged Eye still applies."
+			"kit": "utility",
+			"sold": true,
+			"kit_name": "Ear Protectors",
+			"kit_use": "carried"
 		},
 		"binoculars": {
 			"category": "survival",
@@ -2260,7 +2286,7 @@
 		"burning_stacks": "bool: whether repeated ignitions stack (incendiary: false).",
 		"burning_extinguish": "how burning ends: action = target spends one Action. incendiary_ammo.",
 		"smart_reroll": "{miss_by_max, modes, flat, luck_allowed}: a qualifying miss rolls d10 + flat (+LUCK only) vs the same DV once. smart_ammo.",
-		"obscure": "{size_m, penalty, rounds}: square area of smoke centred on impact; penalty to tasks/attacks through it. smoke_ammo.",
+		"obscure": "{size_m, penalty, rounds}: square area of smoke centred on impact for `rounds` (Encounter.smoke, Smoke): sight and attacks into, out of or through it take the penalty unless the viewer ignores obscurement (Low Light/Infrared/UV). smoke_ammo.",
 		"melee_mode": "weapons.json id of a melee profile the weapon can also attack as. bayonet = light_melee.",
 		"mag_by_weapon": "{weapon_id: capacity}: replaces the weapon's mag. extended/drum magazine (Clip Chart p344).",
 		"clip": "bool: a magazine attachment; only one per weapon.",
@@ -2345,7 +2371,10 @@
 		"materials_cost": "eb of consumed materials, lost on failure (therapy: 500; pharma batch: 200, as item field).",
 		"materials_tier": "price category of materials_cost.",
 		"relapse_autofail": "period after a cure during which that drug's addiction check auto-fails. Addiction Therapy ('1 year').",
-		"keyed_to_owner": "Biometric-keyed weapon (Kendachi Mono-Three, p.348): its special rule works for whoever carries it (HOUSE-RULE: sold keyed to the buyer)."
+		"keyed_to_owner": "Biometric-keyed weapon (Kendachi Mono-Three, p.348): its special rule works for whoever carries it (HOUSE-RULE: sold keyed to the buyer).",
+		"status.hazards": "inside status: crit injury id -> hazard (Combatant.HAZARDS: flash, loud_noise, inhaled). A target immune to that hazard doesn't suffer that injury; immune to all of them, no check at all. flashbang (Damaged Eye: flash, Damaged Ear: loud_noise).",
+		"status.hazard": "inside status: the hazard the whole effect is (Combatant.HAZARDS). A target immune to it makes no check. shrieker (loud_noise); set from grenade_hazard on a thrown grenade.",
+		"grenade_hazard": "hazard (Combatant.HAZARDS) a thrown grenade of this ammo is: a poison or biotoxin grenade is a toxic gas cloud, 'inhaled' (Nasal Filters, Independent Air Supply, Anti-Smog Mask stop it). poison_ammo, biotoxin_ammo."
 	},
 	"kit_rules": {
 		"_doc": "What a crew member takes into a gig from safehouse storage (HOUSE-RULE, owner's design): slot 1 holds a consumable (the one item used in the field), slot 2 a passive utility. Used consumables are spent; unused ones and utilities come back; kit on someone who doesn't come back is lost. Item fields: kit (consumable|utility), kit_use (grenade|dose|carried), kit_name (storage label), kit_short (action-bar label).",

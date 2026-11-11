@@ -65,7 +65,12 @@ var vision: Vision                  ## what the crew can see (drives fog and hid
 ## What happened, in order, for the view to animate: {type: move|attack|cover|alert, ...}.
 ## The view drains it; rules code never reads it.
 var events: Array[Dictionary] = []
-var lit := {}                       ## Vector3i → true where a light reaches (darkness: -4 to spot, p? task table)
+var lit := {}                       ## Vector3i → true where a light reaches (darkness: -4 to spot, p.130-131 task table)
+var smoke := Smoke.new()            ## smoke grenades' clouds (Smoke, CPR core p.347): -4 to see or shoot through them
+var reveals := {}                   ## unit id → "radar" | "motion": out of the crew's sight but picked up by sense chrome (update_reveals)
+var _round_pos := {}                ## unit id → their square at the start of this Round (who's moving: Tactile Boost)
+var _moved_last := {}               ## unit id → true: moved during the last Round
+var _sense_round := -1
 var alarm := 0                      ## 0 quiet, 1 a guard is onto the crew, 2 backup called
 ## Security Codes (NC2045 p.7, SecurityCode): the site's code answers the call (its roll, faction,
 ## intensity, Hardened); the district's code can send a second, street-level response after it.
@@ -251,6 +256,7 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 	for line in SetPieces.briefs(String(p_map.params.get("setpiece", ""))):   # the place's house rules, for the briefing
 		e.say(line)
 	Clocks.start(e, opts.get("clocks", false))   # the detection clock on a stealth gig (SPM p.25): campaign gigs ask "auto"
+	e._mark_positions()
 	e.refresh_vision()
 	e.update_alerts()
 	return e
@@ -260,7 +266,103 @@ static func setup(p_map: TacMap, p_dice: Dice, crew: Array[Combatant], kind := "
 ## Everyone on the crew who can act sees, the Mortally Wounded included (they still take their
 ## Turns, p.222: alive() leaves them out, which left a dying crew member blind and unable to aim).
 func refresh_vision() -> bool:
-	return vision.update(units.filter(func(u): return u.team == CREW and u.c.can_act()).map(func(u): return u.pos), NetDevices.feed_cells(self))
+	var fresh := vision.update(units.filter(func(u): return u.team == CREW and u.c.can_act()).map(func(u): return u.pos), NetDevices.feed_cells(self))
+	update_reveals()
+	return fresh
+
+
+# --- Senses (cyberware phase 2) -------------------------------------------------------------
+
+## Units the crew can't see but whose chrome picks up (shown as a quiet blip, never as a target):
+## - Radar/Sonar Implant (CPR core p.363): it "constantly scans terrain within 50m/yds", but the scan
+##   "does not include anything behind cover": anyone within 50 m on the same floor with a clear line
+##   (no wall, closed door, cover or glass between), darkness and smoke no matter. A new moving
+##   object brings a beep and its direction (the log).
+## - Tactile Boost (p.359): with a hand on a surface (Combatant.touching), motion within 20 m: anyone
+##   who moved this Round or the last, walls and floors no matter (the surface carries it).
+## The crew's own and their allies are never blips. Returns reveals.
+func update_reveals() -> Dictionary:
+	var out := {}
+	var beeps: Array = []
+	for s in units:
+		if int(s.team) != CREW or not s.c.can_act():
+			continue
+		var radar: float = s.c.sense_range("radar_m")
+		var touch: float = s.c.sense_range("motion_sense_m") if s.c.touching else 0.0
+		if radar <= 0.0 and touch <= 0.0:
+			continue
+		for o in units:
+			if out.has(o.id) or o.c.dead or allied(int(o.team), CREW) or o.get("fled", false) or o.get("carried", false) or vision.visible.has(o.pos):
+				continue
+			var d := Los.distance_m(s.pos, o.pos)
+			if radar > 0.0 and o.pos.z == s.pos.z and d <= radar:
+				var tr := los.trace(s.pos, o.pos)
+				if tr.clear and not tr.through_glass:
+					out[o.id] = "radar"
+					if not reveals.has(o.id) and moving(o) and hostile(int(o.team), CREW):
+						beeps.append([s, o])
+					continue
+			if touch > 0.0 and d <= touch and moving(o):
+				out[o.id] = "motion"
+	reveals = out
+	for b in beeps:
+		say("%s's radar beeps: movement %s." % [b[0].c.display_name, compass(b[0].pos, b[1].pos)])
+	return reveals
+
+
+## Did unit `u` move this Round or the last (Tactile Boost)? Someone who has just arrived has.
+func moving(u: Dictionary) -> bool:
+	return _moved_last.has(u.id) or not _round_pos.has(u.id) or _round_pos[u.id] != u.pos
+
+
+## The start of a Round: who moved during the last one, and where everyone stands now.
+func _mark_positions() -> void:
+	_moved_last = {}
+	for u in units:
+		if _round_pos.has(u.id) and _round_pos[u.id] != u.pos:
+			_moved_last[u.id] = true
+		_round_pos[u.id] = u.pos
+
+
+## The direction from `a` to `b` in words, for the radar's beep ("to the north-east").
+static func compass(a: Vector3i, b: Vector3i) -> String:
+	var d := Vector2(b.x - a.x, b.y - a.y)
+	if d.length() < 0.5:
+		return "close by"
+	var names := ["east", "south-east", "south", "south-west", "west", "north-west", "north", "north-east"]
+	return "to the " + String(names[posmod(roundi(d.angle() / (PI / 4.0)), 8)])
+
+
+## The penalty to see `to` from `from` for `viewer` (a Perception Check to spot, an attack): -4 once
+## when it's obscured (smoke anywhere on the line, Smoke; or `dark`: the target stands where no light
+## reaches), plus the weather's sight penalty out in the open (Weather.sight_penalty, NCW p.4-5).
+## Low Light/Infrared/UV takes all of it to 0 (p.360): darkness and "other intangible obscurement,
+## like smoke, fog, etc.", and rain, dust, ash and smog are that - none of them could give cover.
+func sight_penalty(viewer: Combatant, from: Vector3i, to: Vector3i, dark: bool) -> int:
+	if viewer != null and viewer.sees_through_obscurement():
+		return 0
+	return (Smoke.PENALTY if dark or smoke.on_line(from, to) else 0) + Weather.sight_penalty(m, weather, from, to)
+
+
+## Smoke and the weather on an attack from `from` at `to`, `dist_m` away (a negative modifier): the
+## smoke's -4 for any attack with smoke on the line (the task is obscured, p.347), the weather's past
+## the first range band (Weather.ranged_penalty); none for an attacker with Low Light/Infrared/UV.
+## Darkness doesn't touch attacks here (as before: the gig's lights only matter to stealth).
+func obscured_mod(attacker: Combatant, from: Vector3i, to: Vector3i) -> int:
+	if attacker != null and attacker.sees_through_obscurement():
+		return 0
+	return -Smoke.PENALTY if smoke.on_line(from, to) else 0
+
+
+## The start of each Round: clouds whose minute is up clear; who moved is marked.
+func _round_senses() -> void:
+	if init == null or init.round_num == _sense_round:
+		return
+	_sense_round = init.round_num
+	for c in smoke.tick(init.round_num):
+		events.append({"type": "smoke_clear", "unit": Clocks._anchor(self), "id": int(c.id)})
+		say("The smoke clears.")
+	_mark_positions()
 
 
 func _add(c: Combatant, pos: Vector3i, team: int) -> void:
@@ -450,6 +552,7 @@ func next_turn() -> void:
 			_clock_round = init.round_num
 			Clocks.round_start(self)
 		Twist.poll(self)
+		_round_senses()
 		if init.round_num != _civ_round:
 			_civ_round = init.round_num
 			_civilians_tick()
@@ -1954,7 +2057,7 @@ func _camera_spots() -> Dictionary:
 				continue
 			var key := ["cam", d.id, u.id, init.round_num if init else 0]
 			if not _spot_rolls.has(key):
-				var base := CAMERA_PERCEPTION - (0 if lit.has(u.pos) else DARK_PENALTY)
+				var base := CAMERA_PERCEPTION - (DARK_PENALTY if not lit.has(u.pos) or smoke.on_line(cp, u.pos) else 0)   # dark or smoke: obscured (p.130-131, p.347)
 				_spot_rolls[key] = Check.opposed(dice, base, u.c.skill_base("stealth") - u.c.action_penalty()).success
 				if _spot_rolls[key]:   # a failed Stealth check (SPM p.25 Corporate Heist)
 					Clocks.trigger(self, "failed_stealth", int(u.id), "a camera catches %s" % u.c.display_name)
@@ -1975,15 +2078,17 @@ func _camera_spots() -> Dictionary:
 
 const VIEW_HALF_ANGLE := 60.0   ## HOUSE-RULE: a guard watches a 120° cone ahead...
 const AWARE_RANGE := 2.0        ## ...but notices anyone within 2 squares, any direction
-const DARK_PENALTY := 4         ## "Task obscured by smoke or darkness" (CPR p? task modifiers)
+const DARK_PENALTY := Smoke.PENALTY   ## "Task obscured by smoke, darkness" -4 (CPR core p.130-131 task modifiers)
 ## Radio and shouting range come from the doctrine (data/world/security.json); who answers the
 ## call, and when, from the Security Codes (call_it_in).
 
 
 ## Can guard `g` spot crew member `u` right now? Inside the guard's view (cone or close), in clear
 ## sight within SPOT_RANGE, the guard's Perception beats the crew member's Stealth (opposed, p? ;
-## Stealth is opposed by Perception, p85), at -4 if the crew member stands in darkness and -2 per
-## 5 squares beyond 5 (HOUSE-RULE: distance).
+## Stealth is opposed by Perception, p85), at -4 if the crew member is obscured (in darkness, or smoke
+## on the line: sight_penalty; none with Low Light/Infrared/UV, p.360) and -2 per 5 squares beyond 5
+## (HOUSE-RULE: distance). Spotting a sneaker is a Check of sight and hearing: Image Enhance and
+## Amplified Hearing both add their +2 (p.360-361).
 func _spots(g: Dictionary, u: Dictionary) -> bool:
 	if u.pos.z != g.pos.z:
 		return false
@@ -1996,11 +2101,7 @@ func _spots(g: Dictionary, u: Dictionary) -> bool:
 	var facing: Vector2 = g.get("facing", Vector2.ZERO)
 	if dist > AWARE_RANGE and facing != Vector2.ZERO and rad_to_deg(absf(facing.angle_to(d))) > VIEW_HALF_ANGLE:
 		return false
-	var base: int = g.c.skill_base("perception") + g.c.awareness_level("threat_detection") - g.c.action_penalty()
-	if not lit.has(u.pos):
-		base -= DARK_PENALTY
-	base -= 2 * int(maxf(0.0, dist - 5.0) / 5.0)
-	base -= Weather.sight_penalty(m, weather, g.pos, u.pos)   # rain, dust, ash, smog out in the open (NCW p.4-5)
+	var base := spot_base(g, u)
 	var sneak: int = u.c.skill_base("stealth") - u.c.action_penalty()
 	var key := [g.id, u.id, init.round_num if init else 0]   # HOUSE-RULE: one contest per guard, sneaker and round
 	if not _spot_rolls.has(key):
@@ -2008,6 +2109,15 @@ func _spots(g: Dictionary, u: Dictionary) -> bool:
 		if _spot_rolls[key] and int(u.team) == CREW and bool(sides[int(g.team)].opfor) and hostile(int(g.team), CREW):   # a failed Stealth check (SPM p.25)
 			Clocks.trigger(self, "failed_stealth", int(u.id), "%s fails to slip past %s" % [u.c.display_name, g.c.display_name])
 	return _spot_rolls[key]
+
+
+## The guard's side of that contest: Perception (+ Threat Detection, + Image Enhance and Amplified
+## Hearing), less the distance and whatever obscures the crew member (sight_penalty).
+func spot_base(g: Dictionary, u: Dictionary) -> int:
+	var dist := Vector2(u.pos.x - g.pos.x, u.pos.y - g.pos.y).length()
+	var base: int = g.c.skill_base("perception") + g.c.awareness_level("threat_detection") - g.c.action_penalty() + g.c.perception_bonus(true, true)
+	base -= 2 * int(maxf(0.0, dist - 5.0) / 5.0)
+	return base - sight_penalty(g.c, g.pos, u.pos, not lit.has(u.pos))   # darkness or smoke; rain, dust, ash, smog out in the open (NCW p.4-5)
 
 
 ## HOUSE-RULE (set pieces with `public_access`: Ziggurat's museum floor, Fort Sumter's petition
@@ -2597,6 +2707,7 @@ func move_to(dest: Vector3i, allow_run := false) -> bool:
 		ran = true
 	elif not turn.move(cost):
 		return false
+	cur.c.touching = false   # HOUSE-RULE: walking lifts the Tactile Boost's hand off the surface (p.359)
 	var from: Vector3i = cur.pos
 	cur.pos = dest
 	var full: Array = [from]
@@ -2626,10 +2737,14 @@ func preview(target: Dictionary, weapon: Weapon, mode: Attack.Mode) -> Dictionar
 		s.from = cur.pos
 	var dist := _attack_distance(weapon, s.from, target.pos)
 	var sh := shield_for(target, weapon, mode, s.from)   # a Human Shield takes the shot (p.184)
-	var wm := 0 if weapon.is_melee() else -Weather.ranged_penalty(m, weather, s.from, target.pos, dist)   # a shot through the weather (NCW p.4-5)
-	var p := Attack.preview(_aimer(), weapon, sh.c if not sh.is_empty() else target.c, mode, dist, wm)
+	var sees := _aimer().sees_through_obscurement()   # Low Light/Infrared/UV: no smoke or weather penalty (p.360)
+	var wm := 0 if weapon.is_melee() or sees else -Weather.ranged_penalty(m, weather, s.from, target.pos, dist)   # a shot through the weather (NCW p.4-5)
+	var om := obscured_mod(_aimer(), s.from, target.pos)   # smoke on the line (p.347)
+	var p := Attack.preview(_aimer(), weapon, sh.c if not sh.is_empty() else target.c, mode, dist, wm + om)
 	p["from"] = s.from
 	p["weather"] = wm
+	p["obscured"] = om
+	p["sees_through"] = sees and (smoke.on_line(s.from, target.pos) or Weather.ranged_penalty(m, weather, s.from, target.pos, dist) > 0)
 	p["blocker"] = s.blocker
 	if not sh.is_empty():
 		p["shield"] = sh.id
@@ -2673,7 +2788,7 @@ func attack(target: Dictionary, weapon: Weapon, mode: Attack.Mode) -> Dictionary
 	var sp_before: int = target.c.sp(loc)
 	var wound_before: int = target.c.wound_state()
 	var ammo_before := weapon.ammo
-	var r := Attack.resolve(dice, _aimer(), weapon, target.c, mode, _attack_distance(weapon, p.from, target.pos), int(p.get("weather", 0)))
+	var r := Attack.resolve(dice, _aimer(), weapon, target.c, mode, _attack_distance(weapon, p.from, target.pos), int(p.get("weather", 0)) + int(p.get("obscured", 0)))
 	var mult := 1
 	if mode == Attack.Mode.AUTOFIRE and r.hit and r.check != null:
 		mult = mini(r.check.total - r.check.dv, weapon.autofire_mult())   # rounds that connect (p173)
@@ -2821,6 +2936,14 @@ func chrome_options(u: Dictionary = {}) -> Array:
 			why = "No Action left"
 		out.append({"id": "sandevistan", "name": "SANDEVISTAN", "cost": "ACTION", "verb": "ACTIVATE", "on": left > 0, "ok": why == "", "why": why,
 			"line": "+3 Initiative from next round, all fight." if left <= 0 else "+3 Initiative · %s left" % Objective.count_text(left, "round").to_lower()})
+	if c.has_cyberware("tactile_boost"):   # a hand on a surface feels motion within 20 m (p.359)
+		var why := ""
+		if not c.touching and not c.cyber_working("tactile_boost"):
+			why = "Chrome offline"
+		elif not mine:
+			why = "Not their turn"
+		out.append({"id": "tactile_boost", "name": "TACTILE BOOST", "cost": "FREE", "verb": "LIFT HAND" if c.touching else "HAND DOWN", "on": c.touching,
+			"ok": why == "", "why": why, "line": "Feeling for movement within 20 m. That hand is busy." if c.touching else "Feel for movement within 20 m. Busies a hand; moving lifts it."})
 	if not c.shield_piece().is_empty():
 		var why := c.shield_block()
 		if why == "" and not mine:
@@ -2851,7 +2974,11 @@ func use_chrome(id: String) -> Dictionary:
 		"popup_shield":
 			c.shield_out = not c.shield_out
 			say("%s's popup shield %s." % [c.display_name, "snaps out" if c.shield_out else "folds away"])
-	events.append({"type": "chrome", "unit": cur.id, "id": id, "on": c.chrome_on.has(id) or (id == "popup_shield" and c.shield_out)})
+		"tactile_boost":
+			c.touching = not c.touching
+			say("%s %s." % [c.display_name, "puts a hand to the ground, feeling for movement" if c.touching else "lifts the hand"])
+			update_reveals()
+	events.append({"type": "chrome", "unit": cur.id, "id": id, "on": c.chrome_on.has(id) or (id == "popup_shield" and c.shield_out) or (id == "tactile_boost" and c.touching)})
 	return {"ok": true}
 
 
@@ -3324,8 +3451,9 @@ func shotgun_shell(target: Dictionary, weapon: Weapon) -> Dictionary:
 ## rolled once; cover the blast can't destroy shields whoever is behind it; cover it can destroy is
 ## destroyed and shields nobody; REF 8+ may dive clear.
 ## The grenade is the one packed in kit slot `slot` (Items: Armor-Piercing, Incendiary,
-## Flashbang, Teargas): its fx ride the blast (ablate 2, ignite, or no damage and a forced check for
-## everyone caught, p.345-347).
+## Flashbang, Teargas, Poison, Biotoxin, Smoke): its fx ride the blast (ablate 2, ignite, or no damage
+## and a forced check for everyone caught, p.345-347; a poison or biotoxin grenade's cloud is breathed
+## in: fx grenade_hazard). A smoke grenade harms nobody: it leaves a cloud where it lands (Smoke, p.347).
 func throw_grenade(cell: Vector3i, slot := 0) -> Dictionary:
 	var why := _kit_ready(slot, "grenade")
 	if why != "":
@@ -3364,7 +3492,13 @@ func throw_grenade(cell: Vector3i, slot := 0) -> Dictionary:
 					m.destroy_cover_at(v.z, Vector2i(v.x, v.y))
 					destroyed.append(v)
 	var caught: Array = []
+	var cloud := {}
+	if fx.has("obscure"):   # smoke: a cloud for a minute, nobody hurt (p.347)
+		var ob: Dictionary = fx.obscure
+		cloud = smoke.add(m, los, center, init.round_num if init else 0, Smoke.half_for(int(ob.get("size_m", 10))), int(ob.get("rounds", Smoke.ROUNDS)))
 	for o in units:
+		if not cloud.is_empty():
+			break
 		if o.c.dead or o.pos.z != center.z or maxi(absi(o.pos.x - center.x), absi(o.pos.y - center.y)) > BLAST_HALF:
 			continue
 		if o.pos != center and not los.trace(center, o.pos).clear:
@@ -3374,13 +3508,16 @@ func throw_grenade(cell: Vector3i, slot := 0) -> Dictionary:
 	for o in caught:
 		before[o.id] = [o.c.hp, o.c.wound_state()]
 	var results: Array = []
-	if no_damage:   # gas, flash: everyone caught who doesn't dive clear makes the check
+	if no_damage and fx.has("status"):   # gas, flash: everyone caught who doesn't dive clear makes the check
+		var st: Dictionary = (fx.status as Dictionary).duplicate()
+		if fx.has("grenade_hazard"):   # a poison or biotoxin grenade's cloud must be breathed in (Combatant.immune_to)
+			st["hazard"] = String(fx.grenade_hazard)
 		for o in caught:
 			var res := {"target": o.c, "dodged": false, "damage": 0, "location": "head", "through": 0, "crits": []}
 			if o.c.can_dodge_ranged():
 				res.dodged = Check.roll_die(dice).die + o.c.skill_base("evasion") - o.c.action_penalty() > check.total
 			if not res.dodged:
-				Attack.apply_status(dice, o.c, fx.status, fx, res)
+				Attack.apply_status(dice, o.c, st, fx, res)
 			results.append(res)
 	else:
 		results = Attack.explosion_rolled(dice, check.total, faces, caught.map(func(o): return o.c), fx)
@@ -3392,12 +3529,16 @@ func throw_grenade(cell: Vector3i, slot := 0) -> Dictionary:
 		var u := unit_of(res.target)
 		hits.append({"id": u.id, "dodged": res.dodged, "damage": int(before[u.id][0]) - u.c.hp, "dead": u.c.dead,
 			"killed": u.c.dead or u.c.wound_state() == Combatant.Wound.MORTAL, "wound_before": before[u.id][1], "wound_after": u.c.wound_state(),
-			"status": res.get("status", {}), "ignited": res.get("ignited", false)})
+			"status": res.get("status", {}), "ignited": res.get("ignited", false),
+			"crits": (res.get("crits", []) as Array).map(func(x): return String(x.get("id", "")))})
 	var gname := Items.display_name(key)
 	events.append({"type": "blast", "unit": cur.id, "cell": cell, "center": center, "hit": check.success, "damage": dmg, "hits": hits,
-		"destroyed": destroyed, "payload": key})
-	say("%s throws %s%s: %s, %d caught." % [cur.c.display_name, "a " + gname.to_lower(), "" if check.success else " (off target)",
-		"%d damage" % dmg if not no_damage else "no damage", hits.filter(func(h): return h.damage > 0 or not h.status.is_empty()).size()])
+		"destroyed": destroyed, "payload": key, "smoke": int(cloud.get("id", -1))})
+	if not cloud.is_empty():
+		say("%s throws %s%s: smoke for a minute." % [cur.c.display_name, "a " + gname.to_lower(), "" if check.success else " (off target)"])
+	else:
+		say("%s throws %s%s: %s, %d caught." % [cur.c.display_name, "a " + gname.to_lower(), "" if check.success else " (off target)",
+			"%d damage" % dmg if not no_damage else "no damage", hits.filter(func(h): return h.damage > 0 or not h.status.is_empty()).size()])
 	_check_end()
 	return {"ok": true, "hit": check.success, "center": center, "damage": dmg, "hits": hits}
 

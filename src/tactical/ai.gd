@@ -208,7 +208,8 @@ static func _best_shot_value(e: Encounter, u: Dictionary, w: Weapon) -> float:
 
 
 ## The M5 options, taken when they're clearly better than shooting:
-## - grenade: two or more enemies (and no friends) in a 5x5 blast within throwing range;
+## - grenade (_grenade): smoke to cover themselves when pinned in the open; else two or more enemies it
+##   works on (and no friends) in a 5x5 blast within throwing range;
 ## - shotgun shell: two or more enemies in the cone;
 ## - melee: an enemy next to us and the gun is empty or hopeless;
 ## - suppression: three or more enemies in sight and every shot is a long shot.
@@ -217,31 +218,8 @@ static func _special(e: Encounter, u: Dictionary, w: Weapon) -> bool:
 		return false
 	var foes := _enemies(e, u)
 	var shot := _best_shot_value(e, u, w)
-	var gslot := -1   # the first grenade it carries (a stat block's kit: Pyro, Cyberpsycho)
-	for i in u.c.kit.size():
-		if e.kit_action(i) == "grenade":
-			gslot = i
-			break
-	if gslot >= 0:
-		var best_cell := Vector3i(-1, -1, -1)
-		var best_n := 1
-		for f in foes:
-			var cell: Vector3i = f.pos
-			if cell.z != u.pos.z or Los.distance_m(u.pos, cell) > Encounter.THROW_RANGE_M or not e.los.trace(u.pos, cell).clear:
-				continue
-			var n := 0
-			var friends := 0
-			for o in e.units:
-				if not o.c.dead and o.pos.z == cell.z and maxi(absi(o.pos.x - cell.x), absi(o.pos.y - cell.y)) <= Encounter.BLAST_HALF:
-					if e.allied(int(o.team), int(u.team)):
-						friends += 1
-					elif e.hostile(int(o.team), int(u.team)):
-						n += 1
-			if friends == 0 and n > best_n:
-				best_n = n
-				best_cell = cell
-		if best_cell.x >= 0 and best_n * 21.0 * 0.5 > shot:
-			return e.throw_grenade(best_cell, gslot).get("ok", false)
+	if _grenade(e, u, w, foes, shot):
+		return true
 	if w.def.get("shotgun_shell", false) and w.ammo > 0:
 		for f in foes:
 			var cone := 0
@@ -259,6 +237,79 @@ static func _special(e: Encounter, u: Dictionary, w: Weapon) -> bool:
 		if e.suppress_targets(u).size() >= 3:
 			return e.suppress(w).get("ok", false)
 	return false
+
+
+## Throw a grenade from the kit (a stat block's, a complication's, the crew's) when it beats the best
+## shot (`shot`, expected damage): smoke first, when they're pinned (_smoke_cell); then the others, each
+## valued per enemy it would work on: a blast's 6d6 half the time, a poison's dice half the time, a
+## flash's or teargas's injuries. Enemies immune to it (Attack.status_immune: two Cybereyes against
+## teargas, Anti-Dazzle and a Level Damper against a flashbang, Nasal Filters against gas) don't count.
+static func _grenade(e: Encounter, u: Dictionary, w: Weapon, foes: Array, shot: float) -> bool:
+	for i in u.c.kit.size():
+		if e.kit_action(i) != "grenade":
+			continue
+		var fx := Items.fx(String(u.c.kit[i]))
+		if fx.has("obscure"):
+			var sc := _smoke_cell(e, u, w, foes)
+			if sc.x >= 0 and e.throw_grenade(sc, i).get("ok", false):
+				return true
+			continue
+		var st: Dictionary = (fx.get("status", {}) as Dictionary).duplicate()
+		if fx.has("grenade_hazard"):
+			st["hazard"] = String(fx.grenade_hazard)
+		var per := 21.0 * 0.5
+		if fx.get("no_damage", false):
+			per = float(st.get("hp_dice", 0)) * 3.5 * 0.5 if int(st.get("hp_dice", 0)) > 0 else (st.get("crit_injuries", []) as Array).size() * 4.0
+		var best_cell := Vector3i(-1, -1, -1)
+		var best_n := 1
+		for f in foes:
+			var cell: Vector3i = f.pos
+			if cell.z != u.pos.z or Los.distance_m(u.pos, cell) > Encounter.THROW_RANGE_M or not e.los.trace(u.pos, cell).clear:
+				continue
+			var n := 0
+			var friends := 0
+			for o in e.units:
+				if not o.c.dead and o.pos.z == cell.z and maxi(absi(o.pos.x - cell.x), absi(o.pos.y - cell.y)) <= Encounter.BLAST_HALF:
+					if e.allied(int(o.team), int(u.team)):
+						friends += 1
+					elif e.hostile(int(o.team), int(u.team)) and not (fx.get("no_damage", false) and Attack.status_immune(st, fx, o.c)):
+						n += 1
+			if friends == 0 and n > best_n:
+				best_n = n
+				best_cell = cell
+		if best_cell.x >= 0 and best_n * per > shot and e.throw_grenade(best_cell, i).get("ok", false):
+			return true
+	return false
+
+
+## Smoke (CPR core p.347) when pinned: two or more enemies have a clear, uncovered shot at them and
+## would be obscured by it (Low Light/Infrared/UV sees through, p.360), they're not in smoke already,
+## and their own best shot is poor (under SMOKE_SHOT). Thrown two squares toward those enemies, so the
+## cloud covers them and the lines in. (-1,-1,-1) when it isn't worth it.
+const SMOKE_SHOT := 0.45
+const SMOKE_PINNED := 2
+
+
+static func _smoke_cell(e: Encounter, u: Dictionary, w: Weapon, foes: Array) -> Vector3i:
+	var none := Vector3i(-1, -1, -1)
+	if e.smoke.covers(u.pos):
+		return none
+	var lookers: Array = foes.filter(func(f): return f.c.can_act() and f.pos.z == u.pos.z and not f.c.sees_through_obscurement() \
+		and Vector2(f.pos.x - u.pos.x, f.pos.y - u.pos.y).length() < 25 and e.los.trace(f.pos, u.pos).clear and not covered_from(e, u.pos, [f]))
+	if lookers.size() < SMOKE_PINNED:
+		return none
+	for t in foes:
+		var p := e.preview(t, w, Attack.Mode.SINGLE)
+		if p.ok and float(p.chance) >= SMOKE_SHOT:
+			return none
+	var d := Vector2.ZERO
+	for f in lookers:
+		d += Vector2(f.pos.x - u.pos.x, f.pos.y - u.pos.y).normalized()
+	d = d.normalized() * 2.0 if d.length() > 0.01 else Vector2.ZERO
+	for cell in [Vector3i(u.pos.x + roundi(d.x), u.pos.y + roundi(d.y), u.pos.z), u.pos]:
+		if e.m.inb(cell.x, cell.y) and e.los.blocker(cell) == "" and (cell == u.pos or e.los.trace(u.pos, cell).clear):
+			return cell
+	return none
 
 
 static func _enemies(e: Encounter, u: Dictionary) -> Array:
@@ -318,10 +369,10 @@ static func _advance(e: Encounter, u: Dictionary) -> void:
 			if not sees and absi(cell.x - f.pos.x) + absi(cell.y - f.pos.y) < 30 and e.los.sight(cell, f.pos).visible:
 				sees = true
 		var covered := covered_from(e, cell, foes)
-		var exposed := 0   # foes with a clear shot at the square from where they stand
+		var exposed := 0.0   # foes with a clear shot at the square from where they stand; through smoke, half (-4: p.347)
 		for f in foes:
 			if f.pos.z == cell.z and Vector2(cell.x - f.pos.x, cell.y - f.pos.y).length() < 25 and e.los.trace(f.pos, cell).clear and not covered:
-				exposed += 1
+				exposed += 0.5 if e.smoke.on_line(f.pos, cell) and not f.c.sees_through_obscurement() else 1.0
 		var score := -dmin + (8.0 if sees else 0.0) + e.obj.ai_pull(u, cell)
 		if not u.get("reckless", false):   # a complication's reckless unit or wild charge ignores cover
 			score += (5.0 if covered else 0.0) - exposed * 2.0

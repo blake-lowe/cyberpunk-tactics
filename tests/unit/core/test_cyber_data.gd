@@ -11,18 +11,24 @@ const IMPLEMENTED_FX := ["stat", "stat_cap", "skill", "initiative", "ignore_seri
 	# Skill Chip (Combatant.chipped), scanners (kit_skill_bonus), TeleOptics (Attack.long_shot_bonus),
 	# Linear Frames (Combatant.raw_stat)
 	"initiative_activated", "weapon_choice", "popup", "shield", "skill_chip", "skill_bonus", "long_shot_bonus", "long_shot_m",
-	"stat_set"]
+	"stat_set",
+	# phase 2: senses and hazards (Combatant.sees_through_obscurement, perception_bonus, immune_to,
+	# sense_range; Encounter.sight_penalty, obscured_mod, update_reveals)
+	"ignore_obscured", "perception_bonus", "immune", "radar_m", "motion_sense_m"]
 ## Every fx key the data may use: the implemented ones and those waiting for a system.
 const KNOWN_FX := IMPLEMENTED_FX + ["netrun"]
 ## Phase 1 (combat chrome): each now plays, so each is sold.
 const PHASE1 := ["sandevistan", "popup_ranged_weapon", "popup_melee_weapon", "popup_shield", "popup_grenade_launcher", "dartgun",
 	"skill_chip", "medscanner", "techscanner", "teleoptics", "implanted_linear_frame_sigma", "implanted_linear_frame_beta",
 	"hardened_shielding"]
+## Phase 2 (senses and hazards): each now plays, so each is sold, with the Cyberaudio Suite that holds two.
+const PHASE2 := ["low_light_infrared_uv", "image_enhance", "amplified_hearing", "anti_dazzle", "level_damper", "nasal_filters",
+	"independent_air_supply", "radar_sonar_implant", "tactile_boost", "cyberaudio_suite"]
 const HOSTS := ["fashion", "neural_link", "chipware", "eye", "cyberaudio", "internal", "external", "arm", "leg", "limb", "borgware"]
 ## Modelled with no fx of their own: read by the rules by id (teargas: Attack.apply_status; the
 ## smartgun link: Attack.handling_reason), or foundations that hold a modelled piece.
 ## Hardened Shielding: Attack.microwaver_targets.
-const BY_CODE := ["cybereye", "subdermal_grip", "neural_link", "chipware_socket", "hardened_shielding"]
+const BY_CODE := ["cybereye", "subdermal_grip", "neural_link", "chipware_socket", "hardened_shielding", "cyberaudio_suite"]
 
 
 func test_every_piece_is_cited_and_placed() -> void:
@@ -70,8 +76,8 @@ func test_the_market_only_sells_chrome_that_plays() -> void:
 		var need := Cyber.needs(id)
 		assert_true(need == "" or Cyber.modelled(need), "%s: its foundation %s is sold too" % [id, need])
 	assert_true(sold >= 12, "at least the twelve pieces sold before (%d)" % sold)
-	for id in ["wolvers", "big_knucks", "rippers", "vampyres", "kerenzikov", "targeting_scope"] + PHASE1:
+	for id in ["wolvers", "big_knucks", "rippers", "vampyres", "kerenzikov", "targeting_scope"] + PHASE1 + PHASE2:
 		assert_true(Cyber.modelled(id), "%s plays" % id)
 		assert_true(NightMarket.matching({"kind": "cyberware"}).any(func(k): return Items.base_id(k) == id), "%s on sale" % id)
-	for id in ["biomonitor", "level_damper", "anti_dazzle", "cyberleg", "interface_plugs", "artificial_shoulder_mount"]:
+	for id in ["biomonitor", "radar_detector", "microoptics", "cyberleg", "interface_plugs", "artificial_shoulder_mount"]:
 		assert_false(Cyber.modelled(id), "%s waits for its system" % id)

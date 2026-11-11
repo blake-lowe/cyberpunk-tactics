@@ -71,6 +71,17 @@ CYBER_FX = {
     "teleoptics": {"long_shot_bonus": 1, "long_shot_m": 51},   # single shot or Aimed Shot at 51 m+ (p.361)
     "implanted_linear_frame_sigma": {"stat_set": {"BODY": 12}},   # p.367
     "implanted_linear_frame_beta": {"stat_set": {"BODY": 14}},    # p.367
+    # Phase 2, senses and hazards (Combatant.sees_through_obscurement / perception_bonus / immune_to,
+    # Encounter: smoke, spotting, reveals). Hazards: flash, loud_noise, inhaled (Combatant.HAZARDS).
+    "low_light_infrared_uv": {"ignore_obscured": True},      # darkness, smoke, fog etc. penalties to 0 (p.360)
+    "image_enhance": {"perception_bonus": {"sight": 2}},     # +2 Perception for Checks which include sight (p.360)
+    "amplified_hearing": {"perception_bonus": {"hearing": 2}},   # ... which include hearing (p.361)
+    "anti_dazzle": {"immune": ["flash"]},                    # blindness etc. from dangerous flashes (p.360)
+    "level_damper": {"immune": ["loud_noise"]},              # deafness etc. from dangerously loud noises (p.361)
+    "nasal_filters": {"immune": ["inhaled"]},                # toxic gasses, fumes: anything inhaled (p.363)
+    "independent_air_supply": {"immune": ["inhaled"]},       # 30 minutes of its own air (p.363): longer than a gig
+    "radar_sonar_implant": {"radar_m": 50},                  # scans 50 m, not behind cover (p.363)
+    "tactile_boost": {"motion_sense_m": 20},                 # motion within 20 m, a hand on a surface (p.359)
 }
 
 # Installation prerequisites beyond the slot model (Campaign.install_block): a minimum STAT and pieces
@@ -162,6 +173,17 @@ SUMMARY = {
     "implanted_linear_frame_sigma": "BODY 12: more HP. Needs BODY 6 and Grafted Muscle.",
     "implanted_linear_frame_beta": "BODY 14: more HP. Needs BODY 8 and two Grafted Muscle.",
     "hardened_shielding": "This limb's chrome can't be knocked out by EMP.",
+    # Phase 2: senses and hazards
+    "cyberaudio_suite": "Holds 3 cyberaudio options.",
+    "low_light_infrared_uv": "See through darkness, smoke and bad weather: no penalties.",
+    "image_enhance": "+2 Perception when looking.",
+    "amplified_hearing": "+2 Perception when listening.",
+    "anti_dazzle": "Flashes can't blind you.",
+    "level_damper": "Loud noises can't deafen you.",
+    "nasal_filters": "Toxic gas can't hurt you.",
+    "independent_air_supply": "Its own air: toxic gas can't hurt you.",
+    "radar_sonar_implant": "Shows anyone within 50 m who isn't behind cover.",
+    "tactile_boost": "Hand on the ground: shows anyone moving within 20 m.",
 }
 
 FOUNDATION_OF_HOST = {"neural_link": "neural_link", "chipware": "chipware_socket", "eye": "cybereye",

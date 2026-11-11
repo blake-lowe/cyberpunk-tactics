@@ -303,10 +303,13 @@
    "hl_flat": 7,
    "cost": 100,
    "borgware": false,
+   "fx": {
+    "motion_sense_m": 20
+   },
    "host": "chipware",
    "slots": 0,
    "needs": "chipware_socket",
-   "unmodelled": true,
+   "summary": "Hand on the ground: shows anyone moving within 20 m.",
    "cite": "CPR core p.112, p.359-360"
   },
   "cybereye": {
@@ -335,11 +338,16 @@
    "hl_flat": 2,
    "cost": 100,
    "borgware": false,
+   "fx": {
+    "immune": [
+     "flash"
+    ]
+   },
    "host": "eye",
    "slots": 1,
    "needs": "cybereye",
    "paired": true,
-   "unmodelled": true,
+   "summary": "Flashes can't blind you.",
    "cite": "CPR core p.112-113, p.360-361"
   },
   "chyron": {
@@ -399,11 +407,16 @@
    "hl_flat": 3,
    "cost": 500,
    "borgware": false,
+   "fx": {
+    "perception_bonus": {
+     "sight": 2
+    }
+   },
    "host": "eye",
    "slots": 1,
    "needs": "cybereye",
    "paired": true,
-   "unmodelled": true,
+   "summary": "+2 Perception when looking.",
    "cite": "CPR core p.112-113, p.360-361"
   },
   "low_light_infrared_uv": {
@@ -415,11 +428,14 @@
    "hl_flat": 3,
    "cost": 500,
    "borgware": false,
+   "fx": {
+    "ignore_obscured": true
+   },
    "host": "eye",
    "slots": 2,
    "needs": "cybereye",
    "paired": true,
-   "unmodelled": true,
+   "summary": "See through darkness, smoke and bad weather: no penalties.",
    "cite": "CPR core p.112-113, p.360-361"
   },
   "microoptics": {
@@ -535,7 +551,7 @@
    "slots": 0,
    "needs": "",
    "unique": true,
-   "unmodelled": true,
+   "summary": "Holds 3 cyberaudio options.",
    "cite": "CPR core p.113, p.361-362"
   },
   "amplified_hearing": {
@@ -547,10 +563,15 @@
    "hl_flat": 3,
    "cost": 100,
    "borgware": false,
+   "fx": {
+    "perception_bonus": {
+     "hearing": 2
+    }
+   },
    "host": "cyberaudio",
    "slots": 1,
    "needs": "cyberaudio_suite",
-   "unmodelled": true,
+   "summary": "+2 Perception when listening.",
    "cite": "CPR core p.113, p.361-362"
   },
   "audio_recorder": {
@@ -622,10 +643,15 @@
    "hl_flat": 2,
    "cost": 100,
    "borgware": false,
+   "fx": {
+    "immune": [
+     "loud_noise"
+    ]
+   },
    "host": "cyberaudio",
    "slots": 1,
    "needs": "cyberaudio_suite",
-   "unmodelled": true,
+   "summary": "Loud noises can't deafen you.",
    "cite": "CPR core p.113, p.361-362"
   },
   "radio_communicator": {
@@ -812,10 +838,15 @@
    "hl_flat": 2,
    "cost": 1000,
    "borgware": false,
+   "fx": {
+    "immune": [
+     "inhaled"
+    ]
+   },
    "host": "internal",
    "slots": 1,
    "needs": "",
-   "unmodelled": true,
+   "summary": "Its own air: toxic gas can't hurt you.",
    "cite": "CPR core p.114, p.362-363"
   },
   "midnight_lady_sexual_implant": {
@@ -857,10 +888,15 @@
    "hl_flat": 2,
    "cost": 100,
    "borgware": false,
+   "fx": {
+    "immune": [
+     "inhaled"
+    ]
+   },
    "host": "internal",
    "slots": 1,
    "needs": "",
-   "unmodelled": true,
+   "summary": "Toxic gas can't hurt you.",
    "cite": "CPR core p.114, p.362-363"
   },
   "radar_sonar_implant": {
@@ -872,10 +908,13 @@
    "hl_flat": 7,
    "cost": 1000,
    "borgware": false,
+   "fx": {
+    "radar_m": 50
+   },
    "host": "internal",
    "slots": 1,
    "needs": "",
-   "unmodelled": true,
+   "summary": "Shows anyone within 50 m who isn't behind cover.",
    "cite": "CPR core p.114, p.362-363"
   },
   "toxin_binders": {

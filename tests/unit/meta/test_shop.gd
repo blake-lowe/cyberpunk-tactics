@@ -62,8 +62,9 @@ func test_categories() -> void:
 	assert_eq(Shop.category_of("drugs/synthcoke"), "Drugs")
 	assert_eq(Shop.category_of("gear/medscanner"), "Gear")
 	var c := _camp(["weapon/assault_rifle"])
-	var all := Shop.entries(c)
+	var all := Shop.entries(c).filter(func(e): return String(e.cat) != "Gear")   # the Anti-Smog Mask (20eb) is a staple now
 	assert_eq(Shop.listed_categories(all), ["Firearms", "Melee", "Armor", "Cyberware", "Grenades", "Drugs"], "the six always; Gear only when on sale")
+	assert_true("Gear" in Shop.listed_categories(Shop.entries(c)), "the fixer always has an Anti-Smog Mask (Everyday, under the staples' cap)")
 	assert_true("Gear" in Shop.listed_categories(Shop.entries(_camp(["gear/medscanner"]))))
 
 
