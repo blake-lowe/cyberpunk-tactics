@@ -4,7 +4,9 @@
 male: assets/third_party/anatomy/anatomy_ink.png: Thomas Milton's standing écorché, front view
 (Rees's Cyclopaedia, "Anatomy, Myology", Plate VIII, 1804; Wellcome Collection, Public Domain Mark).
 Plate X of the same series (1803: the same man a layer deeper, the skeleton showing) is warped onto
-him limb by limb for the deep layer that shows through where chrome is (or the selected place).
+him limb by limb for the deep layer. The screens always show the two as a hybrid (owner: "baseline
+both the male and female skeleton engraving hybrid images"): the deep plate's bones everywhere, the
+surface plate a faint body over them (body_anatomy.gdshader, `skin`).
 
 Source (see assets/third_party/anatomy/README.md): the Wellcome Collection's IIIF image server,
 full size (no rate limit):
@@ -16,9 +18,9 @@ full size (no rate limit):
     python3 tools/gen_anatomy_ink.py /some/dir/V0008060FA.jpg /some/dir/V0008060EB.jpg
 
 female: assets/third_party/anatomy_female/anatomy_female_ink.png: Andrew Bell's superficial anatomy
-of the woman, front view, with his skeleton of a woman (mirrored) warped onto her (Encyclopaedia
-Britannica 3rd ed., 1797-98; Wellcome, Public Domain Mark; assets/third_party/anatomy_female/README.md;
-main_female below):
+of the woman, front view, her raised left arm lowered (bent at the elbow and wrist: pose_arm), with his
+skeleton of a woman (mirrored) laid onto her (Encyclopaedia Britannica 3rd ed., 1797-98; Wellcome,
+Public Domain Mark; assets/third_party/anatomy_female/README.md; main_female below):
 
     curl --http1.1 -o /some/dir/V0008101ER.jpg \
       https://iiif.wellcomecollection.org/image/V0008101ER/full/full/0/default.jpg
@@ -194,12 +196,15 @@ def main(src: str, deep: str, out: str = OUT) -> None:
 # Bell's *Superficial anatomy of the woman: anterior view* (after Bidloo; Wellcome V0008101ER) is the
 # figure; his *Skeleton of a woman: anterior view* (after Sue and Thiroux d'Arconville; Wellcome
 # V0008127), mirrored left to right so its raised arm is her raised arm, is warped onto her for the
-# deep layer. Both are engraved by the same hand for the same edition: they print as a set.
+# deep layer (the trunk, head and legs through landmarks, the arms bone by bone). Both are engraved by
+# the same hand for the same edition: they print as a set. Her left arm, held out with the drape in the
+# plate, is then lowered on every layer at once (pose_arm: bent at the elbow and the wrist, a little
+# at the shoulder), so she stands with her arms at her sides as Milton's man does.
 
 F_OUT = "assets/third_party/anatomy_female/anatomy_female_ink.png"
 F_SIZE = (1181, 1618)
 F_DEEP_SIZE = (2050, 3407)
-F_CROP = (226, 52, 1048, 1580)      # in her plate: the figure and a margin (x0, y0, x1, y1)
+F_CROP = (196, 52, 854, 1580)       # in her plate: the figure and a margin, centred on her (x0, y0, x1, y1)
 F_LO, F_HI = 0.08, 0.20             # her plate is stippled and lighter than Milton's: more of it kept
 F_C0, F_C1 = 0.04, 0.32
 F_GAIN = 1.5                        # how dark her lines print in the light
@@ -288,20 +293,167 @@ def strokes_with(ink, keep, lo, hi, c0, c1) -> np.ndarray:
     return np.clip(x * x * (3 - 2 * x) * soft, 0, 1)
 
 
+BARE_HOLE = 0.035                   # a hole in the bones' mask this lightly inked is paper (left dark)
+
+
 def bones_of(ink: np.ndarray) -> np.ndarray:
     """A bare skeleton's bones: dense ink closed and filled, every large piece (the hands' small bones
-    too); the plate's letters, standing alone on the paper, are too small to stay."""
+    too); the plate's letters, standing alone on the paper, are too small to stay. A hole is filled
+    only where it is engraved (a bone's modelled face, the shadow behind the ribs): a bare one is
+    paper showing between bones (the pelvis's foramina, between the forearm's two bones), which would
+    print as a blank patch of light now that the skeleton shows everywhere."""
     m = ndi.gaussian_filter(ink, 4.0) > 0.2   # (the paper's grain stays under it)
     m = ndi.binary_closing(m, iterations=3)
     holes = ndi.binary_fill_holes(m) & ~m   # only the small ones (not the space between the legs)
     lab, n = ndi.label(holes)
     sizes = ndi.sum(holes, lab, range(1, n + 1))
-    m |= np.isin(lab, 1 + np.nonzero(sizes < 6000)[0])
+    inked = ndi.mean(ink, lab, range(1, n + 1))
+    m |= np.isin(lab, 1 + np.nonzero((sizes < 6000) & (inked > BARE_HOLE))[0])
     m = ndi.binary_opening(m, iterations=2)
     return remove_small_objects(m, max_size=4000)
 
 
-def main_female(src: str, deep: str, out: str = F_OUT) -> None:
+# The arms, joint by joint: shoulder, elbow, wrist, the hand's end (full-size pixels). Her right arm
+# hangs at her side, the hand at her hip in the drape; her left is held out, the hand holding the drape
+# up. The skeleton's (mirrored) are both nearly straight, the hands open.
+F_ARMS = {
+    "right": [(392, 360), (382, 597), (336, 798), (288, 866)],
+    "left": [(636, 334), (755, 468), (905, 494), (985, 566)],
+}
+F_DEEP_ARMS = {
+    "right": [(736, 659), (589, 1178), (433, 1611), (460, 1933)],
+    "left": [(1209, 650), (1467, 1111), (1744, 1444), (1811, 1733)],
+}
+F_DEEP_SCALE = 0.478                # the skeleton plate's pixels to hers (crown to pubis)
+F_DEEP_ARM_R = 70.0                 # an arm's reach round its bones, the skeleton plate's pixels
+F_DEEP_TRUNK = [((995, 165), (973, 1641), 250.0), ((709, 1314), (1236, 1290), 120.0),
+                ((755, 1623), (811, 2933), 90.0), ((1218, 1623), (1133, 2944), 90.0)]
+# The owner (on the first cut): "change the lifted hand and arm pose to be lower (bend at wrist and
+# elbow joint)". Her left forearm turns down about the elbow and the hand about the wrist, the upper
+# arm a little in toward her about the shoulder (degrees, y down: positive turns an arm pointing to the
+# viewer's right downward), so the arm hangs by her side, the elbow a touch bent, the hand down.
+F_ARM_TURNS = (10.0, 51.0, -14.0)  # shoulder, elbow, wrist
+F_ARM_R = 34.0                      # her arm's reach round its bones (her plate's pixels)
+F_TRUNK = [((505, 95), (527, 800), 150.0), ((440, 790), (527, 1421), 95.0), ((620, 790), (602, 1429), 95.0),
+           ((410, 350), (636, 334), 40.0)]   # (the head and trunk, the legs, the shoulders' line)
+
+
+def seg_dist(px: np.ndarray, py: np.ndarray, a, b) -> np.ndarray:
+    """Distance from each point to the segment a-b."""
+    ax, ay = a
+    dx, dy = b[0] - ax, b[1] - ay
+    t = np.clip(((px - ax) * dx + (py - ay) * dy) / max(dx * dx + dy * dy, 1e-9), 0.0, 1.0)
+    return np.hypot(px - ax - t * dx, py - ay - t * dy)
+
+
+def limb_owners(shape, chain, trunk, reach, tau=0.12):
+    """Soft ownership of every pixel of a plate: [the rest of the body, upper arm, forearm, hand], each a
+    softmin over distances to the bones as a fraction of their reach (a wide trunk, a thin limb), so a
+    limb's pixels are cut out cleanly with a soft seam at each joint."""
+    yy, xx = np.mgrid[0:shape[0], 0:shape[1]].astype(np.float32)
+    rest = np.full(shape, np.inf, np.float32)
+    for a, b, r in trunk:
+        rest = np.minimum(rest, seg_dist(xx, yy, a, b) / r)
+    ds = [rest] + [seg_dist(xx, yy, chain[k], chain[k + 1]) / reach for k in range(3)]
+    m = np.minimum.reduce(ds)
+    ws = [np.exp(-(d - m) / tau) for d in ds]
+    s = sum(ws)
+    return [w / s for w in ws]
+
+
+def bone_frame(a, b, p_x, p_y, along: float, across: float, a2, b2):
+    """Points in the frame of the segment a2-b2 mapped into the segment a-b's: along the bone scaled by
+    `along`, across it by `across` (the output's inverse map for one limb segment)."""
+    e2 = np.array(b2, float) - a2
+    e2 /= np.hypot(*e2)
+    n2 = np.array([-e2[1], e2[0]])
+    e = np.array(b, float) - a
+    e /= np.hypot(*e)
+    n = np.array([-e[1], e[0]])
+    u = (p_x - a2[0]) * e2[0] + (p_y - a2[1]) * e2[1]
+    v = (p_x - a2[0]) * n2[0] + (p_y - a2[1]) * n2[1]
+    return a[0] + u * along * e[0] + v * across * n[0], a[1] + u * along * e[1] + v * across * n[1]
+
+
+def sample(img: np.ndarray, sx: np.ndarray, sy: np.ndarray) -> np.ndarray:
+    return ndi.map_coordinates(img, [sy, sx], order=1, mode="constant", cval=0.0)
+
+
+def smooth01(x):
+    x = np.clip(x, 0.0, 1.0)
+    return x * x * (3 - 2 * x)
+
+
+def bend_map(px: np.ndarray, py: np.ndarray, chain, turns):
+    """The inverse map of an arm posed anew (the posed image's points -> the plate's): the upper arm
+    turned about the shoulder, the forearm about the elbow, the hand about the wrist (`turns`, degrees,
+    y down). Each turn is a rotation about its joint by an angle that depends on the direction (and,
+    at the shoulder, the distance) from the joint: the whole turn over the limb beyond the joint, none
+    over the limb before it, eased round both sides between. A rotation about a point keeps every
+    point's distance to it, and the angle eases slower than the direction changes, so the map is one
+    to one: the engraving is turned, never stretched along the limb, and each joint bends smoothly with
+    no seam. (The body round the arm is kept apart by its ownership mask: pose_arm.)"""
+    sh, el, wr, tip = [np.array(p, float) for p in chain]
+    t_sh, t_el, t_wr = [np.radians(t) for t in turns]
+
+    def turn(x, y, c, ang):
+        ca, sa = np.cos(ang), np.sin(ang)
+        dx, dy = x - c[0], y - c[1]
+        return c[0] + dx * ca - dy * sa, c[1] + dx * sa + dy * ca
+
+    def wrap(d):
+        return (d + 180.0) % 360.0 - 180.0
+
+    def angle(v):
+        return float(np.degrees(np.arctan2(v[1], v[0])))
+
+    def eased(d, lo, hi, back):
+        """1 over [lo, hi] (degrees from the posed limb), 0 within 30 degrees of the limb before the
+        joint (at `back`), eased round both sides."""
+        far = back - 360.0 if back > 0 else back
+        near = back + 360.0 if back < 0 else back
+        return np.where(d < lo, smooth01((d - (far + 30.0)) / (lo - far - 30.0)),
+                        np.where(d > hi, smooth01(((near - 30.0) - d) / (near - 30.0 - hi)), 1.0))
+
+    # the posed joints
+    el1 = np.array(turn(el[0], el[1], sh, t_sh))
+    wr1 = np.array(turn(wr[0], wr[1], sh, t_sh))
+    tip1 = np.array(turn(tip[0], tip[1], sh, t_sh))
+    wr2 = np.array(turn(wr1[0], wr1[1], el1, t_el))
+    tip2 = np.array(turn(tip1[0], tip1[1], el1, t_el))
+    upper = angle(el1 - sh)
+    fore = angle(wr2 - el1)
+    hand = angle(tip2 - wr2) + turns[2]
+    # 1: undo the hand's turn about the posed wrist
+    d = wrap(np.degrees(np.arctan2(py - wr2[1], px - wr2[0])) - hand)
+    k = eased(d, -40.0, 40.0, wrap(fore + 180.0 - hand))
+    qx, qy = turn(px, py, wr2, -t_wr * k)
+    # 2: undo the forearm's turn about the posed elbow
+    d = wrap(np.degrees(np.arctan2(qy - el1[1], qx - el1[0])) - fore)
+    k = eased(d, -25.0, 22.0, wrap(upper + 180.0 - fore))
+    qx, qy = turn(qx, qy, el1, -t_el * k)
+    # 3: undo the upper arm's turn about the shoulder, fading in from the joint (the shoulder's cap
+    # barely moves, so the arm meets the trunk where it did)
+    r = np.hypot(qx - sh[0], qy - sh[1])
+    k = smooth01(r / 90.0)
+    return turn(qx, qy, sh, -t_sh * k)
+
+
+def pose_arm(layers, x0: int, y0: int, chain, turns, trunk, reach):
+    """Layers (crops of a plate at x0, y0) with an arm posed anew: the arm (by soft ownership:
+    limb_owners) lifted off the body, turned (bend_map) and laid back over the body without it. The arm
+    is clear of the body beyond the shoulder, so nothing of the body moves."""
+    h, w = layers[0].shape
+    own = limb_owners((h, w), [(x - x0, y - y0) for x, y in chain], [((a[0] - x0, a[1] - y0), (b[0] - x0, b[1] - y0), r) for a, b, r in trunk], reach)
+    arm = own[1] + own[2] + own[3]
+    yy, xx = np.mgrid[y0:y0 + h, x0:x0 + w].astype(np.float64)
+    bx, by = bend_map(xx, yy, chain, turns)
+    bx -= x0
+    by -= y0
+    return [lay * (1.0 - arm) + sample(lay * arm, bx, by) for lay in layers]
+
+
+def main_female(src: str, deep: str, out: str = F_OUT, pose: bool = True) -> None:
     a = paint_out(load(src, F_SIZE), F_LETTERS)
     ink = ink_of(a)
     keep_poly = polygon_mask(F_KEEP, ink.shape)
@@ -317,26 +469,46 @@ def main_female(src: str, deep: str, out: str = F_OUT) -> None:
     st = strokes_with(ink, keep, F_LO, F_HI, F_C0, F_C1)
     tone = np.clip(ndi.gaussian_filter(ink, 2.5) / F_TONE_REF, 0, 1)
     body = ndi.gaussian_filter(sil.astype(np.float32), 1.5) * np.clip(1.0 - st * F_GAIN, 0, 1) * (1.0 - F_TONE * tone)
-    edge = outline(sil)
-    # the skeleton, mirrored, its bones printed as light, warped onto her
+    # the skeleton, mirrored, its bones printed as light
     d = load(deep, F_DEEP_SIZE)[:, ::-1]
     dink = ink_of(d)
     bones = bones_of(dink)
-    dprint = print_light(strokes_with(dink, ndi.binary_dilation(bones, iterations=2), LO, HI, C0, C1), bones)
-    pts = mid_points_of(F_LANDMARKS, F_MIDS)
-    dst = np.array([p for p, _ in pts], dtype=np.float64)
-    srcp = np.array([q for _, q in pts], dtype=np.float64)
-    t = PiecewiseAffineTransform.from_estimate(dst, srcp)
+    dprint = print_light(strokes_with(dink, ndi.binary_dilation(bones, iterations=2), LO, HI, C0, C1), bones).astype(np.float32)
     x0, y0, x1, y1 = F_CROP
-    sub = (slice(y0, y1), slice(x0, x1))
-
-    def crop_map(coords):
-        return t(coords + np.array([x0, y0]))
-
-    deep_c = warp(dprint, crop_map, output_shape=(y1 - y0, x1 - x0), order=1, mode="constant", cval=0.0)
-    sil_c = ndi.gaussian_filter(sil[sub].astype(np.float32), 1.5)
-    deep_c *= np.clip(ndi.gaussian_filter(sil[sub].astype(np.float32), 2.0) * 1.5, 0, 1)
-    rgba = np.stack([body[sub], sil_c, deep_c, edge[sub]], axis=-1)
+    wx1 = max(x1, F_SIZE[0])   # worked on to the plate's right edge (her left hand, held out), cropped last
+    yy, xx = np.mgrid[y0:y1, x0:wx1].astype(np.float64)   # her plate's pixels over the work
+    # its trunk, head and legs warped onto her through the landmarks (the arms cut out of it)...
+    pts = mid_points_of(F_LANDMARKS, F_MIDS)
+    t = PiecewiseAffineTransform.from_estimate(np.array([p for p, _ in pts], float), np.array([q for _, q in pts], float))
+    sxy = t(np.stack([xx.ravel(), yy.ravel()], axis=1))
+    sx, sy = sxy[:, 0].reshape(xx.shape), sxy[:, 1].reshape(xx.shape)
+    rest = np.ones_like(dprint)
+    arms = []
+    for side in ("right", "left"):
+        own = limb_owners(dprint.shape, F_DEEP_ARMS[side], F_DEEP_TRUNK, F_DEEP_ARM_R)
+        rest *= own[0]
+        arms.append(own[1:])
+    deep_c = sample(dprint * rest, sx, sy)
+    # ...and its arms laid along hers bone by bone (each bone's length to hers, its width to scale: a
+    # piecewise-affine warp through a few landmarks folded them where her arms bend more than its)
+    for side, own in zip(("right", "left"), arms):
+        src_c, dst_c = F_DEEP_ARMS[side], F_ARMS[side]
+        for k in range(3):
+            ls = np.hypot(src_c[k + 1][0] - src_c[k][0], src_c[k + 1][1] - src_c[k][1])
+            ld = np.hypot(dst_c[k + 1][0] - dst_c[k][0], dst_c[k + 1][1] - dst_c[k][1])
+            along = ls / ld if k < 2 else 1.5 / F_DEEP_SCALE   # a hand shortened by half again (hers close round the drape)
+            bx, by = bone_frame(src_c[k], src_c[k + 1], xx, yy, along, 1.0 / F_DEEP_SCALE, dst_c[k], dst_c[k + 1])
+            deep_c += sample(dprint * own[k], bx, by)
+    body_c = body[y0:y1, x0:wx1]
+    silf = sil[y0:y1, x0:wx1].astype(np.float32)
+    if pose:   # her left arm lowered: every layer turned the same way
+        body_c, silf, deep_c = pose_arm([body_c, silf, deep_c], x0, y0, F_ARMS["left"], F_ARM_TURNS, F_TRUNK, F_ARM_R)
+    body_c, silf, deep_c = [lay[:, :x1 - x0] for lay in (body_c, silf, deep_c)]
+    silb = silf > 0.5
+    edge = outline(silb)
+    sil_c = ndi.gaussian_filter(silb.astype(np.float32), 1.5)
+    deep_c *= np.clip(ndi.gaussian_filter(silb.astype(np.float32), 2.0) * 1.5, 0, 1)
+    rgba = np.stack([body_c, sil_c, deep_c, edge], axis=-1)
     h = y1 - y0
     w = x1 - x0
     ow = round(w * OUT_H / h)

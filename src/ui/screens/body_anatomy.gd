@@ -8,19 +8,23 @@ extends Control
 ##   with Plate X (the same man a layer deeper, to the bones) warped onto him
 ##   (assets/third_party/anatomy/README.md);
 ## - female: Andrew Bell's superficial anatomy of the woman, front view (Encyclopaedia Britannica, 3rd
-##   ed., after Bidloo, 1798), with Bell's skeleton of a woman from the same edition warped onto her
-##   (assets/third_party/anatomy_female/README.md).
-## The engraving's lines glow cyan, its hatching a faint tone, under a horizontal glitch fuzz
-## (body_anatomy.gdshader). Round the figure, redrawn crisp: a height scale in heads, the proportion
-## levels, a centre line, registration marks and notes in an asemic hand (no words). Each body region
-## (bones laid over the plate) takes its tint (ChromeBody.region_tints): chrome violet with the bones
-## showing through and a circuit spine, the selected location gold, external chrome (shell) a dermal
-## mesh. A click on the figure picks the nearest location. Motion (the glitch, a scan line, a pulse on
-## the selected place) stops under reduced motion.
+##   ed., after Bidloo, 1798), her raised left arm lowered (bent at the elbow and wrist), with Bell's
+##   skeleton of a woman from the same edition warped onto her (assets/third_party/anatomy_female/README.md).
+## Either is always shown as the hybrid (owner: "aesthetically I prefer the look of the skeletal hybrid
+## images... drop the skin on versions and baseline both"): the skeleton everywhere with the body a faint
+## engraving over it (SKIN). The engraving's lines glow cyan, its hatching a faint tone, under a
+## horizontal glitch fuzz (body_anatomy.gdshader). Round the figure, redrawn crisp: a height scale in
+## heads, the proportion levels, a centre line, registration marks and notes in an asemic hand (no
+## words). Each body region (bones laid over the plate) takes its tint (ChromeBody.region_tints): chrome
+## violet, its bones barer and brighter, with a circuit spine on a limb; the selected location gold;
+## external chrome (shell) a dermal mesh. A click on the figure picks the nearest location. Motion (the
+## glitch, a scan line, a pulse on the selected place) stops under reduced motion.
 
 const MEAT := Color("05d9e8")   ## Hud.CYAN
 const SHADER := preload("res://src/ui/screens/body_anatomy.gdshader")
 const LINE := Color(0.02, 0.85, 0.91, 0.5)
+## The surface plate's share of the print over the skeleton (the shader's `skin`): a faint body.
+const SKIN := 0.22
 
 ## Each plate's geometry, in its ink texture's pixels (tools/gen_anatomy_ink.py): the crown (the top
 ## of the head), the soles (the heels' line), the chin, the centre line's x, the navel; the bones laid
@@ -72,42 +76,43 @@ const PLATES := {
 	},
 	"female": {
 		"ink": preload("res://assets/third_party/anatomy_female/anatomy_female_ink.png"),
-		"size": Vector2(1102, 2048), "crown": 25.5, "sole": 2001.0, "chin": 258.7, "axis": 400.8, "navel": Vector2(405, 775),
+		"size": Vector2(882, 2048), "crown": 25.5, "sole": 2001.0, "chin": 258.7, "axis": 441.0, "navel": Vector2(445, 775),
 		"bones": [
-			[Vector2(389, 159), Vector2(394, 159), 13.4, ChromeBody.Reg.R_EYE],
-			[Vector2(452, 177), Vector2(457, 177), 13.4, ChromeBody.Reg.L_EYE],
-			[Vector2(494, 178), Vector2(495, 196), 16.1, ChromeBody.Reg.EAR],   # her left ear, under the hair
-			[Vector2(377, 51), Vector2(407, 236), 99.2, ChromeBody.Reg.HEAD],
-			[Vector2(397, 272), Vector2(393, 339), 53.6, ChromeBody.Reg.NECK],
-			[Vector2(394, 373), Vector2(403, 734), 201.0, ChromeBody.Reg.TORSO],
-			[Vector2(403, 734), Vector2(403, 989), 167.5, ChromeBody.Reg.TORSO],
+			[Vector2(429, 159), Vector2(434, 159), 13.4, ChromeBody.Reg.R_EYE],
+			[Vector2(492, 177), Vector2(497, 177), 13.4, ChromeBody.Reg.L_EYE],
+			[Vector2(534, 178), Vector2(535, 196), 16.1, ChromeBody.Reg.EAR],   # her left ear, under the hair
+			[Vector2(417, 51), Vector2(447, 236), 99.2, ChromeBody.Reg.HEAD],
+			[Vector2(437, 272), Vector2(433, 339), 53.6, ChromeBody.Reg.NECK],
+			[Vector2(434, 373), Vector2(443, 734), 201.0, ChromeBody.Reg.TORSO],
+			[Vector2(443, 734), Vector2(443, 989), 167.5, ChromeBody.Reg.TORSO],
 			# her right arm (the viewer's left, down by her side, the hand at her hip holding the drape)
-			[Vector2(236, 420), Vector2(228, 741), 34.8, ChromeBody.Reg.R_ARM],
-			[Vector2(228, 741), Vector2(146, 996), 32.2, ChromeBody.Reg.R_ARM],
-			[Vector2(146, 996), Vector2(92, 1080), 50.9, ChromeBody.Reg.R_ARM],
-			# her left arm, held out (the forearm and hand: fashionware's)
-			[Vector2(555, 393), Vector2(696, 560), 40.2, ChromeBody.Reg.L_ARM],
-			[Vector2(696, 560), Vector2(919, 600), 34.8, ChromeBody.Reg.L_FORE],
-			[Vector2(919, 600), Vector2(1013, 688), 53.6, ChromeBody.Reg.L_FORE],
+			[Vector2(276, 420), Vector2(268, 741), 34.8, ChromeBody.Reg.R_ARM],
+			[Vector2(268, 741), Vector2(186, 996), 32.2, ChromeBody.Reg.R_ARM],
+			[Vector2(186, 996), Vector2(132, 1080), 50.9, ChromeBody.Reg.R_ARM],
+			# her left arm, lowered (tools/gen_anatomy_ink.py, F_ARM_TURNS: the forearm and hand hang by
+			# her side; they are fashionware's)
+			[Vector2(595, 393), Vector2(716, 583), 40.2, ChromeBody.Reg.L_ARM],
+			[Vector2(716, 583), Vector2(783, 775), 34.8, ChromeBody.Reg.L_FORE],
+			[Vector2(783, 775), Vector2(785, 915), 53.6, ChromeBody.Reg.L_FORE],
 			# legs: thigh, shin, foot
-			[Vector2(316, 1029), Vector2(358, 1405), 93.8, ChromeBody.Reg.R_LEG],
-			[Vector2(358, 1405), Vector2(403, 1827), 53.6, ChromeBody.Reg.R_LEG],
-			[Vector2(403, 1840), Vector2(357, 1994), 53.6, ChromeBody.Reg.R_LEG],
-			[Vector2(512, 1029), Vector2(464, 1421), 93.8, ChromeBody.Reg.L_LEG],
-			[Vector2(464, 1421), Vector2(504, 1834), 53.6, ChromeBody.Reg.L_LEG],
-			[Vector2(504, 1847), Vector2(555, 1961), 53.6, ChromeBody.Reg.L_LEG],
+			[Vector2(356, 1029), Vector2(398, 1405), 93.8, ChromeBody.Reg.R_LEG],
+			[Vector2(398, 1405), Vector2(443, 1827), 53.6, ChromeBody.Reg.R_LEG],
+			[Vector2(443, 1840), Vector2(397, 1994), 53.6, ChromeBody.Reg.R_LEG],
+			[Vector2(552, 1029), Vector2(504, 1421), 93.8, ChromeBody.Reg.L_LEG],
+			[Vector2(504, 1421), Vector2(544, 1834), 53.6, ChromeBody.Reg.L_LEG],
+			[Vector2(544, 1847), Vector2(595, 1961), 53.6, ChromeBody.Reg.L_LEG],
 		],
-		"anchors": {"neural_link": Vector2(374, 46), "right_eye": Vector2(391, 159), "left_eye": Vector2(454, 177),
-			"cyberaudio": Vector2(497, 192), "chipware": Vector2(394, 308), "internal": Vector2(397, 560),
-			"borgware": Vector2(558, 407), "right_arm": Vector2(231, 600), "left_arm": Vector2(635, 491),
-			"fashion": Vector2(836, 587), "external": Vector2(290, 1217), "right_leg": Vector2(375, 1606),
-			"left_leg": Vector2(485, 1622)},
+		"anchors": {"neural_link": Vector2(414, 46), "right_eye": Vector2(431, 159), "left_eye": Vector2(494, 177),
+			"cyberaudio": Vector2(537, 192), "chipware": Vector2(434, 308), "internal": Vector2(437, 560),
+			"borgware": Vector2(598, 407), "right_arm": Vector2(271, 600), "left_arm": Vector2(650, 478),
+			"fashion": Vector2(759, 708), "external": Vector2(330, 1217), "right_leg": Vector2(415, 1606),
+			"left_leg": Vector2(525, 1622)},
 		"levels": [25.5, 258.7, 513.3, 774.7, 1022.7, 1404.6, 2001.0],
 		"notes": [
-			[Vector2(582, 131), 1, 3, 11, Vector2(501, 239)],    # over her left shoulder, above the arm
-			[Vector2(13, 265), -1, 2, 21, Vector2(300, 239)],    # by her right cheek
-			[Vector2(13, 1673), -1, 3, 31, Vector2(327, 1713)],  # by her right shin
-			[Vector2(622, 1606), 1, 2, 41, Vector2(517, 1659)],  # by her left shin
+			[Vector2(622, 131), 1, 3, 11, Vector2(541, 239)],    # over her left shoulder
+			[Vector2(53, 265), -1, 2, 21, Vector2(340, 239)],    # by her right cheek
+			[Vector2(53, 1673), -1, 3, 31, Vector2(367, 1713)],  # by her right shin
+			[Vector2(662, 1606), 1, 2, 41, Vector2(557, 1659)],  # by her left shin
 		],
 	},
 }
@@ -227,6 +232,7 @@ func _build() -> void:
 	_mat.set_shader_parameter("tints", cols)
 	_mat.set_shader_parameter("plated", plated)
 	_mat.set_shader_parameter("meat", MEAT)
+	_mat.set_shader_parameter("skin", SKIN)
 	_mat.set_shader_parameter("shell", shell)
 	_mat.set_shader_parameter("motion", 1.0 if motion else 0.0)
 	_mat.set_shader_parameter("selected", sel)

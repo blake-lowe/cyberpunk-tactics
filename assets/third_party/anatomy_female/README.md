@@ -20,12 +20,27 @@ holds a drape that falls behind her from both hands: where she meets the drape t
 below the knees all round), everything outside it cut away (the drape, the title, plate number and
 imprint); the plate printed in reverse as light. The skeleton plate was mirrored left to right (so its
 raised arm is her raised arm), its bones found and printed as light the same way (the plate's letters
-standing alone on the paper drop out; a few touching the bones remain as small marks), and warped onto
-her pose through hand-placed landmark pairs. Nothing is traced into the drawing or added: the anatomy
-is Bell's.
+standing alone on the paper drop out; a few touching the bones remain as small marks; holes in the
+bones' mask are filled only where engraved, so bare paper between bones, such as the pelvis's
+foramina, stays dark), and laid onto her pose: the trunk, head and legs by a piecewise affine warp
+through hand-placed landmark pairs, each arm bone by bone (upper arm, forearm, hand, each scaled to
+her bone's length and to her width; the landmark warp had folded the forearms and hands into smears).
+
+Her left arm, held out with the drape in the plate, was then lowered (owner, 2026-11-11: "change the
+lifted hand and arm pose to be lower (bend at wrist and elbow joint)"), on her, her silhouette and the
+skeleton alike: the arm lifted off the body by a soft ownership mask (distance to its bones against
+the trunk's), then the forearm turned 51 degrees down about the elbow, the hand 14 back about the
+wrist (it hangs), the upper arm 10 in about the shoulder, and laid back. Each turn is a rotation about
+its joint whose angle eases with the direction from it, so the engraving turns as a piece: nothing is
+stretched along the arm and the elbow and wrist bend without a seam (`F_ARM_TURNS`, `bend_map`,
+`pose_arm`). Her drape-holding hand keeps its grip on a scrap of the cut-away drape (it reads as a
+loosely closed hand). The crop was narrowed and centred on her (`F_CROP`), so the file is 882 x 2048.
+`python3 tools/gen_anatomy_ink.py female ...` rebuilds it; `main_female(..., pose=False)` gives the
+plate's own pose. Nothing is traced into the drawing or added: the anatomy is Bell's.
 
 Channels: R the woman as light, G her silhouette, B the skeleton as light (mirrored, warped), A the
-outline. Import it with `process/fix_alpha_border=false` (every channel is data).
+outline. Import it with `process/fix_alpha_border=false` (every channel is data). The game always
+shows them as the hybrid, the skeleton through her faint body (see `assets/third_party/anatomy/README.md`).
 
 Why these: the brief was a female counterpart to Milton's plates that reads as a set under the same
 treatment (a line engraving of similar density, front view, standing, whole body, real anatomy,
