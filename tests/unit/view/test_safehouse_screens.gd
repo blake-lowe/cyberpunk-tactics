@@ -154,8 +154,11 @@ func test_ripperdoc_installs_from_storage_and_removes_on_a_second_press() -> voi
 	var s: MedBayScreen = _open(MedBayScreen.new(), camp, "ripperdoc")
 	var eb := camp.eb
 	s._select_loc("left_eye")   # the eye goes in on the side picked on the silhouette
-	var inst := _buttons(s, "INSTALL")
-	assert_eq(inst.size(), 1)
+	var open := _buttons(s, "INSTALL CYBEREYE")
+	assert_eq(open.size(), 1, "a meat eye offers a cybereye")
+	open[0].pressed.emit()
+	var inst := _buttons(s, "INSTALL").filter(func(b): return b.text == "INSTALL")
+	assert_eq(inst.size(), 1, "the picker: the stored Cybereye")
 	var n := c.implants.size()
 	inst[0].pressed.emit()
 	assert_eq(c.implants.size(), n + 1, "installed on the selected crew member")
@@ -166,7 +169,7 @@ func test_ripperdoc_installs_from_storage_and_removes_on_a_second_press() -> voi
 	rm[0].pressed.emit()
 	assert_eq(c.implants.size(), n + 1, "the first press only asks")
 	var confirm := _buttons(s, "DESTROY IT")
-	assert_eq(confirm.size(), 1)
+	assert_eq(confirm.size(), 1, "in a popup")
 	confirm[0].pressed.emit()
 	assert_eq(c.implants.size(), n, "the second takes it out")
 	s.free()

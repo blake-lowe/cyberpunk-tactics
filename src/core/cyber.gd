@@ -46,11 +46,16 @@ const HOST_LOCS := {"fashion": ["fashion"], "neural_link": ["neural_link"], "chi
 	"limb": ["right_arm", "left_arm", "right_leg", "left_leg"], "borgware": ["borgware"]}
 ## Categories with no foundation hold at most 7 Option Slots' worth each (CPR core p.111).
 const OPEN_CAPACITY := {"fashion": 7, "internal": 7, "external": 7}
-## Player-facing names of the locations.
+## Player-facing names of the locations. Internal and External Cyberware are the book's categories
+## (CPR core p.110, p.114): in the body like organs, and in, on or through the skin.
 const LOC_NAMES := {"fashion": "fashionware", "neural_link": "neural link", "chipware": "chipware socket",
 	"right_eye": "right eye", "left_eye": "left eye", "cyberaudio": "cyberaudio suite", "right_arm": "right arm",
-	"left_arm": "left arm", "right_leg": "right leg", "left_leg": "left leg", "internal": "body",
-	"external": "skin", "borgware": "borgware"}
+	"left_arm": "left arm", "right_leg": "right leg", "left_leg": "left leg", "internal": "internal cyberware",
+	"external": "external cyberware", "borgware": "borgware"}
+## Locations the screens show and sell for (owner, 2026-11-11: Borgware is descoped from the UI for now;
+## the model here still places and plays one that is installed, a Linear Frame's BODY included).
+const SHOWN_LOCS: Array[String] = ["neural_link", "chipware", "right_eye", "left_eye", "cyberaudio", "right_arm", "left_arm",
+	"right_leg", "left_leg", "internal", "external", "fashion"]
 
 
 static func db() -> Dictionary:
@@ -191,6 +196,12 @@ static func piece_name(piece: Dictionary) -> String:
 static func modelled(id: String) -> bool:
 	var d := def(id)
 	return not d.is_empty() and not d.get("unmodelled", false)
+
+
+## Whether the Night Market sells it: it plays (modelled) and the screens have a place for it
+## (SHOWN_LOCS: no Borgware while that is descoped, so the Linear Frames aren't sold).
+static func sold(id: String) -> bool:
+	return modelled(id) and locs_for(id).any(func(l): return l in SHOWN_LOCS)
 
 
 ## The Med Bay's one-line description (player text).

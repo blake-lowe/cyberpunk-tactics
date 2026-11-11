@@ -98,6 +98,17 @@ func test_pips_follow_the_slot_model() -> void:
 	assert_eq(ChromeBody.line(imp, "left_eye"), "Meat")
 	assert_eq(ChromeBody.line([{"id": "biomonitor", "loc": "fashion"}], "fashion"), "Biomonitor", "never \"Occupied\"")
 	assert_eq(ChromeBody.line([{"id": "cyberleg", "loc": "right_leg"}], "right_leg"), "Cyberleg", "an unplayed foundation by its name")
+	# the cards' lines (owner, playtest): the foundation, greyed "not installed" without one, then the pieces
+	assert_eq(ChromeBody.foundation_line(imp, "right_eye"), ["Cybereye", true])
+	assert_eq(ChromeBody.foundation_line(imp, "left_eye"), ["Cybereye · not installed", false])
+	assert_eq(ChromeBody.foundation_line([], "neural_link"), ["Neural Link · not installed", false], "no Neural Link: greyed")
+	assert_eq(ChromeBody.foundation_line(imp, "chipware"), ["Chipware Socket", true])
+	assert_eq(ChromeBody.foundation_line(imp, "right_arm"), ["Cyberarm · not installed", false], "a meat arm")
+	assert_eq(ChromeBody.foundation_line(imp, "internal"), ["", false], "the open categories take no foundation")
+	assert_eq(ChromeBody.options_line(imp, "right_eye"), "Targeting Scope · " + Cyber.display("microoptics"))
+	assert_eq(ChromeBody.options_line(imp, "right_arm"), Cyber.display("subdermal_grip"), "a meat arm's one piece")
+	assert_eq(ChromeBody.options_line(imp, "internal"), "Empty")
+	assert_eq(ChromeBody.options_line(imp, "left_eye"), "")
 
 
 func test_med_bay_markers_match_capacity_for_every_crew_member() -> void:
@@ -107,14 +118,26 @@ func test_med_bay_markers_match_capacity_for_every_crew_member() -> void:
 		var s := _open(MedBayScreen.new(), camp, "ripperdoc", i)
 		var body := _body(s)
 		assert_true(body != null, "the silhouette")
-		assert_eq(body.cards.size(), Cyber.LOCS.size(), "a card per location")
-		for loc in Cyber.LOCS:
+		assert_eq(body.cards.size(), ChromeBody.LOCS.size(), "a card per shown location")
+		assert_false(body.cards.has("borgware"), "no Borgware card (descoped)")
+		for loc in ChromeBody.LOCS:
 			var card: Control = body.cards[loc]
 			var ps: Array = card.get_meta("pips")
 			assert_eq(ps.size(), _expected(c.implants, loc), "%s: %s" % [c.display_name, loc])
 			var pr := card.find_child("Pips", true, false)
 			assert_eq(pr.get_child_count() if pr else 0, ps.size(), "one marker per slot")
-		assert_true(_texts(s).any(func(t): return String(t).begins_with("HUMANITY %d/%d" % [c.humanity, c.max_humanity])), "Humanity stays on screen")
+			assert_eq((card.find_child("Heading", true, false) as Label).text, UiKit.caps(String(ChromeBody.CATEGORY[loc])), "%s: headed by its book category" % loc)
+			var side := card.find_child("Side", true, false) as Label
+			assert_eq(side.text if side else "", UiKit.caps(String(ChromeBody.SIDE.get(loc, ""))), "%s: left/right kept for eyes, arms, legs" % loc)
+			var fnd := card.find_child("Foundation", true, false) as Label
+			if ChromeBody.FOUNDATION.has(loc):
+				var fl := ChromeBody.foundation_line(c.implants, loc)
+				assert_eq(fnd.text.replace("\n", " · "), String(fl[0]), "%s: its foundation line" % loc)
+				assert_eq(fnd.get_theme_color("font_color") == Hud.TEXT, bool(fl[1]), "%s: greyed when not installed" % loc)
+			else:
+				assert_true(fnd == null, "%s: no foundation" % loc)
+		var hum: Control = _live(s, "Humanity")[0]
+		assert_eq([int(hum.get_meta("value")), int(hum.get_meta("max"))], [c.humanity, c.max_humanity], "Humanity stays on screen, as a bar")
 		s.free()
 
 
@@ -123,17 +146,23 @@ func test_blocked_install_says_why() -> void:
 	var c: Combatant = camp.alive_crew()[2]   # a Cybereye already in the right eye
 	assert_eq(Cyber.foundation_at(c.implants, "right_eye"), "cybereye")
 	camp.stash["cyberware/cybereye"] = 1
+	camp.stash["cyberware/anti_dazzle"] = 1   # paired: needs a cybereye in each eye
 	var s: MedBayScreen = _open(MedBayScreen.new(), camp, "ripperdoc", 2)
 	s._select_loc("right_eye")
-	var row := _live(s, "Stored_cybereye")
-	assert_eq(row.size(), 1, "the Cybereye in storage is listed for the eye")
-	var why := camp.install_block(c, "cybereye", "right_eye")
-	assert_true(why != "")
+	assert_true(_live(s, "InstallFoundation").is_empty(), "a cybereye already: no INSTALL CYBEREYE")
+	s._open_picker("slot")
+	assert_true(_live(s, "Stored_cybereye").is_empty(), "a free slot lists options, not another cybereye")
+	var row := _live(s, "Stored_anti_dazzle")
+	assert_eq(row.size(), 1, "the stored option for the eye is listed")
+	var why := camp.install_block(c, "anti_dazzle", "right_eye")
+	assert_eq(why, "Needs two cybereyes")
 	var blocked := (row[0] as Node).find_child("Blocked", true, false) as Label
 	assert_true(blocked != null, "a blocked install shows its reason")
 	assert_eq(blocked.text, UiKit.caps("⚠ " + why))
 	assert_true(_buttons(row[0], "INSTALL").is_empty(), "and no INSTALL")
 	s._select_loc("left_eye")
+	assert_true(s._picker == "", "another place closes the picker")
+	_buttons(s, "INSTALL CYBEREYE")[0].pressed.emit()
 	assert_eq(_buttons(_live(s, "Stored_cybereye")[0], "INSTALL").size(), 1, "the other eye takes it")
 	var card: Control = _body(s).cards["left_eye"]
 	assert_true(card.find_child("Hint", true, false) != null, "the card says something in storage fits")
@@ -147,12 +176,17 @@ func test_install_and_remove_go_through_the_campaign() -> void:
 	var s: MedBayScreen = _open(MedBayScreen.new(), camp, "ripperdoc", 1)
 	s._select_loc("external")
 	var hum := c.humanity
+	# the keyboard: the first free slot is picked; Enter opens storage filtered to it
+	assert_eq(s._pick, "slot")
+	_key(s, KEY_ENTER)
+	assert_eq(s._picker, "slot")
 	_buttons(_live(s, "Stored_skin_weave")[0], "INSTALL")[0].pressed.emit()
 	assert_true(c.implant("skin_weave", "external").size() > 0, "installed on the skin")
+	assert_eq(s._picker, "", "the picker closes")
 	assert_eq(camp.stored("cyberware/skin_weave"), 0, "out of storage")
 	assert_true(c.humanity < hum, "Humanity Loss")
 	assert_true(camp.log[-1].contains("Skin Weave installed"), camp.log[-1])
-	# the keyboard: the installed piece is the first choice; Del asks, Enter destroys it
+	# the installed piece is the first choice; Del asks, Enter destroys it
 	assert_eq(s._pick, "remove:skin_weave")
 	_key(s, KEY_DELETE)
 	assert_eq(s._confirm, "skin_weave@external", "asked first")
@@ -190,7 +224,7 @@ func test_keyboard_moves_between_places_and_crew() -> void:
 	assert_eq(s.loc, "chipware", "↓: the next place on the body")
 	_key(s, KEY_UP)
 	_key(s, KEY_UP)
-	assert_eq(s.loc, "borgware", "↑ wraps")
+	assert_eq(s.loc, "fashion", "↑ wraps (no Borgware stop)")
 	_key(s, KEY_E)
 	assert_eq(s.sel, 1, "E: next crew member")
 	var closed := []
@@ -231,9 +265,10 @@ func test_loadout_screen_shows_the_body_and_the_gear() -> void:
 	var c: Combatant = crew[0]
 	var body := _body(lo)
 	assert_true(body != null, "the silhouette")
-	for loc in Cyber.LOCS:
+	for loc in ChromeBody.LOCS:
 		assert_eq((body.cards[loc] as Control).get_meta("pips").size(), _expected(c.implants, loc), "read-only markers at " + loc)
 	var texts := _texts(lo)
+	assert_false(texts.any(func(t): return String(t).contains("ESC CLOSE") or String(t).contains("↑↓")), "no key hints along the bottom")
 	assert_true("WEAPONS" in texts and "ARMOR" in texts and "KIT" in texts, "the gear to the side")
 	for w in c.weapons:
 		assert_true(texts.any(func(t): return String(t) == (Loadout.chrome_name(c, w) if w.builtin else w.display_name())), "weapon %s listed" % w.id())
@@ -285,6 +320,8 @@ func test_a_chip_installs_as_what_it_was_bought_for() -> void:
 	camp.stash["cyberware/skill_chip@handgun"] = 1
 	var s: MedBayScreen = _open(MedBayScreen.new(), camp, "ripperdoc", 1)
 	s._select_loc("chipware")
+	assert_eq(_live(s, "Slot_*").size(), 1, "one free socket: one slot card")
+	s._open_picker("slot")
 	var opts := s._install_choices(c, "skill_chip")
 	assert_eq(opts.map(func(o): return o[1]), ["Stealth", "Handgun"], "one option per chip in storage, by its Skill")
 	assert_eq(camp.install_block(c, "skill_chip", "chipware"), "", "a chip is in storage")
@@ -339,8 +376,9 @@ func test_the_plate_follows_the_body_type() -> void:
 
 
 ## Each plate (the man's, the woman's): every anchor sits on the figure (inside the plate's
-## silhouette) in its own body region (the eyes on the eyes, the ear on the ear, the Fashionware on
-## the left forearm...), and every bone runs over the figure. On screen each keeps an anchor per
+## silhouette) in its own body region (the eyes on the eyes, the ear on the ear, the Fashionware's
+## light tattoo at the collarbone and the External Cyberware on the flank's skin, both on the
+## trunk...), and every bone runs over the figure. On screen each keeps an anchor per
 ## location (head over chest over legs, the character's right on the viewer's left), between the
 ## card columns so no leader line runs back under its card; the figure fills the height, clear of
 ## the cards, at the Med Bay's and the loadout's sizes; the regions take chrome's violet and the
@@ -348,8 +386,8 @@ func test_the_plate_follows_the_body_type() -> void:
 func test_plates_anchor_on_the_body() -> void:
 	var want := {"neural_link": ChromeBody.Reg.HEAD, "right_eye": ChromeBody.Reg.R_EYE, "left_eye": ChromeBody.Reg.L_EYE,
 		"cyberaudio": ChromeBody.Reg.EAR, "chipware": ChromeBody.Reg.NECK, "internal": ChromeBody.Reg.TORSO,
-		"borgware": ChromeBody.Reg.L_ARM, "right_arm": ChromeBody.Reg.R_ARM, "left_arm": ChromeBody.Reg.L_ARM,
-		"fashion": ChromeBody.Reg.L_FORE, "external": ChromeBody.Reg.R_LEG, "right_leg": ChromeBody.Reg.R_LEG,
+		"right_arm": ChromeBody.Reg.R_ARM, "left_arm": ChromeBody.Reg.L_ARM,
+		"fashion": ChromeBody.Reg.TORSO, "external": ChromeBody.Reg.TORSO, "right_leg": ChromeBody.Reg.R_LEG,
 		"left_leg": ChromeBody.Reg.L_LEG}
 	# the parts of each figure a ripperdoc points at, each in its region (texture pixels)
 	var spots := {
@@ -369,8 +407,8 @@ func test_plates_anchor_on_the_body() -> void:
 		assert_eq(Vector2(img.get_size()), g.size as Vector2, "%s: the geometry is in the plate's pixels" % pl)
 		if img.is_compressed():
 			img.decompress()
-		assert_eq((g.anchors as Dictionary).size(), Cyber.LOCS.size(), "%s: an anchor per location" % pl)
-		for loc in Cyber.LOCS:
+		assert_eq((g.anchors as Dictionary).size(), ChromeBody.LOCS.size(), "%s: an anchor per shown location" % pl)
+		for loc in ChromeBody.LOCS:
 			var p: Vector2 = g.anchors[loc]
 			assert_true(img.get_pixelv(Vector2i(p)).g > 0.5, "%s %s: on the body" % [pl, loc])
 			assert_eq(BodyAnatomy.region_at(p, pl), int(want[loc]), "%s %s: in its region" % [pl, loc])
@@ -394,7 +432,7 @@ func test_plates_anchor_on_the_body() -> void:
 			b._layout()
 			assert_eq(b._art.plate, body)
 			var a := b.anchors
-			assert_eq(a.size(), Cyber.LOCS.size(), "%s %s: an anchor per location" % [body, sz])
+			assert_eq(a.size(), ChromeBody.LOCS.size(), "%s %s: an anchor per shown location" % [body, sz])
 			assert_true(a.neural_link.y < a.right_eye.y and a.right_eye.y < a.internal.y and a.internal.y < a.right_leg.y, "%s: head, eyes, chest, legs top to bottom" % body)
 			assert_true(a.right_eye.x < a.left_eye.x and a.right_arm.x < a.left_arm.x and a.right_leg.x < a.left_leg.x, "%s: their right on the viewer's left" % body)
 			for loc in ChromeBody.LEFT_COL:
@@ -527,3 +565,295 @@ func test_one_figure_no_styles() -> void:
 			"res://assets/third_party/vitruvian/vitruvian_ink.png", "res://src/ui/screens/body_art.gd"]:
 		assert_false(FileAccess.file_exists(path), "%s removed" % path)
 	assert_true(FileAccess.get_file_as_string("res://assets/third_party/anatomy_female/README.md").contains("Public Domain Mark"), "the woman's plates' licence is recorded")
+
+
+
+# --- Owner's playtest notes (2026-11-11) ------------------------------------------------------
+
+func _click(n: Control) -> void:
+	var ev := InputEventMouseButton.new()
+	ev.button_index = MOUSE_BUTTON_LEFT
+	ev.pressed = true
+	n.gui_input.emit(ev)
+
+
+## A demo campaign whose first crew member has no chrome and storage holds no cyberware.
+func _bare() -> Campaign:
+	var camp := DemoState.make()
+	(camp.alive_crew()[0] as Combatant).implants.clear()
+	for k in camp.stash.keys():
+		if Items.is_cyberware(String(k)):
+			camp.stash.erase(k)
+	return camp
+
+
+func _status(s: Node) -> String:
+	return (_live(s, "Status")[0] as Label).text
+
+
+## The figure keeps its look but loses the asemic notes and the gold crosshair at the navel.
+func test_no_notes_or_crosshair_round_the_figure() -> void:
+	var src := FileAccess.get_file_as_string("res://src/ui/screens/body_anatomy.gd")
+	for gone in ["script_line", "GLYPHS", "g.notes", "_p(g.navel)"]:
+		assert_false(src.contains(gone), "the figure has no %s" % gone)
+	for pl: String in BodyAnatomy.PLATES:
+		assert_false((BodyAnatomy.PLATES[pl] as Dictionary).has("notes"), "%s: no notes" % pl)
+	for kept in ["_reg_mark(", "_dashed(", "_dim(", "g.levels"]:
+		assert_true(src.contains(kept), "the rest of the page stays: %s" % kept)
+
+
+## The glitch grows as Humanity falls: smoothly with Humanity / max, a little at full, strong (and
+## always so) in the cyberpsychosis range, full at none. The figure's shader gets it; under reduced
+## motion it holds still but keeps the strength (a still distortion).
+func test_the_glitch_follows_humanity() -> void:
+	var c := _crew_of("male")
+	assert_true(c.tracks_humanity)
+	c.max_humanity = 60
+	var last := -1.0
+	for h in range(60, -1, -1):
+		c.humanity = h
+		var g := ChromeBody.glitch_of(c)
+		assert_true(g >= last - 1e-6, "no calmer as Humanity falls (%d: %.3f)" % [h, g])
+		assert_true(g - maxf(last, 0.0) < 0.1, "a smooth ramp, no jumps (%d)" % h)
+		last = g
+	c.humanity = 60
+	assert_true(ChromeBody.glitch_of(c) < 0.05, "full Humanity: barely (the shader's base fuzz)")
+	c.humanity = 48
+	assert_true(ChromeBody.glitch_of(c) < 0.2, "a little lost: a little more")
+	c.humanity = 25
+	assert_true(c.psychosis_tier() >= 1, "Humanity 25: at risk of cyberpsychosis")
+	assert_true(ChromeBody.glitch_of(c) > 0.75, "at risk: clearly unsettling (%.2f)" % ChromeBody.glitch_of(c))
+	c.humanity = 0
+	assert_eq(ChromeBody.glitch_of(c), 1.0, "none left: all of it")
+	var mook := Combatant.new()
+	assert_eq(ChromeBody.glitch_of(mook), 0.0, "no Humanity tracked: the base fuzz only")
+	var sh := FileAccess.get_file_as_string("res://src/ui/screens/body_anatomy.gdshader")
+	for part in ["uniform float psycho", "shove", "drop", "split"]:
+		assert_true(sh.contains(part), "the shader scales the glitch: %s" % part)
+	Hud._fonts()
+	var seen := []
+	for h in [60, 25]:
+		c.humanity = h
+		var b := ChromeBody.new().setup(c, "left_arm")
+		(Engine.get_main_loop() as SceneTree).root.add_child(b)
+		b.size = Vector2(860, 690)
+		b._layout()
+		seen.append(float(b._art._mat.get_shader_parameter("psycho")))
+		assert_near(seen[-1], ChromeBody.glitch_of(c), 1e-4, "Humanity %d: the figure's glitch" % h)
+		b.free()
+	assert_true(seen[1] > seen[0] + 0.5, "low Humanity glitches far harder")
+	var keep := GameSettings.load_values()
+	var v := keep.duplicate()
+	v.reduced_motion = true
+	GameSettings.save_values(v)
+	var r := ChromeBody.new().setup(c, "left_arm")
+	(Engine.get_main_loop() as SceneTree).root.add_child(r)
+	r.size = Vector2(860, 690)
+	r._layout()
+	assert_eq(float(r._art._mat.get_shader_parameter("motion")), 0.0, "reduced motion: still")
+	assert_near(float(r._art._mat.get_shader_parameter("psycho")), ChromeBody.glitch_of(c), 1e-4, "but as strong, held still")
+	r.free()
+	GameSettings.save_values(keep)
+
+
+## Across the top of both screens: the name, EMP, then Humanity as a bar (current of max). The
+## ripperdoc's crew cards carry neither (EMP was cut off there), and no key hints run along the bottom.
+func test_the_header_shows_emp_and_a_humanity_bar() -> void:
+	var camp := DemoState.make()
+	var c: Combatant = camp.alive_crew()[0]
+	c.humanity = c.max_humanity - 7
+	var s: MedBayScreen = _open(MedBayScreen.new(), camp, "ripperdoc", 0)
+	var lo := _loadout(camp.alive_crew(), 0)
+	for screen: Node in [s, lo]:
+		var hdr: Node = _live(screen, "Header")[0]
+		assert_eq(hdr.get_children().slice(0, 3).map(func(n): return String(n.name)), ["Name", "EMP", "Humanity"], "name, EMP, Humanity in order")
+		assert_eq((hdr.get_node("Name") as Label).text, c.display_name.to_upper())
+		assert_eq((hdr.get_node("EMP").find_child("Value", true, false) as Label).text, str(c.raw_stat("EMP")))
+		var hum: Node = hdr.get_node("Humanity")
+		assert_eq((hum.find_child("Value", true, false) as Label).text, "%d/%d" % [c.humanity, c.max_humanity], "current of max")
+		var bar: ChromeBody.Bar = hum.find_child("Bar", true, false)
+		assert_eq([bar.value, bar.top], [c.humanity, c.max_humanity], "the bar's fill")
+		assert_eq(bar.col, ChromeBody.hum_colour(c))
+		assert_false(_texts(screen).any(func(t): return String(t).contains("Q/E") or String(t).contains("Q / E") or String(t).contains("↑↓")), "no key hints")
+	assert_false(_texts(s).any(func(t): return String(t).contains("· EMP")), "no EMP or Humanity on the crew cards")
+	s.free()
+	lo.free()
+
+
+## Each location's line in the panel (owner: a meat eye just "Meat."; a Cybereye "Cybereye. 3 option
+## slots available", then 2 as options go in), extrapolated to every place.
+func test_the_panel_says_what_a_place_holds() -> void:
+	var none_in: Array = []
+	assert_eq(MedBayScreen.slot_status(none_in, "left_eye"), "Meat.")
+	assert_eq(MedBayScreen.slot_status(none_in, "neural_link"), "No Neural Link.")
+	assert_eq(MedBayScreen.slot_status(none_in, "cyberaudio"), "No Cyberaudio Suite.")
+	assert_true(MedBayScreen.slot_status(none_in, "chipware").begins_with("No Chipware Socket."))
+	assert_eq(MedBayScreen.slot_status(none_in, "right_arm"), "Meat. 1 slot available.")
+	assert_eq(MedBayScreen.slot_status([{"id": "wolvers", "loc": "right_arm"}], "right_arm"), "Meat. No slot available.")
+	assert_eq(MedBayScreen.slot_status(none_in, "internal"), "7 option slots available.")
+	var eye: Array = [{"id": "cybereye", "loc": "left_eye"}]
+	assert_eq(MedBayScreen.slot_status(eye, "left_eye"), "Cybereye. 3 option slots available.")
+	eye.append({"id": "targeting_scope", "loc": "left_eye"})
+	assert_eq(MedBayScreen.slot_status(eye, "left_eye"), "Cybereye. 2 option slots available.")
+	eye.append({"id": "teleoptics", "loc": "left_eye"})
+	assert_eq(MedBayScreen.slot_status(eye, "left_eye"), "Cybereye. 1 option slot available.")
+	assert_eq(MedBayScreen.slot_status([{"id": "cyberleg", "loc": "left_leg"}], "left_leg"), "Cyberleg. 3 option slots available.")
+	for l in ChromeBody.LOCS:
+		var st := MedBayScreen.slot_status(none_in, l)
+		assert_false(st.contains("holds") or st.contains(" p."), "%s: short and plain: %s" % [l, st])
+
+
+## Every free slot is a + card (none on a meat eye); a click opens storage filtered to what goes in
+## that slot (not the foundation, nothing for elsewhere); installing takes one; an empty filter says so.
+func test_slot_cards_and_the_filtered_picker() -> void:
+	var camp := _bare()
+	var c: Combatant = camp.alive_crew()[0]
+	var s: MedBayScreen = _open(MedBayScreen.new(), camp, "ripperdoc", 0)
+	s._select_loc("left_eye")
+	assert_eq(_status(s), "Meat.")
+	assert_true(_live(s, "Slot_*").is_empty(), "a meat eye has no option slots")
+	c.implants.append({"id": "cybereye", "loc": "left_eye"})
+	for k in ["cyberware/targeting_scope", "cyberware/teleoptics", "cyberware/cybereye", "cyberware/skin_weave"]:
+		camp.stash[k] = 1
+	s._build()
+	assert_eq(_status(s), "Cybereye. 3 option slots available.")
+	assert_eq(_live(s, "Slot_*").size(), 3, "a + card per free slot")
+	var plus := (_live(s, "Slot_0")[0] as Node).find_child("Plus", true, false)
+	assert_true(plus != null and (plus.get_child(0) as Label).text == "+", "a + in a small square")
+	assert_true(_live(s, "Stored_*").is_empty(), "no FROM STORAGE list on the panel")
+	assert_false(_texts(s).has("FROM STORAGE"))
+	_click(_live(s, "Slot_1")[0])
+	assert_eq(s._picker, "slot", "a click opens the picker")
+	var picker: Node = _live(s, "Picker")[0]
+	assert_eq(picker.get_parent(), s, "over the whole screen")
+	var rows: Array = _live(picker, "Stored_*").map(func(n): return String(n.name))
+	rows.sort()
+	assert_eq(rows, ["Stored_targeting_scope", "Stored_teleoptics"], "only what goes in the eye's slot")
+	_buttons(_live(s, "Stored_targeting_scope")[0], "INSTALL")[0].pressed.emit()
+	assert_true(c.implant("targeting_scope", "left_eye").size() > 0, "installed")
+	assert_eq(_status(s), "Cybereye. 2 option slots available.")
+	assert_eq(_live(s, "Slot_*").size(), 2, "one card fewer")
+	assert_true(_live(s, "Picker").is_empty(), "the picker closes")
+	s._select_loc("internal")
+	_click(_live(s, "Slot_0")[0])
+	assert_true(_live(s, "Stored_*").is_empty())
+	assert_true(_texts(s).has("Nothing in storage fits."), "an empty filter says so plainly")
+	_key(s, KEY_ESCAPE)
+	assert_true(_live(s, "Picker").is_empty() and s._picker == "", "Esc closes it")
+	s.free()
+
+
+## A meat arm or leg keeps its one slot and gets INSTALL CYBERLIMB (a meat eye INSTALL CYBEREYE, no
+## Neural Link INSTALL NEURAL LINK...): disabled with a short reason when storage has none, else a
+## picker of the foundations that go there.
+func test_install_cyberlimb_button() -> void:
+	var camp := _bare()
+	var c: Combatant = camp.alive_crew()[0]
+	var s: MedBayScreen = _open(MedBayScreen.new(), camp, "ripperdoc", 0)
+	s._select_loc("right_arm")
+	assert_eq(_status(s), "Meat. 1 slot available.")
+	assert_eq(_live(s, "Slot_*").size(), 1, "the meat arm's one slot")
+	var b: Button = _live(s, "InstallFoundation")[0]
+	assert_eq(b.text, "INSTALL CYBERLIMB")
+	assert_true(b.disabled, "none in storage")
+	assert_eq((_live(s, "FoundationWhy")[0] as Label).text, "No cyberlimb in storage.")
+	camp.stash["cyberware/cyberarm"] = 1
+	camp.stash["cyberware/wolvers"] = 1
+	s._build()
+	b = _live(s, "InstallFoundation")[0]
+	assert_false(b.disabled)
+	assert_true(_live(s, "FoundationWhy").is_empty())
+	b.pressed.emit()
+	assert_eq(s._picker, "foundation")
+	assert_eq(_live(s, "Stored_cyberarm").size(), 1, "the cyberarm")
+	assert_true(_live(s, "Stored_wolvers").is_empty(), "not the meat arm's pieces")
+	_buttons(s, "CANCEL")[0].pressed.emit()
+	assert_eq(s._picker, "")
+	_click(_live(s, "Slot_0")[0])
+	assert_eq(_live(s, "Stored_wolvers").size(), 1, "the slot's picker: Wolvers")
+	assert_true(_live(s, "Stored_cyberarm").is_empty(), "not the cyberarm")
+	_key(s, KEY_ESCAPE)
+	_live(s, "InstallFoundation")[0].pressed.emit()
+	_buttons(_live(s, "Stored_cyberarm")[0], "INSTALL")[0].pressed.emit()
+	assert_eq(Cyber.foundation_at(c.implants, "right_arm"), "cyberarm", "a cyberarm in the right arm")
+	assert_eq(_status(s), "Cyberarm. 4 option slots available.")
+	assert_true(_live(s, "InstallFoundation").is_empty(), "no button once it's chrome")
+	assert_eq(_live(s, "Slot_*").size(), 4)
+	var want := {"left_leg": "INSTALL CYBERLIMB", "left_eye": "INSTALL CYBEREYE", "neural_link": "INSTALL NEURAL LINK",
+		"cyberaudio": "INSTALL CYBERAUDIO SUITE"}
+	for l: String in want:
+		s._select_loc(l)
+		var fb: Button = _live(s, "InstallFoundation")[0]
+		assert_eq(fb.text, want[l], l)
+		assert_true(fb.disabled, "%s: none in storage" % l)
+	assert_eq((_live(s, "FoundationWhy")[0] as Label).text, "No cyberaudio suite in storage.")
+	for l in ["chipware", "internal", "external", "fashion"]:
+		s._select_loc(l)
+		assert_true(_live(s, "InstallFoundation").is_empty(), "%s: no foundation button" % l)
+	s.free()
+
+
+## REMOVE asks in a popup over the screen, not by growing the card: every card keeps its size. Keep
+## it closes the popup; DESTROY IT takes the piece out.
+func test_removal_asks_in_a_popup() -> void:
+	var camp := DemoState.make()
+	var c: Combatant = camp.alive_crew()[1]
+	camp.stash["cyberware/skin_weave"] = 1
+	camp.install(c, "skin_weave", "external")
+	var s: MedBayScreen = _open(MedBayScreen.new(), camp, "ripperdoc", 1)
+	s._select_loc("external")
+	var row: Control = _live(s, "Installed_skin_weave")[0]
+	var h0 := row.get_combined_minimum_size()
+	_buttons(row, "REMOVE")[0].pressed.emit()
+	var pop: Array = _live(s, "Confirm")
+	assert_eq(pop.size(), 1, "a popup")
+	assert_eq((pop[0] as Node).get_parent(), s, "over the screen")
+	var row2: Control = _live(s, "Installed_skin_weave")[0]
+	assert_eq(row2.get_combined_minimum_size(), h0, "the card keeps its size")
+	assert_true(_buttons(row2, "DESTROY IT").is_empty(), "nothing added to the card")
+	assert_eq(_live(s, "Slot_*").size(), 6, "the slot cards stay as they were")
+	_buttons(pop[0], "KEEP IT")[0].pressed.emit()
+	assert_true(_live(s, "Confirm").is_empty(), "kept: the popup closes")
+	assert_true(c.implant("skin_weave", "external").size() > 0)
+	_buttons(_live(s, "Installed_skin_weave")[0], "REMOVE")[0].pressed.emit()
+	_buttons(_live(s, "Confirm")[0], "DESTROY IT")[0].pressed.emit()
+	assert_true(c.implant("skin_weave", "external").is_empty(), "destroyed")
+	assert_true(_live(s, "Confirm").is_empty())
+	s.free()
+
+
+## The cards stand in pair rows: the eyes, the arms, the legs side by side; the Neural Link beside
+## the Cyberaudio Suite, the Chipware beside the Fashionware, the External beside the Internal
+## Cyberware. A row's two cards share a y and a height; rows don't overlap; down each column the
+## anchors run top to bottom, so no leader lines cross.
+func test_pairs_share_a_row() -> void:
+	assert_eq(ChromeBody.ROWS, [["neural_link", "cyberaudio"], ["right_eye", "left_eye"], ["chipware", "fashion"],
+		["external", "internal"], ["right_arm", "left_arm"], ["right_leg", "left_leg"]])
+	assert_eq(ChromeBody.LEFT_COL, ChromeBody.ROWS.map(func(r): return r[0]))
+	assert_eq(ChromeBody.RIGHT_COL, ChromeBody.ROWS.map(func(r): return r[1]))
+	for pl: String in BodyAnatomy.PLATES:
+		var an: Dictionary = BodyAnatomy.PLATES[pl].anchors
+		for col in [ChromeBody.LEFT_COL, ChromeBody.RIGHT_COL]:
+			for i in range(1, col.size()):
+				assert_true((an[col[i]] as Vector2).y > (an[col[i - 1]] as Vector2).y, "%s: %s's anchor below %s's" % [pl, col[i], col[i - 1]])
+	Hud._fonts()
+	for body in ["male", "female"]:
+		var c := _crew_of(body)
+		c.implants.append({"id": "cybereye", "loc": "left_eye"})
+		c.implants.append({"id": "targeting_scope", "loc": "left_eye"})
+		for sz in [Vector2(860, 690), Vector2(690, 540), Vector2(640, 540), Vector2(900, 520)]:
+			var b := ChromeBody.new().setup(c, "left_eye", "", {}, sz.y < 600)
+			(Engine.get_main_loop() as SceneTree).root.add_child(b)
+			b.size = sz
+			b._layout()
+			var last := -INF
+			for row in ChromeBody.ROWS:
+				var l: Control = b.cards[row[0]]
+				var r: Control = b.cards[row[1]]
+				assert_eq(l.position.y, r.position.y, "%s %s: %s and %s on one row" % [body, sz, row[0], row[1]])
+				assert_eq(l.size.y, r.size.y, "%s %s: %s and %s one height" % [body, sz, row[0], row[1]])
+				assert_true(l.position.x < r.position.x, "the viewer's left first")
+				assert_true(l.position.y >= last, "%s %s: %s below the row above" % [body, sz, row[0]])
+				assert_true(l.get_rect().end.y <= sz.y + 0.5, "%s %s: inside the bottom edge" % [body, sz])
+				last = l.get_rect().end.y
+			b.free()

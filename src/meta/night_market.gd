@@ -86,7 +86,7 @@ static func resolve(dice: Dice, listing: Dictionary) -> Array[String]:
 
 
 ## Whether the game can sell this key: weapons, armour and kit marked "sold" (their rules are
-## played), cyberware whose effect the game plays (Cyber.modelled).
+## played), cyberware whose effect the game plays and that the screens show (Cyber.sold).
 static func on_sale(key: String) -> bool:
 	match Items.section(key):
 		"weapon":
@@ -94,7 +94,7 @@ static func on_sale(key: String) -> bool:
 		"armor":
 			return Items.is_armor(key) and RulesDB.armor(Items.base_id(key)).has("sold")
 		"cyberware":   # a piece made for one thing is sold made for it (Cyber.choices: "cyberware/skill_chip@handgun")
-			return Items.is_cyberware(key) and Cyber.modelled(Items.base_id(key)) and Cyber.valid_spec(key.get_slice("/", 1))
+			return Items.is_cyberware(key) and Cyber.sold(Items.base_id(key)) and Cyber.valid_spec(key.get_slice("/", 1))
 	if Deck.is_netrun_key(key):   # decks, Programs and Hardware whose rules the NET plays (Deck.sold)
 		return Deck.sold(key)
 	return key in Items.all()

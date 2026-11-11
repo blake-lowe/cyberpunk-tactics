@@ -22,10 +22,12 @@ const IMPLEMENTED_FX := ["stat", "stat_cap", "skill", "initiative", "ignore_seri
 	"deck_slots_bonus"]
 ## Every fx key the data may use: the implemented ones and those waiting for a system.
 const KNOWN_FX := IMPLEMENTED_FX
-## Phase 1 (combat chrome): each now plays, so each is sold.
+## Phase 1 (combat chrome): each now plays, so each is sold (but the Linear Frames: BORGWARE).
 const PHASE1 := ["sandevistan", "popup_ranged_weapon", "popup_melee_weapon", "popup_shield", "popup_grenade_launcher", "dartgun",
-	"skill_chip", "medscanner", "techscanner", "teleoptics", "implanted_linear_frame_sigma", "implanted_linear_frame_beta",
-	"hardened_shielding"]
+	"skill_chip", "medscanner", "techscanner", "teleoptics", "hardened_shielding"]
+## Borgware is descoped from the screens for now (owner, 2026-11-11): the Linear Frames still play
+## once installed (Cyber's model is intact), but with no place on the screens they aren't sold.
+const BORGWARE := ["implanted_linear_frame_sigma", "implanted_linear_frame_beta"]
 ## Phase 2 (senses and hazards): each now plays, so each is sold, with the Cyberaudio Suite that holds two.
 const PHASE2 := ["low_light_infrared_uv", "image_enhance", "amplified_hearing", "anti_dazzle", "level_damper", "nasal_filters",
 	"independent_air_supply", "radar_sonar_implant", "tactile_boost", "cyberaudio_suite"]
@@ -69,8 +71,9 @@ func test_the_market_only_sells_chrome_that_plays() -> void:
 		if not ch.is_empty():   # made for one thing: sold made for it, never bare
 			assert_false(NightMarket.on_sale(key), "%s: sold only made for something" % id)
 			key += "@" + ch[0]
-		assert_eq(NightMarket.on_sale(key), Cyber.modelled(id), "%s: on sale exactly when modelled" % id)
-		if not Cyber.modelled(id):
+		assert_eq(NightMarket.on_sale(key), Cyber.sold(id), "%s: on sale exactly when sold" % id)
+		assert_eq(Cyber.sold(id), Cyber.modelled(id) and String(d.host) != "borgware", "%s: sold when modelled, but Borgware" % id)
+		if not Cyber.sold(id):
 			continue
 		sold += 1
 		assert_false(d.has("unmodelled"), id)
@@ -89,6 +92,10 @@ func test_the_market_only_sells_chrome_that_plays() -> void:
 	for id in ["wolvers", "big_knucks", "rippers", "vampyres", "kerenzikov", "targeting_scope"] + PHASE1 + PHASE2 + PHASE3 + PHASE4 + DECKS:
 		assert_true(Cyber.modelled(id), "%s plays" % id)
 		assert_true(NightMarket.matching({"kind": "cyberware"}).any(func(k): return Items.base_id(k) == id), "%s on sale" % id)
+	for id in BORGWARE:
+		assert_true(Cyber.modelled(id), "%s still plays once installed" % id)
+		assert_false(Cyber.sold(id), "%s: no Borgware card, so not sold" % id)
+		assert_false(NightMarket.matching({"kind": "cyberware"}).any(func(k): return Items.base_id(k) == id), "%s off the market" % id)
 	# Swimming isn't played (the Web Foot).
 	for id in ["biomonitor", "radar_detector", "microoptics", "artificial_shoulder_mount", "web_foot"]:
 		assert_false(Cyber.modelled(id), "%s waits for its system" % id)

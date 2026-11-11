@@ -45,7 +45,7 @@ func test_options_fill_slots_and_then_are_blocked() -> void:
 	_fill(body, "toxin_binders", "internal", 1)
 	_fill(body, "nasal_filters", "internal", 1)
 	_fill(body, "gills", "internal", 5)
-	assert_eq(Cyber.block(body, "cybersnake", "internal"), "No free slot in the body", "7 Internal slots (p.111)")
+	assert_eq(Cyber.block(body, "cybersnake", "internal"), "No free slot in the internal cyberware", "7 Internal slots (p.111)")
 
 
 func test_chipware_takes_no_neural_slot_but_a_socket_each() -> void:

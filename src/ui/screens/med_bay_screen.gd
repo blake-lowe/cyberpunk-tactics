@@ -5,17 +5,23 @@ extends SafehouseScreen
 ## installed chrome can be removed, which destroys it, never moved to someone else), THERAPY
 ## (Addiction and Humanity Loss Therapy by a Medtech, p229-230) and Treatment for Critical
 ## Injuries (p223). The crew cards here show each member's last-gig health marks.
+## The ripperdoc (owner, playtest): the name, EMP and a Humanity bar over the body (ChromeBody.header);
+## the selected location's panel lists what's installed, then a card per free Option Slot (a + that
+## opens storage filtered to what goes in it), and for a place with no foundation yet a button to put
+## one in (INSTALL CYBEREYE, INSTALL CYBERLIMB...). Removing asks first, in a popup.
 
-var _confirm := ""   ## the installed piece ("id@loc") whose REMOVE waits for DESTROY IT
-var loc := ""        ## the ripperdoc's selected body location (Cyber.LOCS)
-var _pick := ""      ## the picked action there: "remove:<id>" or "install:<id>" (gold; Enter acts on it)
+var _confirm := ""   ## the installed piece ("id@loc") whose removal waits in the popup for DESTROY IT
+var loc := ""        ## the ripperdoc's selected body location (ChromeBody.LOCS)
+var _pick := ""      ## the picked action: "remove:<id>", "slot", "foundation", or in the picker "install:<id>" (gold; Enter acts on it)
 var _choose := ""    ## a storage piece whose install waits for its option (_install_choices)
-var _actions: Array[String] = []   ## the selected location's actions in panel order (←/→)
+var _picker := ""    ## the open storage picker: "slot" (options for a free slot), "foundation" (the INSTALL button's), "" none
+var _actions: Array[String] = []   ## the panel's actions in order (←/→), or the picker's (↑/↓)
+var _popup: Control  ## the open popup (the picker or the removal's confirmation)
 
 
 func setup(p_camp: Campaign, p_portraits: Portraits, p_tab := "", p_sel := 0) -> SafehouseScreen:
 	super.setup(p_camp, p_portraits, p_tab, p_sel)
-	if p_camp.has_meta("demo"):   # DEV ONLY review shots: --loc=right_eye --pick=remove:cybereye --confirm=1
+	if p_camp.has_meta("demo"):   # DEV ONLY review shots: --loc=right_eye --pick=remove:cybereye --confirm=1 --picker=slot
 		for a in OS.get_cmdline_user_args():
 			var k := a.trim_prefix("--").get_slice("=", 0)
 			var val := a.get_slice("=", 1)
@@ -23,6 +29,7 @@ func setup(p_camp: Campaign, p_portraits: Portraits, p_tab := "", p_sel := 0) ->
 				"loc": loc = val
 				"pick": _pick = val
 				"confirm": _confirm = "%s@%s" % [_pick.get_slice(":", 1), loc] if _pick.begins_with("remove:") else ""
+				"picker": _picker = val
 	return self
 
 
@@ -46,6 +53,24 @@ func build_body(body: VBoxContainer) -> void:
 		"ripperdoc": _ripperdoc(body)
 		"therapy": _therapy(body)
 		"injuries": _injuries(body)
+
+
+## The screen, then the ripperdoc's popup over it (the picker or the removal's confirmation).
+func _build() -> void:
+	super._build()
+	if _popup:
+		_popup.name = "Closed"   # frees its name for the next popup while it waits to be freed
+		_popup.queue_free()
+		_popup = null
+	var c := selected()
+	if tab != "ripperdoc" or c == null:
+		return
+	if _confirm != "":
+		_popup = _confirm_popup(c, _confirm.get_slice("@", 0))
+	elif _picker != "":
+		_popup = _picker_popup(c)
+	if _popup:
+		add_child(_popup)
 
 
 func _humanity_line(c: Combatant) -> String:
@@ -76,51 +101,51 @@ func _ripperdoc(body: VBoxContainer) -> void:
 	var vs := get_viewport_rect().size if is_inside_tree() else Vector2(1280, 720)
 	var wide := vs.x >= 1500.0
 	var narrow := vs.x < 1200.0   # 1600x900 is ~1066x600 logical
-	cols.add_child(crew_picker(_humanity_line, 270 if wide else (196 if narrow else 230), _health_marks))
+	# the crew cards carry no Humanity or EMP here: the header over the body does (owner, playtest)
+	cols.add_child(crew_picker(Callable(), 270 if wide else (196 if narrow else 230), _health_marks))
 	var c := selected()
 	_settle(c)
-	# the silhouette: name and Humanity on top, the body with its slots below
 	var mid := UiKit.panel(Hud.VIOLET, 10)
 	mid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mid.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	cols.add_child(mid)
 	var mv := UiKit.vbox(2)
 	mid.add_child(mv)
-	var hl := UiKit.hbox(14)
-	mv.add_child(hl)
-	hl.add_child(UiKit.fit(UiKit.head(c.display_name, 30, Hud.TEXT)))
-	if c.tracks_humanity:
-		var hu := UiKit.label(_humanity_line(c), 15, _hum_colour(c))
-		hu.name = "Humanity"
-		hu.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		hl.add_child(hu)
+	mv.add_child(ChromeBody.header(c))
 	var fig := ChromeBody.new().setup(c, loc, _piece(), _hints(c), vs.y < 700.0)
 	fig.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	fig.loc_pressed.connect(_select_loc)
-	fig.piece_pressed.connect(func(l: String, id: String): loc = l; _pick = "remove:" + id; _confirm = ""; _choose = ""; _build())
+	fig.piece_pressed.connect(func(l: String, id: String): loc = l; _pick = "remove:" + id; _shut(); _build())
 	mv.add_child(fig)
-	if not narrow:   # at 1600x900 the buttons carry it (as in the Armory)
-		mv.add_child(UiKit.label("↑↓ PLACE · ←→ CHOICE · ENTER INSTALL · DEL REMOVE · Q/E CREW", 11, Hud.DIM))
-	cols.add_child(_slot_panel(c, 400 if wide else (290 if narrow else 340)))
+	cols.add_child(_slot_panel(c, 380 if wide else (280 if narrow else 300)))
+
+
+## Close the popups and the options step.
+func _shut() -> void:
+	_confirm = ""
+	_choose = ""
+	_picker = ""
 
 
 ## Keep the selection valid: a location (the first where something in storage fits now, else the
-## first with chrome in it), and a picked action in its panel (the first, if none).
+## first with chrome in it), and a picked action (the first, if none).
 func _settle(c: Combatant) -> void:
-	if not loc in Cyber.LOCS:
+	if not loc in ChromeBody.LOCS:
 		var h := _hints(c)
 		loc = ""
-		for l in Cyber.LOCS:
+		for l in ChromeBody.LOCS:
 			if int(h.get(l, 0)) > 0:
 				loc = l
 				break
 		if loc == "":
-			for l in Cyber.LOCS:
+			for l in ChromeBody.LOCS:
 				if not Cyber.pieces_at(c.implants, l).is_empty():
 					loc = l
 					break
 		if loc == "":
 			loc = "neural_link"
+	if _picker == "foundation" and foundation_offer(c.implants, loc) == "":
+		_picker = ""
 	_actions = _actions_for(c)
 	if not _pick in _actions:
 		_pick = _actions[0] if not _actions.is_empty() else ""
@@ -128,7 +153,7 @@ func _settle(c: Combatant) -> void:
 		_confirm = ""
 
 
-## The installed piece picked at `loc` ("" if the pick is a storage piece).
+## The installed piece picked at `loc` ("" if the pick isn't one).
 func _piece() -> String:
 	return _pick.trim_prefix("remove:") if _pick.begins_with("remove:") else ""
 
@@ -144,25 +169,66 @@ func _hints(c: Combatant) -> Dictionary:
 	return out
 
 
-## The selected location's actions in panel order (keyboard ←/→): "remove:<id>" for each piece
-## installed there, "install:<id>" for each storage piece that goes there.
+## The actions in order: in the picker, "install:<id>" for each piece it lists (↑/↓); else the
+## panel's (←/→): "remove:<id>" for each piece installed, "slot" with a free slot, "foundation" for
+## the INSTALL button.
 func _actions_for(c: Combatant) -> Array[String]:
 	var out: Array[String] = []
+	if _picker != "":
+		for id in _picked_ids(c):
+			out.append("install:" + id)
+		return out
 	for p in Cyber.pieces_at(c.implants, loc):
 		if not "remove:" + String(p.id) in out:
 			out.append("remove:" + String(p.id))
-	for id in _stored_here():
-		out.append("install:" + id)
+	if open_slots(c.implants, loc) > 0:
+		out.append("slot")
+	if foundation_offer(c.implants, loc) != "":
+		out.append("foundation")
 	return out
 
 
-## Storage pieces that go in the selected location at all (fitting now or not).
-func _stored_here() -> Array[String]:
+## The free slots a location shows as + cards: its free Option Slots; a meat arm or leg's one place
+## for a meat-limb piece while it's empty (owner: "a meat arm or leg already has 1 slot").
+static func open_slots(implants: Array, l: String) -> int:
+	if Cyber.is_meat(implants, l):
+		return 1 if Cyber.meat_pieces(implants, l).is_empty() else 0
+	return maxi(0, Cyber.free_slots(implants, l))
+
+
+## The foundation a location's INSTALL button puts in ("" if none: it has one, or takes none here; a
+## Chipware Socket goes in a Neural Link slot).
+static func foundation_offer(implants: Array, l: String) -> String:
+	if l == "chipware" or not ChromeBody.FOUNDATION.has(l) or Cyber.foundation_at(implants, l) != "":
+		return ""
+	return String(ChromeBody.FOUNDATION[l])
+
+
+## The INSTALL button's words: a meat eye's "Install cybereye", a meat limb's "Install cyberlimb".
+static func foundation_verb(l: String) -> String:
+	if l in ChromeBody.LIMBS:
+		return "Install cyberlimb"
+	return "Install " + Cyber.display(String(ChromeBody.FOUNDATION.get(l, ""))).to_lower()
+
+
+## Storage pieces the open picker lists: for a free slot, the options that go in this location (in a
+## meat limb, only what a meat limb takes); for the INSTALL button, the foundations that go here.
+func _picked_ids(c: Combatant) -> Array[String]:
+	return stored_for(camp, c, loc, _picker)
+
+
+static func stored_for(p_camp: Campaign, c: Combatant, l: String, kind: String) -> Array[String]:
 	var out: Array[String] = []
-	for k in camp.cyberware_options():
+	for k in p_camp.cyberware_options():
 		var id := Items.base_id(k)
-		if loc in Cyber.locs_for(id) and not id in out:
-			out.append(id)
+		if id in out or not l in Cyber.locs_for(id):
+			continue
+		var found := Cyber.is_foundation(id)
+		if kind == "foundation" and not found:
+			continue
+		if kind == "slot" and (found or (Cyber.is_meat(c.implants, l) and not Cyber.def(id).get("meat_ok", false))):
+			continue
+		out.append(id)
 	return out
 
 
@@ -170,12 +236,12 @@ func _select_loc(l: String) -> void:
 	if l != loc:
 		loc = l
 		_pick = ""
-		_confirm = ""
-		_choose = ""
+		_shut()
 	_build()
 
 
-## The selected location's panel: what it holds and what in storage goes there.
+## The selected location's panel: its category and place, what it holds, a card per free slot and
+## the INSTALL button for a missing foundation.
 func _slot_panel(c: Combatant, width: int) -> PanelContainer:
 	var p := UiKit.panel(Hud.VIOLET, 10)
 	p.name = "SlotPanel"
@@ -183,10 +249,25 @@ func _slot_panel(c: Combatant, width: int) -> PanelContainer:
 	p.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var v := UiKit.vbox(6)
 	p.add_child(v)
-	v.add_child(UiKit.head(Cyber.loc_name(loc), 28, ChromeBody.CHROME))
+	if ChromeBody.SIDE.has(loc):
+		v.add_child(UiKit.label(String(ChromeBody.CATEGORY[loc]), 13, Hud.DIM))
+	v.add_child(UiKit.head(String(ChromeBody.SIDE.get(loc, ChromeBody.CATEGORY.get(loc, Cyber.loc_name(loc)))), 28, ChromeBody.CHROME))
 	var st := UiKit.body(slot_status(c.implants, loc), 14, Hud.TEXT)
 	st.name = "Status"
 	v.add_child(st)
+	var f := foundation_offer(c.implants, loc)
+	if f != "":   # a meat eye's INSTALL CYBEREYE, a meat limb's INSTALL CYBERLIMB...
+		var have := not stored_for(camp, c, loc, "foundation").is_empty()
+		var b := UiKit.button(foundation_verb(loc), UiKit.CHROME, func(): _open_picker("foundation"), have, 14, true)
+		b.name = "InstallFoundation"
+		b.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		if _pick == "foundation":
+			b.add_theme_stylebox_override("normal", UiKit._btn_box(Color(0.11, 0.09, 0.02, 0.95), Hud.GOLD, true))
+		v.add_child(b)
+		if not have:
+			var why := UiKit.body("No %s in storage." % ("cyberlimb" if loc in ChromeBody.LIMBS else Cyber.display(f).to_lower()), 13, Hud.DIM)
+			why.name = "FoundationWhy"
+			v.add_child(why)
 	var list := UiKit.vbox(6)
 	v.add_child(UiKit.scroller(list))
 	list.add_child(section("INSTALLED", ChromeBody.CHROME))
@@ -201,30 +282,28 @@ func _slot_panel(c: Combatant, width: int) -> PanelContainer:
 	for pc in c.implants:   # a Subdermal Grip takes one of the Neural Link's slots from its arm
 		if loc == "neural_link" and String(pc.loc) != loc and int(Cyber.def(String(pc.id)).get("neural_slot", 0)) > 0:
 			list.add_child(UiKit.body("%s (%s) takes a slot here." % [Cyber.display(String(pc.id)), Cyber.loc_name(String(pc.loc))], 13, Hud.DIM))
-	list.add_child(section("FROM STORAGE", ChromeBody.CHROME))
-	var ids := _stored_here()
-	for id in ids:
-		list.add_child(_stored_row(c, id))
-	if ids.is_empty():
-		list.add_child(none("Nothing in storage goes in the %s." % Cyber.loc_name(loc)))
+	for i in open_slots(c.implants, loc):   # each free slot: a + card that opens storage filtered to it
+		list.add_child(_slot_card(i))
 	# what else is in storage, and where it goes: one click away
 	var other: Array[String] = []
 	for k in camp.cyberware_options():
 		var id := Items.base_id(k)
-		if not id in ids and not id in other:
+		if not loc in Cyber.locs_for(id) and not id in other:
 			other.append(id)
-	if not other.is_empty():
+	var to_go: Array = []
+	for id in other:
+		var to := Cyber.auto_loc(c.implants, id)
+		if to == "" and not Cyber.locs_for(id).is_empty():
+			to = Cyber.locs_for(id)[0]
+		if to in ChromeBody.LOCS:
+			to_go.append([id, to])
+	if not to_go.is_empty():
 		list.add_child(section("ELSEWHERE", Hud.DIM))
-		var f := UiKit.flow(4)
-		list.add_child(f)
-		for id in other:
-			var to := Cyber.auto_loc(c.implants, id)
-			if to == "" and not Cyber.locs_for(id).is_empty():
-				to = Cyber.locs_for(id)[0]
-			if to == "":
-				continue
-			var tl := to
-			f.add_child(UiKit.button("%s › %s" % [Cyber.display(id), Cyber.loc_name(to)], UiKit.NAV, func(): _select_loc(tl), true, 12, true))
+		var fl := UiKit.flow(4)
+		list.add_child(fl)
+		for pair in to_go:
+			var tl: String = pair[1]
+			fl.add_child(UiKit.button("%s › %s" % [Cyber.display(String(pair[0])), Cyber.loc_name(tl)], UiKit.NAV, func(): _select_loc(tl), true, 12, true))
 	v.add_child(UiKit.body("Installing is free; every piece costs Humanity. Removing a piece destroys it.", 13, Hud.DIM))
 	var go := UiKit.button("NIGHT MARKET ›", UiKit.NAV, func(): navigate.emit("market"), true, 13, true)
 	go.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
@@ -232,27 +311,21 @@ func _slot_panel(c: Combatant, width: int) -> PanelContainer:
 	return p
 
 
-## The selected location in a line: its foundation and free slots, or what opens it.
+## The selected location in a line (owner, playtest: a meat eye just "Meat."; a Cybereye "Cybereye. 3
+## option slots available", fewer as options go in): the foundation and the free slots, or what's
+## missing.
 static func slot_status(implants: Array, l: String) -> String:
-	var f := Cyber.foundation_at(implants, l)
-	var fname := Cyber.display(f) if f != "" else ""
-	if l == "borgware":
-		return "Borgware takes no option slots."
+	var n := open_slots(implants, l)
 	if Cyber.is_meat(implants, l):
-		var what := "cyberleg" if l in Cyber.LEGS else "cyberarm"
-		return "Meat. Holds one piece, or a %s with %d slots." % [what, int(Cyber.def(what).get("capacity", 0))]
-	var cap := Cyber.capacity(implants, l)
-	if cap <= 0:
+		return "Meat. " + ("1 slot available." if n > 0 else "No slot available.")
+	var avail := "No option slots available." if n <= 0 else ("1 option slot available." if n == 1 else "%d option slots available." % n)
+	var fl := ChromeBody.foundation_line(implants, l)
+	if ChromeBody.FOUNDATION.has(l) and not fl[1]:
 		match l:
-			"neural_link": return "Needs a Neural Link: it holds %d option slots." % int(Cyber.def("neural_link").get("capacity", 5))
-			"chipware": return "Each Chipware Socket holds one chip. The socket goes in the Neural Link."
-			"cyberaudio": return "Needs a Cyberaudio Suite: it holds %d option slots." % int(Cyber.def("cyberaudio_suite").get("capacity", 3))
-			"right_eye", "left_eye": return "Meat. A Cybereye holds %d option slots." % int(Cyber.def("cybereye").get("capacity", 3))
-		return "No slots."
-	var free := Cyber.free_slots(implants, l)
-	if l == "chipware":
-		return "%d socket%s · %d free" % [cap, "" if cap == 1 else "s", maxi(0, free)]
-	return ("%s · " % fname if fname != "" else "") + "%d of %d slots free" % [maxi(0, free), cap]
+			"right_eye", "left_eye": return "Meat."
+			"chipware": return "No Chipware Socket. A socket goes in a Neural Link slot."
+		return "No %s." % Cyber.display(String(ChromeBody.FOUNDATION[l]))
+	return ("%s. " % String(fl[0]) if fl[1] else "") + avail
 
 
 ## Why a row's action can't be done, on its own line under the piece.
@@ -265,12 +338,12 @@ static func _blocked(why: String) -> Label:
 	return l
 
 
-## A row's panel: gold edge when it's the pick (keyboard or click), red while a removal waits.
-static func _row_panel(on: bool, danger := false) -> PanelContainer:
+## A row's panel: gold edge when it's the pick (keyboard or click).
+static func _row_panel(on: bool) -> PanelContainer:
 	var p := PanelContainer.new()
-	var edge := Hud.RED if danger else (Hud.GOLD if on else Color(ChromeBody.CHROME, 0.35))
-	var fill := Color(0.12, 0.03, 0.04, 0.95) if danger else (Color(0.11, 0.09, 0.02, 0.95) if on else Color(0.035, 0.05, 0.065, 0.95))
-	p.add_theme_stylebox_override("panel", CutBox.make(fill, edge, 7, 0b0101, edge if on or danger else Color(0, 0, 0, 0), 6))
+	var edge := Hud.GOLD if on else Color(ChromeBody.CHROME, 0.35)
+	var fill := Color(0.11, 0.09, 0.02, 0.95) if on else Color(0.035, 0.05, 0.065, 0.95)
+	p.add_theme_stylebox_override("panel", CutBox.make(fill, edge, 7, 0b0101, edge if on else Color(0, 0, 0, 0), 6))
 	return p
 
 
@@ -283,12 +356,10 @@ func _chrome_text(v: VBoxContainer, id: String, extra := "") -> void:
 	v.add_child(UiKit.body(chrome_summary(id) + extra, 13, Hud.DIM))
 
 
-## An installed piece: REMOVE, which asks first (removal destroys it), or why it can't come out yet.
+## An installed piece: REMOVE, which asks first in a popup (removal destroys it); a chip's TAKE OUT
+## (back to storage, nothing to confirm); or why it can't come out yet.
 func _installed_row(c: Combatant, id: String) -> Control:
-	var key := "%s@%s" % [id, loc]
-	var on := _pick == "remove:" + id
-	var asking := _confirm == key
-	var p := _row_panel(on, asking)
+	var p := _row_panel(_pick == "remove:" + id)
 	p.name = "Installed_" + id
 	var v := UiKit.vbox(4)
 	p.add_child(v)
@@ -299,18 +370,9 @@ func _installed_row(c: Combatant, id: String) -> Control:
 	row.add_child(t)
 	_chrome_text(t, id)
 	var why := camp.remove_block(c, id, loc)
-	var nm := Cyber.display(id)
 	if why != "":
 		v.add_child(_blocked(why))
-	elif asking:   # the confirmation, in the row: what removal costs, then the two answers
-		v.add_child(UiKit.body("Removing destroys the %s. It can't be sold or refitted, and Humanity already lost stays lost." % nm, 13, Hud.RED))
-		var bh := UiKit.hbox(8)
-		v.add_child(bh)
-		var b := UiKit.button("DESTROY IT", UiKit.DANGER, Callable(), true, 14, true)
-		b.pressed.connect(func(): _remove(b, c, id))
-		bh.add_child(b)
-		bh.add_child(UiKit.button("KEEP IT · ESC", UiKit.NAV, func(): _confirm = ""; _build(), true, 14, true))
-	elif Campaign.comes_out_whole(id):   # a chip goes back to storage: nothing to confirm
+	elif Campaign.comes_out_whole(id):
 		var b := UiKit.button("TAKE OUT", UiKit.NAV, Callable(), true, 14, true)
 		b.pressed.connect(func(): _remove(b, c, id))
 		b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -325,11 +387,115 @@ func _installed_row(c: Combatant, id: String) -> Control:
 	return p
 
 
-## A stored piece that goes here: INSTALL, or the reason it can't go in now.
+## A free slot: a card like the installed ones, a + in a small square at its centre. A click opens
+## storage filtered to what goes in it.
+func _slot_card(i: int) -> Control:
+	var p := _row_panel(_pick == "slot" and i == 0)
+	p.name = "Slot_%d" % i
+	p.custom_minimum_size.y = 44
+	var cc := CenterContainer.new()
+	p.add_child(cc)
+	var sq := PanelContainer.new()
+	sq.name = "Plus"
+	sq.custom_minimum_size = Vector2(26, 26)
+	sq.add_theme_stylebox_override("panel", CutBox.make(Color(0.03, 0.04, 0.055, 0.95), Color(ChromeBody.CHROME, 0.7), 4, 0b0101, Color(0, 0, 0, 0), 2))
+	var l := UiKit.label("+", 18, ChromeBody.CHROME)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	sq.add_child(l)
+	cc.add_child(sq)
+	p.tooltip_text = "Install from storage"
+	UiKit.clickable(p, func(): _pick = "slot"; _open_picker("slot"))
+	return p
+
+
+func _open_picker(kind: String) -> void:
+	_picker = kind
+	_choose = ""
+	_confirm = ""
+	_pick = ""
+	_build()
+
+
+## A dimmed screen with a panel at its centre (the picker, the removal's confirmation); a click
+## outside the panel closes it.
+func _modal(edge: Color, width: float) -> Array:
+	var root := Control.new()
+	root.name = "Popup"
+	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	root.mouse_filter = Control.MOUSE_FILTER_STOP
+	root.z_index = 5
+	var dim := ColorRect.new()
+	dim.color = Color(0.0, 0.0, 0.0, 0.62)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	dim.gui_input.connect(func(ev: InputEvent):
+		if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
+			_shut()
+			_build())
+	root.add_child(dim)
+	var cc := CenterContainer.new()
+	cc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	cc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(cc)
+	var p := UiKit.panel(edge, 14)
+	p.name = "Dialog"
+	p.custom_minimum_size.x = width
+	cc.add_child(p)
+	var v := UiKit.vbox(8)
+	p.add_child(v)
+	return [root, v]
+
+
+## Storage, filtered to the free slot or to the INSTALL button's foundations: each piece with INSTALL,
+## its options step, or why it can't go in; a plain line when nothing fits.
+func _picker_popup(c: Combatant) -> Control:
+	var m := _modal(ChromeBody.CHROME, 470.0)
+	var v: VBoxContainer = m[1]
+	(m[0] as Control).name = "Picker"
+	var place := String(ChromeBody.SIDE.get(loc, ChromeBody.CATEGORY.get(loc, "")))
+	v.add_child(UiKit.label(("%s · option slot" % place) if _picker == "slot" else foundation_verb(loc) + (" · " + place if ChromeBody.SIDE.has(loc) else ""), 16, ChromeBody.CHROME))
+	var ids := _picked_ids(c)
+	var list := UiKit.vbox(6)
+	if ids.is_empty():
+		list.add_child(none("Nothing in storage fits."))
+	for id in ids:
+		list.add_child(_stored_row(c, id))
+	var sc := UiKit.scroller(list)
+	var vs := get_viewport_rect().size if is_inside_tree() else Vector2(1280, 720)
+	sc.custom_minimum_size.y = clampf(ids.size() * 86.0, 40.0, vs.y * 0.55)
+	v.add_child(sc)
+	var bh := UiKit.hbox(8)
+	v.add_child(bh)
+	if ids.is_empty():
+		bh.add_child(UiKit.button("NIGHT MARKET ›", UiKit.NAV, func(): _shut(); navigate.emit("market"), true, 14, true))
+	bh.add_child(UiKit.spacer())
+	bh.add_child(UiKit.button("CANCEL · ESC", UiKit.NAV, func(): _shut(); _build(), true, 14, true))
+	return m[0]
+
+
+## The removal's confirmation: what it costs, DESTROY IT or KEEP IT.
+func _confirm_popup(c: Combatant, id: String) -> Control:
+	var m := _modal(Hud.RED, 440.0)
+	var v: VBoxContainer = m[1]
+	(m[0] as Control).name = "Confirm"
+	var nm := Cyber.display(id)
+	v.add_child(UiKit.label("Remove the %s?" % nm, 16, Hud.RED))
+	v.add_child(UiKit.body("Removing destroys the %s. It can't be sold or refitted, and Humanity already lost stays lost." % nm, 14, Hud.TEXT))
+	var bh := UiKit.hbox(8)
+	v.add_child(bh)
+	var b := UiKit.button("DESTROY IT", UiKit.DANGER, Callable(), true, 14, true)
+	b.pressed.connect(func(): _remove(b, c, id))
+	bh.add_child(b)
+	bh.add_child(UiKit.spacer())
+	bh.add_child(UiKit.button("KEEP IT · ESC", UiKit.NAV, func(): _confirm = ""; _build(), true, 14, true))
+	return m[0]
+
+
+## A stored piece in the picker: INSTALL, or the reason it can't go in now.
 func _stored_row(c: Combatant, id: String) -> Control:
 	var d := Cyber.def(id)
-	var on := _pick == "install:" + id
-	var p := _row_panel(on)
+	var p := _row_panel(_pick == "install:" + id)
 	p.name = "Stored_" + id
 	var v := UiKit.vbox(4)
 	p.add_child(v)
@@ -338,12 +504,9 @@ func _stored_row(c: Combatant, id: String) -> Control:
 	var t := UiKit.vbox(0)
 	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(t)
-	var need := Cyber.needs(id)
 	var extra := " Humanity Loss %s." % String(d.get("hl_dice", ""))
 	if d.get("paired", false):
 		extra += " Paired: one in each %s." % ("leg" if String(d.get("host", "")) == "leg" else "eye")
-	elif need != "":
-		extra += " Needs %s." % Cyber.display(need)
 	var n := camp.stored("cyberware/" + id)
 	if n > 1:
 		extra += "  ·  %d in storage" % n
@@ -359,7 +522,7 @@ func _stored_row(c: Combatant, id: String) -> Control:
 			var b := UiKit.button(String(ch[1]), UiKit.CHROME, Callable(), true, 13, true)
 			b.pressed.connect(func(): _install(b, c, id, val))
 			f.add_child(b)
-		f.add_child(UiKit.button("CANCEL", UiKit.NAV, func(): _choose = ""; _build(), true, 13, true))
+		f.add_child(UiKit.button("BACK", UiKit.NAV, func(): _choose = ""; _build(), true, 13, true))
 	else:
 		var b := UiKit.button("INSTALL", UiKit.CHROME, Callable(), true, 14, true)
 		b.custom_minimum_size.x = 96
@@ -396,7 +559,8 @@ func _start_install(b: Button, c: Combatant, id: String) -> void:
 func _install(b: Button, c: Combatant, id: String, choice: Variant) -> void:
 	var lost := [0]
 	var where := loc
-	_choose = ""
+	_shut()
+	_pick = ""
 	act(b, func(): lost[0] = camp.install(c, id, where) if choice == null else int(camp.callv("install", [c, id, where, choice])), "")
 	toast(b, "%s installed · -%d Humanity" % [Cyber.display(id), lost[0]], ChromeBody.CHROME)
 
@@ -412,15 +576,15 @@ func _ask_remove(id: String) -> void:
 
 
 func _remove(b: Button, c: Combatant, id: String) -> void:
-	_confirm = ""
+	_shut()
 	var where := loc
 	var whole := Campaign.comes_out_whole(id)
 	act(b, func(): camp.remove(c, id, where), Cyber.display(id) + (" back in storage" if whole else " destroyed"), Hud.CYAN if whole else Hud.RED)
 
 
-## Keys (like the Armory's): Q/E crew, ↑/↓ body location, ←/→ the location's choices, Enter
-## installs or removes the picked one (removal asks first: Enter again destroys it), Del removes,
-## Esc cancels a waiting removal, else goes back.
+## Keys (like the Armory's): Q/E crew, ↑/↓ body location (in the picker: its pieces), ←/→ the
+## location's actions, Enter acts on the picked one (a + opens the picker, REMOVE asks first and
+## Enter again destroys it), Del removes, Esc closes a popup, else goes back.
 func _unhandled_input(ev: InputEvent) -> void:
 	if tab != "ripperdoc" or not ev is InputEventKey or not ev.pressed:
 		return
@@ -434,24 +598,22 @@ func _unhandled_input(ev: InputEvent) -> void:
 				return
 			sel = posmod(sel + (-1 if k.keycode == KEY_Q else 1), maxi(1, camp.alive_crew().size()))
 			_pick = ""
-			_confirm = ""
-			_choose = ""
+			_shut()
 			_build()
 		KEY_UP, KEY_DOWN:
-			var i := Cyber.LOCS.find(loc)
-			_select_loc(Cyber.LOCS[posmod(i + (-1 if k.keycode == KEY_UP else 1), Cyber.LOCS.size())])
+			if _picker != "":
+				_step(k.keycode == KEY_DOWN)
+			elif _confirm == "":
+				var i := ChromeBody.LOCS.find(loc)
+				_select_loc(ChromeBody.LOCS[posmod(i + (-1 if k.keycode == KEY_UP else 1), ChromeBody.LOCS.size())])
 		KEY_LEFT, KEY_RIGHT:
-			if not _actions.is_empty():
-				_pick = _actions[posmod(_actions.find(_pick) + (-1 if k.keycode == KEY_LEFT else 1), _actions.size())]
-				_confirm = ""
-				_choose = ""
-				_build()
+			if _picker == "" and _confirm == "":
+				_step(k.keycode == KEY_RIGHT)
 		KEY_ENTER, KEY_KP_ENTER, KEY_DELETE:
 			_press_pick(c, k.keycode == KEY_DELETE)
 		KEY_ESCAPE:
-			if _confirm != "" or _choose != "":
-				_confirm = ""
-				_choose = ""
+			if _confirm != "" or _choose != "" or _picker != "":
+				_shut()
 				_build()
 			else:
 				closed.emit()
@@ -461,28 +623,46 @@ func _unhandled_input(ev: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
-## Enter (or Del, removals only) on the picked action: install it, or ask, then destroy.
+## The next (or previous) action.
+func _step(fwd: bool) -> void:
+	if _actions.is_empty():
+		return
+	_pick = _actions[posmod(_actions.find(_pick) + (1 if fwd else -1), _actions.size())]
+	_choose = ""
+	_build()
+
+
+## Enter (or Del, removals only) on the picked action: destroy what the popup asks about, install
+## the picker's pick, open the picker, or ask before a removal.
 func _press_pick(c: Combatant, del: bool) -> void:
 	var id := _pick.get_slice(":", 1)
 	var b := _find_button(_pick)
 	if b == null:
 		b = Button.new()   # headless: no row button to toast at
-	if _pick.begins_with("install:") and not del:
+	if _confirm != "":
+		if camp.remove_block(c, _confirm.get_slice("@", 0), loc) == "":
+			_remove(b, c, _confirm.get_slice("@", 0))
+		return
+	if del:
+		if _pick.begins_with("remove:") and _picker == "" and camp.remove_block(c, id, loc) == "":
+			_ask_remove(id)
+		return
+	if _pick.begins_with("install:"):
 		if _choose == "" and camp.install_block(c, id, loc) == "":
 			_start_install(b, c, id)
+	elif _pick == "slot" or _pick == "foundation":
+		if _pick == "slot" or not stored_for(camp, c, loc, "foundation").is_empty():
+			_open_picker(_pick)
 	elif _pick.begins_with("remove:") and camp.remove_block(c, id, loc) == "":
-		if _confirm == "%s@%s" % [id, loc]:
-			_remove(b, c, id)
-		else:
-			_ask_remove(id)
+		_ask_remove(id)
 
 
-## The live action button of a pick (INSTALL / DESTROY IT), for the toast's place.
+## The live action button of a pick (INSTALL / DESTROY IT / TAKE OUT), for the toast's place.
 func _find_button(pick: String) -> Button:
-	var row := find_child(("Stored_" if pick.begins_with("install:") else "Installed_") + pick.get_slice(":", 1), true, false)
-	if row == null:
+	var at: Node = _popup if _confirm != "" and _popup != null else find_child(("Stored_" if pick.begins_with("install:") else "Installed_") + pick.get_slice(":", 1), true, false)
+	if at == null:
 		return null
-	for b in row.find_children("*", "Button", true, false):
+	for b in at.find_children("*", "Button", true, false):
 		if (b as Button).text in ["INSTALL", "DESTROY IT", "TAKE OUT"] and not (b as Button).is_queued_for_deletion():
 			return b
 	return null
@@ -494,7 +674,7 @@ static func chrome_summary(id: String) -> String:
 
 
 static func _hum_colour(c: Combatant) -> Color:
-	return [Hud.GREEN, Hud.GOLD, Hud.RED, Hud.RED][clampi(c.psychosis_tier(), 0, 3)]
+	return ChromeBody.hum_colour(c)
 
 
 # --- Therapy ----------------------------------------------------------------------------------
