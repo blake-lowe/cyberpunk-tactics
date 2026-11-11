@@ -229,7 +229,7 @@ HL column: dice (creation flat value in parentheses). Install: M = Mall, C = Cli
 | Standard Hand | C | Cybernetic hand; can go in a meat arm | 1d6/2 (2) | 100eb |
 | Big Knucks | C | Armored knuckles, Medium Melee, concealable; can be only cyberware in meat arm | 1d6 (3) | 100eb |
 | Cyberdeck | C | Cyberdeck in arm; 3 slots; +1 Program/Hardware slot to the deck | 1d6 (3) | 500eb |
-| Grapple Hand | C | Fires hand + 30m line; not a weapon | 1d6 (3) | 100eb |
+| Grapple Hand | C | As an Action fires hand + 30m line to Thick cover; climbing the line has no movement penalty; retracts free; not a weapon | 1d6 (3) | 100eb |
 | Medscanner | C | +2 First Aid and Paramedic; 2 slots | 2d6 (7) | 500eb |
 | Popup Grenade Launcher | C | Single-shot concealable launcher; 2 slots | 2d6 (7) | 500eb |
 | Popup Melee Weapon | C | One-handed Light/Medium/Heavy melee concealed, drawn/stowed free; 2 slots | 2d6 (7) | 500eb |

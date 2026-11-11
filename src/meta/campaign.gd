@@ -1154,8 +1154,7 @@ func marks_for(c: Combatant) -> Array[String]:
 ## repairing ablated armour they wear (repair_armor_work).
 func rest(days := 1) -> void:
 	for c in crew:
-		var heal: int = c.raw_stat("BODY") * days
-		c.hp = mini(c.max_hp(), c.hp + heal)
+		c.hp = mini(c.max_hp(), c.hp + c.rest_heal(days))   # BODY a day (p.223); x2 with Enhanced Antibodies (p.362)
 		if not c.dead:
 			c.mend_subdermal(days)
 		for w in c.weapons:
@@ -1167,13 +1166,13 @@ func rest(days := 1) -> void:
 	say("Rested %d day%s." % [days, "s" if days > 1 else ""])
 
 
-## Days of rest until everyone is back to full HP (BODY HP a day, p223). Critical Injuries need
-## Treatment, not rest.
+## Days of rest until everyone is back to full HP (BODY HP a day, p223; twice that with Enhanced
+## Antibodies, p.362: Combatant.rest_heal). Critical Injuries need Treatment, not rest.
 func days_to_recover() -> int:
 	var days := 0
 	for c in alive_crew():
 		if c.hp < c.max_hp():
-			days = maxi(days, ceili(float(c.max_hp() - c.hp) / float(maxi(1, c.raw_stat("BODY")))))
+			days = maxi(days, ceili(float(c.max_hp() - c.hp) / float(maxi(1, c.rest_heal(1)))))
 	return days
 
 

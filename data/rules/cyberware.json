@@ -171,7 +171,7 @@
    "slots": 1,
    "needs": "neural_link",
    "multi": true,
-   "unmodelled": true,
+   "summary": "Netrunners need them to jack in. Links to smartguns.",
    "cite": "CPR core p.112, p.359-360"
   },
   "kerenzikov": {
@@ -768,10 +768,13 @@
    "hl_flat": 2,
    "cost": 500,
    "borgware": false,
+   "fx": {
+    "rest_heal_mult": 2
+   },
    "host": "internal",
    "slots": 1,
    "needs": "",
-   "unmodelled": true,
+   "summary": "Heal twice as fast while resting.",
    "cite": "CPR core p.114, p.362-363"
   },
   "cybersnake": {
@@ -1097,15 +1100,18 @@
    "name": "Grapple Hand",
    "category": "cyberlimbs",
    "install": "clinic",
-   "effect": "Fires hand + 30m line; not a weapon",
+   "effect": "As an Action fires hand + 30m line to Thick cover; climbing the line has no movement penalty; retracts free; not a weapon",
    "hl_dice": "1d6",
    "hl_flat": 3,
    "cost": 100,
    "borgware": false,
+   "fx": {
+    "grapple_m": 30
+   },
    "host": "arm",
    "slots": 1,
    "needs": "cyberarm",
-   "unmodelled": true,
+   "summary": "Action: fire a 30 m line to a roof or ledge and climb it.",
    "cite": "CPR core p.115-116, p.364-367"
   },
   "medscanner": {
@@ -1380,7 +1386,7 @@
    "capacity": 3,
    "slots": 0,
    "needs": "",
-   "unmodelled": true,
+   "summary": "Replacement leg with 3 option slots.",
    "cite": "CPR core p.115-116, p.364-367"
   },
   "standard_foot": {
@@ -1409,11 +1415,14 @@
    "hl_flat": 3,
    "cost": 500,
    "borgware": false,
+   "fx": {
+    "climb_free": true
+   },
    "host": "leg",
    "slots": 1,
    "needs": "cyberleg",
    "paired": true,
-   "unmodelled": true,
+   "summary": "Climb ladders and fire escapes at walking pace.",
    "cite": "CPR core p.115-116, p.364-367"
   },
   "jump_booster": {
@@ -1425,11 +1434,14 @@
    "hl_flat": 3,
    "cost": 500,
    "borgware": false,
+   "fx": {
+    "jump_free": true
+   },
    "host": "leg",
    "slots": 2,
    "needs": "cyberleg",
    "paired": true,
-   "unmodelled": true,
+   "summary": "Jump gaps at walking pace.",
    "cite": "CPR core p.115-116, p.364-367"
   },
   "skate_foot": {
@@ -1441,11 +1453,14 @@
    "hl_flat": 3,
    "cost": 500,
    "borgware": false,
+   "fx": {
+    "run_bonus_m": 6
+   },
    "host": "leg",
    "slots": 1,
    "needs": "cyberleg",
    "paired": true,
-   "unmodelled": true,
+   "summary": "+6 m when you Run.",
    "cite": "CPR core p.115-116, p.364-367"
   },
   "talon_foot": {

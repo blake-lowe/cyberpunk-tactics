@@ -78,12 +78,19 @@ func squares_available() -> int:
 
 
 ## Run (p169): spend the Action for another Move Action. Requires having taken a Move Action.
+## Skate Foot adds 6 m/yds to it (p.366: Combatant.run_bonus_squares).
 func run() -> bool:
 	if not action_available or not moved_this_turn or move_actions > 0:
 		return false
 	action_available = false
 	move_actions += 1
+	move_left += c.run_bonus_squares()
 	return true
+
+
+## What a Run adds to the squares available: another Move Action's MOVE, plus Skate Foot's (p.169, p.366).
+func run_squares() -> int:
+	return c.stat("MOVE") + c.run_bonus_squares()
 
 
 ## Begin an attack Action with `weapon`: grants up to ROF attack checks (p169).

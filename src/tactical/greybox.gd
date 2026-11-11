@@ -3625,6 +3625,15 @@ func _on_hud(name: String, arg: Variant) -> void:
 				return
 			var opts := enc.chrome_options()
 			var cid := String(arg) if arg != null else (String(opts[clampi(chrome_idx, 0, opts.size() - 1)].id) if not opts.is_empty() else "")
+			if cid == "grapple_hand":   # the Grapple Hand picks its ledge: a click on a highlighted square (any floor)
+				var og: Array = opts.filter(func(o): return String(o.id) == cid)
+				if og.is_empty() or not og[0].ok:
+					hud.toast(String(og[0].why if not og.is_empty() else "can't").to_upper())
+					return
+				tool = "" if tool == "grapple_line" else "grapple_line"
+				cover_mode = false
+				_refresh(); _update_hover()
+				return
 			var r := enc.use_chrome(cid)
 			if not r.get("ok", false):
 				hud.toast(String(r.get("reason", "can't")).to_upper())
@@ -4104,6 +4113,11 @@ func _click_tool() -> void:
 		"grenade":
 			if hover.x >= 0:
 				r = enc.throw_grenade(hover, 0)
+		"grapple_line":   # the Grapple Hand's ledge (Encounter.grapple_targets); the Action's spent: back to the main bar
+			if hover.x >= 0:
+				r = enc.grapple_line(hover)
+				if r.get("ok", false):
+					_back_to_main()
 		"stabilize":
 			if not t.is_empty():
 				r = enc.stabilize(t)
@@ -4169,6 +4183,14 @@ func _tool_hover() -> void:
 		world.add_child(blast_node)
 	blast_node.visible = tool == "grenade" and hover.x >= 0
 	match tool:
+		"grapple_line":   # the Grapple Hand (Encounter.grapple_targets): a roof or ledge, on any floor viewed
+			var gt := enc.grapple_targets(enc.cur)
+			if hover.x < 0 or not gt.has(hover):
+				hud.tip("Pick a roof or ledge edge within 30 m (SHIFT views the floor above)", mouse, "// GRAPPLE HAND", Hud.CYAN)
+				return
+			var gc := int(gt[hover])
+			var fits := gc <= enc.turn.squares_available()
+			hud.tip(("Fire the line and climb: [code]%d / %d[/code] squares" % [gc, enc.turn.squares_available()]) if fits else "[color=#ff3b4f]Not enough movement[/color]", mouse, "// GRAPPLE HAND", Hud.CYAN)
 		"grenade":
 			if hover.x < 0:
 				hud.tip("", mouse)
@@ -4254,7 +4276,10 @@ func _jack_in() -> void:
 	if not _crew_turn():
 		return
 	var pts := enc.jack_points(enc.cur)
-	if pts.is_empty():
+	var why := NetRun.jack_block(enc.cur.c)
+	if why != "":   # no Interface Plugs (p.196)
+		hud.toast(why + ".")
+	elif pts.is_empty():
 		hud.toast("No access point within %d m." % int(Encounter.jack_range(enc.cur.c)))
 	elif not enc.jack_in(pts[0]):
 		hud.toast("No action left.")
@@ -6339,7 +6364,12 @@ func _anim_move(e: Dictionary) -> void:
 			if m.t(dv.z, dv.x, dv.y) == TacMap.T.DOOR:
 				_swing_door(dv)
 		var tw := create_tween()
-		tw.tween_property(n, "position", to, step * (1.0 if d.length() < 1.2 else 1.4))
+		if a.z == b.z and d.length() > 1.5:   # a jump across a gap (Nav jump links): a leap, not a glide
+			var p0: Vector3 = n.position
+			var hop := 0.3 * d.length()
+			tw.tween_method(func(t: float) -> void: n.position = p0.lerp(to, t) + Vector3(0, sin(t * PI) * hop, 0), 0.0, 1.0, step * d.length() * 0.8)
+		else:
+			tw.tween_property(n, "position", to, step * (1.0 if d.length() < 1.2 else 1.4))
 		if n.visible:
 			_snd("sfx_step", to, -10.0 if u.team == 0 else -12.0, 0.18, 60)
 		(decals[u.id] as Node3D).position = to + Vector3(0, 0.03, 0)
@@ -7409,7 +7439,7 @@ func _update_hover() -> void:
 				warn = "\n[color=#ff3b4f]In sight of %d watcher%s on the way[/color]" % [ws.seen, "" if ws.seen == 1 else "s"]
 			elif ws.near:
 				warn = "\n[color=#ff8a24]Ends at the edge of a guard's sight[/color]"
-			hud.tip("[code]%d / %d[/code] squares%s" % [enc.nav.cost_of(enc.cur.pos, p), enc.turn.squares_available(), warn], mouse, "// MOVE", Hud.CYAN)
+			hud.tip("[code]%d / %d[/code] squares%s" % [enc._with_locks(func(): return enc.nav.cost_of(enc.cur.pos, p)), enc.turn.squares_available(), warn], mouse, "// MOVE", Hud.CYAN)
 		elif dash_opts.has(hover):
 			hud.tip("Uses your [b]Action[/b]", mouse, "// RUN", Color("ffb000"))
 		elif _hover_bld >= 0 and _hover_bld != _focused() and t.is_empty() and not _aim_armed():   # H3: say what a left-click does here

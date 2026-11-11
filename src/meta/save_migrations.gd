@@ -83,8 +83,14 @@ extends RefCounted
 ##     to the left; an eye option into the first eye with a free slot; Wolvers into a Cyberarm if
 ##     there is one, else the meat right arm), and a piece that fits nowhere at its first location
 ##     (nothing is lost). Ids the data no longer knows are dropped.
+## v20: Interface Plugs gate jacking in (owner, cyberware phase 4; CPR core p.196, p.359): a Netrunner
+##     needs working plugs to netrun. Every Netrunner recruit gets them free at creation, so nothing
+##     changes for one made since; an older Netrunner (crew or recruit) without them gets them free
+##     here, with the Neural Link they need if that is missing too, and no Humanity cost (a rules
+##     change, not a purchase). They go in the neural link even when its slots are full (the book's
+##     stat blocks win over the slot rules, as Cyber.place_ids does).
 
-const CURRENT := 19
+const CURRENT := 20
 
 
 ## Upgrade `d` (a parsed save) to CURRENT. Returns {} for a save from a newer build, which this
@@ -114,6 +120,7 @@ static func migrate(d: Dictionary) -> Dictionary:
 			16: _v16_to_v17(d)
 			17: _v17_to_v18(d)
 			18: _v18_to_v19(d)
+			19: _v19_to_v20(d)
 		v += 1
 		d["version"] = v
 	return d
@@ -355,3 +362,17 @@ static func _v18_to_v19(d: Dictionary) -> void:
 		var flat: Array = (c.get("cyberware", []) as Array).filter(func(x): return x is String)
 		if flat.size() == (c.get("cyberware", []) as Array).size():
 			c["cyberware"] = Cyber.place_ids(flat)
+
+
+static func _v19_to_v20(d: Dictionary) -> void:
+	for c in d.get("crew", []) + d.get("recruits", []):
+		if not c is Dictionary or String(c.get("role", "")) != "netrunner":
+			continue
+		var cw: Array = c.get("cyberware", [])
+		var ids: Array = cw.map(func(p): return String(p.get("id", "")) if p is Dictionary else String(p))
+		if "interface_plugs" in ids:
+			continue
+		if not "neural_link" in ids:
+			cw.append({"id": "neural_link", "loc": "neural_link"})
+		cw.append({"id": "interface_plugs", "loc": "neural_link"})
+		c["cyberware"] = cw

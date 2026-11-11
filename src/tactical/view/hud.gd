@@ -1456,6 +1456,9 @@ func _refresh_tools(enc: Encounter, crew_turn: bool) -> void:
 					b.disabled = b.disabled or wr.ammo >= wr.mag() and not wr.jammed
 			"jack":
 				b.title = "JACK OUT" if jacked else "JACK IN"
+				var jwhy := "" if jacked else NetRun.jack_block(c)
+				b.tooltip_text = jwhy   # a Netrunner without Interface Plugs (p.196): say why
+				b.disabled = b.disabled or jwhy != ""
 			"interact":
 				if b.visible:
 					b.title = String(here[1])
