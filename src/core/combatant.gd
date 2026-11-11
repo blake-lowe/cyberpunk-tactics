@@ -813,11 +813,6 @@ func run_bonus_squares() -> int:
 	return int(sense_range("run_bonus_m") / TurnState.SQUARE_M)
 
 
-## The Grapple Hand's line, 30 m (p.365); 0 without a working one (Encounter.grapple_targets).
-func grapple_range_m() -> float:
-	return sense_range("grapple_m")
-
-
 ## HP healed by `days` of rest after stabilization: BODY a day (p.223), BODY x 2 with Enhanced
 ## Antibodies (p.362). Campaign.rest; Linear Frames and Grafted Muscle count (raw_stat).
 func rest_heal(days: int) -> int:

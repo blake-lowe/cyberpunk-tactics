@@ -82,12 +82,11 @@ CYBER_FX = {
     "independent_air_supply": {"immune": ["inhaled"]},       # 30 minutes of its own air (p.363): longer than a gig
     "radar_sonar_implant": {"radar_m": 50},                  # scans 50 m, not behind cover (p.363)
     "tactile_boost": {"motion_sense_m": 20},                 # motion within 20 m, a hand on a surface (p.359)
-    # Phase 3, movement (Combatant.climbs_free / run_bonus_squares / grapple_range_m; Nav, TurnState.run,
-    # Encounter.grapple_targets). Climbing costs 2 squares per square (p.169); these negate or add to it.
+    # Phase 3, movement (Combatant.climbs_free / run_bonus_squares; Nav, TurnState.run).
+    # The Grapple Hand is unmodelled (owner: no grappling ledges or mantling). Climbing costs 2 squares per square (p.169); these negate or add to it.
     "grip_foot": {"climb_free": True},                       # "Negates movement penalty when climbing" (p.366)
     "jump_booster": {"jump_free": True},                     # "Negates movement penalty when jumping" (p.366)
     "skate_foot": {"run_bonus_m": 6},                        # +6 m/yds "when using Run Action" (p.366)
-    "grapple_hand": {"grapple_m": 30},                       # an Action: a line to Thick cover up to 30 m, climbed with no penalty (p.365)
     # Phase 4, NET and downtime (NetRun.jack_block; Combatant.rest_heal).
     "enhanced_antibodies": {"rest_heal_mult": 2},            # "After stabilization, ... heals BODY x 2 for each day spent resting" (p.362)
 }
@@ -197,7 +196,6 @@ SUMMARY = {
     "grip_foot": "Climb ladders and fire escapes at walking pace.",
     "skate_foot": "+6 m when you Run.",
     "jump_booster": "Jump gaps at walking pace.",
-    "grapple_hand": "Action: fire a 30 m line to a roof or ledge and climb it.",
     # Phase 4: NET and downtime
     "interface_plugs": "Netrunners need them to jack in. Links to smartguns.",
     "enhanced_antibodies": "Heal twice as fast while resting.",

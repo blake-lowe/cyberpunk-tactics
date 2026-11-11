@@ -8,22 +8,21 @@ extends RefCounted
 ## Jumps (p.169): across a gap of open air on an upper floor (between roofs, over a light well), in a
 ## straight line to the nearest square on the far side. "Jumping with a running start" costs 2 squares
 ## for every 1 square travelled; "from standing you can clear half the distance that you could with a
-## running start". The book sets no longest jump: HOUSE-RULE, a running jump clears up to JUMP_GAP
-## squares of air (6 m) and a standing one half that, and a running start is a walkable square behind
-## the take-off in line (the path isn't checked for it). With a Jump Booster (p.366, `jump_free`) a jump
-## costs what walking does.
+## running start". The book sets no longest jump, so a running jump is limited only by the movement
+## left (2 per square) and a standing one clears half what a running start could with that same movement
+## (it needs twice its own cost left). A running start is a walkable square behind the take-off in line
+## (the path isn't checked for it). With a Jump Booster (p.366, `jump_free`) a jump costs what walking does.
 
 const DIRS8: Array[Vector2i] = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1),
 	Vector2i(1, 1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(-1, -1)]
 
 var m: TacMap
 var locked := {}          ## Vector3i door cells that are locked (security doors until hacked)
-var _links := {}          ## Vector3i → [[Vector3i, cost, kind]] for shafts, connectors and jumps; kind "", "climb" or "jump"
+var _links := {}          ## Vector3i → [[Vector3i, cost, kind]] for shafts, connectors and jumps; kind "", "climb", "jump" (running start) or "stand" (standing jump)
 ## The unit moving has Grip Foot: a climb (ladder, fire escape) costs 1 per floor, like stairs (p.366).
 var climb_free := false
 ## The unit moving has Jump Boosters: a jump costs 1 a square, like walking (p.366).
 var jump_free := false
-const JUMP_GAP := 3       ## HOUSE-RULE: squares of open air a running jump clears (6 m); standing, half (rounded down)
 var halted := {}          ## Vector2i shaft squares whose elevator car is stopped (held from the NET): nobody rides it
 
 
@@ -49,7 +48,8 @@ func open(v: Vector3i) -> bool:
 
 
 ## Neighbours with step costs. `occupied` cells (other units) can't be entered.
-func neighbours(v: Vector3i, occupied: Dictionary) -> Array:
+## `left` is the movement still to spend on arrival at `v`: a standing jump needs twice its cost.
+func neighbours(v: Vector3i, occupied: Dictionary, left := 1 << 30) -> Array:
 	var out := []
 	for d in DIRS8:
 		var n := Vector3i(v.x + d.x, v.y + d.y, v.z)
@@ -62,7 +62,10 @@ func neighbours(v: Vector3i, occupied: Dictionary) -> Array:
 		out.append([n, 1])
 	for l in _links.get(v, []):
 		if open(l[0]) and not occupied.has(l[0]) and not (halted.has(Vector2i(v.x, v.y)) and l[0].x == v.x and l[0].y == v.y):
-			out.append([l[0], link_cost(v, l)])
+			var cost := link_cost(v, l)
+			if String(l[2]) == "stand" and left < 2 * cost:
+				continue
+			out.append([l[0], cost])
 	return out
 
 
@@ -72,7 +75,7 @@ func link_cost(v: Vector3i, l: Array) -> int:
 	match String(l[2]):
 		"climb":
 			return absi((l[0] as Vector3i).z - v.z) if climb_free else int(l[1])
-		"jump":
+		"jump", "stand":
 			return int(l[1]) / 2 if jump_free else int(l[1])
 	return int(l[1])
 
@@ -82,8 +85,8 @@ func _air(f: int, p: Vector2i) -> bool:
 	return m.inb(p.x, p.y) and m.t(f, p.x, p.y) == TacMap.T.VOID
 
 
-## The jump links (see the header): from each walkable square above the street, straight across 1 to
-## JUMP_GAP squares of open air to the first walkable square, both ways.
+## The jump links (see the header): from each walkable square above the street, straight across any
+## squares of open air to the first walkable square, both ways.
 func _add_jumps() -> void:
 	for f in range(m.street + 1, m.floors):
 		for y in m.h:
@@ -95,16 +98,17 @@ func _add_jumps() -> void:
 					if not _air(f, from + d):
 						continue
 					var run_up := m.walkable_tile(m.t(f, x - d.x, y - d.y)) and m.inb(x - d.x, y - d.y)
-					var most := JUMP_GAP if run_up else JUMP_GAP / 2
-					for gap in range(1, most + 1):
+					var gap := 1
+					while true:
 						var land := from + d * (gap + 1)
 						if not m.inb(land.x, land.y):
 							break
 						if m.walkable_tile(m.t(f, land.x, land.y)):
-							_links.get_or_add(Vector3i(x, y, f), []).append([Vector3i(land.x, land.y, f), 2 * (gap + 1), "jump"])
+							_links.get_or_add(Vector3i(x, y, f), []).append([Vector3i(land.x, land.y, f), 2 * (gap + 1), "jump" if run_up else "stand"])
 							break
 						if not _air(f, land):
 							break
+						gap += 1
 
 
 ## Every cell reachable within `budget` squares: {cell: cost}.
@@ -133,7 +137,7 @@ func _dial(sources: Array, occupied: Dictionary, limit: int) -> Dictionary:
 			i += 1
 			if dist[v] != d:
 				continue
-			for nb in neighbours(v, occupied):
+			for nb in neighbours(v, occupied, limit - d):
 				var nd: int = d + nb[1]
 				if nd <= limit and nd < dist.get(nb[0], 1 << 30):
 					dist[nb[0]] = nd
@@ -145,7 +149,8 @@ func _dial(sources: Array, occupied: Dictionary, limit: int) -> Dictionary:
 
 
 ## Shortest path (A*), start excluded, goal included. Empty if unreachable.
-func path(start: Vector3i, goal: Vector3i, occupied: Dictionary = {}) -> Array[Vector3i]:
+## `budget` is the movement available (what standing jumps are limited by).
+func path(start: Vector3i, goal: Vector3i, occupied: Dictionary = {}, budget := 1 << 30) -> Array[Vector3i]:
 	var out: Array[Vector3i] = []
 	if start == goal or not open(goal):
 		return out
@@ -161,7 +166,7 @@ func path(start: Vector3i, goal: Vector3i, occupied: Dictionary = {}) -> Array[V
 				out.push_front(cur)
 				cur = came[cur]
 			return out
-		for nb in neighbours(v, occupied):
+		for nb in neighbours(v, occupied, budget - g[v]):
 			var ng: int = g[v] + nb[1]
 			if ng < g.get(nb[0], 1 << 30):
 				g[nb[0]] = ng

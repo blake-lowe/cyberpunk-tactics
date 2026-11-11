@@ -3625,15 +3625,6 @@ func _on_hud(name: String, arg: Variant) -> void:
 				return
 			var opts := enc.chrome_options()
 			var cid := String(arg) if arg != null else (String(opts[clampi(chrome_idx, 0, opts.size() - 1)].id) if not opts.is_empty() else "")
-			if cid == "grapple_hand":   # the Grapple Hand picks its ledge: a click on a highlighted square (any floor)
-				var og: Array = opts.filter(func(o): return String(o.id) == cid)
-				if og.is_empty() or not og[0].ok:
-					hud.toast(String(og[0].why if not og.is_empty() else "can't").to_upper())
-					return
-				tool = "" if tool == "grapple_line" else "grapple_line"
-				cover_mode = false
-				_refresh(); _update_hover()
-				return
 			var r := enc.use_chrome(cid)
 			if not r.get("ok", false):
 				hud.toast(String(r.get("reason", "can't")).to_upper())
@@ -4113,11 +4104,6 @@ func _click_tool() -> void:
 		"grenade":
 			if hover.x >= 0:
 				r = enc.throw_grenade(hover, 0)
-		"grapple_line":   # the Grapple Hand's ledge (Encounter.grapple_targets); the Action's spent: back to the main bar
-			if hover.x >= 0:
-				r = enc.grapple_line(hover)
-				if r.get("ok", false):
-					_back_to_main()
 		"stabilize":
 			if not t.is_empty():
 				r = enc.stabilize(t)
@@ -4183,14 +4169,6 @@ func _tool_hover() -> void:
 		world.add_child(blast_node)
 	blast_node.visible = tool == "grenade" and hover.x >= 0
 	match tool:
-		"grapple_line":   # the Grapple Hand (Encounter.grapple_targets): a roof or ledge, on any floor viewed
-			var gt := enc.grapple_targets(enc.cur)
-			if hover.x < 0 or not gt.has(hover):
-				hud.tip("Pick a roof or ledge edge within 30 m (SHIFT views the floor above)", mouse, "// GRAPPLE HAND", Hud.CYAN)
-				return
-			var gc := int(gt[hover])
-			var fits := gc <= enc.turn.squares_available()
-			hud.tip(("Fire the line and climb: [code]%d / %d[/code] squares" % [gc, enc.turn.squares_available()]) if fits else "[color=#ff3b4f]Not enough movement[/color]", mouse, "// GRAPPLE HAND", Hud.CYAN)
 		"grenade":
 			if hover.x < 0:
 				hud.tip("", mouse)
