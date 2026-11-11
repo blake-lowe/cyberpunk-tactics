@@ -61,9 +61,13 @@ func test_categories() -> void:
 	assert_eq(Shop.category_of("ammo/flashbang_ammo"), "Grenades")
 	assert_eq(Shop.category_of("drugs/synthcoke"), "Drugs")
 	assert_eq(Shop.category_of("gear/medscanner"), "Gear")
+	assert_eq(Shop.category_of("gear/cyberdeck_standard"), "Netrunning")
+	assert_eq(Shop.category_of("programs/sword"), "Netrunning")
+	assert_eq(Shop.category_of("hardware/range_upgrade"), "Netrunning")
 	var c := _camp(["weapon/assault_rifle"])
-	var all := Shop.entries(c).filter(func(e): return String(e.cat) != "Gear")   # the Anti-Smog Mask (20eb) is a staple now
+	var all := Shop.entries(c).filter(func(e): return not String(e.cat) in ["Gear", "Netrunning"])   # the Anti-Smog Mask (20eb) and cheap Programs are staples now
 	assert_eq(Shop.listed_categories(all), ["Firearms", "Melee", "Armor", "Cyberware", "Grenades", "Drugs"], "the six always; Gear only when on sale")
+	assert_true("Netrunning" in Shop.listed_categories(Shop.entries(c)), "the fixer always has Programs of 100eb or less (under the staples' cap)")
 	assert_true("Gear" in Shop.listed_categories(Shop.entries(c)), "the fixer always has an Anti-Smog Mask (Everyday, under the staples' cap)")
 	assert_true("Gear" in Shop.listed_categories(Shop.entries(_camp(["gear/medscanner"]))))
 

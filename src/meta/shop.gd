@@ -7,8 +7,9 @@ extends RefCounted
 ## test headless; the cart is a Dictionary (storage key → how many) and Campaign.buy_cart buys it.
 
 ## The shop's categories, in TYPE sort order. The first six are always listed (owner's verdict);
-## Gear (scanners and other carried utilities) only when something is on sale in it.
-const CATEGORIES := ["Firearms", "Melee", "Armor", "Cyberware", "Grenades", "Drugs", "Gear"]
+## Gear (scanners and other carried utilities) and Netrunning (decks, Programs, deck Hardware) only
+## when something is on sale in it.
+const CATEGORIES := ["Firearms", "Melee", "Armor", "Cyberware", "Grenades", "Drugs", "Gear", "Netrunning"]
 const ALWAYS_LISTED := 6
 const ALL := "All"
 ## Sorts: by type (category, then price), price ascending, price descending.
@@ -19,6 +20,8 @@ const QUALITY_ORDER := {"poor": 0, "standard": 1, "excellent": 2}
 ## The shop category of a storage key: weapons split into Firearms and Melee (weapons.json
 ## "melee"), armour, cyberware, drugs, thrown kit (gear.json kit_use "grenade"), anything else Gear.
 static func category_of(key: String) -> String:
+	if Deck.is_netrun_key(key):
+		return "Netrunning"
 	match Items.section(key):
 		"weapon":
 			return "Melee" if bool(RulesDB.weapon(Items.base_id(key)).get("melee", false)) else "Firearms"
@@ -66,6 +69,11 @@ static func describe(it: Dictionary) -> String:
 		if need != "":
 			desc += " Needs %s." % Cyber.display(need)
 		desc += " Installed at the Med Bay."
+	elif Deck.is_loadable(String(it.get("key", ""))):   # a Program or Hardware takes deck slots (p.196, p.204, p.208)
+		var n := Deck.slots_of(String(it.key))
+		desc += " Takes %d deck slot%s; loaded at the Armory." % [n, "" if n == 1 else "s"]
+	elif Deck.is_deck_key(String(it.get("key", ""))):
+		desc += " For Netrunners: carry it and load Programs at the Armory."
 	return desc
 
 

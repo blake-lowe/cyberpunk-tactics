@@ -499,6 +499,7 @@ func test_sword_does_3d6_to_black_ice() -> void:
 	var hits := 0
 	for k in 30:
 		e.net_left = 3
+		e.init.round_num += 1   # each copy once a round (p.201)
 		var res := e.net_action("sword")
 		assert_true(res.ok)
 		if res.success:
@@ -514,9 +515,14 @@ func test_armor_cuts_brain_damage_once_per_run() -> void:
 	var e: Encounter = r[0]
 	var run: NetRun = r[2]
 	assert_true(e.net_action("armor").ok)
-	assert_eq(run.armor_rez, 7)
+	assert_eq(run.brain_reduce(), 4, "p203: Armor Rezzed, REZ 7")
+	var i := run.rezzed("defender")[0]
 	e.net_left = 3
-	assert_false(e.net_action("armor").ok, "once per Netrun")
+	e.init.round_num += 1
+	assert_true(e.net_action("deactivate", i).ok)
+	e.init.round_num += 1
+	e.net_left = 3
+	assert_false(e.net_action("activate", i).ok, "each copy once per Netrun")
 
 
 func test_slide_escapes_to_a_neighbour() -> void:

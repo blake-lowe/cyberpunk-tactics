@@ -931,6 +931,7 @@ func resolve(e: Encounter) -> Dictionary:
 		report.pay = int(gig.get("pay", 0))
 	eb += report.pay
 	report["shields"] = _replace_popup_shields()
+	report["backups"] = _restore_backups()
 	report["payment"] = (gig.get("payment", {}) as Dictionary).duplicate(true) if gig.get("payment") is Dictionary else {}
 	report["paid_extra"] = _collect_payment(gig) if won else ""
 	report["focus_line"] = MissionBuilder.debrief_line(gig, won)
@@ -1095,6 +1096,8 @@ static func _lost_gear(c: Combatant, kit_of: Dictionary) -> Array:
 		var a: ArmorPiece = c.armor.get(loc)
 		if a:
 			out.append(a.name + (" +1" if a.upgraded else ""))
+	if c.deck != "":   # the deck, and the Programs and Hardware on it
+		out.append(Items.display_name("gear/" + c.deck))
 	out.append_array(Cyber.names(c.implants))
 	out.append_array(kit_of.get(c.display_name, []))
 	return out
@@ -1110,6 +1113,8 @@ static func _lost_gear_keys(c: Combatant) -> Array:
 	for loc in ["head", "body"]:
 		if c.armor.get(loc):
 			out.append("")
+	if c.deck != "":
+		out.append("gear/" + c.deck)
 	for p in c.implants:
 		out.append("cyberware/" + Cyber.spec_of(p))
 	return out
@@ -1333,7 +1338,7 @@ func market_stock() -> Array[Dictionary]:
 
 func _stock_entry(key: String, listing: String, staple: bool) -> Dictionary:
 	var sec := Items.section(key)
-	return {"key": key, "name": Items.display_name(key), "cost": Items.price(key), "kind": sec if sec in ["weapon", "armor", "cyberware"] else "kit",
+	return {"key": key, "name": Items.display_name(key), "cost": Items.price(key), "kind": sec if sec in ["weapon", "armor", "cyberware"] else ("netrun" if Deck.is_netrun_key(key) else "kit"),
 		"kit": Items.kind(key), "listing": listing, "staple": staple, "owned": stored(key), "info": item_info(key)}
 
 
@@ -1356,6 +1361,8 @@ static func item_info(key: String) -> String:
 			return "SP %d" % a.max_sp + (" · -%d REF/DEX/MOVE" % a.penalty if a.penalty > 0 else "")
 		"cyberware":
 			return Cyber.summary(Items.base_id(key))
+	if Deck.is_netrun_key(key):
+		return Deck.info(key) + " for Programs and Hardware." if Deck.is_deck_key(key) else String(Deck.entry(key).get("summary", ""))
 	return String(Items.def(key).get("summary", ""))
 
 
@@ -1569,6 +1576,7 @@ func equip_armor(c: Combatant, loc: String, key: String) -> bool:
 	if old:
 		_put(Items.key_of_armor(old))
 	say("%s wears %s (%s)." % [c.display_name, (c.armor[loc] as ArmorPiece).name, loc])
+	_fit_deck(c)   # a Bodyweight Suit swapped for other armour loses its Hardware slot (p.208)
 	return true
 
 
@@ -1577,7 +1585,132 @@ func unequip_armor(c: Combatant, loc: String) -> bool:
 		return false
 	_put(Items.key_of_armor(c.armor[loc]))
 	c.armor[loc] = null
+	_fit_deck(c)   # a Bodyweight Suit off: its Hardware-only slot goes with it (p.208)
 	return true
+
+
+# --- Netrunning gear (Deck; CPR core p.196, p.201-209) ---------------------------------------
+# A Netrunner carries one cyberdeck; Programs and Hardware are loaded onto it here (installing or
+# uninstalling takes an hour, p.201, p.208: the safehouse's time, never a gig's). Swapping decks moves
+# what's loaded across; what no longer fits goes to storage.
+
+## Why `c` can't carry deck `key` from storage now ("" if they can). Player text.
+func deck_block(c: Combatant, key: String) -> String:
+	if c == null or not c in alive_crew():
+		return "not on the crew"
+	if not Deck.is_deck_key(key):
+		return "not a cyberdeck"
+	if not Deck.can_carry(c):
+		return "netrunners only"
+	if stored(key) <= 0:
+		return "not in storage"
+	if Deck.in_arm(c):
+		return "their deck is in the cyberarm"
+	return ""
+
+
+## Carry a deck from storage; the one carried goes back. What was loaded moves onto the new deck,
+## the overflow (last loaded first) to storage.
+func equip_deck(c: Combatant, key: String) -> bool:
+	if deck_block(c, key) != "":
+		return false
+	_take(key)
+	if c.deck != "":
+		_put("gear/" + c.deck)
+	c.deck = Items.base_id(key)
+	_fit_deck(c)
+	say("%s takes %s." % [c.display_name, Items.display_name(key)])
+	return true
+
+
+## Put the deck back in storage, its Programs and Hardware unloaded into storage too. A deck built
+## into a Cyberarm stays (p.364: it comes out only at the Med Bay, broken).
+func store_deck(c: Combatant) -> bool:
+	if c == null or c.deck == "" or Deck.in_arm(c):
+		return false
+	_unload_all(c)
+	_put("gear/" + c.deck)
+	c.deck = ""
+	return true
+
+
+func _unload_all(c: Combatant) -> void:
+	for id in c.programs:
+		_put("programs/" + id)
+	for id in c.deck_hardware:
+		_put("hardware/" + id)
+	c.programs.clear()
+	c.deck_hardware.clear()
+	c.backup.clear()   # a Backup Drive taken off its deck erases what it held (p.208-209)
+
+
+## Why `key` (a Program or Hardware) can't be loaded onto `c`'s deck from storage now ("" if it can).
+func load_block(c: Combatant, key: String) -> String:
+	if c == null or not c in alive_crew():
+		return "not on the crew"
+	if stored(key) <= 0:
+		return "not in storage"
+	return Deck.load_block(c, key)
+
+
+## Load a Program or Hardware from storage onto `c`'s deck (p.201, p.208).
+func load_netware(c: Combatant, key: String) -> bool:
+	if load_block(c, key) != "":
+		return false
+	_take(key)
+	if Deck.is_program_key(key):
+		c.programs.append(Items.base_id(key))
+	else:
+		c.deck_hardware.append(Items.base_id(key))
+	say("%s loads %s." % [c.display_name, Items.display_name(key)])
+	return true
+
+
+## Take the Program at `index` off the deck into storage.
+func unload_program(c: Combatant, index: int) -> bool:
+	if c == null or index < 0 or index >= c.programs.size():
+		return false
+	_put("programs/" + c.programs[index])
+	c.programs.remove_at(index)
+	return true
+
+
+## Take the Hardware at `index` off the deck into storage. The last Backup Drive taken off erases
+## what it saved (p.208-209).
+func unload_hardware(c: Combatant, index: int) -> bool:
+	if c == null or index < 0 or index >= c.deck_hardware.size():
+		return false
+	_put("hardware/" + c.deck_hardware[index])
+	c.deck_hardware.remove_at(index)
+	if not Deck.has_hw(c, "backup"):
+		c.backup.clear()
+	return true
+
+
+## More loaded than the deck holds (a smaller deck, a Bodyweight Suit taken off): Hardware first,
+## then Programs, last loaded first, go to storage.
+func _fit_deck(c: Combatant) -> void:
+	if c == null:
+		return
+	if c.deck == "":
+		if not (c.programs.is_empty() and c.deck_hardware.is_empty()):
+			_unload_all(c)
+		return
+	while Deck.used(c) > Deck.slots(c) and not c.deck_hardware.is_empty():
+		unload_hardware(c, c.deck_hardware.size() - 1)
+	while Deck.used(c) > Deck.slots(c) and not c.programs.is_empty():
+		unload_program(c, c.programs.size() - 1)
+
+
+## After a gig: a Backup Drive's saved Programs go back on the deck (a Meat Action, p.208-209, which
+## the safehouse always has time for). Returns {member name: [program ids]}.
+func _restore_backups() -> Dictionary:
+	var out := {}
+	for c in crew:
+		var back := Deck.restore_backup(c)
+		if not back.is_empty():
+			out[c.display_name] = back
+	return out
 
 
 ## Storage validation: drop keys it can't hold (old or unknown items) and empty counts, then
@@ -1611,6 +1744,8 @@ func install_block(c: Combatant, id: String, loc: String = "") -> String:
 	if stored("cyberware/" + id) <= 0 and not (Cyber.choice_of(id) == "" and stored_variants(id) > 0):
 		return "Not in storage"
 	var why := Cyber.block_any(c.implants, id) if loc == "" else Cyber.block(c.implants, id, loc)
+	if why == "" and Cyber.base(id) == "cyberdeck" and c.deck == "":   # "A Cyberdeck must be provided by the user" (p.364)
+		return "Needs a cyberdeck carried"
 	return why if why != "" else Cyber.stat_block(c, Cyber.base(id))   # a Linear Frame's BODY (p.367)
 
 
@@ -1676,6 +1811,10 @@ func remove(c: Combatant, id: String, loc: String = "") -> bool:
 	c.remove_cyberware(id, loc)
 	if comes_out_whole(id):
 		_put("cyberware/" + spec)
+	if id == "cyberdeck" and c.deck != "":   # the deck breaks beyond repair; its Programs and Hardware are recovered (p.364)
+		_unload_all(c)
+		say("%s's cyberdeck breaks coming out of the arm." % c.display_name)
+		c.deck = ""
 	say("%s has %s taken out." % [c.display_name, Cyber.display(spec)])
 	return true
 

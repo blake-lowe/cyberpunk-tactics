@@ -4,7 +4,8 @@ extends SafehouseScreen
 ## glance, the squad's gaps at the bottom), the selected member's slots in the middle (weapons in
 ## draw order, head and body armour, consumable and utility), and STORAGE on the right, filtered to
 ## what fits the selected slot, with a THIS vs NOW comparison (and, for guns, an overlaid
-## hit-chance-by-range chart) above one verb each way: EQUIP and STORE. Cyberware waits in storage
+## hit-chance-by-range chart) above one verb each way: EQUIP and STORE. A Netrunner also has their
+## cyberdeck and what's loaded on it (Deck): EQUIP loads a Program or Hardware, STORE unloads it. Cyberware waits in storage
 ## until the Med Bay installs it; installed chrome weapons are changed there too. The WORKSHOP tab is
 ## the crew Tech's armour upgrades (Upgrade Expertise, CPR core p148); the same upgrade is offered
 ## in an armour slot's detail.
@@ -26,7 +27,7 @@ var _store_btn: Button
 var _sel_rows := {}       ## scroller name → the selected row in it (kept in view)
 
 const SORT_NAMES := {"name": "NAME", "damage": "DAMAGE", "sp": "SP", "count": "COUNT"}
-const FILTER_NAMES := {"all": "ALL", "weapons": "WEAPONS", "armor": "ARMOR", "consumable": "CONSUMABLE", "utility": "UTILITY"}
+const FILTER_NAMES := {"all": "ALL", "weapons": "WEAPONS", "armor": "ARMOR", "consumable": "CONSUMABLE", "utility": "UTILITY", "netrun": "NETRUN"}
 
 
 func setup(p_camp: Campaign, p_portraits: Portraits, p_tab := "", p_sel := 0) -> SafehouseScreen:
@@ -173,6 +174,8 @@ func _crew_card(c: Combatant, on: bool) -> PanelContainer:
 		chips.add_child(_gear_chip(loc.to_upper(), "empty" if a == null else ("bad" if a.sp < a.max_sp else "full")))
 	chips.add_child(_gear_chip("CONS", "full" if c.kit[0] != "" else "missing"))
 	chips.add_child(_gear_chip("UTIL", "full" if c.kit[1] != "" else "empty"))
+	if Deck.can_carry(c):
+		chips.add_child(_gear_chip("DECK %d/%d" % [Deck.used(c), Deck.slots(c)] if c.deck != "" else "DECK", "full" if c.deck != "" else "missing"))
 	return card
 
 
@@ -227,13 +230,22 @@ func _slots_panel(c: Combatant, wide: bool) -> PanelContainer:
 	list.add_child(_group("WEAPONS"))
 	for i in c.weapons.size():
 		list.add_child(_slot_row(c, "w%d" % i))
-	list.add_child(_add_row())
+	list.add_child(_add_row("wadd", "+ ADD WEAPON"))
 	list.add_child(_group("ARMOR"))
 	for loc in ["head", "body"]:
 		list.add_child(_slot_row(c, loc))
 	list.add_child(_group("KIT"))
 	for i in c.kit.size():
 		list.add_child(_slot_row(c, "k%d" % i))
+	if Deck.can_carry(c):   # the cyberdeck and its Programs and Hardware (CPR core p.196, p.201-209)
+		list.add_child(_group("CYBERDECK · %d/%d SLOTS" % [Deck.used(c), Deck.slots(c)] if c.deck != "" else "CYBERDECK"))
+		list.add_child(_slot_row(c, "deck"))
+		for i in c.programs.size():
+			list.add_child(_slot_row(c, "p%d" % i))
+		for i in c.deck_hardware.size():
+			list.add_child(_slot_row(c, "h%d" % i))
+		if c.deck != "":
+			list.add_child(_add_row("padd", "+ LOAD PROGRAM OR HARDWARE · %d FREE" % Deck.free_slots(c)))
 	if wide:   # at 1600x900 (the tightest logical screen) the buttons carry the keys instead
 		v.add_child(UiKit.label("↑↓ SLOT · CTRL+↑↓ ORDER · ←→ ITEM · Q/E CREW · ESC BACK", 11, Hud.DIM))
 	return p
@@ -286,6 +298,8 @@ func _slot_row(c: Combatant, id: String) -> PanelContainer:
 		nl.add_child(UiKit.fit(QualityText.apply(UiKit.body(nm if nm != "" else Items.display_name(key), 14, Hud.TEXT, false), key)))
 		if chrome:
 			nl.add_child(UiKit.chip("◆ CHROME", Hud.VIOLET.lightened(0.3)))
+		if Loadout.is_arm_deck(c, id):
+			nl.add_child(UiKit.chip("◆ IN CYBERARM", Hud.VIOLET.lightened(0.3)))
 		mid.add_child(_slot_stats(c, id))
 	var btns := UiKit.hbox(4)
 	btns.custom_minimum_size.x = 64
@@ -300,7 +314,7 @@ func _slot_row(c: Combatant, id: String) -> PanelContainer:
 		var dn := _small("▼", UiKit.NEUTRAL, func(_b): _reorder(1), wi2 < c.weapons.size() - 1)
 		dn.tooltip_text = "Draw later (Ctrl+↓)"
 		btns.add_child(dn)
-	if chrome:
+	if chrome or Loadout.is_arm_deck(c, id):
 		var mb := _small("MED BAY", UiKit.CHROME, func(_b): navigate.emit("ripperdoc"))
 		mb.tooltip_text = "Installed cyberware: change it at the Med Bay"
 		btns.add_child(mb)
@@ -328,13 +342,13 @@ func _slot_stats(c: Combatant, id: String) -> Control:
 	return h
 
 
-func _add_row() -> PanelContainer:
-	var on := slot == "wadd"
+func _add_row(id: String, text: String) -> PanelContainer:
+	var on := slot == id
 	var p := _row_panel(on, Hud.CYAN)
-	var l := UiKit.label("+ ADD WEAPON", 13, Hud.GOLD if on else Hud.CYAN)
+	var l := UiKit.label(text, 13, Hud.GOLD if on else Hud.CYAN)
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	p.add_child(l)
-	UiKit.clickable(p, func(): _select_slot("wadd"))
+	UiKit.clickable(p, func(): _select_slot(id))
 	p.mouse_filter = Control.MOUSE_FILTER_PASS
 	if on:
 		_sel_rows["slots"] = p
@@ -532,6 +546,11 @@ func _subtitle(key: String) -> String:
 		parts.append("Armor · head or body")
 	elif Items.is_item(key):
 		parts.append("%s · %s" % [Items.kind(key).capitalize(), Items.use(key)])
+	elif Deck.is_deck_key(key):
+		parts.append("Cyberdeck · Netrunners")
+	elif Deck.is_loadable(key):
+		var n := Deck.slots_of(key)
+		parts.append("%s · %d slot%s" % [Loadout._kind(key), n, "" if n == 1 else "s"])
 	var eb := Items.price(key)
 	if eb > 0:
 		parts.append("%s %s eb" % [Items.price_tier(eb), UiKit.money(eb)])
@@ -569,7 +588,7 @@ func _actions(c: Combatant, now: String) -> Control:
 		eq.pressed.connect(func(): _equip(eq))
 		_equip_btn = eq
 		box.add_child(eq)
-	if Loadout.is_chrome(c, slot):
+	if Loadout.is_chrome(c, slot) or Loadout.is_arm_deck(c, slot):
 		var mb := UiKit.button("MED BAY ›", UiKit.CHROME, func(): navigate.emit("ripperdoc"), true, 13, true)
 		mb.tooltip_text = "Installed cyberware: change it at the Med Bay"
 		box.add_child(mb)
@@ -636,6 +655,8 @@ func _equip(b: Button) -> void:
 		ok = Loadout.equip(camp, c, to, key)
 		if ok and to == "wadd":
 			slot = "w%d" % (c.weapons.size() - 1)
+		elif ok and to == "padd" and Deck.free_slots(c) <= 0:   # the deck is full: the LOAD row is gone, select what went in
+			slot = ("p%d" % (c.programs.size() - 1)) if Deck.is_program_key(key) else ("h%d" % (c.deck_hardware.size() - 1))
 	if b and b.is_inside_tree():
 		act(b, run, "%s equips it" % c.display_name)
 	else:

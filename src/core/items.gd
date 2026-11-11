@@ -8,6 +8,8 @@ extends RefCounted
 ## Weapons: "weapon/<id>" (Standard Quality) or "weapon/<id>@poor" / "@excellent" (p.342).
 ## Armour: "armor/<id>", plus "@upgraded" for a piece a Tech has upgraded (+1 SP, p148) and
 ## "@sp<N>" for a piece put away ablated to N SP (it stays that way until worn and repaired).
+## Netrunning gear: "gear/cyberdeck_<quality>", "programs/<id>", "hardware/<id>" (Deck): a deck is
+## carried, Programs and Hardware are loaded onto it at the Armory.
 ## Cyberware: "cyberware/<id>", or "cyberware/<id>@<choice>" for a piece made for one thing (a Skill
 ## Chip's Skill, a popup's weapon: Cyber.choices), bought like any other gear and kept in storage until the Med Bay's
 ## ripperdoc installs it (then it's part of that crew member: removable, never moved to anyone else).
@@ -124,10 +126,11 @@ static func is_cyberware(key: String) -> bool:
 	return section(key) == "cyberware" and (RulesDB.load_json("cyberware.json")["cyberware"] as Dictionary).has(base_id(key))
 
 
-## Anything safehouse storage can hold: a kit item, a weapon, an armour piece or a piece of
-## cyberware waiting to be installed.
+## Anything safehouse storage can hold: a kit item, a weapon, an armour piece, a piece of
+## cyberware waiting to be installed, or netrunning gear (a cyberdeck, a Program, deck Hardware: Deck).
 static func is_stored(key: String) -> bool:
-	return is_item(key) or is_weapon(key) or is_armor(key) or (is_cyberware(key) and Cyber.valid_spec(key.get_slice("/", 1)))
+	return is_item(key) or is_weapon(key) or is_armor(key) or (is_cyberware(key) and Cyber.valid_spec(key.get_slice("/", 1))) \
+		or Deck.is_netrun_key(key)
 
 
 ## The book's Price Categories (CPR core p.385), cheapest first: [name, eb]. Super Luxury is

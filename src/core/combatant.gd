@@ -59,7 +59,12 @@ var clean_since := {}                 ## drug id → campaign day Addiction Ther
 var drug_humanity := {}               ## this gig: drug id → Humanity it cost (Black Lace refunds it on resisting addiction)
 var burning := 0                 ## on fire: HP lost at the end of each turn until an Action puts it out (Hellhound 2, p207; flamethrower 4, p348)
 var cyber_off := {}              ## Cyber.key(piece) ("cybereye@left_eye") → rounds it stays inoperable (Microwaver, p348)
-var programs: Array[String] = [] ## cyberdeck Programs (netrunners start with Sword and Armor, p98)
+## The cyberdeck carried and what's loaded on it (Deck; CPR core p.196, p.201-209): the deck's gear.json
+## id ("" for none), its Programs (copies repeat), its Hardware, and Programs a Backup Drive saved.
+var deck := ""
+var programs: Array[String] = []
+var deck_hardware: Array[String] = []
+var backup: Array[String] = []
 var stimmed := false             ## Stim: ignore Seriously Wounded penalties (1 hour = the gig)
 var speedhealed := false         ## Speedheal: once per day   ## Role specialisation perks (data/rules/perks.json, HOUSE-RULE)
 ## Solo Combat Awareness allocation (p146): ability id → points spent. See COMBAT_AWARENESS.
@@ -963,8 +968,8 @@ func to_dict() -> Dictionary:
 		"subdermal": sub, "injuries": injuries, "base_dsp": base_dsp, "dsp": dsp, "dead": dead, "unconscious": unconscious,
 		"weapons": weapons.map(func(w): return {"id": w.id(), "ammo": w.ammo, "builtin": w.builtin, "quality": w.quality, "popup": w.popup}), "role": role,
 		"role_rank": role_rank, "awareness": awareness, "tracks_humanity": tracks_humanity, "humanity": humanity,
-		"max_humanity": max_humanity, "cyberware": implants, "ip": ip, "look_seed": look_seed, "perks": perks, "medicine": medicine, "maker": maker, "downtime": downtime, "programs": programs,
-		"kit": kit, "addictions": addictions, "clean_since": clean_since, "reputation": reputation, "chips_used": chips_used}
+		"max_humanity": max_humanity, "cyberware": implants, "ip": ip, "look_seed": look_seed, "perks": perks, "medicine": medicine, "maker": maker, "downtime": downtime, "deck": deck, "programs": programs,
+		"deck_hardware": deck_hardware, "backup": backup, "kit": kit, "addictions": addictions, "clean_since": clean_since, "reputation": reputation, "chips_used": chips_used}
 
 
 static func from_dict(d: Dictionary) -> Combatant:
@@ -1036,8 +1041,21 @@ static func from_dict(d: Dictionary) -> Combatant:
 	for k in d.get("clean_since", {}):
 		c.clean_since[String(k)] = int(d.clean_since[k])
 	c.reputation = int(d.get("reputation", 0))
-	for pg in d.get("programs", ["sword", "armor"] if String(d.role) == "netrunner" else []):
-		c.programs.append(String(pg))
+	# A dict from before the deck model (SaveMigrations v21 gives saves theirs): a Netrunner gets the
+	# Role's starting deck (Deck.give_starting, CPR core p.103).
+	if String(d.role) == "netrunner" and not d.has("deck"):
+		Deck.give_starting(c)
+	else:
+		c.deck = String(d.get("deck", ""))
+		for pg in d.get("programs", []):
+			if not Deck.program(String(pg)).is_empty():
+				c.programs.append(String(pg))
+	for h in d.get("deck_hardware", []):
+		if not Deck.hardware(String(h)).is_empty():
+			c.deck_hardware.append(String(h))
+	for pg in d.get("backup", []):
+		if not Deck.program(String(pg)).is_empty():
+			c.backup.append(String(pg))
 	for k in d.get("maker", {}):
 		c.maker[String(k)] = int(d.maker[k])
 	for k in d.get("medicine", {}):

@@ -314,9 +314,9 @@ No corrections: `data/rules/armor.json` matches the book for all 8 entries. It d
 - **Braindance Viewer**: Rig for playing braindance recordings: relive someone else's full sensory and emotional experience. Narrative; could tie to braindance-recovery gig objectives or downtime.
 - **Chemical Analyzer**: Identifies a substance's exact composition as an Action against a large sample database. Could identify drugs/poisons/loot or reveal a contaminated-supply objective.
 - **Computer**: Laptop or desktop for writing and browsing the Data Pool. Narrative; base-management flavour.
-- **Cyberdeck (Poor Quality)**: Modular netrunning platform with 5 slots for Programs and Hardware. Netrunning per p.195; the repo's net code owns the deck model.
-- **Cyberdeck (Standard Quality)**: Modular netrunning platform with 7 slots for Programs and Hardware. Netrunning per p.195; the repo's net code owns the deck model.
-- **Cyberdeck (Excellent Quality)**: Modular netrunning platform with 9 slots for Programs and Hardware. Netrunning per p.195; the repo's net code owns the deck model.
+- **Cyberdeck (Poor Quality)**: Modular netrunning platform with 5 slots for Programs and Hardware. Sold and played: see cyber-net.md 3.1 (Deck).
+- **Cyberdeck (Standard Quality)**: Modular netrunning platform with 7 slots for Programs and Hardware. Sold and played: see cyber-net.md 3.1 (Deck).
+- **Cyberdeck (Excellent Quality)**: Modular netrunning platform with 9 slots for Programs and Hardware. Sold and played: see cyber-net.md 3.1 (Deck).
 - **Memory Chips**: Thin plastic data wafers of assorted capacity. Narrative; datashard/loot objectives.
 - **Smart Glasses**: Wearable frames with two Cybereye option slots, counted as paired; one pair worn at a time. Lets non-chromed crew use eye options (low light etc.) — integrate with cyberware slice.
 - **Video Camera**: Handheld recorder storing about 12 hours of video and sound per memory chip. Media flavour; could serve 'get footage' objectives.
@@ -441,7 +441,7 @@ Clothing gives no SP. Prices are per piece.
 - Fashion styles (10) included as category misc with per-piece piece_costs/piece_tiers instead of a single cost (cost null). Read from p.102 layout extraction; p.356 is the same table.
 - cost_tier uses the book names; 'Very Expensive' written in full. human_shield and fashion have cost null.
 - night_market = the p.338-339 Night Market generator column the item appears in (personal_electronics, survival_gear, food_drugs, weapons_armor, clothing_fashionware); absent = not in that table. Armour only appears there as 'Armor of <=100eb / 500eb / 1,000eb' buckets.
-- Skipped: Street Drugs (p.357-358; drug slice, not gear), Night Market food items (canned goods, live chickens etc., p.338-339; pure flavour, no rules), cyberdeck hardware/programs (p.368+), home defences (p.372).
+- Skipped: Street Drugs (p.357-358; drug slice, not gear), Night Market food items (canned goods, live chickens etc., p.338-339; pure flavour, no rules), home defences (p.372). Cyberdeck Programs and Hardware live in gear.json sections `programs` and `hardware` (p.201-209, p.368), documented in cyber-net.md 3.1 and 3.6.
 - cryotank's check uses skill id 'medical_tech' which isn't in skills.json: it is the Medtech Role Ability Medicine (Medical Tech specialty).
 
 ## Cyberpunk RED: Drugs, Pharmaceuticals and Fashion Reference

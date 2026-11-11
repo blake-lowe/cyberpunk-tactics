@@ -247,6 +247,8 @@ func test_a_netrunner_needs_interface_plugs_to_jack_in() -> void:
 	n.role_rank = 4
 	assert_eq(NetRun.jack_block(n), "Needs Interface Plugs")
 	_chromed(["neural_link", "interface_plugs"], n)
+	assert_eq(NetRun.jack_block(n), "Needs a cyberdeck", "plugs plug into a deck (p.196)")
+	n.deck = Deck.STARTING_DECK
 	assert_eq(NetRun.jack_block(n), "")
 	n.cyber_off[Cyber.key(n.implant("interface_plugs"))] = 2
 	assert_eq(NetRun.jack_block(n), "Interface Plugs offline", "knocked out by a Microwaver")
@@ -366,5 +368,6 @@ func test_movement_and_net_chrome_is_on_sale_and_swimming_isnt() -> void:
 		assert_true(Cyber.modelled(id), id)
 		assert_true(NightMarket.on_sale("cyberware/" + id), "%s on sale" % id)
 		assert_false(Cyber.summary(id).contains("p."), "%s: no cites" % id)
-	for id in ["web_foot", "cyberdeck", "grapple_hand"]:
+	for id in ["web_foot", "grapple_hand"]:
 		assert_false(NightMarket.on_sale("cyberware/" + id), "%s: nothing to play it on yet" % id)
+	assert_true(NightMarket.on_sale("cyberware/cyberdeck"), "the arm's Cyberdeck plays now: +1 deck slot (Deck)")

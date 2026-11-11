@@ -1,5 +1,5 @@
 {
- "_source": "CPR core p204-207 (stats, cost). points = cost / 50 eb, used for the per-site ICE budget (HOUSE-RULE replacing the floor tables, approved M2 review). tier: lowest site difficulty (0-3) that fields it. brain: dice of direct brain damage on a hit (p206-207); empty = no direct HP damage (program/stat effects, resolved later).",
+ "_source": "CPR core p204-207 (stats, cost). points = cost / 50 eb, used for the per-site ICE budget (HOUSE-RULE replacing the floor tables, approved M2 review). tier: lowest site difficulty (0-3) that fields it. brain: dice of direct brain damage on a hit (p206-207); empty = no direct HP damage (program/stat effects, resolved later). program: REZ dice an Anti-Program ICE deals to a Program it hits; reaching 0 REZ destroys it (Killer, Dragon, Sabertooth, p.207).",
  "ice": {
   "wisp": {
    "class": "anti_personnel",
@@ -103,7 +103,8 @@
    "points": 10,
    "tier": 1,
    "effect": "4d6 to a Program; destroys instead of derezzing",
-   "brain": ""
+   "brain": "",
+   "program": "4d6"
   },
   "giant": {
    "class": "anti_personnel",
@@ -142,7 +143,8 @@
    "points": 20,
    "tier": 2,
    "effect": "6d6 to a Program; destroys if it derezzes",
-   "brain": ""
+   "brain": "",
+   "program": "6d6"
   },
   "sabertooth": {
    "class": "anti_program",
@@ -155,7 +157,8 @@
    "points": 20,
    "tier": 2,
    "effect": "6d6 to a Program; destroys instead of derezzing",
-   "brain": ""
+   "brain": "",
+   "program": "6d6"
   }
  }
 }

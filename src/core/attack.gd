@@ -250,8 +250,15 @@ static func microwaver_targets(defender: Combatant) -> Array:
 	var shielded: Array = defender.implants.filter(func(p): return String(p.id) == "hardened_shielding").map(func(p): return String(p.loc))
 	var first: Array = []
 	var rest: Array = []
+	# Carried electronics too (p.348): a Netrunner's deck, unless its Hardened Circuitry (p.208-209) or the
+	# arm it's built into protects it.
+	var deck := Deck.emp_piece(defender)
+	if not deck.is_empty() and not defender.cyber_off.has(Cyber.key(deck)):
+		first.append(deck)
 	for p in defender.implants:
 		if String(p.loc) in shielded or defender.cyber_off.has(Cyber.key(p)):
+			continue
+		if String(p.id) == "cyberdeck" and Deck.has_hw(defender, "emp_proof"):
 			continue
 		var id := String(p.id)
 		if not (Cyber.def(id).get("fx", {}) as Dictionary).is_empty() or id in ["level_damper", "interface_plugs", "subdermal_grip"]:

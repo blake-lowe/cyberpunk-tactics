@@ -139,6 +139,20 @@ func _gear_panel(c: Combatant) -> PanelContainer:
 	for i in c.kit.size():
 		var k := c.kit[i]
 		list.add_child(_row(Loadout.slot_label("k%d" % i), Items.display_name(k) if k != "" else "", k, Loadout.kit_stats(k) if k != "" else ""))
+	if Deck.can_carry(c) or c.deck != "":   # the cyberdeck and what's loaded on it (Deck)
+		list.add_child(SafehouseScreen.section("CYBERDECK" + ("  ·  %d/%d SLOTS" % [Deck.used(c), Deck.slots(c)] if c.deck != "" else "")))
+		if c.deck == "":
+			list.add_child(SafehouseScreen.none("No cyberdeck: no netrunning."))
+		else:
+			list.add_child(_row("DECK", Items.display_name("gear/" + c.deck), "gear/" + c.deck, "in the cyberarm" if Deck.in_arm(c) else "", Deck.in_arm(c)))
+			for i in c.programs.size():
+				var pk := "programs/" + c.programs[i]
+				list.add_child(_row(Loadout.slot_label("p%d" % i), Deck.name_of(c.programs[i]), pk, Deck.info(pk)))
+			for i in c.deck_hardware.size():
+				var hk := "hardware/" + c.deck_hardware[i]
+				list.add_child(_row(Loadout.slot_label("h%d" % i), Items.display_name(hk), hk, Deck.info(hk)))
+			if not c.backup.is_empty():
+				list.add_child(SafehouseScreen.none("Backup drive holds: " + ", ".join(c.backup.map(func(x): return Deck.name_of(String(x))))))
 	# chrome: what it does (all of it, or the picked location's)
 	list.add_child(SafehouseScreen.section("CHROME" + ("  ·  " + Cyber.loc_name(loc).to_upper() if loc != "" else ""), ChromeBody.CHROME))
 	var any := false

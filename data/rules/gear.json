@@ -969,7 +969,7 @@
 			"name": "Cyberdeck (Poor Quality)",
 			"cost": 100,
 			"cost_tier": "Premium",
-			"cite": "CPR core p.353",
+			"cite": "CPR core p.196, p.353",
 			"summary": "Modular netrunning platform with 5 slots for Programs and Hardware.",
 			"night_market": "personal_electronics",
 			"fx": {
@@ -978,15 +978,14 @@
 					"interface_plugs",
 					"neural_link"
 				]
-			},
-			"unmodelled": "Netrunning per p.195; the repo's net code owns the deck model."
+			}
 		},
 		"cyberdeck_standard": {
 			"category": "electronics",
 			"name": "Cyberdeck (Standard Quality)",
 			"cost": 500,
 			"cost_tier": "Expensive",
-			"cite": "CPR core p.353",
+			"cite": "CPR core p.196, p.353",
 			"summary": "Modular netrunning platform with 7 slots for Programs and Hardware.",
 			"night_market": "personal_electronics",
 			"fx": {
@@ -995,15 +994,14 @@
 					"interface_plugs",
 					"neural_link"
 				]
-			},
-			"unmodelled": "Netrunning per p.195; the repo's net code owns the deck model."
+			}
 		},
 		"cyberdeck_excellent": {
 			"category": "electronics",
 			"name": "Cyberdeck (Excellent Quality)",
 			"cost": 1000,
 			"cost_tier": "Very Expensive",
-			"cite": "CPR core p.353",
+			"cite": "CPR core p.196, p.353",
 			"summary": "Modular netrunning platform with 9 slots for Programs and Hardware.",
 			"night_market": "personal_electronics",
 			"fx": {
@@ -1012,8 +1010,7 @@
 					"interface_plugs",
 					"neural_link"
 				]
-			},
-			"unmodelled": "Netrunning per p.195; the repo's net code owns the deck model."
+			}
 		},
 		"disposable_cell_phone": {
 			"category": "comms",
@@ -1605,6 +1602,519 @@
 			"night_market": "survival_gear",
 			"fx": {},
 			"unmodelled": "No description; could double as an improvised melee weapon (GM call)."
+		}
+	},
+	"programs": {
+		"eraser": {
+			"name": "Eraser",
+			"class": "booster",
+			"atk": 0,
+			"def": 0,
+			"rez": 7,
+			"cost": 20,
+			"cost_tier": "Everyday",
+			"cite": "CPR core p.201-204",
+			"summary": "Booster: +2 to Cloak while Rezzed.",
+			"slots": 1,
+			"fx": {
+				"boost": {
+					"cloak": 2
+				}
+			},
+			"unmodelled": "Cloak isn't played: nobody reads a runner's traces after a gig."
+		},
+		"see_ya": {
+			"name": "See Ya",
+			"class": "booster",
+			"atk": 0,
+			"def": 0,
+			"rez": 7,
+			"cost": 20,
+			"cost_tier": "Everyday",
+			"cite": "CPR core p.201-204",
+			"summary": "Booster: +2 to Pathfinder while Rezzed.",
+			"slots": 1,
+			"fx": {
+				"boost": {
+					"pathfinder": 2
+				}
+			}
+		},
+		"speedy_gonzalvez": {
+			"name": "Speedy Gonzalvez",
+			"class": "booster",
+			"atk": 0,
+			"def": 0,
+			"rez": 7,
+			"cost": 100,
+			"cost_tier": "Premium",
+			"cite": "CPR core p.201-204",
+			"summary": "Booster: +2 Speed while Rezzed, for beating Black ICE to the first move.",
+			"slots": 1,
+			"fx": {
+				"boost": {
+					"speed": 2
+				}
+			}
+		},
+		"worm": {
+			"name": "Worm",
+			"class": "booster",
+			"atk": 0,
+			"def": 0,
+			"rez": 7,
+			"cost": 50,
+			"cost_tier": "Costly",
+			"cite": "CPR core p.201-204",
+			"summary": "Booster: +2 to Backdoor while Rezzed.",
+			"slots": 1,
+			"fx": {
+				"boost": {
+					"backdoor": 2
+				}
+			}
+		},
+		"armor": {
+			"name": "Armor",
+			"class": "defender",
+			"atk": 0,
+			"def": 0,
+			"rez": 7,
+			"cost": 50,
+			"cost_tier": "Costly",
+			"cite": "CPR core p.201-204",
+			"summary": "Defender: brain damage to you -4 while Rezzed. One copy running at a time; each copy once a Netrun.",
+			"slots": 1,
+			"fx": {
+				"brain_reduce": 4,
+				"one_running": true,
+				"once_per_run": true
+			}
+		},
+		"flak": {
+			"name": "Flak",
+			"class": "defender",
+			"atk": 0,
+			"def": 0,
+			"rez": 7,
+			"cost": 50,
+			"cost_tier": "Costly",
+			"cite": "CPR core p.201-204",
+			"summary": "Defender: enemy Attacker Programs run at you have ATK 0. One running; each copy once a Netrun.",
+			"slots": 1,
+			"fx": {
+				"enemy_attacker_atk": 0,
+				"one_running": true,
+				"once_per_run": true
+			},
+			"unmodelled": "Hits enemy Netrunners only, and no enemy Netrunner runs in the game's NETs yet."
+		},
+		"shield": {
+			"name": "Shield",
+			"class": "defender",
+			"atk": 0,
+			"def": 0,
+			"rez": 7,
+			"cost": 20,
+			"cost_tier": "Everyday",
+			"cite": "CPR core p.201-204",
+			"summary": "Defender: stops the first enemy Program's brain damage, then derezzes. One running; each copy once a Netrun.",
+			"slots": 1,
+			"fx": {
+				"stops_program_brain": true,
+				"one_running": true,
+				"once_per_run": true
+			},
+			"unmodelled": "Hits enemy Netrunners only, and no enemy Netrunner runs in the game's NETs yet."
+		},
+		"banhammer": {
+			"name": "Banhammer",
+			"class": "attacker",
+			"target": "anti_program",
+			"atk": 1,
+			"def": 0,
+			"rez": 0,
+			"cost": 50,
+			"cost_tier": "Costly",
+			"cite": "CPR core p.201-204",
+			"summary": "Attacker: 3d6 REZ to a Program, 2d6 to Black ICE.",
+			"slots": 1,
+			"fx": {
+				"program_dmg": {
+					"black_ice": "2d6",
+					"program": "3d6"
+				}
+			}
+		},
+		"sword": {
+			"name": "Sword",
+			"class": "attacker",
+			"target": "anti_program",
+			"atk": 1,
+			"def": 0,
+			"rez": 0,
+			"cost": 50,
+			"cost_tier": "Costly",
+			"cite": "CPR core p.201-204",
+			"summary": "Attacker: 3d6 REZ to Black ICE, 2d6 to other Programs.",
+			"slots": 1,
+			"fx": {
+				"program_dmg": {
+					"black_ice": "3d6",
+					"program": "2d6"
+				}
+			}
+		},
+		"deckkrash": {
+			"name": "DeckKRASH",
+			"class": "attacker",
+			"target": "anti_personnel",
+			"atk": 0,
+			"def": 0,
+			"rez": 0,
+			"cost": 100,
+			"cost_tier": "Premium",
+			"cite": "CPR core p.201-204",
+			"summary": "Attacker: throws an enemy Netrunner out unsafely.",
+			"slots": 1,
+			"fx": {
+				"forced_jack_out": true
+			},
+			"unmodelled": "Hits enemy Netrunners only, and no enemy Netrunner runs in the game's NETs yet."
+		},
+		"hellbolt": {
+			"name": "Hellbolt",
+			"class": "attacker",
+			"target": "anti_personnel",
+			"atk": 2,
+			"def": 0,
+			"rez": 0,
+			"cost": 100,
+			"cost_tier": "Premium",
+			"cite": "CPR core p.201-204",
+			"summary": "Attacker: 2d6 to an enemy Netrunner's brain and sets their deck on fire.",
+			"slots": 1,
+			"fx": {
+				"brain": "2d6",
+				"sets_fire": 2
+			},
+			"unmodelled": "Hits enemy Netrunners only, and no enemy Netrunner runs in the game's NETs yet."
+		},
+		"nervescrub": {
+			"name": "Nervescrub",
+			"class": "attacker",
+			"target": "anti_personnel",
+			"atk": 0,
+			"def": 0,
+			"rez": 0,
+			"cost": 100,
+			"cost_tier": "Premium",
+			"cite": "CPR core p.201-204",
+			"summary": "Attacker: an enemy Netrunner's INT, REF and DEX -1d6 for an hour.",
+			"slots": 1,
+			"fx": {
+				"stat_damage": "1d6"
+			},
+			"unmodelled": "Hits enemy Netrunners only, and no enemy Netrunner runs in the game's NETs yet."
+		},
+		"poison_flatline": {
+			"name": "Poison Flatline",
+			"class": "attacker",
+			"target": "anti_personnel",
+			"atk": 0,
+			"def": 0,
+			"rez": 0,
+			"cost": 100,
+			"cost_tier": "Premium",
+			"cite": "CPR core p.201-204",
+			"summary": "Attacker: destroys a random Program on an enemy Netrunner's deck.",
+			"slots": 1,
+			"fx": {
+				"destroy_program": true
+			},
+			"unmodelled": "Hits enemy Netrunners only, and no enemy Netrunner runs in the game's NETs yet."
+		},
+		"superglue": {
+			"name": "Superglue",
+			"class": "attacker",
+			"target": "anti_personnel",
+			"atk": 2,
+			"def": 0,
+			"rez": 0,
+			"cost": 100,
+			"cost_tier": "Premium",
+			"cite": "CPR core p.201-204",
+			"summary": "Attacker: an enemy Netrunner can't go deeper or jack out safely for 1d6 rounds. Once a Netrun.",
+			"slots": 1,
+			"fx": {
+				"pin_rounds": "1d6",
+				"once_per_run": true
+			},
+			"unmodelled": "Hits enemy Netrunners only, and no enemy Netrunner runs in the game's NETs yet."
+		},
+		"vrizzbolt": {
+			"name": "Vrizzbolt",
+			"class": "attacker",
+			"target": "anti_personnel",
+			"atk": 1,
+			"def": 0,
+			"rez": 0,
+			"cost": 50,
+			"cost_tier": "Costly",
+			"cite": "CPR core p.201-204",
+			"summary": "Attacker: 1d6 to an enemy Netrunner's brain and one fewer NET Action next turn.",
+			"slots": 1,
+			"fx": {
+				"brain": "1d6",
+				"net_actions_lost": 1
+			},
+			"unmodelled": "Hits enemy Netrunners only, and no enemy Netrunner runs in the game's NETs yet."
+		},
+		"ice_asp": {
+			"name": "Asp",
+			"class": "black_ice",
+			"target": "anti_personnel",
+			"ice": "asp",
+			"cost": 100,
+			"cost_tier": "Premium",
+			"cite": "CPR core p.204-207",
+			"summary": "Your Black ICE: hunts enemy Netrunners.",
+			"slots": 2,
+			"fx": {
+				"own_ice": true
+			},
+			"unmodelled": "Anti-Personnel Black ICE hunts enemy Netrunners, and no enemy Netrunner runs in the game's NETs yet."
+		},
+		"ice_giant": {
+			"name": "Giant",
+			"class": "black_ice",
+			"target": "anti_personnel",
+			"ice": "giant",
+			"cost": 1000,
+			"cost_tier": "Very Expensive",
+			"cite": "CPR core p.204-207",
+			"summary": "Your Black ICE: hunts enemy Netrunners.",
+			"slots": 2,
+			"fx": {
+				"own_ice": true
+			},
+			"unmodelled": "Anti-Personnel Black ICE hunts enemy Netrunners, and no enemy Netrunner runs in the game's NETs yet."
+		},
+		"ice_hellhound": {
+			"name": "Hellhound",
+			"class": "black_ice",
+			"target": "anti_personnel",
+			"ice": "hellhound",
+			"cost": 500,
+			"cost_tier": "Expensive",
+			"cite": "CPR core p.204-207",
+			"summary": "Your Black ICE: hunts enemy Netrunners.",
+			"slots": 2,
+			"fx": {
+				"own_ice": true
+			},
+			"unmodelled": "Anti-Personnel Black ICE hunts enemy Netrunners, and no enemy Netrunner runs in the game's NETs yet."
+		},
+		"ice_kraken": {
+			"name": "Kraken",
+			"class": "black_ice",
+			"target": "anti_personnel",
+			"ice": "kraken",
+			"cost": 1000,
+			"cost_tier": "Very Expensive",
+			"cite": "CPR core p.204-207",
+			"summary": "Your Black ICE: hunts enemy Netrunners.",
+			"slots": 2,
+			"fx": {
+				"own_ice": true
+			},
+			"unmodelled": "Anti-Personnel Black ICE hunts enemy Netrunners, and no enemy Netrunner runs in the game's NETs yet."
+		},
+		"ice_liche": {
+			"name": "Liche",
+			"class": "black_ice",
+			"target": "anti_personnel",
+			"ice": "liche",
+			"cost": 500,
+			"cost_tier": "Expensive",
+			"cite": "CPR core p.204-207",
+			"summary": "Your Black ICE: hunts enemy Netrunners.",
+			"slots": 2,
+			"fx": {
+				"own_ice": true
+			},
+			"unmodelled": "Anti-Personnel Black ICE hunts enemy Netrunners, and no enemy Netrunner runs in the game's NETs yet."
+		},
+		"ice_raven": {
+			"name": "Raven",
+			"class": "black_ice",
+			"target": "anti_personnel",
+			"ice": "raven",
+			"cost": 50,
+			"cost_tier": "Costly",
+			"cite": "CPR core p.204-207",
+			"summary": "Your Black ICE: hunts enemy Netrunners.",
+			"slots": 2,
+			"fx": {
+				"own_ice": true
+			},
+			"unmodelled": "Anti-Personnel Black ICE hunts enemy Netrunners, and no enemy Netrunner runs in the game's NETs yet."
+		},
+		"ice_scorpion": {
+			"name": "Scorpion",
+			"class": "black_ice",
+			"target": "anti_personnel",
+			"ice": "scorpion",
+			"cost": 100,
+			"cost_tier": "Premium",
+			"cite": "CPR core p.204-207",
+			"summary": "Your Black ICE: hunts enemy Netrunners.",
+			"slots": 2,
+			"fx": {
+				"own_ice": true
+			},
+			"unmodelled": "Anti-Personnel Black ICE hunts enemy Netrunners, and no enemy Netrunner runs in the game's NETs yet."
+		},
+		"ice_skunk": {
+			"name": "Skunk",
+			"class": "black_ice",
+			"target": "anti_personnel",
+			"ice": "skunk",
+			"cost": 500,
+			"cost_tier": "Expensive",
+			"cite": "CPR core p.204-207",
+			"summary": "Your Black ICE: hunts enemy Netrunners.",
+			"slots": 2,
+			"fx": {
+				"own_ice": true
+			},
+			"unmodelled": "Anti-Personnel Black ICE hunts enemy Netrunners, and no enemy Netrunner runs in the game's NETs yet."
+		},
+		"ice_wisp": {
+			"name": "Wisp",
+			"class": "black_ice",
+			"target": "anti_personnel",
+			"ice": "wisp",
+			"cost": 50,
+			"cost_tier": "Costly",
+			"cite": "CPR core p.204-207",
+			"summary": "Your Black ICE: hunts enemy Netrunners.",
+			"slots": 2,
+			"fx": {
+				"own_ice": true
+			},
+			"unmodelled": "Anti-Personnel Black ICE hunts enemy Netrunners, and no enemy Netrunner runs in the game's NETs yet."
+		},
+		"ice_dragon": {
+			"name": "Dragon",
+			"class": "black_ice",
+			"target": "anti_program",
+			"ice": "dragon",
+			"cost": 1000,
+			"cost_tier": "Very Expensive",
+			"cite": "CPR core p.204-207",
+			"summary": "Your Black ICE: set it on enemy Black ICE here; 6d6 REZ to it each turn until one is derezzed.",
+			"slots": 2,
+			"fx": {
+				"own_ice": true
+			}
+		},
+		"ice_killer": {
+			"name": "Killer",
+			"class": "black_ice",
+			"target": "anti_program",
+			"ice": "killer",
+			"cost": 500,
+			"cost_tier": "Expensive",
+			"cite": "CPR core p.204-207",
+			"summary": "Your Black ICE: set it on enemy Black ICE here; 4d6 REZ to it each turn until one is derezzed.",
+			"slots": 2,
+			"fx": {
+				"own_ice": true
+			}
+		},
+		"ice_sabertooth": {
+			"name": "Sabertooth",
+			"class": "black_ice",
+			"target": "anti_program",
+			"ice": "sabertooth",
+			"cost": 1000,
+			"cost_tier": "Very Expensive",
+			"cite": "CPR core p.204-207",
+			"summary": "Your Black ICE: set it on enemy Black ICE here; 6d6 REZ to it each turn until one is derezzed.",
+			"slots": 2,
+			"fx": {
+				"own_ice": true
+			}
+		}
+	},
+	"hardware": {
+		"backup_drive": {
+			"name": "Backup Drive",
+			"cost": 100,
+			"cost_tier": "Premium",
+			"cite": "CPR core p.208-209, p.368",
+			"summary": "Saves Programs Black ICE destroys; a Meat Action puts them back on the deck if there's room.",
+			"slots": 2,
+			"fx": {
+				"backup": true
+			}
+		},
+		"dna_lock": {
+			"name": "DNA Lock",
+			"cost": 100,
+			"cost_tier": "Premium",
+			"cite": "CPR core p.208-209, p.368",
+			"summary": "Biometric lock: anyone else needs DV17 Electronics/Security Tech to use the deck.",
+			"slots": 2,
+			"fx": {
+				"lock_dv": 17
+			},
+			"unmodelled": "Nobody steals or uses another's deck in the game."
+		},
+		"hardened_circuitry": {
+			"name": "Hardened Circuitry",
+			"cost": 100,
+			"cost_tier": "Premium",
+			"cite": "CPR core p.208-209, p.368",
+			"summary": "EMP and Microwavers can't knock the deck out.",
+			"slots": 1,
+			"fx": {
+				"emp_proof": true
+			}
+		},
+		"insulated_wiring": {
+			"name": "Insulated Wiring",
+			"cost": 100,
+			"cost_tier": "Premium",
+			"cite": "CPR core p.208-209, p.368",
+			"summary": "Program effects can't set the deck or your clothes on fire.",
+			"slots": 1,
+			"fx": {
+				"fireproof": true
+			}
+		},
+		"krash_barrier": {
+			"name": "KRASH Barrier",
+			"cost": 100,
+			"cost_tier": "Premium",
+			"cite": "CPR core p.208-209, p.368",
+			"summary": "No Program can force you to jack out.",
+			"slots": 2,
+			"fx": {
+				"no_forced_jack_out": true
+			}
+		},
+		"range_upgrade": {
+			"name": "Range Upgrade",
+			"cost": 100,
+			"cost_tier": "Premium",
+			"cite": "CPR core p.208-209, p.368",
+			"summary": "Jack in from up to 8 m away instead of 6 m.",
+			"slots": 1,
+			"fx": {
+				"jack_range_m": 8
+			}
 		}
 	},
 	"fashion": {
@@ -2318,7 +2828,7 @@
 		"stasis": "{stops_death_saves?, heal_rate_mult?, duration}: stasis effect on the occupant (cryopump, cryotank).",
 		"cover_hp": "int: occupant counts as behind cover of this HP (cryopump 15, cryotank 30).",
 		"check": "{dv, skill}: check needed to operate (cryotank).",
-		"deck_slots": "int: Program/Hardware slots of a cyberdeck.",
+		"deck_slots": "int: Program/Hardware slots of a cyberdeck (Poor 5, Standard 7, Excellent 9; p.196). A Cyberarm Cyberdeck adds 1 (p.364).",
 		"tool_for": "list of skill ids this item is the 'right tool' for; lacking it applies the -2 'no right tools' modifier (p.130). Interpretation, not RAW per item.",
 		"light": "{shape: 'beam'|'radius', range_m|radius_m}: illumination (flashlight, glow_stick, road_flare).",
 		"meals": "int: meals provided (food items).",
@@ -2374,7 +2884,28 @@
 		"keyed_to_owner": "Biometric-keyed weapon (Kendachi Mono-Three, p.348): its special rule works for whoever carries it (HOUSE-RULE: sold keyed to the buyer).",
 		"status.hazards": "inside status: crit injury id -> hazard (Combatant.HAZARDS: flash, loud_noise, inhaled). A target immune to that hazard doesn't suffer that injury; immune to all of them, no check at all. flashbang (Damaged Eye: flash, Damaged Ear: loud_noise).",
 		"status.hazard": "inside status: the hazard the whole effect is (Combatant.HAZARDS). A target immune to it makes no check. shrieker (loud_noise); set from grenade_hazard on a thrown grenade.",
-		"grenade_hazard": "hazard (Combatant.HAZARDS) a thrown grenade of this ammo is: a poison or biotoxin grenade is a toxic gas cloud, 'inhaled' (Nasal Filters, Independent Air Supply, Anti-Smog Mask stop it). poison_ammo, biotoxin_ammo."
+		"grenade_hazard": "hazard (Combatant.HAZARDS) a thrown grenade of this ammo is: a poison or biotoxin grenade is a toxic gas cloud, 'inhaled' (Nasal Filters, Independent Air Supply, Anti-Smog Mask stop it). poison_ammo, biotoxin_ammo.",
+		"boost": "{ability: n}: while the Program is Rezzed, +n to that Interface ability's Checks (pathfinder, backdoor, cloak) or to Speed (speed). Boosters, p.203.",
+		"brain_reduce": "int: brain damage to the runner lowered by this while Rezzed (Armor, p.203).",
+		"one_running": "bool: only one copy of this Program can be Rezzed at a time (Armor, Flak, Shield, p.203).",
+		"once_per_run": "bool: each copy can be Activated once per Netrun (Armor, Flak, Shield, Superglue, p.203-204).",
+		"enemy_attacker_atk": "int: enemy Non-Black ICE Attackers' ATK against you becomes this (Flak, p.203).",
+		"stops_program_brain": "bool: stops the first enemy Program's brain damage, then derezzes (Shield, p.203).",
+		"program_dmg": "{black_ice, program}: REZ dice dealt to a Black ICE or another Program on a hit (Banhammer, Sword, p.203-204).",
+		"forced_jack_out": "bool: the enemy Netrunner is forced out unsafely (DeckKRASH, p.204).",
+		"brain": "dice string: direct brain damage to an enemy Netrunner (Hellbolt, Vrizzbolt, p.204).",
+		"sets_fire": "int: HP a turn the target burns for, unless insulated (Hellbolt, p.204).",
+		"stat_damage": "dice string: INT, REF, DEX each lowered for an hour (Nervescrub, p.204).",
+		"destroy_program": "bool: destroys a random Non-Black ICE Program on the target's deck (Poison Flatline, p.204).",
+		"pin_rounds": "dice string: rounds the target can't go deeper or jack out safely (Superglue, p.204).",
+		"net_actions_lost": "int: NET Actions the target loses next turn, never below 2 (Vrizzbolt, p.204).",
+		"own_ice": "bool: the runner's own Black ICE; stats in black_ice.json under the entry's `ice` (p.204-205).",
+		"backup": "bool: saves destroyed Non-Black ICE Programs for a Meat Action restore (Backup Drive, p.208-209).",
+		"lock_dv": "int: DV to use the deck without its biometric key (DNA Lock, p.208-209).",
+		"emp_proof": "bool: EMP and Microwavers can't knock the deck out (Hardened Circuitry, p.208-209).",
+		"fireproof": "bool: Program effects can't set the deck or clothing alight (Insulated Wiring, p.208-209).",
+		"no_forced_jack_out": "bool: immune to Program effects that force a Jack Out (KRASH Barrier, p.208-209).",
+		"jack_range_m": "int: access point range in metres (Range Upgrade 8, p.208-209)."
 	},
 	"kit_rules": {
 		"_doc": "What a crew member takes into a gig from safehouse storage (HOUSE-RULE, owner's design): slot 1 holds a consumable (the one item used in the field), slot 2 a passive utility. Used consumables are spent; unused ones and utilities come back; kit on someone who doesn't come back is lost. Item fields: kit (consumable|utility), kit_use (grenade|dose|carried), kit_name (storage label), kit_short (action-bar label).",

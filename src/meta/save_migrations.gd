@@ -89,8 +89,15 @@ extends RefCounted
 ##     here, with the Neural Link they need if that is missing too, and no Humanity cost (a rules
 ##     change, not a purchase). They go in the neural link even when its slots are full (the book's
 ##     stat blocks win over the slot rules, as Cyber.place_ids does).
+## v21: cyberdecks and Programs (CPR core p.196, p.201-209; Deck). Each crew member saves `deck` (the
+##     gear.json id of the deck they carry, "" for none), `programs` (what's loaded on it, copies
+##     repeated), `deck_hardware` and `backup` (Programs a Backup Drive saved). A Netrunner (crew or
+##     recruit) from before had no deck, only Sword and Armor: they get the Role's starting gear
+##     (p.103), a Standard deck with Armor, Sword, See Ya, Sword and Worm (Deck.STARTING_PROGRAMS),
+##     keeping what they had (the Sword and Armor count towards it). Anyone else gets an empty deck
+##     record.
 
-const CURRENT := 20
+const CURRENT := 21
 
 
 ## Upgrade `d` (a parsed save) to CURRENT. Returns {} for a save from a newer build, which this
@@ -121,6 +128,7 @@ static func migrate(d: Dictionary) -> Dictionary:
 			17: _v17_to_v18(d)
 			18: _v18_to_v19(d)
 			19: _v19_to_v20(d)
+			20: _v20_to_v21(d)
 		v += 1
 		d["version"] = v
 	return d
@@ -376,3 +384,23 @@ static func _v19_to_v20(d: Dictionary) -> void:
 			cw.append({"id": "neural_link", "loc": "neural_link"})
 		cw.append({"id": "interface_plugs", "loc": "neural_link"})
 		c["cyberware"] = cw
+
+
+static func _v20_to_v21(d: Dictionary) -> void:
+	for c in d.get("crew", []) + d.get("recruits", []):
+		if not c is Dictionary or (c as Dictionary).has("deck"):
+			continue
+		var had: Array = (c.get("programs", []) as Array).map(func(x): return String(x)).filter(func(x): return not Deck.program(x).is_empty())
+		if String(c.get("role", "")) == "netrunner":
+			c["deck"] = Deck.STARTING_DECK
+			var left := had.duplicate()
+			for pid in Deck.STARTING_PROGRAMS:   # the starting set, what they had counting towards it
+				if pid in left:
+					left.erase(pid)
+				else:
+					had.append(pid)
+		else:
+			c["deck"] = ""
+		c["programs"] = had
+		c["deck_hardware"] = []
+		c["backup"] = []

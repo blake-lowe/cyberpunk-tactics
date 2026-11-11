@@ -1920,7 +1920,9 @@ static func conditions(c: Combatant) -> Array[String]:
 		out.append(String(i.get("name", i.id)))
 	for d in c.drugs_taken:
 		out.append(String(d).replace("_", " "))
-	if not c.cyber_off.is_empty():
+	if c.cyber_off.has(Deck.OFF_KEY):
+		out.append("cyberdeck offline")
+	if c.cyber_off.size() > (1 if c.cyber_off.has(Deck.OFF_KEY) else 0):
 		out.append("chrome offline")
 	if c.chrome_on.has("sandevistan"):
 		out.append("sandevistan: +3 initiative")
@@ -2452,11 +2454,9 @@ func _net_refresh(enc: Encounter) -> void:
 		_net_hover(fl, "eye_dee", "%s, value %d of 5 (%s)" % [String(fi.what), int(fi.value), String(fi.tier)])
 		_net_box.add_child(fl)
 	var status: Array[String] = []
-	if run.armor_rez > 0:
-		status.append("ARMOR ON")
-	for p in run.runner.programs:
-		if run.lost.has(p):
-			status.append(p.to_upper() + " DESTROYED")
+	for p in run.progs:
+		if bool(p.gone):
+			status.append(Deck.name_of(String(p.id)).to_upper() + " DESTROYED")
 	if run.runner.burning:
 		status.append("ON FIRE")
 	if run.kraken_until >= enc.init.round_num:
@@ -2465,16 +2465,6 @@ func _net_refresh(enc: Encounter) -> void:
 		status.append("WOUNDED -%d" % (NetRun.interface_rank(run.runner) - run.rank()))
 	if not status.is_empty():
 		_net_box.add_child(_text(" · ".join(status), F_TERM, Hud.ts(18), GOLD))
-	var progs: Array = run.runner.programs.filter(func(pg): return not run.lost.has(pg))
-	if not progs.is_empty():   # the deck's Programs, each with its card
-		var prow := HBoxContainer.new()
-		prow.add_theme_constant_override("separation", 10)
-		prow.add_child(_text("PROGRAMS", F_PIXEL, 20, DIM))
-		for pg in progs:
-			var pl := _text(String(pg).to_upper(), F_TERM, Hud.ts(18), Color("e2c8ff"))
-			_net_hover(pl, String(pg))
-			prow.add_child(pl)
-		_net_box.add_child(prow)
 	var ice := run.arch.ice_at(run.current)
 	for i in ice:
 		var st: Dictionary = ice_db[i.kind]
@@ -2505,14 +2495,11 @@ func _net_refresh(enc: Encounter) -> void:
 	if not ice.is_empty():
 		var st0: Dictionary = ice_db[ice[0].kind]
 		add.call("ZAP %d%% · 1d6" % roundi(Check.chance_opposed(run.rank(), int(st0.def)) * 100), "zap")
-		if run.has_program("sword"):
-			add.call("SWORD %d%% · 3d6" % roundi(Check.chance_opposed(run.rank() + 1, int(st0.def)) * 100), "sword")
-	if run.has_program("armor") and not run.armor_used:
-		add.call("ARMOR (PROGRAM) · -4 BRAIN DAMAGE", "armor")
-	add.call("PATHFINDER", "pathfinder")
+	add.call("PATHFINDER" + (" +%d" % run.boost("pathfinder") if run.boost("pathfinder") > 0 else ""), "pathfinder")
 	add.call("JACK OUT", "jack_out", run.kraken_until < enc.init.round_num)
 	_net_box.add_child(acts)
-	var turret_rows := _net_held(enc, none)
+	var deck_rows := _net_programs(enc, run, none)
+	var turret_rows := _net_held(enc, none) + deck_rows / 2
 	var unsafe := _net_button("UNSAFE JACK OUT", func(): action.emit("net", "jack_out_unsafe"), 296, 24)
 	_net_hover(unsafe, "jack_out_unsafe")
 	unsafe.add_theme_color_override("font_color", RED)
@@ -2537,6 +2524,78 @@ func _net_refresh(enc: Encounter) -> void:
 		if _is_target(enc, run, nid):
 			b.add_theme_color_override("font_color", GOLD)
 		_net_box.add_child(b)
+
+
+## The deck's Programs as NET Actions (CPR core p.201-205), one row per copy in the attack-menu style:
+## an Attacker's odds and dice against the ICE here, a Booster or Defender to run or stop, your own
+## Black ICE to set on the ICE here; Derezzed ones say so (stop and run again to restore them).
+## A Backup Drive's restore is a Meat Action row. Returns the rows used.
+func _net_programs(enc: Encounter, run: NetRun, none: bool) -> int:
+	if run.progs.is_empty() and run.runner.backup.is_empty():
+		return 0
+	var c := run.runner
+	_net_box.add_child(_text("DECK · %d/%d SLOTS" % [Deck.used(c), Deck.slots(c)], F_PIXEL, 20, DIM))
+	var ice := run.arch.ice_at(run.current)
+	var rows := 1
+	for i in run.progs.size():
+		var p: Dictionary = run.progs[i]
+		if bool(p.gone):
+			continue
+		var id := String(p.id)
+		var nm := Deck.name_of(id).to_upper()
+		var why := run.activate_block(i, enc.init.round_num)
+		var label := ""
+		var op := "activate"
+		var d := Deck.program(id)
+		match Deck.program_class(id):
+			"attacker":
+				if ice.is_empty():
+					label = "%s · NO ICE HERE" % nm
+				else:
+					var st: Dictionary = RulesDB.load_json("black_ice.json")["ice"][ice[0].kind]
+					label = "%s %d%% · %s" % [nm, roundi(Check.chance_opposed(run.rank() + int(d.get("atk", 0)), int(st.def)) * 100),
+						String(d.fx.program_dmg.black_ice)] + (" · " + why.to_upper() if why != "" else "")
+			"black_ice":
+				if bool(p.on):
+					op = "deactivate"
+					var tk := ""
+					for x in run.arch.ice:
+						if int(x.id) == int(p.target) and not x.get("derezzed", false):
+							tk = String(x.kind).to_upper()
+					label = "%s ON %s · STOP" % [nm, tk] if tk != "" else "%s · IDLE · STOP" % nm
+				else:
+					label = "SET %s ON %s" % [nm, String(ice[0].kind).to_upper()] if not ice.is_empty() else "%s · NO ICE HERE" % nm
+			_:
+				if bool(p.on):
+					op = "deactivate"
+					label = ("%s ON · REZ %d · STOP" % [nm, int(p.rez)]) if int(p.rez) > 0 else "%s DEREZZED · STOP" % nm
+				else:
+					label = "RUN %s · %s" % [nm, _prog_effect(id)] + (" · " + why.to_upper() if why != "" and why != "already running" else "")
+		var pair := [i, op]
+		var on := op == "deactivate"
+		var b := _net_button(label, func(): action.emit("net_program", pair), 296, 24, none or (not on and why != ""))
+		if on:
+			b.add_theme_color_override("font_color", GOLD if int(p.rez) > 0 else RED)
+		_net_hover(b, id, "REZ %d/%d" % [int(p.rez), int(Deck.stats(id).rez)] if on and not Deck.program_class(id) == "attacker" else "")
+		_net_box.add_child(b)
+		rows += 1
+	if not c.backup.is_empty():   # a Meat Action: not once the turn has gone to the NET
+		var rb := _net_button("RESTORE BACKUP (%d) · MEAT ACTION" % c.backup.size(), func(): action.emit("net_restore", null), 296, 24,
+			not enc.turn.action_available or enc._netting)
+		_net_hover(rb, "restore_backup")
+		_net_box.add_child(rb)
+		rows += 1
+	return rows
+
+
+## A Booster's or Defender's effect in a few words ("+2 PATHFINDER", "-4 BRAIN DAMAGE").
+static func _prog_effect(id: String) -> String:
+	var fx: Dictionary = Deck.program(id).get("fx", {})
+	if fx.has("brain_reduce"):
+		return "-%d BRAIN DAMAGE" % int(fx.brain_reduce)
+	for k in (fx.get("boost", {}) as Dictionary):
+		return "+%d %s" % [int(fx.boost[k]), String(k).to_upper()]
+	return ""
 
 
 const HELD_ROWS := 7   ## held-node rows the NET panel shows before folding the rest into "+N MORE"
