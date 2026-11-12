@@ -2,9 +2,17 @@ class_name Morale
 extends RefCounted
 ## Morale (Cyberpunk RED: Single Player Mode, SPM p.20-21; the table is reprinted on p.32): not
 ## everyone fights to the last body. At a stress point an NPC rolls 1d10; at or under its
-## mentality's threshold it stops fighting and either runs for the edge of the map or surrenders.
+## mentality's threshold it stops fighting: it runs for the edge of the map, or, with no way off,
+## hides out of the way. HOUSE-RULE (owner, playtest 2026-11-11: "get rid of surrendering and only
+## let them flee or hide"): the book's surrender is not played; a broken NPC never gives itself up.
 ## Rules only: Encounter calls sweep() at every end check and does the state changes
-## (Encounter.surrender, start_flight, flee_out); the AI runs the fleeing (AI.flee).
+## (Encounter.start_flight, start_hiding, flee_out); the AI runs the fleeing and the hiding
+## (AI.flee, AI.hide).
+##
+## The odds per stress point are the book's table as written: 1d10 at or under the threshold, so a
+## Mook breaks 90% of the time, a Hardened Mook 80%, a Lieutenant 60%, a Mini-Boss 40% and anyone
+## fully committed 20% (break_chance). A Mook that reaches Seriously Wounded therefore almost
+## always quits: that is the book's "unsure streetrat", not luck.
 ##
 ## Stress points (the owner's pick of the book's examples, SPM p.20):
 ##   wounded: the unit itself reaching Seriously Wounded;
@@ -32,10 +40,6 @@ const COMMITTED_FACTIONS := ["maxtac"]
 const TIER_RANK := {"mook": 1, "lieutenant": 2, "mini_boss": 3, "boss": 4}
 const STRESSES := ["wounded", "half", "leader"]
 const STRESS_TEXT := {"wounded": "badly hurt", "half": "half their side down", "leader": "their leader down"}
-## HOUSE-RULE: a unit that breaks surrenders when it's cornered (a standing foe in sight within this
-## many squares), held, prone, or has no way off the map; otherwise it runs. Trauma Team never
-## surrenders: they pull out.
-const CORNERED := 6.0
 
 
 ## The mentality row for `u` (a THRESHOLD key). RULES: the book's rows map to our NPC tiers one to
@@ -58,6 +62,11 @@ static func mentality(e: Encounter, u: Dictionary) -> String:
 
 static func threshold(e: Encounter, u: Dictionary) -> int:
 	return int(THRESHOLD[mentality(e, u)])
+
+
+## The chance a unit of this mentality breaks at one stress point: the threshold out of 10.
+static func break_chance(mentality_id: String) -> float:
+	return float(THRESHOLD.get(mentality_id, 0)) / 10.0
 
 
 static func committed(c: Combatant, faction: String) -> bool:
@@ -84,9 +93,9 @@ static func eligible(e: Encounter, u: Dictionary) -> bool:
 	return ai == "guard" and bool(u.alerted)
 
 
-## The side a unit counts with: where it stood before it surrendered (Encounter.surrender moves it).
+## The side a unit counts with (breaking never moves it to another side).
 static func side_of(u: Dictionary) -> int:
-	return int(u.get("side0", u.team))
+	return int(u.team)
 
 
 ## Out of the fight: dead (or gone off the map), down, or quit.
@@ -146,9 +155,8 @@ static func sweep(e: Encounter) -> Array:
 			var thr := threshold(e, u)
 			u.morale_rolls[s] = r
 			if r <= thr:
-				var how := choose(e, u)
-				if how == "surrender":
-					e.surrender(u, s, r, thr)
+				if choose(e, u) == "hide":
+					e.start_hiding(u, s, r, thr)
 				else:
 					e.start_flight(u, s, r, thr)
 				broke.append(u.id)
@@ -156,21 +164,13 @@ static func sweep(e: Encounter) -> Array:
 	return broke
 
 
-## Flee or surrender (HOUSE-RULE, see CORNERED).
+## Flee or hide (HOUSE-RULE, owner): run for the edge when there is a way off the map from here
+## (a hold or a fall is dealt with on the way: AI.flee gets up and breaks free first), else hide.
+## Trauma Team always pulls out.
 static func choose(e: Encounter, u: Dictionary) -> String:
 	if String(e.sides[int(u.team)].ai) == "trauma":
 		return "flee"
-	if u.c.is_grappled() or u.c.prone:
-		return "surrender"
-	for f in e.units:
-		if f == u or f.c.dead or not f.c.can_act() or f.has("broke") or f.has("turret") or f.pos.z != u.pos.z:
-			continue
-		if not e.hostile(int(f.team), int(u.team)):
-			continue
-		if Vector2(f.pos.x - u.pos.x, f.pos.y - u.pos.y).length() <= CORNERED and e.los.sight(f.pos, u.pos).visible:
-			return "surrender"
-	var field := flee_field(e)
-	return "flee" if field.has(u.pos) else "surrender"
+	return "flee" if flee_field(e).has(u.pos) else "hide"
 
 
 ## Where a fleeing unit leaves the map: the map's walkable entrances (in a tower band, the ones

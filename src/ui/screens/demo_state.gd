@@ -127,5 +127,5 @@ static func report(c: Campaign, objective := "") -> Dictionary:
 		"twist": {"id": "target_fights_back", "row": 77, "label": "Mark Hits Back", "note": "the target is far tougher than briefed",
 			"text": "Mara Voss fights like a Lieutenant.", "round": 4},
 		"reputation": {a.display_name: 3}, "dead": ["Wraith"], "hurt": [], "episodes": [], "kit_used": ["Flashbang"], "addicted": [], "members": members,
-		"loot": loot, "loot_eb": 500, "loot_lost": 1, "surrendered": 2, "fled": 1,
+		"loot": loot, "loot_eb": 500, "loot_lost": 1, "fled": 2, "hid": 1,
 		"leads": loot.filter(func(f): return f.kind == "lead").map(func(f): return {"label": f.label, "hook": "heist" if String(f.label).contains("heist") else "night_market", "day": 9, "gig": String(gig.title)})}

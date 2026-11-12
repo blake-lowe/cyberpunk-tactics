@@ -262,7 +262,7 @@ func test_removing_cyberware_destroys_it_and_keeps_the_humanity_lost() -> void:
 	assert_true(back.implants.is_empty())
 
 
-func test_cyber_claws_stay_put_and_the_knife_they_replace_goes_to_storage() -> void:
+func test_cyber_claws_stay_put_beside_the_knife_and_each_piece_is_a_weapon() -> void:
 	var c := Campaign.new_game(5)
 	c.eb = 10000
 	_market_with(c, ["cyberware/cyberarm", "cyberware/wolvers", "cyberware/big_knucks"])
@@ -274,15 +274,15 @@ func test_cyber_claws_stay_put_and_the_knife_they_replace_goes_to_storage() -> v
 		c.buy("cyberware/" + id)
 	c.install(solo, "cyberarm")
 	c.install(solo, "wolvers")
-	assert_eq(c.stored("weapon/light_melee@poor"), 1, "the knife the claws replace goes into storage")
+	assert_eq(c.stored("weapon/light_melee@poor"), 0, "the knife stays carried: claws don't replace it")
+	assert_true(solo.weapons.any(func(w): return w.id() == "light_melee" and not w.builtin))
 	var claws := solo.weapons.find(solo.weapons.filter(func(w): return w.builtin)[0])
 	assert_false(c.unequip_weapon(solo, claws), "built-in claws can't be put away")
 	c.install(solo, "big_knucks")
-	var melee := solo.weapons.filter(func(w): return w.is_melee())
-	assert_eq(melee.size(), 1)
-	assert_eq(melee[0].id(), "heavy_melee", "keeps the harder-hitting Wolvers")
+	var chrome := solo.weapons.filter(func(w): return w.builtin)
+	assert_eq(chrome.map(func(w): return w.display_name()), ["Wolvers", "Big Knucks"], "every piece is its own weapon, by its name")
 	var d := Combatant.from_dict(JSON.parse_string(JSON.stringify(solo.to_dict())))
-	assert_true(d.weapons.any(func(w): return w.builtin))
+	assert_eq(d.weapons.map(func(w): return w.display_name()), solo.weapons.map(func(w): return w.display_name()), "saved and loaded in place")
 
 
 func test_reputation_is_the_best_deed_of_those_who_were_there() -> void:

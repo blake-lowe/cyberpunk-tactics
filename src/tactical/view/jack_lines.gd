@@ -1,7 +1,7 @@
 class_name JackLines
 extends Node3D
 ## A Netrunner's idle turn (owner: make access points easy to find): thin translucent cyan lines
-## between the runner and every access point they sense (AccessPoints.sensed), with bright data
+## between the runner and every access point their Scans found (AccessPoints.scanned_for), with bright data
 ## packets flowing in along them, from the port to the runner (owner verdict). Drawn in the 3D world
 ## inside the low-res SubViewport, so the post shader pixelates them like AimFx's line of fire.
 

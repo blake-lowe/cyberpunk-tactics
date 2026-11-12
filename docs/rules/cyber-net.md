@@ -353,7 +353,11 @@ Not a NET Action: moving within the Architecture (as far as you like, but not pa
 - Moving out of access range while jacked in jacks you out automatically AND you suffer all remaining enemy Black ICE you have encountered but not Derezzed. (p198)
 - Jack Out safely (a NET Action, from within range): resets the Architecture's defenses; all your Programs leave with you; starting over means jacking back into the same location. Permanent effects need a Virus at the bottom. (p198)
 - Your Move Action is still available while jacked in; you can move to cover as long as you stay within access range (p197 example).
-- Netrunners can Scan (Scanner, Meat Action) for access points in meatspace (p199).
+- Netrunners can Scan (Scanner, Meat Action) for access points in meatspace (p199). The game: SCAN on
+  the Netrunner's role button (V), Interface + 1d10, every access point within the total x 2 m (as the
+  crow flies, through walls, 3 m a storey) is found and marked for the gig (HOUSE-RULE: the book
+  leaves how much and how far to the GM; its example 14 finds two nearby ones). This replaces the old
+  passive Interface x 4 m sensing (`Encounter.scan_access_points`, `AccessPoints`).
 - A Turn is Meat Action OR NET Actions, so a runner who needs to shoot or flee in meatspace gives up that Turn's NET Actions (p197 example). Cyberware cannot be hacked via Interface (governed by Cybertech); analog or CitiNet-only devices have no Architecture (counter with Electronics/Security Tech) (p209).
 
 ### 3.4 Interface Abilities (p198-201)

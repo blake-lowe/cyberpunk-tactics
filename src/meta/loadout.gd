@@ -149,6 +149,8 @@ static func chrome_name(c: Combatant, w: Weapon) -> String:
 		return ""
 	if w.popup != "":   # a popup's weapon is named for it ("Popup Heavy Pistol")
 		return w.display_name()
+	if w.chrome != "":
+		return Cyber.display(w.chrome)
 	for id in c.cyber_ids():
 		if String((Cyber.def(id).get("fx", {}) as Dictionary).get("weapon", "")) == w.id():
 			return Cyber.display(id)

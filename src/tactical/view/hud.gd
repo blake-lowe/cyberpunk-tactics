@@ -65,9 +65,13 @@ const CHROME_KEY := "C"
 const CHROME_TINT := Color("c88cf8")   ## cyberware's violet (the Med Bay's and market's), lifted for the bar
 var atk_mode := "single"  ## the armed attack in the attack stage (Encounter.attack_modes ids)
 ## Main-bar actions: [id, title, key, signal, arg, tint]. Order is fixed so nothing moves.
+## The door shares O with RELEASE (a hold's let-go, only offered while holding someone): every
+## letter is taken, O reads as "open", and holding someone beside a door is rare (O releases then;
+## the door button still clicks).
 const MAIN_ACTIONS := [["shot", "ATTACK", "F", "stage", "attack", Color("05d9e8")], ["reload", "RELOAD", "R", "reload", null, Color("05d9e8")],
 	["kit0", "KIT", "G", "kit", 0, Color("f9c80e")], ["jack", "JACK IN", "J", "jack_in", null, Color("d68cff")],
-	["interact", "INTERACT", "B", "interact", null, Color("f9c80e")], ["medic", "STABILIZE", "T", "tool", "stabilize", Color("39f0a0")],
+	["interact", "INTERACT", "B", "interact", null, Color("f9c80e")], ["door", "OPEN DOOR", "O", "door", null, Color("05d9e8")],
+	["medic", "STABILIZE", "T", "tool", "stabilize", Color("39f0a0")],
 	["role", "ROLE", "V", "role", null, Color("39f0a0")], ["chrome", "CHROME", CHROME_KEY, "stage", "chrome", CHROME_TINT]]
 ## Stairs (FloorNav.go): [id, title, glyph, dir]. Shown while the active unit stands on a stair
 ## square (or elevator / ladder end) that leads that way; lit when the move fits this turn.
@@ -897,6 +901,17 @@ class ActBtn extends Button:
 				draw_rect(Rect2(o + Vector2(-r * 1.0, -r * 0.5), Vector2(r * 1.4, r * 1.0)), c, false, 2.0)
 				draw_colored_polygon(PackedVector2Array([o + Vector2(r * 0.4, -r * 0.3), o + Vector2(r * 1.1, -r * 0.6), o + Vector2(r * 1.1, r * 0.6), o + Vector2(r * 0.4, r * 0.3)]), c)
 				draw_line(o + Vector2(-r * 1.2, r * 1.0), o + Vector2(r * 1.2, -r * 1.0), Color(Hud.RED, c.a), 2.0)
+			"scan":   # a sweep: arcs out from a point, a port found
+				draw_circle(o + Vector2(-r * 0.9, r * 0.9), 2.5, c)
+				for i in 3:
+					draw_arc(o + Vector2(-r * 0.9, r * 0.9), r * (0.7 + i * 0.6), -PI * 0.5, 0.0, 10, Color(c, 1.0 - i * 0.25), 2.0)
+				draw_rect(Rect2(o + Vector2(r * 0.55, -r * 1.2), Vector2(r * 0.6, r * 0.5)), Color(Hud.VIOLET, c.a))
+			"door_open", "door_close":   # a frame and its leaf: swung out (open) or in the frame (close)
+				draw_rect(Rect2(o + Vector2(-r * 0.8, -r * 1.2), Vector2(r * 1.6, r * 2.4)), c, false, 2.0)
+				if glyph == "door_close":
+					draw_rect(Rect2(o + Vector2(-r * 0.55, -r * 0.95), Vector2(r * 1.1, r * 1.9)), Color(c, 0.6))
+				else:
+					draw_colored_polygon(PackedVector2Array([o + Vector2(-r * 0.8, -r * 1.2), o + Vector2(r * 0.2, -r * 0.8), o + Vector2(r * 0.2, r * 1.5), o + Vector2(-r * 0.8, r * 1.2)]), Color(c, 0.6))
 			"withdraw":   # an exit arrow
 				draw_line(o + Vector2(-r * 1.2, 0), o + Vector2(r * 0.9, 0), c, 3.0)
 				draw_colored_polygon(PackedVector2Array([o + Vector2(r * 1.3, 0), o + Vector2(r * 0.5, -r * 0.6), o + Vector2(r * 0.5, r * 0.6)]), c)
@@ -1034,9 +1049,14 @@ func _build_bar() -> void:
 		var arg: Variant = spec[4]
 		var act: String = spec[3]
 		b3.pressed.connect(func(): action.emit(act, arg))
-		if spec[0] == "interact":   # what B does here, when it has a card (Spoof)
-			b3.mouse_entered.connect(func(): _interact_tip(b3))
-			b3.mouse_exited.connect(func(): _tip.visible = false)
+		if spec[0] in ["interact", "role", "door"]:   # what B / V / O does here, when it has a card (Spoof, Disable camera, Scan, the door)
+			var bid: String = spec[0]
+			b3.mouse_entered.connect(func():
+				hot_action = bid
+				_interact_tip(b3, bid))
+			b3.mouse_exited.connect(func():
+				hot_action = ""
+				_tip.visible = false)
 		_tool_buttons[spec[0]] = b3
 		_buttons.add_child(b3)
 	for spec in STAIR_ACTIONS:   # stairs: up or down the flight you stand on (FloorNav.go)
@@ -1160,6 +1180,22 @@ static func loop_tag(o: Dictionary) -> String:
 	if String(o.get("op", "")) != "loop":
 		return ""
 	return " · LOOPED" if bool(o.get("on", false)) else " · STILL REPORTING"
+
+
+## A Scan's callout over the runner: the roll and what it found ("SCAN 14 · 2 ACCESS POINTS").
+static func scan_word(total: int, found: int) -> String:
+	if found <= 0:
+		return "SCAN %d · NOTHING" % total
+	return "SCAN %d · %d ACCESS POINT%s" % [total, found, "" if found == 1 else "S"]
+
+
+## A camera's sighting as its toast (Encounter._camera_spots): the first one flags them ("CAMERA
+## SPOTTED PATCH · FLAGGED", the detection clock rolls on its own widget); the same camera again
+## sends a guard (`guard`: their name).
+static func camera_toast(who: String, guard: String) -> String:
+	if guard == "":
+		return "CAMERA SPOTTED %s · FLAGGED" % who.to_upper()
+	return "CAMERA SPOTTED %s AGAIN · %s IS ON THE WAY" % [who.to_upper(), guard.to_upper()]
 
 
 ## The alarm's cause as its callout: "CAMERA SPOTTED VEX: ALARM", or "" when there's no cause to
@@ -1394,18 +1430,41 @@ static func interact_here(enc: Encounter) -> Array:
 	if Clocks.can_spoof(enc):   # win the detection clock a die back (SPM p.26)
 		return ["spoof", "SPOOF", "spoof"]
 	if not enc.camera_in_reach(enc.cur).is_empty():
-		return ["tamper", "CAMERA", "tamper"]
+		return ["tamper", "DISABLE CAMERA", "tamper"]
 	return []
 
 
 ## The active unit's role ability on V: [tool, title, glyph] (Medtech Pharmaceuticals, Tech
-## Field Expertise), or [].
+## Field Expertise, a Netrunner's Scan: Interface's Scanner, CPR core p.199), or [].
 static func role_action(c: Combatant) -> Array:
 	if c.role == "medtech" and c.doses > 0:
 		return ["dose", "DOSE", "dose"]
 	if int(c.maker.get("field", 0)) > 0:
 		return ["rig", "RIG", "rig"]
+	if NetRun.interface_rank(c) > 0:
+		return ["scan", "SCAN", "scan"]
 	return []
+
+
+## The door button's state for the active unit (Encounter.door_in_reach): [title, glyph, why it
+## can't, ""], or [] with no door beside them.
+static func door_action(enc: Encounter) -> Array:
+	var d := enc.door_in_reach(enc.cur)
+	if d.is_empty():
+		return []
+	if bool(d.open):
+		var blocked := enc.units.any(func(o): return o.pos == d.cell and not o.get("fled", false) and not o.get("carried", false))
+		return ["CLOSE DOOR", "door_close", "Someone's in the doorway" if blocked else ""]
+	return ["OPEN DOOR", "door_open", "Locked: bypass it, use a keycard or open it from the NET" if bool(d.locked) else ""]
+
+
+## JACK IN shows only where it works: an access point in jack-in range (Encounter.jack_points:
+## 6 m, no wall between, p.198) or already jacked in (JACK OUT).
+static func jack_shown(enc: Encounter) -> bool:
+	var c: Combatant = enc.cur.c
+	if NetRun.interface_rank(c) <= 0:
+		return false
+	return enc.runs.has(enc.cur.id) or not enc.jack_points(enc.cur).is_empty()
 
 
 ## Main bar: show what applies to the active unit, dim what costs an Action once it's spent.
@@ -1422,8 +1481,9 @@ func _refresh_tools(enc: Encounter, crew_turn: bool) -> void:
 	var role := role_action(c)
 	var jacked := enc.runs.has(enc.cur.id)
 	var chrome := enc.chrome_options()
+	var door := door_action(enc)
 	var show := {"shot": true, "reload": not c.weapons.is_empty() and c.weapons[0].uses_ammo(), "kit0": enc.kit_action(0) in ["grenade", "dose"],
-		"jack": NetRun.interface_rank(c) > 0, "interact": not here.is_empty(), "medic": near_dying, "role": not role.is_empty(),
+		"jack": jack_shown(enc), "interact": not here.is_empty(), "door": not door.is_empty(), "medic": near_dying, "role": not role.is_empty(),
 		"chrome": not chrome.is_empty()}
 	var gopts := enc.grapple_options()
 	var g: Grapple = c.grapple
@@ -1434,7 +1494,7 @@ func _refresh_tools(enc: Encounter, crew_turn: bool) -> void:
 	for k in _tool_buttons:
 		var b: ActBtn = _tool_buttons[k]
 		b.visible = show[k]
-		b.disabled = not crew_turn or (k != "jack" and k != "chrome" and not can_act) or (k == "reload" and not t.action_available)
+		b.disabled = not crew_turn or (k != "jack" and k != "chrome" and k != "door" and not can_act) or (k == "reload" and not t.action_available)
 		if show[k] and k in ["go_up", "go_down"]:   # a move, not an Action: lit when the flight fits this turn
 			var sg: Dictionary = stairs[1 if k == "go_up" else -1]
 			b.disabled = not crew_turn or not sg.ok
@@ -1467,6 +1527,14 @@ func _refresh_tools(enc: Encounter, crew_turn: bool) -> void:
 				if b.visible:
 					b.title = String(role[1])
 					b.glyph = String(role[2])
+					if String(role[0]) == "scan":   # an Action, not a target to pick
+						b.disabled = b.disabled or not t.action_available
+			"door":   # free (HOUSE-RULE): lit whenever it can act on the door
+				if b.visible:
+					b.title = String(door[0])
+					b.glyph = String(door[1])
+					b.disabled = not crew_turn or String(door[2]) != ""
+					b.tooltip_text = String(door[2])
 		b.queue_redraw()
 	_buttons.visible = stage == "main"
 	_atk_buttons.visible = stage == "attack"
@@ -1861,17 +1929,64 @@ static func action_help(id: String, live := "") -> String:
 ## The interact button's hover card, for the interacts that need one (Spoof: its odds now). Search
 ## Body has none (owner verdict 2026-11-09: self-explanatory; the button says it, with its key).
 var interact_enc: Encounter = null   ## set by the view each refresh (the bar has no Encounter of its own)
+## The bar button the mouse is over ("interact", "role", "door"; "" none): the view outlines the
+## camera DISABLE CAMERA or SPOOF would work on while it's the interact button (greybox).
+var hot_action := ""
 
 
-func _interact_tip(b: Control) -> void:
+func _interact_tip(b: Control, id := "interact") -> void:
 	if interact_enc == null or interact_enc.cur.is_empty():
 		return
-	var here := interact_here(interact_enc)
-	if not here.is_empty() and String(here[0]) == "spoof":   # Reclaiming Their Time (SPM p.26), with the odds now
-		var c: Combatant = interact_enc.cur.c
-		var dv := int(Clocks.db().reclaim.get("dv", 15))
-		var pct := roundi(Check.chance_vs_dv(Clocks.spoof_base(c), dv) * 100.0)
-		tip(action_help("spoof", "%d%% to win a die back" % pct),b.get_global_rect().position - global_position + Vector2(-28, -40), "// RECLAIM TIME", CYAN)
+	var at := b.get_global_rect().position - global_position + Vector2(-28, -40)
+	var text := interact_card(interact_enc, id)
+	if text != "":
+		tip(text, at, "// " + ({"interact": "INTERACT", "role": "ROLE", "door": "DOOR"} as Dictionary).get(id, "ACTION"), CYAN)
+
+
+## The device the interact button (B) works on where the active unit stands, for the view's
+## outline while it's hovered: DISABLE CAMERA's camera, SPOOF's camera or alarm panel; -1 none.
+static func interact_device(enc: Encounter) -> int:
+	if enc == null or enc.cur.is_empty():
+		return -1
+	var here := interact_here(enc)
+	if here.is_empty():
+		return -1
+	match String(here[0]):
+		"tamper":
+			return int(enc.camera_in_reach(enc.cur).get("id", -1))
+		"spoof":
+			return int(Clocks.spoof_target(enc, enc.cur).get("id", -1))
+	return -1
+
+
+## The hover card for the bar's interact (B), role (V) or door (O) button where the active unit
+## stands, with the odds now, or "" for none (Search Body: self-explanatory, owner verdict
+## 2026-11-09).
+static func interact_card(enc: Encounter, id: String) -> String:
+	var c: Combatant = enc.cur.c
+	match id:
+		"interact":
+			var here := interact_here(enc)
+			if here.is_empty():
+				return ""
+			match String(here[0]):
+				"spoof":   # Reclaiming Their Time (SPM p.26), with the odds now
+					var dv := int(Clocks.db().reclaim.get("dv", 15))
+					return action_help("spoof", "%d%% to win a die back" % roundi(Check.chance_vs_dv(Clocks.spoof_base(c), dv) * 100.0))
+				"tamper":
+					var base := c.skill_base("electronics_security_tech") - c.action_penalty()
+					return action_help("tamper", "%d%% to disable it" % roundi(Check.chance_vs_dv(base, Encounter.CAMERA_TAMPER_DV) * 100.0))
+		"role":
+			var ra := role_action(c)
+			if not ra.is_empty() and String(ra[0]) == "scan":
+				var lo := maxi(0, NetRun.interface_rank(c) + 2) * int(Encounter.SCAN_M_PER_POINT)
+				var hi := (NetRun.interface_rank(c) + 9) * int(Encounter.SCAN_M_PER_POINT)
+				return action_help("scan", "reach about %d-%d m" % [lo, hi])
+		"door":
+			var d := door_action(enc)
+			if not d.is_empty():
+				return action_help("door", String(d[2]))   # why it can't, when it can't
+	return ""
 
 
 ## The hover card above a bar button.
@@ -2807,6 +2922,7 @@ const HELP := [
 	["OVERLAYS", [
 		["Z", "Guard sight lines: near your move / always / off"],
 		["L", "Loadout: chrome and gear (or click a crew card)"],
+		["ESC", "Back out of a menu; else pause and options"],
 	]],
 	["CHROME", [
 		["C", "Chrome menu: Tab next piece, C again to use it"],

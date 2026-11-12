@@ -472,7 +472,7 @@ static func _vip(e: Encounter, u: Dictionary) -> void:
 
 ## A unit that broke and runs (Morale): up off the floor or out of a hold first, then Move and a
 ## Run for the nearest way off the map (Morale.flee_field), gone on reaching it (Encounter.flee_out).
-## It never fights back. With nowhere left to run it gives up instead.
+## It never fights back. With nowhere left to run it hides instead (Encounter.start_hiding, AI.hide).
 static func flee(e: Encounter, u: Dictionary) -> void:
 	if e.turn == null:
 		return
@@ -485,7 +485,8 @@ static func flee(e: Encounter, u: Dictionary) -> void:
 			return
 	var field := Morale.flee_field(e)
 	if not field.has(u.pos):
-		e.surrender(u, "cornered", 0, 0)
+		e.start_hiding(u, "cornered", 0, 0)
+		hide(e, u)
 		return
 	if int(field[u.pos]) == 0:
 		e.flee_out(u)
@@ -502,6 +503,49 @@ static func flee(e: Encounter, u: Dictionary) -> void:
 		e.move_to(best, true)
 	if int(field.get(u.pos, 9999)) == 0:
 		e.flee_out(u)
+
+
+## A unit that broke with no way off the map (Morale; HOUSE-RULE, owner: flee or hide, never
+## surrender). Up off the floor or out of a hold first. Standing in the way (a doorway, stairs, a
+## lift, a 1-wide way, or beside a door: StreetLife.is_choke, by_door), it Moves (no Run) to the
+## nearest square that is out of the way, out of the crew's sight if it can manage it; already out
+## of the way, it stays put and cowers. It never fights back.
+static func hide(e: Encounter, u: Dictionary) -> void:
+	if e.turn == null:
+		return
+	u["hide_turns"] = int(u.get("hide_turns", 0)) + 1   # the soak checks that they got out of the way
+	if u.c.prone and e.turn.action_available:
+		e.get_up()
+	if u.c.is_grappled():
+		if e.turn.action_available:
+			e.escape_grapple()
+		if u.c.is_grappled():
+			return
+	if not in_the_way(e, u.pos) or not e.turn.can_move():
+		return
+	var opts: Dictionary = e._with_locks(func(): return e.nav.reachable(u.pos, e.turn.squares_available(), e._blocking(u)))
+	var occ := e.occupied(u)
+	var crew := e.units.filter(func(o): return int(o.team) == Encounter.CREW and o.c.can_act())
+	var best: Vector3i = u.pos
+	var best_key := [9, 9, 9999]
+	var cells := opts.keys()
+	cells.sort()   # a stable pick among equals
+	for cell in cells:
+		if occ.has(cell) or cell.z != u.pos.z:
+			continue
+		var way := 2 if StreetLife.is_choke(e.m, cell) else (1 if StreetLife.by_door(e.m, cell) else 0)
+		var seen := 1 if crew.any(func(o): return o.pos.z == cell.z and e.los.sight(o.pos, cell).visible) else 0
+		var k := [way, seen, int(opts[cell])]
+		if k < best_key:
+			best_key = k
+			best = cell
+	if best != u.pos:
+		e.move_to(best)
+
+
+## Is a hiding unit at `v` in the way (Morale: they keep off doorways, stairs and 1-wide ways)?
+static func in_the_way(e: Encounter, v: Vector3i) -> bool:
+	return StreetLife.is_choke(e.m, v) or StreetLife.by_door(e.m, v)
 
 
 ## A freed captive: keep beside the crew member nearest to the extraction zone; step into the zone

@@ -1,5 +1,6 @@
 extends TestCase
-## Morale (Single Player Mode p.20-21, table p.32): NPCs break at stress points and flee or surrender.
+## Morale (Single Player Mode p.20-21, table p.32): NPCs break at stress points and flee or hide
+## (HOUSE-RULE, owner: nobody surrenders).
 
 
 func _crew(dice: Dice) -> Array[Combatant]:
@@ -197,45 +198,122 @@ func test_a_guard_who_gets_away_raises_the_alarm() -> void:
 	assert_eq(e.alarm, 2, "HOUSE-RULE: one who gets clear calls it in")
 
 
-func test_surrender_makes_a_neutral_non_combatant() -> void:
+func test_hiding_keeps_them_on_their_side_out_of_the_fight() -> void:
 	var e := _enc()
 	e.next_turn()
 	while int(e.cur.team) != Encounter.CREW:
 		e.end_turn()
 		e.next_turn()
 	var me: Dictionary = e.cur
-	var gs := _guards(e)
-	var u: Dictionary = gs[0]
-	var other: Dictionary = gs[1]
+	var u: Dictionary = _guards(e)[0]
 	u.alerted = true
 	e.init.add(u.c)
+	var team := int(u.team)
 	var v := _beside(e, me.pos)
 	assert_true(v.x >= 0)
 	u.pos = v
-	e.surrender(u, "wounded", 2, 9)
-	assert_eq(String(u.broke), "surrender")
-	assert_eq(e.relation(Encounter.CREW, int(u.team)), "neutral", "not the crew's enemy any more")
-	assert_eq(e.relation(Encounter.OPFOR, int(u.team)), "neutral", "nor anyone's friend")
+	var guns: int = u.c.weapons.size()
+	e.start_hiding(u, "wounded", 2, 9)
+	assert_eq(String(u.broke), "hide")
+	assert_eq(int(u.team), team, "stays on its side: nobody gives up")
+	assert_eq(u.c.weapons.size(), guns, "keeps what it carries")
 	assert_false(e.opfor().has(u), "doesn't count as opposition")
-	assert_true(u.c.weapons.all(func(w): return w.builtin), "dropped its weapons")
-	assert_false(e.init.order().has(u.c), "takes no more turns")
-	e.cur = other
-	e.turn = TurnState.begin(e.dice, other.c)
-	assert_false(AI._enemies(e, other).has(u), "hostile AI ignores them")
-	# a later side (police turning up) is neutral to them too
-	var cops := e.add_side("ncpd", "guard", true)
-	assert_eq(e.relation(cops, int(u.team)), "neutral")
-	# the crew can still shoot them: a choice the preview points out
-	var crew: Dictionary = me
-	e.cur = crew
-	e.turn = TurnState.begin(e.dice, crew.c)
-	var p := e.preview(u, crew.c.weapons[0], Attack.Mode.SINGLE)
-	assert_true(p.ok, "the crew can attack them")
-	assert_true(p.get("surrendered", false), "the preview says they gave up")
-	assert_eq(e.surrendered, 1)
+	assert_true(e.init.order().has(u.c), "still takes turns, to keep out of the way")
+	assert_eq(e.hid, 1)
+	assert_eq(e.morale_counts(), {"hid": 1, "fled": 0})
+	var p := e.preview(u, me.c.weapons[0], Attack.Mode.SINGLE)
+	assert_true(p.ok, "the crew can still attack them")
+	assert_true(p.get("hiding", false), "the preview says they're hiding")
+	assert_false(p.has("surrendered"))
+	# an attack lands like any other: the hit event carries the damage the view floats
+	me.c.skills["handgun"] = 10
+	me.c.skills["shoulder_arms"] = 10
+	var hit := false
+	for k in 30:
+		e.turn = TurnState.begin(e.dice, me.c)
+		me.c.weapons[0].ammo = me.c.weapons[0].mag()
+		e.events.clear()
+		var r := e.attack(u, me.c.weapons[0], Attack.Mode.SINGLE)
+		if u.c.dead:
+			break
+		if r.get("ok", false) and e.events.any(func(ev): return String(ev.type) == "attack" and int(ev.get("damage", 0)) > 0):
+			hit = true
+			break
+	assert_true(hit or u.c.dead, "a hit on a hiding unit carries its damage for the numbers")
 
 
-func test_eliminate_counts_the_surrendered_and_the_fled_as_done() -> void:
+func test_a_unit_with_no_way_out_hides_and_a_runner_cut_off_hides() -> void:
+	var e := _enc()
+	var u: Dictionary = _guards(e)[0]
+	u.alerted = true
+	e.init.add(u.c)
+	e.m.entrances.clear()   # no way off the map anywhere
+	assert_eq(Morale.choose(e, u), "hide")
+	e.start_flight(u, "half", 2, 9)
+	e.cur = u
+	e.turn = TurnState.begin(e.dice, u.c)
+	AI.flee(e, u)
+	assert_eq(String(u.broke), "hide", "nowhere to run: it hides")
+	assert_eq(e.hid, 1)
+	assert_true(e.log.any(func(l): return String(l).contains("nowhere left to run")))
+
+
+func test_a_hiding_unit_gets_out_of_a_doorway() -> void:
+	var e := _enc()
+	var u: Dictionary = _guards(e)[0]
+	u.alerted = true
+	e.init.add(u.c)
+	var door := Vector3i(-1, -1, -1)
+	var occ := e.occupied(u)
+	for d in e.m.doors:
+		var v := Vector3i(d.pos.x, d.pos.y, d.floor)
+		if not e.nav.locked.has(v) and not occ.has(v) and e.m.t(v.z, v.x, v.y) == TacMap.T.DOOR:
+			door = v
+			break
+	assert_true(door.x >= 0, "a door to stand in")
+	u.pos = door
+	e.start_hiding(u, "wounded", 2, 9)
+	e.cur = u
+	e.turn = TurnState.begin(e.dice, u.c)
+	assert_true(AI.in_the_way(e, u.pos))
+	AI.hide(e, u)
+	assert_true(u.pos != door, "off the doorway")
+	assert_false(StreetLife.is_choke(e.m, u.pos), "not in a 1-wide way either")
+	var at: Vector3i = u.pos
+	e.turn = TurnState.begin(e.dice, u.c)
+	if not AI.in_the_way(e, at):
+		AI.hide(e, u)
+		assert_eq(u.pos, at, "out of the way: it stays put")
+
+
+func test_the_book_odds_per_stress_point() -> void:
+	assert_eq(Morale.break_chance("mook"), 0.9, "a Mook breaks on 1-9 of 1d10")
+	assert_eq(Morale.break_chance("hardened_mook"), 0.8)
+	assert_eq(Morale.break_chance("lieutenant"), 0.6)
+	assert_eq(Morale.break_chance("mini_boss"), 0.4)
+	assert_eq(Morale.break_chance("committed"), 0.2)
+	# and the dice agree: Seriously Wounded Lieutenants break about 60% of the time
+	var broke := 0
+	var n := 0
+	for s in 40:
+		var e := _enc("data", 11)
+		e.dice = Dice.new(s + 100)
+		for u in _guards(e):
+			if u.has("turret"):
+				continue
+			u.alerted = true
+			u.c.role = "lieutenant"
+			u.c.drugs_taken.clear()
+			u.c.hp = u.c.seriously_wounded_threshold() - 1
+			u["morale_rolls"] = {"half": 10, "leader": 10}   # only the wound counts here
+			n += 1
+		Morale.sweep(e)
+		broke += _guards(e).filter(func(u): return u.has("broke")).size()
+	var rate := float(broke) / n
+	assert_true(rate > 0.45 and rate < 0.75, "Lieutenants break %.2f of the time (book: 0.6)" % rate)
+
+
+func test_eliminate_counts_the_hiding_and_the_fled_as_done() -> void:
 	var e := _enc("eliminate")
 	e.backup_in = -1
 	var gs := e.units.filter(func(u): return bool(e.sides[int(u.team)].opfor) and not u.c.dead)
@@ -245,7 +323,7 @@ func test_eliminate_counts_the_surrendered_and_the_fled_as_done() -> void:
 		u.alerted = true
 		match i % 3:
 			0:
-				e.surrender(u, "half", 1, 9)
+				e.start_hiding(u, "half", 1, 9)
 			1:
 				e.start_flight(u, "half", 1, 9)   # still running: out of the fight all the same
 			2:

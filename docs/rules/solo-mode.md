@@ -6,7 +6,8 @@ Numbers and short paraphrases only. Where the game departs from the book the lin
 ## 1. Morale (SPM p.20-21; table reprinted p.32)
 
 The opposition doesn't fight to the last body. At a **stress point** an NPC rolls **1d10**; at or
-under its mentality's number it stops fighting (it flees or surrenders), above it fights on.
+under its mentality's number it stops fighting, above it fights on. The book has it flee or
+surrender; the game has it flee or hide (HOUSE-RULE, below).
 
 | Mentality (book) | Our NPCs | Ends the fight on |
 |---|---|---|
@@ -28,18 +29,28 @@ Who rolls: alerted units on guard-run sides (the opposition, backup, police, a f
 gangs); Trauma Team only once the crew has shot at them. Never the assassination mark (it already
 runs), turrets, bystanders, the crew or a captive. No calming down (HOUSE-RULE).
 
-**Flee or surrender** (HOUSE-RULE): a unit that breaks surrenders when a standing foe can see it
-within 6 squares, when it's held or prone, or when it has no way off the map; otherwise it runs
-(Move + Run a turn) for the nearest map exit and is gone there. Trauma Team never surrenders.
+Odds per stress point, as the table gives them: Mook 90%, Hardened Mook 80%, Lieutenant 60%,
+Mini-Boss 40%, fully committed 20%. So a Seriously Wounded Mook nearly always quits: that is the
+book's "unsure streetrat", not bad luck (owner playtest 2026-11-11: three Seriously Wounded enemies
+all broke).
 
-- A surrendered unit drops its weapons, moves to a side of its own that is neutral to everyone,
-  takes no more turns, and can be searched (and its keycard taken). The crew can still shoot it;
-  the attack preview says so.
-- A fleeing unit no longer counts as opposition and never fights back. **HOUSE-RULE:** a guard who
-  gets off the map while the alarm is below 2 raises it.
+**Flee or hide, never surrender** (HOUSE-RULE, owner 2026-11-11: "get rid of surrendering and only
+let them flee or hide"; surrendered enemies blocked a doorway and took no damage numbers): a unit
+that breaks runs (Move + Run a turn) for the nearest map exit and is gone there, if it has a way
+off the map from where it stands (held or prone, it gets up or breaks free first); with no way off
+it hides. A runner whose way is cut on a later turn hides too. Trauma Team always pulls out.
+
+- Both stay on their side, keep their weapons and can be shot like anyone (damage numbers as
+  usual); the attack card says "Fleeing" or "Hiding: no threat now". Neither fights back nor counts
+  as opposition. Neither can be searched until it is down.
+- A hiding unit keeps out of the way: standing in a doorway, on stairs, in a 1-wide way or beside
+  a door, it Moves to the nearest square that is none of those, out of the crew's sight if it can,
+  then stays there crouched.
+- **HOUSE-RULE:** a guard who gets off the map while the alarm is below 2 raises it.
 - "Put every hostile down" (eliminate, and every other job's clear-the-site win) counts both as done.
+- The debrief counts FLED · HID. A rescue's captive is not a broken enemy and is unchanged.
 
-Code: `src/tactical/morale.gd`, `Encounter.surrender / start_flight / flee_out`, `AI.flee`.
+Code: `src/tactical/morale.gd`, `Encounter.start_flight / start_hiding / flee_out`, `AI.flee / hide`.
 
 ## 2. Corpse loot (SPM p.65-70)
 
@@ -96,9 +107,10 @@ Code: `src/tactical/corpse_loot.gd`, `Encounter.search_body`, `Campaign._take_lo
   failed Electronics/Security Tech check, a minute (2 rounds, our pace) in one secured room, a body
   in an unalerted guard's sight (once a round), the crew's gunfire or a blast (once a turn), taking
   the objective (once). Empty: a guard calls it in (alarm 2; the NC2045 response time as before);
-  Degrees of Consequence upgrades the response one intensity step. Being seen still raises the
-  alarm as before, and stops the clock.
-- **Reclaiming time:** SPOOF (an Action at a camera or alarm panel within 3 squares: TECH +
+  Degrees of Consequence upgrades the response one intensity step. Being seen by a guard still raises the
+  alarm as before, and stops the clock; a camera only flags you the first time (the clock rolls) and
+  sends a guard the second time (HOUSE-RULE, owner 2026-11-11).
+- **Reclaiming time:** SPOOF (an Action at a camera or alarm panel on its square or beside it: TECH +
   Electronics/Security Tech vs DV15; failure rolls the clock) or looping cameras / cutting the
   alarm line from the NET adds a die back; once per clock a turn, each device once, never above
   the starting pool (HOUSE-RULE).

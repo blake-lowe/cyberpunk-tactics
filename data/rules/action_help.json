@@ -1,5 +1,5 @@
 {
- "_source": "Hover cards for the action bar's close-quarters actions (Hud.action_help), like net_help.json for the NET panel. Short paraphrases of CPR core p.168-169, p.177, p.183-184 and p.180 (Put Out Fire) as distilled in docs/rules/combat.md sections 3, 5 and 7; hand-edited. Each entry: name, cost, text (what it does), key (its roll or numbers), page, book (default CPR core; SPM = Single Player Mode). Ids are Encounter.grapple_options(). An entry with no text gets no hover card (owner verdict 2026-11-10: release, escape and put_out need none); its name, cost and cite stay as the record.",
+ "_source": "Hover cards for the action bar's close-quarters actions, and SPOOF, SCAN, DISABLE CAMERA and the door (Hud.action_help), like net_help.json for the NET panel. Short paraphrases of CPR core p.168-169, p.177, p.183-184 and p.180 (Put Out Fire) as distilled in docs/rules/combat.md sections 3, 5 and 7; hand-edited. Each entry: name, cost, text (what it does), key (its roll or numbers), page, book (default CPR core; SPM = Single Player Mode). Ids are Encounter.grapple_options(). An entry with no text gets no hover card (owner verdict 2026-11-10: release, escape and put_out need none); its name, cost and cite stay as the record.",
  "actions": {
   "grab": {
    "name": "Grab",
@@ -64,10 +64,31 @@
   "spoof": {
    "name": "Spoof",
    "cost": "Action",
-   "text": "Tamper with a camera or alarm panel within 3 squares. Success adds a die back to the detection clock and the camera stops reporting. Failure rolls the clock.",
+   "text": "Loop a camera or fool an alarm panel beside you. Success adds a die back to the detection clock and the camera stops reporting. Failure rolls the clock.",
    "key": "TECH + Electronics/Security Tech (+ Field Expertise) vs DV15",
    "page": "p.26",
    "book": "SPM"
+  },
+  "scan": {
+   "name": "Scan",
+   "cost": "Action",
+   "text": "Look for NET access points nearby, through walls. The higher the roll, the farther you see. Found ones are marked.",
+   "key": "Interface + 1d10: 2 m of reach a point",
+   "page": "p.199"
+  },
+  "tamper": {
+   "name": "Disable camera",
+   "cost": "Action",
+   "text": "Shut down the camera beside you. Failure leaves it watching and rolls the detection clock.",
+   "key": "TECH + Electronics/Security Tech vs DV9",
+   "page": "p.212-213"
+  },
+  "door": {
+   "name": "Open or close door",
+   "cost": "Free",
+   "text": "Open or close the door beside you. A closed door blocks sight. Locked doors need a bypass, a keycard or the NET.",
+   "key": "no roll",
+   "page": "p.127-128, p.183"
   }
  }
 }
